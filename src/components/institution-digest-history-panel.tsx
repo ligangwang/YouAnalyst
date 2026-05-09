@@ -125,6 +125,8 @@ export function InstitutionDigestHistoryPanel() {
       })
       .catch((nextError) => {
         if (!cancelled) {
+          setItems([]);
+          setExpandedRunId(null);
           setError(nextError instanceof Error ? nextError.message : "Unable to load institution digests.");
           setLoadedForUser(user.uid);
         }
