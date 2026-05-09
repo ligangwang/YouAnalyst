@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { InstitutionDigestPreviewPanel } from "@/components/institution-digest-preview";
 import { useAuth } from "@/components/providers/auth-provider";
 import { formatTickerSymbol, PredictionReturnSummary } from "@/components/prediction-ui";
 import { analystLevelName } from "@/lib/predictions/analytics";
@@ -808,6 +809,7 @@ export function AnalystProfilePage({
               {digestSaving ? <p className="text-xs text-slate-400">Saving digest settings...</p> : null}
               {digestMessage ? <p className="text-xs text-emerald-300">{digestMessage}</p> : null}
               {digestError ? <p className="text-xs text-rose-300">{digestError}</p> : null}
+              <InstitutionDigestPreviewPanel />
             </div>
           </div>
         </section>

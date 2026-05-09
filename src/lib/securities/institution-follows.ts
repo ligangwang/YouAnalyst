@@ -35,6 +35,13 @@ export type InstitutionDigestPreferences = {
   lastSentAt: string | null;
 };
 
+export type InstitutionDigestPreview = {
+  preferences: InstitutionDigestPreferences;
+  items: FollowedInstitutionActivity[];
+  generatedAt: string;
+  wouldSend: boolean;
+};
+
 type InstitutionalManagerDocument = {
   cik?: unknown;
   name?: unknown;
@@ -285,4 +292,27 @@ export async function listFollowedInstitutionDigestActivity(
     activity.filingDate > since ||
     activity.reportDate > since
   ));
+}
+
+export async function previewFollowedInstitutionDigest(userId: string, limit = 20): Promise<InstitutionDigestPreview | null> {
+  const preferences = await getInstitutionDigestPreferences(userId);
+  if (!preferences) {
+    return null;
+  }
+
+  const activities = await listFollowedInstitutionActivity(userId, limit);
+  const items = preferences.lastSentAt
+    ? activities.filter((activity) => (
+        activity.updatedAt > preferences.lastSentAt! ||
+        activity.filingDate > preferences.lastSentAt! ||
+        activity.reportDate > preferences.lastSentAt!
+      ))
+    : activities;
+
+  return {
+    preferences,
+    items,
+    generatedAt: new Date().toISOString(),
+    wouldSend: preferences.enabled && items.length > 0,
+  };
 }
