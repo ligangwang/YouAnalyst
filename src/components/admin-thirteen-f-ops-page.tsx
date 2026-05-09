@@ -49,6 +49,14 @@ type OpsResponse = {
   error?: string;
 };
 
+type ActionResponse = {
+  ok?: boolean;
+  action?: "discover" | "processQueue" | "backfill";
+  result?: Record<string, unknown>;
+  timestamp?: string;
+  error?: string;
+};
+
 const QUEUE_STATUSES: QueueStatus[] = ["DISCOVERED", "PROCESSING", "PARSED", "FAILED", "SKIPPED"];
 
 function formatCount(value: number): string {
@@ -109,6 +117,49 @@ function StatusPill({ value }: { value: string | null | undefined }) {
   );
 }
 
+function ActionResult({ result }: { result: ActionResponse | null }) {
+  if (!result) {
+    return null;
+  }
+
+  if (result.error) {
+    return (
+      <p className="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">
+        {result.error}
+      </p>
+    );
+  }
+
+  const payload = result.result ?? {};
+  const summaryItems = [
+    ["Action", result.action ?? "-"],
+    ["Updated", formatDateTime(result.timestamp)],
+    ["Found", payload.filingsFound],
+    ["Queued", payload.filingsQueued],
+    ["Processed", payload.processed ?? payload.filingsProcessed],
+    ["Parsed", payload.parsed ?? payload.filingsParsed],
+    ["Failed", payload.failed ?? payload.filingsFailed],
+    ["Skipped", payload.skipped ?? payload.filingsSkipped],
+  ].filter((item): item is [string, string | number] => (
+    typeof item[0] === "string" &&
+    (typeof item[1] === "string" || typeof item[1] === "number")
+  ));
+
+  return (
+    <section className="mb-6 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
+      <p className="text-sm font-semibold text-emerald-100">Last action completed</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {summaryItems.map(([label, value]) => (
+          <div key={String(label)} className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+            <p className="text-xs uppercase text-emerald-200/70">{label}</p>
+            <p className="mt-1 text-sm font-semibold text-emerald-50">{typeof value === "number" ? formatCount(value) : String(value)}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function FilingRow({ filing }: { filing: RecentFiling }) {
   return (
     <article className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[1.1fr_0.7fr_0.8fr_0.8fr_1fr]">
@@ -135,6 +186,21 @@ export function AdminThirteenFOpsPage() {
   const [payload, setPayload] = useState<OpsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingOps, setLoadingOps] = useState(false);
+  const [runningAction, setRunningAction] = useState<ActionResponse["action"] | null>(null);
+  const [actionResult, setActionResult] = useState<ActionResponse | null>(null);
+  const [discoverDate, setDiscoverDate] = useState("");
+  const [discoverLookbackDays, setDiscoverLookbackDays] = useState("3");
+  const [discoverMaxFilings, setDiscoverMaxFilings] = useState("5000");
+  const [discoverDryRun, setDiscoverDryRun] = useState(true);
+  const [queueLimit, setQueueLimit] = useState("25");
+  const [queueDryRun, setQueueDryRun] = useState(true);
+  const [queueIncludeStale, setQueueIncludeStale] = useState(true);
+  const [queueStaleMinutes, setQueueStaleMinutes] = useState("60");
+  const [backfillStartDate, setBackfillStartDate] = useState("");
+  const [backfillEndDate, setBackfillEndDate] = useState("");
+  const [backfillMaxBatches, setBackfillMaxBatches] = useState("1");
+  const [backfillBatchSize, setBackfillBatchSize] = useState("25");
+  const [backfillDryRun, setBackfillDryRun] = useState(true);
 
   async function loadOps() {
     setLoadingOps(true);
@@ -167,6 +233,81 @@ export function AdminThirteenFOpsPage() {
     } finally {
       setLoadingOps(false);
     }
+  }
+
+  async function runAdminAction(action: ActionResponse["action"], body: Record<string, unknown>) {
+    setRunningAction(action);
+    setError(null);
+    setActionResult(null);
+
+    try {
+      if (!user) {
+        throw new Error("Sign in with an admin account to run 13F actions.");
+      }
+
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error("Sign in with an admin account to run 13F actions.");
+      }
+
+      const response = await fetch("/api/admin/securities/13f", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action, ...body }),
+      });
+      const nextResult = (await response.json().catch(() => ({}))) as ActionResponse;
+
+      if (!response.ok) {
+        throw new Error(nextResult.error ?? "Unable to run 13F action.");
+      }
+
+      setActionResult(nextResult);
+      await loadOps();
+    } catch (nextError) {
+      setActionResult({
+        error: nextError instanceof Error ? nextError.message : "Unable to run 13F action.",
+      });
+    } finally {
+      setRunningAction(null);
+    }
+  }
+
+  function runDiscovery() {
+    const trimmedDate = discoverDate.trim();
+    return runAdminAction("discover", {
+      date: trimmedDate || undefined,
+      lookbackDays: trimmedDate ? undefined : Number(discoverLookbackDays),
+      maxFilings: Number(discoverMaxFilings),
+      dryRun: discoverDryRun,
+    });
+  }
+
+  function runQueue() {
+    return runAdminAction("processQueue", {
+      limit: Number(queueLimit),
+      dryRun: queueDryRun,
+      includeStaleProcessing: queueIncludeStale,
+      staleProcessingMinutes: Number(queueStaleMinutes),
+    });
+  }
+
+  function runBackfill() {
+    if (!backfillStartDate.trim() || !backfillEndDate.trim()) {
+      setActionResult({ error: "Choose a start date and end date before running a backfill." });
+      return Promise.resolve();
+    }
+
+    return runAdminAction("backfill", {
+      startDate: backfillStartDate.trim() || undefined,
+      endDate: backfillEndDate.trim() || undefined,
+      processBatchSize: Number(backfillBatchSize),
+      maxProcessBatches: Number(backfillMaxBatches),
+      dryRun: backfillDryRun,
+      includeStaleProcessing: true,
+    });
   }
 
   useEffect(() => {
@@ -202,6 +343,166 @@ export function AdminThirteenFOpsPage() {
       </div>
 
       {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+      <ActionResult result={actionResult} />
+
+      <section className="mb-6 grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/15 bg-slate-900/70 p-5">
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Discovery</p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Find SEC filings</h2>
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-1 text-xs text-slate-400">
+              Index date
+              <input
+                type="date"
+                value={discoverDate}
+                onChange={(event) => setDiscoverDate(event.target.value)}
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-slate-400">
+              Lookback days
+              <input
+                type="number"
+                min="1"
+                max="14"
+                value={discoverLookbackDays}
+                onChange={(event) => setDiscoverLookbackDays(event.target.value)}
+                disabled={discoverDate.trim().length > 0}
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring disabled:opacity-50"
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-slate-400">
+              Max filings
+              <input
+                type="number"
+                min="1"
+                max="5000"
+                value={discoverMaxFilings}
+                onChange={(event) => setDiscoverMaxFilings(event.target.value)}
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={discoverDryRun} onChange={(event) => setDiscoverDryRun(event.target.checked)} />
+              Dry run
+            </label>
+            <button
+              type="button"
+              onClick={() => void runDiscovery()}
+              disabled={runningAction !== null}
+              className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
+            >
+              {runningAction === "discover" ? "Running..." : "Run discovery"}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/15 bg-slate-900/70 p-5">
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Queue</p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Process filings</h2>
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-1 text-xs text-slate-400">
+              Batch limit
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={queueLimit}
+                onChange={(event) => setQueueLimit(event.target.value)}
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-slate-400">
+              Stale minutes
+              <input
+                type="number"
+                min="5"
+                max="1440"
+                value={queueStaleMinutes}
+                onChange={(event) => setQueueStaleMinutes(event.target.value)}
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={queueIncludeStale} onChange={(event) => setQueueIncludeStale(event.target.checked)} />
+              Include stale processing
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={queueDryRun} onChange={(event) => setQueueDryRun(event.target.checked)} />
+              Dry run
+            </label>
+            <button
+              type="button"
+              onClick={() => void runQueue()}
+              disabled={runningAction !== null}
+              className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
+            >
+              {runningAction === "processQueue" ? "Running..." : "Process queue"}
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-white/15 bg-slate-900/70 p-5">
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Backfill</p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Run bounded backfill</h2>
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-1 text-xs text-slate-400">
+              Start date
+              <input
+                type="date"
+                value={backfillStartDate}
+                onChange={(event) => setBackfillStartDate(event.target.value)}
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-slate-400">
+              End date
+              <input
+                type="date"
+                value={backfillEndDate}
+                onChange={(event) => setBackfillEndDate(event.target.value)}
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1 text-xs text-slate-400">
+                Batches
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={backfillMaxBatches}
+                  onChange={(event) => setBackfillMaxBatches(event.target.value)}
+                  className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+                />
+              </label>
+              <label className="grid gap-1 text-xs text-slate-400">
+                Batch size
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={backfillBatchSize}
+                  onChange={(event) => setBackfillBatchSize(event.target.value)}
+                  className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+                />
+              </label>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={backfillDryRun} onChange={(event) => setBackfillDryRun(event.target.checked)} />
+              Dry run
+            </label>
+            <button
+              type="button"
+              onClick={() => void runBackfill()}
+              disabled={runningAction !== null}
+              className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
+            >
+              {runningAction === "backfill" ? "Running..." : "Run backfill"}
+            </button>
+          </div>
+        </div>
+      </section>
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatusCard label="Queued or processing" value={queue?.queuedOrProcessing ?? 0} note="Ready plus active filings" />
