@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { FollowedInstitutionActivityPanel } from "@/components/followed-institution-activity-panel";
 import { FollowedInstitutionsPanel } from "@/components/followed-institutions-panel";
+import { InstitutionDigestHistoryPanel } from "@/components/institution-digest-history-panel";
 import type {
   InstitutionalDiscoveryManager,
   InstitutionalDiscoverySummary,
@@ -172,6 +173,8 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
       </section>
 
       <FollowedInstitutionsPanel />
+
+      <InstitutionDigestHistoryPanel />
 
       <FollowedInstitutionActivityPanel />
 

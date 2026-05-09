@@ -70,6 +70,19 @@ export type InstitutionDigestRunResult = {
   users: InstitutionDigestRunUserResult[];
 };
 
+export type InstitutionDigestRunSnapshot = {
+  id: string;
+  userId: string;
+  dryRun: boolean;
+  cadence: InstitutionDigestPreferences["cadence"];
+  lastSentAt: string | null;
+  generatedAt: string;
+  itemCount: number;
+  wouldSend: boolean;
+  status: string;
+  items: FollowedInstitutionActivity[];
+};
+
 type InstitutionalManagerDocument = {
   cik?: unknown;
   name?: unknown;
@@ -159,6 +172,23 @@ function normalizeLimit(value: number | undefined, fallback: number, max: number
   }
 
   return Math.max(1, Math.min(max, Math.trunc(value as number)));
+}
+
+function digestRunFromData(id: string, data: Record<string, unknown>): InstitutionDigestRunSnapshot {
+  const items = Array.isArray(data.items) ? data.items as FollowedInstitutionActivity[] : [];
+
+  return {
+    id,
+    userId: readString(data.userId) ?? "",
+    dryRun: data.dryRun === true,
+    cadence: data.cadence === "daily" ? "daily" : "weekly",
+    lastSentAt: readString(data.lastSentAt),
+    generatedAt: readString(data.generatedAt) ?? "",
+    itemCount: Number(data.itemCount ?? items.length),
+    wouldSend: data.wouldSend === true,
+    status: readString(data.status) ?? "UNKNOWN",
+    items,
+  };
 }
 
 export async function getInstitutionFollowState(rawCik: string, userId: string): Promise<{ cik: string; isFollowing: boolean } | null> {
@@ -406,6 +436,7 @@ export async function runInstitutionDigest(input: InstitutionDigestRunInput = {}
           itemCount: items.length,
           wouldSend,
           itemKeys: items.map((item) => item.positionKey),
+          items,
           status: dryRun ? "DRY_RUN" : "CHECKPOINTED",
         };
 
@@ -455,4 +486,16 @@ export async function runInstitutionDigest(input: InstitutionDigestRunInput = {}
     totalItems: users.reduce((total, user) => total + user.itemCount, 0),
     users,
   };
+}
+
+export async function listInstitutionDigestRuns(userId: string, limit = 10): Promise<InstitutionDigestRunSnapshot[]> {
+  const normalizedLimit = normalizeLimit(limit, 10, 25);
+  const snapshot = await getAdminFirestore()
+    .collection("institution_digest_runs")
+    .where("userId", "==", userId)
+    .orderBy("generatedAt", "desc")
+    .limit(normalizedLimit)
+    .get();
+
+  return snapshot.docs.map((doc) => digestRunFromData(doc.id, doc.data()));
 }
