@@ -4,6 +4,10 @@ import { getInstitutionalDiscoverySummary } from "@/lib/securities/institutional
 export const dynamic = "force-dynamic";
 
 function readLimit(value: string | null): number | undefined {
+  if (!value?.trim()) {
+    return undefined;
+  }
+
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
