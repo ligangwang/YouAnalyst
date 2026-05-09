@@ -180,9 +180,10 @@ export function SiteNav() {
         });
         const payload = (await response.json().catch(() => ({}))) as {
           items?: Array<{ dryRun?: boolean; readAt?: string | null }>;
+          unreadCount?: number;
         };
         const unread = response.ok
-          ? (payload.items ?? []).filter((item) => item.dryRun !== true && !item.readAt).length
+          ? Number(payload.unreadCount ?? 0)
           : 0;
 
         if (!cancelled) {

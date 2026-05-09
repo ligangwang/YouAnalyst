@@ -582,6 +582,18 @@ export async function listInstitutionDigestRuns(userId: string, limit = 10): Pro
   return snapshot.docs.map((doc) => digestRunFromData(doc.id, doc.data()));
 }
 
+export async function countUnreadInstitutionDigestRuns(userId: string): Promise<number> {
+  const snapshot = await getAdminFirestore()
+    .collection("institution_digest_runs")
+    .where("userId", "==", userId)
+    .where("dryRun", "==", false)
+    .where("readAt", "==", null)
+    .count()
+    .get();
+
+  return snapshot.data().count;
+}
+
 export async function listRecentInstitutionDigestRuns(limit = 25): Promise<InstitutionDigestRunSnapshot[]> {
   const normalizedLimit = normalizeLimit(limit, 25, 100);
   const snapshot = await getAdminFirestore()

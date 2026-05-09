@@ -1,5 +1,8 @@
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
-import { listInstitutionDigestRuns } from "@/lib/securities/institution-follows";
+import {
+  countUnreadInstitutionDigestRuns,
+  listInstitutionDigestRuns,
+} from "@/lib/securities/institution-follows";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +23,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const items = await listInstitutionDigestRuns(
-      decoded.uid,
-      readLimit(request.nextUrl.searchParams.get("limit")),
-    );
+    const [items, unreadCount] = await Promise.all([
+      listInstitutionDigestRuns(
+        decoded.uid,
+        readLimit(request.nextUrl.searchParams.get("limit")),
+      ),
+      countUnreadInstitutionDigestRuns(decoded.uid),
+    ]);
 
-    return NextResponse.json({ items });
+    return NextResponse.json({ items, unreadCount });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load institution digests";
     return NextResponse.json({ error: message }, { status: 500 });

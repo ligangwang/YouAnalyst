@@ -7,6 +7,7 @@ import type { InstitutionDigestRunSnapshot } from "@/lib/securities/institution-
 
 type DigestRunsResponse = {
   items?: InstitutionDigestRunSnapshot[];
+  unreadCount?: number;
   error?: string;
 };
 
@@ -91,6 +92,7 @@ export function InstitutionDigestHistoryPanel() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [groupBy, setGroupBy] = useState<GroupBy>("institution");
   const [markingReadId, setMarkingReadId] = useState<string | null>(null);
+  const [serverUnreadCount, setServerUnreadCount] = useState(0);
 
   useEffect(() => {
     if (authLoading || !user) {
@@ -118,6 +120,7 @@ export function InstitutionDigestHistoryPanel() {
 
         if (!cancelled) {
           setItems(payload.items ?? []);
+          setServerUnreadCount(Number(payload.unreadCount ?? 0));
           setLoadedForUser(user.uid);
           setExpandedRunId(payload.items?.[0]?.id ?? null);
           setError(null);
@@ -127,6 +130,7 @@ export function InstitutionDigestHistoryPanel() {
         if (!cancelled) {
           setItems([]);
           setExpandedRunId(null);
+          setServerUnreadCount(0);
           setError(nextError instanceof Error ? nextError.message : "Unable to load institution digests.");
           setLoadedForUser(user.uid);
         }
@@ -166,6 +170,7 @@ export function InstitutionDigestHistoryPanel() {
       setItems((currentItems) => currentItems.map((item) => (
         item.id === runId ? { ...item, readAt: payload.readAt ?? new Date().toISOString() } : item
       )));
+      setServerUnreadCount((currentCount) => Math.max(0, currentCount - 1));
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to mark digest as read.");
     } finally {
@@ -178,7 +183,7 @@ export function InstitutionDigestHistoryPanel() {
   }
 
   const loading = loadedForUser !== user.uid;
-  const unreadCount = items.filter((run) => !run.readAt && !run.dryRun).length;
+  const unreadCount = serverUnreadCount;
   const displayedItems = items
     .filter((run) => {
       if (filter === "unread") {
