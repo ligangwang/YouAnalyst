@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import { InstitutionDetailHoldings } from "@/components/institution-detail-holdings";
 import { getInstitutionalManagerSummary } from "@/lib/securities/institutional-data";
 
 export const dynamic = "force-dynamic";
@@ -16,34 +16,6 @@ function formatCurrency(value: number): string {
 function formatSignedCurrency(value: number): string {
   const formatted = formatCurrency(value);
   return value > 0 ? `+${formatted}` : formatted;
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
-}
-
-function formatPercent(value: number | null): string {
-  if (value === null) {
-    return "new";
-  }
-
-  return `${value > 0 ? "+" : ""}${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: 1,
-    style: "percent",
-  }).format(value)}`;
-}
-
-function changeTone(status: string | null): string {
-  if (status === "INCREASED" || status === "NEW") {
-    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
-  }
-
-  if (status === "REDUCED" || status === "SOLD_OUT") {
-    return "border-rose-400/30 bg-rose-400/10 text-rose-100";
-  }
-
-  return "border-white/10 bg-slate-900/80 text-slate-300";
 }
 
 export async function generateMetadata({
@@ -121,63 +93,7 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <div className="mb-4">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Latest 13F holdings</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            Top reported positions by market value. 13F filings are delayed and may not reflect current holdings.
-          </p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
-              <tr>
-                <th className="py-3 pr-3">Ticker</th>
-                <th className="py-3 pr-3">Issuer</th>
-                <th className="py-3 pr-3 text-right">Value</th>
-                <th className="py-3 pr-3 text-right">Shares</th>
-                <th className="py-3 pr-3">Change</th>
-                <th className="py-3 pr-3 text-right">Value change</th>
-                <th className="py-3">Report</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {summary.holdings.map((holding) => (
-                <tr key={holding.positionKey} className="text-slate-200">
-                  <td className="py-3 pr-3 font-semibold text-cyan-100">
-                    {holding.ticker ? (
-                      <Link href={`/ticker/${holding.ticker}`} className="hover:text-cyan-300">
-                        ${holding.ticker}
-                      </Link>
-                    ) : (
-                      "Unmapped"
-                    )}
-                  </td>
-                  <td className="py-3 pr-3">{holding.nameOfIssuer}</td>
-                  <td className="py-3 pr-3 text-right tabular-nums">{formatCurrency(holding.valueUsd)}</td>
-                  <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(holding.shares)}</td>
-                  <td className="py-3 pr-3">
-                    <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(holding.changeStatus)}`}>
-                      {holding.changeStatus ?? "CURRENT"} {holding.changeStatus ? formatPercent(holding.percentChange) : ""}
-                    </span>
-                  </td>
-                  <td className="py-3 pr-3 text-right tabular-nums">
-                    {holding.valueChangeUsd === null ? "Unknown" : formatSignedCurrency(holding.valueChangeUsd)}
-                  </td>
-                  <td className="py-3 text-slate-400">{holding.reportDate}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {summary.holdings.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-            No mapped holdings are available for this manager yet.
-          </p>
-        ) : null}
-      </section>
+      <InstitutionDetailHoldings holdings={summary.holdings} />
     </main>
   );
 }

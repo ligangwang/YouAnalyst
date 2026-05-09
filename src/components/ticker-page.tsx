@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatTickerSymbol, PredictionAuthorSummary, PredictionReturnSummary } from "@/components/prediction-ui";
 import { type PredictionStatus } from "@/lib/predictions/types";
 
@@ -83,9 +83,13 @@ type InstitutionalTickerSummary = {
   positions: InstitutionalTickerPosition[];
 };
 
+type InstitutionalStatusFilter = "ALL" | "CURRENT" | "NEW" | "INCREASED" | "REDUCED" | "SOLD_OUT" | "UNCHANGED";
+
 type ErrorResponse = {
   error?: unknown;
 };
+
+const INITIAL_HOLDER_COUNT = 25;
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -196,6 +200,16 @@ function InstitutionalHoldingsSection({
   summary: InstitutionalTickerSummary | null;
   error: string | null;
 }) {
+  const [statusFilter, setStatusFilter] = useState<InstitutionalStatusFilter>("ALL");
+  const [visibleHolders, setVisibleHolders] = useState(INITIAL_HOLDER_COUNT);
+  const filteredPositions = useMemo(() => {
+    const positions = summary?.positions ?? [];
+
+    return positions.filter((position) => (
+      statusFilter === "ALL" || (position.changeStatus ?? "CURRENT") === statusFilter
+    ));
+  }, [summary?.positions, statusFilter]);
+
   return (
     <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -274,6 +288,26 @@ function InstitutionalHoldingsSection({
       ) : null}
 
       {summary ? (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          {(["ALL", "CURRENT", "NEW", "INCREASED", "REDUCED", "SOLD_OUT", "UNCHANGED"] as InstitutionalStatusFilter[]).map((nextStatus) => (
+            <button
+              key={nextStatus}
+              type="button"
+              onClick={() => {
+                setStatusFilter(nextStatus);
+                setVisibleHolders(INITIAL_HOLDER_COUNT);
+              }}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                statusFilter === nextStatus ? "border-cyan-300 bg-cyan-400/15 text-cyan-100" : "border-white/10 text-slate-300 hover:border-cyan-300/60"
+              }`}
+            >
+              {nextStatus === "ALL" ? "All" : nextStatus.replace("_", " ")}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {summary && filteredPositions.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
@@ -288,7 +322,7 @@ function InstitutionalHoldingsSection({
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
-              {summary.positions.map((position) => (
+              {filteredPositions.slice(0, visibleHolders).map((position) => (
                 <tr key={`${position.managerCik}_${position.accessionNumber}`} className="text-slate-200">
                   <td className="py-3 pr-3">
                     <Link href={`/institutions/${position.managerCik}`} className="font-semibold text-cyan-100 hover:text-cyan-300">
@@ -325,9 +359,27 @@ function InstitutionalHoldingsSection({
         </div>
       ) : null}
 
+      {summary && visibleHolders < filteredPositions.length ? (
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setVisibleHolders((value) => value + INITIAL_HOLDER_COUNT)}
+            className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15"
+          >
+            Show more holders
+          </button>
+        </div>
+      ) : null}
+
       {summary && summary.positions.length === 0 ? (
         <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
           No tracked institutional 13F positions are available for {displayTicker} yet.
+        </p>
+      ) : null}
+
+      {summary && summary.positions.length > 0 && filteredPositions.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
+          No holders match the current filter for {displayTicker}.
         </p>
       ) : null}
 
@@ -467,6 +519,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
       </section>
 
       <InstitutionalHoldingsSection
+        key={payload.ticker}
         displayTicker={displayTicker}
         summary={holdings}
         error={holdingsError}
