@@ -4,19 +4,19 @@ import CompaniesPage from "@/app/companies/page";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Company graph | YouAnalyst",
-  description: "Search a ticker to open or request a company relationship graph on YouAnalyst.",
+  title: "Institutional holdings | YouAnalyst",
+  description: "Search a ticker to view institutional 13F holdings and public calls on YouAnalyst.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Company graph | YouAnalyst",
-    description: "Search a ticker to open or request a company relationship graph on YouAnalyst.",
+    title: "Institutional holdings | YouAnalyst",
+    description: "Search a ticker to view institutional 13F holdings and public calls on YouAnalyst.",
     url: "/",
   },
   twitter: {
-    title: "Company graph | YouAnalyst",
-    description: "Search a ticker to open or request a company relationship graph on YouAnalyst.",
+    title: "Institutional holdings | YouAnalyst",
+    description: "Search a ticker to view institutional 13F holdings and public calls on YouAnalyst.",
   },
 };
 
