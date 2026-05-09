@@ -20,21 +20,6 @@ type DigestRunResponse = InstitutionDigestRunResult & {
   error?: string;
 };
 
-type DigestCleanupResponse = {
-  ok?: boolean;
-  action?: "cleanupDryRuns";
-  timestamp?: string;
-  result?: {
-    dryRun: boolean;
-    cutoff: string;
-    scanned: number;
-    deleted: number;
-    runIds: string[];
-  };
-  error?: string;
-};
-
-type AdminActionResult = DigestRunResponse | DigestCleanupResponse;
 type RunStatusFilter = "all" | "live" | "dryRun" | "unread";
 
 function formatCount(value: number): string {
@@ -92,7 +77,7 @@ function statusClass(status: string): string {
   return "border-slate-500/30 bg-slate-800/60 text-slate-200";
 }
 
-function RunSummary({ result }: { result: AdminActionResult | null }) {
+function RunSummary({ result }: { result: DigestRunResponse | null }) {
   if (!result) {
     return null;
   }
@@ -103,38 +88,6 @@ function RunSummary({ result }: { result: AdminActionResult | null }) {
         {result.error}
       </p>
     );
-  }
-
-  if (result.action === "cleanupDryRuns") {
-    const payload = result.result;
-    if (!payload) {
-      return null;
-    }
-
-    return (
-      <section className="mb-6 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
-        <p className="text-sm font-semibold text-emerald-100">Dry-run cleanup completed</p>
-        <p className="mt-1 text-xs text-emerald-100/70">
-          {payload.dryRun ? "Preview" : "Deleted records"} before {formatDateTime(payload.cutoff)}
-        </p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          {[
-            ["Matched", payload.scanned],
-            ["Deleted", payload.deleted],
-            ["Run IDs", payload.runIds.length],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-              <p className="text-xs uppercase text-emerald-200/70">{label}</p>
-              <p className="mt-1 text-sm font-semibold text-emerald-50">{formatCount(Number(value))}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  if (result.action !== "run") {
-    return null;
   }
 
   const failedUsers = result.users.filter((item) => item.error);
@@ -189,17 +142,13 @@ export function AdminInstitutionDigestsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loadingRuns, setLoadingRuns] = useState(false);
   const [running, setRunning] = useState(false);
-  const [cleaning, setCleaning] = useState(false);
-  const [result, setResult] = useState<AdminActionResult | null>(null);
+  const [result, setResult] = useState<DigestRunResponse | null>(null);
   const [dryRun, setDryRun] = useState(true);
   const [confirmLiveRun, setConfirmLiveRun] = useState(false);
   const [limitUsers, setLimitUsers] = useState("50");
   const [limitItems, setLimitItems] = useState("50");
   const [userIds, setUserIds] = useState("");
   const [runFilter, setRunFilter] = useState<RunStatusFilter>("all");
-  const [cleanupOlderThanDays, setCleanupOlderThanDays] = useState("30");
-  const [cleanupLimit, setCleanupLimit] = useState("100");
-  const [cleanupDryRun, setCleanupDryRun] = useState(true);
 
   const loadRuns = useCallback(async () => {
     setLoadingRuns(true);
@@ -292,52 +241,6 @@ export function AdminInstitutionDigestsPage() {
       });
     } finally {
       setRunning(false);
-    }
-  }
-
-  async function cleanupDryRuns() {
-    setCleaning(true);
-    setResult(null);
-    setError(null);
-
-    try {
-      if (!user) {
-        throw new Error("Sign in with an admin account to clean up digest runs.");
-      }
-
-      const token = await getIdToken();
-      if (!token) {
-        throw new Error("Sign in with an admin account to clean up digest runs.");
-      }
-
-      const response = await fetch("/api/admin/institutions/digests", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          action: "cleanupDryRuns",
-          dryRun: cleanupDryRun,
-          olderThanDays: parseNumber(cleanupOlderThanDays),
-          limit: parseNumber(cleanupLimit),
-        }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as DigestCleanupResponse;
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to clean up dry-run digests.");
-      }
-
-      setResult(payload);
-      await loadRuns();
-    } catch (nextError) {
-      setResult({
-        action: "cleanupDryRuns",
-        error: nextError instanceof Error ? nextError.message : "Unable to clean up dry-run digests.",
-      });
-    } finally {
-      setCleaning(false);
     }
   }
 
@@ -443,53 +346,6 @@ export function AdminInstitutionDigestsPage() {
             className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
           >
             {running ? "Running..." : dryRun ? "Generate dry run" : "Generate live digest"}
-          </button>
-        </div>
-      </section>
-
-      <section className="mb-6 rounded-2xl border border-white/15 bg-slate-900/70 p-5">
-        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Dry-run retention</h2>
-        <p className="mt-1 text-sm text-slate-400">Preview or delete old dry-run records without touching live checkpointed digests.</p>
-
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end">
-          <label className="grid gap-2 text-sm text-slate-300">
-            Older than days
-            <input
-              type="number"
-              min="1"
-              max="365"
-              value={cleanupOlderThanDays}
-              onChange={(event) => setCleanupOlderThanDays(event.target.value)}
-              className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
-            />
-          </label>
-          <label className="grid gap-2 text-sm text-slate-300">
-            Batch limit
-            <input
-              type="number"
-              min="1"
-              max="500"
-              value={cleanupLimit}
-              onChange={(event) => setCleanupLimit(event.target.value)}
-              className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
-            />
-          </label>
-          <label className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-3 py-2 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={cleanupDryRun}
-              onChange={(event) => setCleanupDryRun(event.target.checked)}
-              className="h-4 w-4 accent-cyan-400"
-            />
-            Preview
-          </label>
-          <button
-            type="button"
-            onClick={() => void cleanupDryRuns()}
-            disabled={cleaning}
-            className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
-          >
-            {cleaning ? "Running..." : cleanupDryRun ? "Preview cleanup" : "Delete dry runs"}
           </button>
         </div>
       </section>

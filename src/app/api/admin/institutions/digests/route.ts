@@ -1,7 +1,6 @@
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { isAdminUser } from "@/lib/firebase/admin-role";
 import {
-  cleanupInstitutionDigestDryRuns,
   listRecentInstitutionDigestRuns,
   runInstitutionDigest,
 } from "@/lib/securities/institution-follows";
@@ -16,8 +15,6 @@ type AdminInstitutionDigestRequest = {
   limitItems?: unknown;
   userIds?: unknown;
   confirmCheckpoint?: unknown;
-  olderThanDays?: unknown;
-  limit?: unknown;
 };
 
 async function assertAdmin(request: NextRequest): Promise<NextResponse | null> {
@@ -94,22 +91,6 @@ export async function POST(request: NextRequest) {
     }
 
     const action = readString(payload.action) ?? "run";
-    if (action === "cleanupDryRuns") {
-      const dryRun = readBoolean(payload.dryRun) ?? true;
-      const result = await cleanupInstitutionDigestDryRuns({
-        dryRun,
-        olderThanDays: readNumber(payload.olderThanDays),
-        limit: readNumber(payload.limit),
-      });
-
-      return NextResponse.json({
-        ok: true,
-        action,
-        result,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     if (action !== "run") {
       return NextResponse.json({ error: "Unsupported institution digest action." }, { status: 400 });
     }

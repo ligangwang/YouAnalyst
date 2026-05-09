@@ -17,7 +17,6 @@ Admins can open `/admin/institutions/digests`.
 - Use explicit user IDs to test one or more accounts before a broad run.
 - Disable `Dry run` only when ready to update each user's `settings.institutionDigestLastSentAt`.
 - Live runs require the confirmation checkbox before the API will checkpoint users.
-- Use the dry-run retention controls to preview or delete old dry-run records. Live checkpointed records are not deleted by the retention action.
 
 The admin API is:
 
@@ -32,17 +31,6 @@ POST /api/admin/institutions/digests
   "limitUsers": 50,
   "limitItems": 50,
   "userIds": ["firebase-user-id"]
-}
-```
-
-Dry-run retention cleanup uses the same endpoint:
-
-```json
-{
-  "action": "cleanupDryRuns",
-  "dryRun": true,
-  "olderThanDays": 30,
-  "limit": 100
 }
 ```
 
@@ -100,4 +88,4 @@ Deploy `firestore.indexes.json` after this change. User digest history queries n
 
 ## Retention
 
-Dry-run records are useful for audit and preview, but they can be deleted once operators no longer need them. A safe retention policy is to remove dry-run records older than 30 days while keeping live checkpointed records.
+Dry runs are admin previews only and do not write digest run records. Only live checkpointed runs are persisted in `institution_digest_runs`.

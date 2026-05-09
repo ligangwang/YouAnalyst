@@ -49,20 +49,6 @@ export type InstitutionDigestRunInput = {
   userIds?: string[];
 };
 
-export type InstitutionDigestRetentionInput = {
-  olderThanDays?: number;
-  dryRun?: boolean;
-  limit?: number;
-};
-
-export type InstitutionDigestRetentionResult = {
-  dryRun: boolean;
-  cutoff: string;
-  scanned: number;
-  deleted: number;
-  runIds: string[];
-};
-
 export type InstitutionDigestRunUserResult = {
   userId: string;
   cadence: InstitutionDigestPreferences["cadence"];
@@ -519,26 +505,24 @@ export async function runInstitutionDigest(input: InstitutionDigestRunInput = {}
       let runId: string | null = null;
 
       if (wouldSend) {
-        const runRef = db.collection("institution_digest_runs").doc();
-        runId = runRef.id;
-        const runRecord = {
-          userId: snapshot.id,
-          dryRun,
-          cadence: preferences.cadence,
-          lastSentAt: preferences.lastSentAt,
-          generatedAt,
-          readAt: null,
-          itemCount: items.length,
-          wouldSend,
-          itemKeys: items.map((item) => item.positionKey),
-          items,
-          summary: summarizeInstitutionDigestItems(items),
-          status: dryRun ? "DRY_RUN" : "CHECKPOINTED",
-        };
+        if (!dryRun) {
+          const runRef = db.collection("institution_digest_runs").doc();
+          runId = runRef.id;
+          const runRecord = {
+            userId: snapshot.id,
+            dryRun,
+            cadence: preferences.cadence,
+            lastSentAt: preferences.lastSentAt,
+            generatedAt,
+            readAt: null,
+            itemCount: items.length,
+            wouldSend,
+            itemKeys: items.map((item) => item.positionKey),
+            items,
+            summary: summarizeInstitutionDigestItems(items),
+            status: "CHECKPOINTED",
+          };
 
-        if (dryRun) {
-          await runRef.set(runRecord);
-        } else {
           await db.runTransaction(async (tx) => {
             tx.set(runRef, runRecord);
             tx.update(db.collection("users").doc(snapshot.id), {
@@ -606,40 +590,6 @@ export async function countUnreadInstitutionDigestRuns(userId: string): Promise<
     .get();
 
   return snapshot.data().count;
-}
-
-export async function cleanupInstitutionDigestDryRuns(
-  input: InstitutionDigestRetentionInput = {},
-): Promise<InstitutionDigestRetentionResult> {
-  const olderThanDays = normalizeLimit(input.olderThanDays, 30, 365);
-  const limit = normalizeLimit(input.limit, 100, 500);
-  const dryRun = input.dryRun !== false;
-  const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
-  const db = getAdminFirestore();
-  const snapshot = await db
-    .collection("institution_digest_runs")
-    .where("dryRun", "==", true)
-    .where("generatedAt", "<", cutoff)
-    .orderBy("generatedAt", "asc")
-    .limit(limit)
-    .get();
-  const runIds = snapshot.docs.map((doc) => doc.id);
-
-  if (!dryRun && runIds.length > 0) {
-    const batch = db.batch();
-    for (const doc of snapshot.docs) {
-      batch.delete(doc.ref);
-    }
-    await batch.commit();
-  }
-
-  return {
-    dryRun,
-    cutoff,
-    scanned: snapshot.size,
-    deleted: dryRun ? 0 : snapshot.size,
-    runIds,
-  };
 }
 
 export async function listRecentInstitutionDigestRuns(limit = 25): Promise<InstitutionDigestRunSnapshot[]> {
