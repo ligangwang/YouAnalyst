@@ -89,11 +89,26 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
   );
 }
 
+function InstitutionNavLabel({ unreadCount }: { unreadCount: number }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      Institutions
+      {unreadCount > 0 ? (
+        <span className="rounded-full bg-cyan-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-slate-950">
+          {unreadCount > 9 ? "9+" : unreadCount}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function SiteNav() {
   const { user, loading, signOut, getIdToken } = useAuth();
   const [adminStatus, setAdminStatus] = useState<{ userId: string; isAdmin: boolean } | null>(null);
+  const [institutionDigestStatus, setInstitutionDigestStatus] = useState<{ userId: string; unread: number } | null>(null);
   const profileHref = useMemo(() => (user ? `/analysts/${user.uid}` : "/auth"), [user]);
   const showAdminLink = Boolean(user && adminStatus?.userId === user.uid && adminStatus.isAdmin);
+  const unreadDigestCount = user && institutionDigestStatus?.userId === user.uid ? institutionDigestStatus.unread : 0;
 
   useEffect(() => {
     if (loading || !user) {
@@ -139,6 +154,54 @@ export function SiteNav() {
     };
   }, [getIdToken, loading, user]);
 
+  useEffect(() => {
+    if (loading || !user) {
+      return;
+    }
+
+    let cancelled = false;
+    const userId = user.uid;
+
+    async function loadDigestStatus() {
+      try {
+        const token = await getIdToken();
+
+        if (!token) {
+          if (!cancelled) {
+            setInstitutionDigestStatus({ userId, unread: 0 });
+          }
+          return;
+        }
+
+        const response = await fetch("/api/institutions/follows/digest/runs?limit=10", {
+          headers: {
+            authorization: `Bearer ${token}`,
+          },
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          items?: Array<{ dryRun?: boolean; readAt?: string | null }>;
+        };
+        const unread = response.ok
+          ? (payload.items ?? []).filter((item) => item.dryRun !== true && !item.readAt).length
+          : 0;
+
+        if (!cancelled) {
+          setInstitutionDigestStatus({ userId, unread });
+        }
+      } catch {
+        if (!cancelled) {
+          setInstitutionDigestStatus({ userId, unread: 0 });
+        }
+      }
+    }
+
+    void loadDigestStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getIdToken, loading, user]);
+
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/85 backdrop-blur">
       <div className="mx-auto w-full max-w-6xl px-4 py-3">
@@ -165,7 +228,7 @@ export function SiteNav() {
             <nav className="hidden items-center gap-4 text-[15px] text-slate-200 md:flex">
               <Link href="/predictions" className="hover:text-cyan-200">Feed</Link>
               <Link href="/watchlists" className="hover:text-cyan-200">Watchlists</Link>
-              <Link href="/institutions" className="hover:text-cyan-200">Institutions</Link>
+              <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
               <Link href="/daily" className="hover:text-cyan-200">Daily</Link>
               <Link href="/leaderboard" className="hover:text-cyan-200">Leaderboard</Link>
               {showAdminLink ? <Link href="/admin" className="hover:text-cyan-200">Admin</Link> : null}
@@ -206,7 +269,7 @@ export function SiteNav() {
             Watchlists
           </Link>
           <Link href="/institutions" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
-            Institutions
+            <InstitutionNavLabel unreadCount={unreadDigestCount} />
           </Link>
           <Link href="/daily" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
             Daily
