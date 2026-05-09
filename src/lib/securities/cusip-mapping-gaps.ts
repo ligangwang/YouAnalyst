@@ -31,6 +31,28 @@ export type SecurityMappingSyncRunSummary = {
   updatedAt: string | null;
 };
 
+export type SecurityMappingApplyRunSummary = {
+  id: string;
+  cusip: string | null;
+  ticker: string | null;
+  holdingsUpdated: number;
+  changesUpdated: number;
+  hasMore: boolean;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type SecurityMappingBatchApplyRunSummary = {
+  id: string;
+  cusipsScanned: number;
+  cusipsWithMappings: number;
+  holdingsUpdated: number;
+  changesUpdated: number;
+  hasMore: boolean;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
 export type CusipMappingGapsSummary = {
   totalHoldings: number;
   unmappedHoldings: number;
@@ -39,6 +61,8 @@ export type CusipMappingGapsSummary = {
   sampledHoldings: number;
   gaps: CusipMappingGap[];
   recentMappingSyncs: SecurityMappingSyncRunSummary[];
+  recentMappingApplies: SecurityMappingApplyRunSummary[];
+  recentBatchApplies: SecurityMappingBatchApplyRunSummary[];
   generatedAt: string;
 };
 
@@ -144,14 +168,42 @@ function normalizeSyncRun(id: string, data: Record<string, unknown>): SecurityMa
   };
 }
 
+function normalizeApplyRun(id: string, data: Record<string, unknown>): SecurityMappingApplyRunSummary {
+  return {
+    id,
+    cusip: readString(data.cusip),
+    ticker: readString(data.ticker),
+    holdingsUpdated: readNumber(data.holdingsUpdated),
+    changesUpdated: readNumber(data.changesUpdated),
+    hasMore: readBoolean(data.hasMore),
+    updatedBy: readString(data.updatedBy),
+    updatedAt: readIsoLike(data.updatedAt),
+  };
+}
+
+function normalizeBatchApplyRun(id: string, data: Record<string, unknown>): SecurityMappingBatchApplyRunSummary {
+  return {
+    id,
+    cusipsScanned: readNumber(data.cusipsScanned),
+    cusipsWithMappings: readNumber(data.cusipsWithMappings),
+    holdingsUpdated: readNumber(data.holdingsUpdated),
+    changesUpdated: readNumber(data.changesUpdated),
+    hasMore: readBoolean(data.hasMore),
+    updatedBy: readString(data.updatedBy),
+    updatedAt: readIsoLike(data.updatedAt),
+  };
+}
+
 export async function getCusipMappingGapsSummary(input: { sampleLimit?: number } = {}): Promise<CusipMappingGapsSummary> {
   const db = getAdminFirestore();
   const sampleLimit = normalizeSampleLimit(input.sampleLimit);
-  const [totalSnapshot, unmappedSnapshot, sampleSnapshot, syncRunsSnapshot] = await Promise.all([
+  const [totalSnapshot, unmappedSnapshot, sampleSnapshot, syncRunsSnapshot, applyRunsSnapshot, batchApplyRunsSnapshot] = await Promise.all([
     db.collection("institutional_holdings").count().get(),
     db.collection("institutional_holdings").where("ticker", "==", null).count().get(),
     db.collection("institutional_holdings").where("ticker", "==", null).limit(sampleLimit).get(),
     db.collection("security_id_mapping_sync_runs").orderBy("updatedAt", "desc").limit(10).get(),
+    db.collection("security_id_mapping_apply_runs").orderBy("updatedAt", "desc").limit(10).get(),
+    db.collection("security_id_mapping_batch_apply_runs").orderBy("updatedAt", "desc").limit(5).get(),
   ]);
   const totalHoldings = totalSnapshot.data().count;
   const unmappedHoldings = unmappedSnapshot.data().count;
@@ -193,6 +245,8 @@ export async function getCusipMappingGapsSummary(input: { sampleLimit?: number }
     sampledHoldings: sampleSnapshot.size,
     gaps,
     recentMappingSyncs: syncRunsSnapshot.docs.map((doc) => normalizeSyncRun(doc.id, doc.data())),
+    recentMappingApplies: applyRunsSnapshot.docs.map((doc) => normalizeApplyRun(doc.id, doc.data())),
+    recentBatchApplies: batchApplyRunsSnapshot.docs.map((doc) => normalizeBatchApplyRun(doc.id, doc.data())),
     generatedAt: new Date().toISOString(),
   };
 }
