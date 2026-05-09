@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { InstitutionDetailHoldings } from "@/components/institution-detail-holdings";
+import { InstitutionFollowButton } from "@/components/institution-follow-button";
 import { getInstitutionalManagerSummary } from "@/lib/securities/institutional-data";
 
 export const dynamic = "force-dynamic";
@@ -62,15 +63,20 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Institution</p>
-        <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100 sm:text-4xl">
-          {summary.manager.name}
-        </h1>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          CIK {summary.manager.cik}
-          {summary.manager.latestQuarter ? ` - ${summary.manager.latestQuarter}` : ""}
-          {summary.manager.latestReportDate ? ` report dated ${summary.manager.latestReportDate}` : ""}
-        </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Institution</p>
+            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100 sm:text-4xl">
+              {summary.manager.name}
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              CIK {summary.manager.cik}
+              {summary.manager.latestQuarter ? ` - ${summary.manager.latestQuarter}` : ""}
+              {summary.manager.latestReportDate ? ` report dated ${summary.manager.latestReportDate}` : ""}
+            </p>
+          </div>
+          <InstitutionFollowButton cik={summary.manager.cik} name={summary.manager.name} />
+        </div>
       </section>
 
       <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

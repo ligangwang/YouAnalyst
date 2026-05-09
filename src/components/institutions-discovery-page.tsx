@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
+import { FollowedInstitutionsPanel } from "@/components/followed-institutions-panel";
 import type {
   InstitutionalDiscoveryManager,
   InstitutionalDiscoverySummary,
@@ -168,6 +169,8 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
         </div>
         {error ? <p className="mt-4 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
       </section>
+
+      <FollowedInstitutionsPanel />
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_10rem] lg:items-end">
