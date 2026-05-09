@@ -1,0 +1,140 @@
+name: Discover 13F Filings
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      date:
+        description: Single SEC index date, YYYY-MM-DD. Leave empty to use lookback_days.
+        required: false
+        type: string
+      lookback_days:
+        description: Number of recent calendar days to inspect when date is empty
+        required: true
+        default: "3"
+        type: string
+      max_filings:
+        description: Max 13F filings to discover per daily index
+        required: true
+        default: "5000"
+        type: string
+      dry_run:
+        description: Fetch and parse indexes without Firestore writes
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thirteen-f-discovery-manual-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  discover-13f:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      CLOUD_RUN_SERVICE_STAGING: ${{ vars.CLOUD_RUN_SERVICE_STAGING }}
+      CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
+      INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Resolve Cloud Run URL
+        id: cloud-run
+        run: |
+          set -euo pipefail
+          service="$CLOUD_RUN_SERVICE_PRODUCTION"
+          if [[ "$TARGET_ENVIRONMENT" == "staging" ]]; then
+            service="$CLOUD_RUN_SERVICE_STAGING"
+          fi
+
+          if [[ -z "$service" ]]; then
+            echo "Cloud Run service name is not configured for $TARGET_ENVIRONMENT" >&2
+            exit 1
+          fi
+
+          url="$(gcloud run services describe "$service" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='value(status.url)')"
+
+          if [[ -z "$url" ]]; then
+            echo "Unable to resolve Cloud Run URL for $service" >&2
+            exit 1
+          fi
+
+          echo "service=$service" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Discover 13F filings
+        env:
+          CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
+          INDEX_DATE: ${{ inputs.date }}
+          LOOKBACK_DAYS: ${{ inputs.lookback_days }}
+          MAX_FILINGS: ${{ inputs.max_filings }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$INTERNAL_API_TOKEN" ]]; then
+            echo "INTERNAL_API_TOKEN secret is not configured" >&2
+            exit 1
+          fi
+
+          if [[ -n "$INDEX_DATE" ]]; then
+            body="$(jq -n \
+              --arg date "$INDEX_DATE" \
+              --argjson maxFilings "$MAX_FILINGS" \
+              --argjson dryRun "$DRY_RUN" \
+              '{ date: $date, maxFilings: $maxFilings, dryRun: $dryRun }')"
+          else
+            body="$(jq -n \
+              --argjson lookbackDays "$LOOKBACK_DAYS" \
+              --argjson maxFilings "$MAX_FILINGS" \
+              --argjson dryRun "$DRY_RUN" \
+              '{ lookbackDays: $lookbackDays, maxFilings: $maxFilings, dryRun: $dryRun }')"
+          fi
+
+          echo "Calling ${CLOUD_RUN_URL}/api/internal/securities/discover-13f"
+          echo "Request body: $body"
+
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$body" \
+            "${CLOUD_RUN_URL}/api/internal/securities/discover-13f" || true)"
+
+          cat "$response_file"
+          echo
+
+          if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+            echo "13F discovery failed with HTTP $status" >&2
+            exit 1
+          fi
