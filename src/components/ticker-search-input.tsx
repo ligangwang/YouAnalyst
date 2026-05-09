@@ -6,6 +6,7 @@ import { formatTickerSymbol } from "@/components/prediction-ui";
 
 export type TickerSuggestion = {
   id: string;
+  kind?: "ticker";
   symbol: string;
   name: string;
   exchange: string | null;
@@ -13,9 +14,21 @@ export type TickerSuggestion = {
   type: string | null;
 };
 
+export type InstitutionSuggestion = {
+  id: string;
+  kind: "institution";
+  cik: string;
+  name: string;
+  latestReportDate: string | null;
+  latestQuarter: string | null;
+};
+
+export type SearchSuggestion = TickerSuggestion | InstitutionSuggestion;
+
 type TickerSearchInputProps = {
   value: string;
   onChange: (value: string) => void;
+  onSelectSuggestion?: (item: SearchSuggestion) => void;
   error?: string | null;
   hideLabel?: boolean;
   label?: string;
@@ -23,7 +36,7 @@ type TickerSearchInputProps = {
 };
 
 type SearchResponse = {
-  items?: TickerSuggestion[];
+  items?: SearchSuggestion[];
   error?: string;
 };
 
@@ -35,9 +48,18 @@ function suggestionMeta(item: TickerSuggestion): string {
   return [item.exchange, item.type].filter(Boolean).join(" · ");
 }
 
+function resultMeta(item: SearchSuggestion): string {
+  if (item.kind === "institution") {
+    return ["Institution", `CIK ${item.cik}`, item.latestQuarter].filter(Boolean).join(" / ");
+  }
+
+  return suggestionMeta(item);
+}
+
 export function TickerSearchInput({
   value,
   onChange,
+  onSelectSuggestion,
   error,
   hideLabel = false,
   label = "Ticker",
@@ -45,7 +67,7 @@ export function TickerSearchInput({
 }: TickerSearchInputProps) {
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [suggestions, setSuggestions] = useState<TickerSuggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -108,8 +130,9 @@ export function TickerSearchInput({
     return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, []);
 
-  function selectSuggestion(item: TickerSuggestion) {
-    onChange(item.symbol);
+  function selectSuggestion(item: SearchSuggestion) {
+    onChange(item.kind === "institution" ? item.name : item.symbol);
+    onSelectSuggestion?.(item);
     setOpen(false);
     setActiveIndex(-1);
   }
@@ -152,8 +175,8 @@ export function TickerSearchInput({
   const helperText = searchError
     ? searchError
     : loading
-      ? "Searching tickers..."
-      : "Type a company name or ticker. You can still enter a ticker manually.";
+      ? "Searching..."
+      : "Type a company, ticker, institution, or CIK.";
 
   return (
     <div ref={containerRef} className="relative grid gap-2">
@@ -182,7 +205,7 @@ export function TickerSearchInput({
           }
         }}
         onKeyDown={handleKeyDown}
-        placeholder="Search company or ticker"
+        placeholder="Search company, ticker, or institution"
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={showPanel}
@@ -217,14 +240,22 @@ export function TickerSearchInput({
               }`}
             >
               <span className="font-semibold text-cyan-100">
-                {formatTickerSymbol(item.symbol)} <span className="font-normal text-slate-300">{item.name}</span>
+                {item.kind === "institution" ? (
+                  <>
+                    {item.name} <span className="font-normal text-slate-300">Institution</span>
+                  </>
+                ) : (
+                  <>
+                    {formatTickerSymbol(item.symbol)} <span className="font-normal text-slate-300">{item.name}</span>
+                  </>
+                )}
               </span>
-              {suggestionMeta(item) ? <span className="text-xs text-slate-500">{suggestionMeta(item)}</span> : null}
+              {resultMeta(item) ? <span className="text-xs text-slate-500">{resultMeta(item)}</span> : null}
             </button>
           ))}
 
           {!loading && !searchError && suggestions.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-slate-400">No matching ticker found.</p>
+            <p className="px-3 py-2 text-sm text-slate-400">No matching company or institution found.</p>
           ) : null}
         </div>
       ) : null}
