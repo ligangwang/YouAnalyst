@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { TickerSearchInput } from "@/components/ticker-search-input";
 
@@ -17,7 +17,7 @@ export function CompanySearchCard() {
   const [ticker, setTicker] = useState("");
   const normalizedTicker = normalizeTicker(ticker);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   async function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,9 +32,10 @@ export function CompanySearchCard() {
       return;
     }
 
-    setSubmitting(true);
     setError(null);
-    router.push(`/ticker/${encodeURIComponent(normalizedTicker)}`);
+    startTransition(() => {
+      router.push(`/ticker/${encodeURIComponent(normalizedTicker)}`);
+    });
   }
 
   return (
@@ -56,10 +57,10 @@ export function CompanySearchCard() {
         />
         <button
           type="submit"
-          disabled={submitting}
+          disabled={isPending}
           className="h-11 rounded-xl bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? "Opening..." : "Go"}
+          {isPending ? "Opening..." : "Go"}
         </button>
       </div>
     </form>
