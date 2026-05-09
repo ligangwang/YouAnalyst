@@ -41,6 +41,13 @@ type SecurityIdMapping = {
   exchange?: unknown;
 };
 
+type Canonical13FFilingDocument = {
+  accessionNumber?: unknown;
+  filingDate?: unknown;
+  form?: unknown;
+  amendmentNo?: unknown;
+};
+
 type Parsed13FHolding = {
   nameOfIssuer: string;
   titleOfClass: string | null;
@@ -58,6 +65,9 @@ type Parsed13FHolding = {
 export type Latest13FFiling = {
   managerCik: string;
   managerName: string;
+  form: "13F-HR" | "13F-HR/A";
+  amendmentNo: number | null;
+  amendmentType: string | null;
   accessionNumber: string;
   filingDate: string;
   reportDate: string;
@@ -116,6 +126,7 @@ export type Sync13FManagerResult = {
   holdingsMapped: number;
   holdingsWritten: number;
   changesWritten: number;
+  canonicalStatus: "CANONICAL" | "SUPERSEDED" | "NON_CANONICAL" | "UNKNOWN";
   skipped: boolean;
   error: string | null;
 };
@@ -337,6 +348,9 @@ async function fetchLatest13FFiling(managerCik: string): Promise<Latest13FFiling
   return {
     managerCik,
     managerName: readString(payload.name) ?? managerCik,
+    form: "13F-HR",
+    amendmentNo: null,
+    amendmentType: null,
     accessionNumber,
     filingDate: filingDates[index] || "",
     reportDate: reportDates[index] || "",
@@ -434,6 +448,37 @@ function holdingDocId(quarter: string, managerCik: string, positionKey: string):
 
 function changeDocId(quarter: string, managerCik: string, positionKey: string): string {
   return `${quarter}_${managerCik}_${positionKey}`;
+}
+
+function canonicalFilingDocId(managerCik: string, reportDate: string): string {
+  return `${managerCik}_${reportDate}`;
+}
+
+function filingCanonicalRank(filing: Pick<Latest13FFiling, "form" | "amendmentNo" | "filingDate" | "accessionNumber">): string {
+  const amendmentRank = filing.form === "13F-HR/A" ? Math.max(1, filing.amendmentNo ?? 1) : 0;
+  return [
+    String(amendmentRank).padStart(5, "0"),
+    filing.filingDate,
+    filing.accessionNumber,
+  ].join("|");
+}
+
+function canonicalRankFromDocument(data: Canonical13FFilingDocument | undefined): string | null {
+  const accessionNumber = readString(data?.accessionNumber);
+  const filingDate = readString(data?.filingDate);
+  const form = data?.form === "13F-HR/A" ? "13F-HR/A" : data?.form === "13F-HR" ? "13F-HR" : null;
+  const amendmentNo = typeof data?.amendmentNo === "number" && Number.isFinite(data.amendmentNo) ? data.amendmentNo : null;
+
+  if (!accessionNumber || !filingDate || !form) {
+    return null;
+  }
+
+  return filingCanonicalRank({
+    accessionNumber,
+    filingDate,
+    form,
+    amendmentNo,
+  });
 }
 
 async function loadPreviousHoldings(
@@ -548,33 +593,87 @@ async function persistManager13F(input: {
   changes: InstitutionalHoldingChange[];
   dryRun: boolean;
   updatedAt: string;
-}): Promise<{ holdingsWritten: number; changesWritten: number }> {
+}): Promise<{ holdingsWritten: number; changesWritten: number; canonicalStatus: Sync13FManagerResult["canonicalStatus"] }> {
   if (input.dryRun) {
-    return { holdingsWritten: 0, changesWritten: 0 };
+    return { holdingsWritten: 0, changesWritten: 0, canonicalStatus: "UNKNOWN" };
   }
 
   const db = getAdminFirestore();
+  const quarter = quarterFromReportDate(input.filing.reportDate);
+  const canonicalId = canonicalFilingDocId(input.filing.managerCik, input.filing.reportDate);
+  const canonicalRef = db.collection("institutional_13f_canonical_filings").doc(canonicalId);
+  const canonicalSnapshot = await canonicalRef.get();
+  const existingCanonical = canonicalSnapshot.data() as Canonical13FFilingDocument | undefined;
+  const existingCanonicalAccession = readString(existingCanonical?.accessionNumber);
+  const existingRank = canonicalRankFromDocument(existingCanonical);
+  const nextRank = filingCanonicalRank(input.filing);
+  const isCanonical = !existingRank ||
+    nextRank >= existingRank ||
+    existingCanonicalAccession === input.filing.accessionNumber;
+  const canonicalStatus: Sync13FManagerResult["canonicalStatus"] = isCanonical ? "CANONICAL" : "NON_CANONICAL";
   let holdingsWritten = 0;
   let changesWritten = 0;
+
+  await db.collection("institutional_13f_filings").doc(input.filing.accessionNumber).set({
+    managerCik: input.filing.managerCik,
+    managerName: input.filing.managerName,
+    accessionNumber: input.filing.accessionNumber,
+    form: input.filing.form,
+    amendmentNo: input.filing.amendmentNo,
+    amendmentType: input.filing.amendmentType,
+    canonicalStatus,
+    canonicalKey: canonicalId,
+    filingDate: input.filing.filingDate,
+    reportDate: input.filing.reportDate,
+    quarter,
+    primaryDocument: input.filing.primaryDocument,
+    filingUrl: input.filing.filingUrl,
+    infoTableUrl: input.infoTableUrl,
+    holdingCount: input.holdings.length,
+    updatedAt: input.updatedAt,
+  }, { merge: true });
+
+  if (!isCanonical) {
+    return { holdingsWritten: 0, changesWritten: 0, canonicalStatus };
+  }
+
+  if (existingCanonicalAccession && existingCanonicalAccession !== input.filing.accessionNumber) {
+    await Promise.all([
+      db.collection("institutional_13f_filings").doc(existingCanonicalAccession).set({
+        canonicalStatus: "SUPERSEDED",
+        supersededByAccessionNumber: input.filing.accessionNumber,
+        supersededAt: input.updatedAt,
+        updatedAt: input.updatedAt,
+      }, { merge: true }),
+      db.collection("sec_13f_filings").doc(existingCanonicalAccession).set({
+        canonicalStatus: "SUPERSEDED",
+        supersededByAccessionNumber: input.filing.accessionNumber,
+        supersededAt: input.updatedAt,
+        updatedAt: input.updatedAt,
+      }, { merge: true }),
+    ]);
+  }
 
   await db.collection("institutional_managers").doc(input.filing.managerCik).set({
     cik: input.filing.managerCik,
     name: input.filing.managerName,
     latestAccessionNumber: input.filing.accessionNumber,
     latestReportDate: input.filing.reportDate,
-    latestQuarter: quarterFromReportDate(input.filing.reportDate),
+    latestQuarter: quarter,
     updatedAt: input.updatedAt,
   }, { merge: true });
 
-  await db.collection("institutional_13f_filings").doc(input.filing.accessionNumber).set({
+  await canonicalRef.set({
+    canonicalKey: canonicalId,
     managerCik: input.filing.managerCik,
     managerName: input.filing.managerName,
     accessionNumber: input.filing.accessionNumber,
+    form: input.filing.form,
+    amendmentNo: input.filing.amendmentNo,
+    amendmentType: input.filing.amendmentType,
     filingDate: input.filing.filingDate,
     reportDate: input.filing.reportDate,
-    quarter: quarterFromReportDate(input.filing.reportDate),
-    primaryDocument: input.filing.primaryDocument,
-    filingUrl: input.filing.filingUrl,
+    quarter,
     infoTableUrl: input.infoTableUrl,
     holdingCount: input.holdings.length,
     updatedAt: input.updatedAt,
@@ -604,7 +703,42 @@ async function persistManager13F(input: {
     changesWritten += chunk.length;
   }
 
-  return { holdingsWritten, changesWritten };
+  const holdingIds = new Set(input.holdings.map((holding) => holdingDocId(holding.quarter, holding.managerCik, holding.positionKey)));
+  const changeIds = new Set(input.changes.map((change) => changeDocId(change.quarter, change.managerCik, change.positionKey)));
+  const docPrefix = `${quarter}_${input.filing.managerCik}_`;
+  const [existingHoldings, existingChanges] = await Promise.all([
+    db.collection("institutional_holdings")
+      .where(FieldPath.documentId(), ">=", docPrefix)
+      .where(FieldPath.documentId(), "<", `${docPrefix}\uf8ff`)
+      .orderBy(FieldPath.documentId())
+      .get(),
+    db.collection("institutional_holding_changes")
+      .where(FieldPath.documentId(), ">=", docPrefix)
+      .where(FieldPath.documentId(), "<", `${docPrefix}\uf8ff`)
+      .orderBy(FieldPath.documentId())
+      .get(),
+  ]);
+
+  const staleHoldingDocs = existingHoldings.docs.filter((doc) => !holdingIds.has(doc.id));
+  const staleChangeDocs = existingChanges.docs.filter((doc) => !changeIds.has(doc.id));
+
+  for (let index = 0; index < staleHoldingDocs.length; index += HOLDING_BATCH_SIZE) {
+    const batch = db.batch();
+    for (const doc of staleHoldingDocs.slice(index, index + HOLDING_BATCH_SIZE)) {
+      batch.delete(doc.ref);
+    }
+    await batch.commit();
+  }
+
+  for (let index = 0; index < staleChangeDocs.length; index += HOLDING_BATCH_SIZE) {
+    const batch = db.batch();
+    for (const doc of staleChangeDocs.slice(index, index + HOLDING_BATCH_SIZE)) {
+      batch.delete(doc.ref);
+    }
+    await batch.commit();
+  }
+
+  return { holdingsWritten, changesWritten, canonicalStatus };
 }
 
 export async function parseAndPersist13FFiling(input: {
@@ -661,6 +795,7 @@ export async function parseAndPersist13FFiling(input: {
     holdingsMapped: holdings.filter((holding) => holding.ticker).length,
     holdingsWritten: written.holdingsWritten,
     changesWritten: written.changesWritten,
+    canonicalStatus: written.canonicalStatus,
     skipped: false,
     error: null,
   };
@@ -686,6 +821,7 @@ async function syncManager13F(managerCik: string, dryRun: boolean, updatedAt: st
       holdingsMapped: 0,
       holdingsWritten: 0,
       changesWritten: 0,
+      canonicalStatus: "UNKNOWN",
       skipped: false,
       error: error instanceof Error ? error.message : "Failed to sync 13F filing",
     };
