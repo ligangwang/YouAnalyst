@@ -33,6 +33,11 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
     priority: 0.8,
   },
   {
+    url: absoluteUrl("/institutions"),
+    changeFrequency: "daily",
+    priority: 0.8,
+  },
+  {
     url: absoluteUrl("/how-it-works"),
     changeFrequency: "monthly",
     priority: 0.7,
