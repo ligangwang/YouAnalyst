@@ -161,6 +161,16 @@ function readXmlTag(xml: string, tagName: string): string | null {
   return match?.[1]?.replace(/<[^>]+>/g, " ").trim() ?? null;
 }
 
+function readXmlNumber(xml: string, tagName: string): number | null {
+  const value = readXmlTag(xml, tagName);
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function extractReportDate(completeSubmission: string): string {
   const reportDate = normalizeReportDate(
     readXmlTag(completeSubmission, "periodOfReport") ??
@@ -182,6 +192,9 @@ async function buildLatest13FFilingFromQueue(filing: Claimed13FFiling): Promise<
   return {
     managerCik: filing.managerCik,
     managerName: filing.managerName,
+    form: filing.form,
+    amendmentNo: filing.form === "13F-HR/A" ? readXmlNumber(completeSubmission, "amendmentNo") : null,
+    amendmentType: filing.form === "13F-HR/A" ? readXmlTag(completeSubmission, "amendmentType") : null,
     accessionNumber: filing.accessionNumber,
     filingDate: filing.filingDate,
     reportDate,
@@ -292,7 +305,7 @@ async function markQueuedFilingParsed(input: {
   const db = getAdminFirestore();
   await db.collection("sec_13f_filings").doc(input.accessionNumber).set({
     status: "PARSED",
-    canonicalStatus: "UNKNOWN",
+    canonicalStatus: input.result.canonicalStatus,
     reportDate: input.result.reportDate,
     quarter: input.result.quarter,
     infoTableUrl: input.result.infoTableUrl,
@@ -346,6 +359,7 @@ function failedItem(filing: Claimed13FFiling, error: unknown, runId: string): Pr
     holdingsMapped: 0,
     holdingsWritten: 0,
     changesWritten: 0,
+    canonicalStatus: "UNKNOWN",
     skipped: false,
     error: error instanceof Error ? error.message : "Failed to process queued 13F filing",
     status: "FAILED",
@@ -382,6 +396,7 @@ export async function process13FQueue(input: Process13FQueueInput): Promise<Proc
         holdingsMapped: 0,
         holdingsWritten: 0,
         changesWritten: 0,
+        canonicalStatus: "UNKNOWN",
         skipped: true,
         error: reason,
         status: "SKIPPED",
@@ -408,35 +423,6 @@ export async function process13FQueue(input: Process13FQueueInput): Promise<Proc
       });
 
     if (!filing) {
-      continue;
-    }
-
-    if (filing.form === "13F-HR/A") {
-      const reason = "13F amendments are deferred until canonical amendment handling is enabled.";
-      items.push({
-        managerCik: filing.managerCik,
-        managerName: filing.managerName,
-        accessionNumber: filing.accessionNumber,
-        reportDate: null,
-        quarter: null,
-        infoTableUrl: null,
-        holdingsParsed: 0,
-        holdingsMapped: 0,
-        holdingsWritten: 0,
-        changesWritten: 0,
-        skipped: true,
-        error: reason,
-        status: "SKIPPED",
-        processingRunId: dryRun ? null : runId,
-      });
-
-      if (!dryRun) {
-        await markQueuedFilingSkipped({
-          accessionNumber: filing.accessionNumber,
-          reason,
-          updatedAt,
-        });
-      }
       continue;
     }
 
