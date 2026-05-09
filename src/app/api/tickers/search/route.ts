@@ -22,6 +22,11 @@ type InstitutionSearchItem = {
 
 type SearchItem = TickerSearchItem | InstitutionSearchItem;
 
+type ScoredSearchItem = {
+  item: SearchItem;
+  score: number;
+};
+
 type TickerDocument = {
   symbol?: unknown;
   symbolLower?: unknown;
@@ -161,7 +166,7 @@ export async function GET(request: NextRequest) {
       db.collection("institutional_managers").orderBy("updatedAt", "desc").limit(200).get(),
     ]);
 
-    const tickerItems = tickerSnapshot.docs
+    const tickerItems: ScoredSearchItem[] = tickerSnapshot.docs
       .map((doc) => toSearchItem(doc.id, doc.data()))
       .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
       .sort((left, right) => {
@@ -171,32 +176,51 @@ export async function GET(request: NextRequest) {
         }
         return left.symbol.localeCompare(right.symbol);
       })
-      .slice(0, limit)
-      .map<TickerSearchItem>((item) => ({
-        id: item.id,
-        kind: item.kind,
-        symbol: item.symbol,
-        name: item.name,
-        exchange: item.exchange,
-        micCode: item.micCode,
-        type: item.type,
+      .slice(0, 50)
+      .map((item) => ({
+        item: {
+          id: item.id,
+          kind: item.kind,
+          symbol: item.symbol,
+          name: item.name,
+          exchange: item.exchange,
+          micCode: item.micCode,
+          type: item.type,
+        },
+        score: scoreTicker(item, query),
       }));
-    const institutionItems = institutionSnapshot.docs
+    const institutionItems: ScoredSearchItem[] = institutionSnapshot.docs
       .map((doc) => toInstitutionSearchItem(doc.id, doc.data()))
       .filter((item): item is InstitutionSearchItem => Boolean(item))
       .map((item) => ({ item, score: scoreInstitution(item, query) }))
       .filter(({ score }) => score > 0)
       .sort((left, right) => right.score - left.score || left.item.name.localeCompare(right.item.name))
-      .slice(0, limit)
-      .map(({ item }) => item);
-    const items: SearchItem[] = [...tickerItems, ...institutionItems]
+      .slice(0, limit);
+    let selectedItems = [...tickerItems, ...institutionItems]
       .sort((left, right) => {
-        if (left.kind !== right.kind) {
-          return left.kind === "ticker" ? -1 : 1;
+        if (right.score !== left.score) {
+          return right.score - left.score;
         }
-        return left.name.localeCompare(right.name);
+        if (left.item.kind !== right.item.kind) {
+          return left.item.kind === "ticker" ? -1 : 1;
+        }
+        return left.item.name.localeCompare(right.item.name);
       })
       .slice(0, limit);
+
+    if (institutionItems.length > 0 && limit > 1 && !selectedItems.some(({ item }) => item.kind === "institution")) {
+      selectedItems = [...selectedItems.slice(0, limit - 1), institutionItems[0]].sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        if (left.item.kind !== right.item.kind) {
+          return left.item.kind === "ticker" ? -1 : 1;
+        }
+        return left.item.name.localeCompare(right.item.name);
+      });
+    }
+
+    const items: SearchItem[] = selectedItems.map(({ item }) => item);
 
     return NextResponse.json({ items });
   } catch (error) {
