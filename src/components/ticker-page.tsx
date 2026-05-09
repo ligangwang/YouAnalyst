@@ -65,6 +65,10 @@ type InstitutionalTickerSummary = {
   positions: InstitutionalTickerPosition[];
 };
 
+type ErrorResponse = {
+  error?: unknown;
+};
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
@@ -101,6 +105,10 @@ function changeTone(status: InstitutionalTickerPosition["changeStatus"]): string
   return "border-white/10 bg-slate-900/80 text-slate-300";
 }
 
+function readErrorMessage(payload: ErrorResponse, fallback: string): string {
+  return typeof payload.error === "string" && payload.error.trim() ? payload.error.trim() : fallback;
+}
+
 function InstitutionalHoldingsSection({
   displayTicker,
   summary,
@@ -124,7 +132,11 @@ function InstitutionalHoldingsSection({
         ) : null}
       </div>
 
-      {error ? <p className="mb-3 text-sm text-amber-200">{error}</p> : null}
+      {error ? (
+        <p className="mb-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
+          {error}
+        </p>
+      ) : null}
 
       {summary ? (
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
@@ -143,46 +155,48 @@ function InstitutionalHoldingsSection({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[840px] text-left text-sm">
-          <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="py-3 pr-3">Institution</th>
-              <th className="py-3 pr-3 text-right">Value</th>
-              <th className="py-3 pr-3 text-right">Shares</th>
-              <th className="py-3 pr-3">Change</th>
-              <th className="py-3 pr-3 text-right">Value change</th>
-              <th className="py-3">Report</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/10">
-            {summary?.positions.map((position) => (
-              <tr key={`${position.managerCik}_${position.accessionNumber}`} className="text-slate-200">
-                <td className="py-3 pr-3">
-                  <Link href={`/institutions/${position.managerCik}`} className="font-semibold text-cyan-100 hover:text-cyan-300">
-                    {position.managerName}
-                  </Link>
-                  <p className="mt-1 text-xs text-slate-500">CIK {position.managerCik}</p>
-                </td>
-                <td className="py-3 pr-3 text-right tabular-nums">{formatCurrency(position.valueUsd)}</td>
-                <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(position.shares)}</td>
-                <td className="py-3 pr-3">
-                  <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(position.changeStatus)}`}>
-                    {position.changeStatus ?? "CURRENT"} {position.changeStatus ? formatPercent(position.percentChange) : ""}
-                  </span>
-                </td>
-                <td className="py-3 pr-3 text-right tabular-nums">
-                  {position.valueChangeUsd === null ? "Unknown" : formatCurrency(position.valueChangeUsd)}
-                </td>
-                <td className="py-3 text-slate-400">
-                  {position.quarter}
-                  <p className="text-xs text-slate-500">{position.reportDate}</p>
-                </td>
+      {summary ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[840px] text-left text-sm">
+            <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="py-3 pr-3">Institution</th>
+                <th className="py-3 pr-3 text-right">Value</th>
+                <th className="py-3 pr-3 text-right">Shares</th>
+                <th className="py-3 pr-3">Change</th>
+                <th className="py-3 pr-3 text-right">Value change</th>
+                <th className="py-3">Report</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {summary.positions.map((position) => (
+                <tr key={`${position.managerCik}_${position.accessionNumber}`} className="text-slate-200">
+                  <td className="py-3 pr-3">
+                    <Link href={`/institutions/${position.managerCik}`} className="font-semibold text-cyan-100 hover:text-cyan-300">
+                      {position.managerName}
+                    </Link>
+                    <p className="mt-1 text-xs text-slate-500">CIK {position.managerCik}</p>
+                  </td>
+                  <td className="py-3 pr-3 text-right tabular-nums">{formatCurrency(position.valueUsd)}</td>
+                  <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(position.shares)}</td>
+                  <td className="py-3 pr-3">
+                    <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(position.changeStatus)}`}>
+                      {position.changeStatus ?? "CURRENT"} {position.changeStatus ? formatPercent(position.percentChange) : ""}
+                    </span>
+                  </td>
+                  <td className="py-3 pr-3 text-right tabular-nums">
+                    {position.valueChangeUsd === null ? "Unknown" : formatCurrency(position.valueChangeUsd)}
+                  </td>
+                  <td className="py-3 text-slate-400">
+                    {position.quarter}
+                    <p className="text-xs text-slate-500">{position.reportDate}</p>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       {summary && summary.positions.length === 0 ? (
         <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
@@ -242,7 +256,8 @@ export function TickerPage({ ticker }: { ticker: string }) {
     void fetch(`/api/institutional-holdings/${encodeURIComponent(ticker)}`)
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error("Unable to load institutional holdings.");
+          const body = (await response.json().catch(() => ({}))) as ErrorResponse;
+          throw new Error(readErrorMessage(body, "Unable to load institutional holdings."));
         }
 
         return (await response.json()) as InstitutionalTickerSummary;
