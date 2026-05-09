@@ -3,11 +3,28 @@ import { NextRequest, NextResponse } from "next/server";
 
 type TickerSearchItem = {
   id: string;
+  kind: "ticker";
   symbol: string;
   name: string;
   exchange: string | null;
   micCode: string | null;
   type: string | null;
+};
+
+type InstitutionSearchItem = {
+  id: string;
+  kind: "institution";
+  cik: string;
+  name: string;
+  latestReportDate: string | null;
+  latestQuarter: string | null;
+};
+
+type SearchItem = TickerSearchItem | InstitutionSearchItem;
+
+type ScoredSearchItem = {
+  item: SearchItem;
+  score: number;
 };
 
 type TickerDocument = {
@@ -19,6 +36,13 @@ type TickerDocument = {
   micCode?: unknown;
   type?: unknown;
   exchangePriority?: unknown;
+};
+
+type InstitutionalManagerDocument = {
+  cik?: unknown;
+  name?: unknown;
+  latestReportDate?: unknown;
+  latestQuarter?: unknown;
 };
 
 function normalizeQuery(raw: string | null): string {
@@ -49,6 +73,28 @@ function scoreTicker(item: TickerSearchItem & { symbolLower: string; nameLower: 
   return score;
 }
 
+function scoreInstitution(item: InstitutionSearchItem, query: string): number {
+  const nameLower = item.name.toLowerCase();
+  const cik = item.cik.replace(/^0+/, "") || item.cik;
+  let score = 0;
+
+  if (item.cik === query || cik === query) {
+    score += 900;
+  }
+
+  if (nameLower === query) {
+    score += 650;
+  } else if (nameLower.startsWith(query)) {
+    score += 450;
+  } else if (nameLower.split(/\s+/).some((token) => token.startsWith(query))) {
+    score += 300;
+  } else if (nameLower.includes(query)) {
+    score += 150;
+  }
+
+  return score;
+}
+
 function toSearchItem(id: string, data: TickerDocument) {
   const symbol = readString(data.symbol);
   const name = readString(data.name);
@@ -63,6 +109,7 @@ function toSearchItem(id: string, data: TickerDocument) {
 
   return {
     id,
+    kind: "ticker" as const,
     symbol,
     symbolLower,
     name,
@@ -71,6 +118,24 @@ function toSearchItem(id: string, data: TickerDocument) {
     micCode: readString(data.micCode),
     type: readString(data.type),
     exchangePriority,
+  };
+}
+
+function toInstitutionSearchItem(id: string, data: InstitutionalManagerDocument): InstitutionSearchItem | null {
+  const cik = readString(data.cik) ?? id;
+  const name = readString(data.name);
+
+  if (!cik || !name) {
+    return null;
+  }
+
+  return {
+    id,
+    kind: "institution",
+    cik,
+    name,
+    latestReportDate: readString(data.latestReportDate),
+    latestQuarter: readString(data.latestQuarter),
   };
 }
 
@@ -90,15 +155,18 @@ export async function GET(request: NextRequest) {
   try {
     const db = getAdminFirestore();
     const prefixField = query.length === 1 ? "symbolPrefixes" : "searchPrefixes";
-    const snapshot = await db
-      .collection("tickers")
-      .where("active", "==", true)
-      .where("predictionSupported", "==", true)
-      .where(prefixField, "array-contains", query)
-      .limit(50)
-      .get();
+    const [tickerSnapshot, institutionSnapshot] = await Promise.all([
+      db
+        .collection("tickers")
+        .where("active", "==", true)
+        .where("predictionSupported", "==", true)
+        .where(prefixField, "array-contains", query)
+        .limit(50)
+        .get(),
+      db.collection("institutional_managers").orderBy("updatedAt", "desc").limit(200).get(),
+    ]);
 
-    const items = snapshot.docs
+    const tickerItems: ScoredSearchItem[] = tickerSnapshot.docs
       .map((doc) => toSearchItem(doc.id, doc.data()))
       .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
       .sort((left, right) => {
@@ -108,15 +176,51 @@ export async function GET(request: NextRequest) {
         }
         return left.symbol.localeCompare(right.symbol);
       })
-      .slice(0, limit)
-      .map<TickerSearchItem>((item) => ({
-        id: item.id,
-        symbol: item.symbol,
-        name: item.name,
-        exchange: item.exchange,
-        micCode: item.micCode,
-        type: item.type,
+      .slice(0, 50)
+      .map((item) => ({
+        item: {
+          id: item.id,
+          kind: item.kind,
+          symbol: item.symbol,
+          name: item.name,
+          exchange: item.exchange,
+          micCode: item.micCode,
+          type: item.type,
+        },
+        score: scoreTicker(item, query),
       }));
+    const institutionItems: ScoredSearchItem[] = institutionSnapshot.docs
+      .map((doc) => toInstitutionSearchItem(doc.id, doc.data()))
+      .filter((item): item is InstitutionSearchItem => Boolean(item))
+      .map((item) => ({ item, score: scoreInstitution(item, query) }))
+      .filter(({ score }) => score > 0)
+      .sort((left, right) => right.score - left.score || left.item.name.localeCompare(right.item.name))
+      .slice(0, limit);
+    let selectedItems = [...tickerItems, ...institutionItems]
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        if (left.item.kind !== right.item.kind) {
+          return left.item.kind === "ticker" ? -1 : 1;
+        }
+        return left.item.name.localeCompare(right.item.name);
+      })
+      .slice(0, limit);
+
+    if (institutionItems.length > 0 && limit > 1 && !selectedItems.some(({ item }) => item.kind === "institution")) {
+      selectedItems = [...selectedItems.slice(0, limit - 1), institutionItems[0]].sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+        if (left.item.kind !== right.item.kind) {
+          return left.item.kind === "ticker" ? -1 : 1;
+        }
+        return left.item.name.localeCompare(right.item.name);
+      });
+    }
+
+    const items: SearchItem[] = selectedItems.map(({ item }) => item);
 
     return NextResponse.json({ items });
   } catch (error) {
