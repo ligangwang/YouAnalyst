@@ -254,6 +254,126 @@ jobs:
               --message-body "$body"
           fi
 
+      - name: Upsert staging 13F discovery scheduler
+        env:
+          CLOUD_RUN_URL: ${{ steps.staging-url.outputs.url }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_ENABLED: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_ENABLED }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_JOB: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_JOB }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_SCHEDULE: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_SCHEDULE }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_LOOKBACK_DAYS: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_LOOKBACK_DAYS }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_MAX_FILINGS: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_MAX_FILINGS }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_DRY_RUN: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_DRY_RUN }}
+          INTERNAL_API_TOKEN: ${{ env.INTERNAL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${THIRTEEN_F_DISCOVERY_SCHEDULER_ENABLED:-0}" != "1" ]]; then
+            echo "13F discovery scheduler provisioning disabled for staging."
+            exit 0
+          fi
+          if [[ -z "${INTERNAL_API_TOKEN:-}" ]]; then
+            echo "INTERNAL_API_TOKEN is required to provision the 13F discovery scheduler" >&2
+            exit 1
+          fi
+
+          job_name="${THIRTEEN_F_DISCOVERY_SCHEDULER_JOB:-thirteen-f-discovery-staging}"
+          schedule="${THIRTEEN_F_DISCOVERY_SCHEDULER_SCHEDULE:-30 6 * * 1-6}"
+          lookback_days="${THIRTEEN_F_DISCOVERY_SCHEDULER_LOOKBACK_DAYS:-3}"
+          max_filings="${THIRTEEN_F_DISCOVERY_SCHEDULER_MAX_FILINGS:-5000}"
+          dry_run="${THIRTEEN_F_DISCOVERY_SCHEDULER_DRY_RUN:-false}"
+          body="$(jq -nc \
+            --argjson lookbackDays "$lookback_days" \
+            --argjson maxFilings "$max_filings" \
+            --argjson dryRun "$dry_run" \
+            '{ lookbackDays: $lookbackDays, maxFilings: $maxFilings, dryRun: $dryRun }')"
+          uri="${CLOUD_RUN_URL}/api/internal/securities/discover-13f"
+          headers="Authorization=Bearer ${INTERNAL_API_TOKEN},Content-Type=application/json"
+
+          if gcloud scheduler jobs describe "$job_name" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --update-headers "$headers" \
+              --message-body "$body"
+          else
+            gcloud scheduler jobs create http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --headers "$headers" \
+              --message-body "$body"
+          fi
+
+      - name: Upsert staging 13F queue scheduler
+        env:
+          CLOUD_RUN_URL: ${{ steps.staging-url.outputs.url }}
+          THIRTEEN_F_QUEUE_SCHEDULER_ENABLED: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_ENABLED }}
+          THIRTEEN_F_QUEUE_SCHEDULER_JOB: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_JOB }}
+          THIRTEEN_F_QUEUE_SCHEDULER_SCHEDULE: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_SCHEDULE }}
+          THIRTEEN_F_QUEUE_SCHEDULER_LIMIT: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_LIMIT }}
+          THIRTEEN_F_QUEUE_SCHEDULER_DRY_RUN: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_DRY_RUN }}
+          THIRTEEN_F_QUEUE_SCHEDULER_INCLUDE_STALE_PROCESSING: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_INCLUDE_STALE_PROCESSING }}
+          THIRTEEN_F_QUEUE_SCHEDULER_STALE_PROCESSING_MINUTES: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_STALE_PROCESSING_MINUTES }}
+          INTERNAL_API_TOKEN: ${{ env.INTERNAL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${THIRTEEN_F_QUEUE_SCHEDULER_ENABLED:-0}" != "1" ]]; then
+            echo "13F queue scheduler provisioning disabled for staging."
+            exit 0
+          fi
+          if [[ -z "${INTERNAL_API_TOKEN:-}" ]]; then
+            echo "INTERNAL_API_TOKEN is required to provision the 13F queue scheduler" >&2
+            exit 1
+          fi
+
+          job_name="${THIRTEEN_F_QUEUE_SCHEDULER_JOB:-thirteen-f-queue-staging}"
+          schedule="${THIRTEEN_F_QUEUE_SCHEDULER_SCHEDULE:-0 7-21/2 * * 1-6}"
+          limit="${THIRTEEN_F_QUEUE_SCHEDULER_LIMIT:-25}"
+          dry_run="${THIRTEEN_F_QUEUE_SCHEDULER_DRY_RUN:-false}"
+          include_stale_processing="${THIRTEEN_F_QUEUE_SCHEDULER_INCLUDE_STALE_PROCESSING:-true}"
+          stale_processing_minutes="${THIRTEEN_F_QUEUE_SCHEDULER_STALE_PROCESSING_MINUTES:-60}"
+          body="$(jq -nc \
+            --argjson limit "$limit" \
+            --argjson dryRun "$dry_run" \
+            --argjson includeStaleProcessing "$include_stale_processing" \
+            --argjson staleProcessingMinutes "$stale_processing_minutes" \
+            '{
+              limit: $limit,
+              dryRun: $dryRun,
+              includeStaleProcessing: $includeStaleProcessing,
+              staleProcessingMinutes: $staleProcessingMinutes
+            }')"
+          uri="${CLOUD_RUN_URL}/api/internal/securities/process-13f-queue"
+          headers="Authorization=Bearer ${INTERNAL_API_TOKEN},Content-Type=application/json"
+
+          if gcloud scheduler jobs describe "$job_name" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --update-headers "$headers" \
+              --message-body "$body"
+          else
+            gcloud scheduler jobs create http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --headers "$headers" \
+              --message-body "$body"
+          fi
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
@@ -465,6 +585,126 @@ jobs:
               --project "$GCP_PROJECT_ID" \
               --location "$GCP_REGION" \
               --schedule "0 20 * * 1-5" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --headers "$headers" \
+              --message-body "$body"
+          fi
+
+      - name: Upsert production 13F discovery scheduler
+        env:
+          CLOUD_RUN_URL: ${{ steps.production-url.outputs.url }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_ENABLED: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_ENABLED }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_JOB: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_JOB }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_SCHEDULE: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_SCHEDULE }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_LOOKBACK_DAYS: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_LOOKBACK_DAYS }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_MAX_FILINGS: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_MAX_FILINGS }}
+          THIRTEEN_F_DISCOVERY_SCHEDULER_DRY_RUN: ${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_DRY_RUN }}
+          INTERNAL_API_TOKEN: ${{ env.INTERNAL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${THIRTEEN_F_DISCOVERY_SCHEDULER_ENABLED:-0}" != "1" ]]; then
+            echo "13F discovery scheduler provisioning disabled for production."
+            exit 0
+          fi
+          if [[ -z "${INTERNAL_API_TOKEN:-}" ]]; then
+            echo "INTERNAL_API_TOKEN is required to provision the 13F discovery scheduler" >&2
+            exit 1
+          fi
+
+          job_name="${THIRTEEN_F_DISCOVERY_SCHEDULER_JOB:-thirteen-f-discovery-production}"
+          schedule="${THIRTEEN_F_DISCOVERY_SCHEDULER_SCHEDULE:-30 6 * * 1-6}"
+          lookback_days="${THIRTEEN_F_DISCOVERY_SCHEDULER_LOOKBACK_DAYS:-3}"
+          max_filings="${THIRTEEN_F_DISCOVERY_SCHEDULER_MAX_FILINGS:-5000}"
+          dry_run="${THIRTEEN_F_DISCOVERY_SCHEDULER_DRY_RUN:-false}"
+          body="$(jq -nc \
+            --argjson lookbackDays "$lookback_days" \
+            --argjson maxFilings "$max_filings" \
+            --argjson dryRun "$dry_run" \
+            '{ lookbackDays: $lookbackDays, maxFilings: $maxFilings, dryRun: $dryRun }')"
+          uri="${CLOUD_RUN_URL}/api/internal/securities/discover-13f"
+          headers="Authorization=Bearer ${INTERNAL_API_TOKEN},Content-Type=application/json"
+
+          if gcloud scheduler jobs describe "$job_name" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --update-headers "$headers" \
+              --message-body "$body"
+          else
+            gcloud scheduler jobs create http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --headers "$headers" \
+              --message-body "$body"
+          fi
+
+      - name: Upsert production 13F queue scheduler
+        env:
+          CLOUD_RUN_URL: ${{ steps.production-url.outputs.url }}
+          THIRTEEN_F_QUEUE_SCHEDULER_ENABLED: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_ENABLED }}
+          THIRTEEN_F_QUEUE_SCHEDULER_JOB: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_JOB }}
+          THIRTEEN_F_QUEUE_SCHEDULER_SCHEDULE: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_SCHEDULE }}
+          THIRTEEN_F_QUEUE_SCHEDULER_LIMIT: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_LIMIT }}
+          THIRTEEN_F_QUEUE_SCHEDULER_DRY_RUN: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_DRY_RUN }}
+          THIRTEEN_F_QUEUE_SCHEDULER_INCLUDE_STALE_PROCESSING: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_INCLUDE_STALE_PROCESSING }}
+          THIRTEEN_F_QUEUE_SCHEDULER_STALE_PROCESSING_MINUTES: ${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_STALE_PROCESSING_MINUTES }}
+          INTERNAL_API_TOKEN: ${{ env.INTERNAL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${THIRTEEN_F_QUEUE_SCHEDULER_ENABLED:-0}" != "1" ]]; then
+            echo "13F queue scheduler provisioning disabled for production."
+            exit 0
+          fi
+          if [[ -z "${INTERNAL_API_TOKEN:-}" ]]; then
+            echo "INTERNAL_API_TOKEN is required to provision the 13F queue scheduler" >&2
+            exit 1
+          fi
+
+          job_name="${THIRTEEN_F_QUEUE_SCHEDULER_JOB:-thirteen-f-queue-production}"
+          schedule="${THIRTEEN_F_QUEUE_SCHEDULER_SCHEDULE:-0 7-21/2 * * 1-6}"
+          limit="${THIRTEEN_F_QUEUE_SCHEDULER_LIMIT:-25}"
+          dry_run="${THIRTEEN_F_QUEUE_SCHEDULER_DRY_RUN:-false}"
+          include_stale_processing="${THIRTEEN_F_QUEUE_SCHEDULER_INCLUDE_STALE_PROCESSING:-true}"
+          stale_processing_minutes="${THIRTEEN_F_QUEUE_SCHEDULER_STALE_PROCESSING_MINUTES:-60}"
+          body="$(jq -nc \
+            --argjson limit "$limit" \
+            --argjson dryRun "$dry_run" \
+            --argjson includeStaleProcessing "$include_stale_processing" \
+            --argjson staleProcessingMinutes "$stale_processing_minutes" \
+            '{
+              limit: $limit,
+              dryRun: $dryRun,
+              includeStaleProcessing: $includeStaleProcessing,
+              staleProcessingMinutes: $staleProcessingMinutes
+            }')"
+          uri="${CLOUD_RUN_URL}/api/internal/securities/process-13f-queue"
+          headers="Authorization=Bearer ${INTERNAL_API_TOKEN},Content-Type=application/json"
+
+          if gcloud scheduler jobs describe "$job_name" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --update-headers "$headers" \
+              --message-body "$body"
+          else
+            gcloud scheduler jobs create http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
               --time-zone "America/New_York" \
               --uri "$uri" \
               --http-method POST \
