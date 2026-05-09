@@ -44,7 +44,12 @@ export function formatTickerSymbol(ticker: string | null | undefined): string {
   if (!symbol) {
     return "Prediction";
   }
-  return symbol.startsWith("$") ? symbol : `$${symbol}`;
+  return symbol.replace(/^\$+/, "");
+}
+
+export function formatCashtag(ticker: string | null | undefined): string {
+  const symbol = formatTickerSymbol(ticker);
+  return symbol === "Prediction" ? symbol : `$${symbol}`;
 }
 
 export function formatReturnPercent(returnValue: number): string {

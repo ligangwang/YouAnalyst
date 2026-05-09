@@ -1,16 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { PredictionReturnSummary } from "@/components/prediction-ui";
+import { formatTickerSymbol, PredictionReturnSummary } from "@/components/prediction-ui";
 import type { PublicWatchlistSummary } from "@/lib/watchlists/service";
-
-function formatTickerSymbol(value: string | null | undefined): string {
-  const symbol = value?.trim();
-  if (!symbol) {
-    return "Prediction";
-  }
-
-  return symbol.startsWith("$") ? symbol : `$${symbol}`;
-}
 
 function predictionStatusLabel(status: PublicWatchlistSummary["previewPredictions"][number]["status"]): string {
   if (status === "CREATED") {

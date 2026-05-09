@@ -179,7 +179,7 @@ function shareCardImage(watchlist: ShareCardWatchlist) {
         </div>
         {watchlist.tickers.length > 0 ? (
           <div style={{ color: "#38bdf8", display: "flex", fontSize: 28, fontWeight: 600, marginTop: 18 }}>
-            {watchlist.tickers.map((ticker) => `$${ticker}`).join(" - ")}
+            {watchlist.tickers.join(" - ")}
           </div>
         ) : null}
       </div>

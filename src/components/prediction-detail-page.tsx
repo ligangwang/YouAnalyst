@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { PredictionPriceChart, type PredictionPriceHistory } from "@/components/prediction-price-chart";
-import { formatPredictionStatus, formatPredictionThesisTitle, formatReturnPercent, formatTickerSymbol, markToneClass, PredictionAuthorSummary, PredictionThesisText, RelativeTime } from "@/components/prediction-ui";
+import { formatCashtag, formatPredictionStatus, formatPredictionThesisTitle, formatReturnPercent, formatTickerSymbol, markToneClass, PredictionAuthorSummary, PredictionThesisText, RelativeTime } from "@/components/prediction-ui";
 import {
   MAX_PREDICTION_THESIS_LENGTH,
   MAX_PREDICTION_THESIS_TITLE_LENGTH,
@@ -152,7 +152,7 @@ function predictionUrl(prediction: PredictionDetail): string {
 }
 
 function predictionShareText(prediction: PredictionDetail, returnText: string): string {
-  const ticker = formatTickerSymbol(prediction.ticker);
+  const ticker = formatCashtag(prediction.ticker);
   const shareReturn = predictionShareReturnText(prediction, returnText);
   const title = prediction.thesisTitle.trim();
 
