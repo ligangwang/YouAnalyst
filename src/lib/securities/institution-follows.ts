@@ -42,6 +42,34 @@ export type InstitutionDigestPreview = {
   wouldSend: boolean;
 };
 
+export type InstitutionDigestRunInput = {
+  dryRun?: boolean;
+  limitUsers?: number;
+  limitItems?: number;
+  userIds?: string[];
+};
+
+export type InstitutionDigestRunUserResult = {
+  userId: string;
+  cadence: InstitutionDigestPreferences["cadence"];
+  lastSentAt: string | null;
+  itemCount: number;
+  wouldSend: boolean;
+  updatedCheckpoint: boolean;
+  runId: string | null;
+  error: string | null;
+};
+
+export type InstitutionDigestRunResult = {
+  dryRun: boolean;
+  generatedAt: string;
+  scannedUsers: number;
+  candidateUsers: number;
+  sendableUsers: number;
+  totalItems: number;
+  users: InstitutionDigestRunUserResult[];
+};
+
 type InstitutionalManagerDocument = {
   cik?: unknown;
   name?: unknown;
@@ -123,6 +151,14 @@ function institutionDigestPreferencesFromUser(data: Record<string, unknown> | un
     cadence: settings.institutionDigestCadence === "daily" ? "daily" : "weekly",
     lastSentAt: typeof settings.institutionDigestLastSentAt === "string" ? settings.institutionDigestLastSentAt : null,
   };
+}
+
+function normalizeLimit(value: number | undefined, fallback: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.min(max, Math.trunc(value as number)));
 }
 
 export async function getInstitutionFollowState(rawCik: string, userId: string): Promise<{ cik: string; isFollowing: boolean } | null> {
@@ -314,5 +350,109 @@ export async function previewFollowedInstitutionDigest(userId: string, limit = 2
     items,
     generatedAt: new Date().toISOString(),
     wouldSend: preferences.enabled && items.length > 0,
+  };
+}
+
+export async function runInstitutionDigest(input: InstitutionDigestRunInput = {}): Promise<InstitutionDigestRunResult> {
+  const dryRun = input.dryRun !== false;
+  const generatedAt = new Date().toISOString();
+  const limitUsers = normalizeLimit(input.limitUsers, 50, 500);
+  const limitItems = normalizeLimit(input.limitItems, 50, 100);
+  const db = getAdminFirestore();
+  const userIds = [...new Set(input.userIds?.map((userId) => userId.trim()).filter(Boolean) ?? [])].slice(0, limitUsers);
+  const userSnapshots = userIds.length > 0
+    ? await Promise.all(userIds.map((userId) => db.collection("users").doc(userId).get()))
+    : (await db
+        .collection("users")
+        .where("settings.institutionDigestEnabled", "==", true)
+        .limit(limitUsers)
+        .get()).docs;
+  const users: InstitutionDigestRunUserResult[] = [];
+
+  for (const snapshot of userSnapshots) {
+    if (!snapshot.exists) {
+      users.push({
+        userId: snapshot.id,
+        cadence: "weekly",
+        lastSentAt: null,
+        itemCount: 0,
+        wouldSend: false,
+        updatedCheckpoint: false,
+        runId: null,
+        error: "User profile not found",
+      });
+      continue;
+    }
+
+    const preferences = institutionDigestPreferencesFromUser(snapshot.data() as Record<string, unknown> | undefined);
+    if (!preferences.enabled) {
+      continue;
+    }
+
+    try {
+      const items = await listFollowedInstitutionDigestActivity(snapshot.id, { limit: limitItems });
+      const wouldSend = items.length > 0;
+      let runId: string | null = null;
+
+      if (wouldSend) {
+        const runRef = db.collection("institution_digest_runs").doc();
+        runId = runRef.id;
+        const runRecord = {
+          userId: snapshot.id,
+          dryRun,
+          cadence: preferences.cadence,
+          lastSentAt: preferences.lastSentAt,
+          generatedAt,
+          itemCount: items.length,
+          wouldSend,
+          itemKeys: items.map((item) => item.positionKey),
+          status: dryRun ? "DRY_RUN" : "CHECKPOINTED",
+        };
+
+        if (dryRun) {
+          await runRef.set(runRecord);
+        } else {
+          await db.runTransaction(async (tx) => {
+            tx.set(runRef, runRecord);
+            tx.update(db.collection("users").doc(snapshot.id), {
+              "settings.institutionDigestLastSentAt": generatedAt,
+              updatedAt: generatedAt,
+            });
+          });
+        }
+      }
+
+      users.push({
+        userId: snapshot.id,
+        cadence: preferences.cadence,
+        lastSentAt: preferences.lastSentAt,
+        itemCount: items.length,
+        wouldSend,
+        updatedCheckpoint: !dryRun && wouldSend,
+        runId,
+        error: null,
+      });
+    } catch (error) {
+      users.push({
+        userId: snapshot.id,
+        cadence: preferences.cadence,
+        lastSentAt: preferences.lastSentAt,
+        itemCount: 0,
+        wouldSend: false,
+        updatedCheckpoint: false,
+        runId: null,
+        error: error instanceof Error ? error.message : "Failed to compute institution digest",
+      });
+    }
+  }
+
+  return {
+    dryRun,
+    generatedAt,
+    scannedUsers: userSnapshots.length,
+    candidateUsers: users.length,
+    sendableUsers: users.filter((user) => user.wouldSend).length,
+    totalItems: users.reduce((total, user) => total + user.itemCount, 0),
+    users,
   };
 }
