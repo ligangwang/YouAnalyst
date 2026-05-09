@@ -248,6 +248,17 @@ export function AdminDashboardPage() {
         </Link>
 
         <Link
+          href="/admin/institutions/digests"
+          className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
+        >
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Institution Digests</p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Generate in-app summaries</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            Run dry previews, checkpoint live digest batches, and inspect saved activity snapshots.
+          </p>
+        </Link>
+
+        <Link
           href="/admin/openai-usage"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >

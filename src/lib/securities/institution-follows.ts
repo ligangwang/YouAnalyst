@@ -70,6 +70,18 @@ export type InstitutionDigestRunResult = {
   users: InstitutionDigestRunUserResult[];
 };
 
+export type InstitutionDigestSummary = {
+  managerCount: number;
+  tickerCount: number;
+  newCount: number;
+  increasedCount: number;
+  reducedCount: number;
+  soldOutCount: number;
+  unchangedCount: number;
+  netValueChangeUsd: number;
+  grossValueChangeUsd: number;
+};
+
 export type InstitutionDigestRunSnapshot = {
   id: string;
   userId: string;
@@ -77,9 +89,11 @@ export type InstitutionDigestRunSnapshot = {
   cadence: InstitutionDigestPreferences["cadence"];
   lastSentAt: string | null;
   generatedAt: string;
+  readAt: string | null;
   itemCount: number;
   wouldSend: boolean;
   status: string;
+  summary: InstitutionDigestSummary;
   items: FollowedInstitutionActivity[];
 };
 
@@ -174,6 +188,31 @@ function normalizeLimit(value: number | undefined, fallback: number, max: number
   return Math.max(1, Math.min(max, Math.trunc(value as number)));
 }
 
+function readNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function digestSummaryFromData(data: unknown, items: FollowedInstitutionActivity[]): InstitutionDigestSummary {
+  if (data && typeof data === "object") {
+    const summary = data as Record<string, unknown>;
+
+    return {
+      managerCount: readNumber(summary.managerCount),
+      tickerCount: readNumber(summary.tickerCount),
+      newCount: readNumber(summary.newCount),
+      increasedCount: readNumber(summary.increasedCount),
+      reducedCount: readNumber(summary.reducedCount),
+      soldOutCount: readNumber(summary.soldOutCount),
+      unchangedCount: readNumber(summary.unchangedCount),
+      netValueChangeUsd: readNumber(summary.netValueChangeUsd),
+      grossValueChangeUsd: readNumber(summary.grossValueChangeUsd),
+    };
+  }
+
+  return summarizeInstitutionDigestItems(items);
+}
+
 function digestRunFromData(id: string, data: Record<string, unknown>): InstitutionDigestRunSnapshot {
   const items = Array.isArray(data.items) ? data.items as FollowedInstitutionActivity[] : [];
 
@@ -184,11 +223,52 @@ function digestRunFromData(id: string, data: Record<string, unknown>): Instituti
     cadence: data.cadence === "daily" ? "daily" : "weekly",
     lastSentAt: readString(data.lastSentAt),
     generatedAt: readString(data.generatedAt) ?? "",
+    readAt: readString(data.readAt),
     itemCount: Number(data.itemCount ?? items.length),
     wouldSend: data.wouldSend === true,
     status: readString(data.status) ?? "UNKNOWN",
+    summary: digestSummaryFromData(data.summary, items),
     items,
   };
+}
+
+export function summarizeInstitutionDigestItems(items: FollowedInstitutionActivity[]): InstitutionDigestSummary {
+  const managers = new Set<string>();
+  const tickers = new Set<string>();
+  const summary: InstitutionDigestSummary = {
+    managerCount: 0,
+    tickerCount: 0,
+    newCount: 0,
+    increasedCount: 0,
+    reducedCount: 0,
+    soldOutCount: 0,
+    unchangedCount: 0,
+    netValueChangeUsd: 0,
+    grossValueChangeUsd: 0,
+  };
+
+  for (const item of items) {
+    managers.add(item.managerCik);
+    tickers.add(item.ticker ?? item.nameOfIssuer);
+    summary.netValueChangeUsd += item.valueChangeUsd;
+    summary.grossValueChangeUsd += Math.abs(item.valueChangeUsd);
+
+    if (item.status === "NEW") {
+      summary.newCount += 1;
+    } else if (item.status === "INCREASED") {
+      summary.increasedCount += 1;
+    } else if (item.status === "REDUCED") {
+      summary.reducedCount += 1;
+    } else if (item.status === "SOLD_OUT") {
+      summary.soldOutCount += 1;
+    } else {
+      summary.unchangedCount += 1;
+    }
+  }
+
+  summary.managerCount = managers.size;
+  summary.tickerCount = tickers.size;
+  return summary;
 }
 
 export async function getInstitutionFollowState(rawCik: string, userId: string): Promise<{ cik: string; isFollowing: boolean } | null> {
@@ -433,10 +513,12 @@ export async function runInstitutionDigest(input: InstitutionDigestRunInput = {}
           cadence: preferences.cadence,
           lastSentAt: preferences.lastSentAt,
           generatedAt,
+          readAt: null,
           itemCount: items.length,
           wouldSend,
           itemKeys: items.map((item) => item.positionKey),
           items,
+          summary: summarizeInstitutionDigestItems(items),
           status: dryRun ? "DRY_RUN" : "CHECKPOINTED",
         };
 
@@ -498,4 +580,38 @@ export async function listInstitutionDigestRuns(userId: string, limit = 10): Pro
     .get();
 
   return snapshot.docs.map((doc) => digestRunFromData(doc.id, doc.data()));
+}
+
+export async function listRecentInstitutionDigestRuns(limit = 25): Promise<InstitutionDigestRunSnapshot[]> {
+  const normalizedLimit = normalizeLimit(limit, 25, 100);
+  const snapshot = await getAdminFirestore()
+    .collection("institution_digest_runs")
+    .orderBy("generatedAt", "desc")
+    .limit(normalizedLimit)
+    .get();
+
+  return snapshot.docs.map((doc) => digestRunFromData(doc.id, doc.data()));
+}
+
+export async function markInstitutionDigestRunRead(
+  userId: string,
+  runId: string,
+): Promise<{ id: string; readAt: string } | null> {
+  const db = getAdminFirestore();
+  const runRef = db.collection("institution_digest_runs").doc(runId);
+  const snapshot = await runRef.get();
+
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  const data = snapshot.data() as Record<string, unknown> | undefined;
+  if (readString(data?.userId) !== userId) {
+    throw new Error("Forbidden");
+  }
+
+  const readAt = new Date().toISOString();
+  await runRef.set({ readAt }, { merge: true });
+
+  return { id: runId, readAt };
 }
