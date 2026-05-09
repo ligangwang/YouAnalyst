@@ -226,6 +226,17 @@ export function AdminDashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-2">
         <Link
+          href="/admin/securities/13f"
+          className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
+        >
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">13F Operations</p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Monitor filing pipeline</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            Review SEC discovery, queue health, failed filings, and backfill progress.
+          </p>
+        </Link>
+
+        <Link
           href="/admin/openai-usage"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
