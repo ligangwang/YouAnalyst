@@ -34,12 +34,30 @@ export type InstitutionalTickerPosition = {
   updatedAt: string;
 };
 
+export type InstitutionalTickerActivity = {
+  managerCik: string;
+  managerName: string;
+  status: InstitutionalHoldingChange["status"];
+  valueChangeUsd: number;
+  shareChange: number;
+  percentChange: number | null;
+  reportDate: string;
+  accessionNumber: string;
+};
+
 export type InstitutionalTickerSummary = {
   ticker: string;
   totalManagers: number;
   totalValueUsd: number;
   totalShares: number;
+  netValueChangeUsd: number;
+  increasedManagers: number;
+  reducedManagers: number;
+  newManagers: number;
+  soldOutManagers: number;
   latestReportDate: string | null;
+  topBuyers: InstitutionalTickerActivity[];
+  topSellers: InstitutionalTickerActivity[];
   positions: InstitutionalTickerPosition[];
 };
 
@@ -122,6 +140,44 @@ function isChangeNewerThanHolding(change: InstitutionalHoldingChange, holding: I
   return `${change.reportDate}_${change.updatedAt}` > `${holding.reportDate}_${holding.updatedAt}`;
 }
 
+function tickerPositionFromSoldOutChange(ticker: string, change: InstitutionalHoldingChange): InstitutionalTickerPosition {
+  return {
+    managerCik: change.managerCik,
+    managerName: change.managerName,
+    ticker,
+    nameOfIssuer: change.nameOfIssuer,
+    quarter: change.quarter,
+    reportDate: change.reportDate,
+    filingDate: change.filingDate,
+    accessionNumber: change.accessionNumber,
+    shares: 0,
+    valueUsd: 0,
+    positionCount: 0,
+    changeStatus: change.status,
+    shareChange: change.shareChange,
+    valueChangeUsd: change.valueChangeUsd,
+    percentChange: change.percentChange,
+    updatedAt: change.updatedAt,
+  };
+}
+
+function tickerActivityFromPosition(position: InstitutionalTickerPosition): InstitutionalTickerActivity | null {
+  if (!position.changeStatus || position.valueChangeUsd === null || position.shareChange === null) {
+    return null;
+  }
+
+  return {
+    managerCik: position.managerCik,
+    managerName: position.managerName,
+    status: position.changeStatus,
+    valueChangeUsd: position.valueChangeUsd,
+    shareChange: position.shareChange,
+    percentChange: position.percentChange,
+    reportDate: position.reportDate,
+    accessionNumber: position.accessionNumber,
+  };
+}
+
 export async function getInstitutionalTickerSummary(
   rawTicker: string,
   limit = DEFAULT_TICKER_SCAN_LIMIT,
@@ -162,7 +218,7 @@ export async function getInstitutionalTickerSummary(
     .map((doc) => doc.data() as InstitutionalHoldingChange)
     .filter((change) => change.ticker === ticker);
   const changeByManager = latestChangeByManager(changes);
-  const positions = [...latestByManager.values()]
+  const currentPositions = [...latestByManager.values()]
     .map<InstitutionalTickerPosition>((holding) => {
       const managerHoldings = holdingsSnapshot.docs
         .map((doc) => doc.data() as InstitutionalHolding)
@@ -195,17 +251,41 @@ export async function getInstitutionalTickerSummary(
         updatedAt: holding.updatedAt,
       };
     })
-    .sort((left, right) => right.valueUsd - left.valueUsd)
+  const soldOutPositions = [...changeByManager.values()]
+    .filter((change) => change.status === "SOLD_OUT" && !latestByManager.has(change.managerCik))
+    .map((change) => tickerPositionFromSoldOutChange(ticker, change));
+  const allPositions = [...currentPositions, ...soldOutPositions];
+  const positions = allPositions
+    .sort((left, right) => right.valueUsd - left.valueUsd || Math.abs(right.valueChangeUsd ?? 0) - Math.abs(left.valueChangeUsd ?? 0))
     .slice(0, 100);
+  const activities = allPositions.flatMap((position) => {
+    const activity = tickerActivityFromPosition(position);
+    return activity ? [activity] : [];
+  });
+  const topBuyers = activities
+    .filter((activity) => activity.valueChangeUsd > 0)
+    .sort((left, right) => right.valueChangeUsd - left.valueChangeUsd)
+    .slice(0, 5);
+  const topSellers = activities
+    .filter((activity) => activity.valueChangeUsd < 0)
+    .sort((left, right) => left.valueChangeUsd - right.valueChangeUsd)
+    .slice(0, 5);
 
   return {
     ticker,
-    totalManagers: positions.length,
-    totalValueUsd: positions.reduce((total, position) => total + position.valueUsd, 0),
-    totalShares: positions.reduce((total, position) => total + position.shares, 0),
-    latestReportDate: positions.reduce<string | null>((latest, position) => (
+    totalManagers: allPositions.length,
+    totalValueUsd: allPositions.reduce((total, position) => total + position.valueUsd, 0),
+    totalShares: allPositions.reduce((total, position) => total + position.shares, 0),
+    netValueChangeUsd: activities.reduce((total, activity) => total + activity.valueChangeUsd, 0),
+    increasedManagers: activities.filter((activity) => activity.status === "INCREASED").length,
+    reducedManagers: activities.filter((activity) => activity.status === "REDUCED").length,
+    newManagers: activities.filter((activity) => activity.status === "NEW").length,
+    soldOutManagers: activities.filter((activity) => activity.status === "SOLD_OUT").length,
+    latestReportDate: allPositions.reduce<string | null>((latest, position) => (
       !latest || position.reportDate > latest ? position.reportDate : latest
     ), null),
+    topBuyers,
+    topSellers,
     positions,
   };
 }
