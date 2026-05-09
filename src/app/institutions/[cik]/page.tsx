@@ -13,6 +13,11 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+function formatSignedCurrency(value: number): string {
+  const formatted = formatCurrency(value);
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
 }
@@ -27,6 +32,18 @@ function formatPercent(value: number | null): string {
     minimumFractionDigits: 1,
     style: "percent",
   }).format(value)}`;
+}
+
+function changeTone(status: string | null): string {
+  if (status === "INCREASED" || status === "NEW") {
+    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
+  }
+
+  if (status === "REDUCED" || status === "SOLD_OUT") {
+    return "border-rose-400/30 bg-rose-400/10 text-rose-100";
+  }
+
+  return "border-white/10 bg-slate-900/80 text-slate-300";
 }
 
 export async function generateMetadata({
@@ -67,6 +84,8 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
   }
 
   const totalValueUsd = summary.holdings.reduce((total, holding) => total + holding.valueUsd, 0);
+  const netValueChangeUsd = summary.holdings.reduce((total, holding) => total + (holding.valueChangeUsd ?? 0), 0);
+  const changedHoldings = summary.holdings.filter((holding) => holding.changeStatus && holding.changeStatus !== "UNCHANGED").length;
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
@@ -82,7 +101,7 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
         </p>
       </section>
 
-      <section className="mt-4 grid gap-3 sm:grid-cols-3">
+      <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Shown positions</p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{summary.holdings.length}</p>
@@ -90,6 +109,11 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
         <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Shown market value</p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatCurrency(totalValueUsd)}</p>
+        </div>
+        <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Net value change</p>
+          <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatSignedCurrency(netValueChangeUsd)}</p>
+          <p className="mt-1 text-xs text-slate-500">{changedHoldings} changed positions shown</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest filing</p>
@@ -106,7 +130,7 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="py-3 pr-3">Ticker</th>
@@ -114,6 +138,7 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
                 <th className="py-3 pr-3 text-right">Value</th>
                 <th className="py-3 pr-3 text-right">Shares</th>
                 <th className="py-3 pr-3">Change</th>
+                <th className="py-3 pr-3 text-right">Value change</th>
                 <th className="py-3">Report</th>
               </tr>
             </thead>
@@ -133,9 +158,12 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
                   <td className="py-3 pr-3 text-right tabular-nums">{formatCurrency(holding.valueUsd)}</td>
                   <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(holding.shares)}</td>
                   <td className="py-3 pr-3">
-                    <span className="rounded-full border border-white/10 px-2 py-1 text-xs font-semibold text-slate-300">
+                    <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(holding.changeStatus)}`}>
                       {holding.changeStatus ?? "CURRENT"} {holding.changeStatus ? formatPercent(holding.percentChange) : ""}
                     </span>
+                  </td>
+                  <td className="py-3 pr-3 text-right tabular-nums">
+                    {holding.valueChangeUsd === null ? "Unknown" : formatSignedCurrency(holding.valueChangeUsd)}
                   </td>
                   <td className="py-3 text-slate-400">{holding.reportDate}</td>
                 </tr>
