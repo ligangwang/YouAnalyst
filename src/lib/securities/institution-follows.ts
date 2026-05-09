@@ -29,6 +29,12 @@ export type FollowedInstitutionActivity = {
   updatedAt: string;
 };
 
+export type InstitutionDigestPreferences = {
+  enabled: boolean;
+  cadence: "daily" | "weekly";
+  lastSentAt: string | null;
+};
+
 type InstitutionalManagerDocument = {
   cik?: unknown;
   name?: unknown;
@@ -97,6 +103,18 @@ function followedActivityFromChange(change: InstitutionalHoldingChange): Followe
     valueChangeUsd: change.valueChangeUsd,
     percentChange: change.percentChange,
     updatedAt: change.updatedAt,
+  };
+}
+
+function institutionDigestPreferencesFromUser(data: Record<string, unknown> | undefined): InstitutionDigestPreferences {
+  const settings = data?.settings && typeof data.settings === "object"
+    ? data.settings as Record<string, unknown>
+    : {};
+
+  return {
+    enabled: settings.institutionDigestEnabled === true,
+    cadence: settings.institutionDigestCadence === "daily" ? "daily" : "weekly",
+    lastSentAt: typeof settings.institutionDigestLastSentAt === "string" ? settings.institutionDigestLastSentAt : null,
   };
 }
 
@@ -235,4 +253,36 @@ export async function listFollowedInstitutionActivity(userId: string, limit = 24
       Math.abs(right.valueChangeUsd) - Math.abs(left.valueChangeUsd)
     ))
     .slice(0, normalizedLimit);
+}
+
+export async function getInstitutionDigestPreferences(userId: string): Promise<InstitutionDigestPreferences | null> {
+  const snapshot = await getAdminFirestore().collection("users").doc(userId).get();
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return institutionDigestPreferencesFromUser(snapshot.data() as Record<string, unknown> | undefined);
+}
+
+export async function listFollowedInstitutionDigestActivity(
+  userId: string,
+  input: { since?: string | null; limit?: number } = {},
+): Promise<FollowedInstitutionActivity[]> {
+  const preferences = await getInstitutionDigestPreferences(userId);
+  if (!preferences?.enabled) {
+    return [];
+  }
+
+  const since = input.since ?? preferences.lastSentAt;
+  const activities = await listFollowedInstitutionActivity(userId, input.limit ?? 50);
+
+  if (!since) {
+    return activities;
+  }
+
+  return activities.filter((activity) => (
+    activity.updatedAt > since ||
+    activity.filingDate > since ||
+    activity.reportDate > since
+  ));
 }

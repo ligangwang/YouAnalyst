@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
       },
       settings: {
         isPublic: true,
+        institutionDigestEnabled: false,
+        institutionDigestCadence: "weekly",
+        institutionDigestLastSentAt: null,
       },
       billing: {
         plan: "FREE",
