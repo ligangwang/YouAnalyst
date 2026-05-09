@@ -51,7 +51,7 @@ function directionArrow(direction: "UP" | "DOWN" | null): string {
 
 function tickerText(call: DailyCallHighlight): string {
   const ticker = call.ticker ? normalizeTicker(call.ticker) : "";
-  return ticker ? `$${ticker}` : "Unknown ticker";
+  return ticker || "Unknown ticker";
 }
 
 function userName(call: DailyCallHighlight): string {

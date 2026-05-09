@@ -76,7 +76,7 @@ function metadataLabel(event: OpenAiUsageEvent): string {
   const ticker = event.metadata.ticker;
   const runDate = event.metadata.runDate;
   if (typeof ticker === "string" && ticker) {
-    return `$${ticker}`;
+    return ticker;
   }
   if (typeof runDate === "string" && runDate) {
     return runDate;

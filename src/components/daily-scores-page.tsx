@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { formatTickerSymbol } from "@/components/prediction-ui";
+import { formatCashtag, formatTickerSymbol } from "@/components/prediction-ui";
 import { useAuth } from "@/components/providers/auth-provider";
 import { dailyCanonicalPath, dailyShareVersion } from "@/lib/daily-scores/public-share";
 import { xPostIntentUrl } from "@/lib/x-share";
@@ -134,7 +134,7 @@ function shareText(payload: DailyScoresResponse): string {
     return "Daily stock-call results are live on YouAnalyst.";
   }
 
-  return `Daily stock-call results are live on YouAnalyst. Top call: ${formatTickerSymbol(call.ticker)}.`;
+  return `Daily stock-call results are live on YouAnalyst. Top call: ${formatCashtag(call.ticker)}.`;
 }
 
 function xShareUrl(payload: DailyScoresResponse): string {
