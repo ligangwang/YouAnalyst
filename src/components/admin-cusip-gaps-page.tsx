@@ -43,6 +43,26 @@ type GapsResponse = {
   error?: string;
 };
 
+type OverrideResult = {
+  ok?: boolean;
+  result?: {
+    cusip: string;
+    ticker: string;
+    symbol: string;
+    exchange: string;
+    affectedCurrentHoldings: number;
+    updatedAt: string;
+  };
+  error?: string;
+};
+
+type OverrideDraft = {
+  cusip: string;
+  ticker: string;
+  symbol: string;
+  exchange: string;
+};
+
 function formatCount(value: number): string {
   return Math.max(0, Math.round(value)).toLocaleString();
 }
@@ -98,11 +118,11 @@ function Metric({ label, value, note }: { label: string; value: string; note?: s
   );
 }
 
-function GapRow({ gap }: { gap: CusipMappingGap }) {
+function GapRow({ gap, onSelect }: { gap: CusipMappingGap; onSelect: (gap: CusipMappingGap) => void }) {
   const topManager = gap.managers[0];
 
   return (
-    <article className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[0.7fr_1.2fr_0.8fr_0.8fr_1.1fr]">
+    <article className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[0.7fr_1.2fr_0.8fr_0.8fr_1.1fr_auto]">
       <div>
         <p className="font-semibold text-cyan-100">{gap.cusip}</p>
         <p className="mt-1 text-xs text-slate-500">{gap.positionCount} positions</p>
@@ -117,6 +137,13 @@ function GapRow({ gap }: { gap: CusipMappingGap }) {
         <p className="text-slate-200">{topManager?.managerName || topManager?.managerCik || "-"}</p>
         {gap.managers.length > 1 ? <p className="mt-1 text-xs text-slate-500">+{gap.managers.length - 1} more managers in sample</p> : null}
       </div>
+      <button
+        type="button"
+        onClick={() => onSelect(gap)}
+        className="h-fit rounded-xl border border-cyan-400/35 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
+      >
+        Map
+      </button>
     </article>
   );
 }
@@ -127,6 +154,9 @@ export function AdminCusipGapsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loadingGaps, setLoadingGaps] = useState(false);
   const [sampleLimit, setSampleLimit] = useState("500");
+  const [overrideDraft, setOverrideDraft] = useState<OverrideDraft | null>(null);
+  const [overrideSaving, setOverrideSaving] = useState(false);
+  const [overrideResult, setOverrideResult] = useState<OverrideResult | null>(null);
 
   async function loadGaps() {
     setLoadingGaps(true);
@@ -159,6 +189,60 @@ export function AdminCusipGapsPage() {
       setError(nextError instanceof Error ? nextError.message : "Unable to load CUSIP mapping gaps.");
     } finally {
       setLoadingGaps(false);
+    }
+  }
+
+  function selectGapForOverride(gap: CusipMappingGap) {
+    setOverrideResult(null);
+    setOverrideDraft({
+      cusip: gap.cusip,
+      ticker: "",
+      symbol: "",
+      exchange: "US",
+    });
+  }
+
+  async function saveOverride() {
+    if (!overrideDraft) {
+      return;
+    }
+
+    setOverrideSaving(true);
+    setOverrideResult(null);
+
+    try {
+      if (!user) {
+        throw new Error("Sign in with an admin account to save CUSIP overrides.");
+      }
+
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error("Sign in with an admin account to save CUSIP overrides.");
+      }
+
+      const response = await fetch("/api/admin/securities/cusip-gaps", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(overrideDraft),
+      });
+      const result = (await response.json().catch(() => ({}))) as OverrideResult;
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "Unable to save CUSIP mapping override.");
+      }
+
+      setOverrideResult(result);
+      setOverrideDraft(null);
+      await loadGaps();
+    } catch (nextError) {
+      setOverrideResult({
+        error: nextError instanceof Error ? nextError.message : "Unable to save CUSIP mapping override.",
+      });
+    } finally {
+      setOverrideSaving(false);
     }
   }
 
@@ -210,6 +294,79 @@ export function AdminCusipGapsPage() {
 
       {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
 
+      {overrideResult?.error ? (
+        <p className="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{overrideResult.error}</p>
+      ) : null}
+
+      {overrideResult?.result ? (
+        <section className="mb-6 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
+          <p className="text-sm font-semibold text-emerald-100">
+            Saved {overrideResult.result.cusip} to {overrideResult.result.ticker}
+          </p>
+          <p className="mt-1 text-sm text-emerald-50/80">
+            {formatCount(overrideResult.result.affectedCurrentHoldings)} current unmapped holdings can be refreshed with this override.
+          </p>
+        </section>
+      ) : null}
+
+      {overrideDraft ? (
+        <section className="mb-6 rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Mapping override</p>
+              <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">{overrideDraft.cusip}</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOverrideDraft(null)}
+              className="w-fit rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10"
+            >
+              Cancel
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_0.7fr_auto] lg:items-end">
+            <label className="grid gap-1 text-xs text-slate-400">
+              Ticker
+              <input
+                type="text"
+                value={overrideDraft.ticker}
+                onChange={(event) => setOverrideDraft({ ...overrideDraft, ticker: event.target.value })}
+                placeholder="AAPL"
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-slate-400">
+              Provider symbol
+              <input
+                type="text"
+                value={overrideDraft.symbol}
+                onChange={(event) => setOverrideDraft({ ...overrideDraft, symbol: event.target.value })}
+                placeholder="AAPL.US"
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-slate-400">
+              Exchange
+              <input
+                type="text"
+                value={overrideDraft.exchange}
+                onChange={(event) => setOverrideDraft({ ...overrideDraft, exchange: event.target.value })}
+                placeholder="US"
+                className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void saveOverride()}
+              disabled={overrideSaving}
+              className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
+            >
+              {overrideSaving ? "Saving..." : "Save override"}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="Total holdings" value={formatCount(payload?.totalHoldings ?? 0)} />
         <Metric label="Mapped holdings" value={formatCount(payload?.mappedHoldings ?? 0)} />
@@ -221,7 +378,7 @@ export function AdminCusipGapsPage() {
         <div className="border-b border-white/10 px-4 py-3">
           <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Largest sampled gaps</h2>
         </div>
-        {gaps.map((gap) => <GapRow key={gap.cusip} gap={gap} />)}
+        {gaps.map((gap) => <GapRow key={gap.cusip} gap={gap} onSelect={selectGapForOverride} />)}
         {!loadingGaps && gaps.length === 0 ? (
           <p className="p-6 text-sm text-slate-300">No unmapped holdings found in the current sample.</p>
         ) : null}
