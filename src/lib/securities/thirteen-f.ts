@@ -55,7 +55,7 @@ type Parsed13FHolding = {
   votingNone: number | null;
 };
 
-type Latest13FFiling = {
+export type Latest13FFiling = {
   managerCik: string;
   managerName: string;
   accessionNumber: string;
@@ -607,60 +607,73 @@ async function persistManager13F(input: {
   return { holdingsWritten, changesWritten };
 }
 
+export async function parseAndPersist13FFiling(input: {
+  filing: Latest13FFiling;
+  dryRun: boolean;
+  updatedAt: string;
+}): Promise<Sync13FManagerResult> {
+  const filing = input.filing;
+  const quarter = quarterFromReportDate(filing.reportDate);
+  const infoTable = await fetchInformationTableXml(filing);
+  const parsedHoldings = parse13FInformationTable(infoTable.xml);
+  const mappings = await loadCusipMappings(parsedHoldings.map((holding) => holding.cusip));
+  const holdings: InstitutionalHolding[] = parsedHoldings.map((holding) => {
+    const mapping = mappings.get(holding.cusip);
+    const ticker = readString(mapping?.ticker);
+
+    return {
+      ...holding,
+      positionKey: holdingPositionKey(holding),
+      quarter,
+      managerCik: filing.managerCik,
+      managerName: filing.managerName,
+      accessionNumber: filing.accessionNumber,
+      filingDate: filing.filingDate,
+      reportDate: filing.reportDate,
+      infoTableUrl: infoTable.url,
+      ticker,
+      providerSymbol: readString(mapping?.symbol),
+      exchange: readString(mapping?.exchange),
+      valueUsd: holding.valueThousands * 1000,
+      source: "sec-13f",
+      updatedAt: input.updatedAt,
+    };
+  });
+  const previousHoldings = await loadPreviousHoldings(filing.managerCik, quarter);
+  const changes = buildHoldingChanges(holdings, previousHoldings, filing, quarter, input.updatedAt);
+  const written = await persistManager13F({
+    filing,
+    infoTableUrl: infoTable.url,
+    holdings,
+    changes,
+    dryRun: input.dryRun,
+    updatedAt: input.updatedAt,
+  });
+
+  return {
+    managerCik: filing.managerCik,
+    managerName: filing.managerName,
+    accessionNumber: filing.accessionNumber,
+    reportDate: filing.reportDate,
+    quarter,
+    infoTableUrl: infoTable.url,
+    holdingsParsed: parsedHoldings.length,
+    holdingsMapped: holdings.filter((holding) => holding.ticker).length,
+    holdingsWritten: written.holdingsWritten,
+    changesWritten: written.changesWritten,
+    skipped: false,
+    error: null,
+  };
+}
+
 async function syncManager13F(managerCik: string, dryRun: boolean, updatedAt: string): Promise<Sync13FManagerResult> {
   try {
     const filing = await fetchLatest13FFiling(managerCik);
-    const quarter = quarterFromReportDate(filing.reportDate);
-    const infoTable = await fetchInformationTableXml(filing);
-    const parsedHoldings = parse13FInformationTable(infoTable.xml);
-    const mappings = await loadCusipMappings(parsedHoldings.map((holding) => holding.cusip));
-    const holdings: InstitutionalHolding[] = parsedHoldings.map((holding) => {
-      const mapping = mappings.get(holding.cusip);
-      const ticker = readString(mapping?.ticker);
-
-      return {
-        ...holding,
-        positionKey: holdingPositionKey(holding),
-        quarter,
-        managerCik: filing.managerCik,
-        managerName: filing.managerName,
-        accessionNumber: filing.accessionNumber,
-        filingDate: filing.filingDate,
-        reportDate: filing.reportDate,
-        infoTableUrl: infoTable.url,
-        ticker,
-        providerSymbol: readString(mapping?.symbol),
-        exchange: readString(mapping?.exchange),
-        valueUsd: holding.valueThousands * 1000,
-        source: "sec-13f",
-        updatedAt,
-      };
-    });
-    const previousHoldings = await loadPreviousHoldings(filing.managerCik, quarter);
-    const changes = buildHoldingChanges(holdings, previousHoldings, filing, quarter, updatedAt);
-    const written = await persistManager13F({
+    return await parseAndPersist13FFiling({
       filing,
-      infoTableUrl: infoTable.url,
-      holdings,
-      changes,
       dryRun,
       updatedAt,
     });
-
-    return {
-      managerCik,
-      managerName: filing.managerName,
-      accessionNumber: filing.accessionNumber,
-      reportDate: filing.reportDate,
-      quarter,
-      infoTableUrl: infoTable.url,
-      holdingsParsed: parsedHoldings.length,
-      holdingsMapped: holdings.filter((holding) => holding.ticker).length,
-      holdingsWritten: written.holdingsWritten,
-      changesWritten: written.changesWritten,
-      skipped: false,
-      error: null,
-    };
   } catch (error) {
     return {
       managerCik,

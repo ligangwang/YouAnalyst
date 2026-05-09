@@ -251,6 +251,20 @@
       ]
     },
     {
+      "collectionGroup": "sec_13f_filings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "processingStartedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "tickers",
       "queryScope": "COLLECTION",
       "fields": [
