@@ -17,7 +17,6 @@ export function CompanySearchCard() {
   const [ticker, setTicker] = useState("");
   const normalizedTicker = normalizeTicker(ticker);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function submitSearch(event: FormEvent<HTMLFormElement>) {
@@ -25,52 +24,17 @@ export function CompanySearchCard() {
 
     if (!normalizedTicker) {
       setError("Enter a ticker or company name.");
-      setMessage(null);
       return;
     }
 
     if (!isValidTicker(normalizedTicker)) {
       setError("Choose a ticker from search or enter a valid symbol.");
-      setMessage(null);
       return;
     }
 
     setSubmitting(true);
     setError(null);
-    setMessage(null);
-
-    try {
-      const response = await fetch("/api/company-graph/requests", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          ticker: normalizedTicker,
-        }),
-      });
-      const body = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        message?: string;
-        status?: "AVAILABLE" | "QUEUED" | "ALREADY_QUEUED";
-        ticker?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(body.error ?? "Unable to request company graph.");
-      }
-
-      if (body.status === "AVAILABLE") {
-        router.push(`/ticker/${encodeURIComponent(body.ticker ?? normalizedTicker)}`);
-        return;
-      }
-
-      setMessage(body.message ?? `${normalizedTicker} was added to the graph request queue.`);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to request company graph.");
-    } finally {
-      setSubmitting(false);
-    }
+    router.push(`/ticker/${encodeURIComponent(normalizedTicker)}`);
   }
 
   return (
@@ -84,7 +48,6 @@ export function CompanySearchCard() {
           onChange={(value) => {
             setTicker(value);
             setError(null);
-            setMessage(null);
           }}
           error={error}
           hideLabel
@@ -96,10 +59,9 @@ export function CompanySearchCard() {
           disabled={submitting}
           className="h-11 rounded-xl bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitting ? "Checking..." : "Go"}
+          {submitting ? "Opening..." : "Go"}
         </button>
       </div>
-      {message ? <p className="mt-3 text-sm text-emerald-200">{message}</p> : null}
     </form>
   );
 }
