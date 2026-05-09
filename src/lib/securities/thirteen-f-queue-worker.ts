@@ -370,6 +370,7 @@ export async function process13FQueue(input: Process13FQueueInput): Promise<Proc
   for (const candidate of candidates) {
     const normalizedCandidate = normalizeQueueDocument(candidate.id, candidate.data);
     if (!normalizedCandidate) {
+      const reason = "Queued 13F filing is missing required metadata.";
       items.push({
         managerCik: candidate.id,
         managerName: candidate.id,
@@ -382,10 +383,18 @@ export async function process13FQueue(input: Process13FQueueInput): Promise<Proc
         holdingsWritten: 0,
         changesWritten: 0,
         skipped: true,
-        error: "Queued 13F filing is missing required metadata.",
+        error: reason,
         status: "SKIPPED",
         processingRunId: dryRun ? null : runId,
       });
+
+      if (!dryRun) {
+        await markQueuedFilingSkipped({
+          accessionNumber: candidate.id,
+          reason,
+          updatedAt,
+        });
+      }
       continue;
     }
 
