@@ -17,8 +17,8 @@ test("homepage renders institutional holdings search", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Predict", exact: true }).first()).toBeVisible();
   await expect(page.getByText("Institutional holdings", { exact: true })).toBeVisible();
   
-  // Verify ticker holdings search is on the page
-  await expect(page.getByRole("combobox", { name: "Company or ticker" })).toBeVisible();
+  // Verify unified company and institution search is on the page
+  await expect(page.getByRole("combobox", { name: "Company, ticker, or institution" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Go" })).toBeVisible();
   await expect(page.getByTestId("company-graph-chip").first()).toBeVisible();
 });

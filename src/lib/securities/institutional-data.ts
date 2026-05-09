@@ -5,8 +5,12 @@ import type { InstitutionalHolding, InstitutionalHoldingChange } from "@/lib/sec
 
 const DEFAULT_TICKER_SCAN_LIMIT = 1200;
 const DEFAULT_MANAGER_DISPLAY_LIMIT = 100;
-const DEFAULT_DISCOVERY_MANAGER_LIMIT = 36;
-const DEFAULT_DISCOVERY_ACTIVITY_LIMIT = 200;
+const DEFAULT_DISCOVERY_MANAGER_LIMIT = 96;
+const DEFAULT_DISCOVERY_ACTIVITY_LIMIT = 800;
+const DEFAULT_DISCOVERY_TICKER_LIMIT = 80;
+const MAX_DISCOVERY_MANAGER_LIMIT = 200;
+const MAX_DISCOVERY_ACTIVITY_LIMIT = 1500;
+const MAX_DISCOVERY_TICKER_LIMIT = 200;
 
 type InstitutionalManagerDocument = {
   cik?: unknown;
@@ -112,6 +116,12 @@ export type InstitutionalDiscoverySummary = {
   managers: InstitutionalDiscoveryManager[];
   activeTickers: InstitutionalDiscoveryTickerActivity[];
   generatedAt: string;
+};
+
+export type InstitutionalDiscoveryInput = {
+  managerLimit?: number;
+  activityLimit?: number;
+  tickerLimit?: number;
 };
 
 function readString(value: unknown): string | null {
@@ -226,7 +236,15 @@ function normalizeDiscoveryManager(id: string, data: InstitutionalManagerDocumen
   };
 }
 
-function discoveryActivityFromChanges(changes: InstitutionalHoldingChange[]): InstitutionalDiscoveryTickerActivity[] {
+function normalizeLimit(value: number | undefined, fallback: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.min(max, Math.trunc(value as number)));
+}
+
+function discoveryActivityFromChanges(changes: InstitutionalHoldingChange[], tickerLimit: number): InstitutionalDiscoveryTickerActivity[] {
   const byTicker = new Map<string, InstitutionalHoldingChange[]>();
 
   for (const change of changes) {
@@ -267,7 +285,7 @@ function discoveryActivityFromChanges(changes: InstitutionalHoldingChange[]): In
       };
     })
     .sort((left, right) => right.grossValueChangeUsd - left.grossValueChangeUsd)
-    .slice(0, 12);
+    .slice(0, tickerLimit);
 }
 
 export async function getInstitutionalTickerSummary(
@@ -382,18 +400,21 @@ export async function getInstitutionalTickerSummary(
   };
 }
 
-export async function getInstitutionalDiscoverySummary(): Promise<InstitutionalDiscoverySummary> {
+export async function getInstitutionalDiscoverySummary(input: InstitutionalDiscoveryInput = {}): Promise<InstitutionalDiscoverySummary> {
+  const managerLimit = normalizeLimit(input.managerLimit, DEFAULT_DISCOVERY_MANAGER_LIMIT, MAX_DISCOVERY_MANAGER_LIMIT);
+  const activityLimit = normalizeLimit(input.activityLimit, DEFAULT_DISCOVERY_ACTIVITY_LIMIT, MAX_DISCOVERY_ACTIVITY_LIMIT);
+  const tickerLimit = normalizeLimit(input.tickerLimit, DEFAULT_DISCOVERY_TICKER_LIMIT, MAX_DISCOVERY_TICKER_LIMIT);
   const db = getAdminFirestore();
   const [managersSnapshot, changesSnapshot] = await Promise.all([
-    db.collection("institutional_managers").orderBy("updatedAt", "desc").limit(DEFAULT_DISCOVERY_MANAGER_LIMIT).get(),
-    db.collection("institutional_holding_changes").orderBy("updatedAt", "desc").limit(DEFAULT_DISCOVERY_ACTIVITY_LIMIT).get(),
+    db.collection("institutional_managers").orderBy("updatedAt", "desc").limit(managerLimit).get(),
+    db.collection("institutional_holding_changes").orderBy("updatedAt", "desc").limit(activityLimit).get(),
   ]);
   const managers = managersSnapshot.docs.map((doc) => normalizeDiscoveryManager(doc.id, doc.data() as InstitutionalManagerDocument));
   const changes = changesSnapshot.docs.map((doc) => doc.data() as InstitutionalHoldingChange);
 
   return {
     managers,
-    activeTickers: discoveryActivityFromChanges(changes),
+    activeTickers: discoveryActivityFromChanges(changes, tickerLimit),
     generatedAt: new Date().toISOString(),
   };
 }
