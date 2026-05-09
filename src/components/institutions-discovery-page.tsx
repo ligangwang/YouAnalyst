@@ -81,8 +81,9 @@ function managerMatches(manager: InstitutionalDiscoveryManager, managerFilter: s
   if (!filter) {
     return true;
   }
+  const cikFilter = filter.replace(/\D/g, "");
 
-  return manager.name.toLowerCase().includes(filter) || manager.cik.includes(filter.replace(/\D/g, ""));
+  return manager.name.toLowerCase().includes(filter) || (cikFilter.length > 0 && manager.cik.includes(cikFilter));
 }
 
 function sortActivities(items: InstitutionalDiscoveryTickerActivity[], sort: ActivitySort): InstitutionalDiscoveryTickerActivity[] {
