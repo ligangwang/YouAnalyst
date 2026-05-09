@@ -9,7 +9,7 @@ type FollowResponse = {
   error?: string;
 };
 
-export function InstitutionFollowButton({ cik, name }: { cik: string; name: string }) {
+export function InstitutionFollowButton({ cik, name, compact = false }: { cik: string; name: string; compact?: boolean }) {
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadedForUser, setLoadedForUser] = useState<string | null>(null);
@@ -48,6 +48,7 @@ export function InstitutionFollowButton({ cik, name }: { cik: string; name: stri
       })
       .catch((nextError) => {
         if (!cancelled) {
+          setIsFollowing(false);
           setError(nextError instanceof Error ? nextError.message : "Unable to load follow status.");
           setLoadedForUser(user.uid);
         }
@@ -99,7 +100,7 @@ export function InstitutionFollowButton({ cik, name }: { cik: string; name: stri
       <button
         type="button"
         disabled
-        className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-slate-400"
+        className={`${compact ? "rounded-lg px-2 py-1 text-xs" : "rounded-xl px-4 py-2 text-sm"} border border-white/10 font-semibold text-slate-400`}
       >
         Loading...
       </button>
@@ -110,9 +111,9 @@ export function InstitutionFollowButton({ cik, name }: { cik: string; name: stri
     return (
       <Link
         href="/auth"
-        className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
+        className={`${compact ? "rounded-lg px-2 py-1 text-xs" : "rounded-xl px-4 py-2 text-sm"} bg-cyan-500 font-semibold text-slate-950 hover:bg-cyan-400`}
       >
-        Sign in to follow
+        {compact ? "Sign in" : "Sign in to follow"}
       </Link>
     );
   }
@@ -126,7 +127,7 @@ export function InstitutionFollowButton({ cik, name }: { cik: string; name: stri
         onClick={() => void toggleFollow()}
         disabled={saving || !isLoaded}
         aria-label={`${isFollowing ? "Unfollow" : "Follow"} ${name}`}
-        className={`rounded-xl px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`${compact ? "rounded-lg px-2 py-1 text-xs" : "rounded-xl px-4 py-2 text-sm"} font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
           isFollowing
             ? "border border-white/10 text-slate-200 hover:border-rose-400/40 hover:text-rose-200"
             : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"

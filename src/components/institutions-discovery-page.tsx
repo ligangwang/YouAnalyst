@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { FollowedInstitutionActivityPanel } from "@/components/followed-institution-activity-panel";
 import { FollowedInstitutionsPanel } from "@/components/followed-institutions-panel";
+import { InstitutionFollowButton } from "@/components/institution-follow-button";
 import { InstitutionDigestHistoryPanel } from "@/components/institution-digest-history-panel";
 import type {
   InstitutionalDiscoveryManager,
@@ -284,15 +285,20 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filteredManagers.slice(0, managerVisible).map((manager) => (
-            <Link key={manager.cik} href={`/institutions/${manager.cik}`} className="rounded-xl border border-white/10 bg-slate-900/60 p-4 transition hover:border-cyan-300/60 hover:bg-slate-900">
-              <p className="font-semibold text-cyan-100">{manager.name}</p>
+            <article key={manager.cik} className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <Link href={`/institutions/${manager.cik}`} className="font-semibold text-cyan-100 hover:text-cyan-300">
+                  {manager.name}
+                </Link>
+                <InstitutionFollowButton cik={manager.cik} name={manager.name} compact />
+              </div>
               <p className="mt-1 text-xs text-slate-500">CIK {manager.cik}</p>
               <div className="mt-4 grid gap-1 text-sm text-slate-300">
                 <p>Quarter {manager.latestQuarter ?? "Unknown"}</p>
                 <p>Report {formatDate(manager.latestReportDate)}</p>
                 <p className="truncate text-xs text-slate-500">Filing {manager.latestAccessionNumber ?? "Unknown"}</p>
               </div>
-            </Link>
+            </article>
           ))}
         </div>
 
