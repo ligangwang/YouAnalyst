@@ -69,7 +69,11 @@ function parseIsoDate(value: string): Date | null {
   }
 
   const date = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (Number.isNaN(date.getTime()) || formatIsoDate(date) !== value.trim()) {
+    return null;
+  }
+
+  return date;
 }
 
 function formatIsoDate(date: Date): string {

@@ -602,82 +602,89 @@ async function persistManager13F(input: {
   const quarter = quarterFromReportDate(input.filing.reportDate);
   const canonicalId = canonicalFilingDocId(input.filing.managerCik, input.filing.reportDate);
   const canonicalRef = db.collection("institutional_13f_canonical_filings").doc(canonicalId);
-  const canonicalSnapshot = await canonicalRef.get();
-  const existingCanonical = canonicalSnapshot.data() as Canonical13FFilingDocument | undefined;
-  const existingCanonicalAccession = readString(existingCanonical?.accessionNumber);
-  const existingRank = canonicalRankFromDocument(existingCanonical);
   const nextRank = filingCanonicalRank(input.filing);
-  const isCanonical = !existingRank ||
-    nextRank >= existingRank ||
-    existingCanonicalAccession === input.filing.accessionNumber;
-  const canonicalStatus: Sync13FManagerResult["canonicalStatus"] = isCanonical ? "CANONICAL" : "NON_CANONICAL";
+  const canonicalStatus = await db.runTransaction<Sync13FManagerResult["canonicalStatus"]>(async (transaction) => {
+    const canonicalSnapshot = await transaction.get(canonicalRef);
+    const existingCanonical = canonicalSnapshot.data() as Canonical13FFilingDocument | undefined;
+    const existingCanonicalAccession = readString(existingCanonical?.accessionNumber);
+    const existingRank = canonicalRankFromDocument(existingCanonical);
+    const isCanonical = !existingRank ||
+      nextRank >= existingRank ||
+      existingCanonicalAccession === input.filing.accessionNumber;
+    const nextCanonicalStatus: Sync13FManagerResult["canonicalStatus"] = isCanonical ? "CANONICAL" : "NON_CANONICAL";
+    const filingRef = db.collection("institutional_13f_filings").doc(input.filing.accessionNumber);
+
+    transaction.set(filingRef, {
+      managerCik: input.filing.managerCik,
+      managerName: input.filing.managerName,
+      accessionNumber: input.filing.accessionNumber,
+      form: input.filing.form,
+      amendmentNo: input.filing.amendmentNo,
+      amendmentType: input.filing.amendmentType,
+      canonicalStatus: nextCanonicalStatus,
+      canonicalKey: canonicalId,
+      filingDate: input.filing.filingDate,
+      reportDate: input.filing.reportDate,
+      quarter,
+      primaryDocument: input.filing.primaryDocument,
+      filingUrl: input.filing.filingUrl,
+      infoTableUrl: input.infoTableUrl,
+      holdingCount: input.holdings.length,
+      updatedAt: input.updatedAt,
+    }, { merge: true });
+
+    if (!isCanonical) {
+      return nextCanonicalStatus;
+    }
+
+    if (existingCanonicalAccession && existingCanonicalAccession !== input.filing.accessionNumber) {
+      transaction.set(db.collection("institutional_13f_filings").doc(existingCanonicalAccession), {
+        canonicalStatus: "SUPERSEDED",
+        supersededByAccessionNumber: input.filing.accessionNumber,
+        supersededAt: input.updatedAt,
+        updatedAt: input.updatedAt,
+      }, { merge: true });
+      transaction.set(db.collection("sec_13f_filings").doc(existingCanonicalAccession), {
+        canonicalStatus: "SUPERSEDED",
+        supersededByAccessionNumber: input.filing.accessionNumber,
+        supersededAt: input.updatedAt,
+        updatedAt: input.updatedAt,
+      }, { merge: true });
+    }
+
+    transaction.set(db.collection("institutional_managers").doc(input.filing.managerCik), {
+      cik: input.filing.managerCik,
+      name: input.filing.managerName,
+      latestAccessionNumber: input.filing.accessionNumber,
+      latestReportDate: input.filing.reportDate,
+      latestQuarter: quarter,
+      updatedAt: input.updatedAt,
+    }, { merge: true });
+
+    transaction.set(canonicalRef, {
+      canonicalKey: canonicalId,
+      managerCik: input.filing.managerCik,
+      managerName: input.filing.managerName,
+      accessionNumber: input.filing.accessionNumber,
+      form: input.filing.form,
+      amendmentNo: input.filing.amendmentNo,
+      amendmentType: input.filing.amendmentType,
+      filingDate: input.filing.filingDate,
+      reportDate: input.filing.reportDate,
+      quarter,
+      infoTableUrl: input.infoTableUrl,
+      holdingCount: input.holdings.length,
+      updatedAt: input.updatedAt,
+    }, { merge: true });
+
+    return nextCanonicalStatus;
+  });
   let holdingsWritten = 0;
   let changesWritten = 0;
 
-  await db.collection("institutional_13f_filings").doc(input.filing.accessionNumber).set({
-    managerCik: input.filing.managerCik,
-    managerName: input.filing.managerName,
-    accessionNumber: input.filing.accessionNumber,
-    form: input.filing.form,
-    amendmentNo: input.filing.amendmentNo,
-    amendmentType: input.filing.amendmentType,
-    canonicalStatus,
-    canonicalKey: canonicalId,
-    filingDate: input.filing.filingDate,
-    reportDate: input.filing.reportDate,
-    quarter,
-    primaryDocument: input.filing.primaryDocument,
-    filingUrl: input.filing.filingUrl,
-    infoTableUrl: input.infoTableUrl,
-    holdingCount: input.holdings.length,
-    updatedAt: input.updatedAt,
-  }, { merge: true });
-
-  if (!isCanonical) {
+  if (canonicalStatus !== "CANONICAL") {
     return { holdingsWritten: 0, changesWritten: 0, canonicalStatus };
   }
-
-  if (existingCanonicalAccession && existingCanonicalAccession !== input.filing.accessionNumber) {
-    await Promise.all([
-      db.collection("institutional_13f_filings").doc(existingCanonicalAccession).set({
-        canonicalStatus: "SUPERSEDED",
-        supersededByAccessionNumber: input.filing.accessionNumber,
-        supersededAt: input.updatedAt,
-        updatedAt: input.updatedAt,
-      }, { merge: true }),
-      db.collection("sec_13f_filings").doc(existingCanonicalAccession).set({
-        canonicalStatus: "SUPERSEDED",
-        supersededByAccessionNumber: input.filing.accessionNumber,
-        supersededAt: input.updatedAt,
-        updatedAt: input.updatedAt,
-      }, { merge: true }),
-    ]);
-  }
-
-  await db.collection("institutional_managers").doc(input.filing.managerCik).set({
-    cik: input.filing.managerCik,
-    name: input.filing.managerName,
-    latestAccessionNumber: input.filing.accessionNumber,
-    latestReportDate: input.filing.reportDate,
-    latestQuarter: quarter,
-    updatedAt: input.updatedAt,
-  }, { merge: true });
-
-  await canonicalRef.set({
-    canonicalKey: canonicalId,
-    managerCik: input.filing.managerCik,
-    managerName: input.filing.managerName,
-    accessionNumber: input.filing.accessionNumber,
-    form: input.filing.form,
-    amendmentNo: input.filing.amendmentNo,
-    amendmentType: input.filing.amendmentType,
-    filingDate: input.filing.filingDate,
-    reportDate: input.filing.reportDate,
-    quarter,
-    infoTableUrl: input.infoTableUrl,
-    holdingCount: input.holdings.length,
-    updatedAt: input.updatedAt,
-  }, { merge: true });
 
   for (let index = 0; index < input.holdings.length; index += HOLDING_BATCH_SIZE) {
     const batch = db.batch();
