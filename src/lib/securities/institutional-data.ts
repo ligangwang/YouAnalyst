@@ -239,8 +239,10 @@ function discoveryActivityFromChanges(changes: InstitutionalHoldingChange[]): In
 
   return [...byTicker.entries()]
     .map(([ticker, tickerChanges]) => {
-      const managerCiks = new Set(tickerChanges.map((change) => change.managerCik));
-      const topManagers = [...tickerChanges]
+      const reportDate = tickerChanges.reduce((latest, change) => change.reportDate > latest ? change.reportDate : latest, "");
+      const latestReportChanges = tickerChanges.filter((change) => change.reportDate === reportDate);
+      const managerCiks = new Set(latestReportChanges.map((change) => change.managerCik));
+      const topManagers = [...latestReportChanges]
         .sort((left, right) => Math.abs(right.valueChangeUsd) - Math.abs(left.valueChangeUsd))
         .slice(0, 3)
         .map((change) => ({
@@ -252,15 +254,15 @@ function discoveryActivityFromChanges(changes: InstitutionalHoldingChange[]): In
 
       return {
         ticker,
-        nameOfIssuer: readString(tickerChanges[0]?.nameOfIssuer) ?? ticker,
-        reportDate: tickerChanges.reduce((latest, change) => change.reportDate > latest ? change.reportDate : latest, ""),
+        nameOfIssuer: readString(latestReportChanges[0]?.nameOfIssuer) ?? ticker,
+        reportDate,
         managerCount: managerCiks.size,
-        netValueChangeUsd: tickerChanges.reduce((total, change) => total + change.valueChangeUsd, 0),
-        grossValueChangeUsd: tickerChanges.reduce((total, change) => total + Math.abs(change.valueChangeUsd), 0),
-        newManagers: tickerChanges.filter((change) => change.status === "NEW").length,
-        increasedManagers: tickerChanges.filter((change) => change.status === "INCREASED").length,
-        reducedManagers: tickerChanges.filter((change) => change.status === "REDUCED").length,
-        soldOutManagers: tickerChanges.filter((change) => change.status === "SOLD_OUT").length,
+        netValueChangeUsd: latestReportChanges.reduce((total, change) => total + change.valueChangeUsd, 0),
+        grossValueChangeUsd: latestReportChanges.reduce((total, change) => total + Math.abs(change.valueChangeUsd), 0),
+        newManagers: latestReportChanges.filter((change) => change.status === "NEW").length,
+        increasedManagers: latestReportChanges.filter((change) => change.status === "INCREASED").length,
+        reducedManagers: latestReportChanges.filter((change) => change.status === "REDUCED").length,
+        soldOutManagers: latestReportChanges.filter((change) => change.status === "SOLD_OUT").length,
         topManagers,
       };
     })
