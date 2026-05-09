@@ -5,6 +5,8 @@ import type { InstitutionalHolding, InstitutionalHoldingChange } from "@/lib/sec
 
 const DEFAULT_TICKER_SCAN_LIMIT = 1200;
 const DEFAULT_MANAGER_DISPLAY_LIMIT = 100;
+const DEFAULT_DISCOVERY_MANAGER_LIMIT = 36;
+const DEFAULT_DISCOVERY_ACTIVITY_LIMIT = 200;
 
 type InstitutionalManagerDocument = {
   cik?: unknown;
@@ -76,6 +78,40 @@ export type InstitutionalManagerSummary = {
     valueChangeUsd: number | null;
     percentChange: number | null;
   }>;
+};
+
+export type InstitutionalDiscoveryManager = {
+  cik: string;
+  name: string;
+  latestAccessionNumber: string | null;
+  latestReportDate: string | null;
+  latestQuarter: string | null;
+  updatedAt: string | null;
+};
+
+export type InstitutionalDiscoveryTickerActivity = {
+  ticker: string;
+  nameOfIssuer: string;
+  reportDate: string;
+  managerCount: number;
+  netValueChangeUsd: number;
+  grossValueChangeUsd: number;
+  newManagers: number;
+  increasedManagers: number;
+  reducedManagers: number;
+  soldOutManagers: number;
+  topManagers: Array<{
+    managerCik: string;
+    managerName: string;
+    status: InstitutionalHoldingChange["status"];
+    valueChangeUsd: number;
+  }>;
+};
+
+export type InstitutionalDiscoverySummary = {
+  managers: InstitutionalDiscoveryManager[];
+  activeTickers: InstitutionalDiscoveryTickerActivity[];
+  generatedAt: string;
 };
 
 function readString(value: unknown): string | null {
@@ -176,6 +212,60 @@ function tickerActivityFromPosition(position: InstitutionalTickerPosition): Inst
     reportDate: position.reportDate,
     accessionNumber: position.accessionNumber,
   };
+}
+
+function normalizeDiscoveryManager(id: string, data: InstitutionalManagerDocument | undefined): InstitutionalDiscoveryManager {
+  const cik = readString(data?.cik) ?? id;
+  return {
+    cik,
+    name: readString(data?.name) ?? cik,
+    latestAccessionNumber: readString(data?.latestAccessionNumber),
+    latestReportDate: readString(data?.latestReportDate),
+    latestQuarter: readString(data?.latestQuarter),
+    updatedAt: readString(data?.updatedAt),
+  };
+}
+
+function discoveryActivityFromChanges(changes: InstitutionalHoldingChange[]): InstitutionalDiscoveryTickerActivity[] {
+  const byTicker = new Map<string, InstitutionalHoldingChange[]>();
+
+  for (const change of changes) {
+    if (!change.ticker) {
+      continue;
+    }
+
+    byTicker.set(change.ticker, [...(byTicker.get(change.ticker) ?? []), change]);
+  }
+
+  return [...byTicker.entries()]
+    .map(([ticker, tickerChanges]) => {
+      const managerCiks = new Set(tickerChanges.map((change) => change.managerCik));
+      const topManagers = [...tickerChanges]
+        .sort((left, right) => Math.abs(right.valueChangeUsd) - Math.abs(left.valueChangeUsd))
+        .slice(0, 3)
+        .map((change) => ({
+          managerCik: change.managerCik,
+          managerName: change.managerName,
+          status: change.status,
+          valueChangeUsd: change.valueChangeUsd,
+        }));
+
+      return {
+        ticker,
+        nameOfIssuer: readString(tickerChanges[0]?.nameOfIssuer) ?? ticker,
+        reportDate: tickerChanges.reduce((latest, change) => change.reportDate > latest ? change.reportDate : latest, ""),
+        managerCount: managerCiks.size,
+        netValueChangeUsd: tickerChanges.reduce((total, change) => total + change.valueChangeUsd, 0),
+        grossValueChangeUsd: tickerChanges.reduce((total, change) => total + Math.abs(change.valueChangeUsd), 0),
+        newManagers: tickerChanges.filter((change) => change.status === "NEW").length,
+        increasedManagers: tickerChanges.filter((change) => change.status === "INCREASED").length,
+        reducedManagers: tickerChanges.filter((change) => change.status === "REDUCED").length,
+        soldOutManagers: tickerChanges.filter((change) => change.status === "SOLD_OUT").length,
+        topManagers,
+      };
+    })
+    .sort((left, right) => right.grossValueChangeUsd - left.grossValueChangeUsd)
+    .slice(0, 12);
 }
 
 export async function getInstitutionalTickerSummary(
@@ -287,6 +377,22 @@ export async function getInstitutionalTickerSummary(
     topBuyers,
     topSellers,
     positions,
+  };
+}
+
+export async function getInstitutionalDiscoverySummary(): Promise<InstitutionalDiscoverySummary> {
+  const db = getAdminFirestore();
+  const [managersSnapshot, changesSnapshot] = await Promise.all([
+    db.collection("institutional_managers").orderBy("updatedAt", "desc").limit(DEFAULT_DISCOVERY_MANAGER_LIMIT).get(),
+    db.collection("institutional_holding_changes").orderBy("updatedAt", "desc").limit(DEFAULT_DISCOVERY_ACTIVITY_LIMIT).get(),
+  ]);
+  const managers = managersSnapshot.docs.map((doc) => normalizeDiscoveryManager(doc.id, doc.data() as InstitutionalManagerDocument));
+  const changes = changesSnapshot.docs.map((doc) => doc.data() as InstitutionalHoldingChange);
+
+  return {
+    managers,
+    activeTickers: discoveryActivityFromChanges(changes),
+    generatedAt: new Date().toISOString(),
   };
 }
 
