@@ -215,6 +215,20 @@
       ]
     },
     {
+      "collectionGroup": "institutional_holdings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "cusip",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ticker",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "institutional_holding_changes",
       "queryScope": "COLLECTION",
       "fields": [
@@ -229,6 +243,20 @@
         {
           "fieldPath": "updatedAt",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "institutional_holding_changes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "cusip",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ticker",
+          "order": "ASCENDING"
         }
       ]
     },

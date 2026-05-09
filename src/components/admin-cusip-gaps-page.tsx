@@ -31,6 +31,28 @@ type MappingSyncRun = {
   updatedAt: string | null;
 };
 
+type MappingApplyRun = {
+  id: string;
+  cusip: string | null;
+  ticker: string | null;
+  holdingsUpdated: number;
+  changesUpdated: number;
+  hasMore: boolean;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+type MappingBatchApplyRun = {
+  id: string;
+  cusipsScanned: number;
+  cusipsWithMappings: number;
+  holdingsUpdated: number;
+  changesUpdated: number;
+  hasMore: boolean;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
 type GapsResponse = {
   totalHoldings?: number;
   unmappedHoldings?: number;
@@ -39,18 +61,33 @@ type GapsResponse = {
   sampledHoldings?: number;
   gaps?: CusipMappingGap[];
   recentMappingSyncs?: MappingSyncRun[];
+  recentMappingApplies?: MappingApplyRun[];
+  recentBatchApplies?: MappingBatchApplyRun[];
   generatedAt?: string;
   error?: string;
 };
 
 type OverrideResult = {
   ok?: boolean;
+  action?: "applyOverride" | "applyMappedGaps";
   result?: {
-    cusip: string;
-    ticker: string;
-    symbol: string;
-    exchange: string;
-    affectedCurrentHoldings: number;
+    cusip?: string;
+    ticker?: string;
+    symbol?: string;
+    exchange?: string;
+    affectedCurrentHoldings?: number;
+    holdingsUpdated?: number;
+    changesUpdated?: number;
+    hasMore?: boolean;
+    cusipsScanned?: number;
+    cusipsWithMappings?: number;
+    items?: Array<{
+      cusip: string;
+      ticker: string;
+      holdingsUpdated: number;
+      changesUpdated: number;
+      hasMore: boolean;
+    }>;
     updatedAt: string;
   };
   error?: string;
@@ -156,6 +193,8 @@ export function AdminCusipGapsPage() {
   const [sampleLimit, setSampleLimit] = useState("500");
   const [overrideDraft, setOverrideDraft] = useState<OverrideDraft | null>(null);
   const [overrideSaving, setOverrideSaving] = useState(false);
+  const [overrideApplying, setOverrideApplying] = useState(false);
+  const [batchApplying, setBatchApplying] = useState(false);
   const [overrideResult, setOverrideResult] = useState<OverrideResult | null>(null);
 
   async function loadGaps() {
@@ -246,6 +285,90 @@ export function AdminCusipGapsPage() {
     }
   }
 
+  async function applyOverride(cusip: string) {
+    setOverrideApplying(true);
+
+    try {
+      if (!user) {
+        throw new Error("Sign in with an admin account to apply CUSIP overrides.");
+      }
+
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error("Sign in with an admin account to apply CUSIP overrides.");
+      }
+
+      const response = await fetch("/api/admin/securities/cusip-gaps", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: "applyOverride",
+          cusip,
+        }),
+      });
+      const result = (await response.json().catch(() => ({}))) as OverrideResult;
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "Unable to apply CUSIP mapping override.");
+      }
+
+      setOverrideResult(result);
+      await loadGaps();
+    } catch (nextError) {
+      setOverrideResult({
+        error: nextError instanceof Error ? nextError.message : "Unable to apply CUSIP mapping override.",
+      });
+    } finally {
+      setOverrideApplying(false);
+    }
+  }
+
+  async function applyMappedGaps() {
+    setBatchApplying(true);
+    setOverrideResult(null);
+
+    try {
+      if (!user) {
+        throw new Error("Sign in with an admin account to apply CUSIP mappings.");
+      }
+
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error("Sign in with an admin account to apply CUSIP mappings.");
+      }
+
+      const response = await fetch("/api/admin/securities/cusip-gaps", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: "applyMappedGaps",
+          maxCusips: 25,
+          limitPerCusip: 500,
+        }),
+      });
+      const result = (await response.json().catch(() => ({}))) as OverrideResult;
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "Unable to apply CUSIP mappings.");
+      }
+
+      setOverrideResult(result);
+      await loadGaps();
+    } catch (nextError) {
+      setOverrideResult({
+        error: nextError instanceof Error ? nextError.message : "Unable to apply CUSIP mappings.",
+      });
+    } finally {
+      setBatchApplying(false);
+    }
+  }
+
   useEffect(() => {
     if (loading) {
       return;
@@ -257,6 +380,8 @@ export function AdminCusipGapsPage() {
 
   const gaps = payload?.gaps ?? [];
   const recentSyncs = payload?.recentMappingSyncs ?? [];
+  const recentApplies = payload?.recentMappingApplies ?? [];
+  const recentBatchApplies = payload?.recentBatchApplies ?? [];
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
@@ -284,10 +409,18 @@ export function AdminCusipGapsPage() {
           <button
             type="button"
             onClick={() => void loadGaps()}
-            disabled={loadingGaps}
+            disabled={loadingGaps || batchApplying}
             className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
           >
             {loadingGaps ? "Refreshing..." : "Refresh"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void applyMappedGaps()}
+            disabled={batchApplying || loadingGaps}
+            className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
+          >
+            {batchApplying ? "Applying..." : "Apply mapped sample"}
           </button>
         </div>
       </div>
@@ -300,12 +433,41 @@ export function AdminCusipGapsPage() {
 
       {overrideResult?.result ? (
         <section className="mb-6 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
-          <p className="text-sm font-semibold text-emerald-100">
-            Saved {overrideResult.result.cusip} to {overrideResult.result.ticker}
-          </p>
-          <p className="mt-1 text-sm text-emerald-50/80">
-            {formatCount(overrideResult.result.affectedCurrentHoldings)} current unmapped holdings can be refreshed with this override.
-          </p>
+          {overrideResult.action === "applyMappedGaps" ? (
+            <>
+              <p className="text-sm font-semibold text-emerald-100">Applied mapped CUSIP sample</p>
+              <p className="mt-1 text-sm text-emerald-50/80">
+                Scanned {formatCount(overrideResult.result.cusipsScanned ?? 0)} CUSIPs, found {formatCount(overrideResult.result.cusipsWithMappings ?? 0)} mappings, and updated {formatCount(overrideResult.result.holdingsUpdated ?? 0)} holdings plus {formatCount(overrideResult.result.changesUpdated ?? 0)} holding changes.
+                {overrideResult.result.hasMore ? " Run it again to continue the bounded refresh." : ""}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-emerald-100">
+                {overrideResult.action === "applyOverride" ? "Applied" : "Saved"} {overrideResult.result.cusip} to {overrideResult.result.ticker}
+              </p>
+              {overrideResult.action === "applyOverride" ? (
+                <p className="mt-1 text-sm text-emerald-50/80">
+                  Updated {formatCount(overrideResult.result.holdingsUpdated ?? 0)} holdings and {formatCount(overrideResult.result.changesUpdated ?? 0)} holding changes.
+                  {overrideResult.result.hasMore ? " Run apply again to continue the bounded refresh." : ""}
+                </p>
+              ) : (
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <p className="text-sm text-emerald-50/80">
+                    {formatCount(overrideResult.result.affectedCurrentHoldings ?? 0)} current unmapped holdings can be refreshed with this override.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void applyOverride(overrideResult.result?.cusip ?? "")}
+                    disabled={overrideApplying}
+                    className="w-fit rounded-xl border border-emerald-200/50 px-4 py-2 text-sm font-semibold text-emerald-50 hover:bg-emerald-300/10 disabled:opacity-60"
+                  >
+                    {overrideApplying ? "Applying..." : "Apply now"}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </section>
       ) : null}
 
@@ -384,7 +546,7 @@ export function AdminCusipGapsPage() {
         ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
+      <section className="mb-6 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="border-b border-white/10 px-4 py-3">
           <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent mapping syncs</h2>
         </div>
@@ -399,6 +561,41 @@ export function AdminCusipGapsPage() {
         ))}
         {!loadingGaps && recentSyncs.length === 0 ? (
           <p className="p-6 text-sm text-slate-300">No mapping sync runs have been recorded yet.</p>
+        ) : null}
+      </section>
+
+      <section className="mb-6 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
+        <div className="border-b border-white/10 px-4 py-3">
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent mapping applies</h2>
+        </div>
+        {recentApplies.map((run) => (
+          <article key={run.id} className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[0.8fr_0.8fr_1fr_1fr_1fr]">
+            <p className="font-semibold text-cyan-100">{run.cusip || "-"}</p>
+            <p className="font-semibold text-slate-100">{run.ticker || "-"}</p>
+            <p className="text-slate-300">{formatCount(run.holdingsUpdated)} holdings<br /><span className="text-xs text-slate-500">{formatCount(run.changesUpdated)} changes</span></p>
+            <p className="text-slate-300">{run.hasMore ? "More remaining" : "Complete"}<br /><span className="text-xs text-slate-500">{run.updatedBy || "-"}</span></p>
+            <p className="text-xs text-slate-400">{formatDateTime(run.updatedAt)}</p>
+          </article>
+        ))}
+        {!loadingGaps && recentApplies.length === 0 ? (
+          <p className="p-6 text-sm text-slate-300">No mapping apply runs have been recorded yet.</p>
+        ) : null}
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
+        <div className="border-b border-white/10 px-4 py-3">
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent batch applies</h2>
+        </div>
+        {recentBatchApplies.map((run) => (
+          <article key={run.id} className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[1fr_1fr_1fr_1fr]">
+            <p className="font-semibold text-cyan-100">{formatCount(run.cusipsWithMappings)} mapped<br /><span className="text-xs text-slate-500">{formatCount(run.cusipsScanned)} scanned</span></p>
+            <p className="text-slate-300">{formatCount(run.holdingsUpdated)} holdings<br /><span className="text-xs text-slate-500">{formatCount(run.changesUpdated)} changes</span></p>
+            <p className="text-slate-300">{run.hasMore ? "More remaining" : "Complete"}<br /><span className="text-xs text-slate-500">{run.updatedBy || "-"}</span></p>
+            <p className="text-xs text-slate-400">{formatDateTime(run.updatedAt)}</p>
+          </article>
+        ))}
+        {!loadingGaps && recentBatchApplies.length === 0 ? (
+          <p className="p-6 text-sm text-slate-300">No batch apply runs have been recorded yet.</p>
         ) : null}
       </section>
     </main>
