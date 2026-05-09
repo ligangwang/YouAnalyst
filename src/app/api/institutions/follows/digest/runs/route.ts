@@ -23,13 +23,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [items, unreadCount] = await Promise.all([
-      listInstitutionDigestRuns(
-        decoded.uid,
-        readLimit(request.nextUrl.searchParams.get("limit")),
-      ),
-      countUnreadInstitutionDigestRuns(decoded.uid),
-    ]);
+    const items = await listInstitutionDigestRuns(
+      decoded.uid,
+      readLimit(request.nextUrl.searchParams.get("limit")),
+    );
+    let unreadCount = items.filter((item) => !item.dryRun && !item.readAt).length;
+
+    try {
+      unreadCount = await countUnreadInstitutionDigestRuns(decoded.uid);
+    } catch (countError) {
+      console.warn("Failed to count unread institution digest runs:", countError);
+    }
 
     return NextResponse.json({ items, unreadCount });
   } catch (error) {
