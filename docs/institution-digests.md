@@ -85,6 +85,9 @@ The summary stores counts for managers, tickers, new positions, increased positi
 Deploy `firestore.indexes.json` after this change. User digest history queries need:
 
 - `institution_digest_runs`: `userId ASC`, `generatedAt DESC`
+- `institution_digest_runs`: `userId ASC`, `dryRun ASC`, `readAt ASC`
+
+See `docs/institution-digests-smoke.md` for the post-deploy index and smoke checklist.
 
 ## Retention
 
