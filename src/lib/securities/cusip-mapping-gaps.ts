@@ -127,8 +127,6 @@ function updateGap(gap: CusipMappingGap, holding: HoldingDocument) {
   }
 
   pushManager(gap, holding);
-  gap.managers.sort((a, b) => b.valueUsd - a.valueUsd);
-  gap.managers = gap.managers.slice(0, 5);
 }
 
 function normalizeSyncRun(id: string, data: Record<string, unknown>): SecurityMappingSyncRunSummary {
@@ -180,6 +178,10 @@ export async function getCusipMappingGapsSummary(input: { sampleLimit?: number }
   }
 
   const gaps = [...gapsByCusip.values()]
+    .map((gap) => ({
+      ...gap,
+      managers: [...gap.managers].sort((a, b) => b.valueUsd - a.valueUsd).slice(0, 5),
+    }))
     .sort((a, b) => b.totalValueUsd - a.totalValueUsd)
     .slice(0, 50);
 

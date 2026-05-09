@@ -4,6 +4,10 @@ import { getCusipMappingGapsSummary } from "@/lib/securities/cusip-mapping-gaps"
 import { NextRequest, NextResponse } from "next/server";
 
 function parseLimit(raw: string | null): number | undefined {
+  if (!raw) {
+    return undefined;
+  }
+
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
