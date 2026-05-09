@@ -373,6 +373,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "institution_digest_runs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "dryRun",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "generatedAt",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

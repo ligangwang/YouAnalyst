@@ -1,6 +1,7 @@
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { isAdminUser } from "@/lib/firebase/admin-role";
 import {
+  cleanupInstitutionDigestDryRuns,
   listRecentInstitutionDigestRuns,
   runInstitutionDigest,
 } from "@/lib/securities/institution-follows";
@@ -9,11 +10,14 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 type AdminInstitutionDigestRequest = {
+  action?: unknown;
   dryRun?: unknown;
   limitUsers?: unknown;
   limitItems?: unknown;
   userIds?: unknown;
   confirmCheckpoint?: unknown;
+  olderThanDays?: unknown;
+  limit?: unknown;
 };
 
 async function assertAdmin(request: NextRequest): Promise<NextResponse | null> {
@@ -46,6 +50,10 @@ function readUserIds(value: unknown): string[] | undefined {
 
   const userIds = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
   return userIds.length > 0 ? userIds : undefined;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 function readLimit(value: string | null): number | undefined {
@@ -85,6 +93,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
+    const action = readString(payload.action) ?? "run";
+    if (action === "cleanupDryRuns") {
+      const dryRun = readBoolean(payload.dryRun) ?? true;
+      const result = await cleanupInstitutionDigestDryRuns({
+        dryRun,
+        olderThanDays: readNumber(payload.olderThanDays),
+        limit: readNumber(payload.limit),
+      });
+
+      return NextResponse.json({
+        ok: true,
+        action,
+        result,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (action !== "run") {
+      return NextResponse.json({ error: "Unsupported institution digest action." }, { status: 400 });
+    }
+
     const dryRun = readBoolean(payload.dryRun) ?? true;
     if (!dryRun && payload.confirmCheckpoint !== true) {
       return NextResponse.json({ error: "Live digest runs require checkpoint confirmation." }, { status: 400 });
@@ -99,6 +128,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      action,
       ...result,
       timestamp: new Date().toISOString(),
     });

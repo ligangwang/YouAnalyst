@@ -147,6 +147,7 @@ export function FollowedInstitutionActivityPanel() {
       }
     } catch (nextError) {
       if (requestIdRef.current === requestId) {
+        setItems([]);
         setError(nextError instanceof Error ? nextError.message : "Unable to load followed activity.");
         setLoadedForUser(nextUserId);
       }
