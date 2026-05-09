@@ -1,4 +1,6 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { FieldPath } from "firebase-admin/firestore";
+import type { InstitutionalHoldingChange } from "@/lib/securities/thirteen-f";
 
 export type FollowedInstitution = {
   cik: string;
@@ -8,6 +10,23 @@ export type FollowedInstitution = {
   latestQuarter: string | null;
   updatedAt: string | null;
   followedAt: string;
+};
+
+export type FollowedInstitutionActivity = {
+  positionKey: string;
+  managerCik: string;
+  managerName: string;
+  ticker: string | null;
+  nameOfIssuer: string;
+  quarter: string;
+  reportDate: string;
+  filingDate: string;
+  accessionNumber: string;
+  status: InstitutionalHoldingChange["status"];
+  shareChange: number;
+  valueChangeUsd: number;
+  percentChange: number | null;
+  updatedAt: string;
 };
 
 type InstitutionalManagerDocument = {
@@ -59,6 +78,25 @@ function followedInstitutionFromData(id: string, data: Record<string, unknown> |
     latestQuarter: readString(data?.latestQuarter),
     updatedAt: readString(data?.updatedAt),
     followedAt: readString(data?.followedAt) ?? "",
+  };
+}
+
+function followedActivityFromChange(change: InstitutionalHoldingChange): FollowedInstitutionActivity {
+  return {
+    positionKey: change.positionKey,
+    managerCik: change.managerCik,
+    managerName: change.managerName,
+    ticker: change.ticker,
+    nameOfIssuer: change.nameOfIssuer,
+    quarter: change.quarter,
+    reportDate: change.reportDate,
+    filingDate: change.filingDate,
+    accessionNumber: change.accessionNumber,
+    status: change.status,
+    shareChange: change.shareChange,
+    valueChangeUsd: change.valueChangeUsd,
+    percentChange: change.percentChange,
+    updatedAt: change.updatedAt,
   };
 }
 
@@ -152,4 +190,49 @@ export async function listFollowedInstitutions(userId: string, limit = 24): Prom
     .get();
 
   return snapshot.docs.map((doc) => followedInstitutionFromData(doc.id, doc.data()));
+}
+
+export async function listFollowedInstitutionActivity(userId: string, limit = 24): Promise<FollowedInstitutionActivity[]> {
+  const normalizedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(50, Math.trunc(limit))) : 24;
+  const followedInstitutions = await listFollowedInstitutions(userId, 12);
+  const db = getAdminFirestore();
+  const managerSnapshots = await Promise.all(
+    followedInstitutions.map((institution) => db.collection("institutional_managers").doc(institution.cik).get()),
+  );
+  const activitySnapshots = await Promise.all(
+    managerSnapshots.flatMap((snapshot) => {
+      if (!snapshot.exists) {
+        return [];
+      }
+
+      const manager = followedInstitutionFromManager(
+        snapshot.id,
+        snapshot.data() as InstitutionalManagerDocument,
+        "",
+      );
+      if (!manager.latestQuarter) {
+        return [];
+      }
+
+      const docPrefix = `${manager.latestQuarter}_${manager.cik}_`;
+
+      return db
+        .collection("institutional_holding_changes")
+        .where(FieldPath.documentId(), ">=", docPrefix)
+        .where(FieldPath.documentId(), "<", `${docPrefix}\uf8ff`)
+        .orderBy(FieldPath.documentId())
+        .get();
+    }),
+  );
+  const activities = activitySnapshots.flatMap((snapshot) => (
+    snapshot.docs.map((doc) => followedActivityFromChange(doc.data() as InstitutionalHoldingChange))
+  ));
+
+  return activities
+    .sort((left, right) => (
+      right.reportDate.localeCompare(left.reportDate) ||
+      right.updatedAt.localeCompare(left.updatedAt) ||
+      Math.abs(right.valueChangeUsd) - Math.abs(left.valueChangeUsd)
+    ))
+    .slice(0, normalizedLimit);
 }
