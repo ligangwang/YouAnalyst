@@ -273,7 +273,9 @@ function decodeXmlEntities(value: string): string {
 function readXmlTag(xml: string, tagName: string): string | null {
   const pattern = new RegExp(`<(?:\\w+:)?${tagName}\\b[^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?${tagName}>`, "i");
   const match = pattern.exec(xml);
-  return match?.[1] ? decodeXmlEntities(match[1].replace(/<[^>]+>/g, " ")) : null;
+  return match?.[1]
+    ? decodeXmlEntities(match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1").replace(/<[^>]+>/g, " "))
+    : null;
 }
 
 function readXmlNumber(xml: string, tagName: string): number | null {
