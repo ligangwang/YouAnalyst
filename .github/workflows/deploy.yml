@@ -374,6 +374,62 @@ jobs:
               --message-body "$body"
           fi
 
+      - name: Upsert staging institution digest scheduler
+        env:
+          CLOUD_RUN_URL: ${{ steps.staging-url.outputs.url }}
+          INSTITUTION_DIGEST_SCHEDULER_ENABLED: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_ENABLED }}
+          INSTITUTION_DIGEST_SCHEDULER_JOB: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_JOB }}
+          INSTITUTION_DIGEST_SCHEDULER_SCHEDULE: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_SCHEDULE }}
+          INSTITUTION_DIGEST_SCHEDULER_LIMIT_USERS: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_LIMIT_USERS }}
+          INSTITUTION_DIGEST_SCHEDULER_LIMIT_ITEMS: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_LIMIT_ITEMS }}
+          INSTITUTION_DIGEST_SCHEDULER_DRY_RUN: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_DRY_RUN }}
+          INTERNAL_API_TOKEN: ${{ env.INTERNAL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${INSTITUTION_DIGEST_SCHEDULER_ENABLED:-0}" != "1" ]]; then
+            echo "Institution digest scheduler provisioning disabled for staging."
+            exit 0
+          fi
+          if [[ -z "${INTERNAL_API_TOKEN:-}" ]]; then
+            echo "INTERNAL_API_TOKEN is required to provision the institution digest scheduler" >&2
+            exit 1
+          fi
+
+          job_name="${INSTITUTION_DIGEST_SCHEDULER_JOB:-institution-digest-staging}"
+          schedule="${INSTITUTION_DIGEST_SCHEDULER_SCHEDULE:-0 9 * * *}"
+          limit_users="${INSTITUTION_DIGEST_SCHEDULER_LIMIT_USERS:-50}"
+          limit_items="${INSTITUTION_DIGEST_SCHEDULER_LIMIT_ITEMS:-50}"
+          dry_run="${INSTITUTION_DIGEST_SCHEDULER_DRY_RUN:-true}"
+          body="$(jq -nc \
+            --argjson limitUsers "$limit_users" \
+            --argjson limitItems "$limit_items" \
+            --argjson dryRun "$dry_run" \
+            '{ limitUsers: $limitUsers, limitItems: $limitItems, dryRun: $dryRun }')"
+          uri="${CLOUD_RUN_URL}/api/internal/institutions/digest"
+          headers="Authorization=Bearer ${INTERNAL_API_TOKEN},Content-Type=application/json"
+
+          if gcloud scheduler jobs describe "$job_name" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --update-headers "$headers" \
+              --message-body "$body"
+          else
+            gcloud scheduler jobs create http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --headers "$headers" \
+              --message-body "$body"
+          fi
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
@@ -688,6 +744,62 @@ jobs:
               staleProcessingMinutes: $staleProcessingMinutes
             }')"
           uri="${CLOUD_RUN_URL}/api/internal/securities/process-13f-queue"
+          headers="Authorization=Bearer ${INTERNAL_API_TOKEN},Content-Type=application/json"
+
+          if gcloud scheduler jobs describe "$job_name" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --update-headers "$headers" \
+              --message-body "$body"
+          else
+            gcloud scheduler jobs create http "$job_name" \
+              --project "$GCP_PROJECT_ID" \
+              --location "$GCP_REGION" \
+              --schedule "$schedule" \
+              --time-zone "America/New_York" \
+              --uri "$uri" \
+              --http-method POST \
+              --headers "$headers" \
+              --message-body "$body"
+          fi
+
+      - name: Upsert production institution digest scheduler
+        env:
+          CLOUD_RUN_URL: ${{ steps.production-url.outputs.url }}
+          INSTITUTION_DIGEST_SCHEDULER_ENABLED: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_ENABLED }}
+          INSTITUTION_DIGEST_SCHEDULER_JOB: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_JOB }}
+          INSTITUTION_DIGEST_SCHEDULER_SCHEDULE: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_SCHEDULE }}
+          INSTITUTION_DIGEST_SCHEDULER_LIMIT_USERS: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_LIMIT_USERS }}
+          INSTITUTION_DIGEST_SCHEDULER_LIMIT_ITEMS: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_LIMIT_ITEMS }}
+          INSTITUTION_DIGEST_SCHEDULER_DRY_RUN: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_DRY_RUN }}
+          INTERNAL_API_TOKEN: ${{ env.INTERNAL_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ "${INSTITUTION_DIGEST_SCHEDULER_ENABLED:-0}" != "1" ]]; then
+            echo "Institution digest scheduler provisioning disabled for production."
+            exit 0
+          fi
+          if [[ -z "${INTERNAL_API_TOKEN:-}" ]]; then
+            echo "INTERNAL_API_TOKEN is required to provision the institution digest scheduler" >&2
+            exit 1
+          fi
+
+          job_name="${INSTITUTION_DIGEST_SCHEDULER_JOB:-institution-digest-production}"
+          schedule="${INSTITUTION_DIGEST_SCHEDULER_SCHEDULE:-0 9 * * *}"
+          limit_users="${INSTITUTION_DIGEST_SCHEDULER_LIMIT_USERS:-50}"
+          limit_items="${INSTITUTION_DIGEST_SCHEDULER_LIMIT_ITEMS:-50}"
+          dry_run="${INSTITUTION_DIGEST_SCHEDULER_DRY_RUN:-false}"
+          body="$(jq -nc \
+            --argjson limitUsers "$limit_users" \
+            --argjson limitItems "$limit_items" \
+            --argjson dryRun "$dry_run" \
+            '{ limitUsers: $limitUsers, limitItems: $limitItems, dryRun: $dryRun }')"
+          uri="${CLOUD_RUN_URL}/api/internal/institutions/digest"
           headers="Authorization=Bearer ${INTERNAL_API_TOKEN},Content-Type=application/json"
 
           if gcloud scheduler jobs describe "$job_name" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
