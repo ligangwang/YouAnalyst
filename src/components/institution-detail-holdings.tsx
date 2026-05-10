@@ -6,7 +6,7 @@ import type { InstitutionalManagerSummary } from "@/lib/securities/institutional
 
 type Holding = InstitutionalManagerSummary["holdings"][number];
 type HoldingSort = "value" | "shares" | "change" | "ticker";
-type HoldingStatus = "ALL" | "NEW" | "INCREASED" | "REDUCED" | "SOLD_OUT" | "UNCHANGED" | "CURRENT";
+type HoldingStatus = "ALL" | "CHANGED" | "NEW" | "INCREASED" | "REDUCED" | "SOLD_OUT" | "UNCHANGED" | "CURRENT";
 
 const INITIAL_VISIBLE = 25;
 
@@ -61,6 +61,18 @@ function statusForFilter(holding: Holding): HoldingStatus {
   return (holding.changeStatus ?? "CURRENT") as HoldingStatus;
 }
 
+function matchesStatus(holding: Holding, status: HoldingStatus): boolean {
+  if (status === "ALL") {
+    return true;
+  }
+
+  if (status === "CHANGED") {
+    return Boolean(holding.changeStatus && holding.changeStatus !== "UNCHANGED");
+  }
+
+  return statusForFilter(holding) === status;
+}
+
 function matchesQuery(holding: Holding, query: string): boolean {
   const normalized = query.trim().toLowerCase().replace(/^\$/, "");
   if (!normalized) {
@@ -98,7 +110,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
     sortHoldings(
       holdings.filter((holding) => (
         matchesQuery(holding, query) &&
-        (status === "ALL" || statusForFilter(holding) === status)
+        matchesStatus(holding, status)
       )),
       sort,
     )
@@ -142,7 +154,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
       </div>
 
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
-        {(["ALL", "CURRENT", "NEW", "INCREASED", "REDUCED", "SOLD_OUT", "UNCHANGED"] as HoldingStatus[]).map((nextStatus) => (
+        {(["ALL", "CHANGED", "CURRENT", "NEW", "INCREASED", "REDUCED", "SOLD_OUT", "UNCHANGED"] as HoldingStatus[]).map((nextStatus) => (
           <button
             key={nextStatus}
             type="button"
