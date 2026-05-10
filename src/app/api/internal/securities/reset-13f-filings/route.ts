@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 type Reset13FFilingsRequest = {
   fromStatus?: unknown;
-  filingDateFrom?: unknown;
   limit?: unknown;
   dryRun?: unknown;
   reason?: unknown;
@@ -33,7 +32,6 @@ export async function POST(request: NextRequest) {
     const payload = (await request.json().catch(() => ({}))) as Reset13FFilingsRequest;
     const result = await resetThirteenFFilingsForReprocessing({
       fromStatus: readString(payload.fromStatus) as QueueStatus | undefined,
-      filingDateFrom: readString(payload.filingDateFrom),
       limit: readNumber(payload.limit),
       dryRun: readBoolean(payload.dryRun),
       reason: readString(payload.reason),
