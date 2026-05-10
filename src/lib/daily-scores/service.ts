@@ -308,7 +308,12 @@ async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promis
     const status = changeStatusValue(data.status);
     const valueChangeUsd = asNumber(data.valueChangeUsd);
     const shareChange = asNumber(data.shareChange);
-    const target = valueChangeUsd > 0 ? increasesByTickerReport : valueChangeUsd < 0 ? decreasesByTickerReport : null;
+    const target =
+      valueChangeUsd > 0 && (status === "NEW" || status === "INCREASED")
+        ? increasesByTickerReport
+        : valueChangeUsd < 0 && (status === "REDUCED" || status === "SOLD_OUT")
+          ? decreasesByTickerReport
+          : null;
 
     if (!ticker || !nameOfIssuer || !reportDate || !managerCik || !status || !target) {
       continue;
