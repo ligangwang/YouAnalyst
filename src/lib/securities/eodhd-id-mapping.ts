@@ -2,15 +2,10 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 
 const DEFAULT_EXCHANGE = "US";
 const DEFAULT_PAGE_LIMIT = 1000;
-const DEFAULT_OPENFIGI_CUSIP_LIMIT = 100;
 const MAX_PAGE_LIMIT = 1000;
 const MAX_SYNC_PAGES = 5;
-const MAX_OPENFIGI_CUSIP_LIMIT = 1000;
-const EODHD_MAPPING_SOURCE = "eodhd-id-mapping";
-const OPENFIGI_MAPPING_SOURCE = "openfigi";
+const MAPPING_SOURCE = "eodhd-id-mapping";
 const MAPPING_BATCH_SIZE = 450;
-const OPENFIGI_UNAUTHENTICATED_BATCH_SIZE = 10;
-const OPENFIGI_AUTHENTICATED_BATCH_SIZE = 100;
 
 type EodhdIdMappingRecord = {
   symbol?: unknown;
@@ -42,26 +37,8 @@ export type SecurityIdMapping = {
   figi: string | null;
   lei: string | null;
   cik: string | null;
-  source: typeof EODHD_MAPPING_SOURCE | typeof OPENFIGI_MAPPING_SOURCE;
+  source: typeof MAPPING_SOURCE;
   updatedAt: string;
-};
-
-type OpenFigiMappingResult = {
-  figi?: unknown;
-  name?: unknown;
-  ticker?: unknown;
-  exchCode?: unknown;
-  compositeFIGI?: unknown;
-  shareClassFIGI?: unknown;
-  securityType?: unknown;
-  securityType2?: unknown;
-  securityDescription?: unknown;
-};
-
-type OpenFigiMappingResponseItem = {
-  data?: unknown;
-  warning?: unknown;
-  error?: unknown;
 };
 
 export type SyncEodhdIdMappingsInput = {
@@ -86,29 +63,6 @@ export type SyncEodhdIdMappingsResult = {
   pages: number;
   hasMore: boolean;
   updatedAt: string;
-};
-
-export type SyncOpenFigiCusipMappingsInput = {
-  exchange?: string;
-  maxCusips?: number;
-  dryRun?: boolean;
-};
-
-export type SyncOpenFigiCusipMappingsResult = {
-  dryRun: boolean;
-  exchange: string;
-  maxCusips: number;
-  fetched: number;
-  mapped: number;
-  written: number;
-  skipped: number;
-  pages: number;
-  hasMore: boolean;
-  nextOffset: null;
-  updatedAt: string;
-  source: typeof OPENFIGI_MAPPING_SOURCE;
-  warnings: number;
-  errors: number;
 };
 
 function getEodhdConfig(): { apiToken: string; apiUrl: string } {
@@ -159,14 +113,6 @@ function normalizeMaxPages(value: number | undefined): number {
   return Math.max(1, Math.min(MAX_SYNC_PAGES, Math.trunc(value as number)));
 }
 
-function normalizeOpenFigiCusipLimit(value: number | undefined): number {
-  if (!Number.isFinite(value)) {
-    return DEFAULT_OPENFIGI_CUSIP_LIMIT;
-  }
-
-  return Math.max(1, Math.min(MAX_OPENFIGI_CUSIP_LIMIT, Math.trunc(value as number)));
-}
-
 function normalizeCusip(value: unknown): string | null {
   const cusip = readString(value)?.toUpperCase().replace(/[^A-Z0-9]/g, "") ?? null;
   return cusip && cusip.length === 9 ? cusip : null;
@@ -198,29 +144,7 @@ function parseMappingRecord(record: EodhdIdMappingRecord, exchange: string, upda
     figi: readString(record.figi),
     lei: readString(record.lei),
     cik: readString(record.cik),
-    source: EODHD_MAPPING_SOURCE,
-    updatedAt,
-  };
-}
-
-function parseOpenFigiMappingRecord(cusip: string, record: OpenFigiMappingResult, exchange: string, updatedAt: string): SecurityIdMapping | null {
-  const ticker = normalizeSymbol(record.ticker);
-  const mappedExchange = normalizeSymbol(record.exchCode) ?? exchange;
-
-  if (!ticker) {
-    return null;
-  }
-
-  return {
-    cusip,
-    symbol: `${ticker}.${mappedExchange}`,
-    ticker,
-    exchange: mappedExchange,
-    isin: null,
-    figi: readString(record.compositeFIGI) ?? readString(record.figi),
-    lei: null,
-    cik: null,
-    source: OPENFIGI_MAPPING_SOURCE,
+    source: MAPPING_SOURCE,
     updatedAt,
   };
 }
@@ -265,153 +189,6 @@ async function persistMappings(mappings: SecurityIdMapping[]): Promise<number> {
   }
 
   return written;
-}
-
-async function listUnmappedCusips(limit: number): Promise<string[]> {
-  const db = getAdminFirestore();
-  const snapshot = await db
-    .collection("institutional_holdings")
-    .where("ticker", "==", null)
-    .limit(limit * 5)
-    .get();
-  const cusips: string[] = [];
-  const seen = new Set<string>();
-
-  for (const doc of snapshot.docs) {
-    const cusip = normalizeCusip(doc.get("cusip"));
-    if (!cusip || seen.has(cusip)) {
-      continue;
-    }
-
-    const mapping = await db.collection("security_id_mappings").doc(cusip).get();
-    if (readString(mapping.get("ticker"))) {
-      continue;
-    }
-
-    seen.add(cusip);
-    cusips.push(cusip);
-
-    if (cusips.length >= limit) {
-      break;
-    }
-  }
-
-  return cusips;
-}
-
-async function fetchOpenFigiMappings(cusips: string[], exchange: string): Promise<OpenFigiMappingResponseItem[]> {
-  const apiKey = process.env.OPENFIGI_API_KEY?.trim() ?? "";
-  const body = cusips.map((cusip) => ({
-    idType: "ID_CUSIP",
-    idValue: cusip,
-    exchCode: exchange,
-  }));
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-
-  if (apiKey) {
-    headers["x-openfigi-apikey"] = apiKey;
-  }
-
-  const response = await fetch("https://api.openfigi.com/v3/mapping", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json().catch(() => []) as unknown;
-
-  if (!response.ok) {
-    const message = Array.isArray(payload) ? response.statusText : readString((payload as { error?: unknown }).error) ?? response.statusText;
-    throw new Error(`OpenFIGI mapping request failed with HTTP ${response.status}: ${message}`);
-  }
-
-  return Array.isArray(payload) ? payload as OpenFigiMappingResponseItem[] : [];
-}
-
-export async function syncOpenFigiCusipMappings(input: SyncOpenFigiCusipMappingsInput = {}): Promise<SyncOpenFigiCusipMappingsResult> {
-  const exchange = normalizeExchange(input.exchange);
-  const maxCusips = normalizeOpenFigiCusipLimit(input.maxCusips);
-  const dryRun = input.dryRun === true;
-  const updatedAt = new Date().toISOString();
-  const cusips = await listUnmappedCusips(maxCusips);
-  const hasApiKey = Boolean(process.env.OPENFIGI_API_KEY?.trim());
-  const batchSize = hasApiKey ? OPENFIGI_AUTHENTICATED_BATCH_SIZE : OPENFIGI_UNAUTHENTICATED_BATCH_SIZE;
-  let mapped = 0;
-  let written = 0;
-  let skipped = 0;
-  let warnings = 0;
-  let errors = 0;
-  let pages = 0;
-
-  for (let index = 0; index < cusips.length; index += batchSize) {
-    const chunk = cusips.slice(index, index + batchSize);
-    const responseItems = await fetchOpenFigiMappings(chunk, exchange);
-    pages += 1;
-    const mappings: SecurityIdMapping[] = [];
-
-    for (let itemIndex = 0; itemIndex < chunk.length; itemIndex += 1) {
-      const item = responseItems[itemIndex];
-      const data = Array.isArray(item?.data) ? item.data as OpenFigiMappingResult[] : [];
-      const firstResult = data.find((record) => normalizeSymbol(record.exchCode) === exchange && normalizeSymbol(record.ticker)) ?? data.find((record) => normalizeSymbol(record.ticker));
-      const mapping = firstResult ? parseOpenFigiMappingRecord(chunk[itemIndex], firstResult, exchange, updatedAt) : null;
-
-      if (item?.warning) {
-        warnings += 1;
-      }
-      if (item?.error) {
-        errors += 1;
-      }
-      if (!mapping) {
-        skipped += 1;
-        continue;
-      }
-
-      mappings.push(mapping);
-    }
-
-    mapped += mappings.length;
-    if (!dryRun && mappings.length > 0) {
-      written += await persistMappings(mappings);
-    }
-  }
-
-  if (!dryRun) {
-    await getAdminFirestore().collection("security_id_mapping_sync_runs").add({
-      exchange,
-      source: OPENFIGI_MAPPING_SOURCE,
-      pageLimit: batchSize,
-      startOffset: 0,
-      nextOffset: null,
-      total: cusips.length,
-      fetched: cusips.length,
-      mapped,
-      written,
-      skipped,
-      pages,
-      hasMore: false,
-      warnings,
-      errors,
-      updatedAt,
-    });
-  }
-
-  return {
-    dryRun,
-    exchange,
-    maxCusips,
-    fetched: cusips.length,
-    mapped,
-    written: dryRun ? 0 : written,
-    skipped,
-    pages,
-    hasMore: false,
-    nextOffset: null,
-    updatedAt,
-    source: OPENFIGI_MAPPING_SOURCE,
-    warnings,
-    errors,
-  };
 }
 
 export async function syncEodhdIdMappings(input: SyncEodhdIdMappingsInput = {}): Promise<SyncEodhdIdMappingsResult> {
@@ -467,7 +244,7 @@ export async function syncEodhdIdMappings(input: SyncEodhdIdMappingsInput = {}):
   if (!dryRun) {
     await getAdminFirestore().collection("security_id_mapping_sync_runs").add({
       exchange,
-      source: EODHD_MAPPING_SOURCE,
+      source: MAPPING_SOURCE,
       pageLimit,
       startOffset,
       nextOffset: hasMore ? pageOffset : null,

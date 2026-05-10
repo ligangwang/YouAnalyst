@@ -1,0 +1,140 @@
+name: Sync OpenFIGI ID Mappings
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      exchange:
+        description: OpenFIGI exchange code
+        required: true
+        default: US
+        type: string
+      max_cusips:
+        description: Max unmapped 13F CUSIPs to map
+        required: true
+        default: "100"
+        type: string
+      dry_run:
+        description: Fetch and parse without Firestore writes
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openfigi-id-mapping-sync-manual-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  sync-openfigi-id-mappings:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      CLOUD_RUN_SERVICE_STAGING: ${{ vars.CLOUD_RUN_SERVICE_STAGING }}
+      CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
+      INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Resolve Cloud Run URL
+        id: cloud-run
+        run: |
+          set -euo pipefail
+          service="$CLOUD_RUN_SERVICE_PRODUCTION"
+          if [[ "$TARGET_ENVIRONMENT" == "staging" ]]; then
+            service="$CLOUD_RUN_SERVICE_STAGING"
+          fi
+
+          if [[ -z "$service" ]]; then
+            echo "Cloud Run service name is not configured for $TARGET_ENVIRONMENT" >&2
+            exit 1
+          fi
+
+          url="$(gcloud run services describe "$service" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='value(status.url)')"
+
+          if [[ -z "$url" ]]; then
+            echo "Unable to resolve Cloud Run URL for $service" >&2
+            exit 1
+          fi
+
+          echo "service=$service" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Sync OpenFIGI ID mappings
+        env:
+          CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
+          EXCHANGE: ${{ inputs.exchange }}
+          MAX_CUSIPS: ${{ inputs.max_cusips }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$INTERNAL_API_TOKEN" ]]; then
+            echo "INTERNAL_API_TOKEN secret is not configured" >&2
+            exit 1
+          fi
+
+          body="$(jq -n \
+            --arg exchange "$EXCHANGE" \
+            --argjson maxCusips "$MAX_CUSIPS" \
+            --argjson dryRun "$DRY_RUN" \
+            '{
+              exchange: $exchange,
+              maxCusips: $maxCusips,
+              dryRun: $dryRun
+            }')"
+
+          echo "Calling ${CLOUD_RUN_URL}/api/internal/securities/sync-openfigi-id-mappings"
+          echo "Request body: $body"
+
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$body" \
+            "${CLOUD_RUN_URL}/api/internal/securities/sync-openfigi-id-mappings" || true)"
+
+          cat "$response_file"
+          echo
+
+          if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+            echo "OpenFIGI ID mapping sync failed with HTTP $status" >&2
+            exit 1
+          fi
+
+          echo "Completed OpenFIGI ID mapping sync."
+          echo "Fetched: $(jq -r '.fetched // 0' "$response_file")"
+          echo "Mapped: $(jq -r '.mapped // 0' "$response_file")"
+          echo "Written: $(jq -r '.written // 0' "$response_file")"
+          echo "Skipped: $(jq -r '.skipped // 0' "$response_file")"
+          echo "Batches: $(jq -r '.batches // 0' "$response_file")"
+          echo "Warnings: $(jq -r '.warnings // 0' "$response_file")"
+          echo "Errors: $(jq -r '.errors // 0' "$response_file")"

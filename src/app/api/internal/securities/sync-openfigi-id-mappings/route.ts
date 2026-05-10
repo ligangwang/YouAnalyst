@@ -1,12 +1,10 @@
 import { isInternalRequest } from "@/lib/firebase/auth";
-import { syncEodhdIdMappings } from "@/lib/securities/eodhd-id-mapping";
+import { syncOpenFigiIdMappings } from "@/lib/securities/openfigi-id-mapping";
 import { NextRequest, NextResponse } from "next/server";
 
-type SyncIdMappingsRequest = {
+type SyncOpenFigiIdMappingsRequest = {
   exchange?: unknown;
-  pageLimit?: unknown;
-  pageOffset?: unknown;
-  maxPages?: unknown;
+  maxCusips?: unknown;
   dryRun?: unknown;
 };
 
@@ -29,12 +27,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const payload = (await request.json().catch(() => ({}))) as SyncIdMappingsRequest;
-    const result = await syncEodhdIdMappings({
+    const payload = (await request.json().catch(() => ({}))) as SyncOpenFigiIdMappingsRequest;
+    const result = await syncOpenFigiIdMappings({
       exchange: readString(payload.exchange),
-      pageLimit: readNumber(payload.pageLimit),
-      pageOffset: readNumber(payload.pageOffset),
-      maxPages: readNumber(payload.maxPages),
+      maxCusips: readNumber(payload.maxCusips),
       dryRun: readBoolean(payload.dryRun),
     });
 
@@ -44,7 +40,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to sync security ID mappings";
+    const message = error instanceof Error ? error.message : "Failed to sync OpenFIGI security ID mappings";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
