@@ -35,6 +35,12 @@ type BackfillRun = {
   updatedAt: string | null;
 };
 
+type OpsAlert = {
+  level: "info" | "warning" | "critical";
+  label: string;
+  message: string;
+};
+
 type OpsResponse = {
   queue?: {
     statuses: Record<QueueStatus, number>;
@@ -45,6 +51,7 @@ type OpsResponse = {
   recentFailures?: RecentFiling[];
   recentFilings?: RecentFiling[];
   recentBackfills?: BackfillRun[];
+  alerts?: OpsAlert[];
   generatedAt?: string;
   error?: string;
 };
@@ -115,6 +122,18 @@ function StatusPill({ value }: { value: string | null | undefined }) {
       {value || "UNKNOWN"}
     </span>
   );
+}
+
+function alertClass(level: OpsAlert["level"]): string {
+  if (level === "critical") {
+    return "border-rose-400/30 bg-rose-500/10 text-rose-100";
+  }
+
+  if (level === "warning") {
+    return "border-amber-300/30 bg-amber-400/10 text-amber-100";
+  }
+
+  return "border-emerald-300/30 bg-emerald-400/10 text-emerald-100";
 }
 
 function ActionResult({ result }: { result: ActionResponse | null }) {
@@ -344,6 +363,16 @@ export function AdminThirteenFOpsPage() {
 
       {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
       <ActionResult result={actionResult} />
+
+      <section className="mb-6 grid gap-3 lg:grid-cols-3">
+        {(payload?.alerts ?? []).map((alert) => (
+          <article key={`${alert.level}_${alert.label}`} className={`rounded-2xl border p-4 ${alertClass(alert.level)}`}>
+            <p className="text-xs font-semibold uppercase tracking-wide opacity-80">{alert.level}</p>
+            <h2 className="mt-2 font-[var(--font-sora)] text-lg font-semibold">{alert.label}</h2>
+            <p className="mt-2 text-sm leading-6 opacity-90">{alert.message}</p>
+          </article>
+        ))}
+      </section>
 
       <section className="mb-6 grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/15 bg-slate-900/70 p-5">
