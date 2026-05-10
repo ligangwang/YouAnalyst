@@ -1,4 +1,5 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { FieldPath, QueryDocumentSnapshot } from "firebase-admin/firestore";
 
 const DEFAULT_EXCHANGE = "US";
 const DEFAULT_CUSIP_LIMIT = 100;
@@ -7,6 +8,7 @@ const MAPPING_SOURCE = "openfigi";
 const MAPPING_BATCH_SIZE = 450;
 const OPENFIGI_BATCH_SIZE = 100;
 const OPENFIGI_REQUEST_DELAY_MS = 250;
+const UNMAPPED_HOLDINGS_PAGE_SIZE = 1000;
 
 type OpenFigiMappingResult = {
   figi?: unknown;
@@ -100,38 +102,53 @@ function sleep(ms: number): Promise<void> {
 
 async function listUnmappedHoldingCusips(limit: number): Promise<string[]> {
   const db = getAdminFirestore();
-  const snapshot = await db
-    .collection("institutional_holdings")
-    .where("ticker", "==", null)
-    .limit(limit * 10)
-    .get();
   const seen = new Set<string>();
-  const sampledCusips: string[] = [];
+  const unresolved: string[] = [];
+  let lastDoc: QueryDocumentSnapshot | null = null;
 
-  for (const doc of snapshot.docs) {
-    const cusip = normalizeCusip(doc.get("cusip"));
-    if (!cusip || seen.has(cusip)) {
-      continue;
+  while (unresolved.length < limit) {
+    let query = db
+      .collection("institutional_holdings")
+      .where("ticker", "==", null)
+      .orderBy(FieldPath.documentId())
+      .limit(UNMAPPED_HOLDINGS_PAGE_SIZE);
+
+    if (lastDoc) {
+      query = query.startAfter(lastDoc);
     }
 
-    seen.add(cusip);
-    sampledCusips.push(cusip);
-  }
+    const snapshot = await query.get();
+    if (snapshot.empty) {
+      break;
+    }
 
-  const unresolved: string[] = [];
-  for (let index = 0; index < sampledCusips.length; index += MAPPING_BATCH_SIZE) {
-    const chunk = sampledCusips.slice(index, index + MAPPING_BATCH_SIZE);
-    const refs = chunk.map((cusip) => db.collection("security_id_mappings").doc(cusip));
-    const snapshots = await db.getAll(...refs);
+    lastDoc = snapshot.docs[snapshot.docs.length - 1];
+    const candidateCusips: string[] = [];
 
-    for (const mappingSnapshot of snapshots) {
-      if (readString(mappingSnapshot.get("ticker"))) {
+    for (const doc of snapshot.docs) {
+      const cusip = normalizeCusip(doc.get("cusip"));
+      if (!cusip || seen.has(cusip)) {
         continue;
       }
 
-      unresolved.push(mappingSnapshot.id);
-      if (unresolved.length >= limit) {
-        return unresolved;
+      seen.add(cusip);
+      candidateCusips.push(cusip);
+    }
+
+    for (let index = 0; index < candidateCusips.length; index += MAPPING_BATCH_SIZE) {
+      const chunk = candidateCusips.slice(index, index + MAPPING_BATCH_SIZE);
+      const refs = chunk.map((cusip) => db.collection("security_id_mappings").doc(cusip));
+      const snapshots = await db.getAll(...refs);
+
+      for (const mappingSnapshot of snapshots) {
+        if (readString(mappingSnapshot.get("ticker"))) {
+          continue;
+        }
+
+        unresolved.push(mappingSnapshot.id);
+        if (unresolved.length >= limit) {
+          return unresolved;
+        }
       }
     }
   }
