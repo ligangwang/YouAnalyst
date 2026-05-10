@@ -18,10 +18,27 @@ export type DailyCallHighlight = {
   thesis: string | null;
 };
 
+export type DailyInstitutionalMove = {
+  ticker: string;
+  nameOfIssuer: string;
+  reportDate: string;
+  managerCount: number;
+  valueChangeUsd: number;
+  shareChange: number;
+  newManagers: number;
+  increasedManagers: number;
+  reducedManagers: number;
+  soldOutManagers: number;
+};
+
 export type DailyScoresResult = {
   date: string | null;
   callOfTheDay: DailyCallHighlight | null;
   topCalls: DailyCallHighlight[];
+  institutionalMoves: {
+    increases: DailyInstitutionalMove[];
+    decreases: DailyInstitutionalMove[];
+  };
 };
 
 type UserProfileSummary = {
@@ -38,6 +55,8 @@ type PredictionContentSummary = {
 const TOP_CALL_LIMIT = 10;
 const TOP_CALL_CANDIDATE_LIMIT = 50;
 const FALLBACK_CALL_LIMIT = 200;
+const INSTITUTIONAL_MOVE_LIMIT = 5;
+const INSTITUTIONAL_CHANGE_SCAN_LIMIT = 3000;
 
 function asNumber(value: unknown): number {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -67,6 +86,12 @@ function directionValue(value: unknown): "UP" | "DOWN" | null {
 
 function statusValue(value: unknown): "LIVE" | "SETTLED" {
   return value === "SETTLED" || value === "CLOSED" ? "SETTLED" : "LIVE";
+}
+
+function changeStatusValue(value: unknown): "NEW" | "INCREASED" | "REDUCED" | "SOLD_OUT" | "UNCHANGED" | null {
+  return value === "NEW" || value === "INCREASED" || value === "REDUCED" || value === "SOLD_OUT" || value === "UNCHANGED"
+    ? value
+    : null;
 }
 
 function dailyReturnChange(data: Record<string, unknown>): number | null {
@@ -265,6 +290,86 @@ async function topDailyCalls(db: FirebaseFirestore.Firestore, date: string): Pro
     .slice(0, TOP_CALL_LIMIT);
 }
 
+async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promise<DailyScoresResult["institutionalMoves"]> {
+  const snapshot = await db
+    .collection("institutional_holding_changes")
+    .orderBy("updatedAt", "desc")
+    .limit(INSTITUTIONAL_CHANGE_SCAN_LIMIT)
+    .get();
+  const increasesByTickerReport = new Map<string, DailyInstitutionalMove & { managerCiks: Set<string> }>();
+  const decreasesByTickerReport = new Map<string, DailyInstitutionalMove & { managerCiks: Set<string> }>();
+
+  for (const doc of snapshot.docs) {
+    const data = doc.data() as Record<string, unknown>;
+    const ticker = asString(data.ticker);
+    const nameOfIssuer = asString(data.nameOfIssuer);
+    const reportDate = asString(data.reportDate);
+    const managerCik = asString(data.managerCik);
+    const status = changeStatusValue(data.status);
+    const valueChangeUsd = asNumber(data.valueChangeUsd);
+    const shareChange = asNumber(data.shareChange);
+    const target =
+      valueChangeUsd > 0 && (status === "NEW" || status === "INCREASED")
+        ? increasesByTickerReport
+        : valueChangeUsd < 0 && (status === "REDUCED" || status === "SOLD_OUT")
+          ? decreasesByTickerReport
+          : null;
+
+    if (!ticker || !nameOfIssuer || !reportDate || !managerCik || !status || !target) {
+      continue;
+    }
+
+    const key = `${ticker}_${reportDate}`;
+    const existing = target.get(key) ?? {
+      ticker,
+      nameOfIssuer,
+      reportDate,
+      managerCount: 0,
+      valueChangeUsd: 0,
+      shareChange: 0,
+      newManagers: 0,
+      increasedManagers: 0,
+      reducedManagers: 0,
+      soldOutManagers: 0,
+      managerCiks: new Set<string>(),
+    };
+
+    existing.valueChangeUsd += valueChangeUsd;
+    existing.shareChange += shareChange;
+    existing.managerCiks.add(managerCik);
+    existing.managerCount = existing.managerCiks.size;
+    existing.newManagers += status === "NEW" ? 1 : 0;
+    existing.increasedManagers += status === "INCREASED" ? 1 : 0;
+    existing.reducedManagers += status === "REDUCED" ? 1 : 0;
+    existing.soldOutManagers += status === "SOLD_OUT" ? 1 : 0;
+    target.set(key, existing);
+  }
+
+  function finalize(items: Array<DailyInstitutionalMove & { managerCiks: Set<string> }>): DailyInstitutionalMove[] {
+    return items.map((item) => ({
+      ticker: item.ticker,
+      nameOfIssuer: item.nameOfIssuer,
+      reportDate: item.reportDate,
+      managerCount: item.managerCount,
+      valueChangeUsd: item.valueChangeUsd,
+      shareChange: item.shareChange,
+      newManagers: item.newManagers,
+      increasedManagers: item.increasedManagers,
+      reducedManagers: item.reducedManagers,
+      soldOutManagers: item.soldOutManagers,
+    }));
+  }
+
+  return {
+    increases: finalize([...increasesByTickerReport.values()]
+      .sort((left, right) => right.valueChangeUsd - left.valueChangeUsd || right.managerCount - left.managerCount)
+      .slice(0, INSTITUTIONAL_MOVE_LIMIT)),
+    decreases: finalize([...decreasesByTickerReport.values()]
+      .sort((left, right) => left.valueChangeUsd - right.valueChangeUsd || right.managerCount - left.managerCount)
+      .slice(0, INSTITUTIONAL_MOVE_LIMIT)),
+  };
+}
+
 export async function getDailyScores(dateInput?: string | null): Promise<DailyScoresResult> {
   const db = getAdminFirestore();
   const date = isDailyScoreDate(dateInput ?? null) ? dateInput : await latestDailyScoreDate(db);
@@ -274,14 +379,22 @@ export async function getDailyScores(dateInput?: string | null): Promise<DailySc
       date: null,
       callOfTheDay: null,
       topCalls: [],
+      institutionalMoves: {
+        increases: [],
+        decreases: [],
+      },
     };
   }
 
-  const topCalls = await topDailyCalls(db, date);
+  const [topCalls, institutionalMoves] = await Promise.all([
+    topDailyCalls(db, date),
+    latestInstitutionalMoves(db),
+  ]);
 
   return {
     date,
     callOfTheDay: topCalls[0] ?? null,
     topCalls,
+    institutionalMoves,
   };
 }
