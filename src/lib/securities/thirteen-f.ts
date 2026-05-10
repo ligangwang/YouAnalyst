@@ -6,6 +6,7 @@ const SEC_BASE_URL = "https://www.sec.gov";
 const SEC_DATA_BASE_URL = "https://data.sec.gov";
 const HOLDING_BATCH_SIZE = 450;
 const MAX_MANAGER_CIKS = 25;
+const DOLLAR_VALUE_REPORTING_START_DATE = "2023-01-03";
 
 export class InvalidManagerCikError extends Error {
   constructor(value: string) {
@@ -283,6 +284,14 @@ function readXmlNumber(xml: string, tagName: string): number | null {
 
   const parsed = Number(value.replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isDollarValue13FFiling(filingDate: string): boolean {
+  return filingDate >= DOLLAR_VALUE_REPORTING_START_DATE;
+}
+
+function reported13FValueUsd(value: number, filingDate: string): number {
+  return isDollarValue13FFiling(filingDate) ? value : value * 1000;
 }
 
 function normalizeCusip(value: string | null): string | null {
@@ -775,7 +784,7 @@ export async function parseAndPersist13FFiling(input: {
       ticker,
       providerSymbol: readString(mapping?.symbol),
       exchange: readString(mapping?.exchange),
-      valueUsd: holding.valueThousands * 1000,
+      valueUsd: reported13FValueUsd(holding.valueThousands, filing.filingDate),
       source: "sec-13f",
       updatedAt: input.updatedAt,
     };
