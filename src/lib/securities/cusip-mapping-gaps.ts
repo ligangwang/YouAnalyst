@@ -59,6 +59,9 @@ export type CusipMappingGapsSummary = {
   mappedHoldings: number;
   unmappedShare: number | null;
   sampledHoldings: number;
+  sampledUnmappedValueUsd: number;
+  sampledUniqueIssuers: number;
+  sampledTopGapValueShare: number | null;
   gaps: CusipMappingGap[];
   recentMappingSyncs: SecurityMappingSyncRunSummary[];
   recentMappingApplies: SecurityMappingApplyRunSummary[];
@@ -229,12 +232,15 @@ export async function getCusipMappingGapsSummary(input: { sampleLimit?: number }
     gapsByCusip.set(cusip, existing);
   }
 
-  const gaps = [...gapsByCusip.values()]
+  const allGaps = [...gapsByCusip.values()]
     .map((gap) => ({
       ...gap,
       managers: [...gap.managers].sort((a, b) => b.valueUsd - a.valueUsd).slice(0, 5),
     }))
-    .sort((a, b) => b.totalValueUsd - a.totalValueUsd)
+    .sort((a, b) => b.totalValueUsd - a.totalValueUsd);
+  const sampledUnmappedValueUsd = allGaps.reduce((total, gap) => total + gap.totalValueUsd, 0);
+  const sampledUniqueIssuers = new Set(allGaps.map((gap) => gap.nameOfIssuer ?? gap.cusip)).size;
+  const gaps = allGaps
     .slice(0, 50);
 
   return {
@@ -243,6 +249,11 @@ export async function getCusipMappingGapsSummary(input: { sampleLimit?: number }
     mappedHoldings: Math.max(0, totalHoldings - unmappedHoldings),
     unmappedShare: totalHoldings > 0 ? unmappedHoldings / totalHoldings : null,
     sampledHoldings: sampleSnapshot.size,
+    sampledUnmappedValueUsd,
+    sampledUniqueIssuers,
+    sampledTopGapValueShare: sampledUnmappedValueUsd > 0 && allGaps[0]
+      ? allGaps[0].totalValueUsd / sampledUnmappedValueUsd
+      : null,
     gaps,
     recentMappingSyncs: syncRunsSnapshot.docs.map((doc) => normalizeSyncRun(doc.id, doc.data())),
     recentMappingApplies: applyRunsSnapshot.docs.map((doc) => normalizeApplyRun(doc.id, doc.data())),

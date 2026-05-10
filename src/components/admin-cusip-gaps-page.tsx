@@ -59,6 +59,9 @@ type GapsResponse = {
   mappedHoldings?: number;
   unmappedShare?: number | null;
   sampledHoldings?: number;
+  sampledUnmappedValueUsd?: number;
+  sampledUniqueIssuers?: number;
+  sampledTopGapValueShare?: number | null;
   gaps?: CusipMappingGap[];
   recentMappingSyncs?: MappingSyncRun[];
   recentMappingApplies?: MappingApplyRun[];
@@ -534,6 +537,24 @@ export function AdminCusipGapsPage() {
         <Metric label="Mapped holdings" value={formatCount(payload?.mappedHoldings ?? 0)} />
         <Metric label="Unmapped holdings" value={formatCount(payload?.unmappedHoldings ?? 0)} note={`${formatPercent(payload?.unmappedShare)} of holdings`} />
         <Metric label="Sampled gaps" value={formatCount(payload?.sampledHoldings ?? 0)} note={`${formatCount(gaps.length)} unique CUSIPs shown`} />
+      </section>
+
+      <section className="mb-6 grid gap-3 sm:grid-cols-3">
+        <Metric
+          label="Sampled unmapped value"
+          value={formatMoney(payload?.sampledUnmappedValueUsd ?? 0)}
+          note="Reported market value in the current unmapped sample"
+        />
+        <Metric
+          label="Sampled issuers"
+          value={formatCount(payload?.sampledUniqueIssuers ?? 0)}
+          note="Issuer names represented by sampled CUSIP gaps"
+        />
+        <Metric
+          label="Top-gap concentration"
+          value={formatPercent(payload?.sampledTopGapValueShare)}
+          note="Share of sampled value in the largest gap"
+        />
       </section>
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
