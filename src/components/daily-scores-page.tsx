@@ -240,11 +240,9 @@ function dailyReturnText(value: number | null): string {
 }
 
 function InstitutionalMoveCard({
-  date,
   kind,
   move,
 }: {
-  date: string | null;
   kind: "increase" | "decrease";
   move: DailyInstitutionalMove;
 }) {
@@ -255,19 +253,11 @@ function InstitutionalMoveCard({
 
   return (
     <article className="rounded-lg border border-white/10 p-3">
-      <div className="flex items-start justify-between gap-3">
+      <div>
         <Link href={`/ticker/${encodeURIComponent(move.ticker)}`} className="min-w-0 hover:text-cyan-100">
           <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">{formatCashtag(move.ticker)}</p>
           <p className="mt-1 truncate text-xs text-slate-400">{move.nameOfIssuer}</p>
         </Link>
-        <a
-          href={moveShareUrl(move, date, kind)}
-          target="_blank"
-          rel="noreferrer"
-          className="shrink-0 rounded-lg border border-cyan-400/35 px-2.5 py-1 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
-        >
-          Share to X
-        </a>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div>
@@ -403,6 +393,8 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
   const callOfTheDay = payload?.callOfTheDay ?? null;
   const institutionalIncreases = payload?.institutionalMoves?.increases ?? [];
   const institutionalDecreases = payload?.institutionalMoves?.decreases ?? [];
+  const topInstitutionalIncrease = institutionalIncreases[0] ?? null;
+  const topInstitutionalDecrease = institutionalDecreases[0] ?? null;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
@@ -540,18 +532,44 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
 
       {institutionalIncreases.length > 0 || institutionalDecreases.length > 0 ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
-          <div>
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Institutional Moves</h2>
-            <p className="mt-1 text-sm text-slate-300">
-              Latest reported 13F position changes ranked by net reported dollar change.
-            </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Institutional Moves</h2>
+              <p className="mt-1 text-sm text-slate-300">
+                Latest reported 13F position changes ranked by net reported dollar change.
+              </p>
+            </div>
+            {canShareOnX ? (
+              <div className="flex flex-wrap gap-2">
+                {topInstitutionalIncrease ? (
+                  <a
+                    href={moveShareUrl(topInstitutionalIncrease, payload?.date ?? null, "increase")}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-emerald-400/35 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15"
+                  >
+                    Share increase to X
+                  </a>
+                ) : null}
+                {topInstitutionalDecrease ? (
+                  <a
+                    href={moveShareUrl(topInstitutionalDecrease, payload?.date ?? null, "decrease")}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-rose-400/35 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/15"
+                  >
+                    Share decrease to X
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest increases</h3>
               <div className="mt-3 grid gap-2">
                 {institutionalIncreases.length > 0 ? institutionalIncreases.map((move) => (
-                  <InstitutionalMoveCard key={`increase-${move.ticker}`} date={payload?.date ?? null} kind="increase" move={move} />
+                  <InstitutionalMoveCard key={`increase-${move.ticker}`} kind="increase" move={move} />
                 )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No increased 13F positions are available yet.</p>}
               </div>
             </div>
@@ -559,7 +577,7 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
               <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest decreases</h3>
               <div className="mt-3 grid gap-2">
                 {institutionalDecreases.length > 0 ? institutionalDecreases.map((move) => (
-                  <InstitutionalMoveCard key={`decrease-${move.ticker}`} date={payload?.date ?? null} kind="decrease" move={move} />
+                  <InstitutionalMoveCard key={`decrease-${move.ticker}`} kind="decrease" move={move} />
                 )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No reduced 13F positions are available yet.</p>}
               </div>
             </div>
