@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { FieldPath } from "firebase-admin/firestore";
-import { getAdminFirestore } from "@/lib/firebase/admin";
+import { getAdminFirestore, getAdminStorageBucket } from "@/lib/firebase/admin";
 
 const SEC_BASE_URL = "https://www.sec.gov";
 const SEC_DATA_BASE_URL = "https://data.sec.gov";
+const SEC_13F_RAW_GCS_PREFIX = "sec-13f/raw";
 const HOLDING_BATCH_SIZE = 450;
 const MAX_MANAGER_CIKS = 25;
 const DOLLAR_VALUE_REPORTING_START_DATE = "2023-01-03";
@@ -159,34 +160,109 @@ function getSecUserAgent(): string {
   return `YouAnalyst 13F parser ${appUrl}`;
 }
 
-async function fetchSecJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    headers: {
-      accept: "application/json",
-      "user-agent": getSecUserAgent(),
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`SEC request failed (${response.status}): ${url}`);
+function secRawGcsPath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname.replace(/^\/+/, "").replace(/\/+/g, "/");
+    const queryDigest = parsed.search
+      ? `-${createHash("sha256").update(parsed.search).digest("hex").slice(0, 12)}`
+      : "";
+    return `${SEC_13F_RAW_GCS_PREFIX}/${parsed.hostname}/${pathname}${queryDigest}`;
+  } catch {
+    const digest = createHash("sha256").update(url).digest("hex");
+    return `${SEC_13F_RAW_GCS_PREFIX}/unknown/${digest}.txt`;
   }
-
-  return (await response.json()) as T;
 }
 
-async function fetchSecText(url: string): Promise<string> {
+async function readSecRawTextFromGcs(path: string): Promise<string | null> {
+  try {
+    const file = getAdminStorageBucket().file(path);
+    const [exists] = await file.exists();
+    if (!exists) {
+      return null;
+    }
+
+    const [contents] = await file.download();
+    return contents.toString("utf8");
+  } catch (error) {
+    console.warn("[13f] Failed to read SEC raw cache; falling back to SEC", {
+      error: error instanceof Error ? error.message : String(error),
+      path,
+    });
+    return null;
+  }
+}
+
+async function writeSecRawTextToGcs(path: string, contents: string, contentType: string): Promise<void> {
+  try {
+    const file = getAdminStorageBucket().file(path);
+    await file.save(contents, {
+      contentType,
+      resumable: false,
+      metadata: {
+        cacheControl: "private, max-age=31536000, immutable",
+      },
+    });
+  } catch (error) {
+    console.warn("[13f] Failed to write SEC raw cache", {
+      error: error instanceof Error ? error.message : String(error),
+      path,
+    });
+  }
+}
+
+async function fetchSecRawText(
+  url: string,
+  input: {
+    accept: string;
+    cache?: boolean;
+    contentType: string;
+    errorPrefix: string;
+  },
+): Promise<string> {
+  const cachePath = secRawGcsPath(url);
+  if (input.cache !== false) {
+    const cached = await readSecRawTextFromGcs(cachePath);
+    if (cached !== null) {
+      return cached;
+    }
+  }
+
   const response = await fetch(url, {
     headers: {
-      accept: "application/xml,text/xml,text/plain,*/*",
+      accept: input.accept,
       "user-agent": getSecUserAgent(),
     },
   });
 
   if (!response.ok) {
-    throw new Error(`SEC download failed (${response.status}): ${url}`);
+    throw new Error(`${input.errorPrefix} (${response.status}): ${url}`);
   }
 
-  return response.text();
+  const text = await response.text();
+  if (input.cache !== false) {
+    await writeSecRawTextToGcs(cachePath, text, input.contentType);
+  }
+  return text;
+}
+
+async function fetchSecJson<T>(url: string, input: { cache?: boolean } = {}): Promise<T> {
+  const text = await fetchSecRawText(url, {
+    accept: "application/json",
+    cache: input.cache,
+    contentType: "application/json",
+    errorPrefix: "SEC request failed",
+  });
+
+  return JSON.parse(text) as T;
+}
+
+export async function fetchSecText(url: string): Promise<string> {
+  return fetchSecRawText(url, {
+    accept: "application/xml,text/xml,text/plain,*/*",
+    contentType: "text/plain; charset=utf-8",
+    errorPrefix: "SEC download failed",
+  });
 }
 
 function padCik(cik: string | number): string {
@@ -336,7 +412,9 @@ function parse13FInformationTable(xml: string): Parsed13FHolding[] {
 }
 
 async function fetchLatest13FFiling(managerCik: string): Promise<Latest13FFiling> {
-  const payload = await fetchSecJson<SecSubmissionsResponse>(`${SEC_DATA_BASE_URL}/submissions/CIK${managerCik}.json`);
+  const payload = await fetchSecJson<SecSubmissionsResponse>(`${SEC_DATA_BASE_URL}/submissions/CIK${managerCik}.json`, {
+    cache: false,
+  });
   const recent = payload.filings?.recent;
   if (!recent) {
     throw new Error(`No SEC submissions found for manager CIK ${managerCik}.`);
@@ -392,7 +470,7 @@ function informationTableFileRank(item: SecDirectoryItem): number {
 }
 
 async function fetchInformationTableXml(filing: Latest13FFiling): Promise<{ url: string; xml: string }> {
-  const index = await fetchSecJson<SecDirectoryIndexResponse>(filing.directoryUrl);
+  const index = await fetchSecJson<SecDirectoryIndexResponse>(filing.directoryUrl, { cache: true });
   const items = Array.isArray(index.directory?.item) ? index.directory.item as SecDirectoryItem[] : [];
   const candidates = items
     .filter(isLikelyInformationTableFile)
