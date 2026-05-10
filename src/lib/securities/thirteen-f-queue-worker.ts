@@ -1,6 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { Latest13FFiling, parseAndPersist13FFiling, Sync13FManagerResult } from "@/lib/securities/thirteen-f";
+import { fetchSecText, Latest13FFiling, parseAndPersist13FFiling, Sync13FManagerResult } from "@/lib/securities/thirteen-f";
 
 const SEC_BASE_URL = "https://www.sec.gov";
 const DEFAULT_QUEUE_LIMIT = 10;
@@ -55,31 +55,6 @@ export type Process13FQueueResult = {
   processingRunId: string;
   updatedAt: string;
 };
-
-function getSecUserAgent(): string {
-  const userAgent = process.env.SEC_USER_AGENT?.trim();
-  if (userAgent) {
-    return userAgent;
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://youanalyst.com";
-  return `YouAnalyst 13F queue worker ${appUrl}`;
-}
-
-async function fetchSecText(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: {
-      accept: "application/xml,text/xml,text/plain,*/*",
-      "user-agent": getSecUserAgent(),
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`SEC filing request failed (${response.status}): ${url}`);
-  }
-
-  return response.text();
-}
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
