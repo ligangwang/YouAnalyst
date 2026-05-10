@@ -25,7 +25,6 @@ type Admin13FActionRequest = {
   maxProcessBatches?: unknown;
   dryRun?: unknown;
   fromStatus?: unknown;
-  filingDateFrom?: unknown;
   reason?: unknown;
 };
 
@@ -147,7 +146,6 @@ export async function POST(request: NextRequest) {
     if (action === "resetFilings") {
       const result = await resetThirteenFFilingsForReprocessing({
         fromStatus: readString(payload.fromStatus) as QueueStatus | undefined,
-        filingDateFrom: readString(payload.filingDateFrom),
         limit: readNumber(payload.limit),
         dryRun: readBoolean(payload.dryRun),
         reason: readString(payload.reason),

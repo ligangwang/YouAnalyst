@@ -210,7 +210,6 @@ jobs:
               --argjson limit "$limit" \
               '{
                 fromStatus: "PARSED",
-                filingDateFrom: "2023-01-03",
                 limit: $limit,
                 dryRun: false,
                 reason: "Reset after 13F value scale parser fix deployment."
@@ -665,7 +664,6 @@ jobs:
               --argjson limit "$limit" \
               '{
                 fromStatus: "PARSED",
-                filingDateFrom: "2023-01-03",
                 limit: $limit,
                 dryRun: false,
                 reason: "Reset after 13F value scale parser fix deployment."

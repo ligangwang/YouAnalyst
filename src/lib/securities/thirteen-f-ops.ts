@@ -5,7 +5,6 @@ export type QueueStatus = "DISCOVERED" | "PROCESSING" | "PARSED" | "FAILED" | "S
 const RESET_BATCH_SIZE = 450;
 const DEFAULT_RESET_LIMIT = 450;
 const MAX_RESET_LIMIT = 450;
-const DEFAULT_RESET_FILING_DATE_FROM = "2023-01-03";
 
 export type ThirteenFQueueStatusSummary = Record<QueueStatus, number>;
 
@@ -61,7 +60,6 @@ export type ThirteenFOpsSummary = {
 
 export type ResetThirteenFFilingsInput = {
   fromStatus?: QueueStatus;
-  filingDateFrom?: string;
   limit?: number;
   dryRun?: boolean;
   reason?: string;
@@ -71,7 +69,6 @@ export type ResetThirteenFFilingsResult = {
   dryRun: boolean;
   fromStatus: QueueStatus;
   toStatus: "DISCOVERED";
-  filingDateFrom: string;
   scanned: number;
   updated: number;
   accessions: string[];
@@ -101,11 +98,6 @@ function normalizeLimit(value: number | undefined, fallback: number, max: number
   return Math.max(1, Math.min(max, Math.trunc(value as number)));
 }
 
-function normalizeIsoDate(value: string | undefined, fallback: string): string {
-  const candidate = value?.trim() || fallback;
-  return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : fallback;
-}
-
 function readIsoLike(value: unknown): string | null {
   if (typeof value === "string" && value.trim()) {
     return value.trim();
@@ -125,22 +117,20 @@ export async function resetThirteenFFilingsForReprocessing(
   const db = getAdminFirestore();
   const dryRun = input.dryRun !== false;
   const fromStatus = normalizeQueueStatus(input.fromStatus, "PARSED");
-  const filingDateFrom = normalizeIsoDate(input.filingDateFrom, DEFAULT_RESET_FILING_DATE_FROM);
   const limit = normalizeLimit(input.limit, DEFAULT_RESET_LIMIT, MAX_RESET_LIMIT);
   const updatedAt = new Date().toISOString();
   const snapshot = await db.collection("sec_13f_filings")
     .where("status", "==", fromStatus)
-    .where("filingDate", ">=", filingDateFrom)
-    .orderBy("filingDate", "asc")
     .limit(limit)
     .get();
-  const accessions = snapshot.docs.map((doc) => readString(doc.get("accessionNumber")) ?? doc.id);
+  const docs = snapshot.docs;
+  const accessions = docs.map((doc) => readString(doc.get("accessionNumber")) ?? doc.id);
 
-  if (!dryRun && snapshot.docs.length > 0) {
-    for (let index = 0; index < snapshot.docs.length; index += RESET_BATCH_SIZE) {
+  if (!dryRun && docs.length > 0) {
+    for (let index = 0; index < docs.length; index += RESET_BATCH_SIZE) {
       const batch = db.batch();
 
-      for (const doc of snapshot.docs.slice(index, index + RESET_BATCH_SIZE)) {
+      for (const doc of docs.slice(index, index + RESET_BATCH_SIZE)) {
         batch.set(doc.ref, {
           status: "DISCOVERED",
           canonicalStatus: "UNKNOWN",
@@ -166,9 +156,8 @@ export async function resetThirteenFFilingsForReprocessing(
     dryRun,
     fromStatus,
     toStatus: "DISCOVERED",
-    filingDateFrom,
     scanned: snapshot.docs.length,
-    updated: dryRun ? 0 : snapshot.docs.length,
+    updated: dryRun ? 0 : docs.length,
     accessions,
     updatedAt,
   };
