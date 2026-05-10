@@ -116,6 +116,10 @@ function normalizeBackfillRun(id: string, data: Record<string, unknown>): Thirte
   };
 }
 
+function isParsedFiling(filing: ThirteenFRecentFiling): boolean {
+  return filing.status === "PARSED" || filing.canonicalStatus === "PARSED";
+}
+
 async function queueStatusCounts(): Promise<ThirteenFQueueStatusSummary> {
   const db = getAdminFirestore();
   const entries = await Promise.all(QUEUE_STATUSES.map(async (status) => {
@@ -163,7 +167,7 @@ function buildOpsAlerts(input: {
     });
   }
 
-  if (!input.latestParsed) {
+  if (input.statuses.PARSED === 0) {
     alerts.push({
       level: "warning",
       label: "No parsed filing",
@@ -187,14 +191,14 @@ export async function getThirteenFOpsSummary(): Promise<ThirteenFOpsSummary> {
   const [statuses, staleProcessing, latestParsedSnapshot, recentSnapshot, recentBackfillSnapshot] = await Promise.all([
     queueStatusCounts(),
     countStaleProcessing(60),
-    db.collection("sec_13f_filings").orderBy("processedAt", "desc").limit(1).get(),
+    db.collection("sec_13f_filings").orderBy("processedAt", "desc").limit(50).get(),
     db.collection("sec_13f_filings").orderBy("updatedAt", "desc").limit(50).get(),
     db.collection("sec_13f_backfill_runs").orderBy("updatedAt", "desc").limit(10).get(),
   ]);
   const recentFilings = recentSnapshot.docs.map((doc) => normalizeRecentFiling(doc.id, doc.data()));
-  const latestParsed = latestParsedSnapshot.docs[0]
-    ? normalizeRecentFiling(latestParsedSnapshot.docs[0].id, latestParsedSnapshot.docs[0].data())
-    : null;
+  const latestParsed = latestParsedSnapshot.docs
+    .map((doc) => normalizeRecentFiling(doc.id, doc.data()))
+    .find(isParsedFiling) ?? null;
 
   return {
     queue: {
