@@ -2,7 +2,8 @@ import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { isAdminUser } from "@/lib/firebase/admin-role";
 import { backfill13FFilings } from "@/lib/securities/thirteen-f-backfill";
 import { discover13FFilings } from "@/lib/securities/thirteen-f-discovery";
-import { getThirteenFOpsSummary } from "@/lib/securities/thirteen-f-ops";
+import { getThirteenFOpsSummary, resetThirteenFFilingsForReprocessing } from "@/lib/securities/thirteen-f-ops";
+import type { QueueStatus } from "@/lib/securities/thirteen-f-ops";
 import { process13FQueue } from "@/lib/securities/thirteen-f-queue-worker";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -23,6 +24,9 @@ type Admin13FActionRequest = {
   processBatchSize?: unknown;
   maxProcessBatches?: unknown;
   dryRun?: unknown;
+  fromStatus?: unknown;
+  filingDateFrom?: unknown;
+  reason?: unknown;
 };
 
 async function assertAdmin(request: NextRequest): Promise<NextResponse | null> {
@@ -130,6 +134,23 @@ export async function POST(request: NextRequest) {
         dryRun: readBoolean(payload.dryRun),
         includeStaleProcessing: readBoolean(payload.includeStaleProcessing),
         staleProcessingMinutes: readNumber(payload.staleProcessingMinutes),
+      });
+
+      return NextResponse.json({
+        ok: true,
+        action,
+        result,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (action === "resetFilings") {
+      const result = await resetThirteenFFilingsForReprocessing({
+        fromStatus: readString(payload.fromStatus) as QueueStatus | undefined,
+        filingDateFrom: readString(payload.filingDateFrom),
+        limit: readNumber(payload.limit),
+        dryRun: readBoolean(payload.dryRun),
+        reason: readString(payload.reason),
       });
 
       return NextResponse.json({
