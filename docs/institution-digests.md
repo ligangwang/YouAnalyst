@@ -7,7 +7,7 @@ Institution digests are in-app snapshots for users who follow institutional mana
 - Users enable digests from the Institutions page preferences panel.
 - Generated live digest runs appear in the Institution digests panel.
 - Users can open a run, group items by institution or ticker, follow SEC filing links, and mark live runs as read.
-- Dry-run records are visible to admins and can also appear in user history, but they do not update the user's checkpoint.
+- Dry runs are admin previews only and do not write digest run records or update user checkpoints.
 
 ## Admin Operation
 
@@ -60,6 +60,21 @@ Then run live when the preview looks correct:
   "limitItems": 50
 }
 ```
+
+## Scheduler
+
+The deploy workflow can provision a Cloud Scheduler job for `/api/internal/institutions/digest`. It is disabled unless `INSTITUTION_DIGEST_SCHEDULER_ENABLED=1` is set in the target GitHub environment.
+
+Environment variables:
+
+- `INSTITUTION_DIGEST_SCHEDULER_ENABLED`: Set to `1` to create or update the scheduler job.
+- `INSTITUTION_DIGEST_SCHEDULER_JOB`: Optional job name. Defaults to `institution-digest-staging` or `institution-digest-production`.
+- `INSTITUTION_DIGEST_SCHEDULER_SCHEDULE`: Optional cron schedule. Defaults to `0 9 * * *`.
+- `INSTITUTION_DIGEST_SCHEDULER_LIMIT_USERS`: Optional batch user limit. Defaults to `50`.
+- `INSTITUTION_DIGEST_SCHEDULER_LIMIT_ITEMS`: Optional per-user item limit. Defaults to `50`.
+- `INSTITUTION_DIGEST_SCHEDULER_DRY_RUN`: Optional dry-run flag. Defaults to `true` in staging and `false` in production.
+
+Keep staging enabled as a dry run until the run metrics look healthy. Enable production only after indexes are ready and a controlled live test user has passed.
 
 ## Data Model
 
