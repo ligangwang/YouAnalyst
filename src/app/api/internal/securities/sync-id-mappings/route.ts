@@ -1,12 +1,14 @@
 import { isInternalRequest } from "@/lib/firebase/auth";
-import { syncEodhdIdMappings } from "@/lib/securities/eodhd-id-mapping";
+import { syncEodhdIdMappings, syncOpenFigiCusipMappings } from "@/lib/securities/eodhd-id-mapping";
 import { NextRequest, NextResponse } from "next/server";
 
 type SyncIdMappingsRequest = {
+  source?: unknown;
   exchange?: unknown;
   pageLimit?: unknown;
   pageOffset?: unknown;
   maxPages?: unknown;
+  maxCusips?: unknown;
   dryRun?: unknown;
 };
 
@@ -30,6 +32,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const payload = (await request.json().catch(() => ({}))) as SyncIdMappingsRequest;
+    const source = readString(payload.source) ?? "eodhd";
+    if (source === "openfigi") {
+      const result = await syncOpenFigiCusipMappings({
+        exchange: readString(payload.exchange),
+        maxCusips: readNumber(payload.maxCusips),
+        dryRun: readBoolean(payload.dryRun),
+      });
+
+      return NextResponse.json({
+        ok: true,
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const result = await syncEodhdIdMappings({
       exchange: readString(payload.exchange),
       pageLimit: readNumber(payload.pageLimit),

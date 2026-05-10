@@ -11,8 +11,16 @@ on:
         options:
           - staging
           - production
+      source:
+        description: Mapping provider to sync
+        required: true
+        default: eodhd
+        type: choice
+        options:
+          - eodhd
+          - openfigi
       exchange:
-        description: EODHD exchange code
+        description: Exchange code
         required: true
         default: US
         type: string
@@ -30,6 +38,11 @@ on:
         description: Total max pages to sync across batched requests
         required: true
         default: "200"
+        type: string
+      openfigi_cusip_limit:
+        description: Max unmapped CUSIPs to map with OpenFIGI
+        required: true
+        default: "100"
         type: string
       pages_per_request:
         description: Pages per Cloud Run request
@@ -104,10 +117,12 @@ jobs:
       - name: Sync security ID mappings
         env:
           CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
+          SOURCE: ${{ inputs.source }}
           EXCHANGE: ${{ inputs.exchange }}
           PAGE_LIMIT: ${{ inputs.page_limit }}
           PAGE_OFFSET: ${{ inputs.page_offset }}
           MAX_PAGES: ${{ inputs.max_pages }}
+          OPENFIGI_CUSIP_LIMIT: ${{ inputs.openfigi_cusip_limit }}
           PAGES_PER_REQUEST: ${{ inputs.pages_per_request }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
@@ -115,6 +130,50 @@ jobs:
           if [[ -z "$INTERNAL_API_TOKEN" ]]; then
             echo "INTERNAL_API_TOKEN secret is not configured" >&2
             exit 1
+          fi
+
+          if [[ "$SOURCE" == "openfigi" ]]; then
+            body="$(jq -n \
+              --arg source "$SOURCE" \
+              --arg exchange "$EXCHANGE" \
+              --argjson maxCusips "$OPENFIGI_CUSIP_LIMIT" \
+              --argjson dryRun "$DRY_RUN" \
+              '{
+                source: $source,
+                exchange: $exchange,
+                maxCusips: $maxCusips,
+                dryRun: $dryRun
+              }')"
+
+            echo "Calling ${CLOUD_RUN_URL}/api/internal/securities/sync-id-mappings"
+            echo "Request body: $body"
+
+            response_file="$(mktemp)"
+            status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data "$body" \
+              "${CLOUD_RUN_URL}/api/internal/securities/sync-id-mappings" || true)"
+
+            cat "$response_file"
+            echo
+
+            if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+              echo "Security ID mapping sync failed with HTTP $status" >&2
+              exit 1
+            fi
+
+            echo "Completed OpenFIGI security ID mapping sync."
+            echo "Fetched: $(jq -r '.fetched // 0' "$response_file")"
+            echo "Mapped: $(jq -r '.mapped // 0' "$response_file")"
+            echo "Written: $(jq -r '.written // 0' "$response_file")"
+            echo "Skipped: $(jq -r '.skipped // 0' "$response_file")"
+            echo "Warnings: $(jq -r '.warnings // 0' "$response_file")"
+            echo "Errors: $(jq -r '.errors // 0' "$response_file")"
+            exit 0
           fi
 
           offset="$PAGE_OFFSET"
