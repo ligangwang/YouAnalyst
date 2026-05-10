@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { InstitutionFollowButton } from "@/components/institution-follow-button";
 import { formatTickerSymbol, PredictionAuthorSummary, PredictionReturnSummary } from "@/components/prediction-ui";
 import { type PredictionStatus } from "@/lib/predictions/types";
 
@@ -157,13 +158,19 @@ function ActivityList({
       <div className="mt-3 grid gap-3">
         {items.map((item) => (
           <article key={`${item.managerCik}_${item.accessionNumber}_${item.status}`} className="rounded-lg border border-white/10 bg-slate-950/60 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <Link href={`/institutions/${item.managerCik}`} className="font-semibold text-slate-100 hover:text-cyan-200">
-                {item.managerName}
-              </Link>
-              <span className={`shrink-0 rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(item.status)}`}>
-                {item.status}
-              </span>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <Link href={`/institutions/${item.managerCik}`} className="font-semibold text-slate-100 hover:text-cyan-200">
+                  {item.managerName}
+                </Link>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(item.status)}`}>
+                    {item.status}
+                  </span>
+                  <span className="text-xs text-slate-500">CIK {item.managerCik}</span>
+                </div>
+              </div>
+              <InstitutionFollowButton cik={item.managerCik} name={item.managerName} compact />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               <p className="text-slate-400">
@@ -309,10 +316,11 @@ function InstitutionalHoldingsSection({
 
       {summary && filteredPositions.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="py-3 pr-3">Institution</th>
+                <th className="py-3 pr-3">Follow</th>
                 <th className="py-3 pr-3 text-right">Value</th>
                 <th className="py-3 pr-3 text-right">Shares</th>
                 <th className="py-3 pr-3 text-right">Positions</th>
@@ -329,6 +337,9 @@ function InstitutionalHoldingsSection({
                       {position.managerName}
                     </Link>
                     <p className="mt-1 text-xs text-slate-500">CIK {position.managerCik}</p>
+                  </td>
+                  <td className="py-3 pr-3">
+                    <InstitutionFollowButton cik={position.managerCik} name={position.managerName} compact />
                   </td>
                   <td className="py-3 pr-3 text-right tabular-nums">{formatCurrency(position.valueUsd)}</td>
                   <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(position.shares)}</td>
