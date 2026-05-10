@@ -182,6 +182,10 @@ function latestChangeByPosition(changes: InstitutionalHoldingChange[]): Map<stri
   return byPosition;
 }
 
+function managerReportHoldingKey(managerCik: string, reportDate: string): string {
+  return `${managerCik}_${reportDate}`;
+}
+
 function isChangeNewerThanHolding(change: InstitutionalHoldingChange, holding: InstitutionalHolding): boolean {
   return `${change.reportDate}_${change.updatedAt}` > `${holding.reportDate}_${holding.updatedAt}`;
 }
@@ -311,6 +315,7 @@ export async function getInstitutionalTickerSummary(
       .get(),
   ]);
   const latestByManager = new Map<string, InstitutionalHolding>();
+  const holdingsByManagerReport = new Map<string, InstitutionalHolding[]>();
 
   for (const doc of holdingsSnapshot.docs) {
     const holding = doc.data() as InstitutionalHolding;
@@ -322,6 +327,11 @@ export async function getInstitutionalTickerSummary(
     if (isNewerHolding(holding, current)) {
       latestByManager.set(holding.managerCik, holding);
     }
+
+    const key = managerReportHoldingKey(holding.managerCik, holding.reportDate);
+    const managerHoldings = holdingsByManagerReport.get(key) ?? [];
+    managerHoldings.push(holding);
+    holdingsByManagerReport.set(key, managerHoldings);
   }
 
   const changes = changesSnapshot.docs
@@ -330,13 +340,7 @@ export async function getInstitutionalTickerSummary(
   const changeByManager = latestChangeByManager(changes);
   const currentPositions = [...latestByManager.values()]
     .map<InstitutionalTickerPosition>((holding) => {
-      const managerHoldings = holdingsSnapshot.docs
-        .map((doc) => doc.data() as InstitutionalHolding)
-        .filter((candidate) => (
-          candidate.managerCik === holding.managerCik &&
-          candidate.ticker === ticker &&
-          candidate.reportDate === holding.reportDate
-        ));
+      const managerHoldings = holdingsByManagerReport.get(managerReportHoldingKey(holding.managerCik, holding.reportDate)) ?? [];
       const aggregateShares = managerHoldings.reduce((total, item) => total + item.shares, 0);
       const aggregateValueUsd = managerHoldings.reduce((total, item) => total + item.valueUsd, 0);
       const change = changeByManager.get(holding.managerCik) ?? null;
