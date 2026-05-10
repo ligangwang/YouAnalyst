@@ -4,13 +4,13 @@ Use this checklist after deploying institution digest changes to staging or prod
 
 ## Firestore Indexes
 
-Apply composite indexes before running smoke checks:
+The staging and production deploy workflow applies `firestore.indexes.json` automatically through `scripts/deploy-cloud-run.sh` before Cloud Run deployment. Use the manual command only when you need to submit indexes outside a deploy:
 
 ```bash
 GOOGLE_CLOUD_PROJECT=ifindata-80905 npm run firestore:indexes:apply
 ```
 
-Wait until the `institution_digest_runs` indexes are ready:
+Before running smoke checks, confirm the `institution_digest_runs` indexes are ready:
 
 - `userId ASC`, `generatedAt DESC`
 - `userId ASC`, `dryRun ASC`, `readAt ASC`
