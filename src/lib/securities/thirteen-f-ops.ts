@@ -34,6 +34,12 @@ export type ThirteenFBackfillRunSummary = {
   updatedAt: string | null;
 };
 
+export type ThirteenFOpsAlert = {
+  level: "info" | "warning" | "critical";
+  label: string;
+  message: string;
+};
+
 export type ThirteenFOpsSummary = {
   queue: {
     statuses: ThirteenFQueueStatusSummary;
@@ -44,6 +50,7 @@ export type ThirteenFOpsSummary = {
   recentFailures: ThirteenFRecentFiling[];
   recentFilings: ThirteenFRecentFiling[];
   recentBackfills: ThirteenFBackfillRunSummary[];
+  alerts: ThirteenFOpsAlert[];
   generatedAt: string;
 };
 
@@ -133,6 +140,48 @@ async function countStaleProcessing(minutes: number): Promise<number> {
   }).length;
 }
 
+function buildOpsAlerts(input: {
+  statuses: ThirteenFQueueStatusSummary;
+  staleProcessing: number;
+  latestParsed: ThirteenFRecentFiling | null;
+}): ThirteenFOpsAlert[] {
+  const alerts: ThirteenFOpsAlert[] = [];
+
+  if (input.staleProcessing > 0) {
+    alerts.push({
+      level: "critical",
+      label: "Stale processing",
+      message: `${input.staleProcessing.toLocaleString()} filing(s) have been processing for more than 60 minutes.`,
+    });
+  }
+
+  if (input.statuses.FAILED > 0) {
+    alerts.push({
+      level: "warning",
+      label: "Failed filings",
+      message: `${input.statuses.FAILED.toLocaleString()} filing(s) are currently marked failed.`,
+    });
+  }
+
+  if (!input.latestParsed) {
+    alerts.push({
+      level: "warning",
+      label: "No parsed filing",
+      message: "No parsed 13F filing was found. Confirm discovery and queue processing have run.",
+    });
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({
+      level: "info",
+      label: "Pipeline nominal",
+      message: "No failed or stale processing filings are currently visible in the 13F operations snapshot.",
+    });
+  }
+
+  return alerts;
+}
+
 export async function getThirteenFOpsSummary(): Promise<ThirteenFOpsSummary> {
   const db = getAdminFirestore();
   const [statuses, staleProcessing, latestParsedSnapshot, recentSnapshot, recentBackfillSnapshot] = await Promise.all([
@@ -143,6 +192,9 @@ export async function getThirteenFOpsSummary(): Promise<ThirteenFOpsSummary> {
     db.collection("sec_13f_backfill_runs").orderBy("updatedAt", "desc").limit(10).get(),
   ]);
   const recentFilings = recentSnapshot.docs.map((doc) => normalizeRecentFiling(doc.id, doc.data()));
+  const latestParsed = latestParsedSnapshot.docs[0]
+    ? normalizeRecentFiling(latestParsedSnapshot.docs[0].id, latestParsedSnapshot.docs[0].data())
+    : null;
 
   return {
     queue: {
@@ -150,12 +202,11 @@ export async function getThirteenFOpsSummary(): Promise<ThirteenFOpsSummary> {
       queuedOrProcessing: statuses.DISCOVERED + statuses.PROCESSING,
       staleProcessing,
     },
-    latestParsed: latestParsedSnapshot.docs[0]
-      ? normalizeRecentFiling(latestParsedSnapshot.docs[0].id, latestParsedSnapshot.docs[0].data())
-      : null,
+    latestParsed,
     recentFailures: recentFilings.filter((filing) => filing.status === "FAILED").slice(0, 10),
     recentFilings,
     recentBackfills: recentBackfillSnapshot.docs.map((doc) => normalizeBackfillRun(doc.id, doc.data())),
+    alerts: buildOpsAlerts({ statuses, staleProcessing, latestParsed }),
     generatedAt: new Date().toISOString(),
   };
 }
