@@ -19,6 +19,12 @@ function formatSignedCurrency(value: number): string {
   return value > 0 ? `+${formatted}` : formatted;
 }
 
+function filingUrl(managerCik: string, accessionNumber: string): string {
+  const normalizedCik = String(Number(managerCik));
+  const accessionPath = accessionNumber.replace(/-/g, "");
+  return `https://www.sec.gov/Archives/edgar/data/${normalizedCik}/${accessionPath}/${accessionNumber}-index.html`;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -59,6 +65,15 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
   const totalValueUsd = summary.holdings.reduce((total, holding) => total + holding.valueUsd, 0);
   const netValueChangeUsd = summary.holdings.reduce((total, holding) => total + (holding.valueChangeUsd ?? 0), 0);
   const changedHoldings = summary.holdings.filter((holding) => holding.changeStatus && holding.changeStatus !== "UNCHANGED").length;
+  const latestFilingUrl = summary.manager.latestAccessionNumber
+    ? filingUrl(summary.manager.cik, summary.manager.latestAccessionNumber)
+    : null;
+  const topBuy = [...summary.holdings]
+    .filter((holding) => (holding.valueChangeUsd ?? 0) > 0)
+    .sort((left, right) => (right.valueChangeUsd ?? 0) - (left.valueChangeUsd ?? 0))[0];
+  const topSale = [...summary.holdings]
+    .filter((holding) => (holding.valueChangeUsd ?? 0) < 0)
+    .sort((left, right) => (left.valueChangeUsd ?? 0) - (right.valueChangeUsd ?? 0))[0];
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
@@ -95,7 +110,53 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
         </div>
         <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest filing</p>
-          <p className="mt-2 break-all text-sm font-semibold text-cyan-100">{summary.manager.latestAccessionNumber ?? "Unknown"}</p>
+          {latestFilingUrl ? (
+            <a
+              href={latestFilingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 block break-all text-sm font-semibold text-cyan-100 hover:text-cyan-300"
+            >
+              {summary.manager.latestAccessionNumber}
+            </a>
+          ) : (
+            <p className="mt-2 break-all text-sm font-semibold text-cyan-100">Unknown</p>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200/80">Largest reported increase</p>
+          {topBuy ? (
+            <>
+              <p className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-emerald-50">
+                {topBuy.ticker ?? topBuy.nameOfIssuer}
+              </p>
+              <p className="mt-1 text-sm text-emerald-100/80">{topBuy.nameOfIssuer}</p>
+              <p className="mt-3 text-sm font-semibold tabular-nums text-emerald-50">
+                {formatSignedCurrency(topBuy.valueChangeUsd ?? 0)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-emerald-100/80">No positive value changes shown.</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-rose-200/80">Largest reported decrease</p>
+          {topSale ? (
+            <>
+              <p className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-rose-50">
+                {topSale.ticker ?? topSale.nameOfIssuer}
+              </p>
+              <p className="mt-1 text-sm text-rose-100/80">{topSale.nameOfIssuer}</p>
+              <p className="mt-3 text-sm font-semibold tabular-nums text-rose-50">
+                {formatSignedCurrency(topSale.valueChangeUsd ?? 0)}
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-rose-100/80">No negative value changes shown.</p>
+          )}
         </div>
       </section>
 
