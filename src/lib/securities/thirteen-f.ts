@@ -314,6 +314,10 @@ function filingDocumentUrl(cik: string, accessionNumber: string, documentName: s
   return `${filingBaseUrl(cik, accessionNumber)}/${documentName}`;
 }
 
+function completeSubmissionUrl(cik: string, accessionNumber: string): string {
+  return filingDocumentUrl(cik, accessionNumber, `${accessionNumber}.txt`);
+}
+
 function quarterFromReportDate(reportDate: string): string {
   const date = new Date(`${reportDate}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime())) {
@@ -470,24 +474,58 @@ function informationTableFileRank(item: SecDirectoryItem): number {
   return 2;
 }
 
+function parseCompleteSubmissionDocuments(completeSubmission: string): string[] {
+  const documentPattern = /<DOCUMENT\b[^>]*>([\s\S]*?)<\/DOCUMENT>/gi;
+  const documents: string[] = [];
+  let match = documentPattern.exec(completeSubmission);
+
+  while (match) {
+    documents.push(match[1]);
+    match = documentPattern.exec(completeSubmission);
+  }
+
+  return documents;
+}
+
 async function fetchInformationTableXml(filing: Latest13FFiling): Promise<{ url: string; xml: string }> {
-  const index = await fetchSecJson<SecDirectoryIndexResponse>(filing.directoryUrl, { cache: true });
-  const items = Array.isArray(index.directory?.item) ? index.directory.item as SecDirectoryItem[] : [];
-  const candidates = items
-    .filter(isLikelyInformationTableFile)
-    .sort((left, right) => informationTableFileRank(left) - informationTableFileRank(right));
+  try {
+    const index = await fetchSecJson<SecDirectoryIndexResponse>(filing.directoryUrl, { cache: true });
+    const items = Array.isArray(index.directory?.item) ? index.directory.item as SecDirectoryItem[] : [];
+    const candidates = items
+      .filter(isLikelyInformationTableFile)
+      .sort((left, right) => informationTableFileRank(left) - informationTableFileRank(right));
 
-  for (const candidate of candidates) {
-    const name = readString(candidate.name);
-    if (!name) {
-      continue;
-    }
+    for (const candidate of candidates) {
+      const name = readString(candidate.name);
+      if (!name) {
+        continue;
+      }
 
-    const url = filingDocumentUrl(filing.managerCik, filing.accessionNumber, name);
-    const xml = await fetchSecText(url);
-    if (parse13FInformationTable(xml).length > 0) {
-      return { url, xml };
+      const url = filingDocumentUrl(filing.managerCik, filing.accessionNumber, name);
+      try {
+        const xml = await fetchSecText(url);
+        if (parse13FInformationTable(xml).length > 0) {
+          return { url, xml };
+        }
+      } catch {
+        // Some SEC directory indexes list XML files that only exist inside the complete submission text.
+      }
     }
+  } catch {
+    // Fall back to the complete submission text when SEC does not expose a directory JSON.
+  }
+
+  const completeSubmissionUrlForFiling = completeSubmissionUrl(filing.managerCik, filing.accessionNumber);
+  const completeSubmission = await fetchSecText(completeSubmissionUrlForFiling);
+  const submissionDocuments = parseCompleteSubmissionDocuments(completeSubmission);
+  for (const document of submissionDocuments) {
+    if (parse13FInformationTable(document).length > 0) {
+      return { url: completeSubmissionUrlForFiling, xml: document };
+    }
+  }
+
+  if (parse13FInformationTable(completeSubmission).length > 0) {
+    return { url: completeSubmissionUrlForFiling, xml: completeSubmission };
   }
 
   throw new Error(`No parseable 13F information table XML found for accession ${filing.accessionNumber}.`);
