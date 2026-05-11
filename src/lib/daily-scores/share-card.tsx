@@ -324,6 +324,7 @@ export async function createDailyInstitutionalMoveShareImage(
   date: string,
   kind: string,
   ticker: string,
+  snapshot: DailyInstitutionalMove | null = null,
 ): Promise<ImageResponse> {
   try {
     if (!isDailyInstitutionalMoveShareKind(kind)) {
@@ -331,12 +332,17 @@ export async function createDailyInstitutionalMoveShareImage(
     }
 
     const result = await getDailyScores(date);
-    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker);
+    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker) ?? snapshot;
     return new ImageResponse(
       move ? institutionalMoveImage(result.date, move, kind) : institutionalMoveFallbackImage(result.date ?? date, kind, ticker),
       dailyShareCardSize,
     );
   } catch {
-    return new ImageResponse(institutionalMoveFallbackImage(date, kind, ticker), dailyShareCardSize);
+    return new ImageResponse(
+      isDailyInstitutionalMoveShareKind(kind) && snapshot
+        ? institutionalMoveImage(date, snapshot, kind)
+        : institutionalMoveFallbackImage(date, kind, ticker),
+      dailyShareCardSize,
+    );
   }
 }

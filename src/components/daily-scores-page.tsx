@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatCashtag, formatTickerSymbol } from "@/components/prediction-ui";
 import { useAuth } from "@/components/providers/auth-provider";
 import { dailyCanonicalPath, dailyInstitutionalMoveSharePath, dailyInstitutionalMoveShareVersion, dailyShareVersion } from "@/lib/daily-scores/public-share";
+import { appendInstitutionalMoveSnapshotParams } from "@/lib/daily-scores/institutional-share-snapshot";
 import { xPostIntentUrl } from "@/lib/x-share";
 
 type DailyCallHighlight = {
@@ -175,14 +176,15 @@ function xShareUrl(payload: DailyScoresResponse): string {
   });
 }
 
-function moveSharePath(date: string | null, ticker: string, kind: "increase" | "decrease"): string {
+function moveSharePath(date: string | null, move: DailyInstitutionalMove, kind: "increase" | "decrease"): string {
   const shareDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
-  const path = dailyInstitutionalMoveSharePath(shareDate, kind, ticker);
+  const path = dailyInstitutionalMoveSharePath(shareDate, kind, move.ticker);
   const url = new URL(path, typeof window === "undefined" ? "https://youanalyst.com" : window.location.origin);
   url.searchParams.set("utm_source", "x");
   url.searchParams.set("utm_medium", "social");
   url.searchParams.set("utm_campaign", `institutional_${kind}_share`);
-  url.searchParams.set("share", dailyInstitutionalMoveShareVersion(shareDate, kind, ticker));
+  url.searchParams.set("share", dailyInstitutionalMoveShareVersion(shareDate, kind, move.ticker));
+  appendInstitutionalMoveSnapshotParams(url.searchParams, move);
   return `${url.pathname}${url.search}`;
 }
 
@@ -212,7 +214,7 @@ function moveShareText(move: DailyInstitutionalMove, kind: "increase" | "decreas
 function moveShareUrl(move: DailyInstitutionalMove, date: string | null, kind: "increase" | "decrease"): string {
   return xPostIntentUrl({
     text: moveShareText(move, kind),
-    url: absoluteUrl(moveSharePath(date, move.ticker, kind)),
+    url: absoluteUrl(moveSharePath(date, move, kind)),
   });
 }
 

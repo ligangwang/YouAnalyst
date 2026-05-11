@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { appendInstitutionalMoveSnapshotParams } from "@/lib/daily-scores/institutional-share-snapshot";
 import {
   dailyCanonicalPath,
   dailyInstitutionalMoveSharePath,
@@ -51,6 +52,16 @@ function buildInstitutionalMoveMetadata(
     : `Latest institutional 13F ${kind} context for ${normalizedTicker} on YouAnalyst.`;
   const canonical = dailyInstitutionalMoveSharePath(date, kind, normalizedTicker);
   const version = dailyInstitutionalMoveShareVersion(date, kind, normalizedTicker);
+  const imageParams = new URLSearchParams({
+    date,
+    kind,
+    ticker: normalizedTicker,
+    v: version,
+  });
+  if (move) {
+    appendInstitutionalMoveSnapshotParams(imageParams, move);
+  }
+  const imagePath = `/api/daily-scores/institutional-share-image?${imageParams.toString()}`;
 
   return {
     title,
@@ -64,9 +75,10 @@ function buildInstitutionalMoveMetadata(
       url: canonical,
       images: [
         {
-          url: `${canonical}/opengraph-image?v=${version}`,
+          url: imagePath,
           width: 1200,
           height: 630,
+          type: "image/png",
           alt: `YouAnalyst ${normalizedTicker} institutional ${kind} share card`,
         },
       ],
@@ -75,7 +87,7 @@ function buildInstitutionalMoveMetadata(
       card: "summary_large_image",
       title,
       description,
-      images: [`${canonical}/twitter-image?v=${version}`],
+      images: [imagePath],
     },
   };
 }
@@ -132,12 +144,13 @@ export async function dailyInstitutionalMoveMetadata(
   date: string,
   kind: DailyInstitutionalMoveShareKind,
   ticker: string,
+  snapshot: DailyInstitutionalMove | null = null,
 ): Promise<Metadata> {
   try {
     const result = await getDailyScores(date);
-    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker);
+    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker) ?? snapshot;
     return buildInstitutionalMoveMetadata(result.date ?? date, kind, ticker, move);
   } catch {
-    return buildInstitutionalMoveMetadata(date, kind, ticker, null);
+    return buildInstitutionalMoveMetadata(date, kind, ticker, snapshot);
   }
 }
