@@ -190,7 +190,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
                 <td className="py-3 pr-3 font-semibold text-cyan-100">
                   {holding.ticker ? (
                     <Link href={`/ticker/${holding.ticker}`} className="hover:text-cyan-300">
-                      ${holding.ticker}
+                      {holding.ticker}
                     </Link>
                   ) : (
                     "Unmapped"
