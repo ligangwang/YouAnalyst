@@ -192,6 +192,21 @@ function parseOpenFigiMapping(cusip: string, record: OpenFigiMappingResult, exch
   };
 }
 
+function chooseOpenFigiMappingResult(data: OpenFigiMappingResult[], exchange: string | null): OpenFigiMappingResult | null {
+  if (exchange) {
+    return (
+      data.find((record) => normalizeSymbol(record.exchCode) === exchange && normalizeSymbol(record.ticker))
+      ?? data.find((record) => normalizeSymbol(record.ticker))
+      ?? null
+    );
+  }
+
+  return (
+    data.find((record) => normalizeSymbol(record.exchCode) && normalizeSymbol(record.ticker))
+    ?? null
+  );
+}
+
 async function fetchOpenFigiMappings(cusips: string[], exchange: string | null): Promise<OpenFigiMappingResponseItem[]> {
   const response = await fetch("https://api.openfigi.com/v3/mapping", {
     method: "POST",
@@ -271,8 +286,7 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
     for (let itemIndex = 0; itemIndex < chunk.length; itemIndex += 1) {
       const item = responseItems[itemIndex];
       const data = Array.isArray(item?.data) ? item.data as OpenFigiMappingResult[] : [];
-      const firstResult = (exchange ? data.find((record) => normalizeSymbol(record.exchCode) === exchange && normalizeSymbol(record.ticker)) : null)
-        ?? data.find((record) => normalizeSymbol(record.ticker));
+      const firstResult = chooseOpenFigiMappingResult(data, exchange);
       const mapping = firstResult ? parseOpenFigiMapping(chunk[itemIndex], firstResult, exchange, updatedAt) : null;
 
       if (item?.warning) {
