@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { institutionalMoveFromShareParams } from "@/lib/daily-scores/institutional-share-snapshot";
 import { dailyInstitutionalMoveMetadata } from "@/lib/daily-scores/page-metadata";
 import { isDailyInstitutionalMoveShareKind, type DailyInstitutionalMoveShareKind } from "@/lib/daily-scores/public-share";
 import { getDailyScores, isDailyScoreDate, type DailyInstitutionalMove } from "@/lib/daily-scores/service";
@@ -11,6 +12,7 @@ type Props = {
     kind: string;
     ticker: string;
   }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function formatCurrency(value: number): string {
@@ -59,31 +61,33 @@ function moveCopy(move: DailyInstitutionalMove, kind: DailyInstitutionalMoveShar
   return `Latest 13F reports show ${move.ticker} ${verb} by ${amount} across ${move.managerCount} manager${move.managerCount === 1 ? "" : "s"} as of ${move.reportDate}.`;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { date, kind, ticker } = await params;
   if (!isDailyScoreDate(date) || !isDailyInstitutionalMoveShareKind(kind)) {
     notFound();
   }
 
-  return dailyInstitutionalMoveMetadata(date, kind, ticker);
+  const snapshot = institutionalMoveFromShareParams(await searchParams, ticker);
+  return dailyInstitutionalMoveMetadata(date, kind, ticker, snapshot);
 }
 
-export default async function DailyInstitutionalMoveSharePage({ params }: Props) {
+export default async function DailyInstitutionalMoveSharePage({ params, searchParams }: Props) {
   const { date, kind, ticker } = await params;
   if (!isDailyScoreDate(date) || !isDailyInstitutionalMoveShareKind(kind)) {
     notFound();
   }
 
   const normalizedTicker = ticker.trim().toUpperCase();
+  const snapshot = institutionalMoveFromShareParams(await searchParams, normalizedTicker);
   let move: DailyInstitutionalMove | null = null;
   let resolvedDate = date;
 
   try {
     const result = await getDailyScores(date);
     resolvedDate = result.date ?? date;
-    move = findInstitutionalMove(result.institutionalMoves, kind, normalizedTicker);
+    move = findInstitutionalMove(result.institutionalMoves, kind, normalizedTicker) ?? snapshot;
   } catch {
-    move = null;
+    move = snapshot;
   }
 
   const title = `${normalizedTicker} 13F ${kind === "increase" ? "Increase" : "Decrease"}`;
