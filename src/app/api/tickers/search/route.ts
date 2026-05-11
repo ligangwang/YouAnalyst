@@ -41,6 +41,7 @@ type TickerDocument = {
 type InstitutionalManagerDocument = {
   cik?: unknown;
   name?: unknown;
+  nameLower?: unknown;
   latestReportDate?: unknown;
   latestQuarter?: unknown;
 };
@@ -51,6 +52,14 @@ function normalizeQuery(raw: string | null): string {
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeCikQuery(query: string): string | null {
+  if (!/^\d{1,10}$/.test(query)) {
+    return null;
+  }
+
+  return query.padStart(10, "0");
 }
 
 function scoreTicker(item: TickerSearchItem & { symbolLower: string; nameLower: string; exchangePriority: number }, query: string): number {
@@ -155,7 +164,9 @@ export async function GET(request: NextRequest) {
   try {
     const db = getAdminFirestore();
     const prefixField = query.length === 1 ? "symbolPrefixes" : "searchPrefixes";
-    const [tickerSnapshot, institutionSnapshot] = await Promise.all([
+    const normalizedCik = normalizeCikQuery(query);
+    const legacyNamePrefix = query.toUpperCase();
+    const [tickerSnapshot, indexedInstitutionSnapshot, legacyInstitutionSnapshot, directInstitutionSnapshot] = await Promise.all([
       db
         .collection("tickers")
         .where("active", "==", true)
@@ -163,7 +174,15 @@ export async function GET(request: NextRequest) {
         .where(prefixField, "array-contains", query)
         .limit(50)
         .get(),
-      db.collection("institutional_managers").orderBy("updatedAt", "desc").limit(200).get(),
+      db.collection("institutional_managers").where("searchPrefixes", "array-contains", query).limit(50).get(),
+      db
+        .collection("institutional_managers")
+        .orderBy("name")
+        .startAt(legacyNamePrefix)
+        .endAt(`${legacyNamePrefix}\uf8ff`)
+        .limit(50)
+        .get(),
+      normalizedCik ? db.collection("institutional_managers").doc(normalizedCik).get() : Promise.resolve(null),
     ]);
 
     const tickerItems: ScoredSearchItem[] = tickerSnapshot.docs
@@ -189,8 +208,21 @@ export async function GET(request: NextRequest) {
         },
         score: scoreTicker(item, query),
       }));
-    const institutionItems: ScoredSearchItem[] = institutionSnapshot.docs
-      .map((doc) => toInstitutionSearchItem(doc.id, doc.data()))
+    const institutionsByCik = new Map<string, InstitutionSearchItem>();
+    for (const doc of [...indexedInstitutionSnapshot.docs, ...legacyInstitutionSnapshot.docs]) {
+      const item = toInstitutionSearchItem(doc.id, doc.data());
+      if (item) {
+        institutionsByCik.set(item.cik, item);
+      }
+    }
+    if (directInstitutionSnapshot?.exists) {
+      const item = toInstitutionSearchItem(directInstitutionSnapshot.id, directInstitutionSnapshot.data() as InstitutionalManagerDocument);
+      if (item) {
+        institutionsByCik.set(item.cik, item);
+      }
+    }
+
+    const institutionItems: ScoredSearchItem[] = [...institutionsByCik.values()]
       .filter((item): item is InstitutionSearchItem => Boolean(item))
       .map((item) => ({ item, score: scoreInstitution(item, query) }))
       .filter(({ score }) => score > 0)

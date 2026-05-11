@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { FieldPath } from "firebase-admin/firestore";
 import { getAdminFirestore, getAdminStorageBucket } from "@/lib/firebase/admin";
+import { buildInstitutionSearchPrefixes, institutionNameSearchText } from "@/lib/securities/institution-search";
 
 const SEC_BASE_URL = "https://www.sec.gov";
 const SEC_DATA_BASE_URL = "https://data.sec.gov";
@@ -744,6 +745,11 @@ async function persistManager13F(input: {
     transaction.set(db.collection("institutional_managers").doc(input.filing.managerCik), {
       cik: input.filing.managerCik,
       name: input.filing.managerName,
+      nameLower: institutionNameSearchText(input.filing.managerName),
+      searchPrefixes: buildInstitutionSearchPrefixes({
+        cik: input.filing.managerCik,
+        name: input.filing.managerName,
+      }),
       latestAccessionNumber: input.filing.accessionNumber,
       latestReportDate: input.filing.reportDate,
       latestQuarter: quarter,
