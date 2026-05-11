@@ -1,6 +1,42 @@
 import type { Metadata } from "next";
-import { dailyCanonicalPath, dailyShareImageDate, dailyShareVersion } from "@/lib/daily-scores/public-share";
-import { getDailyScores } from "@/lib/daily-scores/service";
+import {
+  dailyCanonicalPath,
+  dailyInstitutionalMoveSharePath,
+  dailyInstitutionalMoveShareVersion,
+  dailyShareImageDate,
+  dailyShareVersion,
+  type DailyInstitutionalMoveShareKind,
+} from "@/lib/daily-scores/public-share";
+import { getDailyScores, type DailyInstitutionalMove } from "@/lib/daily-scores/service";
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 0,
+    style: "currency",
+  }).format(value);
+}
+
+function formatSignedCurrency(value: number): string {
+  const formatted = formatCurrency(value);
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
+function moveShareDescription(move: DailyInstitutionalMove, kind: DailyInstitutionalMoveShareKind): string {
+  const verb = kind === "increase" ? "increased" : "reduced";
+  const amount = kind === "increase" ? formatSignedCurrency(move.valueChangeUsd) : formatCurrency(Math.abs(move.valueChangeUsd));
+  return `Latest 13F reports show ${move.ticker} ${verb} by ${amount} across ${move.managerCount} manager${move.managerCount === 1 ? "" : "s"} as of ${move.reportDate}.`;
+}
+
+function findInstitutionalMove(
+  moves: Awaited<ReturnType<typeof getDailyScores>>["institutionalMoves"],
+  kind: DailyInstitutionalMoveShareKind,
+  ticker: string,
+): DailyInstitutionalMove | null {
+  const normalizedTicker = ticker.trim().toUpperCase();
+  const items = kind === "increase" ? moves.increases : moves.decreases;
+  return items.find((move) => move.ticker.toUpperCase() === normalizedTicker) ?? null;
+}
 
 function buildDailyScoresMetadata(date: string | null, hasCallOfTheDay: boolean): Metadata {
   const title = date ? `Best Calls Today - ${date} | YouAnalyst` : "Daily score moves | YouAnalyst";
@@ -45,6 +81,56 @@ export async function dailyScoresMetadata(date: string | null): Promise<Metadata
   try {
     const result = await getDailyScores(date);
     return buildDailyScoresMetadata(result.date, Boolean(result.callOfTheDay));
+  } catch {
+    return buildDailyScoresMetadata(date, false);
+  }
+}
+
+export async function dailyInstitutionalMoveMetadata(
+  date: string,
+  kind: DailyInstitutionalMoveShareKind,
+  ticker: string,
+): Promise<Metadata> {
+  try {
+    const result = await getDailyScores(date);
+    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker);
+    if (!move || !result.date) {
+      return buildDailyScoresMetadata(date, false);
+    }
+
+    const normalizedTicker = move.ticker.toUpperCase();
+    const title = `${normalizedTicker} 13F ${kind} - ${move.reportDate} | YouAnalyst`;
+    const description = moveShareDescription(move, kind);
+    const canonical = dailyInstitutionalMoveSharePath(result.date, kind, normalizedTicker);
+    const version = dailyInstitutionalMoveShareVersion(result.date, kind, normalizedTicker);
+    const imagePath = `${canonical}/opengraph-image?v=${version}`;
+
+    return {
+      title,
+      description,
+      alternates: {
+        canonical,
+      },
+      openGraph: {
+        title,
+        description,
+        url: canonical,
+        images: [
+          {
+            url: imagePath,
+            width: 1200,
+            height: 630,
+            alt: `YouAnalyst ${normalizedTicker} institutional ${kind} share card`,
+          },
+        ],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title,
+        description,
+        images: [`${canonical}/twitter-image?v=${version}`],
+      },
+    };
   } catch {
     return buildDailyScoresMetadata(date, false);
   }
