@@ -12,7 +12,7 @@ on:
           - staging
           - production
       exchange:
-        description: OpenFIGI exchange code
+        description: OpenFIGI exchange code, or ANY to search without exchange filter
         required: true
         default: US
         type: string

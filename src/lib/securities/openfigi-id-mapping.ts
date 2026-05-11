@@ -2,6 +2,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { FieldPath, QueryDocumentSnapshot } from "firebase-admin/firestore";
 
 const DEFAULT_EXCHANGE = "US";
+const ANY_EXCHANGE = "ANY";
 const DEFAULT_CUSIP_LIMIT = 100;
 const MAX_CUSIP_LIMIT = 1000;
 const MAPPING_SOURCE = "openfigi";
@@ -67,8 +68,9 @@ function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function normalizeExchange(value: string | undefined): string {
-  return (value?.trim() || DEFAULT_EXCHANGE).toUpperCase().replace(/[^A-Z0-9.-]/g, "");
+function normalizeExchange(value: string | undefined): string | null {
+  const normalized = (value?.trim() || DEFAULT_EXCHANGE).toUpperCase().replace(/[^A-Z0-9.*-]/g, "");
+  return normalized === ANY_EXCHANGE || normalized === "ALL" || normalized === "*" ? null : normalized;
 }
 
 function normalizeCusip(value: unknown): string | null {
@@ -168,11 +170,11 @@ async function listUnmappedHoldingCusips(limit: number): Promise<string[]> {
   return unresolved;
 }
 
-function parseOpenFigiMapping(cusip: string, record: OpenFigiMappingResult, exchange: string, updatedAt: string): OpenFigiSecurityIdMapping | null {
+function parseOpenFigiMapping(cusip: string, record: OpenFigiMappingResult, exchange: string | null, updatedAt: string): OpenFigiSecurityIdMapping | null {
   const ticker = normalizeSymbol(record.ticker);
   const mappedExchange = normalizeSymbol(record.exchCode) ?? exchange;
 
-  if (!ticker) {
+  if (!ticker || !mappedExchange) {
     return null;
   }
 
@@ -190,7 +192,22 @@ function parseOpenFigiMapping(cusip: string, record: OpenFigiMappingResult, exch
   };
 }
 
-async function fetchOpenFigiMappings(cusips: string[], exchange: string): Promise<OpenFigiMappingResponseItem[]> {
+function chooseOpenFigiMappingResult(data: OpenFigiMappingResult[], exchange: string | null): OpenFigiMappingResult | null {
+  if (exchange) {
+    return (
+      data.find((record) => normalizeSymbol(record.exchCode) === exchange && normalizeSymbol(record.ticker))
+      ?? data.find((record) => normalizeSymbol(record.ticker))
+      ?? null
+    );
+  }
+
+  return (
+    data.find((record) => normalizeSymbol(record.exchCode) && normalizeSymbol(record.ticker))
+    ?? null
+  );
+}
+
+async function fetchOpenFigiMappings(cusips: string[], exchange: string | null): Promise<OpenFigiMappingResponseItem[]> {
   const response = await fetch("https://api.openfigi.com/v3/mapping", {
     method: "POST",
     headers: {
@@ -200,7 +217,7 @@ async function fetchOpenFigiMappings(cusips: string[], exchange: string): Promis
     body: JSON.stringify(cusips.map((cusip) => ({
       idType: "ID_CUSIP",
       idValue: cusip,
-      exchCode: exchange,
+      ...(exchange ? { exchCode: exchange } : {}),
     }))),
   });
   const payload = await response.json().catch(() => []) as unknown;
@@ -234,6 +251,7 @@ async function persistMappings(mappings: OpenFigiSecurityIdMapping[]): Promise<n
 
 export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput = {}): Promise<SyncOpenFigiIdMappingsResult> {
   const exchange = normalizeExchange(input.exchange);
+  const exchangeLabel = exchange ?? ANY_EXCHANGE;
   const maxCusips = normalizeCusipLimit(input.maxCusips);
   const dryRun = input.dryRun === true;
   const updatedAt = new Date().toISOString();
@@ -247,7 +265,7 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
 
   console.info("[openfigi] Starting security ID mapping sync", {
     dryRun,
-    exchange,
+    exchange: exchangeLabel,
     fetched: cusips.length,
     maxCusips,
     source: MAPPING_SOURCE,
@@ -268,8 +286,7 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
     for (let itemIndex = 0; itemIndex < chunk.length; itemIndex += 1) {
       const item = responseItems[itemIndex];
       const data = Array.isArray(item?.data) ? item.data as OpenFigiMappingResult[] : [];
-      const firstResult = data.find((record) => normalizeSymbol(record.exchCode) === exchange && normalizeSymbol(record.ticker))
-        ?? data.find((record) => normalizeSymbol(record.ticker));
+      const firstResult = chooseOpenFigiMappingResult(data, exchange);
       const mapping = firstResult ? parseOpenFigiMapping(chunk[itemIndex], firstResult, exchange, updatedAt) : null;
 
       if (item?.warning) {
@@ -304,7 +321,7 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
       batchSize: chunk.length,
       dryRun,
       errors: batchErrors,
-      exchange,
+      exchange: exchangeLabel,
       mapped: mappings.length,
       skipped: batchSkipped,
       warningSamples,
@@ -320,7 +337,7 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
 
   if (!dryRun) {
     await getAdminFirestore().collection("security_id_mapping_sync_runs").add({
-      exchange,
+      exchange: exchangeLabel,
       source: MAPPING_SOURCE,
       pageLimit: OPENFIGI_BATCH_SIZE,
       startOffset: 0,
@@ -342,7 +359,7 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
     batches,
     dryRun,
     errors,
-    exchange,
+    exchange: exchangeLabel,
     fetched: cusips.length,
     mapped,
     skipped,
@@ -354,7 +371,7 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
 
   return {
     dryRun,
-    exchange,
+    exchange: exchangeLabel,
     maxCusips,
     fetched: cusips.length,
     mapped,
