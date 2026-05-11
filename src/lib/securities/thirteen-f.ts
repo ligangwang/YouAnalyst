@@ -314,6 +314,10 @@ function filingDocumentUrl(cik: string, accessionNumber: string, documentName: s
   return `${filingBaseUrl(cik, accessionNumber)}/${documentName}`;
 }
 
+function completeSubmissionUrl(cik: string, accessionNumber: string): string {
+  return filingDocumentUrl(cik, accessionNumber, `${accessionNumber}.txt`);
+}
+
 function quarterFromReportDate(reportDate: string): string {
   const date = new Date(`${reportDate}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime())) {
@@ -511,16 +515,17 @@ async function fetchInformationTableXml(filing: Latest13FFiling): Promise<{ url:
     // Fall back to the complete submission text when SEC does not expose a directory JSON.
   }
 
-  const completeSubmission = await fetchSecText(filing.filingUrl);
+  const completeSubmissionUrlForFiling = completeSubmissionUrl(filing.managerCik, filing.accessionNumber);
+  const completeSubmission = await fetchSecText(completeSubmissionUrlForFiling);
   const submissionDocuments = parseCompleteSubmissionDocuments(completeSubmission);
   for (const document of submissionDocuments) {
     if (parse13FInformationTable(document).length > 0) {
-      return { url: filing.filingUrl, xml: document };
+      return { url: completeSubmissionUrlForFiling, xml: document };
     }
   }
 
   if (parse13FInformationTable(completeSubmission).length > 0) {
-    return { url: filing.filingUrl, xml: completeSubmission };
+    return { url: completeSubmissionUrlForFiling, xml: completeSubmission };
   }
 
   throw new Error(`No parseable 13F information table XML found for accession ${filing.accessionNumber}.`);
