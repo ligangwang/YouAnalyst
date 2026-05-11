@@ -6,19 +6,19 @@ import { featuredCompanies } from "@/lib/featured-companies";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Institutional holdings | YouAnalyst",
-  description: "Search a ticker to view institutional 13F holdings and public calls on YouAnalyst.",
+  title: "Company search | YouAnalyst",
+  description: "Search a company, ticker, or institution on YouAnalyst.",
   alternates: {
     canonical: "/companies",
   },
   openGraph: {
-    title: "Institutional holdings | YouAnalyst",
-    description: "Search a ticker to view institutional 13F holdings and public calls on YouAnalyst.",
+    title: "Company search | YouAnalyst",
+    description: "Search a company, ticker, or institution on YouAnalyst.",
     url: "/companies",
   },
   twitter: {
-    title: "Institutional holdings | YouAnalyst",
-    description: "Search a ticker to view institutional 13F holdings and public calls on YouAnalyst.",
+    title: "Company search | YouAnalyst",
+    description: "Search a company, ticker, or institution on YouAnalyst.",
   },
 };
 
@@ -27,8 +27,7 @@ export default function CompaniesPage() {
     <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4 pt-24 pb-8 sm:pt-28 lg:pt-32">
       <section className="w-full">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="sr-only">Institutional holdings search</h1>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Institutional holdings</p>
+          <h1 className="sr-only">Company, ticker, or institution search</h1>
         </div>
 
         <CompanySearchCard />
