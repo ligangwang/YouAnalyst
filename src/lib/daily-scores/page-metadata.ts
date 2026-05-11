@@ -44,13 +44,14 @@ function buildInstitutionalMoveMetadata(
   kind: DailyInstitutionalMoveShareKind,
   ticker: string,
   move: DailyInstitutionalMove | null,
+  canonicalOverride: string | null = null,
 ): Metadata {
   const normalizedTicker = (move?.ticker ?? ticker).trim().toUpperCase();
   const title = `${normalizedTicker} 13F ${kind} | YouAnalyst`;
   const description = move
     ? moveShareDescription(move, kind)
     : `Latest institutional 13F ${kind} context for ${normalizedTicker} on YouAnalyst.`;
-  const canonical = dailyInstitutionalMoveSharePath(date, kind, normalizedTicker);
+  const canonical = canonicalOverride ?? dailyInstitutionalMoveSharePath(date, kind, normalizedTicker);
   const version = dailyInstitutionalMoveShareVersion(date, kind, normalizedTicker);
   const imageParams = new URLSearchParams({
     date,
@@ -61,7 +62,9 @@ function buildInstitutionalMoveMetadata(
   if (move) {
     appendInstitutionalMoveSnapshotParams(imageParams, move);
   }
-  const imagePath = `/api/daily-scores/institutional-share-image?${imageParams.toString()}`;
+  const imagePath = canonicalOverride
+    ? `${canonical}/opengraph-image?v=${version}`
+    : `/api/daily-scores/institutional-share-image?${imageParams.toString()}`;
 
   return {
     title,
@@ -87,7 +90,7 @@ function buildInstitutionalMoveMetadata(
       card: "summary_large_image",
       title,
       description,
-      images: [imagePath],
+      images: [canonicalOverride ? `${canonical}/twitter-image?v=${version}` : imagePath],
     },
   };
 }
@@ -145,12 +148,13 @@ export async function dailyInstitutionalMoveMetadata(
   kind: DailyInstitutionalMoveShareKind,
   ticker: string,
   snapshot: DailyInstitutionalMove | null = null,
+  canonicalPath: string | null = null,
 ): Promise<Metadata> {
   try {
     const result = await getDailyScores(date);
     const move = findInstitutionalMove(result.institutionalMoves, kind, ticker) ?? snapshot;
-    return buildInstitutionalMoveMetadata(result.date ?? date, kind, ticker, move);
+    return buildInstitutionalMoveMetadata(result.date ?? date, kind, ticker, move, canonicalPath);
   } catch {
-    return buildInstitutionalMoveMetadata(date, kind, ticker, snapshot);
+    return buildInstitutionalMoveMetadata(date, kind, ticker, snapshot, canonicalPath);
   }
 }
