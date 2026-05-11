@@ -131,6 +131,41 @@ function fallbackImage() {
   );
 }
 
+function institutionalMoveFallbackImage(date: string | null, kind: string, ticker: string) {
+  const normalizedTicker = normalizeTicker(ticker) || "Ticker";
+  const label = kind === "decrease" ? "Institutional 13F decrease" : "Institutional 13F increase";
+
+  return (
+    <div
+      style={{
+        alignItems: "flex-start",
+        background: "#020617",
+        color: "#e0f2fe",
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        justifyContent: "flex-start",
+        padding: "52px 64px",
+        width: "100%",
+      }}
+    >
+      <Brand />
+      <div style={{ color: "#38bdf8", display: "flex", fontSize: 26, fontWeight: 700, marginTop: 60 }}>
+        {label}
+      </div>
+      <div style={{ color: "#f8fafc", display: "flex", fontSize: 68, fontWeight: 800, marginTop: 16 }}>
+        {normalizedTicker}
+      </div>
+      <div style={{ color: "#94a3b8", display: "flex", fontSize: 30, marginTop: 28 }}>
+        Latest reported institutional 13F context
+      </div>
+      <div style={{ color: "#64748b", display: "flex", fontSize: 24, marginTop: 14 }}>
+        {dateLabel(date)}
+      </div>
+    </div>
+  );
+}
+
 function shareCardImage(date: string | null, topCalls: DailyCallHighlight[]) {
   const callOfTheDay = topCalls[0] ?? null;
 
@@ -292,16 +327,16 @@ export async function createDailyInstitutionalMoveShareImage(
 ): Promise<ImageResponse> {
   try {
     if (!isDailyInstitutionalMoveShareKind(kind)) {
-      return new ImageResponse(fallbackImage(), dailyShareCardSize);
+      return new ImageResponse(institutionalMoveFallbackImage(date, kind, ticker), dailyShareCardSize);
     }
 
     const result = await getDailyScores(date);
     const move = findInstitutionalMove(result.institutionalMoves, kind, ticker);
     return new ImageResponse(
-      move ? institutionalMoveImage(result.date, move, kind) : fallbackImage(),
+      move ? institutionalMoveImage(result.date, move, kind) : institutionalMoveFallbackImage(result.date ?? date, kind, ticker),
       dailyShareCardSize,
     );
   } catch {
-    return new ImageResponse(fallbackImage(), dailyShareCardSize);
+    return new ImageResponse(institutionalMoveFallbackImage(date, kind, ticker), dailyShareCardSize);
   }
 }

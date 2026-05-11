@@ -38,6 +38,48 @@ function findInstitutionalMove(
   return items.find((move) => move.ticker.toUpperCase() === normalizedTicker) ?? null;
 }
 
+function buildInstitutionalMoveMetadata(
+  date: string,
+  kind: DailyInstitutionalMoveShareKind,
+  ticker: string,
+  move: DailyInstitutionalMove | null,
+): Metadata {
+  const normalizedTicker = (move?.ticker ?? ticker).trim().toUpperCase();
+  const title = `${normalizedTicker} 13F ${kind} | YouAnalyst`;
+  const description = move
+    ? moveShareDescription(move, kind)
+    : `Latest institutional 13F ${kind} context for ${normalizedTicker} on YouAnalyst.`;
+  const canonical = dailyInstitutionalMoveSharePath(date, kind, normalizedTicker);
+  const version = dailyInstitutionalMoveShareVersion(date, kind, normalizedTicker);
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      images: [
+        {
+          url: `${canonical}/opengraph-image?v=${version}`,
+          width: 1200,
+          height: 630,
+          alt: `YouAnalyst ${normalizedTicker} institutional ${kind} share card`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [`${canonical}/twitter-image?v=${version}`],
+    },
+  };
+}
+
 function buildDailyScoresMetadata(date: string | null, hasCallOfTheDay: boolean): Metadata {
   const title = date ? `Best Calls Today - ${date} | YouAnalyst` : "Daily score moves | YouAnalyst";
   const description = hasCallOfTheDay
@@ -94,44 +136,8 @@ export async function dailyInstitutionalMoveMetadata(
   try {
     const result = await getDailyScores(date);
     const move = findInstitutionalMove(result.institutionalMoves, kind, ticker);
-    if (!move || !result.date) {
-      return buildDailyScoresMetadata(date, false);
-    }
-
-    const normalizedTicker = move.ticker.toUpperCase();
-    const title = `${normalizedTicker} 13F ${kind} - ${move.reportDate} | YouAnalyst`;
-    const description = moveShareDescription(move, kind);
-    const canonical = dailyInstitutionalMoveSharePath(result.date, kind, normalizedTicker);
-    const version = dailyInstitutionalMoveShareVersion(result.date, kind, normalizedTicker);
-    const imagePath = `${canonical}/opengraph-image?v=${version}`;
-
-    return {
-      title,
-      description,
-      alternates: {
-        canonical,
-      },
-      openGraph: {
-        title,
-        description,
-        url: canonical,
-        images: [
-          {
-            url: imagePath,
-            width: 1200,
-            height: 630,
-            alt: `YouAnalyst ${normalizedTicker} institutional ${kind} share card`,
-          },
-        ],
-      },
-      twitter: {
-        card: "summary_large_image",
-        title,
-        description,
-        images: [`${canonical}/twitter-image?v=${version}`],
-      },
-    };
+    return buildInstitutionalMoveMetadata(result.date ?? date, kind, ticker, move);
   } catch {
-    return buildDailyScoresMetadata(date, false);
+    return buildInstitutionalMoveMetadata(date, kind, ticker, null);
   }
 }
