@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatCashtag, formatTickerSymbol } from "@/components/prediction-ui";
 import { useAuth } from "@/components/providers/auth-provider";
 import { dailyCanonicalPath, dailyInstitutionalMoveSharePath, dailyInstitutionalMoveShareVersion, dailyShareVersion } from "@/lib/daily-scores/public-share";
-import { appendInstitutionalMoveSnapshotParams } from "@/lib/daily-scores/institutional-share-snapshot";
+import { institutionalMoveSnapshotSegment } from "@/lib/daily-scores/institutional-share-snapshot";
 import { xPostIntentUrl } from "@/lib/x-share";
 
 type DailyCallHighlight = {
@@ -184,7 +184,7 @@ function moveSharePath(date: string | null, move: DailyInstitutionalMove, kind: 
   url.searchParams.set("utm_medium", "social");
   url.searchParams.set("utm_campaign", `institutional_${kind}_share`);
   url.searchParams.set("share", dailyInstitutionalMoveShareVersion(shareDate, kind, move.ticker));
-  appendInstitutionalMoveSnapshotParams(url.searchParams, move);
+  url.pathname = `${url.pathname}/${institutionalMoveSnapshotSegment(move)}`;
   return `${url.pathname}${url.search}`;
 }
 
