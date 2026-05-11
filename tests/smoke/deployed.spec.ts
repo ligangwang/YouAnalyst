@@ -9,13 +9,12 @@ test("health endpoint reports ok", async ({ request, baseURL }) => {
   expect(health.service).toBe("ifindata-web");
 });
 
-test("homepage renders institutional holdings search", async ({ page }) => {
+test("homepage renders company and institution search", async ({ page }) => {
   await page.goto("/");
 
   // Verify navigation is present
   await expect(page.getByRole("link", { name: "Feed", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Predict", exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Institutional holdings", { exact: true })).toBeVisible();
   
   // Verify unified company and institution search is on the page
   await expect(page.getByRole("combobox", { name: "Company, ticker, or institution" })).toBeVisible();
