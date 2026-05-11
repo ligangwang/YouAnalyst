@@ -9,6 +9,7 @@ const MAPPING_BATCH_SIZE = 450;
 const OPENFIGI_BATCH_SIZE = 100;
 const OPENFIGI_REQUEST_DELAY_MS = 250;
 const UNMAPPED_HOLDINGS_PAGE_SIZE = 1000;
+const OPENFIGI_LOG_SAMPLE_SIZE = 5;
 
 type OpenFigiMappingResult = {
   figi?: unknown;
@@ -77,6 +78,17 @@ function normalizeCusip(value: unknown): string | null {
 
 function normalizeSymbol(value: unknown): string | null {
   return readString(value)?.toUpperCase().replace(/[^A-Z0-9.-]/g, "") ?? null;
+}
+
+function compactLogMessage(value: unknown): string | null {
+  const text = readString(value);
+  return text ? text.slice(0, 240) : null;
+}
+
+function appendSample(samples: string[], value: string | null): void {
+  if (value && samples.length < OPENFIGI_LOG_SAMPLE_SIZE && !samples.includes(value)) {
+    samples.push(value);
+  }
 }
 
 function normalizeCusipLimit(value: number | undefined): number {
@@ -233,11 +245,25 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
   let errors = 0;
   let batches = 0;
 
+  console.info("[openfigi] Starting security ID mapping sync", {
+    dryRun,
+    exchange,
+    fetched: cusips.length,
+    maxCusips,
+    source: MAPPING_SOURCE,
+  });
+
   for (let index = 0; index < cusips.length; index += OPENFIGI_BATCH_SIZE) {
     const chunk = cusips.slice(index, index + OPENFIGI_BATCH_SIZE);
     const responseItems = await fetchOpenFigiMappings(chunk, exchange);
     const mappings: OpenFigiSecurityIdMapping[] = [];
     batches += 1;
+    let batchWarnings = 0;
+    let batchErrors = 0;
+    let batchSkipped = 0;
+    const warningSamples: string[] = [];
+    const errorSamples: string[] = [];
+    const skippedSamples: string[] = [];
 
     for (let itemIndex = 0; itemIndex < chunk.length; itemIndex += 1) {
       const item = responseItems[itemIndex];
@@ -248,12 +274,21 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
 
       if (item?.warning) {
         warnings += 1;
+        batchWarnings += 1;
+        appendSample(warningSamples, `${chunk[itemIndex]}: ${compactLogMessage(item.warning)}`);
       }
       if (item?.error) {
         errors += 1;
+        batchErrors += 1;
+        appendSample(errorSamples, `${chunk[itemIndex]}: ${compactLogMessage(item.error)}`);
       }
       if (!mapping) {
         skipped += 1;
+        batchSkipped += 1;
+        appendSample(
+          skippedSamples,
+          `${chunk[itemIndex]}: data=${data.length}${item?.warning ? " warning" : ""}${item?.error ? " error" : ""}`,
+        );
         continue;
       }
 
@@ -264,6 +299,20 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
     if (!dryRun && mappings.length > 0) {
       written += await persistMappings(mappings);
     }
+    console.info("[openfigi] Processed security ID mapping batch", {
+      batch: batches,
+      batchSize: chunk.length,
+      dryRun,
+      errors: batchErrors,
+      exchange,
+      mapped: mappings.length,
+      skipped: batchSkipped,
+      warningSamples,
+      warnings: batchWarnings,
+      errorSamples,
+      skippedSamples,
+      written: dryRun ? 0 : mappings.length,
+    });
     if (index + OPENFIGI_BATCH_SIZE < cusips.length) {
       await sleep(OPENFIGI_REQUEST_DELAY_MS);
     }
@@ -288,6 +337,20 @@ export async function syncOpenFigiIdMappings(input: SyncOpenFigiIdMappingsInput 
       updatedAt,
     });
   }
+
+  console.info("[openfigi] Completed security ID mapping sync", {
+    batches,
+    dryRun,
+    errors,
+    exchange,
+    fetched: cusips.length,
+    mapped,
+    skipped,
+    source: MAPPING_SOURCE,
+    updatedAt,
+    warnings,
+    written: dryRun ? 0 : written,
+  });
 
   return {
     dryRun,
