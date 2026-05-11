@@ -4,6 +4,32 @@ type SearchParamSource = URLSearchParams | Record<string, string | string[] | un
 
 type SnapshotTuple = [string, string, number, number, number, number, number, number, number];
 
+function utf8ToBase64Url(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  const base64 =
+    typeof btoa === "function"
+      ? btoa(binary)
+      : Buffer.from(binary, "binary").toString("base64");
+
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlToUtf8(value: string): string {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+  const binary =
+    typeof atob === "function"
+      ? atob(padded)
+      : Buffer.from(padded, "base64").toString("binary");
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 function firstParam(params: SearchParamSource, key: string): string | null {
   if (params instanceof URLSearchParams) {
     const value = params.get(key);
@@ -81,7 +107,7 @@ function moveFromTuple(value: unknown, ticker: string): DailyInstitutionalMove |
 }
 
 export function institutionalMoveSnapshotSegment(move: DailyInstitutionalMove): string {
-  return encodeURIComponent(JSON.stringify(tupleFromMove(move)));
+  return utf8ToBase64Url(JSON.stringify(tupleFromMove(move)));
 }
 
 export function institutionalMoveFromSnapshotSegment(segment: string | null | undefined, ticker: string): DailyInstitutionalMove | null {
@@ -89,7 +115,14 @@ export function institutionalMoveFromSnapshotSegment(segment: string | null | un
     return null;
   }
 
-  const candidates = [segment];
+  const candidates: string[] = [];
+  try {
+    candidates.push(base64UrlToUtf8(segment));
+  } catch {
+    // Older shared URLs used URI-encoded JSON below.
+  }
+
+  candidates.push(segment);
   try {
     const decoded = decodeURIComponent(segment);
     if (decoded !== segment) {
