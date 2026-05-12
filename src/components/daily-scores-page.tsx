@@ -4,8 +4,16 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatCashtag, formatTickerSymbol } from "@/components/prediction-ui";
 import { useAuth } from "@/components/providers/auth-provider";
-import { dailyCanonicalPath, dailyInstitutionalMoveSharePath, dailyInstitutionalMoveShareVersion, dailyShareVersion } from "@/lib/daily-scores/public-share";
+import { insiderMoveSnapshotSegment } from "@/lib/daily-scores/insider-share-snapshot";
 import { institutionalMoveSnapshotSegment } from "@/lib/daily-scores/institutional-share-snapshot";
+import {
+  dailyCanonicalPath,
+  dailyInsiderMoveSharePath,
+  dailyInsiderMoveShareVersion,
+  dailyInstitutionalMoveSharePath,
+  dailyInstitutionalMoveShareVersion,
+  dailyShareVersion,
+} from "@/lib/daily-scores/public-share";
 import { xPostIntentUrl } from "@/lib/x-share";
 
 type DailyCallHighlight = {
@@ -235,6 +243,30 @@ function moveShareUrl(move: DailyInstitutionalMove, date: string | null, kind: "
   });
 }
 
+function insiderMoveSharePath(date: string | null, move: DailyInsiderMove, kind: "purchase" | "sale"): string {
+  const shareDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
+  const path = dailyInsiderMoveSharePath(shareDate, kind, move.ticker);
+  const url = new URL(path, typeof window === "undefined" ? "https://youanalyst.com" : window.location.origin);
+  url.searchParams.set("utm_source", "x");
+  url.searchParams.set("utm_medium", "social");
+  url.searchParams.set("utm_campaign", `insider_${kind}_share`);
+  url.searchParams.set("share", dailyInsiderMoveShareVersion(shareDate, kind, move.ticker));
+  url.pathname = `${url.pathname}/${insiderMoveSnapshotSegment(move)}`;
+  return `${url.pathname}${url.search}`;
+}
+
+function insiderMoveShareText(move: DailyInsiderMove, kind: "purchase" | "sale"): string {
+  const noun = kind === "purchase" ? "purchases" : "sales";
+  return `Latest Form 4 reports show ${formatCashtag(move.ticker)} insider ${noun} totaling ${formatCurrency(move.totalValueUsd)} across ${move.insiderCount} insider${move.insiderCount === 1 ? "" : "s"}, filed ${move.filingDate}.`;
+}
+
+function insiderMoveShareUrl(move: DailyInsiderMove, date: string | null, kind: "purchase" | "sale"): string {
+  return xPostIntentUrl({
+    text: insiderMoveShareText(move, kind),
+    url: absoluteUrl(insiderMoveSharePath(date, move, kind)),
+  });
+}
+
 function callDescription(call: DailyCallHighlight): string {
   return call.dailyScoreChange > 0
     ? "Best-performing call in today's end-of-day update."
@@ -461,6 +493,8 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
   const topInstitutionalDecrease = institutionalDecreases[0] ?? null;
   const insiderPurchases = payload?.insiderMoves?.purchases ?? [];
   const insiderSales = payload?.insiderMoves?.sales ?? [];
+  const topInsiderPurchase = insiderPurchases[0] ?? null;
+  const topInsiderSale = insiderSales[0] ?? null;
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
@@ -596,6 +630,61 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
         </section>
       ) : null}
 
+      {insiderPurchases.length > 0 || insiderSales.length > 0 ? (
+        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Insider Activity</h2>
+              <p className="mt-1 text-sm text-slate-300">
+                Latest Form 4 open-market purchases and sales ranked by reported dollar value.
+              </p>
+            </div>
+            {canShareOnX ? (
+              <div className="flex flex-wrap gap-2">
+                {topInsiderPurchase ? (
+                  <a
+                    href={insiderMoveShareUrl(topInsiderPurchase, payload?.date ?? null, "purchase")}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-emerald-400/35 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15"
+                  >
+                    Share purchase to X
+                  </a>
+                ) : null}
+                {topInsiderSale ? (
+                  <a
+                    href={insiderMoveShareUrl(topInsiderSale, payload?.date ?? null, "sale")}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-lg border border-rose-400/35 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/15"
+                  >
+                    Share sale to X
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest purchases</h3>
+              <div className="mt-3 grid gap-2">
+                {insiderPurchases.length > 0 ? insiderPurchases.map((move) => (
+                  <InsiderMoveCard key={`purchase-${move.ticker}-${move.filingDate}`} kind="purchase" move={move} />
+                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No insider purchases are available yet.</p>}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest sales</h3>
+              <div className="mt-3 grid gap-2">
+                {insiderSales.length > 0 ? insiderSales.map((move) => (
+                  <InsiderMoveCard key={`sale-${move.ticker}-${move.filingDate}`} kind="sale" move={move} />
+                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No insider sales are available yet.</p>}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       {institutionalIncreases.length > 0 || institutionalDecreases.length > 0 ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -632,7 +721,7 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest increases</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest increases from latest filings</h3>
               <div className="mt-3 grid gap-2">
                 {institutionalIncreases.length > 0 ? institutionalIncreases.map((move) => (
                   <InstitutionalMoveCard key={`increase-${move.ticker}`} kind="increase" move={move} />
@@ -640,40 +729,11 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest decreases</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest decreases from latest filings</h3>
               <div className="mt-3 grid gap-2">
                 {institutionalDecreases.length > 0 ? institutionalDecreases.map((move) => (
                   <InstitutionalMoveCard key={`decrease-${move.ticker}`} kind="decrease" move={move} />
                 )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No reduced 13F positions are available yet.</p>}
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {insiderPurchases.length > 0 || insiderSales.length > 0 ? (
-        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
-          <div>
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Insider Activity</h2>
-            <p className="mt-1 text-sm text-slate-300">
-              Latest Form 4 open-market purchases and sales ranked by reported dollar value.
-            </p>
-          </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest purchases</h3>
-              <div className="mt-3 grid gap-2">
-                {insiderPurchases.length > 0 ? insiderPurchases.map((move) => (
-                  <InsiderMoveCard key={`purchase-${move.ticker}-${move.filingDate}`} kind="purchase" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No insider purchases are available yet.</p>}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest sales</h3>
-              <div className="mt-3 grid gap-2">
-                {insiderSales.length > 0 ? insiderSales.map((move) => (
-                  <InsiderMoveCard key={`sale-${move.ticker}-${move.filingDate}`} kind="sale" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No insider sales are available yet.</p>}
               </div>
             </div>
           </div>
