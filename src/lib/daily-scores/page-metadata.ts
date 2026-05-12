@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { institutionalMoveSnapshotSegment } from "@/lib/daily-scores/institutional-share-snapshot";
 import {
   dailyCanonicalPath,
   dailyInstitutionalMoveSharePath,
@@ -52,8 +53,9 @@ function buildInstitutionalMoveMetadata(
     : `Latest institutional 13F ${kind} context for ${normalizedTicker} on YouAnalyst.`;
   const canonical = canonicalOverride ?? dailyInstitutionalMoveSharePath(date, kind, normalizedTicker);
   const version = dailyInstitutionalMoveShareVersion(date, kind, normalizedTicker);
-  const openGraphImage = `${canonical}/opengraph-image?v=${version}`;
-  const twitterImage = `${canonical}/twitter-image?v=${version}`;
+  const imageBasePath = canonicalOverride ?? (move ? `${canonical}/${institutionalMoveSnapshotSegment(move)}` : canonical);
+  const openGraphImage = `${imageBasePath}/opengraph-image?v=${version}`;
+  const twitterImage = `${imageBasePath}/twitter-image?v=${version}`;
 
   return {
     title,
