@@ -1,6 +1,6 @@
 const DAILY_SHARE_CARD_VERSION = "v2";
 const DAILY_INSTITUTIONAL_SHARE_CARD_VERSION = "v3";
-const DAILY_INSIDER_SHARE_CARD_VERSION = "v1";
+const DAILY_INSIDER_SHARE_CARD_VERSION = "v2";
 
 export type DailyInstitutionalMoveShareKind = "increase" | "decrease";
 export type DailyInsiderMoveShareKind = "purchase" | "sale";
