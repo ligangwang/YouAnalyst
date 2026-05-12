@@ -17,9 +17,24 @@ on:
         default: US
         type: string
       max_cusips:
-        description: Max unmapped 13F CUSIPs to map
+        description: Max unmapped 13F CUSIPs to map per API call
         required: true
-        default: "100"
+        default: "1000"
+        type: string
+      max_api_calls:
+        description: Max API calls to make in this workflow run
+        required: true
+        default: "25"
+        type: string
+      stop_when_written_below:
+        description: Stop after an API call writes fewer mappings than this number
+        required: true
+        default: "10"
+        type: string
+      seconds_between_calls:
+        description: Seconds to wait between API calls
+        required: true
+        default: "2"
         type: string
       dry_run:
         description: Fetch and parse without Firestore writes
@@ -91,6 +106,9 @@ jobs:
           CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
           EXCHANGE: ${{ inputs.exchange }}
           MAX_CUSIPS: ${{ inputs.max_cusips }}
+          MAX_API_CALLS: ${{ inputs.max_api_calls }}
+          STOP_WHEN_WRITTEN_BELOW: ${{ inputs.stop_when_written_below }}
+          SECONDS_BETWEEN_CALLS: ${{ inputs.seconds_between_calls }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
@@ -99,42 +117,91 @@ jobs:
             exit 1
           fi
 
-          body="$(jq -n \
-            --arg exchange "$EXCHANGE" \
-            --argjson maxCusips "$MAX_CUSIPS" \
-            --argjson dryRun "$DRY_RUN" \
-            '{
-              exchange: $exchange,
-              maxCusips: $maxCusips,
-              dryRun: $dryRun
-            }')"
+          total_fetched=0
+          total_mapped=0
+          total_written=0
+          total_skipped=0
+          total_batches=0
+          total_warnings=0
+          total_errors=0
 
-          echo "Calling ${CLOUD_RUN_URL}/api/internal/securities/sync-openfigi-id-mappings"
-          echo "Request body: $body"
+          for ((call_number = 1; call_number <= MAX_API_CALLS; call_number += 1)); do
+            body="$(jq -n \
+              --arg exchange "$EXCHANGE" \
+              --argjson maxCusips "$MAX_CUSIPS" \
+              --argjson dryRun "$DRY_RUN" \
+              '{
+                exchange: $exchange,
+                maxCusips: $maxCusips,
+                dryRun: $dryRun
+              }')"
 
-          response_file="$(mktemp)"
-          status="$(curl --silent --show-error \
-            --output "$response_file" \
-            --write-out '%{http_code}' \
-            --request POST \
-            --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
-            --header "Content-Type: application/json" \
-            --data "$body" \
-            "${CLOUD_RUN_URL}/api/internal/securities/sync-openfigi-id-mappings" || true)"
+            echo "Calling ${CLOUD_RUN_URL}/api/internal/securities/sync-openfigi-id-mappings (${call_number}/${MAX_API_CALLS})"
+            echo "Request body: $body"
 
-          cat "$response_file"
-          echo
+            response_file="$(mktemp)"
+            status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data "$body" \
+              "${CLOUD_RUN_URL}/api/internal/securities/sync-openfigi-id-mappings" || true)"
 
-          if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
-            echo "OpenFIGI ID mapping sync failed with HTTP $status" >&2
-            exit 1
-          fi
+            cat "$response_file"
+            echo
 
-          echo "Completed OpenFIGI ID mapping sync."
-          echo "Fetched: $(jq -r '.fetched // 0' "$response_file")"
-          echo "Mapped: $(jq -r '.mapped // 0' "$response_file")"
-          echo "Written: $(jq -r '.written // 0' "$response_file")"
-          echo "Skipped: $(jq -r '.skipped // 0' "$response_file")"
-          echo "Batches: $(jq -r '.batches // 0' "$response_file")"
-          echo "Warnings: $(jq -r '.warnings // 0' "$response_file")"
-          echo "Errors: $(jq -r '.errors // 0' "$response_file")"
+            if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+              echo "OpenFIGI ID mapping sync failed with HTTP $status on call $call_number" >&2
+              exit 1
+            fi
+
+            fetched="$(jq -r '.fetched // 0' "$response_file")"
+            mapped="$(jq -r '.mapped // 0' "$response_file")"
+            written="$(jq -r '.written // 0' "$response_file")"
+            skipped="$(jq -r '.skipped // 0' "$response_file")"
+            batches="$(jq -r '.batches // 0' "$response_file")"
+            warnings="$(jq -r '.warnings // 0' "$response_file")"
+            errors="$(jq -r '.errors // 0' "$response_file")"
+
+            total_fetched=$((total_fetched + fetched))
+            total_mapped=$((total_mapped + mapped))
+            total_written=$((total_written + written))
+            total_skipped=$((total_skipped + skipped))
+            total_batches=$((total_batches + batches))
+            total_warnings=$((total_warnings + warnings))
+            total_errors=$((total_errors + errors))
+
+            echo "Completed OpenFIGI ID mapping sync call $call_number."
+            echo "Fetched: $fetched"
+            echo "Mapped: $mapped"
+            echo "Written: $written"
+            echo "Skipped: $skipped"
+            echo "Batches: $batches"
+            echo "Warnings: $warnings"
+            echo "Errors: $errors"
+
+            if [[ "$fetched" -le 0 ]]; then
+              echo "Stopping because no unmapped CUSIPs were fetched."
+              break
+            fi
+
+            if [[ "$written" -lt "$STOP_WHEN_WRITTEN_BELOW" ]]; then
+              echo "Stopping because written mappings ($written) is below $STOP_WHEN_WRITTEN_BELOW."
+              break
+            fi
+
+            if [[ "$call_number" -lt "$MAX_API_CALLS" && "$SECONDS_BETWEEN_CALLS" -gt 0 ]]; then
+              sleep "$SECONDS_BETWEEN_CALLS"
+            fi
+          done
+
+          echo "Completed OpenFIGI ID mapping sync batches."
+          echo "Fetched: $total_fetched"
+          echo "Mapped: $total_mapped"
+          echo "Written: $total_written"
+          echo "Skipped: $total_skipped"
+          echo "Batches: $total_batches"
+          echo "Warnings: $total_warnings"
+          echo "Errors: $total_errors"
