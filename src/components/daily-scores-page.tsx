@@ -38,6 +38,18 @@ type DailyInstitutionalMove = {
   soldOutManagers: number;
 };
 
+type DailyInsiderMove = {
+  ticker: string;
+  issuerName: string;
+  filingDate: string;
+  transactionCode: "P" | "S";
+  totalValueUsd: number;
+  totalShares: number;
+  insiderCount: number;
+  transactionCount: number;
+  latestTransactionDate: string;
+};
+
 type DailyScoresResponse = {
   date: string | null;
   callOfTheDay: DailyCallHighlight | null;
@@ -45,6 +57,10 @@ type DailyScoresResponse = {
   institutionalMoves?: {
     increases: DailyInstitutionalMove[];
     decreases: DailyInstitutionalMove[];
+  };
+  insiderMoves?: {
+    purchases: DailyInsiderMove[];
+    sales: DailyInsiderMove[];
   };
 };
 
@@ -283,6 +299,46 @@ function InstitutionalMoveCard({
   );
 }
 
+function InsiderMoveCard({
+  kind,
+  move,
+}: {
+  kind: "purchase" | "sale";
+  move: DailyInsiderMove;
+}) {
+  const isPurchase = kind === "purchase";
+
+  return (
+    <article className="rounded-lg border border-white/10 p-3">
+      <div>
+        <Link href={`/ticker/${encodeURIComponent(move.ticker)}`} className="min-w-0 hover:text-cyan-100">
+          <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">{formatTickerSymbol(move.ticker)}</p>
+          <p className="mt-1 truncate text-xs text-slate-400">{move.issuerName}</p>
+        </Link>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Value</p>
+          <p className={`mt-1 font-semibold tabular-nums ${isPurchase ? "text-emerald-300" : "text-rose-300"}`}>
+            {formatCurrency(move.totalValueUsd)}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Shares</p>
+          <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.totalShares)}</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Insiders</p>
+          <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.insiderCount)}</p>
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        {formatNumber(move.transactionCount)} transaction{move.transactionCount === 1 ? "" : "s"} &middot; latest transaction {compactDateLabel(move.latestTransactionDate)} &middot; filed {compactDateLabel(move.filingDate)}
+      </p>
+    </article>
+  );
+}
+
 export function DailyScoresPage({ initialDate = null }: { initialDate?: string | null }) {
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<DailyScoresResponse | null>(null);
@@ -398,6 +454,8 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
   const institutionalDecreases = payload?.institutionalMoves?.decreases ?? [];
   const topInstitutionalIncrease = institutionalIncreases[0] ?? null;
   const topInstitutionalDecrease = institutionalDecreases[0] ?? null;
+  const insiderPurchases = payload?.insiderMoves?.purchases ?? [];
+  const insiderSales = payload?.insiderMoves?.sales ?? [];
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
@@ -582,6 +640,35 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
                 {institutionalDecreases.length > 0 ? institutionalDecreases.map((move) => (
                   <InstitutionalMoveCard key={`decrease-${move.ticker}`} kind="decrease" move={move} />
                 )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No reduced 13F positions are available yet.</p>}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {insiderPurchases.length > 0 || insiderSales.length > 0 ? (
+        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
+          <div>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Insider Activity</h2>
+            <p className="mt-1 text-sm text-slate-300">
+              Latest Form 4 open-market purchases and sales ranked by reported dollar value.
+            </p>
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest purchases</h3>
+              <div className="mt-3 grid gap-2">
+                {insiderPurchases.length > 0 ? insiderPurchases.map((move) => (
+                  <InsiderMoveCard key={`purchase-${move.ticker}-${move.filingDate}`} kind="purchase" move={move} />
+                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No insider purchases are available yet.</p>}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest sales</h3>
+              <div className="mt-3 grid gap-2">
+                {insiderSales.length > 0 ? insiderSales.map((move) => (
+                  <InsiderMoveCard key={`sale-${move.ticker}-${move.filingDate}`} kind="sale" move={move} />
+                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No insider sales are available yet.</p>}
               </div>
             </div>
           </div>

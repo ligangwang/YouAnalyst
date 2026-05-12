@@ -31,6 +31,18 @@ export type DailyInstitutionalMove = {
   soldOutManagers: number;
 };
 
+export type DailyInsiderMove = {
+  ticker: string;
+  issuerName: string;
+  filingDate: string;
+  transactionCode: "P" | "S";
+  totalValueUsd: number;
+  totalShares: number;
+  insiderCount: number;
+  transactionCount: number;
+  latestTransactionDate: string;
+};
+
 export type DailyScoresResult = {
   date: string | null;
   callOfTheDay: DailyCallHighlight | null;
@@ -38,6 +50,10 @@ export type DailyScoresResult = {
   institutionalMoves: {
     increases: DailyInstitutionalMove[];
     decreases: DailyInstitutionalMove[];
+  };
+  insiderMoves: {
+    purchases: DailyInsiderMove[];
+    sales: DailyInsiderMove[];
   };
 };
 
@@ -57,6 +73,8 @@ const TOP_CALL_CANDIDATE_LIMIT = 50;
 const FALLBACK_CALL_LIMIT = 200;
 const INSTITUTIONAL_MOVE_LIMIT = 5;
 const INSTITUTIONAL_CHANGE_SCAN_LIMIT = 3000;
+const INSIDER_MOVE_LIMIT = 5;
+const INSIDER_TRANSACTION_SCAN_LIMIT = 3000;
 
 function asNumber(value: unknown): number {
   return Number.isFinite(Number(value)) ? Number(value) : 0;
@@ -92,6 +110,10 @@ function changeStatusValue(value: unknown): "NEW" | "INCREASED" | "REDUCED" | "S
   return value === "NEW" || value === "INCREASED" || value === "REDUCED" || value === "SOLD_OUT" || value === "UNCHANGED"
     ? value
     : null;
+}
+
+function insiderTransactionCode(value: unknown): "P" | "S" | null {
+  return value === "P" || value === "S" ? value : null;
 }
 
 function dailyReturnChange(data: Record<string, unknown>): number | null {
@@ -370,6 +392,83 @@ async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promis
   };
 }
 
+async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<DailyScoresResult["insiderMoves"]> {
+  const snapshot = await db
+    .collection("insider_transactions")
+    .orderBy("updatedAt", "desc")
+    .limit(INSIDER_TRANSACTION_SCAN_LIMIT)
+    .get();
+  const purchasesByTickerFiling = new Map<string, DailyInsiderMove & { insiderKeys: Set<string> }>();
+  const salesByTickerFiling = new Map<string, DailyInsiderMove & { insiderKeys: Set<string> }>();
+
+  for (const doc of snapshot.docs) {
+    const data = doc.data() as Record<string, unknown>;
+    const ticker = asString(data.ticker);
+    const issuerName = asString(data.issuerName);
+    const filingDate = asString(data.filingDate);
+    const transactionDate = asString(data.transactionDate);
+    const transactionCode = insiderTransactionCode(data.transactionCode);
+    const valueUsd = asNumber(data.valueUsd);
+    const shares = asNumber(data.shares);
+
+    if (!ticker || !issuerName || !filingDate || !transactionDate || !transactionCode || valueUsd <= 0 || shares <= 0) {
+      continue;
+    }
+
+    const target = transactionCode === "P" ? purchasesByTickerFiling : salesByTickerFiling;
+    const insiderKey = asString(data.reportingOwnerCik) ?? asString(data.reportingOwnerName) ?? doc.id;
+    const key = `${ticker}_${filingDate}_${transactionCode}`;
+    const existing = target.get(key) ?? {
+      ticker,
+      issuerName,
+      filingDate,
+      transactionCode,
+      totalValueUsd: 0,
+      totalShares: 0,
+      insiderCount: 0,
+      transactionCount: 0,
+      latestTransactionDate: transactionDate,
+      insiderKeys: new Set<string>(),
+    };
+
+    existing.totalValueUsd += valueUsd;
+    existing.totalShares += shares;
+    existing.transactionCount += 1;
+    existing.latestTransactionDate = existing.latestTransactionDate.localeCompare(transactionDate) > 0
+      ? existing.latestTransactionDate
+      : transactionDate;
+    existing.insiderKeys.add(insiderKey);
+    existing.insiderCount = existing.insiderKeys.size;
+    target.set(key, existing);
+  }
+
+  function finalize(items: Array<DailyInsiderMove & { insiderKeys: Set<string> }>): DailyInsiderMove[] {
+    return items
+      .sort((left, right) => (
+        right.totalValueUsd - left.totalValueUsd ||
+        right.insiderCount - left.insiderCount ||
+        right.latestTransactionDate.localeCompare(left.latestTransactionDate)
+      ))
+      .slice(0, INSIDER_MOVE_LIMIT)
+      .map((item) => ({
+        ticker: item.ticker,
+        issuerName: item.issuerName,
+        filingDate: item.filingDate,
+        transactionCode: item.transactionCode,
+        totalValueUsd: item.totalValueUsd,
+        totalShares: item.totalShares,
+        insiderCount: item.insiderCount,
+        transactionCount: item.transactionCount,
+        latestTransactionDate: item.latestTransactionDate,
+      }));
+  }
+
+  return {
+    purchases: finalize([...purchasesByTickerFiling.values()]),
+    sales: finalize([...salesByTickerFiling.values()]),
+  };
+}
+
 export async function getDailyScores(dateInput?: string | null): Promise<DailyScoresResult> {
   const db = getAdminFirestore();
   const date = isDailyScoreDate(dateInput ?? null) ? dateInput : await latestDailyScoreDate(db);
@@ -383,12 +482,17 @@ export async function getDailyScores(dateInput?: string | null): Promise<DailySc
         increases: [],
         decreases: [],
       },
+      insiderMoves: {
+        purchases: [],
+        sales: [],
+      },
     };
   }
 
-  const [topCalls, institutionalMoves] = await Promise.all([
+  const [topCalls, institutionalMoves, insiderMoves] = await Promise.all([
     topDailyCalls(db, date),
     latestInstitutionalMoves(db),
+    latestInsiderMoves(db),
   ]);
 
   return {
@@ -396,5 +500,6 @@ export async function getDailyScores(dateInput?: string | null): Promise<DailySc
     callOfTheDay: topCalls[0] ?? null,
     topCalls,
     institutionalMoves,
+    insiderMoves,
   };
 }
