@@ -1,0 +1,220 @@
+name: Backfill Insider Transactions
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      start_date:
+        description: First SEC index date to discover, YYYY-MM-DD
+        required: true
+        default: "2026-01-01"
+        type: string
+      end_date:
+        description: Last SEC index date to discover, YYYY-MM-DD. Leave empty for today.
+        required: false
+        type: string
+      chunk_days:
+        description: Number of daily indexes to process per API call
+        required: true
+        default: "7"
+        type: string
+      max_filings_per_index:
+        description: Max Form 4 filings to process per daily index
+        required: true
+        default: "250"
+        type: string
+      transaction_codes:
+        description: Comma-separated Form 4 transaction codes to persist
+        required: true
+        default: "P,S"
+        type: string
+      dry_run:
+        description: Discover and parse without Firestore writes
+        required: true
+        default: true
+        type: boolean
+      reprocess_existing:
+        description: Reparse filings already marked PARSED
+        required: true
+        default: false
+        type: boolean
+      seconds_between_chunks:
+        description: Seconds to wait between API calls
+        required: true
+        default: "2"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: insider-transactions-backfill-manual-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  backfill-insider-transactions:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      CLOUD_RUN_SERVICE_STAGING: ${{ vars.CLOUD_RUN_SERVICE_STAGING }}
+      CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
+      INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Resolve Cloud Run URL
+        id: cloud-run
+        run: |
+          set -euo pipefail
+          service="$CLOUD_RUN_SERVICE_PRODUCTION"
+          if [[ "$TARGET_ENVIRONMENT" == "staging" ]]; then
+            service="$CLOUD_RUN_SERVICE_STAGING"
+          fi
+
+          if [[ -z "$service" ]]; then
+            echo "Cloud Run service name is not configured for $TARGET_ENVIRONMENT" >&2
+            exit 1
+          fi
+
+          url="$(gcloud run services describe "$service" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='value(status.url)')"
+
+          if [[ -z "$url" ]]; then
+            echo "Unable to resolve Cloud Run URL for $service" >&2
+            exit 1
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Backfill insider transactions
+        env:
+          CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
+          CHUNK_DAYS: ${{ inputs.chunk_days }}
+          MAX_FILINGS_PER_INDEX: ${{ inputs.max_filings_per_index }}
+          TRANSACTION_CODES: ${{ inputs.transaction_codes }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REPROCESS_EXISTING: ${{ inputs.reprocess_existing }}
+          SECONDS_BETWEEN_CHUNKS: ${{ inputs.seconds_between_chunks }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$INTERNAL_API_TOKEN" ]]; then
+            echo "INTERNAL_API_TOKEN secret is not configured" >&2
+            exit 1
+          fi
+
+          end_date="$END_DATE"
+          if [[ -z "$end_date" ]]; then
+            end_date="$(date -u +%F)"
+          fi
+
+          codes_json="$(jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$TRANSACTION_CODES")"
+          current="$START_DATE"
+          total_found=0
+          total_processed=0
+          total_skipped=0
+          total_failed=0
+          total_parsed=0
+          total_written=0
+          chunk_number=0
+
+          while [[ "$current" < "$end_date" || "$current" == "$end_date" ]]; do
+            chunk_number=$((chunk_number + 1))
+            dates_json="[]"
+            for ((day = 0; day < CHUNK_DAYS; day += 1)); do
+              if [[ "$current" > "$end_date" ]]; then
+                break
+              fi
+
+              dates_json="$(jq --arg date "$current" '. + [$date]' <<< "$dates_json")"
+              current="$(date -u -d "$current + 1 day" +%F)"
+            done
+
+            body="$(jq -n \
+              --argjson dates "$dates_json" \
+              --argjson maxFilings "$MAX_FILINGS_PER_INDEX" \
+              --argjson transactionCodes "$codes_json" \
+              --argjson dryRun "$DRY_RUN" \
+              --argjson reprocessExisting "$REPROCESS_EXISTING" \
+              '{
+                dates: $dates,
+                maxFilings: $maxFilings,
+                transactionCodes: $transactionCodes,
+                dryRun: $dryRun,
+                reprocessExisting: $reprocessExisting
+              }')"
+
+            echo "Calling ${CLOUD_RUN_URL}/api/internal/securities/sync-insider-transactions for chunk ${chunk_number}"
+            echo "Request body: $body"
+
+            response_file="$(mktemp)"
+            status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data "$body" \
+              "${CLOUD_RUN_URL}/api/internal/securities/sync-insider-transactions" || true)"
+
+            cat "$response_file"
+            echo
+
+            if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+              echo "Insider transaction backfill failed with HTTP $status on chunk $chunk_number" >&2
+              exit 1
+            fi
+
+            found="$(jq -r '.filingsFound // 0' "$response_file")"
+            processed="$(jq -r '.filingsProcessed // 0' "$response_file")"
+            skipped="$(jq -r '.filingsSkipped // 0' "$response_file")"
+            failed="$(jq -r '.filingsFailed // 0' "$response_file")"
+            parsed="$(jq -r '.transactionsParsed // 0' "$response_file")"
+            written="$(jq -r '.transactionsWritten // 0' "$response_file")"
+
+            total_found=$((total_found + found))
+            total_processed=$((total_processed + processed))
+            total_skipped=$((total_skipped + skipped))
+            total_failed=$((total_failed + failed))
+            total_parsed=$((total_parsed + parsed))
+            total_written=$((total_written + written))
+
+            echo "Chunk ${chunk_number}: found=${found}, processed=${processed}, skipped=${skipped}, failed=${failed}, parsed=${parsed}, written=${written}"
+            echo "Totals: found=${total_found}, processed=${total_processed}, skipped=${total_skipped}, failed=${total_failed}, parsed=${total_parsed}, written=${total_written}"
+
+            if [[ "$current" < "$end_date" || "$current" == "$end_date" ]]; then
+              sleep "$SECONDS_BETWEEN_CHUNKS"
+            fi
+          done
+
+          echo "Completed insider transaction backfill."
+          echo "Filings found: $total_found"
+          echo "Filings processed: $total_processed"
+          echo "Filings skipped: $total_skipped"
+          echo "Filings failed: $total_failed"
+          echo "Transactions parsed: $total_parsed"
+          echo "Transactions written: $total_written"
