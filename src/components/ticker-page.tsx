@@ -700,17 +700,17 @@ export function TickerPage({ ticker }: { ticker: string }) {
         </div>
       </section>
 
+      <InsiderTransactionsSection
+        displayTicker={displayTicker}
+        error={insiderError}
+        transactions={insiderTransactions}
+      />
+
       <InstitutionalHoldingsSection
         key={payload.ticker}
         displayTicker={displayTicker}
         summary={holdings}
         error={holdingsError}
-      />
-
-      <InsiderTransactionsSection
-        displayTicker={displayTicker}
-        error={insiderError}
-        transactions={insiderTransactions}
       />
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
