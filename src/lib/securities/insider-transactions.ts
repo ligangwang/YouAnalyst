@@ -1,5 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { normalizeInsiderTransactionAmounts } from "@/lib/securities/insider-transaction-values";
 
 const SEC_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives";
 const DISCOVERY_BATCH_SIZE = 450;
@@ -385,6 +386,8 @@ function parseOwnershipDocument(
       return;
     }
 
+    const amounts = normalizeInsiderTransactionAmounts({ shares, pricePerShare });
+
     transactions.push({
       accessionNumber: filing.accessionNumber,
       transactionIndex: index,
@@ -401,8 +404,8 @@ function parseOwnershipDocument(
       transactionCode: code,
       acquiredDisposedCode: normalizeAcquiredDisposedCode(nestedValue(block, "transactionAcquiredDisposedCode")),
       shares,
-      pricePerShare,
-      valueUsd: pricePerShare === null ? null : Math.round(shares * pricePerShare),
+      pricePerShare: amounts.pricePerShare,
+      valueUsd: amounts.valueUsd,
       sharesOwnedFollowing: normalizeNumber(nestedValue(block, "sharesOwnedFollowingTransaction")),
       directOrIndirectOwnership: normalizeOwnershipCode(nestedValue(block, "directOrIndirectOwnership")),
       ownershipNature: nestedValue(block, "natureOfOwnership"),
