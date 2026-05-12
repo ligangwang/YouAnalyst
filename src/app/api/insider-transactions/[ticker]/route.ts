@@ -98,12 +98,11 @@ export async function GET(
     const snapshot = await getAdminFirestore()
       .collection("insider_transactions")
       .where("ticker", "==", normalizedTicker)
-      .limit(Math.max(limit, 100))
+      .orderBy("transactionDate", "desc")
+      .limit(limit)
       .get();
     const items = snapshot.docs
-      .map((doc) => mapTransaction(doc, normalizedTicker))
-      .sort((left, right) => (right.transactionDate ?? "").localeCompare(left.transactionDate ?? ""))
-      .slice(0, limit);
+      .map((doc) => mapTransaction(doc, normalizedTicker));
 
     return NextResponse.json({
       ticker: normalizedTicker,
