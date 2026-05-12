@@ -17,7 +17,7 @@ export async function generateMetadata({
   return dailyScoresMetadata(date);
 }
 
-export default async function DailyDateRoutePage({
+export default async function DailyCallsDateRoutePage({
   params,
 }: {
   params: Promise<{ date: string }>;

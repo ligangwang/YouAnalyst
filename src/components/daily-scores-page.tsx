@@ -73,6 +73,8 @@ type DailyScoresResponse = {
   };
 };
 
+export type DailyScoresSection = "calls" | "institutional" | "insiders";
+
 function scoreText(score: number): string {
   const sign = score > 0 ? "+" : "";
   return `${sign}${Math.round(score)}`;
@@ -182,6 +184,17 @@ function dailySharePath(date: string | null): string {
   url.searchParams.set("utm_campaign", "daily_share");
   url.searchParams.set("share", dailyShareVersion(date));
   return `${url.pathname}${url.search}`;
+}
+
+function dailySectionPath(section: DailyScoresSection, date: string | null): string {
+  const datedSuffix = date ? `/${encodeURIComponent(date)}` : "";
+  if (section === "institutional") {
+    return `/daily/institutional${datedSuffix}`;
+  }
+  if (section === "insiders") {
+    return `/daily/insiders${datedSuffix}`;
+  }
+  return dailyCanonicalPath(date);
 }
 
 function shareText(payload: DailyScoresResponse): string {
@@ -376,7 +389,13 @@ function InsiderMoveCard({
   );
 }
 
-export function DailyScoresPage({ initialDate = null }: { initialDate?: string | null }) {
+export function DailyScoresPage({
+  initialDate = null,
+  section = "calls",
+}: {
+  initialDate?: string | null;
+  section?: DailyScoresSection;
+}) {
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<DailyScoresResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -495,6 +514,23 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
   const insiderSales = payload?.insiderMoves?.sales ?? [];
   const topInsiderPurchase = insiderPurchases[0] ?? null;
   const topInsiderSale = insiderSales[0] ?? null;
+  const showCalls = section === "calls";
+  const showInstitutional = section === "institutional";
+  const showInsiders = section === "insiders";
+  const heroCopy = {
+    calls: {
+      title: "Best Calls Today",
+      description: "Top-performing predictions based on the latest end-of-day results.",
+    },
+    institutional: {
+      title: "Institutional Moves",
+      description: "Latest reported 13F position changes ranked by net reported dollar change.",
+    },
+    insiders: {
+      title: "Insider Transactions",
+      description: "Latest Form 4 open-market purchases and sales ranked by reported dollar value.",
+    },
+  }[section];
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
@@ -502,12 +538,12 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-wide text-cyan-300">{dateLabel(payload?.date ?? null)}</p>
-            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">Best Calls Today</h1>
+            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">{heroCopy.title}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-              Top-performing predictions based on the latest end-of-day results.
+              {heroCopy.description}
             </p>
           </div>
-          {payload ? (
+          {payload && showCalls ? (
             <div className="flex flex-wrap gap-2">
               {canShareOnX ? (
                 <a
@@ -532,9 +568,29 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
         </div>
       </section>
 
+      <nav className="mt-3 flex flex-wrap gap-2 text-sm" aria-label="Daily sections">
+        {([
+          ["calls", "Top Calls"],
+          ["institutional", "Institutional Moves"],
+          ["insiders", "Insider Transactions"],
+        ] as const).map(([nextSection, label]) => (
+          <Link
+            key={nextSection}
+            href={dailySectionPath(nextSection, payload?.date ?? initialDate)}
+            className={`rounded-full border px-3 py-1.5 font-semibold ${
+              section === nextSection
+                ? "border-cyan-300 bg-cyan-500/15 text-cyan-100"
+                : "border-white/10 text-slate-300 hover:border-cyan-300/60 hover:text-cyan-100"
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+
       {error ? <p className="mt-4 text-sm text-rose-300">{error}</p> : null}
 
-      {payload && topCalls.length === 0 ? (
+      {showCalls && payload && topCalls.length === 0 ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-5">
           <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">No daily highlights yet.</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">
@@ -549,7 +605,7 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
         </section>
       ) : null}
 
-      {callOfTheDay ? (
+      {showCalls && callOfTheDay ? (
         <Link
           href={predictionPath(callOfTheDay.predictionId)}
           className="mt-4 block rounded-xl border border-cyan-400/35 bg-slate-900/80 p-5 hover:border-cyan-300/70"
@@ -580,7 +636,7 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
         </Link>
       ) : null}
 
-      {topCalls.length > 0 ? (
+      {showCalls && topCalls.length > 0 ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <div>
             <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Top Calls Today</h2>
@@ -630,7 +686,16 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
         </section>
       ) : null}
 
-      {insiderPurchases.length > 0 || insiderSales.length > 0 ? (
+      {showInsiders && insiderPurchases.length === 0 && insiderSales.length === 0 ? (
+        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-5">
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">No insider transactions yet.</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            Check back after the next Form 4 sync writes purchase and sale activity.
+          </p>
+        </section>
+      ) : null}
+
+      {showInsiders && (insiderPurchases.length > 0 || insiderSales.length > 0) ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -685,7 +750,16 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
         </section>
       ) : null}
 
-      {institutionalIncreases.length > 0 || institutionalDecreases.length > 0 ? (
+      {showInstitutional && institutionalIncreases.length === 0 && institutionalDecreases.length === 0 ? (
+        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-5">
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">No institutional moves yet.</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            Check back after the next 13F queue run writes holding changes.
+          </p>
+        </section>
+      ) : null}
+
+      {showInstitutional && (institutionalIncreases.length > 0 || institutionalDecreases.length > 0) ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>

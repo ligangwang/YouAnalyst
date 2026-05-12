@@ -14,6 +14,8 @@ import {
 } from "@/lib/daily-scores/public-share";
 import { getDailyScores, type DailyInsiderMove, type DailyInstitutionalMove } from "@/lib/daily-scores/service";
 
+export type DailySectionMetadataKind = "institutional" | "insiders";
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     currency: "USD",
@@ -198,6 +200,39 @@ export async function dailyScoresMetadata(date: string | null): Promise<Metadata
   } catch {
     return buildDailyScoresMetadata(date, false);
   }
+}
+
+function dailySectionCanonicalPath(date: string | null, kind: DailySectionMetadataKind): string {
+  const suffix = date ? `/${encodeURIComponent(date)}` : "";
+  return `/daily/${kind}${suffix}`;
+}
+
+export function dailySectionMetadata(date: string | null, kind: DailySectionMetadataKind): Metadata {
+  const isInstitutional = kind === "institutional";
+  const label = isInstitutional ? "Institutional Moves" : "Insider Transactions";
+  const title = date ? `${label} - ${date} | YouAnalyst` : `${label} | YouAnalyst`;
+  const description = isInstitutional
+    ? "Track the latest reported 13F position increases and decreases on YouAnalyst."
+    : "Track the latest reported Form 4 insider purchases and sales on YouAnalyst.";
+  const canonical = dailySectionCanonicalPath(date, kind);
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+    },
+  };
 }
 
 export async function dailyInstitutionalMoveMetadata(

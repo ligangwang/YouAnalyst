@@ -54,15 +54,17 @@ export async function DailyInsiderMoveShareView({
   ticker: string;
 }) {
   const normalizedTicker = ticker.trim().toUpperCase();
-  let move: DailyInsiderMove | null = null;
+  let move: DailyInsiderMove | null = snapshot;
   let resolvedDate = date;
 
-  try {
-    const result = await getDailyScores(date);
-    resolvedDate = result.date ?? date;
-    move = findInsiderMove(result.insiderMoves, kind, normalizedTicker) ?? snapshot;
-  } catch {
-    move = snapshot;
+  if (!move) {
+    try {
+      const result = await getDailyScores(date);
+      resolvedDate = result.date ?? date;
+      move = findInsiderMove(result.insiderMoves, kind, normalizedTicker);
+    } catch {
+      move = null;
+    }
   }
 
   const title = `${normalizedTicker} Insider ${kind === "purchase" ? "Purchases" : "Sales"}`;

@@ -60,15 +60,17 @@ export async function DailyInstitutionalMoveShareView({
   ticker: string;
 }) {
   const normalizedTicker = ticker.trim().toUpperCase();
-  let move: DailyInstitutionalMove | null = null;
+  let move: DailyInstitutionalMove | null = snapshot;
   let resolvedDate = date;
 
-  try {
-    const result = await getDailyScores(date);
-    resolvedDate = result.date ?? date;
-    move = findInstitutionalMove(result.institutionalMoves, kind, normalizedTicker) ?? snapshot;
-  } catch {
-    move = snapshot;
+  if (!move) {
+    try {
+      const result = await getDailyScores(date);
+      resolvedDate = result.date ?? date;
+      move = findInstitutionalMove(result.institutionalMoves, kind, normalizedTicker);
+    } catch {
+      move = null;
+    }
   }
 
   const title = `${normalizedTicker} 13F ${kind === "increase" ? "Increase" : "Decrease"}`;
