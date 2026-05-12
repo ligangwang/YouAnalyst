@@ -1,4 +1,5 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { normalizeInsiderTransactionAmounts } from "@/lib/securities/insider-transaction-values";
 
 type InsiderFilingStatus = "PROCESSING" | "PARSED" | "FAILED";
 
@@ -66,6 +67,13 @@ function filingFromDoc(doc: FirebaseFirestore.QueryDocumentSnapshot): InsiderOps
 }
 
 function transactionFromDoc(doc: FirebaseFirestore.QueryDocumentSnapshot): InsiderOpsRecentTransaction {
+  const shares = readNumber(doc.get("shares"));
+  const amounts = normalizeInsiderTransactionAmounts({
+    shares,
+    pricePerShare: readNumber(doc.get("pricePerShare")),
+    valueUsd: readNumber(doc.get("valueUsd")),
+  });
+
   return {
     id: doc.id,
     accessionNumber: readString(doc.get("accessionNumber")),
@@ -74,9 +82,9 @@ function transactionFromDoc(doc: FirebaseFirestore.QueryDocumentSnapshot): Insid
     reportingOwnerName: readString(doc.get("reportingOwnerName")),
     transactionCode: readString(doc.get("transactionCode")),
     transactionDate: readString(doc.get("transactionDate")),
-    shares: readNumber(doc.get("shares")),
-    pricePerShare: readNumber(doc.get("pricePerShare")),
-    valueUsd: readNumber(doc.get("valueUsd")),
+    shares,
+    pricePerShare: amounts.pricePerShare,
+    valueUsd: amounts.valueUsd,
     filingDate: readString(doc.get("filingDate")),
     updatedAt: readString(doc.get("updatedAt")),
   };
