@@ -207,6 +207,10 @@ export async function dailyInstitutionalMoveMetadata(
   snapshot: DailyInstitutionalMove | null = null,
   canonicalPath: string | null = null,
 ): Promise<Metadata> {
+  if (snapshot && canonicalPath) {
+    return buildInstitutionalMoveMetadata(date, kind, ticker, snapshot, canonicalPath);
+  }
+
   try {
     const result = await getDailyScores(date);
     const move = findInstitutionalMove(result.institutionalMoves, kind, ticker) ?? snapshot;
@@ -223,6 +227,10 @@ export async function dailyInsiderMoveMetadata(
   snapshot: DailyInsiderMove | null = null,
   canonicalPath: string | null = null,
 ): Promise<Metadata> {
+  if (snapshot && canonicalPath) {
+    return buildInsiderMoveMetadata(date, kind, ticker, snapshot, canonicalPath);
+  }
+
   try {
     const result = await getDailyScores(date);
     const move = findInsiderMove(result.insiderMoves, kind, ticker) ?? snapshot;
