@@ -453,8 +453,12 @@ export async function createDailyInstitutionalMoveShareImage(
       return new ImageResponse(institutionalMoveFallbackImage(date, kind, ticker), dailyShareCardSize);
     }
 
+    if (snapshot) {
+      return new ImageResponse(institutionalMoveImage(date, snapshot, kind), dailyShareCardSize);
+    }
+
     const result = await getDailyScores(date);
-    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker) ?? snapshot;
+    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker);
     return new ImageResponse(
       move ? institutionalMoveImage(result.date, move, kind) : institutionalMoveFallbackImage(result.date ?? date, kind, ticker),
       dailyShareCardSize,
@@ -480,8 +484,12 @@ export async function createDailyInsiderMoveShareImage(
       return new ImageResponse(insiderMoveFallbackImage(date, kind, ticker), dailyShareCardSize);
     }
 
+    if (snapshot) {
+      return new ImageResponse(insiderMoveImage(date, snapshot, kind), dailyShareCardSize);
+    }
+
     const result = await getDailyScores(date);
-    const move = findInsiderMove(result.insiderMoves, kind, ticker) ?? snapshot;
+    const move = findInsiderMove(result.insiderMoves, kind, ticker);
     return new ImageResponse(
       move ? insiderMoveImage(result.date, move, kind) : insiderMoveFallbackImage(result.date ?? date, kind, ticker),
       dailyShareCardSize,
