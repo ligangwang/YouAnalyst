@@ -28,6 +28,7 @@ type DailyCallHighlight = {
 type DailyInstitutionalMove = {
   ticker: string;
   nameOfIssuer: string;
+  filingDate?: string | null;
   reportDate: string;
   managerCount: number;
   valueChangeUsd: number;
@@ -294,7 +295,11 @@ function InstitutionalMoveCard({
           <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.managerCount)}</p>
         </div>
       </div>
-      <p className="mt-3 text-xs text-slate-500">{statusText} &middot; latest report {compactDateLabel(move.reportDate)}</p>
+      <p className="mt-3 text-xs text-slate-500">
+        {statusText}
+        {move.filingDate ? ` \u00b7 filed ${compactDateLabel(move.filingDate)}` : ""}
+        {" \u00b7 "}report {compactDateLabel(move.reportDate)}
+      </p>
     </article>
   );
 }

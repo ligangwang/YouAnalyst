@@ -21,6 +21,7 @@ export type DailyCallHighlight = {
 export type DailyInstitutionalMove = {
   ticker: string;
   nameOfIssuer: string;
+  filingDate?: string | null;
   reportDate: string;
   managerCount: number;
   valueChangeUsd: number;
@@ -110,6 +111,10 @@ function changeStatusValue(value: unknown): "NEW" | "INCREASED" | "REDUCED" | "S
   return value === "NEW" || value === "INCREASED" || value === "REDUCED" || value === "SOLD_OUT" || value === "UNCHANGED"
     ? value
     : null;
+}
+
+function latestDateValue(current: string | null, candidate: string): string {
+  return current === null || candidate > current ? candidate : current;
 }
 
 function insiderTransactionCode(value: unknown): "P" | "S" | null {
@@ -315,37 +320,80 @@ async function topDailyCalls(db: FirebaseFirestore.Firestore, date: string): Pro
 async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promise<DailyScoresResult["institutionalMoves"]> {
   const snapshot = await db
     .collection("institutional_holding_changes")
-    .orderBy("updatedAt", "desc")
+    .orderBy("filingDate", "desc")
     .limit(INSTITUTIONAL_CHANGE_SCAN_LIMIT)
     .get();
+  type InstitutionalMoveCandidate = DailyInstitutionalMove & {
+    direction: "increase" | "decrease";
+    managerCik: string;
+    status: NonNullable<ReturnType<typeof changeStatusValue>>;
+  };
+  const candidates: InstitutionalMoveCandidate[] = [];
   const increasesByTickerReport = new Map<string, DailyInstitutionalMove & { managerCiks: Set<string> }>();
   const decreasesByTickerReport = new Map<string, DailyInstitutionalMove & { managerCiks: Set<string> }>();
+  let latestIncreaseFilingDate: string | null = null;
+  let latestDecreaseFilingDate: string | null = null;
 
   for (const doc of snapshot.docs) {
     const data = doc.data() as Record<string, unknown>;
     const ticker = asString(data.ticker);
     const nameOfIssuer = asString(data.nameOfIssuer);
+    const filingDate = asString(data.filingDate);
     const reportDate = asString(data.reportDate);
     const managerCik = asString(data.managerCik);
     const status = changeStatusValue(data.status);
     const valueChangeUsd = asNumber(data.valueChangeUsd);
     const shareChange = asNumber(data.shareChange);
-    const target =
+    const direction =
       valueChangeUsd > 0 && (status === "NEW" || status === "INCREASED")
-        ? increasesByTickerReport
+        ? "increase"
         : valueChangeUsd < 0 && (status === "REDUCED" || status === "SOLD_OUT")
-          ? decreasesByTickerReport
+          ? "decrease"
           : null;
 
-    if (!ticker || !nameOfIssuer || !reportDate || !managerCik || !status || !target) {
+    if (!ticker || !nameOfIssuer || !filingDate || !reportDate || !managerCik || !status || !direction) {
       continue;
     }
 
-    const key = `${ticker}_${reportDate}`;
-    const existing = target.get(key) ?? {
+    candidates.push({
       ticker,
       nameOfIssuer,
+      filingDate,
       reportDate,
+      managerCount: 0,
+      valueChangeUsd,
+      shareChange,
+      newManagers: 0,
+      increasedManagers: 0,
+      reducedManagers: 0,
+      soldOutManagers: 0,
+      direction,
+      managerCik,
+      status,
+    });
+
+    if (direction === "increase") {
+      latestIncreaseFilingDate = latestDateValue(latestIncreaseFilingDate, filingDate);
+    } else {
+      latestDecreaseFilingDate = latestDateValue(latestDecreaseFilingDate, filingDate);
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (
+      (candidate.direction === "increase" && candidate.filingDate !== latestIncreaseFilingDate) ||
+      (candidate.direction === "decrease" && candidate.filingDate !== latestDecreaseFilingDate)
+    ) {
+      continue;
+    }
+
+    const target = candidate.direction === "increase" ? increasesByTickerReport : decreasesByTickerReport;
+    const key = `${candidate.ticker}_${candidate.reportDate}`;
+    const existing = target.get(key) ?? {
+      ticker: candidate.ticker,
+      nameOfIssuer: candidate.nameOfIssuer,
+      filingDate: candidate.filingDate,
+      reportDate: candidate.reportDate,
       managerCount: 0,
       valueChangeUsd: 0,
       shareChange: 0,
@@ -356,14 +404,14 @@ async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promis
       managerCiks: new Set<string>(),
     };
 
-    existing.valueChangeUsd += valueChangeUsd;
-    existing.shareChange += shareChange;
-    existing.managerCiks.add(managerCik);
+    existing.valueChangeUsd += candidate.valueChangeUsd;
+    existing.shareChange += candidate.shareChange;
+    existing.managerCiks.add(candidate.managerCik);
     existing.managerCount = existing.managerCiks.size;
-    existing.newManagers += status === "NEW" ? 1 : 0;
-    existing.increasedManagers += status === "INCREASED" ? 1 : 0;
-    existing.reducedManagers += status === "REDUCED" ? 1 : 0;
-    existing.soldOutManagers += status === "SOLD_OUT" ? 1 : 0;
+    existing.newManagers += candidate.status === "NEW" ? 1 : 0;
+    existing.increasedManagers += candidate.status === "INCREASED" ? 1 : 0;
+    existing.reducedManagers += candidate.status === "REDUCED" ? 1 : 0;
+    existing.soldOutManagers += candidate.status === "SOLD_OUT" ? 1 : 0;
     target.set(key, existing);
   }
 
@@ -371,6 +419,7 @@ async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promis
     return items.map((item) => ({
       ticker: item.ticker,
       nameOfIssuer: item.nameOfIssuer,
+      filingDate: item.filingDate,
       reportDate: item.reportDate,
       managerCount: item.managerCount,
       valueChangeUsd: item.valueChangeUsd,
