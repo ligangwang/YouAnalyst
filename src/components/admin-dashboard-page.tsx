@@ -248,6 +248,17 @@ export function AdminDashboardPage() {
         </Link>
 
         <Link
+          href="/admin/securities/insiders"
+          className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
+        >
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Insider Transactions</p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Monitor Form 4 ingestion</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300">
+            Inspect parsed SEC Form 4 filings, recent insider buys and sells, and ingestion failures.
+          </p>
+        </Link>
+
+        <Link
           href="/admin/institutions/digests"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
