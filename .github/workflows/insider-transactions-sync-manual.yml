@@ -1,0 +1,177 @@
+name: Sync Insider Transactions
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      date:
+        description: Single SEC index date, YYYY-MM-DD. Leave empty to use lookback_days.
+        required: false
+        type: string
+      lookback_days:
+        description: Number of recent calendar days to inspect when date is empty
+        required: true
+        default: "3"
+        type: string
+      max_filings:
+        description: Max Form 4 filings to process per daily index
+        required: true
+        default: "50"
+        type: string
+      transaction_codes:
+        description: Comma-separated Form 4 transaction codes to persist
+        required: true
+        default: "P,S"
+        type: string
+      dry_run:
+        description: Fetch and parse without Firestore writes
+        required: true
+        default: true
+        type: boolean
+      reprocess_existing:
+        description: Reparse filings already marked PARSED
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: insider-transactions-sync-manual-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  sync-insider-transactions:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      CLOUD_RUN_SERVICE_STAGING: ${{ vars.CLOUD_RUN_SERVICE_STAGING }}
+      CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
+      INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Resolve Cloud Run URL
+        id: cloud-run
+        run: |
+          set -euo pipefail
+          service="$CLOUD_RUN_SERVICE_PRODUCTION"
+          if [[ "$TARGET_ENVIRONMENT" == "staging" ]]; then
+            service="$CLOUD_RUN_SERVICE_STAGING"
+          fi
+
+          if [[ -z "$service" ]]; then
+            echo "Cloud Run service name is not configured for $TARGET_ENVIRONMENT" >&2
+            exit 1
+          fi
+
+          url="$(gcloud run services describe "$service" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='value(status.url)')"
+
+          if [[ -z "$url" ]]; then
+            echo "Unable to resolve Cloud Run URL for $service" >&2
+            exit 1
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Sync insider transactions
+        env:
+          CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
+          INDEX_DATE: ${{ inputs.date }}
+          LOOKBACK_DAYS: ${{ inputs.lookback_days }}
+          MAX_FILINGS: ${{ inputs.max_filings }}
+          TRANSACTION_CODES: ${{ inputs.transaction_codes }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REPROCESS_EXISTING: ${{ inputs.reprocess_existing }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$INTERNAL_API_TOKEN" ]]; then
+            echo "INTERNAL_API_TOKEN secret is not configured" >&2
+            exit 1
+          fi
+
+          codes_json="$(jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$TRANSACTION_CODES")"
+
+          if [[ -n "$INDEX_DATE" ]]; then
+            body="$(jq -n \
+              --arg date "$INDEX_DATE" \
+              --argjson maxFilings "$MAX_FILINGS" \
+              --argjson transactionCodes "$codes_json" \
+              --argjson dryRun "$DRY_RUN" \
+              --argjson reprocessExisting "$REPROCESS_EXISTING" \
+              '{
+                date: $date,
+                maxFilings: $maxFilings,
+                transactionCodes: $transactionCodes,
+                dryRun: $dryRun,
+                reprocessExisting: $reprocessExisting
+              }')"
+          else
+            body="$(jq -n \
+              --argjson lookbackDays "$LOOKBACK_DAYS" \
+              --argjson maxFilings "$MAX_FILINGS" \
+              --argjson transactionCodes "$codes_json" \
+              --argjson dryRun "$DRY_RUN" \
+              --argjson reprocessExisting "$REPROCESS_EXISTING" \
+              '{
+                lookbackDays: $lookbackDays,
+                maxFilings: $maxFilings,
+                transactionCodes: $transactionCodes,
+                dryRun: $dryRun,
+                reprocessExisting: $reprocessExisting
+              }')"
+          fi
+
+          echo "Calling ${CLOUD_RUN_URL}/api/internal/securities/sync-insider-transactions"
+          echo "Request body: $body"
+
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$body" \
+            "${CLOUD_RUN_URL}/api/internal/securities/sync-insider-transactions" || true)"
+
+          cat "$response_file"
+          echo
+
+          if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+            echo "Insider transaction sync failed with HTTP $status" >&2
+            exit 1
+          fi
+
+          echo "Completed insider transaction sync."
+          echo "Filings found: $(jq -r '.filingsFound // 0' "$response_file")"
+          echo "Filings processed: $(jq -r '.filingsProcessed // 0' "$response_file")"
+          echo "Filings skipped: $(jq -r '.filingsSkipped // 0' "$response_file")"
+          echo "Filings failed: $(jq -r '.filingsFailed // 0' "$response_file")"
+          echo "Transactions parsed: $(jq -r '.transactionsParsed // 0' "$response_file")"
+          echo "Transactions written: $(jq -r '.transactionsWritten // 0' "$response_file")"
