@@ -1,5 +1,6 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { normalizeTicker } from "@/lib/predictions/types";
+import { normalizeInsiderTransactionAmounts } from "@/lib/securities/insider-transaction-values";
 import { NextRequest, NextResponse } from "next/server";
 
 type InsiderTransactionItem = {
@@ -66,6 +67,12 @@ function mapTransaction(doc: FirebaseFirestore.QueryDocumentSnapshot, ticker: st
   const relationshipData = relationship && typeof relationship === "object"
     ? relationship as InsiderTransactionItem["relationship"]
     : null;
+  const shares = readNumber(doc.get("shares"));
+  const amounts = normalizeInsiderTransactionAmounts({
+    shares,
+    pricePerShare: readNumber(doc.get("pricePerShare")),
+    valueUsd: readNumber(doc.get("valueUsd")),
+  });
 
   return {
     id: doc.id,
@@ -81,9 +88,9 @@ function mapTransaction(doc: FirebaseFirestore.QueryDocumentSnapshot, ticker: st
     transactionDate: readString(doc.get("transactionDate")),
     transactionCode: readString(doc.get("transactionCode")),
     acquiredDisposedCode: readAcquiredDisposedCode(doc.get("acquiredDisposedCode")),
-    shares: readNumber(doc.get("shares")),
-    pricePerShare: readNumber(doc.get("pricePerShare")),
-    valueUsd: readNumber(doc.get("valueUsd")),
+    shares,
+    pricePerShare: amounts.pricePerShare,
+    valueUsd: amounts.valueUsd,
     sharesOwnedFollowing: readNumber(doc.get("sharesOwnedFollowing")),
     directOrIndirectOwnership: readOwnershipCode(doc.get("directOrIndirectOwnership")),
   };

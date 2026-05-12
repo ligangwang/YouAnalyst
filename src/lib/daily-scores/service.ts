@@ -1,4 +1,5 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { normalizeInsiderTransactionAmounts } from "@/lib/securities/insider-transaction-values";
 import { sanitizePredictionThesis, sanitizePredictionThesisTitle } from "@/lib/predictions/types";
 
 export type DailyCallHighlight = {
@@ -457,10 +458,15 @@ async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<Dail
     const filingDate = asString(data.filingDate);
     const transactionDate = asString(data.transactionDate);
     const transactionCode = insiderTransactionCode(data.transactionCode);
-    const valueUsd = asNumber(data.valueUsd);
     const shares = asNumber(data.shares);
+    const amounts = normalizeInsiderTransactionAmounts({
+      shares,
+      pricePerShare: asNumber(data.pricePerShare),
+      valueUsd: asNumber(data.valueUsd),
+    });
+    const valueUsd = amounts.valueUsd;
 
-    if (!ticker || !issuerName || !filingDate || !transactionDate || !transactionCode || valueUsd <= 0 || shares <= 0) {
+    if (!ticker || !issuerName || !filingDate || !transactionDate || !transactionCode || valueUsd === null || valueUsd <= 0 || shares <= 0) {
       continue;
     }
 
