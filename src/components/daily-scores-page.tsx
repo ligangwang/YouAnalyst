@@ -632,7 +632,7 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest increases</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest increases from latest filings</h3>
               <div className="mt-3 grid gap-2">
                 {institutionalIncreases.length > 0 ? institutionalIncreases.map((move) => (
                   <InstitutionalMoveCard key={`increase-${move.ticker}`} kind="increase" move={move} />
@@ -640,7 +640,7 @@ export function DailyScoresPage({ initialDate = null }: { initialDate?: string |
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest decreases</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest decreases from latest filings</h3>
               <div className="mt-3 grid gap-2">
                 {institutionalDecreases.length > 0 ? institutionalDecreases.map((move) => (
                   <InstitutionalMoveCard key={`decrease-${move.ticker}`} kind="decrease" move={move} />
