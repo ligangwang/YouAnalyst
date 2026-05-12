@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
+import { insiderMoveSnapshotSegment } from "@/lib/daily-scores/insider-share-snapshot";
 import { institutionalMoveSnapshotSegment } from "@/lib/daily-scores/institutional-share-snapshot";
 import {
   dailyCanonicalPath,
+  dailyInsiderMoveSharePath,
+  dailyInsiderMoveShareVersion,
   dailyInstitutionalMoveSharePath,
   dailyInstitutionalMoveShareVersion,
   dailyShareImageDate,
   dailyShareVersion,
+  type DailyInsiderMoveShareKind,
   type DailyInstitutionalMoveShareKind,
 } from "@/lib/daily-scores/public-share";
-import { getDailyScores, type DailyInstitutionalMove } from "@/lib/daily-scores/service";
+import { getDailyScores, type DailyInsiderMove, type DailyInstitutionalMove } from "@/lib/daily-scores/service";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -29,6 +33,11 @@ function moveShareDescription(move: DailyInstitutionalMove, kind: DailyInstituti
   return `Latest 13F reports show ${move.ticker} ${verb} by ${amount} across ${move.managerCount} manager${move.managerCount === 1 ? "" : "s"} as of ${move.reportDate}.`;
 }
 
+function insiderMoveShareDescription(move: DailyInsiderMove, kind: DailyInsiderMoveShareKind): string {
+  const noun = kind === "purchase" ? "purchases" : "sales";
+  return `Latest Form 4 reports show ${move.ticker} insider ${noun} totaling ${formatCurrency(move.totalValueUsd)} across ${move.insiderCount} insider${move.insiderCount === 1 ? "" : "s"}, filed ${move.filingDate}.`;
+}
+
 function findInstitutionalMove(
   moves: Awaited<ReturnType<typeof getDailyScores>>["institutionalMoves"],
   kind: DailyInstitutionalMoveShareKind,
@@ -36,6 +45,16 @@ function findInstitutionalMove(
 ): DailyInstitutionalMove | null {
   const normalizedTicker = ticker.trim().toUpperCase();
   const items = kind === "increase" ? moves.increases : moves.decreases;
+  return items.find((move) => move.ticker.toUpperCase() === normalizedTicker) ?? null;
+}
+
+function findInsiderMove(
+  moves: Awaited<ReturnType<typeof getDailyScores>>["insiderMoves"],
+  kind: DailyInsiderMoveShareKind,
+  ticker: string,
+): DailyInsiderMove | null {
+  const normalizedTicker = ticker.trim().toUpperCase();
+  const items = kind === "purchase" ? moves.purchases : moves.sales;
   return items.find((move) => move.ticker.toUpperCase() === normalizedTicker) ?? null;
 }
 
@@ -74,6 +93,53 @@ function buildInstitutionalMoveMetadata(
           height: 630,
           type: "image/png",
           alt: `YouAnalyst ${normalizedTicker} institutional ${kind} share card`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [twitterImage],
+    },
+  };
+}
+
+function buildInsiderMoveMetadata(
+  date: string,
+  kind: DailyInsiderMoveShareKind,
+  ticker: string,
+  move: DailyInsiderMove | null,
+  canonicalOverride: string | null = null,
+): Metadata {
+  const normalizedTicker = (move?.ticker ?? ticker).trim().toUpperCase();
+  const title = `${normalizedTicker} insider ${kind} | YouAnalyst`;
+  const description = move
+    ? insiderMoveShareDescription(move, kind)
+    : `Latest insider ${kind} context for ${normalizedTicker} on YouAnalyst.`;
+  const canonical = canonicalOverride ?? dailyInsiderMoveSharePath(date, kind, normalizedTicker);
+  const version = dailyInsiderMoveShareVersion(date, kind, normalizedTicker);
+  const imageBasePath = canonicalOverride ?? (move ? `${canonical}/${insiderMoveSnapshotSegment(move)}` : canonical);
+  const openGraphImage = `${imageBasePath}/opengraph-image?v=${version}`;
+  const twitterImage = `${imageBasePath}/twitter-image?v=${version}`;
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      images: [
+        {
+          url: openGraphImage,
+          width: 1200,
+          height: 630,
+          type: "image/png",
+          alt: `YouAnalyst ${normalizedTicker} insider ${kind} share card`,
         },
       ],
     },
@@ -147,5 +213,21 @@ export async function dailyInstitutionalMoveMetadata(
     return buildInstitutionalMoveMetadata(result.date ?? date, kind, ticker, move, canonicalPath);
   } catch {
     return buildInstitutionalMoveMetadata(date, kind, ticker, snapshot, canonicalPath);
+  }
+}
+
+export async function dailyInsiderMoveMetadata(
+  date: string,
+  kind: DailyInsiderMoveShareKind,
+  ticker: string,
+  snapshot: DailyInsiderMove | null = null,
+  canonicalPath: string | null = null,
+): Promise<Metadata> {
+  try {
+    const result = await getDailyScores(date);
+    const move = findInsiderMove(result.insiderMoves, kind, ticker) ?? snapshot;
+    return buildInsiderMoveMetadata(result.date ?? date, kind, ticker, move, canonicalPath);
+  } catch {
+    return buildInsiderMoveMetadata(date, kind, ticker, snapshot, canonicalPath);
   }
 }
