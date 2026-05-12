@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CompanySearchCard } from "@/components/company-search-card";
-import { featuredCompanies } from "@/lib/featured-companies";
+import { randomFeaturedCompanies } from "@/lib/featured-companies";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +23,8 @@ export const metadata: Metadata = {
 };
 
 export default function CompaniesPage() {
+  const featuredCompanies = randomFeaturedCompanies();
+
   return (
     <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4 pt-24 pb-8 sm:pt-28 lg:pt-32">
       <section className="w-full">
