@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { appendInstitutionalMoveSnapshotParams } from "@/lib/daily-scores/institutional-share-snapshot";
+import { institutionalMoveSnapshotSegment } from "@/lib/daily-scores/institutional-share-snapshot";
 import {
   dailyCanonicalPath,
   dailyInstitutionalMoveSharePath,
@@ -53,18 +53,9 @@ function buildInstitutionalMoveMetadata(
     : `Latest institutional 13F ${kind} context for ${normalizedTicker} on YouAnalyst.`;
   const canonical = canonicalOverride ?? dailyInstitutionalMoveSharePath(date, kind, normalizedTicker);
   const version = dailyInstitutionalMoveShareVersion(date, kind, normalizedTicker);
-  const imageParams = new URLSearchParams({
-    date,
-    kind,
-    ticker: normalizedTicker,
-    v: version,
-  });
-  if (move) {
-    appendInstitutionalMoveSnapshotParams(imageParams, move);
-  }
-  const imagePath = canonicalOverride
-    ? `${canonical}/opengraph-image?v=${version}`
-    : `/api/daily-scores/institutional-share-image?${imageParams.toString()}`;
+  const imageBasePath = canonicalOverride ?? (move ? `${canonical}/${institutionalMoveSnapshotSegment(move)}` : canonical);
+  const openGraphImage = `${imageBasePath}/opengraph-image?v=${version}`;
+  const twitterImage = `${imageBasePath}/twitter-image?v=${version}`;
 
   return {
     title,
@@ -78,7 +69,7 @@ function buildInstitutionalMoveMetadata(
       url: canonical,
       images: [
         {
-          url: imagePath,
+          url: openGraphImage,
           width: 1200,
           height: 630,
           type: "image/png",
@@ -90,7 +81,7 @@ function buildInstitutionalMoveMetadata(
       card: "summary_large_image",
       title,
       description,
-      images: [canonicalOverride ? `${canonical}/twitter-image?v=${version}` : imagePath],
+      images: [twitterImage],
     },
   };
 }

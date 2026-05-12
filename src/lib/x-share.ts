@@ -7,8 +7,10 @@ export function xPostIntentUrl({
   text: string;
   url: string;
 }): string {
-  const postText = `${text.trim()}\n\n${url}`.trim();
-  const params = new URLSearchParams({ text: postText });
+  const params = new URLSearchParams({
+    text: text.trim(),
+    url,
+  });
 
   return `${X_POST_INTENT_URL}?${params.toString()}`;
 }
