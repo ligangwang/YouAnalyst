@@ -84,6 +84,38 @@ type InstitutionalTickerSummary = {
   positions: InstitutionalTickerPosition[];
 };
 
+type InsiderTransactionItem = {
+  id: string;
+  accessionNumber: string | null;
+  filingDate: string | null;
+  form: string | null;
+  issuerCik: string | null;
+  issuerName: string | null;
+  ticker: string;
+  reportingOwnerName: string | null;
+  relationship: {
+    isDirector?: boolean;
+    isOfficer?: boolean;
+    isTenPercentOwner?: boolean;
+    officerTitle?: string | null;
+  } | null;
+  securityTitle: string | null;
+  transactionDate: string | null;
+  transactionCode: string | null;
+  acquiredDisposedCode: "A" | "D" | null;
+  shares: number | null;
+  pricePerShare: number | null;
+  valueUsd: number | null;
+  sharesOwnedFollowing: number | null;
+  directOrIndirectOwnership: "D" | "I" | null;
+};
+
+type InsiderTransactionsResponse = {
+  ticker: string;
+  items: InsiderTransactionItem[];
+  count: number;
+};
+
 type InstitutionalStatusFilter = "ALL" | "CURRENT" | "NEW" | "INCREASED" | "REDUCED" | "SOLD_OUT" | "UNCHANGED";
 
 type ErrorResponse = {
@@ -133,10 +165,34 @@ function changeTone(status: InstitutionalTickerPosition["changeStatus"]): string
   return "border-white/10 bg-slate-900/80 text-slate-300";
 }
 
+function insiderCodeTone(code: string | null): string {
+  if (code === "P") {
+    return "border-emerald-400/30 bg-emerald-400/10 text-emerald-100";
+  }
+
+  if (code === "S") {
+    return "border-rose-400/30 bg-rose-400/10 text-rose-100";
+  }
+
+  return "border-white/10 bg-slate-900/80 text-slate-300";
+}
+
+function formatOptionalNumber(value: number | null): string {
+  return value === null ? "-" : formatNumber(value);
+}
+
 function filingUrl(managerCik: string, accessionNumber: string): string {
   const cik = String(Number(managerCik));
   const accessionPath = accessionNumber.replace(/-/g, "");
   return `https://www.sec.gov/Archives/edgar/data/${cik}/${accessionPath}/${accessionNumber}-index.html`;
+}
+
+function insiderFilingUrl(issuerCik: string | null, accessionNumber: string | null): string | null {
+  if (!issuerCik || !accessionNumber) {
+    return null;
+  }
+
+  return `https://www.sec.gov/Archives/edgar/data/${String(Number(issuerCik))}/${accessionNumber.replace(/-/g, "")}/${accessionNumber}-index.html`;
 }
 
 function readErrorMessage(payload: ErrorResponse, fallback: string): string {
@@ -407,11 +463,104 @@ function InstitutionalHoldingsSection({
   );
 }
 
+function InsiderTransactionsSection({
+  displayTicker,
+  error,
+  transactions,
+}: {
+  displayTicker: string;
+  error: string | null;
+  transactions: InsiderTransactionItem[] | null;
+}) {
+  return (
+    <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
+      <div className="mb-4">
+        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Insider transactions</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Recent SEC Form 4 open-market purchases and sales reported for {displayTicker}.
+        </p>
+      </div>
+
+      {error ? (
+        <p className="mb-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
+          {error}
+        </p>
+      ) : null}
+
+      {transactions && transactions.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[920px] text-left text-sm">
+            <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="py-3 pr-3">Insider</th>
+                <th className="py-3 pr-3">Code</th>
+                <th className="py-3 pr-3">Date</th>
+                <th className="py-3 pr-3 text-right">Shares</th>
+                <th className="py-3 pr-3 text-right">Price</th>
+                <th className="py-3 pr-3 text-right">Value</th>
+                <th className="py-3">Filing</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {transactions.map((transaction) => {
+                const url = insiderFilingUrl(transaction.issuerCik, transaction.accessionNumber);
+                return (
+                  <tr key={transaction.id} className="text-slate-200">
+                    <td className="py-3 pr-3">
+                      <p className="font-semibold text-cyan-100">{transaction.reportingOwnerName ?? "Unknown insider"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{transaction.relationship?.officerTitle ?? (transaction.relationship?.isDirector ? "Director" : "Reporting owner")}</p>
+                    </td>
+                    <td className="py-3 pr-3">
+                      <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${insiderCodeTone(transaction.transactionCode)}`}>
+                        {transaction.transactionCode === "P" ? "Purchase" : transaction.transactionCode === "S" ? "Sale" : transaction.transactionCode ?? "-"}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-3">{transaction.transactionDate ?? "-"}</td>
+                    <td className="py-3 pr-3 text-right tabular-nums">{formatOptionalNumber(transaction.shares)}</td>
+                    <td className="py-3 pr-3 text-right tabular-nums">{transaction.pricePerShare === null ? "-" : formatCurrency(transaction.pricePerShare)}</td>
+                    <td className="py-3 pr-3 text-right tabular-nums">{transaction.valueUsd === null ? "-" : formatCurrency(transaction.valueUsd)}</td>
+                    <td className="py-3 text-slate-400">
+                      {transaction.filingDate ?? "-"}
+                      {url ? (
+                        <a href={url} target="_blank" rel="noreferrer" className="block text-xs text-cyan-300 hover:text-cyan-100">
+                          SEC filing
+                        </a>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {transactions && transactions.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
+          No recent insider purchases or sales are available for {displayTicker} yet.
+        </p>
+      ) : null}
+
+      {!transactions && !error ? (
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
+          Loading insider transactions...
+        </p>
+      ) : null}
+
+      <p className="mt-4 text-xs leading-5 text-slate-500">
+        Form 4 filings can include grants, exercises, tax withholding, and other transactions. This view starts with open-market purchase and sale codes.
+      </p>
+    </section>
+  );
+}
+
 export function TickerPage({ ticker }: { ticker: string }) {
   const [payload, setPayload] = useState<TickerResponse | null>(null);
   const [holdings, setHoldings] = useState<InstitutionalTickerSummary | null>(null);
+  const [insiderTransactions, setInsiderTransactions] = useState<InsiderTransactionItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [holdingsError, setHoldingsError] = useState<string | null>(null);
+  const [insiderError, setInsiderError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const displayTicker = formatTickerSymbol(payload?.ticker ?? ticker);
 
@@ -420,8 +569,10 @@ export function TickerPage({ ticker }: { ticker: string }) {
 
     setPayload(null);
     setHoldings(null);
+    setInsiderTransactions(null);
     setError(null);
     setHoldingsError(null);
+    setInsiderError(null);
     setLoadingMore(false);
 
     void fetch(`/api/ticker/${ticker}?limit=25`)
@@ -460,6 +611,26 @@ export function TickerPage({ ticker }: { ticker: string }) {
       .catch((nextError) => {
         if (!cancelled) {
           setHoldingsError(nextError instanceof Error ? nextError.message : "Unable to load institutional holdings.");
+        }
+      });
+
+    void fetch(`/api/insider-transactions/${encodeURIComponent(ticker)}?limit=25`)
+      .then(async (response) => {
+        if (!response.ok) {
+          const body = (await response.json().catch(() => ({}))) as ErrorResponse;
+          throw new Error(readErrorMessage(body, "Unable to load insider transactions."));
+        }
+
+        return (await response.json()) as InsiderTransactionsResponse;
+      })
+      .then((nextInsiderTransactions) => {
+        if (!cancelled) {
+          setInsiderTransactions(nextInsiderTransactions.items);
+        }
+      })
+      .catch((nextError) => {
+        if (!cancelled) {
+          setInsiderError(nextError instanceof Error ? nextError.message : "Unable to load insider transactions.");
         }
       });
 
@@ -534,6 +705,12 @@ export function TickerPage({ ticker }: { ticker: string }) {
         displayTicker={displayTicker}
         summary={holdings}
         error={holdingsError}
+      />
+
+      <InsiderTransactionsSection
+        displayTicker={displayTicker}
+        error={insiderError}
+        transactions={insiderTransactions}
       />
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
