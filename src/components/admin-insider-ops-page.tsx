@@ -124,7 +124,11 @@ export function AdminInsiderOpsPage() {
 
     async function load() {
       if (!user) {
-        setLoading(false);
+        if (!cancelled) {
+          setData(null);
+          setError(null);
+          setLoading(false);
+        }
         return;
       }
 
