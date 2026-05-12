@@ -1,6 +1,6 @@
 const DAILY_SHARE_CARD_VERSION = "v2";
 const DAILY_INSTITUTIONAL_SHARE_CARD_VERSION = "v3";
-const DAILY_INSIDER_SHARE_CARD_VERSION = "v2";
+const DAILY_INSIDER_SHARE_CARD_VERSION = "v3";
 
 export type DailyInstitutionalMoveShareKind = "increase" | "decrease";
 export type DailyInsiderMoveShareKind = "purchase" | "sale";
@@ -14,7 +14,7 @@ export function isDailyInsiderMoveShareKind(value: string | null): value is Dail
 }
 
 export function dailyCanonicalPath(date: string | null): string {
-  return date ? `/daily/${encodeURIComponent(date)}` : "/daily";
+  return date ? `/daily/calls/${encodeURIComponent(date)}` : "/daily/calls";
 }
 
 export function dailyInstitutionalMoveSharePath(date: string, kind: DailyInstitutionalMoveShareKind, ticker: string): string {

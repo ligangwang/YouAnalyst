@@ -102,6 +102,55 @@ function InstitutionNavLabel({ unreadCount }: { unreadCount: number }) {
   );
 }
 
+const dailyNavItems = [
+  { href: "/daily/calls", label: "Top Calls" },
+  { href: "/daily/institutional", label: "Institutional Moves" },
+  { href: "/daily/insiders", label: "Insider Transactions" },
+];
+
+function DailyNavMenu() {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((prev) => !prev)}
+        className="hover:text-cyan-200"
+      >
+        Daily
+      </button>
+      {open ? (
+        <div className="absolute left-0 z-50 mt-2 w-56 rounded-xl border border-white/10 bg-slate-950 py-1 shadow-xl">
+          {dailyNavItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2 text-sm text-slate-200 hover:bg-white/5 hover:text-cyan-100"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function SiteNav() {
   const { user, loading, signOut, getIdToken } = useAuth();
   const [adminStatus, setAdminStatus] = useState<{ userId: string; isAdmin: boolean } | null>(null);
@@ -230,7 +279,7 @@ export function SiteNav() {
               <Link href="/predictions" className="hover:text-cyan-200">Feed</Link>
               <Link href="/watchlists" className="hover:text-cyan-200">Watchlists</Link>
               <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
-              <Link href="/daily" className="hover:text-cyan-200">Daily</Link>
+              <DailyNavMenu />
               <Link href="/leaderboard" className="hover:text-cyan-200">Leaderboard</Link>
               {showAdminLink ? <Link href="/admin" className="hover:text-cyan-200">Admin</Link> : null}
               <Link href="/how-it-works" className="hover:text-cyan-200">How It Works</Link>
@@ -272,9 +321,15 @@ export function SiteNav() {
           <Link href="/institutions" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
             <InstitutionNavLabel unreadCount={unreadDigestCount} />
           </Link>
-          <Link href="/daily" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
-            Daily
-          </Link>
+          {dailyNavItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200"
+            >
+              {item.label}
+            </Link>
+          ))}
           <Link href="/leaderboard" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
             Leaderboard
           </Link>

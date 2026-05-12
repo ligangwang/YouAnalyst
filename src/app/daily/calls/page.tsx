@@ -17,6 +17,6 @@ export async function generateMetadata({
   return dailyScoresMetadata(dateSearchParam(date));
 }
 
-export default function DailyRoutePage() {
+export default function DailyCallsRoutePage() {
   return <DailyScoresPage section="calls" />;
 }
