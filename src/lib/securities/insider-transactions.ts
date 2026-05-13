@@ -86,6 +86,7 @@ export type SyncInsiderTransactionsInput = {
   includeStaleProcessing?: boolean;
   staleProcessingMinutes?: number;
   processOnly?: boolean;
+  discoverOnly?: boolean;
 };
 
 export type SyncInsiderTransactionsItemResult = {
@@ -704,6 +705,7 @@ async function claimQueuedFiling(input: {
 
 export async function syncInsiderTransactions(input: SyncInsiderTransactionsInput = {}): Promise<SyncInsiderTransactionsResult> {
   const processOnly = input.processOnly === true;
+  const discoverOnly = input.discoverOnly === true;
   const dates = processOnly ? [] : normalizeDates(input);
   const maxFilings = clampInteger(input.maxFilings, DEFAULT_MAX_FILINGS, 1, MAX_FILINGS);
   const transactionCodes = normalizeTransactionCodes(input.transactionCodes);
@@ -752,14 +754,16 @@ export async function syncInsiderTransactions(input: SyncInsiderTransactionsInpu
     }
   }
 
-  const queueCandidates = dryRun && !processOnly
+  const queueCandidates = discoverOnly || (dryRun && !processOnly)
     ? []
     : await listQueueCandidates({
         limit: maxFilings,
         includeStaleProcessing,
         staleProcessingMinutes,
       });
-  const candidates = dryRun && !processOnly
+  const candidates = discoverOnly
+    ? []
+    : dryRun && !processOnly
     ? dryRunFilings.slice(0, maxFilings).map((filing) => ({ id: filing.accessionNumber, filing }))
     : queueCandidates.map((candidate) => ({
         id: candidate.id,
