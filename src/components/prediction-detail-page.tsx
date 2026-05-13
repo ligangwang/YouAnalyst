@@ -14,7 +14,7 @@ import {
   type PredictionTimeHorizonUnit,
   type PredictionVisibility,
 } from "@/lib/predictions/types";
-import { xPostIntentUrl } from "@/lib/x-share";
+import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
 
 type PredictionDetail = {
   id: string;
@@ -142,13 +142,11 @@ function predictionShareVersion(prediction: PredictionDetail): string {
 }
 
 function predictionUrl(prediction: PredictionDetail): string {
-  const origin = typeof window === "undefined" ? "https://youanalyst.com" : window.location.origin;
-  const url = new URL(`/predictions/${encodeURIComponent(prediction.id)}`, origin);
-  url.searchParams.set("utm_source", "x");
-  url.searchParams.set("utm_medium", "social");
-  url.searchParams.set("utm_campaign", "prediction_share");
-  url.searchParams.set("share", predictionShareVersion(prediction));
-  return url.toString();
+  return xTrackedShareUrl({
+    campaign: "prediction_share",
+    share: predictionShareVersion(prediction),
+    url: `/predictions/${encodeURIComponent(prediction.id)}`,
+  });
 }
 
 function predictionShareText(prediction: PredictionDetail, returnText: string): string {

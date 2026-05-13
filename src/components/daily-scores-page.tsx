@@ -14,7 +14,7 @@ import {
   dailyInstitutionalMoveShareVersion,
   dailyShareVersion,
 } from "@/lib/daily-scores/public-share";
-import { xPostIntentUrl } from "@/lib/x-share";
+import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
 
 type DailyCallHighlight = {
   predictionId: string;
@@ -176,14 +176,13 @@ function missingDailyReturnReportPath(call: DailyCallHighlight, date: string | n
   return `/feedback?${params.toString()}`;
 }
 
-function dailySharePath(date: string | null): string {
+function dailyShareUrl(date: string | null): string {
   const path = dailyCanonicalPath(date);
-  const url = new URL(path, typeof window === "undefined" ? "https://youanalyst.com" : window.location.origin);
-  url.searchParams.set("utm_source", "x");
-  url.searchParams.set("utm_medium", "social");
-  url.searchParams.set("utm_campaign", "daily_share");
-  url.searchParams.set("share", dailyShareVersion(date));
-  return `${url.pathname}${url.search}`;
+  return xTrackedShareUrl({
+    campaign: "daily_share",
+    share: dailyShareVersion(date),
+    url: path,
+  });
 }
 
 function dailySectionPath(section: DailyScoresSection, date: string | null): string {
@@ -207,23 +206,20 @@ function shareText(payload: DailyScoresResponse): string {
 }
 
 function xShareUrl(payload: DailyScoresResponse): string {
-  const url = absoluteUrl(dailySharePath(payload.date));
   return xPostIntentUrl({
     text: shareText(payload),
-    url,
+    url: dailyShareUrl(payload.date),
   });
 }
 
-function moveSharePath(date: string | null, move: DailyInstitutionalMove, kind: "increase" | "decrease"): string {
+function moveShareUrl(date: string | null, move: DailyInstitutionalMove, kind: "increase" | "decrease"): string {
   const shareDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
   const path = dailyInstitutionalMoveSharePath(shareDate, kind, move.ticker);
-  const url = new URL(path, typeof window === "undefined" ? "https://youanalyst.com" : window.location.origin);
-  url.searchParams.set("utm_source", "x");
-  url.searchParams.set("utm_medium", "social");
-  url.searchParams.set("utm_campaign", `institutional_${kind}_share`);
-  url.searchParams.set("share", dailyInstitutionalMoveShareVersion(shareDate, kind, move.ticker));
-  url.pathname = `${url.pathname}/${institutionalMoveSnapshotSegment(move)}`;
-  return `${url.pathname}${url.search}`;
+  return xTrackedShareUrl({
+    campaign: `institutional_${kind}_share`,
+    share: dailyInstitutionalMoveShareVersion(shareDate, kind, move.ticker),
+    url: `${path}/${institutionalMoveSnapshotSegment(move)}`,
+  });
 }
 
 function formatCurrency(value: number): string {
@@ -249,23 +245,21 @@ function moveShareText(move: DailyInstitutionalMove, kind: "increase" | "decreas
   return `Latest 13F reports show ${formatCashtag(move.ticker)} ${direction} by ${amount} across ${move.managerCount} manager${move.managerCount === 1 ? "" : "s"} as of ${move.reportDate}.`;
 }
 
-function moveShareUrl(move: DailyInstitutionalMove, date: string | null, kind: "increase" | "decrease"): string {
+function institutionalMoveShareUrl(move: DailyInstitutionalMove, date: string | null, kind: "increase" | "decrease"): string {
   return xPostIntentUrl({
     text: moveShareText(move, kind),
-    url: absoluteUrl(moveSharePath(date, move, kind)),
+    url: moveShareUrl(date, move, kind),
   });
 }
 
-function insiderMoveSharePath(date: string | null, move: DailyInsiderMove, kind: "purchase" | "sale"): string {
+function insiderMoveShareUrlWithTracking(date: string | null, move: DailyInsiderMove, kind: "purchase" | "sale"): string {
   const shareDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
   const path = dailyInsiderMoveSharePath(shareDate, kind, move.ticker);
-  const url = new URL(path, typeof window === "undefined" ? "https://youanalyst.com" : window.location.origin);
-  url.searchParams.set("utm_source", "x");
-  url.searchParams.set("utm_medium", "social");
-  url.searchParams.set("utm_campaign", `insider_${kind}_share`);
-  url.searchParams.set("share", dailyInsiderMoveShareVersion(shareDate, kind, move.ticker));
-  url.pathname = `${url.pathname}/${insiderMoveSnapshotSegment(move)}`;
-  return `${url.pathname}${url.search}`;
+  return xTrackedShareUrl({
+    campaign: `insider_${kind}_share`,
+    share: dailyInsiderMoveShareVersion(shareDate, kind, move.ticker),
+    url: `${path}/${insiderMoveSnapshotSegment(move)}`,
+  });
 }
 
 function insiderMoveShareText(move: DailyInsiderMove, kind: "purchase" | "sale"): string {
@@ -276,7 +270,7 @@ function insiderMoveShareText(move: DailyInsiderMove, kind: "purchase" | "sale")
 function insiderMoveShareUrl(move: DailyInsiderMove, date: string | null, kind: "purchase" | "sale"): string {
   return xPostIntentUrl({
     text: insiderMoveShareText(move, kind),
-    url: absoluteUrl(insiderMoveSharePath(date, move, kind)),
+    url: insiderMoveShareUrlWithTracking(date, move, kind),
   });
 }
 
@@ -772,7 +766,7 @@ export function DailyScoresPage({
               <div className="flex flex-wrap gap-2">
                 {topInstitutionalIncrease ? (
                   <a
-                    href={moveShareUrl(topInstitutionalIncrease, payload?.date ?? null, "increase")}
+                    href={institutionalMoveShareUrl(topInstitutionalIncrease, payload?.date ?? null, "increase")}
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-lg border border-emerald-400/35 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15"
@@ -782,7 +776,7 @@ export function DailyScoresPage({
                 ) : null}
                 {topInstitutionalDecrease ? (
                   <a
-                    href={moveShareUrl(topInstitutionalDecrease, payload?.date ?? null, "decrease")}
+                    href={institutionalMoveShareUrl(topInstitutionalDecrease, payload?.date ?? null, "decrease")}
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-lg border border-rose-400/35 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/15"
