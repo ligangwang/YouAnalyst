@@ -10,6 +10,9 @@ type SyncInsiderTransactionsRequest = {
   transactionCodes?: unknown;
   dryRun?: unknown;
   reprocessExisting?: unknown;
+  includeStaleProcessing?: unknown;
+  staleProcessingMinutes?: unknown;
+  processOnly?: unknown;
 };
 
 function readString(value: unknown): string | undefined {
@@ -49,6 +52,9 @@ export async function POST(request: NextRequest) {
       transactionCodes: readStringArray(payload.transactionCodes),
       dryRun: readBoolean(payload.dryRun),
       reprocessExisting: readBoolean(payload.reprocessExisting),
+      includeStaleProcessing: readBoolean(payload.includeStaleProcessing),
+      staleProcessingMinutes: readNumber(payload.staleProcessingMinutes),
+      processOnly: readBoolean(payload.processOnly),
     });
 
     return NextResponse.json({

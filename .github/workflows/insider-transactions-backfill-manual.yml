@@ -26,9 +26,14 @@ on:
         default: "7"
         type: string
       max_filings_per_index:
-        description: Max Form 4 filings to process per daily index
+        description: Max queued Form 4 filings to process per API call
         required: true
         default: "250"
+        type: string
+      max_queue_batches_after_discovery:
+        description: Max additional queued batches to process after each discovery call
+        required: true
+        default: "4"
         type: string
       transaction_codes:
         description: Comma-separated Form 4 transaction codes to persist
@@ -116,6 +121,7 @@ jobs:
           END_DATE: ${{ inputs.end_date }}
           CHUNK_DAYS: ${{ inputs.chunk_days }}
           MAX_FILINGS_PER_INDEX: ${{ inputs.max_filings_per_index }}
+          MAX_QUEUE_BATCHES_AFTER_DISCOVERY: ${{ inputs.max_queue_batches_after_discovery }}
           TRANSACTION_CODES: ${{ inputs.transaction_codes }}
           DRY_RUN: ${{ inputs.dry_run }}
           REPROCESS_EXISTING: ${{ inputs.reprocess_existing }}
@@ -190,6 +196,9 @@ jobs:
             fi
 
             found="$(jq -r '.filingsFound // 0' "$response_file")"
+            queued="$(jq -r '.filingsQueued // 0' "$response_file")"
+            existing="$(jq -r '.filingsExisting // 0' "$response_file")"
+            candidates="$(jq -r '.candidatesFound // 0' "$response_file")"
             processed="$(jq -r '.filingsProcessed // 0' "$response_file")"
             skipped="$(jq -r '.filingsSkipped // 0' "$response_file")"
             failed="$(jq -r '.filingsFailed // 0' "$response_file")"
@@ -203,8 +212,62 @@ jobs:
             total_parsed=$((total_parsed + parsed))
             total_written=$((total_written + written))
 
-            echo "Chunk ${chunk_number}: found=${found}, processed=${processed}, skipped=${skipped}, failed=${failed}, parsed=${parsed}, written=${written}"
+            echo "Chunk ${chunk_number}: found=${found}, queued=${queued}, existing=${existing}, candidates=${candidates}, processed=${processed}, skipped=${skipped}, failed=${failed}, parsed=${parsed}, written=${written}"
             echo "Totals: found=${total_found}, processed=${total_processed}, skipped=${total_skipped}, failed=${total_failed}, parsed=${total_parsed}, written=${total_written}"
+
+            for ((batch = 1; batch <= MAX_QUEUE_BATCHES_AFTER_DISCOVERY; batch += 1)); do
+              process_body="$(jq -n \
+                --argjson maxFilings "$MAX_FILINGS_PER_INDEX" \
+                --argjson transactionCodes "$codes_json" \
+                --argjson dryRun "$DRY_RUN" \
+                '{
+                  maxFilings: $maxFilings,
+                  transactionCodes: $transactionCodes,
+                  dryRun: $dryRun,
+                  processOnly: true
+                }')"
+
+              echo "Processing queued insider filings for chunk ${chunk_number}, batch ${batch}/${MAX_QUEUE_BATCHES_AFTER_DISCOVERY}"
+              process_response_file="$(mktemp)"
+              process_status="$(curl --silent --show-error \
+                --output "$process_response_file" \
+                --write-out '%{http_code}' \
+                --request POST \
+                --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+                --header "Content-Type: application/json" \
+                --data "$process_body" \
+                "${CLOUD_RUN_URL}/api/internal/securities/sync-insider-transactions" || true)"
+
+              cat "$process_response_file"
+              echo
+
+              if [[ "$process_status" -lt 200 || "$process_status" -ge 300 ]]; then
+                echo "Insider transaction queue processing failed with HTTP $process_status on chunk $chunk_number batch $batch" >&2
+                exit 1
+              fi
+
+              process_candidates="$(jq -r '.candidatesFound // 0' "$process_response_file")"
+              process_processed="$(jq -r '.filingsProcessed // 0' "$process_response_file")"
+              process_skipped="$(jq -r '.filingsSkipped // 0' "$process_response_file")"
+              process_failed="$(jq -r '.filingsFailed // 0' "$process_response_file")"
+              process_parsed="$(jq -r '.transactionsParsed // 0' "$process_response_file")"
+              process_written="$(jq -r '.transactionsWritten // 0' "$process_response_file")"
+
+              total_processed=$((total_processed + process_processed))
+              total_skipped=$((total_skipped + process_skipped))
+              total_failed=$((total_failed + process_failed))
+              total_parsed=$((total_parsed + process_parsed))
+              total_written=$((total_written + process_written))
+
+              echo "Queue batch ${batch}: candidates=${process_candidates}, processed=${process_processed}, skipped=${process_skipped}, failed=${process_failed}, parsed=${process_parsed}, written=${process_written}"
+              echo "Totals: found=${total_found}, processed=${total_processed}, skipped=${total_skipped}, failed=${total_failed}, parsed=${total_parsed}, written=${total_written}"
+
+              if [[ "$process_candidates" == "0" ]]; then
+                break
+              fi
+
+              sleep "$SECONDS_BETWEEN_CHUNKS"
+            done
 
             if [[ "$current" < "$end_date" || "$current" == "$end_date" ]]; then
               sleep "$SECONDS_BETWEEN_CHUNKS"

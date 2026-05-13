@@ -9,8 +9,10 @@ const MAX_LOOKBACK_DAYS = 14;
 const DEFAULT_MAX_FILINGS = 50;
 const MAX_FILINGS = 500;
 const DEFAULT_TRANSACTION_CODES = ["P", "S"];
+const DEFAULT_STALE_PROCESSING_MINUTES = 60;
 
 type InsiderForm = "4" | "4/A";
+type InsiderFilingStatus = "DISCOVERED" | "PROCESSING" | "PARSED" | "FAILED" | "SKIPPED";
 
 type SecMasterIndexRow = {
   accessionNumber: string;
@@ -25,6 +27,18 @@ type SecMasterIndexRow = {
 type InsiderIndexError = {
   date: string;
   error: string;
+};
+
+type QueuedInsiderFilingDocument = {
+  accessionNumber?: unknown;
+  filingDate?: unknown;
+  filingUrl?: unknown;
+  filename?: unknown;
+  form?: unknown;
+  indexCik?: unknown;
+  indexCompanyName?: unknown;
+  status?: unknown;
+  processingStartedAt?: unknown;
 };
 
 type ReportingOwnerRelationship = {
@@ -69,6 +83,9 @@ export type SyncInsiderTransactionsInput = {
   transactionCodes?: string[];
   dryRun?: boolean;
   reprocessExisting?: boolean;
+  includeStaleProcessing?: boolean;
+  staleProcessingMinutes?: number;
+  processOnly?: boolean;
 };
 
 export type SyncInsiderTransactionsItemResult = {
@@ -82,6 +99,7 @@ export type SyncInsiderTransactionsItemResult = {
   transactionsWritten: number;
   skipped: boolean;
   error: string | null;
+  status: InsiderFilingStatus | "DRY_RUN";
 };
 
 export type SyncInsiderTransactionsResult = {
@@ -89,12 +107,16 @@ export type SyncInsiderTransactionsResult = {
   datesRequested: string[];
   indexErrors: InsiderIndexError[];
   filingsFound: number;
+  filingsQueued: number;
+  filingsExisting: number;
+  candidatesFound: number;
   filingsProcessed: number;
   filingsSkipped: number;
   filingsFailed: number;
   transactionsParsed: number;
   transactionsWritten: number;
   transactionCodes: string[];
+  processingRunId: string;
   items: SyncInsiderTransactionsItemResult[];
   updatedAt: string;
 };
@@ -230,6 +252,38 @@ function normalizeTransactionCodes(values: string[] | undefined): string[] {
     .filter((value) => /^[A-Z0-9]{1,2}$/.test(value));
 
   return [...new Set(codes.length > 0 ? codes : DEFAULT_TRANSACTION_CODES)];
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readInsiderForm(value: unknown): InsiderForm | null {
+  return value === "4" || value === "4/A" ? value : null;
+}
+
+function normalizeQueueDocument(id: string, data: QueuedInsiderFilingDocument): SecMasterIndexRow | null {
+  const accessionNumber = readString(data.accessionNumber) ?? id;
+  const filingDate = readString(data.filingDate);
+  const filingUrl = readString(data.filingUrl);
+  const filename = readString(data.filename);
+  const form = readInsiderForm(data.form);
+  const indexCik = readString(data.indexCik);
+  const indexCompanyName = readString(data.indexCompanyName);
+
+  if (!accessionNumber || !filingDate || !filingUrl || !filename || !form || !indexCik || !indexCompanyName) {
+    return null;
+  }
+
+  return {
+    accessionNumber,
+    filingDate,
+    filingUrl,
+    filename,
+    form,
+    indexCik,
+    indexCompanyName,
+  };
 }
 
 function parseMasterIndex(text: string): SecMasterIndexRow[] {
@@ -460,22 +514,66 @@ async function persistTransactions(input: {
   return written;
 }
 
-async function markProcessing(filing: SecMasterIndexRow, updatedAt: string): Promise<void> {
+async function persistDiscoveredFilings(input: {
+  filings: SecMasterIndexRow[];
+  dryRun: boolean;
+  discoveredAt: string;
+  reprocessExisting: boolean;
+}): Promise<{ queued: number; existing: number }> {
+  if (input.filings.length === 0 || input.dryRun) {
+    return { queued: 0, existing: 0 };
+  }
+
   const db = getAdminFirestore();
-  await db.collection("sec_insider_filings").doc(filing.accessionNumber).set({
-    accessionNumber: filing.accessionNumber,
-    filingDate: filing.filingDate,
-    filingUrl: filing.filingUrl,
-    filename: filing.filename,
-    form: filing.form,
-    indexCik: filing.indexCik,
-    indexCompanyName: filing.indexCompanyName,
-    status: "PROCESSING",
-    attempts: FieldValue.increment(1),
-    processingStartedAt: updatedAt,
-    updatedAt,
-    source: "sec-daily-master-index",
-  }, { merge: true });
+  let queued = 0;
+  let existing = 0;
+
+  for (let index = 0; index < input.filings.length; index += DISCOVERY_BATCH_SIZE) {
+    const chunk = input.filings.slice(index, index + DISCOVERY_BATCH_SIZE);
+    const refs = chunk.map((filing) => db.collection("sec_insider_filings").doc(filing.accessionNumber));
+    const snapshots = await db.getAll(...refs);
+    const batch = db.batch();
+
+    chunk.forEach((filing, chunkIndex) => {
+      const ref = refs[chunkIndex];
+      const snapshot = snapshots[chunkIndex];
+      const status = snapshot.exists ? readString(snapshot.get("status")) : null;
+      const shouldRequeue = input.reprocessExisting || !snapshot.exists || status === "FAILED" || status === "SKIPPED";
+
+      if (!shouldRequeue) {
+        existing += 1;
+        batch.set(ref, {
+          lastDiscoveredAt: input.discoveredAt,
+          sourceIndexFilingDate: filing.filingDate,
+          updatedAt: input.discoveredAt,
+        }, { merge: true });
+        return;
+      }
+
+      queued += 1;
+      batch.set(ref, {
+        accessionNumber: filing.accessionNumber,
+        filingDate: filing.filingDate,
+        filingUrl: filing.filingUrl,
+        filename: filing.filename,
+        form: filing.form,
+        indexCik: filing.indexCik,
+        indexCompanyName: filing.indexCompanyName,
+        status: "DISCOVERED",
+        attempts: input.reprocessExisting ? 0 : snapshot.exists ? snapshot.get("attempts") ?? 0 : 0,
+        lastError: null,
+        discoveredAt: snapshot.exists ? snapshot.get("discoveredAt") ?? input.discoveredAt : input.discoveredAt,
+        lastDiscoveredAt: input.discoveredAt,
+        sourceIndexFilingDate: filing.filingDate,
+        source: "sec-daily-master-index",
+        updatedAt: input.discoveredAt,
+      }, { merge: true });
+    });
+
+    await batch.commit();
+  }
+
+  return { queued, existing };
 }
 
 async function markFailed(filing: SecMasterIndexRow, updatedAt: string, error: string): Promise<void> {
@@ -496,113 +594,260 @@ async function markFailed(filing: SecMasterIndexRow, updatedAt: string, error: s
   }, { merge: true });
 }
 
-async function isAlreadyParsed(accessionNumber: string): Promise<boolean> {
-  const doc = await getAdminFirestore().collection("sec_insider_filings").doc(accessionNumber).get();
-  return doc.get("status") === "PARSED";
+async function markInvalidQueuedFilingSkipped(id: string, updatedAt: string, error: string): Promise<void> {
+  const db = getAdminFirestore();
+  await db.collection("sec_insider_filings").doc(id).set({
+    status: "SKIPPED",
+    lastError: error,
+    skippedAt: updatedAt,
+    updatedAt,
+  }, { merge: true });
 }
 
-async function discoverFilings(date: string, maxFilings: number): Promise<SecMasterIndexRow[]> {
+async function discoverFilings(date: string): Promise<SecMasterIndexRow[]> {
   const indexText = await fetchSecText(dailyMasterIndexUrl(date));
-  return parseMasterIndex(indexText).slice(0, maxFilings);
+  return parseMasterIndex(indexText);
+}
+
+function processingRunId(): string {
+  return `insider_queue_${Date.now()}_${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function staleProcessingCutoff(minutes: number): string {
+  return new Date(Date.now() - minutes * 60 * 1000).toISOString();
+}
+
+async function listQueueCandidates(input: {
+  limit: number;
+  includeStaleProcessing: boolean;
+  staleProcessingMinutes: number;
+}): Promise<Array<{ id: string; data: QueuedInsiderFilingDocument }>> {
+  const db = getAdminFirestore();
+  const candidates = new Map<string, { id: string; data: QueuedInsiderFilingDocument }>();
+  const discovered = await db
+    .collection("sec_insider_filings")
+    .where("status", "==", "DISCOVERED")
+    .orderBy("filingDate", "asc")
+    .orderBy("discoveredAt", "asc")
+    .limit(input.limit)
+    .get();
+
+  for (const doc of discovered.docs) {
+    candidates.set(doc.id, { id: doc.id, data: doc.data() as QueuedInsiderFilingDocument });
+  }
+
+  if (input.includeStaleProcessing && candidates.size < input.limit) {
+    const stale = await db
+      .collection("sec_insider_filings")
+      .where("status", "==", "PROCESSING")
+      .where("processingStartedAt", "<=", staleProcessingCutoff(input.staleProcessingMinutes))
+      .orderBy("processingStartedAt", "asc")
+      .limit(input.limit - candidates.size)
+      .get();
+
+    for (const doc of stale.docs) {
+      candidates.set(doc.id, { id: doc.id, data: doc.data() as QueuedInsiderFilingDocument });
+    }
+  }
+
+  return [...candidates.values()].slice(0, input.limit);
+}
+
+async function claimQueuedFiling(input: {
+  id: string;
+  updatedAt: string;
+  processingRunId: string;
+  staleProcessingMinutes: number;
+}): Promise<SecMasterIndexRow | null> {
+  const db = getAdminFirestore();
+  const ref = db.collection("sec_insider_filings").doc(input.id);
+
+  return db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) {
+      return null;
+    }
+
+    const data = snapshot.data() as QueuedInsiderFilingDocument;
+    const status = readString(data.status);
+    const processingStartedAt = readString(data.processingStartedAt);
+    const isStaleProcessing = status === "PROCESSING" &&
+      (!processingStartedAt || processingStartedAt <= staleProcessingCutoff(input.staleProcessingMinutes));
+
+    if (status !== "DISCOVERED" && !isStaleProcessing) {
+      return null;
+    }
+
+    const filing = normalizeQueueDocument(snapshot.id, data);
+    if (!filing) {
+      transaction.set(ref, {
+        status: "SKIPPED",
+        lastError: "Queued insider filing is missing required metadata.",
+        skippedAt: input.updatedAt,
+        updatedAt: input.updatedAt,
+      }, { merge: true });
+      return null;
+    }
+
+    transaction.set(ref, {
+      status: "PROCESSING",
+      processingRunId: input.processingRunId,
+      processingStartedAt: input.updatedAt,
+      lastAttemptAt: input.updatedAt,
+      attempts: FieldValue.increment(1),
+      updatedAt: input.updatedAt,
+    }, { merge: true });
+
+    return filing;
+  });
 }
 
 export async function syncInsiderTransactions(input: SyncInsiderTransactionsInput = {}): Promise<SyncInsiderTransactionsResult> {
-  const dates = normalizeDates(input);
+  const processOnly = input.processOnly === true;
+  const dates = processOnly ? [] : normalizeDates(input);
   const maxFilings = clampInteger(input.maxFilings, DEFAULT_MAX_FILINGS, 1, MAX_FILINGS);
   const transactionCodes = normalizeTransactionCodes(input.transactionCodes);
   const transactionCodeSet = new Set(transactionCodes);
   const dryRun = input.dryRun === true;
   const reprocessExisting = input.reprocessExisting === true;
+  const includeStaleProcessing = input.includeStaleProcessing !== false;
+  const staleProcessingMinutes = clampInteger(input.staleProcessingMinutes, DEFAULT_STALE_PROCESSING_MINUTES, 5, 24 * 60);
   const updatedAt = new Date().toISOString();
+  const runId = processingRunId();
   const items: SyncInsiderTransactionsItemResult[] = [];
   const indexErrors: InsiderIndexError[] = [];
+  const dryRunFilings: SecMasterIndexRow[] = [];
   let filingsFound = 0;
+  let filingsQueued = 0;
+  let filingsExisting = 0;
   let filingsProcessed = 0;
   let filingsSkipped = 0;
   let filingsFailed = 0;
   let transactionsParsed = 0;
   let transactionsWritten = 0;
 
-  for (const date of dates) {
-    let filings: SecMasterIndexRow[] = [];
-    try {
-      filings = await discoverFilings(date, maxFilings);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      indexErrors.push({ date, error: message });
-      console.warn("[insider-transactions] Failed to discover SEC index", { date, error: message });
+  if (!processOnly) {
+    for (const date of dates) {
+      let filings: SecMasterIndexRow[] = [];
+      try {
+        filings = await discoverFilings(date);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        indexErrors.push({ date, error: message });
+        console.warn("[insider-transactions] Failed to discover SEC index", { date, error: message });
+        continue;
+      }
+
+      filingsFound += filings.length;
+      dryRunFilings.push(...filings);
+
+      const persisted = await persistDiscoveredFilings({
+        filings,
+        dryRun,
+        discoveredAt: updatedAt,
+        reprocessExisting,
+      });
+      filingsQueued += persisted.queued;
+      filingsExisting += persisted.existing;
+    }
+  }
+
+  const queueCandidates = dryRun && !processOnly
+    ? []
+    : await listQueueCandidates({
+        limit: maxFilings,
+        includeStaleProcessing,
+        staleProcessingMinutes,
+      });
+  const candidates = dryRun && !processOnly
+    ? dryRunFilings.slice(0, maxFilings).map((filing) => ({ id: filing.accessionNumber, filing }))
+    : queueCandidates.map((candidate) => ({
+        id: candidate.id,
+        filing: normalizeQueueDocument(candidate.id, candidate.data),
+      }));
+
+  for (const candidate of candidates) {
+    if (!candidate.filing) {
+      filingsSkipped += 1;
+      items.push({
+        accessionNumber: candidate.id,
+        form: "4",
+        filingDate: "",
+        issuerCik: null,
+        issuerName: null,
+        ticker: null,
+        transactionsParsed: 0,
+        transactionsWritten: 0,
+        skipped: true,
+        error: "Queued insider filing is missing required metadata.",
+        status: "SKIPPED",
+      });
+
+      if (!dryRun) {
+        await markInvalidQueuedFilingSkipped(candidate.id, updatedAt, "Queued insider filing is missing required metadata.");
+      }
       continue;
     }
 
-    filingsFound += filings.length;
-
-    for (const filing of filings) {
-      try {
-        if (!dryRun && !reprocessExisting && await isAlreadyParsed(filing.accessionNumber)) {
-          filingsSkipped += 1;
-          items.push({
-            accessionNumber: filing.accessionNumber,
-            form: filing.form,
-            filingDate: filing.filingDate,
-            issuerCik: null,
-            issuerName: null,
-            ticker: null,
-            transactionsParsed: 0,
-            transactionsWritten: 0,
-            skipped: true,
-            error: null,
-          });
-          continue;
-        }
-
-        if (!dryRun) {
-          await markProcessing(filing, updatedAt);
-        }
-
-        const completeSubmission = await fetchSecText(filing.filingUrl);
-        const documents = extractOwnershipDocuments(completeSubmission);
-        if (documents.length === 0) {
-          throw new Error(`No ownershipDocument XML found for accession ${filing.accessionNumber}.`);
-        }
-
-        const transactions = documents.flatMap((document) => parseOwnershipDocument(document, filing, transactionCodeSet, updatedAt));
-        const written = dryRun ? 0 : await persistTransactions({ filing, transactions, updatedAt });
-        const firstTransaction = transactions[0] ?? null;
-
-        filingsProcessed += 1;
-        transactionsParsed += transactions.length;
-        transactionsWritten += written;
-        items.push({
-          accessionNumber: filing.accessionNumber,
-          form: filing.form,
-          filingDate: filing.filingDate,
-          issuerCik: firstTransaction?.issuerCik ?? null,
-          issuerName: firstTransaction?.issuerName ?? null,
-          ticker: firstTransaction?.ticker ?? null,
-          transactionsParsed: transactions.length,
-          transactionsWritten: written,
-          skipped: false,
-          error: null,
+    const filing = dryRun
+      ? candidate.filing
+      : await claimQueuedFiling({
+          id: candidate.id,
+          updatedAt,
+          processingRunId: runId,
+          staleProcessingMinutes,
         });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        filingsFailed += 1;
-        if (!dryRun) {
-          await markFailed(filing, updatedAt, message);
-        }
-        items.push({
-          accessionNumber: filing.accessionNumber,
-          form: filing.form,
-          filingDate: filing.filingDate,
-          issuerCik: null,
-          issuerName: null,
-          ticker: null,
-          transactionsParsed: 0,
-          transactionsWritten: 0,
-          skipped: false,
-          error: message,
-        });
+
+    if (!filing) {
+      continue;
+    }
+
+    try {
+      const completeSubmission = await fetchSecText(filing.filingUrl);
+      const documents = extractOwnershipDocuments(completeSubmission);
+      if (documents.length === 0) {
+        throw new Error(`No ownershipDocument XML found for accession ${filing.accessionNumber}.`);
       }
+
+      const transactions = documents.flatMap((document) => parseOwnershipDocument(document, filing, transactionCodeSet, updatedAt));
+      const written = dryRun ? 0 : await persistTransactions({ filing, transactions, updatedAt });
+      const firstTransaction = transactions[0] ?? null;
+
+      filingsProcessed += 1;
+      transactionsParsed += transactions.length;
+      transactionsWritten += written;
+      items.push({
+        accessionNumber: filing.accessionNumber,
+        form: filing.form,
+        filingDate: filing.filingDate,
+        issuerCik: firstTransaction?.issuerCik ?? null,
+        issuerName: firstTransaction?.issuerName ?? null,
+        ticker: firstTransaction?.ticker ?? null,
+        transactionsParsed: transactions.length,
+        transactionsWritten: written,
+        skipped: false,
+        error: null,
+        status: dryRun ? "DRY_RUN" : "PARSED",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      filingsFailed += 1;
+      if (!dryRun) {
+        await markFailed(filing, updatedAt, message);
+      }
+      items.push({
+        accessionNumber: filing.accessionNumber,
+        form: filing.form,
+        filingDate: filing.filingDate,
+        issuerCik: null,
+        issuerName: null,
+        ticker: null,
+        transactionsParsed: 0,
+        transactionsWritten: 0,
+        skipped: false,
+        error: message,
+        status: "FAILED",
+      });
     }
   }
 
@@ -611,12 +856,16 @@ export async function syncInsiderTransactions(input: SyncInsiderTransactionsInpu
     datesRequested: dates,
     indexErrors,
     filingsFound,
+    filingsQueued,
+    filingsExisting,
+    candidatesFound: candidates.length,
     filingsProcessed,
     filingsSkipped,
     filingsFailed,
     transactionsParsed,
     transactionsWritten,
     transactionCodes,
+    processingRunId: runId,
     items,
     updatedAt,
   };
