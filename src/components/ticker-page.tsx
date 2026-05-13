@@ -477,7 +477,7 @@ function InsiderTransactionsSection({
       <div className="mb-4">
         <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Insider transactions</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Recent SEC Form 4 open-market purchases and sales reported for {displayTicker}.
+          Recent SEC Form 4 open-market purchases and sales in the U.S. Section 16 feed for {displayTicker}.
         </p>
       </div>
 
@@ -537,7 +537,7 @@ function InsiderTransactionsSection({
 
       {transactions && transactions.length === 0 ? (
         <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No recent insider purchases or sales are available for {displayTicker} yet.
+          No recent SEC Form 4 open-market purchases or sales are available for {displayTicker} yet.
         </p>
       ) : null}
 
@@ -548,7 +548,7 @@ function InsiderTransactionsSection({
       ) : null}
 
       <p className="mt-4 text-xs leading-5 text-slate-500">
-        Form 4 filings can include grants, exercises, tax withholding, and other transactions. This view starts with open-market purchase and sale codes.
+        Form 4 filings can include grants, exercises, tax withholding, and other transactions. Foreign private issuers and ADRs may report manager transactions through Form 6-K or local market-abuse disclosures instead of this feed.
       </p>
     </section>
   );
