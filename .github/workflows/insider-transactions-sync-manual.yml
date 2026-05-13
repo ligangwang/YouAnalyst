@@ -21,7 +21,7 @@ on:
         default: "3"
         type: string
       max_filings:
-        description: Max Form 4 filings to process per daily index
+        description: Max queued Form 4 filings to process after discovery
         required: true
         default: "50"
         type: string
@@ -170,6 +170,9 @@ jobs:
 
           echo "Completed insider transaction sync."
           echo "Filings found: $(jq -r '.filingsFound // 0' "$response_file")"
+          echo "Filings queued: $(jq -r '.filingsQueued // 0' "$response_file")"
+          echo "Filings existing: $(jq -r '.filingsExisting // 0' "$response_file")"
+          echo "Queue candidates: $(jq -r '.candidatesFound // 0' "$response_file")"
           echo "Filings processed: $(jq -r '.filingsProcessed // 0' "$response_file")"
           echo "Filings skipped: $(jq -r '.filingsSkipped // 0' "$response_file")"
           echo "Filings failed: $(jq -r '.filingsFailed // 0' "$response_file")"
