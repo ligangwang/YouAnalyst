@@ -1,0 +1,206 @@
+name: Process Insider Transactions Queue Bulk
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      batch_size:
+        description: Max queued Form 4 filings to process per API call
+        required: true
+        default: "50"
+        type: string
+      max_batches:
+        description: Max API calls to make in this workflow run
+        required: true
+        default: "300"
+        type: string
+      target_total:
+        description: Stop after this many filings have been processed
+        required: true
+        default: "15000"
+        type: string
+      sleep_seconds:
+        description: Seconds to wait between API calls
+        required: true
+        default: "2"
+        type: string
+      transaction_codes:
+        description: Comma-separated Form 4 transaction codes to persist
+        required: true
+        default: "P,S"
+        type: string
+      dry_run:
+        description: Parse without queue status updates or transaction writes
+        required: true
+        default: false
+        type: boolean
+      include_stale_processing:
+        description: Retry stale PROCESSING filings
+        required: true
+        default: true
+        type: boolean
+      stale_processing_minutes:
+        description: PROCESSING age before a filing is considered stale
+        required: true
+        default: "60"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: insider-transactions-queue-process-bulk-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  process-insider-transactions-queue-bulk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment: ${{ inputs.environment }}
+    env:
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      CLOUD_RUN_SERVICE_STAGING: ${{ vars.CLOUD_RUN_SERVICE_STAGING }}
+      CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
+      INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Resolve Cloud Run URL
+        id: cloud-run
+        run: |
+          set -euo pipefail
+          service="$CLOUD_RUN_SERVICE_PRODUCTION"
+          if [[ "$TARGET_ENVIRONMENT" == "staging" ]]; then
+            service="$CLOUD_RUN_SERVICE_STAGING"
+          fi
+
+          if [[ -z "$service" ]]; then
+            echo "Cloud Run service name is not configured for $TARGET_ENVIRONMENT" >&2
+            exit 1
+          fi
+
+          url="$(gcloud run services describe "$service" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='value(status.url)')"
+
+          if [[ -z "$url" ]]; then
+            echo "Unable to resolve Cloud Run URL for $service" >&2
+            exit 1
+          fi
+
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Process insider transaction queue in batches
+        env:
+          CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
+          BATCH_SIZE: ${{ inputs.batch_size }}
+          MAX_BATCHES: ${{ inputs.max_batches }}
+          TARGET_TOTAL: ${{ inputs.target_total }}
+          SLEEP_SECONDS: ${{ inputs.sleep_seconds }}
+          TRANSACTION_CODES: ${{ inputs.transaction_codes }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          INCLUDE_STALE_PROCESSING: ${{ inputs.include_stale_processing }}
+          STALE_PROCESSING_MINUTES: ${{ inputs.stale_processing_minutes }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$INTERNAL_API_TOKEN" ]]; then
+            echo "INTERNAL_API_TOKEN secret is not configured" >&2
+            exit 1
+          fi
+
+          codes_json="$(jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))' <<< "$TRANSACTION_CODES")"
+          total_processed=0
+          total_parsed=0
+          total_written=0
+          total_failed=0
+          total_skipped=0
+
+          for ((batch=1; batch<=MAX_BATCHES; batch++)); do
+            body="$(jq -n \
+              --argjson maxFilings "$BATCH_SIZE" \
+              --argjson transactionCodes "$codes_json" \
+              --argjson dryRun "$DRY_RUN" \
+              --argjson includeStaleProcessing "$INCLUDE_STALE_PROCESSING" \
+              --argjson staleProcessingMinutes "$STALE_PROCESSING_MINUTES" \
+              '{
+                maxFilings: $maxFilings,
+                transactionCodes: $transactionCodes,
+                dryRun: $dryRun,
+                processOnly: true,
+                includeStaleProcessing: $includeStaleProcessing,
+                staleProcessingMinutes: $staleProcessingMinutes
+              }')"
+
+            echo "Processing insider transaction queue batch ${batch}/${MAX_BATCHES}"
+            response_file="$(mktemp)"
+            status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data "$body" \
+              "${CLOUD_RUN_URL}/api/internal/securities/sync-insider-transactions" || true)"
+
+            cat "$response_file"
+            echo
+
+            if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+              echo "Insider transaction queue processing failed with HTTP $status on batch ${batch}" >&2
+              exit 1
+            fi
+
+            candidates="$(jq -r '.candidatesFound // 0' "$response_file")"
+            processed="$(jq -r '.filingsProcessed // 0' "$response_file")"
+            parsed="$(jq -r '.transactionsParsed // 0' "$response_file")"
+            written="$(jq -r '.transactionsWritten // 0' "$response_file")"
+            failed="$(jq -r '.filingsFailed // 0' "$response_file")"
+            skipped="$(jq -r '.filingsSkipped // 0' "$response_file")"
+
+            total_processed=$((total_processed + processed))
+            total_parsed=$((total_parsed + parsed))
+            total_written=$((total_written + written))
+            total_failed=$((total_failed + failed))
+            total_skipped=$((total_skipped + skipped))
+
+            echo "Batch ${batch}: candidates=${candidates}, processed=${processed}, parsed=${parsed}, written=${written}, failed=${failed}, skipped=${skipped}"
+            echo "Totals: processed=${total_processed}, parsed=${total_parsed}, written=${total_written}, failed=${total_failed}, skipped=${total_skipped}"
+
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "Dry run does not claim queue documents, so stopping after one batch."
+              break
+            fi
+
+            if [[ "$candidates" -eq 0 ]]; then
+              echo "No more queued insider transaction filings found. Stopping."
+              break
+            fi
+
+            if [[ "$total_processed" -ge "$TARGET_TOTAL" ]]; then
+              echo "Target total ${TARGET_TOTAL} reached. Stopping."
+              break
+            fi
+
+            sleep "$SLEEP_SECONDS"
+          done
