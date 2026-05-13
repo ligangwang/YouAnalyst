@@ -13,6 +13,7 @@ type SyncInsiderTransactionsRequest = {
   includeStaleProcessing?: unknown;
   staleProcessingMinutes?: unknown;
   processOnly?: unknown;
+  discoverOnly?: unknown;
 };
 
 function readString(value: unknown): string | undefined {
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       includeStaleProcessing: readBoolean(payload.includeStaleProcessing),
       staleProcessingMinutes: readNumber(payload.staleProcessingMinutes),
       processOnly: readBoolean(payload.processOnly),
+      discoverOnly: readBoolean(payload.discoverOnly),
     });
 
     return NextResponse.json({
