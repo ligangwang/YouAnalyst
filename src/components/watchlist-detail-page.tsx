@@ -6,7 +6,7 @@ import { formatTickerSymbol, PredictionReturnSummary } from "@/components/predic
 import { useAuth } from "@/components/providers/auth-provider";
 import { type PredictionStatus } from "@/lib/predictions/types";
 import { watchlistCanonicalPath, watchlistShareVersion } from "@/lib/watchlists/public-share";
-import { xPostIntentUrl } from "@/lib/x-share";
+import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
 
 type WatchlistPrediction = {
   id: string;
@@ -90,21 +90,12 @@ function ownerLabel(owner: WatchlistDetail["owner"]): string {
   return owner.nickname ? `@${owner.nickname}` : owner.displayName ?? "Anonymous analyst";
 }
 
-function shareOrigin(): string {
-  if (typeof window !== "undefined") {
-    return window.location.origin;
-  }
-
-  return process.env.NEXT_PUBLIC_SITE_URL ?? "https://youanalyst.com";
-}
-
 function watchlistShareUrl(watchlist: Pick<WatchlistDetail, "id" | "createdAt" | "updatedAt">): string {
-  const url = new URL(watchlistCanonicalPath(watchlist.id), shareOrigin());
-  url.searchParams.set("utm_source", "x");
-  url.searchParams.set("utm_medium", "social");
-  url.searchParams.set("utm_campaign", "watchlist_share");
-  url.searchParams.set("share", watchlistShareVersion(watchlist.id, watchlist));
-  return url.toString();
+  return xTrackedShareUrl({
+    campaign: "watchlist_share",
+    share: watchlistShareVersion(watchlist.id, watchlist),
+    url: watchlistCanonicalPath(watchlist.id),
+  });
 }
 
 function watchlistShareText(watchlist: WatchlistDetail): string {
