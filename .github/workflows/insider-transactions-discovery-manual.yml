@@ -12,7 +12,15 @@ on:
           - staging
           - production
       date:
-        description: Single SEC index date, YYYY-MM-DD. Leave empty to use lookback_days.
+        description: Single SEC index date, YYYY-MM-DD. Leave empty to use start_date or lookback_days.
+        required: false
+        type: string
+      start_date:
+        description: First SEC index date to discover, YYYY-MM-DD. Leave empty to use date or lookback_days.
+        required: false
+        type: string
+      end_date:
+        description: Last SEC index date to discover, YYYY-MM-DD. Leave empty for today when start_date is set.
         required: false
         type: string
       lookback_days:
@@ -93,6 +101,8 @@ jobs:
         env:
           CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
           INDEX_DATE: ${{ inputs.date }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
           LOOKBACK_DAYS: ${{ inputs.lookback_days }}
           DRY_RUN: ${{ inputs.dry_run }}
           REPROCESS_EXISTING: ${{ inputs.reprocess_existing }}
@@ -110,6 +120,29 @@ jobs:
               --argjson reprocessExisting "$REPROCESS_EXISTING" \
               '{
                 date: $date,
+                dryRun: $dryRun,
+                reprocessExisting: $reprocessExisting,
+                discoverOnly: true
+              }')"
+          elif [[ -n "$START_DATE" ]]; then
+            end_date="$END_DATE"
+            if [[ -z "$end_date" ]]; then
+              end_date="$(date -u +%F)"
+            fi
+
+            dates_json="[]"
+            current="$START_DATE"
+            while [[ "$current" < "$end_date" || "$current" == "$end_date" ]]; do
+              dates_json="$(jq --arg date "$current" '. + [$date]' <<< "$dates_json")"
+              current="$(date -u -d "$current + 1 day" +%F)"
+            done
+
+            body="$(jq -n \
+              --argjson dates "$dates_json" \
+              --argjson dryRun "$DRY_RUN" \
+              --argjson reprocessExisting "$REPROCESS_EXISTING" \
+              '{
+                dates: $dates,
                 dryRun: $dryRun,
                 reprocessExisting: $reprocessExisting,
                 discoverOnly: true
