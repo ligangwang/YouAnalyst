@@ -27,11 +27,11 @@ export async function POST(
       .collection("predictions")
       .where("userId", "==", decoded.uid)
       .where("ticker", "==", ticker)
-      .where("visibility", "==", "PUBLIC")
       .get();
     const existing = activeSnapshot.docs.find((doc) => {
       const status = doc.get("status");
-      return status === "CREATED" || status === "OPEN" || status === "OPENING" || status === "CLOSING";
+      return doc.get("visibility") === "PUBLIC" &&
+        (status === "CREATED" || status === "OPEN" || status === "OPENING" || status === "CLOSING");
     });
     if (existing) {
       return NextResponse.json({ id: existing.id, existing: true });

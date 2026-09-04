@@ -585,14 +585,54 @@ export async function getOrCreatePublicWatchlistForUser(
   userId: string,
   name = "Tracked Positions",
 ): Promise<string> {
-  const existing = await listWatchlistsForUser(userId, { includePrivate: true });
-  const publicWatchlist = existing.find((watchlist) => watchlist.isPublic && !watchlist.archivedAt);
-  if (publicWatchlist) {
-    return publicWatchlist.id;
-  }
+  const db = getAdminFirestore();
+  const watchlistRef = db.collection("watchlists").doc(`tracked_positions_${userId}`);
+  const userRef = db.collection("users").doc(userId);
 
-  const created = await createWatchlist({ name, description: "Positions opened from company pages.", isPublic: true }, { uid: userId });
-  return created.id;
+  return db.runTransaction(async (tx) => {
+    const [deterministicSnapshot, userSnapshot, existingSnapshot] = await Promise.all([
+      tx.get(watchlistRef),
+      tx.get(userRef),
+      tx.get(db.collection("watchlists").where("userId", "==", userId)),
+    ]);
+    if (!userSnapshot.exists) {
+      throw new Error("User profile not found. Complete bootstrap first.");
+    }
+
+    if (deterministicSnapshot.exists) {
+      const deterministic = mapWatchlistDoc(deterministicSnapshot);
+      if (deterministic.isPublic && !deterministic.archivedAt) {
+        return deterministic.id;
+      }
+    }
+
+    const active = existingSnapshot.docs
+      .map(mapWatchlistDoc)
+      .filter((watchlist) => !watchlist.archivedAt);
+    const existingPublic = active.find((watchlist) => watchlist.isPublic);
+    if (existingPublic) {
+      return existingPublic.id;
+    }
+    if (active.length >= MAX_WATCHLISTS_PER_USER) {
+      throw new Error(`watchlist limit reached. You can create up to ${MAX_WATCHLISTS_PER_USER} watchlists.`);
+    }
+
+    const nowIso = new Date().toISOString();
+    tx.set(watchlistRef, {
+      userId,
+      name,
+      description: "Positions opened from company pages.",
+      isPublic: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      archivedAt: null,
+    });
+    tx.update(userRef, {
+      updatedAt: nowIso,
+      "stats.watchlistCount": FieldValue.increment(1),
+    });
+    return watchlistRef.id;
+  });
 }
 
 async function findRawWatchlistForBackfill(userId: string, defaultName: string): Promise<Watchlist | null> {

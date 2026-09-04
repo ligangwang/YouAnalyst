@@ -35,6 +35,7 @@ type Prediction = {
 
 type TickerResponse = {
   items: Prediction[];
+  viewerPosition?: Prediction | null;
   nextCursor: string | null;
   ticker: string;
 };
@@ -584,10 +585,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
   const [recordingDirection, setRecordingDirection] = useState<"UP" | "DOWN" | null>(null);
   const [positionError, setPositionError] = useState<string | null>(null);
   const displayTicker = formatTickerSymbol(payload?.ticker ?? ticker);
-  const viewerPosition = payload?.items.find((prediction) =>
-    prediction.userId === user?.uid &&
-    (prediction.status === "CREATED" || prediction.status === "OPEN" || prediction.status === "CLOSING")
-  ) ?? null;
+  const viewerPosition = payload?.viewerPosition ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -600,7 +598,14 @@ export function TickerPage({ ticker }: { ticker: string }) {
     setInsiderError(null);
     setLoadingMore(false);
 
-    void fetch(`/api/ticker/${ticker}?limit=25`)
+    if (authLoading) {
+      return;
+    }
+
+    void getIdToken()
+      .then((token) => fetch(`/api/ticker/${ticker}?limit=25`, {
+        headers: token ? { authorization: `Bearer ${token}` } : undefined,
+      }))
       .then(async (response) => {
         if (!response.ok) {
           throw new Error("Unable to load ticker predictions.");
@@ -662,7 +667,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
     return () => {
       cancelled = true;
     };
-  }, [ticker]);
+  }, [authLoading, getIdToken, ticker]);
 
   async function loadMorePredictions() {
     if (!payload?.nextCursor || loadingMore) {
@@ -677,7 +682,10 @@ export function TickerPage({ ticker }: { ticker: string }) {
         limit: "25",
         cursorCreatedAt: payload.nextCursor,
       });
-      const response = await fetch(`/api/ticker/${ticker}?${params.toString()}`);
+      const token = await getIdToken();
+      const response = await fetch(`/api/ticker/${ticker}?${params.toString()}`, {
+        headers: token ? { authorization: `Bearer ${token}` } : undefined,
+      });
 
       if (!response.ok) {
         throw new Error("Unable to load more predictions.");
@@ -723,7 +731,9 @@ export function TickerPage({ ticker }: { ticker: string }) {
         throw new Error(readErrorMessage(body, "Unable to record your position."));
       }
 
-      const refreshed = await fetch(`/api/ticker/${encodeURIComponent(payload?.ticker ?? ticker)}?limit=25`);
+      const refreshed = await fetch(`/api/ticker/${encodeURIComponent(payload?.ticker ?? ticker)}?limit=25`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
       if (!refreshed.ok) {
         throw new Error("Position recorded, but the page could not refresh.");
       }
