@@ -715,8 +715,12 @@ async function fetchEodPrices(
   return fetchTwelveDataEodPrices(tickers, requestedDate, loadedAt);
 }
 
-async function readRollForwardDates(db: FirebaseFirestore.Firestore, startDate: string): Promise<string[]> {
-  const dates = new Set<string>();
+async function readRollForwardDates(
+  db: FirebaseFirestore.Firestore,
+  startDate: string,
+  maxDates: number,
+): Promise<string[]> {
+  const dates = new Set<string>([startDate]);
   let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
 
   while (true) {
@@ -735,12 +739,15 @@ async function readRollForwardDates(db: FirebaseFirestore.Firestore, startDate: 
       break;
     }
 
-    snapshot.docs.forEach((doc) => {
+    for (const doc of snapshot.docs) {
       const tradingDate = doc.get("tradingDate");
       if (typeof tradingDate === "string" && isIsoDate(tradingDate)) {
         dates.add(tradingDate);
+        if (dates.size >= maxDates) {
+          return Array.from(dates).sort();
+        }
       }
-    });
+    }
 
     lastDoc = snapshot.docs[snapshot.docs.length - 1] ?? null;
     if (snapshot.size < ROLL_FORWARD_PRICE_SCAN_PAGE_SIZE) {
@@ -748,9 +755,7 @@ async function readRollForwardDates(db: FirebaseFirestore.Firestore, startDate: 
     }
   }
 
-  const sortedDates = Array.from(dates).sort();
-
-  return sortedDates.includes(startDate) ? sortedDates : [startDate, ...sortedDates];
+  return Array.from(dates).sort();
 }
 
 function isProcessableStatus(value: unknown): boolean {
@@ -1288,8 +1293,8 @@ export async function runDailyEodMaintenance(
   const manualTickers = input.tickers?.length ? uniqueTickers(input.tickers) : [];
 
   if (input.rollForward === true) {
-    const availableRunDates = await readRollForwardDates(db, runDate);
     const rollForwardBatchSize = readRollForwardBatchSize(input.rollForwardBatchSize);
+    const availableRunDates = await readRollForwardDates(db, runDate, rollForwardBatchSize + 1);
     const runDates = availableRunDates.slice(0, rollForwardBatchSize);
     const nextRunDate = availableRunDates.at(rollForwardBatchSize) ?? null;
     const results: DailyEodMaintenanceResult[] = [];
