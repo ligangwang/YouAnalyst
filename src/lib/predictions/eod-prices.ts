@@ -23,6 +23,8 @@ const ROLL_FORWARD_PRICE_SCAN_PAGE_SIZE = 1000;
 const TWELVE_DATA_CHUNK_SIZE = 8;
 const PREVIOUS_EOD_PRICE_LOOKBACK_DAYS = 30;
 const EODHD_BULK_GCS_PREFIX = "eodhd-bulk-eod";
+const DEFAULT_ROLL_FORWARD_BATCH_SIZE = 5;
+const MAX_ROLL_FORWARD_BATCH_SIZE = 20;
 
 export type DailyEodMaintenanceInput = {
   runDate?: string;
@@ -32,6 +34,7 @@ export type DailyEodMaintenanceInput = {
   loadPrices?: boolean;
   markPredictions?: boolean;
   rollForward?: boolean;
+  rollForwardBatchSize?: number;
   recompute?: boolean;
 };
 
@@ -95,6 +98,8 @@ export type DailyEodMaintenanceResult = {
     startDate: string;
     endDate: string | null;
     runDates: string[];
+    hasMore: boolean;
+    nextRunDate: string | null;
   };
 };
 
@@ -204,6 +209,14 @@ function readPredictionScanLimit(value: unknown): PredictionScanLimit {
     return null;
   }
   return Math.max(1, Math.floor(parsed));
+}
+
+function readRollForwardBatchSize(value: unknown): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_ROLL_FORWARD_BATCH_SIZE;
+  }
+  return Math.max(1, Math.min(MAX_ROLL_FORWARD_BATCH_SIZE, Math.floor(parsed)));
 }
 
 function isIsoDate(value: string): boolean {
@@ -1275,7 +1288,10 @@ export async function runDailyEodMaintenance(
   const manualTickers = input.tickers?.length ? uniqueTickers(input.tickers) : [];
 
   if (input.rollForward === true) {
-    const runDates = await readRollForwardDates(db, runDate);
+    const availableRunDates = await readRollForwardDates(db, runDate);
+    const rollForwardBatchSize = readRollForwardBatchSize(input.rollForwardBatchSize);
+    const runDates = availableRunDates.slice(0, rollForwardBatchSize);
+    const nextRunDate = availableRunDates.at(rollForwardBatchSize) ?? null;
     const results: DailyEodMaintenanceResult[] = [];
 
     for (const nextRunDate of runDates) {
@@ -1297,6 +1313,8 @@ export async function runDailyEodMaintenance(
         startDate: runDate,
         endDate: runDates.at(-1) ?? null,
         runDates,
+        hasMore: nextRunDate !== null,
+        nextRunDate,
       },
     };
   }
