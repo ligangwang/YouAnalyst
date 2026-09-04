@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { InstitutionFollowButton } from "@/components/institution-follow-button";
 import { formatTickerSymbol, PredictionAuthorSummary, PredictionReturnSummary } from "@/components/prediction-ui";
+import { useAuth } from "@/components/providers/auth-provider";
 import { type PredictionStatus } from "@/lib/predictions/types";
 
 type Prediction = {
@@ -34,6 +35,7 @@ type Prediction = {
 
 type TickerResponse = {
   items: Prediction[];
+  viewerPosition?: Prediction | null;
   nextCursor: string | null;
   ticker: string;
 };
@@ -554,7 +556,25 @@ function InsiderTransactionsSection({
   );
 }
 
+function formatPositionPrice(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    currency: "USD",
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    style: "currency",
+  }).format(value);
+}
+
+function formatPositionReturn(value: number): string {
+  return `${value > 0 ? "+" : ""}${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+    style: "percent",
+  }).format(value)}`;
+}
+
 export function TickerPage({ ticker }: { ticker: string }) {
+  const { user, loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<TickerResponse | null>(null);
   const [holdings, setHoldings] = useState<InstitutionalTickerSummary | null>(null);
   const [insiderTransactions, setInsiderTransactions] = useState<InsiderTransactionItem[] | null>(null);
@@ -562,7 +582,10 @@ export function TickerPage({ ticker }: { ticker: string }) {
   const [holdingsError, setHoldingsError] = useState<string | null>(null);
   const [insiderError, setInsiderError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [recordingDirection, setRecordingDirection] = useState<"UP" | "DOWN" | null>(null);
+  const [positionError, setPositionError] = useState<string | null>(null);
   const displayTicker = formatTickerSymbol(payload?.ticker ?? ticker);
+  const viewerPosition = payload?.viewerPosition ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -575,7 +598,14 @@ export function TickerPage({ ticker }: { ticker: string }) {
     setInsiderError(null);
     setLoadingMore(false);
 
-    void fetch(`/api/ticker/${ticker}?limit=25`)
+    if (authLoading) {
+      return;
+    }
+
+    void getIdToken()
+      .then((token) => fetch(`/api/ticker/${ticker}?limit=25`, {
+        headers: token ? { authorization: `Bearer ${token}` } : undefined,
+      }))
       .then(async (response) => {
         if (!response.ok) {
           throw new Error("Unable to load ticker predictions.");
@@ -637,7 +667,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
     return () => {
       cancelled = true;
     };
-  }, [ticker]);
+  }, [authLoading, getIdToken, ticker]);
 
   async function loadMorePredictions() {
     if (!payload?.nextCursor || loadingMore) {
@@ -652,7 +682,10 @@ export function TickerPage({ ticker }: { ticker: string }) {
         limit: "25",
         cursorCreatedAt: payload.nextCursor,
       });
-      const response = await fetch(`/api/ticker/${ticker}?${params.toString()}`);
+      const token = await getIdToken();
+      const response = await fetch(`/api/ticker/${ticker}?${params.toString()}`, {
+        headers: token ? { authorization: `Bearer ${token}` } : undefined,
+      });
 
       if (!response.ok) {
         throw new Error("Unable to load more predictions.");
@@ -669,6 +702,46 @@ export function TickerPage({ ticker }: { ticker: string }) {
       setError(nextError instanceof Error ? nextError.message : "Unable to load more predictions.");
     } finally {
       setLoadingMore(false);
+    }
+  }
+
+  async function recordPosition(direction: "UP" | "DOWN") {
+    if (!user) {
+      window.location.href = `/auth?next=${encodeURIComponent(`/ticker/${payload?.ticker ?? ticker}`)}`;
+      return;
+    }
+
+    setRecordingDirection(direction);
+    setPositionError(null);
+    try {
+      const token = await getIdToken();
+      if (!token) {
+        throw new Error("Sign in to record your position.");
+      }
+      const response = await fetch(`/api/ticker/${encodeURIComponent(payload?.ticker ?? ticker)}/position`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ direction }),
+      });
+      const body = (await response.json().catch(() => ({}))) as ErrorResponse & { id?: string };
+      if (!response.ok) {
+        throw new Error(readErrorMessage(body, "Unable to record your position."));
+      }
+
+      const refreshed = await fetch(`/api/ticker/${encodeURIComponent(payload?.ticker ?? ticker)}?limit=25`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (!refreshed.ok) {
+        throw new Error("Position recorded, but the page could not refresh.");
+      }
+      setPayload(await refreshed.json() as TickerResponse);
+    } catch (nextError) {
+      setPositionError(nextError instanceof Error ? nextError.message : "Unable to record your position.");
+    } finally {
+      setRecordingDirection(null);
     }
   }
 
@@ -691,12 +764,58 @@ export function TickerPage({ ticker }: { ticker: string }) {
               Public calls, watchlists, and institutional 13F context for {displayTicker}.
             </p>
           </div>
-          <Link
-            href={`/predictions/new?ticker=${encodeURIComponent(payload.ticker)}`}
-            className="w-full rounded-lg bg-cyan-500 px-4 py-2 text-center text-sm font-semibold text-slate-950 hover:bg-cyan-400 sm:w-auto"
-          >
-            Make your call
-          </Link>
+          <div className="w-full lg:max-w-md">
+            {viewerPosition ? (
+              <div className={`rounded-xl border p-4 ${viewerPosition.direction === "UP" ? "border-emerald-400/35 bg-emerald-400/10" : "border-rose-400/35 bg-rose-400/10"}`}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Your position</p>
+                <p className="mt-1 text-lg font-semibold text-white">
+                  {viewerPosition.direction === "UP" ? "Bullish · Long" : "Bearish · Short"}
+                </p>
+                {viewerPosition.entryPrice !== null && viewerPosition.entryDate ? (
+                  <p className="mt-1 text-sm text-slate-200">
+                    Opened {viewerPosition.entryDate} at {formatPositionPrice(viewerPosition.entryPrice)}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-slate-200">
+                    Recorded {viewerPosition.createdAt.slice(0, 10)} · entry pending next EOD close
+                  </p>
+                )}
+                {typeof viewerPosition.markReturnValue === "number" ? (
+                  <p className="mt-2 text-sm font-semibold text-cyan-100">
+                    Return {formatPositionReturn(viewerPosition.markReturnValue)}
+                    {viewerPosition.markPriceDate ? ` as of ${viewerPosition.markPriceDate}` : ""}
+                  </p>
+                ) : null}
+                <Link href={`/predictions/${viewerPosition.id}`} className="mt-2 inline-block text-sm font-semibold text-cyan-200 hover:text-cyan-100">
+                  View and share
+                </Link>
+              </div>
+            ) : (
+              <div>
+                <p className="mb-2 text-sm text-slate-300">What is your view on {displayTicker}?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void recordPosition("UP")}
+                    disabled={authLoading || recordingDirection !== null}
+                    className="rounded-xl border border-emerald-400/40 bg-emerald-400/15 px-4 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/25 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {recordingDirection === "UP" ? "Recording..." : "Bullish · Long"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void recordPosition("DOWN")}
+                    disabled={authLoading || recordingDirection !== null}
+                    className="rounded-xl border border-rose-400/40 bg-rose-400/15 px-4 py-3 text-sm font-semibold text-rose-100 hover:bg-rose-400/25 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {recordingDirection === "DOWN" ? "Recording..." : "Bearish · Short"}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-500">Public position · entry recorded at the next EOD close.</p>
+                {positionError ? <p className="mt-2 text-sm text-rose-200">{positionError}</p> : null}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -714,7 +833,8 @@ export function TickerPage({ ticker }: { ticker: string }) {
       />
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <h2 className="mb-3 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Predictions</h2>
+        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Community position history</h2>
+        <p className="mb-3 mt-1 text-sm text-slate-400">See who turned bullish or bearish, when their position opened, and how it has performed.</p>
         <div className="grid gap-2">
           {payload.items.map((prediction) => (
             <article
@@ -731,6 +851,12 @@ export function TickerPage({ ticker }: { ticker: string }) {
                   <span>{displayTicker}</span>
                 </Link>
               </div>
+              <p className="mt-2 text-sm text-slate-300">
+                {prediction.direction === "UP" ? "Bullish · Long" : "Bearish · Short"}
+                {prediction.entryDate && prediction.entryPrice !== null
+                  ? ` · opened ${prediction.entryDate} at ${formatPositionPrice(prediction.entryPrice)}`
+                  : ` · recorded ${prediction.createdAt.slice(0, 10)} · entry pending`}
+              </p>
               <PredictionReturnSummary prediction={prediction} href={`/predictions/${prediction.id}`} status={prediction.status} />
               <PredictionAuthorSummary author={prediction} />
             </article>
@@ -738,7 +864,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
 
           {payload.items.length === 0 ? (
             <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-              No predictions for {displayTicker} yet.
+              No community positions for {displayTicker} yet. Be the first to record your view.
             </p>
           ) : null}
         </div>

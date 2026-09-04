@@ -13,8 +13,13 @@ export function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
+  function requestedDestination(): string | null {
+    const requested = new URLSearchParams(window.location.search).get("next");
+    return requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : null;
+  }
+
   function destinationForAuth(userId: string, shouldCompleteProfile: boolean) {
-    return shouldCompleteProfile ? `/analysts/${userId}?onboarding=nickname` : "/predictions";
+    return requestedDestination() ?? (shouldCompleteProfile ? `/analysts/${userId}?onboarding=nickname` : "/predictions");
   }
 
   if (user) {
@@ -26,7 +31,7 @@ export function AuthPage() {
           <button
             type="button"
             className="mt-4 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-900"
-            onClick={() => router.push("/predictions")}
+            onClick={() => router.push(requestedDestination() ?? "/predictions")}
           >
             Go to feed
           </button>

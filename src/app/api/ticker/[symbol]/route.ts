@@ -1,4 +1,5 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { canonicalPredictionStatus, normalizeTicker, sanitizePredictionThesis, sanitizePredictionThesisTitle, type Prediction } from "@/lib/predictions/types";
 
@@ -194,6 +195,33 @@ async function applyAuthorInfo(
   }));
 }
 
+async function readViewerPosition(
+  db: FirebaseFirestore.Firestore,
+  userId: string | undefined,
+  ticker: string,
+) {
+  if (!userId) {
+    return null;
+  }
+
+  const snapshot = await db.collection("predictions")
+    .where("userId", "==", userId)
+    .where("ticker", "==", ticker)
+    .get();
+  const doc = snapshot.docs
+    .filter((candidate) => candidate.get("visibility") === "PUBLIC")
+    .find((candidate) => {
+      const status = canonicalPredictionStatus(candidate.get("status"));
+      return status === "CREATED" || status === "OPEN" || status === "CLOSING";
+    });
+  if (!doc) {
+    return null;
+  }
+
+  const [position] = await applyAuthorInfo(db, [mapPredictionDoc(doc)]);
+  return position ?? null;
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ symbol: string }> },
@@ -205,11 +233,16 @@ export async function GET(
   const db = getAdminFirestore();
 
   try {
-    const result = await listTickerPredictions(db, normalizedTicker, limit, cursorCreatedAt);
+    const decoded = await getDecodedUserFromRequest(request);
+    const [result, viewerPosition] = await Promise.all([
+      listTickerPredictions(db, normalizedTicker, limit, cursorCreatedAt),
+      readViewerPosition(db, decoded?.uid, normalizedTicker),
+    ]);
     const itemsWithPreferredNames = await applyAuthorInfo(db, result.items);
 
     return NextResponse.json({
       items: itemsWithPreferredNames,
+      viewerPosition,
       nextCursor: result.nextCursor,
       ticker: normalizedTicker,
     });
