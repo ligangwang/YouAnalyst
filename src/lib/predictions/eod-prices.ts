@@ -1001,12 +1001,17 @@ async function writeUserDailyScoreSnapshots(
 
   for (const userId of userIds) {
     const userDailyRef = db.collection("user_daily_scores").doc(userDailyScoreDocId(userId, tradingDate));
-    const [userSnapshot, existingDailySnapshot, dailyMarkSnapshot, previousDailySnapshot] = await Promise.all([
+    const [userSnapshot, existingDailySnapshot, dailyMarkSnapshot, marksAsOfDateSnapshot, previousDailySnapshot] = await Promise.all([
       db.collection("users").doc(userId).get(),
       userDailyRef.get(),
       db.collection("prediction_daily_marks")
         .where("userId", "==", userId)
         .where("date", "==", tradingDate)
+        .get(),
+      db.collection("prediction_daily_marks")
+        .where("userId", "==", userId)
+        .where("date", "<=", tradingDate)
+        .orderBy("date", "asc")
         .get(),
       db.collection("user_daily_scores")
         .where("userId", "==", userId)
@@ -1027,11 +1032,19 @@ async function writeUserDailyScoreSnapshots(
     const previousTotalXP = previousDailySnapshot.empty
       ? null
       : finiteNumberOrNull(previousDailySnapshot.docs[0].get("totalXP"));
-    const marks = dailyMarkSnapshot.docs
+    const dailyMarks = dailyMarkSnapshot.docs
       .map(markSummaryFromDoc)
       .filter((mark): mark is NonNullable<ReturnType<typeof markSummaryFromDoc>> => mark !== null);
-    const settledCalls = countMarksByStatus(marks, ["SETTLED"]);
-    const analyticsByMark = marks.map((mark) => ({
+    const latestMarksByPredictionId = new Map<string, NonNullable<ReturnType<typeof markSummaryFromDoc>>>();
+    for (const doc of marksAsOfDateSnapshot.docs) {
+      const mark = markSummaryFromDoc(doc);
+      if (mark) {
+        latestMarksByPredictionId.set(mark.predictionId, mark);
+      }
+    }
+    const aggregateMarks = Array.from(latestMarksByPredictionId.values());
+    const settledCalls = countMarksByStatus(aggregateMarks, ["SETTLED"]);
+    const analyticsByMark = aggregateMarks.map((mark) => ({
       status: mark.status,
       analytics: {
         returnValue: mark.returnValue,
@@ -1041,7 +1054,7 @@ async function writeUserDailyScoreSnapshots(
       },
     }));
     const analytics = computeUserAnalytics(
-      marks.length,
+      aggregateMarks.length,
       analyticsByMark.map((mark) => mark.analytics),
       settledCalls,
       analyticsByMark.filter((mark) => mark.status === "SETTLED").map((mark) => mark.analytics),
@@ -1058,18 +1071,18 @@ async function writeUserDailyScoreSnapshots(
     const eligibleForLeaderboard = analytics.eligibleForLeaderboard;
     const dailyScoreChange = totalScore - (previousTotalScore ?? 0);
     const dailyXPChange = totalXP - (previousTotalXP ?? 0);
-    const bestMark = marks.reduce<typeof marks[number] | null>(
+    const bestMark = dailyMarks.reduce<typeof dailyMarks[number] | null>(
       (best, mark) => (!best || mark.scoreChange > best.scoreChange ? mark : best),
       null,
     );
-    const worstMark = marks.reduce<typeof marks[number] | null>(
+    const worstMark = dailyMarks.reduce<typeof dailyMarks[number] | null>(
       (worst, mark) => (!worst || mark.scoreChange < worst.scoreChange ? mark : worst),
       null,
     );
-    const openingPredictions = countMarksByStatus(marks, ["CREATED"]);
-    const openPredictions = countMarksByStatus(marks, ["OPEN"]);
+    const openingPredictions = countMarksByStatus(aggregateMarks, ["CREATED"]);
+    const openPredictions = countMarksByStatus(aggregateMarks, ["OPEN"]);
     const closingPredictions = 0;
-    const closedPredictions = countMarksByStatus(marks, ["SETTLED"]);
+    const closedPredictions = countMarksByStatus(aggregateMarks, ["SETTLED"]);
 
     await userDailyRef.set({
       userId,
@@ -1089,13 +1102,13 @@ async function writeUserDailyScoreSnapshots(
       avgReturn,
       winRate,
       eligibleForLeaderboard,
-      totalPredictions: marks.length,
+      totalPredictions: aggregateMarks.length,
       openingPredictions,
       openPredictions,
       closingPredictions,
       closedPredictions,
       canceledPredictions: 0,
-      dailyMarkedPredictions: marks.length,
+      dailyMarkedPredictions: dailyMarks.length,
       bestPredictionId: bestMark?.predictionId ?? null,
       bestPredictionTicker: bestMark?.ticker ?? null,
       bestPredictionScore: bestMark?.score ?? null,
