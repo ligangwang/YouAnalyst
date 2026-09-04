@@ -126,54 +126,68 @@ jobs:
             echo "INTERNAL_API_TOKEN secret is not configured" >&2
             exit 1
           fi
-          if [[ "${#INTERNAL_API_TOKEN}" -gt 12 ]]; then
-            token_preview="${INTERNAL_API_TOKEN:0:6}...${INTERNAL_API_TOKEN: -6}"
-          else
-            token_preview="$INTERNAL_API_TOKEN"
-          fi
-          token_sha256="$(printf '%s' "$INTERNAL_API_TOKEN" | sha256sum | cut -d' ' -f1)"
           echo "INTERNAL_API_TOKEN present: true"
-          echo "INTERNAL_API_TOKEN length: ${#INTERNAL_API_TOKEN}"
-          echo "INTERNAL_API_TOKEN preview: ${token_preview}"
-          echo "INTERNAL_API_TOKEN sha256: ${token_sha256}"
 
-          body="$(jq -n \
-            --arg runDate "$RUN_DATE" \
-            --arg tickers "$TICKERS" \
-            --argjson limit "$LIMIT" \
-            --argjson loadPrices "$LOAD_PRICES" \
-            --argjson markPredictions "$MARK_PREDICTIONS" \
-            --argjson rollForward "$ROLL_FORWARD" \
-            --argjson recompute "$RECOMPUTE" \
-            --argjson dryRun "$DRY_RUN" \
-            '{
-              limit: $limit,
-              loadPrices: $loadPrices,
-              markPredictions: $markPredictions,
-              rollForward: $rollForward,
-              recompute: $recompute,
-              dryRun: $dryRun
-            }
-            + (if $runDate == "" then {} else { runDate: $runDate } end)
-            + (if $tickers == "" then {} else { tickers: ($tickers | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) } end)')"
+          current_run_date="$RUN_DATE"
+          batch_number=0
+          while true; do
+            batch_number=$((batch_number + 1))
+            body="$(jq -n \
+              --arg runDate "$current_run_date" \
+              --arg tickers "$TICKERS" \
+              --argjson limit "$LIMIT" \
+              --argjson loadPrices "$LOAD_PRICES" \
+              --argjson markPredictions "$MARK_PREDICTIONS" \
+              --argjson rollForward "$ROLL_FORWARD" \
+              --argjson recompute "$RECOMPUTE" \
+              --argjson dryRun "$DRY_RUN" \
+              '{
+                limit: $limit,
+                loadPrices: $loadPrices,
+                markPredictions: $markPredictions,
+                rollForward: $rollForward,
+                rollForwardBatchSize: 5,
+                recompute: $recompute,
+                dryRun: $dryRun
+              }
+              + (if $runDate == "" then {} else { runDate: $runDate } end)
+              + (if $tickers == "" then {} else { tickers: ($tickers | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) } end)')"
 
-          echo "Calling ${CLOUD_RUN_URL}/api/internal/daily-eod-maintenance"
-          echo "Request body: $body"
+            echo "Calling EOD maintenance batch ${batch_number} from ${current_run_date:-latest date}"
+            echo "Request body: $body"
 
-          response_file="$(mktemp)"
-          status="$(curl --silent --show-error \
-            --output "$response_file" \
-            --write-out '%{http_code}' \
-            --request POST \
-            --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
-            --header "Content-Type: application/json" \
-            --data "$body" \
-            "${CLOUD_RUN_URL}/api/internal/daily-eod-maintenance" || true)"
+            response_file="$(mktemp)"
+            status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header "Authorization: Bearer ${INTERNAL_API_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data "$body" \
+              "${CLOUD_RUN_URL}/api/internal/daily-eod-maintenance" || true)"
 
-          cat "$response_file"
-          echo
+            cat "$response_file"
+            echo
 
-          if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
-            echo "EOD maintenance failed with HTTP $status" >&2
-            exit 1
-          fi
+            if [[ "$status" -lt 200 || "$status" -ge 300 ]]; then
+              echo "EOD maintenance failed with HTTP $status" >&2
+              exit 1
+            fi
+
+            if [[ "$ROLL_FORWARD" != "true" ]]; then
+              break
+            fi
+
+            has_more="$(jq -r '.rollForward.hasMore // false' "$response_file")"
+            next_run_date="$(jq -r '.rollForward.nextRunDate // empty' "$response_file")"
+            if [[ "$has_more" != "true" ]]; then
+              echo "Roll-forward rebuild completed."
+              break
+            fi
+            if [[ -z "$next_run_date" || "$next_run_date" == "$current_run_date" ]]; then
+              echo "EOD maintenance returned an invalid continuation date" >&2
+              exit 1
+            fi
+
+            current_run_date="$next_run_date"
+          done

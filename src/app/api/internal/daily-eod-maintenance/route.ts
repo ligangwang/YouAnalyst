@@ -10,6 +10,7 @@ type DailyEodMaintenanceRequest = {
   loadPrices?: unknown;
   markPredictions?: unknown;
   rollForward?: unknown;
+  rollForwardBatchSize?: unknown;
   recompute?: unknown;
 };
 
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
       loadPrices: readBoolean(payload.loadPrices),
       markPredictions: readBoolean(payload.markPredictions),
       rollForward: readBoolean(payload.rollForward),
+      rollForwardBatchSize: Number.isFinite(payload.rollForwardBatchSize) ? Number(payload.rollForwardBatchSize) : undefined,
       recompute: readBoolean(payload.recompute),
     });
 
