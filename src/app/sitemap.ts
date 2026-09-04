@@ -13,11 +13,6 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
     priority: 1,
   },
   {
-    url: absoluteUrl("/leaderboard"),
-    changeFrequency: "daily",
-    priority: 0.8,
-  },
-  {
     url: absoluteUrl("/daily"),
     changeFrequency: "daily",
     priority: 0.8,

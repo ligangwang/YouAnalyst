@@ -581,6 +581,20 @@ export async function getOrCreateDefaultWatchlistForUser(
   return created.id;
 }
 
+export async function getOrCreatePublicWatchlistForUser(
+  userId: string,
+  name = "Tracked Positions",
+): Promise<string> {
+  const existing = await listWatchlistsForUser(userId, { includePrivate: true });
+  const publicWatchlist = existing.find((watchlist) => watchlist.isPublic && !watchlist.archivedAt);
+  if (publicWatchlist) {
+    return publicWatchlist.id;
+  }
+
+  const created = await createWatchlist({ name, description: "Positions opened from company pages.", isPublic: true }, { uid: userId });
+  return created.id;
+}
+
 async function findRawWatchlistForBackfill(userId: string, defaultName: string): Promise<Watchlist | null> {
   const snapshot = await getAdminFirestore().collection("watchlists").where("userId", "==", userId).get();
   const active = snapshot.docs
