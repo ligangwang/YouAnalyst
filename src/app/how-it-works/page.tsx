@@ -90,7 +90,7 @@ export default function HowItWorksPage() {
               Daily score is the change in prediction score from the previous market close. Because the curve flattens
               as a call gets further ahead, the same daily price move can add more score early and less score later.
             </p>
-            <p>Rankings are based on overall Score.</p>
+            <p>Rankings are based on overall Score across every open and settled public call.</p>
           </div>
         </div>
         <div>

@@ -8,7 +8,7 @@ export const COVERAGE_OFFSET = 10;
 export const XP_BASE = 50;
 export const XP_MULTIPLIER = 0.2;
 export const LEVEL_FACTOR = 100;
-export const LEADERBOARD_MIN_CALLS = 5;
+export const LEADERBOARD_MIN_CALLS = 1;
 
 const ANALYST_LEVEL_NAMES = [
   "New Analyst",
@@ -23,12 +23,14 @@ const ANALYST_LEVEL_NAMES = [
   "Master Analyst",
 ] as const;
 
-export type SettledPredictionAnalytics = {
+export type PredictionAnalytics = {
   returnValue: number;
   predictionScore: number;
   outcome: number;
   xpEarned: number;
 };
+
+export type SettledPredictionAnalytics = PredictionAnalytics;
 
 export type UserAnalytics = {
   totalCalls: number;
@@ -102,9 +104,11 @@ export function computeSettledPredictionAnalytics(
 
 export function computeUserAnalytics(
   totalCalls: number,
-  settledCalls: SettledPredictionAnalytics[],
+  calls: PredictionAnalytics[],
+  settledCallCount = calls.length,
+  xpCalls = calls,
 ): UserAnalytics {
-  const n = settledCalls.length;
+  const n = calls.length;
 
   if (n === 0) {
     return {
@@ -122,10 +126,10 @@ export function computeUserAnalytics(
     };
   }
 
-  const totalPredictionScore = settledCalls.reduce((sum, call) => sum + call.predictionScore, 0);
-  const totalOutcome = settledCalls.reduce((sum, call) => sum + call.outcome, 0);
-  const totalReturn = settledCalls.reduce((sum, call) => sum + call.returnValue, 0);
-  const totalXP = settledCalls.reduce((sum, call) => sum + call.xpEarned, 0);
+  const totalPredictionScore = calls.reduce((sum, call) => sum + call.predictionScore, 0);
+  const totalOutcome = calls.reduce((sum, call) => sum + call.outcome, 0);
+  const totalReturn = calls.reduce((sum, call) => sum + call.returnValue, 0);
+  const totalXP = xpCalls.reduce((sum, call) => sum + call.xpEarned, 0);
   const avgPredictionScore = totalPredictionScore / n;
   const consistency = (totalOutcome + CONSISTENCY_PRIOR_WIN) / (n + CONSISTENCY_PRIOR_TOTAL);
   const coverage = n / (n + COVERAGE_OFFSET);
@@ -138,7 +142,7 @@ export function computeUserAnalytics(
 
   return {
     totalCalls,
-    settledCalls: n,
+    settledCalls: settledCallCount,
     totalXP,
     level: computeLevel(totalXP),
     score,

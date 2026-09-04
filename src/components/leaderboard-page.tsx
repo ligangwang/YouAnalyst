@@ -81,7 +81,7 @@ export function LeaderboardPage() {
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
         <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">Leaderboard</h1>
-        <p className="mb-4 text-sm text-slate-300">Analysts ranked by settled-call performance.</p>
+        <p className="mb-4 text-sm text-slate-300">Analysts ranked by performance across all open and settled calls.</p>
 
         <div className="grid gap-2">
           {payload.items.map((entry, index) => {
@@ -111,7 +111,7 @@ export function LeaderboardPage() {
                 <div className="min-w-0">
                   <p className="truncate text-sm text-slate-100">{displayName}</p>
                   <p className="text-xs text-slate-400">
-                    Level {entry.level} &middot; {analystLevelName(entry.level)} &middot; Settled {entry.settledCalls.toLocaleString()}
+                    Level {entry.level} &middot; {analystLevelName(entry.level)} &middot; {(entry.liveCalls ?? 0).toLocaleString()} open &middot; {entry.settledCalls.toLocaleString()} settled
                   </p>
                 </div>
                 <p className="text-sm font-semibold text-emerald-200">{scoreText(entry.totalScore)}</p>
@@ -123,7 +123,7 @@ export function LeaderboardPage() {
             <div className="rounded-xl border border-dashed border-white/15 p-5">
               <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">No ranked analysts yet.</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Be the first to complete 5 settled calls and take the #1 spot.
+                Make an open call and take your place on the leaderboard.
               </p>
               <Link
                 href="/predictions/new"

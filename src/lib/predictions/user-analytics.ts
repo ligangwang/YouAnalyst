@@ -1,9 +1,12 @@
 import { FieldValue } from "firebase-admin/firestore";
 import {
   computeLevel,
+  computePredictionOutcome,
+  computePredictionScore,
+  computePredictionXp,
   computeSettledPredictionAnalytics,
   computeUserAnalytics,
-  type SettledPredictionAnalytics,
+  type PredictionAnalytics,
   type UserAnalytics,
 } from "@/lib/predictions/analytics";
 import { isPredictionDirection } from "@/lib/predictions/types";
@@ -13,19 +16,34 @@ function finiteNumberOrNull(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function analyticsFromClosedPrediction(data: Record<string, unknown>): SettledPredictionAnalytics | null {
+const RANKED_PREDICTION_STATUSES = ["OPEN", "CLOSING", "SETTLED", "OPENING", "CLOSED"] as const;
+
+function analyticsFromPrediction(data: Record<string, unknown>): PredictionAnalytics | null {
   if (!isPredictionDirection(data.direction)) {
     return null;
   }
 
   const entryPrice = finiteNumberOrNull(data.entryPrice);
+  const isSettled = data.status === "SETTLED" || data.status === "CLOSED";
   const result = data.result && typeof data.result === "object"
     ? data.result as Record<string, unknown>
     : {};
-  const exitPrice = finiteNumberOrNull(result.exitPrice);
+  const exitPrice = isSettled
+    ? finiteNumberOrNull(result.exitPrice)
+    : finiteNumberOrNull(data.markPrice);
 
   if (entryPrice === null || entryPrice <= 0 || exitPrice === null) {
-    return null;
+    const returnValue = finiteNumberOrNull(data.markReturnValue ?? result.returnValue);
+    if (returnValue === null) {
+      return null;
+    }
+    const predictionScore = computePredictionScore(returnValue);
+    return {
+      returnValue,
+      predictionScore,
+      outcome: computePredictionOutcome(returnValue),
+      xpEarned: computePredictionXp(predictionScore),
+    };
   }
 
   return computeSettledPredictionAnalytics(data.direction, entryPrice, exitPrice);
@@ -37,16 +55,20 @@ export async function readUserAnalytics(
   stats: Record<string, unknown> = {},
 ): Promise<UserAnalytics> {
   const sourceStats = stats && typeof stats === "object" ? stats : {};
-  const settledSnapshot = await db.collection("predictions")
+  const predictionSnapshot = await db.collection("predictions")
     .where("userId", "==", userId)
-    .where("status", "in", ["SETTLED", "CLOSED"])
+    .where("status", "in", [...RANKED_PREDICTION_STATUSES])
     .get();
-  const publicSettledDocs = settledSnapshot.docs.filter((doc) => doc.get("visibility") === "PUBLIC");
-  const totalCalls = publicSettledDocs.length;
-  const settledAnalytics = publicSettledDocs
-    .map((doc) => analyticsFromClosedPrediction(doc.data() as Record<string, unknown>))
-    .filter((analytics): analytics is SettledPredictionAnalytics => analytics !== null);
-  const computed = computeUserAnalytics(totalCalls, settledAnalytics);
+  const publicDocs = predictionSnapshot.docs.filter((doc) => doc.get("visibility") === "PUBLIC");
+  const calls = publicDocs
+    .map((doc) => ({
+      analytics: analyticsFromPrediction(doc.data() as Record<string, unknown>),
+      settled: doc.get("status") === "SETTLED" || doc.get("status") === "CLOSED",
+    }))
+    .filter((call): call is { analytics: PredictionAnalytics; settled: boolean } => call.analytics !== null);
+  const callAnalytics = calls.map((call) => call.analytics);
+  const settledAnalytics = calls.filter((call) => call.settled).map((call) => call.analytics);
+  const computed = computeUserAnalytics(callAnalytics.length, callAnalytics, settledAnalytics.length, settledAnalytics);
   const totalXP = Math.max(finiteNumberOrNull(sourceStats.totalXP) ?? 0, computed.totalXP);
   const level = Math.max(finiteNumberOrNull(sourceStats.level) ?? 1, computeLevel(totalXP));
 
