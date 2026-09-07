@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
+import { safeAuthDestination } from "@/lib/auth-continuation";
 
-export function AuthPage() {
+export function AuthPage({ requestedNext }: { requestedNext?: string }) {
   const router = useRouter();
+  const destination = safeAuthDestination(requestedNext);
   const { user, error, signInWithGoogle, signInWithEmail, createAccountWithEmail } = useAuth();
   const [isCreate, setIsCreate] = useState(false);
   const [email, setEmail] = useState("");
@@ -13,13 +15,8 @@ export function AuthPage() {
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  function requestedDestination(): string | null {
-    const requested = new URLSearchParams(window.location.search).get("next");
-    return requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : null;
-  }
-
   function destinationForAuth(userId: string, shouldCompleteProfile: boolean) {
-    return requestedDestination() ?? (shouldCompleteProfile ? `/analysts/${userId}?onboarding=nickname` : "/predictions");
+    return destination ?? (shouldCompleteProfile ? `/analysts/${userId}?onboarding=nickname` : "/predictions");
   }
 
   if (user) {
@@ -31,9 +28,9 @@ export function AuthPage() {
           <button
             type="button"
             className="mt-4 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-900"
-            onClick={() => router.push(requestedDestination() ?? "/predictions")}
+            onClick={() => router.push(destination ?? "/predictions")}
           >
-            Go to feed
+            {destination ? "Continue" : "Go to feed"}
           </button>
         </div>
       </main>

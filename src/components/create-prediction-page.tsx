@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { TickerSearchInput } from "@/components/ticker-search-input";
+import { predictionSignInHref } from "@/lib/auth-continuation";
 import { MAX_PREDICTION_THESIS_LENGTH, MAX_PREDICTION_THESIS_TITLE_LENGTH, type PredictionTimeHorizonUnit } from "@/lib/predictions/types";
 
 function isValidTickerFormat(ticker: string): boolean {
@@ -132,7 +133,7 @@ export function CreatePredictionPage({
           <p className="mb-6 text-sm text-slate-300">You need to be signed in to publish predictions and build your score.</p>
           <button
             type="button"
-            onClick={() => router.push("/auth")}
+            onClick={() => router.push(predictionSignInHref(requestedTicker, requestedWatchlistId))}
             className="rounded-full bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-900"
           >
             Sign in

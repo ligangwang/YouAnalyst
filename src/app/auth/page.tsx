@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   robots: noIndexRobots(),
 };
 
-export default function AuthRoutePage() {
-  return <AuthPage />;
+export default async function AuthRoutePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const { next } = await searchParams;
+  return <AuthPage requestedNext={Array.isArray(next) ? next[0] : next} />;
 }

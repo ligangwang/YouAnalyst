@@ -53,6 +53,12 @@ jobs:
       - name: Verify app
         run: npm run verify
 
+      - name: Install conversion test browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify auth continuation
+        run: npm run test:conversion
+
   deploy-staging:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/dev') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
     needs: verify
