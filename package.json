@@ -14,6 +14,7 @@
     "verify": "npm run lint && npm run typecheck && npm run build",
     "firestore:indexes:apply": "tsx scripts/firestore/apply-indexes.ts",
     "smoke:test": "playwright test",
+    "test:conversion": "playwright test --config=playwright.conversion.config.ts",
     "smoke:install": "playwright install chromium",
     "deploy:staging": "./scripts/deploy-cloud-run.sh staging",
     "deploy:production": "./scripts/deploy-cloud-run.sh production"
@@ -32,6 +33,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.27.7",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
