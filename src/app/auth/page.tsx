@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 export default async function AuthRoutePage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string | string[] }>;
+  searchParams: Promise<{ next?: string | string[]; mode?: string | string[] }>;
 }) {
-  const { next } = await searchParams;
-  return <AuthPage requestedNext={Array.isArray(next) ? next[0] : next} />;
+  const { next, mode } = await searchParams;
+  return <AuthPage requestedNext={Array.isArray(next) ? next[0] : next} initialCreate={mode === "register"} />;
 }

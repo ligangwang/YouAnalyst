@@ -7,12 +7,12 @@ import { safeAuthDestination } from "@/lib/auth-continuation";
 import { trackEvent } from "@/lib/analytics";
 import { mapAuthCompany } from "@/lib/industry-graph/saved-companies";
 
-export function AuthPage({ requestedNext }: { requestedNext?: string }) {
+export function AuthPage({ requestedNext, initialCreate = false }: { requestedNext?: string; initialCreate?: boolean }) {
   const router = useRouter();
   const destination = safeAuthDestination(requestedNext);
   const mapCompany = mapAuthCompany(destination);
   const { user, error, signInWithGoogle, signInWithEmail, createAccountWithEmail } = useAuth();
-  const [isCreate, setIsCreate] = useState(false);
+  const [isCreate, setIsCreate] = useState(initialCreate);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -67,7 +67,7 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-16">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? `Keep ${mapCompany} on your map` : "Sign in to YouAnalyst"}</h1>
+        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? `Keep ${mapCompany} on your map` : isCreate ? "Create your YouAnalyst account" : "Sign in to YouAnalyst"}</h1>
         <p className="mb-6 text-sm text-slate-300">{mapCompany ? `Create an account or sign in to keep a personal list of companies. You’ll return to ${mapCompany}; select Save ${mapCompany} to add it.` : "Use Google or email/password to create predictions and build a score."}</p>
 
         <button
@@ -92,9 +92,14 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
 
         <div className="mb-4 text-center text-xs uppercase tracking-[0.2em] text-slate-400">or</div>
 
-        <div className="grid gap-3">
+        <form className="grid gap-3" onSubmit={(event) => {
+          event.preventDefault();
+          if (!submitting && email && password) void submitEmail();
+        }}>
           <input
             type="email"
+            aria-label="Email"
+            autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="you@example.com"
@@ -102,20 +107,21 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
           />
           <input
             type="password"
+            aria-label="Password"
+            autoComplete={isCreate ? "new-password" : "current-password"}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Password"
             className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
           />
           <button
-            type="button"
-            onClick={() => void submitEmail()}
+            type="submit"
             disabled={submitting || !email || !password}
             className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-900 disabled:opacity-60"
           >
             {isCreate ? "Create account" : "Sign in"}
           </button>
-        </div>
+        </form>
 
         <button
           type="button"
