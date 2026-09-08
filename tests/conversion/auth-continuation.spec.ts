@@ -9,6 +9,35 @@ const watchlistId = "owned & research+1";
 const composer = `/predictions/new?${new URLSearchParams({ ticker: "AMD", watchlistId })}`;
 let html: string;
 
+test("auth views identify the save funnel once without leaking the destination", async ({ page }) => {
+  await page.goto(`${origin}/auth?${new URLSearchParams({ next: "/?company=NVDA", mode: "register" })}`);
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill("private@example.invalid");
+  await page.getByRole("button", { name: "Have an account? Sign in", exact: true }).click();
+  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
+  const views = events.filter((event) => event[1] === "auth_view");
+  expect(views).toHaveLength(1);
+  expect(views[0][2]).toMatchObject({ entry_point: "map_save", action: "sign_up" });
+  expect(JSON.stringify(events)).not.toMatch(/private@example|company=NVDA/);
+});
+
+test("signed-in visitors do not count as auth-page prospects", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  await page.goto(`${origin}/auth`);
+  await expect(page.getByRole("heading", { name: "Signed in", exact: true })).toBeVisible();
+  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => (item as ArrayLike<unknown>)[1]));
+  expect(events).not.toContain("auth_view");
+});
+
+test("short registration passwords are caught before attempting authentication", async ({ page }) => {
+  await page.goto(`${origin}/auth?mode=register`);
+  await page.getByLabel("Email", { exact: true }).fill("new@example.invalid");
+  await page.getByLabel("Password", { exact: true }).fill("123");
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  expect(await page.getByLabel("Password", { exact: true }).evaluate((input: HTMLInputElement) => input.validity.tooShort)).toBe(true);
+  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => (item as ArrayLike<unknown>)[1]));
+  expect(events).not.toContain("auth_start");
+});
+
 test("map registration explains saving and returns to the selected company without a write", async ({ page }) => {
   const destination = "/?company=TSM";
   await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination })}`);
