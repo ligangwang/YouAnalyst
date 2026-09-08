@@ -26,7 +26,7 @@ export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) 
       const visit = Number(window.sessionStorage.getItem("youanalyst:graph-visit"));
       graphOrigin = visit > 0 && Date.now() >= visit && Date.now() - visit < 30 * 60_000;
     } catch { /* Storage may be disabled. */ }
-    const payload = { ...params, graph_origin: graphOrigin ? "yes" : "no", surface: "youanalyst", graph_version: "v1" };
+    const payload = { ...params, graph_origin: graphOrigin ? "yes" : "no", surface: "youanalyst", graph_version: "v2" };
     if (typeof window.gtag === "function") window.gtag("event", event, payload);
     else {
       window.dataLayer = window.dataLayer || [];

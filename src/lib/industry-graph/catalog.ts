@@ -6,6 +6,7 @@ export const INDUSTRY_SEGMENTS = [
   { id: "networking", label: "Networking", color: "#fbbf24" },
   { id: "cloud", label: "Cloud & platforms", color: "#fb923c" },
   { id: "infrastructure", label: "Power & infrastructure", color: "#f472b6" },
+  { id: "devices", label: "Devices & edge AI", color: "#a3e635" },
   { id: "other", label: "Related companies", color: "#94a3b8" },
 ] as const;
 export type IndustrySegment = (typeof INDUSTRY_SEGMENTS)[number]["id"];
@@ -26,4 +27,6 @@ export const INDUSTRY_STARTERS: { ticker: string; name: string; segment: Industr
   { ticker: "VRT", name: "Vertiv", segment: "infrastructure" },
   { ticker: "EQIX", name: "Equinix", segment: "infrastructure" },
   { ticker: "CEG", name: "Constellation Energy", segment: "infrastructure" },
+  { ticker: "AAPL", name: "Apple", segment: "devices" },
+  { ticker: "QCOM", name: "Qualcomm", segment: "devices" },
 ];

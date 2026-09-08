@@ -1,4 +1,4 @@
-# AI industry homepage: first release
+# AI industry homepage
 
 The homepage is now an interactive industry map. Company search remains at
 `/companies`, and existing ticker, prediction, watchlist, institutional, insider
@@ -6,26 +6,35 @@ and EOD routes retain their behavior. The navigation has an AI Map link.
 
 ## What is implemented
 
-- Editorial starting universe: 16 US 10-K issuers across manufacturing, compute,
-  memory/storage, networking, cloud/platforms and power/infrastructure. Segment
+- Editorial starting universe: 18 US 10-K issuers across manufacturing, compute,
+  memory/storage, networking, cloud/platforms, power/infrastructure and devices/edge AI. Segment
   placement is editorial, not evidence of a commercial relationship.
-- Public read-only `/api/industry-graph`: one bounded read of those 16 latest run
+- Public read-only `/api/industry-graph`: one bounded read of those 18 latest run
   documents, a five-minute process cache and shared in-flight reads. HTTP caching
   can add another five minutes of freshness delay. No extraction, paid AI call,
   migration or Firestore write is triggered by a visitor.
 - Current-version, completed, persisted extraction results only. Evidence must
   have the correct issuer CIK/ticker and accession, a date, a supported direction
   and relationship type, and valid confidence. Missing coverage is explicit.
+- A compact overview initially shows starting companies and evidence-backed connections
+  between them. Selecting a company reveals its filing mentions; Show all connections
+  restores the full bounded preview. Search always includes the hidden mentions.
 - Search, one-hop exploration, up to eight expanded roots, relationship filtering,
   optional category targets, zoom, keyboard-selectable SVG nodes/edges, list view,
   an evidence panel with SEC links, and company/prediction continuations.
+- Columns wrap to the available panel width at readable text sizes. Focus on this
+  company replaces the current roots; Back to industry overview clears the focus
+  and filters. Desktop/mobile navigation temporarily omits How It Works; the page remains.
 - A company-focused link can be copied and reopened (`/?company=MU`). This is a
   shareable focus link, not a saved account view or a snapshot of all filters.
 - A link to the existing feedback form plus GA4 behavioral instrumentation.
 
 The projection caps each issuer at 50 candidate edges, and the total preview at
-60 nodes and 120 relationships. Omitted connections are reported. Issuer order
-follows the editorial catalog; this bounded preview is not an exhaustive ranking
+60 nodes and 120 relationships. Omitted connections are reported. Candidates are
+interleaved one per issuer per round, in editorial catalog order, so a dense early
+issuer does not consume the entire node budget before later issuers contribute.
+Validation and merging can still produce different counts per issuer; this is not
+an equal quota or a financial ranking. This bounded preview is not an exhaustive ranking
 or a complete industry graph. Categories are hidden by default. Repeated evidence
 for the same directed/type pair is grouped; reciprocal symmetric edges are grouped.
 
@@ -74,7 +83,11 @@ the auth page; login is separate. Publication fires only after a successful API
 response containing an ID. Existing users also publish, so total publication events
 must not be interpreted as first-time activations.
 
-Each event carries `graph_version=v1` and `graph_origin=yes/no`. Origin means this
+Each event now carries `graph_version=v2` and `graph_origin=yes/no`. Compare v2
+with the first release's v1 when evaluating the navigation changes.
+`graph_view_change` also records `action=all_connections`, `industry_overview`,
+or `focus_company`, while preserving `view_mode=map/list`.
+Origin means this
 browser tab visited the graph within 30 minutes; optional session storage supports
 that attribution. There is no cross-device identity join. Ad blockers, consent and
 network loss can prevent delivery. Session attribution and funnel completion are
@@ -130,6 +143,13 @@ MSFT among the starting universe. NVIDIA's inspected result was completed, curre
 version, persisted (`dryRun=false`), and reported 25 relationships from its
 2026-02-25 filing. This confirms the stored result shape, not an audit of every
 relationship or a live end-to-end test of the new endpoint. No data was changed.
+
+For the second iteration, public read-only checks confirmed existing current-version
+data for AAPL (6 collapsed edges, filing dated 2025-10-31) and QCOM (10 collapsed
+edges, filing dated 2025-11-05). These counts are from the company endpoint, not
+guaranteed counts in the bounded industry projection. The catalog now includes
+both issuers under Devices & edge AI. No new extraction was run; all other missing
+filings remain pending. The industry's completed/persisted validation still applies.
 
 Next: transactional company/identifier registry and dry-run issuer backfill, reviewed
 counterparty resolution, broader filing sources, then account-saved views/company
