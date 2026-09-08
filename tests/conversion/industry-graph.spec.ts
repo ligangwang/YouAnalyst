@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { buildIndustryFixture } from "../industry/html";
 import { fixtureGraph, runFixture } from "../industry/fixtures";
 import { buildIndustryGraph } from "../../src/lib/industry-graph/model";
+import relationshipReviews from "../../src/lib/company-graph/relationship-reviews.json";
 
 const origin = "http://industry.test";
 let html: string;
@@ -151,4 +152,17 @@ test("TSM is visible in the overview and its full name reveals source-backed sup
   await page.getByRole("button", { name: "TSMC supplies NVIDIA 1 source →", exact: true }).click();
   await expect(page.locator("blockquote")).toContainText("Synthetic test evidence");
   await expect(page.getByRole("link", { name: "Read SEC filing" })).toHaveAttribute("href", /\/1045810\//);
+});
+
+test("corrected OEM evidence shows distributor direction and the review explanation", async ({ page }) => {
+  const expected = relationshipReviews.find((review) => review.expected.sourceTicker === "MSFT" && review.expected.targetName === "Dell")!.expected;
+  const run = runFixture("MSFT", expected.sourceCik, "Microsoft", [expected]);
+  run.result.filing.accessionNumber = expected.accessionNumber;
+  await page.route("**/api/industry-graph", (route) => route.fulfill({ json: buildIndustryGraph({ MSFT: run }) }));
+  await page.goto(`${origin}/?company=MSFT`);
+  await page.getByRole("button", { name: "Dell distributes for Microsoft 1 source →", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Dell distributes for Microsoft", exact: true })).toBeVisible();
+  await expect(page.getByText(/Evidence reviewed 2026-09-08/)).toBeVisible();
+  await expect(page.locator("blockquote")).toContainText("distribution agreements");
+  await expect(page.getByRole("link", { name: "Read SEC filing" })).toHaveAttribute("href", /\/789019\//);
 });
