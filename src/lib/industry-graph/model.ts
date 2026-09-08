@@ -80,13 +80,21 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
   }
   const edges = new Map<string, IndustryEdge>();
   let omittedEdges = 0;
-  for (const [ticker, { node, cik, result }] of issuers) {
-    const filing = record(result.filing);
-    const accession = text(filing.accessionNumber);
-    if (!/^\d{10}-\d{2}-\d{6}$/.test(accession)) continue;
-    const rawEdges = result.edges as unknown[];
-    omittedEdges += Math.max(0, rawEdges.length - 50);
-    for (const value of rawEdges.slice(0, 50)) {
+  // Interleave candidates so a dense first issuer cannot exhaust the preview
+  // before later issuers contribute. Bounds and evidence validation are unchanged.
+  for (const { result } of issuers.values()) {
+    if (/^\d{10}-\d{2}-\d{6}$/.test(text(record(result.filing).accessionNumber))) {
+      omittedEdges += Math.max(0, (result.edges as unknown[]).length - 50);
+    }
+  }
+  for (let edgeIndex = 0; edgeIndex < 50; edgeIndex++) {
+    for (const [ticker, { node, cik, result }] of issuers) {
+      const filing = record(result.filing);
+      const accession = text(filing.accessionNumber);
+      if (!/^\d{10}-\d{2}-\d{6}$/.test(accession)) continue;
+      const rawEdges = result.edges as unknown[];
+      if (edgeIndex >= rawEdges.length) continue;
+      const value = rawEdges[edgeIndex];
       const raw = record(value);
       const targetName = text(raw.targetName).slice(0, 160);
       const quote = text(raw.evidenceText);
@@ -130,8 +138,10 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
   return { nodes: [...nodes.values()], edges: [...edges.values()], coveredTickers, updatedAt, omittedEdges };
 }
 
-export function selectNeighborhood(graph: IndustryGraph, roots: string[], type: string, categories: boolean) {
+export function selectNeighborhood(graph: IndustryGraph, roots: string[], type: string, categories: boolean, overview = false) {
+  const starters = new Set(graph.nodes.filter((node) => node.kind === "issuer" || node.kind === "coverage").map((node) => node.id));
   const edges = graph.edges.filter((edge) => (type === "all" || edge.type === type) &&
+    (!overview || (starters.has(edge.source) && starters.has(edge.target))) &&
     (categories || (!edge.source.startsWith("category:") && !edge.target.startsWith("category:"))) &&
     (!roots.length || roots.includes(edge.source) || roots.includes(edge.target)));
   const visibleIds = new Set([...roots, ...edges.flatMap((edge) => [edge.source, edge.target])]);

@@ -282,7 +282,6 @@ export function SiteNav() {
               <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
               <DailyNavMenu />
               {showAdminLink ? <Link href="/admin" className="hover:text-cyan-200">Admin</Link> : null}
-              <Link href="/how-it-works" className="hover:text-cyan-200">How It Works</Link>
             </nav>
           </div>
 
@@ -336,9 +335,6 @@ export function SiteNav() {
               Admin
             </Link>
           ) : null}
-          <Link href="/how-it-works" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
-            How It Works
-          </Link>
         </nav>
       </div>
     </header>

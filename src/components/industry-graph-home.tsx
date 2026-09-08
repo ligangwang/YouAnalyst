@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { INDUSTRY_SEGMENTS, INDUSTRY_STARTERS } from "@/lib/industry-graph/catalog";
 import { buildIndustryGraph, RELATIONSHIP_LABELS, selectNeighborhood, type IndustryGraph, type IndustryNode } from "@/lib/industry-graph/model";
 import { trackEvent } from "@/lib/analytics";
+import { layoutIndustryGraph } from "@/lib/industry-graph/layout";
 import styles from "./industry-graph-home.module.css";
 
 const EMPTY_GRAPH = buildIndustryGraph({});
@@ -19,11 +20,24 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   const [type, setType] = useState("all");
   const [categories, setCategories] = useState(false);
   const [mode, setMode] = useState<"map" | "list">("map");
+  const [allConnections, setAllConnections] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(800);
   const [zoom, setZoom] = useState(1);
   const [notice, setNotice] = useState("");
   const viewed = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const detailRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const panel = canvasRef.current ?? panelRef.current;
+    if (!panel) return;
+    const observer = new ResizeObserver(([entry]) => setPanelWidth(entry.contentRect.width));
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [mode]);
+
+  useEffect(() => { canvasRef.current?.scrollTo(0, 0); }, [roots, allConnections]);
 
   useEffect(() => {
     if ((selectedId || edgeId) && window.matchMedia("(max-width: 760px)").matches) {
@@ -62,29 +76,22 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   const nodesById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph]);
   const selected = selectedId ? nodesById.get(selectedId) : null;
   const selectedEdge = graph.edges.find((edge) => edge.id === edgeId);
-  const visible = useMemo(() => selectNeighborhood(graph, roots, type, categories), [graph, roots, type, categories]);
+  const overview = roots.length === 0 && !allConnections;
+  const visible = useMemo(() => selectNeighborhood(graph, roots, type, categories, overview), [graph, roots, type, categories, overview]);
   const searchResults = query.trim() ? graph.nodes.filter((node) => node.kind !== "category" &&
     `${node.name} ${node.ticker ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8) : [];
   const connections = selected ? visible.edges.filter((edge) => edge.source === selected.id || edge.target === selected.id) : [];
-  // Keep dense filing neighborhoods from becoming one very tall mention column.
-  const columns = INDUSTRY_SEGMENTS.flatMap((segment) => {
-    const members = visible.nodes.filter((node) => node.segment === segment.id);
-    return Array.from({ length: Math.ceil(members.length / 6) }, (_, index) => ({
-      ...segment, id: `${segment.id}-${index}`, label: index ? `${segment.label} (${index + 1})` : segment.label,
-      nodes: members.slice(index * 6, index * 6 + 6),
-    }));
-  });
-  const chartWidth = Math.max(720, columns.length * 188 + 50);
-  const chartHeight = Math.max(450, Math.max(0, ...columns.map((column) => column.nodes.length)) * 86 + 100);
-  const positions = new Map(columns.flatMap((column, columnIndex) => column.nodes.map((node, row) =>
-    [node.id, { x: 108 + columnIndex * 188, y: 115 + row * 86, color: column.color }] as const)));
+  const { columns, positions, width: chartWidth, height: chartHeight } = layoutIndustryGraph(visible.nodes, panelWidth);
 
   function selectCompany(node: IndustryNode, focus = false) {
     setSelectedId(node.id); setEdgeId(null); setNotice("");
-    if (focus || !roots.length) setRoots([node.id]);
+    if (focus || !roots.length) { setRoots([node.id]); setZoom(1); }
     trackEvent("graph_company_select", { ticker: node.ticker ?? undefined, node_kind: node.kind, segment: node.segment });
   }
-  function reset() { setRoots([]); setSelectedId(null); setEdgeId(null); setType("all"); setCategories(false); setZoom(1); setQuery(""); }
+  function reset() {
+    setRoots([]); setSelectedId(null); setEdgeId(null); setType("all"); setCategories(false); setZoom(1); setQuery(""); setAllConnections(false); setNotice("");
+    trackEvent("graph_view_change", { action: "industry_overview", view_mode: mode });
+  }
   function openEvidence(id: string) {
     setEdgeId(id);
     const edge = graph.edges.find((item) => item.id === id);
@@ -132,29 +139,36 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
           <label>Connections <select aria-label="Relationship type" value={type} onChange={(event) => {
             setType(event.target.value); setEdgeId(null); trackEvent("graph_filter", { relationship_type: event.target.value });
           }}><option value="all">All types</option>{Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label><input type="checkbox" checked={categories} onChange={(event) => { setCategories(event.target.checked); setEdgeId(null); trackEvent("graph_filter", { action: event.target.checked ? "show_categories" : "hide_categories" }); }} /> Include groups</label>
+          {!overview && <label><input type="checkbox" checked={categories} onChange={(event) => { setCategories(event.target.checked); setEdgeId(null); trackEvent("graph_filter", { action: event.target.checked ? "show_categories" : "hide_categories" }); }} /> Include groups</label>}
           <button type="button" onClick={reset}>Reset map</button>
-          <span className={styles.count} aria-live="polite">{visible.nodes.length} nodes · {visible.edges.length} connections</span>
+          <span className={styles.count} aria-live="polite">{visible.nodes.length} nodes · {visible.edges.length} connection{visible.edges.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className={styles.scope} aria-label="Map scope">
+          <div><strong>{overview ? "Industry overview" : roots.length ? "Company connections" : "All filing connections"}</strong>
+            <p>{overview ? "Start with the main companies. Select one to reveal suppliers, customers and other filing mentions." : "Select a connection to read its filing evidence. Focus on a company to reduce the map."}</p></div>
+          {overview ? <button type="button" onClick={() => {
+            setAllConnections(true); setZoom(1); trackEvent("graph_view_change", { action: "all_connections", view_mode: mode });
+          }}>Show all connections</button> : <button type="button" onClick={reset}>Back to industry overview</button>}
         </div>
         <div className={styles.body}>
-          <div className={styles.canvasPanel}>
+          <div ref={panelRef} className={styles.canvasPanel}>
             {status !== "ready" && <div role="status" className={styles.status}>
               {status === "loading" ? "Loading filing relationships…" : <>Filing relationships are temporarily unavailable. <button type="button" onClick={() => { setStatus("loading"); setAttempt((value) => value + 1); }}>Try again</button></>}
             </div>}
             {status === "ready" && !graph.edges.length && <div role="status" className={styles.status}>The industry starting points are ready. Published filing relationships will appear here as coverage is added.</div>}
-            {status === "ready" && graph.edges.length > 0 && !visible.edges.length && <div role="status" className={styles.status}>No connections match this view. Try another company or change the filters.</div>}
+            {status === "ready" && graph.edges.length > 0 && !visible.edges.length && <div role="status" className={styles.status}>{overview ? "No connections between starting companies match this view. Select a company or show all connections to explore filing mentions." : "No connections match this view. Try another company or change the filters."}</div>}
             {mode === "map" ? <>
               <div ref={canvasRef} className={styles.canvas} tabIndex={0} role="region" aria-label="Scrollable industry map. Select a company or use List view.">
                 <svg width={chartWidth * zoom} height={chartHeight * zoom} viewBox={`0 0 ${chartWidth} ${chartHeight}`} aria-label="AI industry company relationships" role="group">
                   <defs><marker id="industry-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#67e8f9" /></marker></defs>
-                  {columns.map((column, index) => <g key={column.id}><rect x={20 + index * 188} y="24" width="176" height={chartHeight - 44} rx="12" fill={column.color} opacity="0.035" /><text x={108 + index * 188} y="53" textAnchor="middle" fill={column.color} fontSize="11" fontWeight="600">{column.label}</text></g>)}
+                  {columns.map((column) => <g key={column.id}><rect x={column.x - 88} y={column.top + 12} width="176" height={column.height - 24} rx="12" fill={column.color} opacity="0.035" /><text x={column.x} y={column.top + 42} textAnchor="middle" fill={column.color} fontSize="11" fontWeight="600">{column.label}</text></g>)}
                   {visible.edges.map((edge) => {
                     const source = positions.get(edge.source)!; const target = positions.get(edge.target)!;
                     const sameColumn = source.x === target.x;
                     const sign = source.x <= target.x ? 1 : -1;
                     const sx = sameColumn ? source.x + 74 : source.x + sign * 74;
                     const tx = sameColumn ? target.x + 74 : target.x - sign * 74;
-                    const curve = sameColumn ? `M ${sx} ${source.y} C ${sx + 34} ${source.y}, ${tx + 34} ${target.y}, ${tx} ${target.y}` :
+                    const curve = sameColumn ? `M ${sx} ${source.y} C ${sx + 18} ${source.y}, ${tx + 18} ${target.y}, ${tx} ${target.y}` :
                       `M ${sx} ${source.y} C ${(sx + tx) / 2} ${source.y}, ${(sx + tx) / 2} ${target.y}, ${tx} ${target.y}`;
                     const emphasized = edgeId === edge.id || selectedId === edge.source || selectedId === edge.target;
                     return <g key={edge.id} role="button" tabIndex={0} aria-label={`Evidence: ${edgeLabel(edge)}`} className={styles.edge}
@@ -205,11 +219,14 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               <h2>{selected.name}</h2><p className={styles.muted}>{selected.ticker ?? (selected.kind === "category" ? "Group mentioned in a filing" : "Company mentioned in a filing")}</p>
               {selected.kind === "mention" && <p className={styles.matchNote}>Identity unresolved. This mention has not been merged with a company record.</p>}
               {selected.kind === "coverage" && <p className={styles.matchNote}>This company’s own filing has not been added yet. Connections from other issuers may appear as provisional name matches.</p>}
+              {(roots.length !== 1 || roots[0] !== selected.id) && <button className={styles.primary} type="button" onClick={() => {
+                selectCompany(selected, true); trackEvent("graph_view_change", { action: "focus_company", ticker: selected.ticker ?? undefined, view_mode: mode });
+              }}>Focus on this company</button>}
               <button className={styles.primary} type="button" disabled={roots.includes(selected.id) || roots.length >= 8 || selected.kind !== "issuer"} onClick={() => {
                 setRoots((previous) => [...previous, selected.id]); trackEvent("graph_expand", { ticker: selected.ticker ?? undefined });
               }}>{roots.includes(selected.id) ? "Connections in view" : "Expand connections"}</button>
               {roots.length >= 8 && <p className={styles.muted}>Eight companies expanded. Reset the map to explore another area.</p>}
-              <h3>{connections.length} connections in this view</h3>
+              <h3>{connections.length} connection{connections.length === 1 ? "" : "s"} in this view</h3>
               {connections.map((edge) => <button className={styles.connection} key={edge.id} type="button" onClick={() => openEvidence(edge.id)}>{edgeLabel(edge)}<span>{edge.evidence.length} source{edge.evidence.length === 1 ? "" : "s"} →</span></button>)}
               {!connections.length && <p className={styles.muted}>Try changing the filters or choosing another company.</p>}
               {selected.ticker && <div className={styles.actions}>
