@@ -40,6 +40,14 @@ for the same directed/type pair is grouped; reciprocal symmetric edges are group
 
 ## Identity and data limits
 
+The [2026-09-08 evidence audit](relationship-quality-audit.md) documents review of
+77 company-API relationships. A shared read-time review layer corrects nine exact
+records and withholds three unsupported claims on the company API and industry
+map. Original extraction data remains intact; new filings or changed signatures
+do not inherit corrections. Amended evidence shows its review reason and date.
+Withheld claims are counted separately from the bounded preview's omitted edges.
+This is not blanket verification of future extractions or permanent identity resolution.
+
 The production demo companies/relationships were deleted at the user's request.
 This release does not repopulate either collection. Map node IDs such as `sec:...`
 are presentation references, not the future permanent company IDs.

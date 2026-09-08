@@ -1,5 +1,6 @@
 import { COMPANY_GRAPH_EXTRACTION_VERSION, COMPANY_GRAPH_RELATIONSHIP_TYPES, COMPANY_GRAPH_EDGE_DIRECTIONS, type CompanyGraphRelationshipType } from "../company-graph/types";
 import { INDUSTRY_STARTERS, type IndustrySegment } from "./catalog";
+import { displayRelationshipTargetName, reviewRelationship, type RelationshipQualityReview } from "../company-graph/quality";
 
 export type IndustryNode = {
   id: string;
@@ -15,6 +16,7 @@ export type IndustryEvidence = {
   filingUrl: string;
   issuerTicker: string;
   nameMatched: boolean;
+  qualityReview?: RelationshipQualityReview;
 };
 export type IndustryEdge = {
   id: string;
@@ -30,6 +32,7 @@ export type IndustryGraph = {
   coveredTickers: string[];
   updatedAt: string | null;
   omittedEdges: number;
+  withheldEdges?: number;
 };
 export const RELATIONSHIP_LABELS: Record<CompanyGraphRelationshipType, string> = {
   SUPPLIER_OF: "supplies", CUSTOMER_OF: "buys from", COMPETES_WITH: "competes with",
@@ -80,6 +83,7 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
   }
   const edges = new Map<string, IndustryEdge>();
   let omittedEdges = 0;
+  let withheldEdges = 0;
   // Interleave candidates so a dense first issuer cannot exhaust the preview
   // before later issuers contribute. Bounds and evidence validation are unchanged.
   for (const { result } of issuers.values()) {
@@ -95,8 +99,9 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
       const rawEdges = result.edges as unknown[];
       if (edgeIndex >= rawEdges.length) continue;
       const value = rawEdges[edgeIndex];
-      const raw = record(value);
-      const targetName = text(raw.targetName).slice(0, 160);
+      const raw = reviewRelationship(record(value));
+      if (!raw) { withheldEdges++; continue; }
+      const targetName = displayRelationshipTargetName(text(raw.targetName)).slice(0, 160);
       const quote = text(raw.evidenceText);
       const type = text(raw.relationshipType) as CompanyGraphRelationshipType;
       const direction = text(raw.direction);
@@ -130,12 +135,13 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
       };
       if (!edge.evidence.some((item) => item.id === raw.id)) edge.evidence.push({
         id: text(raw.id), quote: quote.slice(0, 2000), filingDate, issuerTicker: ticker, nameMatched: Boolean(matchedId),
+        ...(raw.qualityReview ? { qualityReview: raw.qualityReview } : {}),
         filingUrl: `https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${accession.replaceAll("-", "")}/${accession}-index.html`,
       });
       edges.set(id, edge);
     }
   }
-  return { nodes: [...nodes.values()], edges: [...edges.values()], coveredTickers, updatedAt, omittedEdges };
+  return { nodes: [...nodes.values()], edges: [...edges.values()], coveredTickers, updatedAt, omittedEdges, withheldEdges };
 }
 
 export function selectNeighborhood(graph: IndustryGraph, roots: string[], type: string, categories: boolean, overview = false) {

@@ -1,0 +1,225 @@
+[
+  {
+    "expected": {
+      "id": "MSFT_000095017025100235_9b4829602d686033aeb0cc75",
+      "sourceTicker": "MSFT",
+      "sourceCik": "0000789019",
+      "accessionNumber": "0000950170-25-100235",
+      "targetName": "Dell",
+      "targetType": "company",
+      "relationshipType": "DISTRIBUTES_FOR",
+      "direction": "source_to_target",
+      "evidenceText": "We have distribution agreements covering one or more of our products with virtually all the multinational OEMs, including Dell"
+    },
+    "correction": {
+      "direction": "target_to_source"
+    },
+    "reason": "OEMs distribute Microsoft software; Microsoft does not distribute for the OEM.",
+    "sourceUrl": "https://www.microsoft.com/investor/reports/ar25/index.html",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "MSFT_000095017025100235_79d7ecffcd2f4781d7a56ccf",
+      "sourceTicker": "MSFT",
+      "sourceCik": "0000789019",
+      "accessionNumber": "0000950170-25-100235",
+      "targetName": "Hewlett-Packard",
+      "targetType": "company",
+      "relationshipType": "DISTRIBUTES_FOR",
+      "direction": "source_to_target",
+      "evidenceText": "We have distribution agreements covering one or more of our products with virtually all the multinational OEMs, including Dell, Hewlett-Packard"
+    },
+    "correction": {
+      "direction": "target_to_source"
+    },
+    "reason": "OEMs distribute Microsoft software; Microsoft does not distribute for the OEM.",
+    "sourceUrl": "https://www.microsoft.com/investor/reports/ar25/index.html",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "MSFT_000095017025100235_6a1e6a6490b8622da67017f4",
+      "sourceTicker": "MSFT",
+      "sourceCik": "0000789019",
+      "accessionNumber": "0000950170-25-100235",
+      "targetName": "Lenovo",
+      "targetType": "company",
+      "relationshipType": "DISTRIBUTES_FOR",
+      "direction": "source_to_target",
+      "evidenceText": "We have distribution agreements covering one or more of our products with virtually all the multinational OEMs, including Dell, Hewlett-Packard, Lenovo"
+    },
+    "correction": {
+      "direction": "target_to_source"
+    },
+    "reason": "OEMs distribute Microsoft software; Microsoft does not distribute for the OEM.",
+    "sourceUrl": "https://www.microsoft.com/investor/reports/ar25/index.html",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AMD_000000248826000018_93621fe7009fe01ede9423c9",
+      "sourceTicker": "AMD",
+      "sourceCik": "0000002488",
+      "accessionNumber": "0000002488-26-000018",
+      "targetName": "Microsoft",
+      "targetType": "company",
+      "relationshipType": "MANUFACTURES_FOR",
+      "direction": "source_to_target",
+      "evidenceText": "AMD semi-custom SoC products power the Microsoft Xbox Series S and X game consoles"
+    },
+    "correction": {
+      "relationshipType": "SUPPLIER_OF"
+    },
+    "reason": "The filing describes AMD chips powering consoles, not AMD providing contract manufacturing.",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/2488/000000248826000018/amd-20251227.htm",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AMD_000000248826000018_6154e1d5a6b9c88c1714a294",
+      "sourceTicker": "AMD",
+      "sourceCik": "0000002488",
+      "accessionNumber": "0000002488-26-000018",
+      "targetName": "Sony Interactive Entertainment,",
+      "targetType": "company",
+      "relationshipType": "MANUFACTURES_FOR",
+      "direction": "source_to_target",
+      "evidenceText": "AMD semi-custom SoC products power the Sony PlayStation 5"
+    },
+    "correction": {
+      "relationshipType": "SUPPLIER_OF"
+    },
+    "reason": "The filing describes AMD chips powering consoles, not AMD providing contract manufacturing.",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/2488/000000248826000018/amd-20251227.htm",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AMD_000000248826000018_09ca6c461869db13cc7d44bf",
+      "sourceTicker": "AMD",
+      "sourceCik": "0000002488",
+      "accessionNumber": "0000002488-26-000018",
+      "targetName": "Valve",
+      "targetType": "company",
+      "relationshipType": "MANUFACTURES_FOR",
+      "direction": "source_to_target",
+      "evidenceText": "AMD semi-custom SoC products power ... the recently revealed Valve Steam Machine PC"
+    },
+    "correction": {
+      "relationshipType": "SUPPLIER_OF"
+    },
+    "reason": "The filing describes AMD chips powering a gaming PC, not AMD providing contract manufacturing.",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/2488/000000248826000018/amd-20251227.htm",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AMD_000000248826000018_55a28a19a680460c215611aa",
+      "sourceTicker": "AMD",
+      "sourceCik": "0000002488",
+      "accessionNumber": "0000002488-26-000018",
+      "targetName": "Sanmina",
+      "targetType": "company",
+      "relationshipType": "PARTNER_OF",
+      "direction": "bidirectional",
+      "evidenceText": "we sold the ZT data center infrastructure manufacturing business ... to Sanmina Corporation"
+    },
+    "correction": {
+      "evidenceText": "Sanmina will also be our preferred partner for manufacturing capabilities in building complex AI solutions."
+    },
+    "reason": "Replaced the sale-only excerpt with the explicit partnership statement in the same filing (MD&A, Overview).",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/2488/000000248826000018/amd-20251227.htm",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AMZN_000101872426000004_ba23f5bfaf1c00ad3d7e7017",
+      "sourceTicker": "AMZN",
+      "sourceCik": "0001018724",
+      "accessionNumber": "0001018724-26-000004",
+      "targetName": "China-based sellers",
+      "targetType": "category",
+      "relationshipType": "PARTNER_OF",
+      "direction": "bidirectional",
+      "evidenceText": "China-based sellers account for significant portions of our third-party seller services and advertising revenues"
+    },
+    "correction": {
+      "relationshipType": "CUSTOMER_OF",
+      "direction": "target_to_source"
+    },
+    "reason": "The cited revenue is paid for Amazon seller and advertising services; it does not establish a strategic partnership.",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1018724/000101872426000004/amzn-20251231.htm",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AAPL_000032019325000079_24e5184f299a3183e4d93e6d",
+      "sourceTicker": "AAPL",
+      "sourceCik": "0000320193",
+      "accessionNumber": "0000320193-25-000079",
+      "targetName": "content licensors",
+      "targetType": "category",
+      "relationshipType": "SUPPLIER_OF",
+      "direction": "target_to_source",
+      "evidenceText": "many of the Company’s products and services include technology or intellectual property that must be licensed from third parties"
+    },
+    "correction": {
+      "targetName": "technology and IP licensors"
+    },
+    "reason": "The cited passage establishes technology and intellectual-property licensing, not specifically content licensing.",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AAPL_000032019325000079_755de8174eb450cdab5568b3",
+      "sourceTicker": "AAPL",
+      "sourceCik": "0000320193",
+      "accessionNumber": "0000320193-25-000079",
+      "targetName": "logistics providers",
+      "targetType": "category",
+      "relationshipType": "PARTNER_OF",
+      "direction": "bidirectional",
+      "evidenceText": "the Company’s suppliers, contract manufacturers, logistics providers, distributors, cellular network carriers and other channel partners"
+    },
+    "correction": null,
+    "reason": "A generic risk-factor list does not substantiate the extracted partnership claim.",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AAPL_000032019325000079_2aebcf04a2ab3d0b54dd558c",
+      "sourceTicker": "AAPL",
+      "sourceCik": "0000320193",
+      "accessionNumber": "0000320193-25-000079",
+      "targetName": "third-party developers",
+      "targetType": "category",
+      "relationshipType": "PARTNER_OF",
+      "direction": "bidirectional",
+      "evidenceText": "the Company’s suppliers, contract manufacturers, logistics providers, distributors, cellular network carriers and other channel partners, and developers"
+    },
+    "correction": null,
+    "reason": "A generic risk-factor list does not substantiate the extracted partnership claim.",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm",
+    "reviewedAt": "2026-09-08"
+  },
+  {
+    "expected": {
+      "id": "AAPL_000032019325000079_3cdf2ff14270547505a5e098",
+      "sourceTicker": "AAPL",
+      "sourceCik": "0000320193",
+      "accessionNumber": "0000320193-25-000079",
+      "targetName": "third-party accessories",
+      "targetType": "category",
+      "relationshipType": "DISTRIBUTES_FOR",
+      "direction": "source_to_target",
+      "evidenceText": "The Company sells its products and resells third-party products"
+    },
+    "correction": null,
+    "reason": "Accessories are products, not a company or counterparty group for a distributes-for relationship.",
+    "sourceUrl": "https://www.sec.gov/Archives/edgar/data/320193/000032019325000079/aapl-20250927.htm",
+    "reviewedAt": "2026-09-08"
+  }
+]

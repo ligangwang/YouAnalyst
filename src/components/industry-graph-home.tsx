@@ -212,6 +212,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               {selectedEdge.evidence.map((evidence) => <article key={evidence.id} className={styles.evidence}>
                 <p className={styles.evidenceMeta}>{evidence.issuerTicker} · 10-K · {evidence.filingDate}</p>
                 <blockquote>“{evidence.quote}”</blockquote>
+                {evidence.qualityReview && <p className={styles.matchNote}>Evidence reviewed {evidence.qualityReview.reviewedAt}: {evidence.qualityReview.reason}</p>}
                 {evidence.nameMatched && <p className={styles.matchNote}>Company connection is based on a name match, pending identity review.</p>}
                 <a href={evidence.filingUrl} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("graph_source_open", { ticker: evidence.issuerTicker, relationship_type: selectedEdge.type })}>Read SEC filing ↗</a>
               </article>)}
@@ -251,7 +252,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
             <div className={styles.feedback}><p>What’s missing from this map?</p><Link href="/feedback" onClick={() => trackEvent("graph_feedback_click")}>Help shape YouAnalyst ↗</Link></div>
           </aside>
         </div>
-        <div className={styles.bottom}><span>{graph.updatedAt ? `Extraction updated ${graph.updatedAt.slice(0, 10)} · evidence dates vary` : "Coverage is being built"}{graph.omittedEdges > 0 ? ` · ${graph.omittedEdges} connections outside this bounded preview` : ""}</span><Link href="/companies">Search all companies →</Link></div>
+        <div className={styles.bottom}><span>{graph.updatedAt ? `Extraction updated ${graph.updatedAt.slice(0, 10)} · evidence dates vary` : "Coverage is being built"}{graph.omittedEdges > 0 ? ` · ${graph.omittedEdges} connections outside this bounded preview` : ""}{(graph.withheldEdges ?? 0) > 0 ? ` · ${graph.withheldEdges} claims withheld after evidence review` : ""}</span><Link href="/companies">Search all companies →</Link></div>
       </section>
     </main>
   );

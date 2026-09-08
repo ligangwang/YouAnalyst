@@ -6,6 +6,7 @@ import {
   type CompanyGraphEdge,
 } from "@/lib/company-graph/types";
 import { collapseCompanyGraphEntityEdges } from "@/lib/company-graph/entities";
+import { displayRelationshipTargetName, reviewRelationships } from "@/lib/company-graph/quality";
 import { FieldPath } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -159,7 +160,9 @@ export async function GET(
           .map(toCurrentCompanyGraphEdge)
           .filter((edge): edge is CompanyGraphEdge => Boolean(edge))
       : []);
-    const currentEdges = collapseCompanyGraphEntityEdges(edges)
+    const reviewed = reviewRelationships(edges);
+    const currentEdges = collapseCompanyGraphEntityEdges(reviewed.edges)
+      .map((edge) => ({ ...edge, targetName: displayRelationshipTargetName(edge.targetName) }))
       .sort(sortEdges)
       .slice(0, MAX_EDGES);
 
@@ -174,6 +177,7 @@ export async function GET(
       runId: runResult?.runId ?? null,
       filing: runResult?.filing ?? null,
       edges: currentEdges,
+      withheldEdges: reviewed.withheldCount,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch company graph";
