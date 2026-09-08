@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { InstitutionFollowButton } from "@/components/institution-follow-button";
 import { formatTickerSymbol, PredictionAuthorSummary, PredictionReturnSummary } from "@/components/prediction-ui";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -276,7 +276,7 @@ function InstitutionalHoldingsSection({
   }, [summary?.positions, statusFilter]);
 
   return (
-    <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
+    <section id="institutional-holdings" className="scroll-mt-24 border-b border-white/15 py-6">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Institutional holdings</h2>
@@ -475,7 +475,7 @@ function InsiderTransactionsSection({
   transactions: InsiderTransactionItem[] | null;
 }) {
   return (
-    <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
+    <section id="insider-transactions" className="scroll-mt-24 border-b border-white/15 py-6">
       <div className="mb-4">
         <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Insider transactions</h2>
         <p className="mt-1 text-sm text-slate-400">
@@ -573,7 +573,7 @@ function formatPositionReturn(value: number): string {
   }).format(value)}`;
 }
 
-export function TickerPage({ ticker }: { ticker: string }) {
+export function TickerPage({ ticker, overview }: { ticker: string; overview?: ReactNode }) {
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<TickerResponse | null>(null);
   const [holdings, setHoldings] = useState<InstitutionalTickerSummary | null>(null);
@@ -747,19 +747,23 @@ export function TickerPage({ ticker }: { ticker: string }) {
 
   if (!payload) {
     return (
-      <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300">
-        {error ?? "Loading ticker..."}
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 text-sm text-slate-300">
+        {overview}
+        <p role="status" className="py-6">{error ?? "Loading company activity..."}</p>
+        <InsiderTransactionsSection displayTicker={displayTicker} error={insiderError} transactions={insiderTransactions} />
+        <InstitutionalHoldingsSection displayTicker={displayTicker} summary={holdings} error={holdingsError} />
       </main>
     );
   }
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
+      {overview}
+      <section className="border-b border-white/15 py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Company</p>
-            <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Community</p>
+            {overview ? <h2 className="mt-2 text-xl font-semibold text-cyan-100">Investment views on {displayTicker}</h2> : <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>}
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               Public calls, watchlists, and institutional 13F context for {displayTicker}.
             </p>
