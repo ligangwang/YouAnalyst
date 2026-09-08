@@ -16,7 +16,7 @@
     "smoke:test": "playwright test",
     "test:conversion": "playwright test --config=playwright.conversion.config.ts",
     "test:graph": "tsx --test tests/graph/repository.test.ts",
-    "test:industry": "tsx --test tests/industry/model.test.ts tests/industry/quality.test.ts tests/industry/saved-companies.test.ts tests/industry/discovery.test.ts",
+    "test:industry": "tsx --test tests/industry/model.test.ts tests/industry/quality.test.ts tests/industry/saved-companies.test.ts tests/industry/discovery.test.ts tests/industry/company-research.test.tsx",
     "smoke:install": "playwright install chromium",
     "deploy:staging": "./scripts/deploy-cloud-run.sh staging",
     "deploy:production": "./scripts/deploy-cloud-run.sh production"

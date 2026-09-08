@@ -1,6 +1,19 @@
 import type { Metadata } from "next";
 import { TickerPage } from "@/components/ticker-page";
 import { normalizeTicker } from "@/lib/predictions/types";
+import { notFound, permanentRedirect } from "next/navigation";
+import { loadCompanyResearch } from "@/lib/company-research-service";
+import { companyResearchDescription } from "@/lib/company-research";
+import { CompanyResearchOverview } from "@/components/company-research-overview";
+import { absoluteUrl } from "@/lib/seo";
+
+export const dynamic = "force-dynamic";
+
+function resolveTicker(symbol: string) {
+  const ticker = normalizeTicker(symbol.replace(/^\$/, ""));
+  if (!/^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker)) notFound();
+  return ticker;
+}
 
 export async function generateMetadata({
   params,
@@ -8,9 +21,10 @@ export async function generateMetadata({
   params: Promise<{ symbol: string }>;
 }): Promise<Metadata> {
   const { symbol } = await params;
-  const ticker = normalizeTicker(symbol);
-  const title = `${ticker} institutional holdings | YouAnalyst`;
-  const description = `Explore ${ticker} public calls, watchlists, and institutional 13F holding changes on YouAnalyst.`;
+  const ticker = resolveTicker(symbol);
+  const company = await loadCompanyResearch(ticker);
+  const title = `${company.name} (${ticker}) holdings & company research | YouAnalyst`;
+  const description = companyResearchDescription(company);
 
   return {
     title,
@@ -32,5 +46,22 @@ export async function generateMetadata({
 
 export default async function TickerRoutePage({ params }: { params: Promise<{ symbol: string }> }) {
   const { symbol } = await params;
-  return <TickerPage ticker={symbol} />;
+  const ticker = resolveTicker(symbol);
+  if (symbol !== ticker) permanentRedirect(`/ticker/${encodeURIComponent(ticker)}`);
+  const company = await loadCompanyResearch(ticker);
+  const schema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      { "@type": "WebPage", name: `${company.name} (${ticker}) company research`, url: absoluteUrl(`/ticker/${ticker}`), description: companyResearchDescription(company) },
+      { "@type": "BreadcrumbList", itemListElement: [
+        { "@type": "ListItem", position: 1, name: "YouAnalyst", item: absoluteUrl("/") },
+        { "@type": "ListItem", position: 2, name: "Companies", item: absoluteUrl("/companies") },
+        { "@type": "ListItem", position: 3, name: ticker, item: absoluteUrl(`/ticker/${ticker}`) },
+      ] },
+    ],
+  };
+  return <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} />} />
+  </>;
 }

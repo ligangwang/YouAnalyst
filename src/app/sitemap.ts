@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { normalizeTicker } from "@/lib/predictions/types";
 import { absoluteUrl } from "@/lib/seo";
+import { INDUSTRY_STARTERS } from "@/lib/industry-graph/catalog";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 3600;
@@ -44,6 +45,10 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   },
 ];
 
+const COMPANY_ROUTES: MetadataRoute.Sitemap = INDUSTRY_STARTERS.map(({ ticker }) => ({
+  url: absoluteUrl(`/ticker/${ticker}`), changeFrequency: "daily", priority: 0.7,
+}));
+
 function isPublicUser(data: Record<string, unknown> | undefined): boolean {
   const settings = data?.settings;
   if (!settings || typeof settings !== "object") {
@@ -58,9 +63,8 @@ function toIsoDate(value: unknown): string | undefined {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const db = getAdminFirestore();
-
   try {
+    const db = getAdminFirestore();
     const [predictionSnapshot, userSnapshot, watchlistSnapshot] = await Promise.all([
       db.collection("predictions").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(500).get(),
       db.collection("users").orderBy("updatedAt", "desc").limit(500).get(),
@@ -79,7 +83,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }));
 
-    const tickerRoutes = new Map<string, MetadataRoute.Sitemap[number]>();
+    const tickerRoutes = new Map<string, MetadataRoute.Sitemap[number]>(COMPANY_ROUTES.map((route, index) => [INDUSTRY_STARTERS[index].ticker, route]));
     const predictionRoutes: MetadataRoute.Sitemap = [];
 
     for (const doc of predictionSnapshot.docs) {
@@ -121,6 +125,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     return [...STATIC_ROUTES, ...analystRoutes, ...watchlistRoutes, ...tickerRoutes.values(), ...predictionRoutes];
   } catch {
-    return STATIC_ROUTES;
+    return [...STATIC_ROUTES, ...COMPANY_ROUTES];
   }
 }
