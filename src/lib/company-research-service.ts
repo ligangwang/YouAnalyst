@@ -1,6 +1,5 @@
 import { cache } from "react";
 import { getAdminFirestore } from "./firebase/admin";
-import { INDUSTRY_STARTERS } from "./industry-graph/catalog";
 import { loadIndustryGraph } from "./industry-graph/service";
 import { buildCompanyResearch } from "./company-research";
 
@@ -13,7 +12,7 @@ export const loadCompanyResearch = cache(async (ticker: string) => {
         return result.docs.map((doc) => doc.data());
       } catch { return []; }
     })(),
-    INDUSTRY_STARTERS.some((item) => item.ticker === ticker) ? loadIndustryGraph().catch(() => null) : Promise.resolve(null),
+    loadIndustryGraph({ ticker }).catch(() => null),
   ]);
   return buildCompanyResearch(ticker, listings, graph);
 });

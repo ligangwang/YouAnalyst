@@ -1,5 +1,5 @@
 import { COMPANY_GRAPH_EXTRACTION_VERSION, COMPANY_GRAPH_RELATIONSHIP_TYPES, COMPANY_GRAPH_EDGE_DIRECTIONS, type CompanyGraphRelationshipType } from "../company-graph/types";
-import { INDUSTRY_STARTERS, type IndustrySegment } from "./catalog";
+import { type IndustrySegment, type IndustryCompany } from "./catalog";
 import { displayRelationshipTargetName, reviewRelationship, type RelationshipQualityReview } from "../company-graph/quality";
 
 export type IndustryNode = {
@@ -8,6 +8,8 @@ export type IndustryNode = {
   ticker: string | null;
   segment: IndustrySegment;
   kind: "issuer" | "mention" | "category" | "coverage";
+  aliases?: string[];
+  filingForm?: "20-F";
 };
 export type IndustryEvidence = {
   id: string;
@@ -33,6 +35,8 @@ export type IndustryGraph = {
   updatedAt: string | null;
   omittedEdges: number;
   withheldEdges?: number;
+  nextCursor?: string | null;
+  requestedTicker?: string;
 };
 export const RELATIONSHIP_LABELS: Record<CompanyGraphRelationshipType, string> = {
   SUPPLIER_OF: "supplies", CUSTOMER_OF: "buys from", COMPETES_WITH: "competes with",
@@ -50,13 +54,23 @@ function nameKey(value: string): string {
 
 // A read-only visualization projection. These IDs are not company master IDs.
 // Name-based connections are explicitly provisional, never written as identity merges.
-export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph {
+export function buildIndustryGraph(runs: Record<string, unknown>, companies: IndustryCompany[] = []): IndustryGraph {
   const nodes = new Map<string, IndustryNode>();
   const issuers = new Map<string, { node: IndustryNode; cik: string; result: Record<string, unknown> }>();
   const names = new Map<string, Set<string>>();
   const coveredTickers: string[] = [];
   let updatedAt: string | null = null;
-  for (const starter of INDUSTRY_STARTERS) {
+  const directory = new Map(companies.map((company) => [company.ticker, company]));
+  for (const [ticker, value] of Object.entries(runs)) {
+    const run = record(value);
+    const result = record(run.result);
+    if (!directory.has(ticker) && /^[A-Z0-9][A-Z0-9.-]{0,9}$/.test(ticker) && run.status === "COMPLETED" &&
+        run.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION && result.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION &&
+        result.dryRun === false && result.ticker === ticker && /^\d{10}$/.test(text(result.cik)) && text(result.companyName) && Array.isArray(result.edges)) {
+      directory.set(ticker, { ticker, name: text(result.companyName), segment: "other" });
+    }
+  }
+  for (const starter of directory.values()) {
     const run = record(runs[starter.ticker]);
     const result = record(run.result);
     const cik = text(result.cik);
@@ -68,6 +82,7 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
     const node: IndustryNode = {
       id: valid ? `sec:${cik}` : `coverage:${starter.ticker}`,
       name: starter.name, ticker: starter.ticker, segment: starter.segment, kind: valid ? "issuer" : "coverage",
+      aliases: starter.aliases, filingForm: starter.filingForm,
     };
     nodes.set(node.id, node);
     // Register editorial names even before the company's own filing is covered.
@@ -123,7 +138,7 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
       const destinationId = direction === "target_to_source" ? node.id : targetId;
       const endpoints = direction === "bidirectional" ? [sourceId, destinationId].sort() : [sourceId, destinationId];
       const id = JSON.stringify([...endpoints, type, direction === "bidirectional"]);
-      if ((!nodes.has(targetId) && nodes.size >= 60) || (!edges.has(id) && edges.size >= 120)) {
+      if ((!nodes.has(targetId) && nodes.size >= Math.max(60, directory.size + 40)) || (!edges.has(id) && edges.size >= 120)) {
         omittedEdges++;
         continue;
       }

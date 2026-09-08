@@ -1,4 +1,4 @@
-import { INDUSTRY_SEGMENTS, INDUSTRY_STARTERS } from "./industry-graph/catalog";
+import { INDUSTRY_SEGMENTS } from "./industry-graph/catalog";
 import { RELATIONSHIP_LABELS, type IndustryGraph } from "./industry-graph/model";
 
 function text(value: unknown): string | null {
@@ -6,7 +6,6 @@ function text(value: unknown): string | null {
 }
 
 export function buildCompanyResearch(ticker: string, listings: Record<string, unknown>[], graph: IndustryGraph | null) {
-  const starter = INDUSTRY_STARTERS.find((item) => item.ticker === ticker);
   const listing = listings.filter((item) => item.symbol === ticker && item.active === true && item.predictionSupported === true)
     .sort((a, b) => (Number(b.exchangePriority) || 0) - (Number(a.exchangePriority) || 0))[0];
   const node = graph?.nodes.find((item) => item.ticker === ticker);
@@ -20,15 +19,15 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
     }) : [];
   return {
     ticker,
-    name: text(listing?.name) ?? starter?.aliases?.[0] ?? starter?.name ?? ticker,
-    known: Boolean(listing || starter),
+    name: text(listing?.name) ?? node?.aliases?.[0] ?? node?.name ?? ticker,
+    known: Boolean(listing || node),
     exchange: text(listing?.exchange),
     currency: text(listing?.currency),
     country: text(listing?.country),
     securityType: text(listing?.type),
     listingUpdatedAt: text(listing?.lastSyncedAt),
-    segment: INDUSTRY_SEGMENTS.find((item) => item.id === starter?.segment)?.label ?? null,
-    inMap: Boolean(starter),
+    segment: INDUSTRY_SEGMENTS.find((item) => item.id === node?.segment)?.label ?? null,
+    inMap: Boolean(node),
     graphAvailable: graph !== null,
     connections,
   };

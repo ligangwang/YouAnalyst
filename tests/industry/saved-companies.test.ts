@@ -6,6 +6,7 @@ function fixture() {
   const records = new Map<string, string[]>([["alice", ["MU"]], ["bob", ["TSM"]]]);
   const calls: string[] = [];
   const handlers = createSavedCompanyHandlers({
+    exists: async (ticker) => ["MU", "NVDA", "AMD", "TSM", "CRM"].includes(ticker),
     authenticate: async (request: Request) => request.headers.get("authorization") === "Bearer test-alice" ? { uid: "alice" } : null,
     read: async (uid) => { calls.push(uid); return records.get(uid); },
     update: async (uid, ticker, saved) => {
@@ -62,7 +63,7 @@ test("explicit desired state makes save/remove retries idempotent", async () => 
 });
 test("storage failures return a private retryable response without internal details", async () => {
   const fail = async () => { throw new Error("private database details"); };
-  const handlers = createSavedCompanyHandlers({ authenticate: async () => ({ uid: "alice" }), read: fail, update: fail });
+  const handlers = createSavedCompanyHandlers({ authenticate: async () => ({ uid: "alice" }), read: fail, update: fail, exists: fail });
   for (const response of [await handlers.GET(request()), await handlers.POST(request({ ticker: "MU", saved: true }))]) {
     assert.equal(response.status, 503);
     assert.equal(response.headers.get("cache-control"), "private, no-store");
@@ -76,4 +77,15 @@ test("only supported tickers survive storage reads and contextual auth links", (
   assert.equal(mapAuthCompany(next), "TSM");
   assert.equal(mapAuthCompany("/predictions/new?ticker=TSM"), null);
   assert.equal(mapAuthCompany("/?company=unknown"), null);
+});
+
+test("new database companies can be saved and removed without a code allowlist", async () => {
+  const { handlers } = fixture();
+  const response = await handlers.POST(request({ ticker: "CRM", saved: true }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { tickers: ["MU", "CRM"] });
+  assert.equal(mapAuthCompany("/?company=CRM"), "CRM");
+  assert.equal(mapAuthCompany("https://evil.invalid/?company=CRM"), null);
+  const removed = await handlers.POST(request({ ticker: "CRM", saved: false }));
+  assert.deepEqual(await removed.json(), { tickers: ["MU"] });
 });

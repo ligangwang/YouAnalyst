@@ -2,10 +2,14 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { createSavedCompanyHandlers } from "@/lib/industry-graph/saved-companies";
+import { loadIndustryGraph } from "@/lib/industry-graph/service";
 
 export const runtime = "nodejs";
 const handlers = createSavedCompanyHandlers({
   authenticate: getDecodedUserFromRequest,
+  async exists(ticker) {
+    return (await loadIndustryGraph({ ticker })).nodes.some((node) => node.ticker === ticker);
+  },
   async read(uid) {
     return (await getAdminFirestore().collection("industry_map_preferences").doc(uid).get()).data()?.tickers;
   },
