@@ -46,6 +46,14 @@ save/remove requests idempotent without overwriting concurrent saves of other
 companies. No collection migration, financial computation or extraction is needed.
 Account changes hide previous saves immediately and ignore late responses.
 
+Deployment smoke tests use a Cloud Run service identity token, which is not a
+Firebase user session. Saved-data checks pass infrastructure authorization via
+`X-Serverless-Authorization` separately and verify that anonymous requests and
+service identities cannot read user saves. A positive authenticated read test
+requires an explicitly supplied `PLAYWRIGHT_FIREBASE_ID_TOKEN`; it is skipped when
+that user-session credential is absent. Save/remove and account isolation are
+covered by isolated API and browser tests without writing production user data.
+
 GA4 adds `graph_save_intent` (actions: sign_in/save/remove), `graph_save_complete`
 (save/remove, only after success), `graph_save_error`, and `graph_saved_company_open`.
 Compare visitors who inspect evidence, click save intent with sign_in, register
