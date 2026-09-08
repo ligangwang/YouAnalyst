@@ -56,6 +56,9 @@
 .detail p { font-size: 12px; line-height: 1.7; }
 .detail p.eyebrow { font-size: 10px; }
 .muted { color: #9bb0c3; }
+.companyLink { display: inline-block; margin-top: 8px; padding: 6px 0; color: #8bddee; font-size: 13px; font-weight: 600; line-height: 1.6; text-decoration: underline; text-underline-offset: 3px; }
+.companyLink:hover { color: #d5f6fb; }
+.companyLink:focus-visible { outline: 2px solid #67e8f9; outline-offset: 4px; }
 .steps { list-style: none; padding: 0; margin: 25px 0; }
 .steps li { display: flex; gap: 12px; align-items: center; padding: 11px 0; font-size: 12px; color: #bfcedb; }
 .steps span { color: #527c94; font-size: 10px; }
