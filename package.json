@@ -15,6 +15,8 @@
     "firestore:indexes:apply": "tsx scripts/firestore/apply-indexes.ts",
     "smoke:test": "playwright test",
     "test:conversion": "playwright test --config=playwright.conversion.config.ts",
+    "test:graph": "tsx --test tests/graph/repository.test.ts",
+    "test:industry": "tsx --test tests/industry/model.test.ts",
     "smoke:install": "playwright install chromium",
     "deploy:staging": "./scripts/deploy-cloud-run.sh staging",
     "deploy:production": "./scripts/deploy-cloud-run.sh production"
