@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { discoveryQuestions, discoveryView } from "../../src/lib/industry-graph/discovery";
-import { buildIndustryGraph } from "../../src/lib/industry-graph/model";
+import { buildIndustryGraph } from "./fixtures";
 import { fixtureGraph, runFixture } from "./fixtures";
 
 test("discovery distinguishes incoming suppliers from outgoing supply and excludes categories", () => {

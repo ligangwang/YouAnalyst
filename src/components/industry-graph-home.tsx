@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { INDUSTRY_SEGMENTS, INDUSTRY_STARTERS } from "@/lib/industry-graph/catalog";
+import { INDUSTRY_SEGMENTS } from "@/lib/industry-graph/catalog";
+import { isMapTicker } from "@/lib/industry-graph/directory";
 import { buildIndustryGraph, RELATIONSHIP_LABELS, selectNeighborhood, type IndustryGraph, type IndustryNode } from "@/lib/industry-graph/model";
 import { trackEvent } from "@/lib/analytics";
 import { layoutIndustryGraph } from "@/lib/industry-graph/layout";
@@ -10,12 +11,15 @@ import { mapSignInHref } from "@/lib/industry-graph/saved-companies";
 import { useSavedMapCompanies } from "./use-saved-map-companies";
 import styles from "./industry-graph-home.module.css";
 
-const EMPTY_GRAPH = buildIndustryGraph({});
+const EMPTY_GRAPH = buildIndustryGraph({}, []);
 export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: string }) {
   const savedCompanies = useSavedMapCompanies();
   const [graph, setGraph] = useState<IndustryGraph>(EMPTY_GRAPH);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
+  const [requestedTicker, setRequestedTicker] = useState(initialTicker.toUpperCase());
+  const [pageCursors, setPageCursors] = useState<string[]>([""]);
+  const cursor = pageCursors.at(-1)!;
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [roots, setRoots] = useState<string[]>([]);
@@ -56,7 +60,10 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
     const controller = new AbortController();
     let disposed = false;
     const timeout = setTimeout(() => controller.abort(), 15_000);
-    void fetch("/api/industry-graph", { signal: controller.signal })
+    const params = new URLSearchParams();
+    if (requestedTicker) params.set("company", requestedTicker);
+    if (cursor) params.set("after", cursor);
+    void fetch(`/api/industry-graph${params.size ? `?${params}` : ""}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Graph unavailable");
         const payload = await response.json() as IndustryGraph;
@@ -64,8 +71,9 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
         if (disposed) return;
         setGraph(payload);
         setStatus("ready");
-        const initial = payload.nodes.find((node) => node.ticker === initialTicker.toUpperCase());
+        const initial = payload.nodes.find((node) => node.ticker === requestedTicker);
         setSelectedId(initial?.id ?? null); setRoots(initial ? [initial.id] : []); setEdgeId(null);
+        setNotice(requestedTicker && !initial ? `No company or published filing coverage found for ${requestedTicker}.` : "");
         trackEvent("industry_graph_load", { node_count: payload.nodes.length, edge_count: payload.edges.length, coverage_count: payload.coveredTickers.length });
       })
       .catch(() => {
@@ -74,25 +82,28 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
         trackEvent("industry_graph_error");
       }).finally(() => clearTimeout(timeout));
     return () => { disposed = true; controller.abort(); clearTimeout(timeout); };
-  }, [attempt, initialTicker]);
+  }, [attempt, requestedTicker, cursor]);
 
   const nodesById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph]);
   const selected = selectedId ? nodesById.get(selectedId) : null;
-  const selectedStarter = INDUSTRY_STARTERS.find((starter) => starter.ticker === selected?.ticker);
   const selectedEdge = graph.edges.find((edge) => edge.id === edgeId);
   const overview = roots.length === 0 && !allConnections;
   const visible = useMemo(() => selectNeighborhood(graph, roots, type, categories, overview), [graph, roots, type, categories, overview]);
   const searchResults = query.trim() ? graph.nodes.filter((node) => node.kind !== "category" &&
-    `${node.name} ${node.ticker ?? ""} ${INDUSTRY_STARTERS.find((starter) => starter.ticker === node.ticker)?.aliases?.join(" ") ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8) : [];
+    `${node.name} ${node.ticker ?? ""} ${node.aliases?.join(" ") ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8) : [];
   const connections = selected ? visible.edges.filter((edge) => edge.source === selected.id || edge.target === selected.id) : [];
   const { columns, positions, width: chartWidth, height: chartHeight } = layoutIndustryGraph(visible.nodes, panelWidth);
 
   function selectCompany(node: IndustryNode, focus = false) {
+    if (node.ticker && !graph.coveredTickers.includes(node.ticker) && node.ticker !== requestedTicker) {
+      setRequestedTicker(node.ticker); setStatus("loading");
+    }
     setSelectedId(node.id); setEdgeId(null); setNotice("");
     if (focus || !roots.length) { setRoots([node.id]); setZoom(1); }
     trackEvent("graph_company_select", { ticker: node.ticker ?? undefined, node_kind: node.kind, segment: node.segment });
   }
   function reset() {
+    if (requestedTicker) { setRequestedTicker(""); setStatus("loading"); }
     setRoots([]); setSelectedId(null); setEdgeId(null); setType("all"); setCategories(false); setZoom(1); setQuery(""); setAllConnections(false); setNotice("");
     trackEvent("graph_view_change", { action: "industry_overview", view_mode: mode });
   }
@@ -108,7 +119,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   const selectedInEvidence = !selectedEdge || selected?.id === selectedEdge.source || selected?.id === selectedEdge.target;
   const saveTarget = selectedInEvidence && selected?.ticker ? selected : selectedEdge ? graph.nodes.find((node) => node.ticker === selectedEdge.evidence[0]?.issuerTicker) : null;
   const saveTicker = saveTarget?.ticker;
-  const saveCard = saveTicker && INDUSTRY_STARTERS.some((starter) => starter.ticker === saveTicker) ? <section className={styles.saveCard} aria-label="Save company">
+  const saveCard = saveTicker ? <section className={styles.saveCard} aria-label="Save company">
     <h3>Keep this company close</h3>
     <p>Save {saveTicker} to your account and reopen its connections from your personal list.</p>
     {savedCompanies.authLoading ? <button type="button" disabled>Loading account…</button> : savedCompanies.signedIn ?
@@ -122,9 +133,9 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
     <main className={styles.page}>
       <header className={styles.heading}>
         <div>
-          <p className={styles.eyebrow}>THE COMPANIES BEHIND AI</p>
-          <h1>Explore the AI industry.</h1>
-          <p>Find suppliers and customers behind AI. Read the filings. Keep companies worth following.</p>
+          <p className={styles.eyebrow}>COMPANY RELATIONSHIPS</p>
+          <h1>Explore company connections.</h1>
+          <p>Find suppliers and customers. Read the filings. Keep companies worth following.</p>
         </div>
         <span className={styles.pill}>Early access · SEC filing evidence</span>
       </header>
@@ -135,6 +146,10 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
             event.preventDefault();
             trackEvent("graph_search", { result_count: searchResults.length });
             if (searchResults[0]) { selectCompany(searchResults[0], true); setQuery(""); }
+            else {
+              const ticker = query.trim().replace(/^\$/, "").toUpperCase();
+              if (isMapTicker(ticker)) { setRequestedTicker(ticker); setStatus("loading"); setAttempt((value) => value + 1); setQuery(""); }
+            }
           }}>
             <label className={styles.srOnly} htmlFor="graph-search">Find a company in the map</label>
             <input id="graph-search" type="search" autoComplete="off" placeholder="Find a company or ticker…" value={query}
@@ -144,19 +159,25 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               {searchResults.length ? searchResults.map((node) => <button type="button" key={node.id} onClick={() => {
                 trackEvent("graph_search", { result_count: searchResults.length }); selectCompany(node, true); setQuery("");
               }}><strong>{node.name}</strong><span>{node.ticker ?? "Filing mention"}</span></button>) :
-                <p>No match in this map. <Link href="/companies">Search all companies</Link></p>}
+                <p>No match on this page. Enter a ticker to open its map, or <Link href="/companies">search all companies</Link>.</p>}
             </div>}
           </form>
-          <div className={styles.starters}><span>Start with</span>{["TSM", "NVDA", "MU"].map((ticker) =>
+          <div className={styles.starters}><span>Companies</span>{graph.coveredTickers.slice(0, 3).map((ticker) =>
             <button key={ticker} type="button" onClick={() => { const node = graph.nodes.find((item) => item.ticker === ticker); if (node) selectCompany(node, true); }}>{ticker}</button>)}</div>
           <div className={styles.switcher} aria-label="Display mode">{(["map", "list"] as const).map((value) =>
             <button key={value} type="button" aria-pressed={mode === value} onClick={() => { setMode(value); trackEvent("graph_view_change", { view_mode: value }); }}>{value === "map" ? "Map" : "List"}</button>)}</div>
         </div>
+        <nav className={styles.filters} aria-label="Company pages">
+          <button type="button" disabled={pageCursors.length === 1 || status === "loading"} onClick={() => { reset(); setStatus("loading"); setPageCursors((pages) => pages.slice(0, -1)); }}>Previous companies</button>
+          <span>Page {pageCursors.length}</span>
+          <button type="button" disabled={!graph.nextCursor || status === "loading"} onClick={() => { reset(); setStatus("loading"); setPageCursors((pages) => [...pages, graph.nextCursor!]); }}>Next companies</button>
+        </nav>
         {savedCompanies.signedIn && <section className={styles.savedCompanies} aria-label="Your saved companies">
           <strong>Your saved companies</strong>
-          {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} disabled={status !== "ready" || !graph.nodes.some((node) => node.ticker === ticker)} onClick={() => {
+          {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} disabled={status !== "ready"} onClick={() => {
             const node = graph.nodes.find((item) => item.ticker === ticker);
             if (node) { selectCompany(node, true); trackEvent("graph_saved_company_open", { ticker }); }
+            else { setRequestedTicker(ticker); setStatus("loading"); trackEvent("graph_saved_company_open", { ticker }); }
           }}>{ticker}</button>)}
           {savedCompanies.ready && !savedCompanies.tickers.length && <span>Select a company below to save your first one.</span>}
           {!savedCompanies.ready && !savedCompanies.failed && <span>Loading saved companies…</span>}
@@ -182,7 +203,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
             {status !== "ready" && <div role="status" className={styles.status}>
               {status === "loading" ? "Loading filing relationships…" : <>Filing relationships are temporarily unavailable. <button type="button" onClick={() => { setStatus("loading"); setAttempt((value) => value + 1); }}>Try again</button></>}
             </div>}
-            {status === "ready" && !graph.edges.length && <div role="status" className={styles.status}>The industry starting points are ready. Published filing relationships will appear here as coverage is added.</div>}
+            {status === "ready" && !graph.edges.length && <div role="status" className={styles.status}>No published relationships on this page. Published filing relationships will appear here as coverage is added.</div>}
             {status === "ready" && graph.edges.length > 0 && !visible.edges.length && <div role="status" className={styles.status}>{overview ? "No connections between starting companies match this view. Select a company or show all connections to explore filing mentions." : "No connections match this view. Try another company or change the filters."}</div>}
             {mode === "map" ? <>
               <div ref={canvasRef} className={styles.canvas} tabIndex={0} role="region" aria-label="Scrollable industry map. Select a company or use List view.">
@@ -248,7 +269,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               <h2>{selected.name}</h2><p className={styles.muted}>{selected.ticker ?? (selected.kind === "category" ? "Group mentioned in a filing" : "Company mentioned in a filing")}</p>
               {selected.ticker && <Link className={styles.companyLink} href={`/ticker/${encodeURIComponent(selected.ticker)}`} onClick={() => trackEvent("graph_company_open", { ticker: selected.ticker! })}>View {selected.ticker} company page →</Link>}
               {selected.kind === "mention" && <p className={styles.matchNote}>Identity unresolved. This mention has not been merged with a company record.</p>}
-              {selected.kind === "coverage" && <p className={styles.matchNote}>{selectedStarter?.filingForm === "20-F"
+              {selected.kind === "coverage" && <p className={styles.matchNote}>{selected.filingForm === "20-F"
                 ? "This company files a 20-F. Its own annual filing has not been added yet. Connections shown here come from other companies’ filings and use provisional name matches."
                 : "This company’s own filing has not been added yet. Connections from other issuers may appear as provisional name matches."}</p>}
               {saveCard}
@@ -273,8 +294,8 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               <p className={styles.eyebrow}>FROM SILICON TO INFRASTRUCTURE</p><h2>Where does your company fit?</h2>
               <p>Choose a company to trace its suppliers, customers and competitors.</p>
               <ol className={styles.steps}><li><span>01</span>Pick a company or search above.</li><li><span>02</span>Follow a connection to its evidence.</li><li><span>03</span>Expand a neighbor to go deeper.</li></ol>
-              <div className={styles.coverage}><strong>{graph.coveredTickers.length} / {INDUSTRY_STARTERS.length}</strong><span>starting companies with published extraction</span></div>
-              <p className={styles.muted}>Coverage starts with US 10-K filings. Private companies and foreign issuers may appear as mentions. The map is not a complete account of the AI industry.</p>
+              <div className={styles.coverage}><strong>{graph.coveredTickers.length} / {graph.nodes.filter((node) => node.ticker).length}</strong><span>companies on this page with published extraction</span></div>
+              <p className={styles.muted}>Coverage starts with US 10-K filings. Private companies and foreign issuers may appear as mentions. Connections are limited to the filings loaded on this page, not the full market.</p>
             </>}
             {notice && <p role="status">{notice}</p>}
             <div className={styles.feedback}><p>What’s missing from this map?</p><Link href="/feedback" onClick={() => trackEvent("graph_feedback_click")}>Help shape YouAnalyst ↗</Link></div>

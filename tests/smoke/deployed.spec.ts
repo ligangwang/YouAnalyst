@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { INDUSTRY_STARTERS } from "../../src/lib/industry-graph/catalog";
+import { isMapTicker } from "../../src/lib/industry-graph/directory";
 
 function savedCompanyHeaders(userToken?: string): Record<string, string> {
   const serviceToken = process.env.PLAYWRIGHT_AUTH_BEARER_TOKEN;
@@ -33,7 +33,7 @@ test("authenticated saved-company reads reach the private account store", async 
   expect(response.headers()["cache-control"].split(/,\s*/)).toEqual(expect.arrayContaining(["private", "no-store"]));
   const result = await response.json();
   expect(Array.isArray(result.tickers)).toBe(true);
-  expect(result.tickers.length).toBeLessThanOrEqual(INDUSTRY_STARTERS.length);
+  expect(result.tickers.every(isMapTicker)).toBe(true);
 });
 
 test("Cloud Run service identity does not grant access to saved companies", async ({ request }) => {
@@ -50,7 +50,7 @@ test("homepage renders the AI industry map", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Feed", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Predict", exact: true }).first()).toBeVisible();
   
-  await expect(page.getByRole("heading", { name: "Explore the AI industry.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Explore company connections.", exact: true })).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "Find a company in the map" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Map", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "List", exact: true })).toBeVisible();
@@ -71,7 +71,7 @@ test("industry map serves bounded filing data", async ({ request, baseURL }) => 
   expect(Array.isArray(graph.edges)).toBeTruthy();
   expect(Array.isArray(graph.coveredTickers)).toBeTruthy();
   expect(graph.nodes.length).toBeGreaterThan(0);
-  expect(graph.nodes.length).toBeLessThanOrEqual(60);
+  expect(graph.nodes.length).toBeLessThanOrEqual(101);
   expect(graph.edges.length).toBeLessThanOrEqual(120);
   for (const ticker of ["MU", "SNDK", "WDC"]) {
     expect(graph.nodes.filter((node: { ticker: string; segment: string }) => node.ticker === ticker && node.segment === "memory")).toHaveLength(1);

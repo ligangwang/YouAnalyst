@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildIndustryGraph, selectNeighborhood } from "../../src/lib/industry-graph/model";
+import { selectNeighborhood } from "../../src/lib/industry-graph/model";
+import { buildIndustryGraph } from "./fixtures";
 import { fixtureRuns, runFixture } from "./fixtures";
 import { INDUSTRY_STARTERS } from "../../src/lib/industry-graph/catalog";
 import { layoutIndustryGraph } from "../../src/lib/industry-graph/layout";

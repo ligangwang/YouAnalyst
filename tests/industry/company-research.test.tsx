@@ -31,7 +31,7 @@ test("missing data does not invent business facts or relationships", () => {
   assert.equal(company.name, "UNKNOWN");
   assert.equal(company.exchange, null);
   assert.deepEqual(company.connections, []);
-  assert.equal(buildCompanyResearch("AMD", [], null).name, "Advanced Micro Devices");
+  assert.equal(buildCompanyResearch("AMD", [], null).name, "AMD");
 });
 
 test("company identity, evidence and crawlable links are present without browser JavaScript", () => {

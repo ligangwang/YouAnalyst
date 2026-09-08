@@ -125,6 +125,9 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
+      - name: Initialize company map directory
+        run: npx tsx scripts/migrate-map-directory.ts
+
       - name: Debug staging deploy context
         env:
           GOOGLE_CLOUD_PROJECT: ${{ env.GCP_PROJECT_ID }}
@@ -588,6 +591,9 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Initialize company map directory
+        run: npx tsx scripts/migrate-map-directory.ts
 
       - name: Debug production deploy context
         env:

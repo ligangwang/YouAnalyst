@@ -26,6 +26,7 @@
 .filters select { background: #132435; color: #d2dfeb; border: 1px solid #2c4256; border-radius: 4px; padding: 5px; max-width: 160px; }
 .filters input { accent-color: #22d3ee; }
 .filters button { color: #a5d4e5; }
+.filters button:disabled { opacity: .45; cursor: not-allowed; }
 .count { margin-left: auto; }
 .scope { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-bottom: 1px solid #213142; background: #102030; }
 .scope strong { font-size: 12px; color: #d8edf7; }

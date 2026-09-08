@@ -4,7 +4,7 @@ import { mapSignInHref } from "@/lib/industry-graph/saved-companies";
 
 export function CompanyResearchOverview({ company }: { company: CompanyResearch }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
-    ["Country", company.country], ["Security", company.securityType], ["AI industry segment", company.segment]].filter(([, value]) => value);
+    ["Country", company.country], ["Security", company.securityType], ["Map segment", company.segment]].filter(([, value]) => value);
   return <>
     <header className="border-b border-white/15 pb-6">
       <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap gap-2 text-sm text-cyan-200">
@@ -18,7 +18,7 @@ export function CompanyResearchOverview({ company }: { company: CompanyResearch 
       {company.listingUpdatedAt && <p className="mt-3 text-xs text-slate-400">Listing data synced {company.listingUpdatedAt.slice(0, 10)}.</p>}
       {!company.known && <p className="mt-3 text-sm text-slate-400">Company listing details are not available for this symbol.</p>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
-        <Link href={`/?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4">Explore {company.ticker} on the AI map</Link>
+        <Link href={`/?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4">Explore {company.ticker} on the company map</Link>
         <Link href={mapSignInHref(company.ticker)} className="underline underline-offset-4">Save {company.ticker} to your company list</Link>
       </div>}
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
@@ -29,7 +29,7 @@ export function CompanyResearchOverview({ company }: { company: CompanyResearch 
     </header>
     {company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker} suppliers, customers and competitors</h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? `${company.connections.length} relationships in the current AI map. ` : ""}These are AI-extracted filing claims, not a complete or independently verified account of the business. Filing dates describe the sources, not live relationships.</p>
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? `${company.connections.length} relationships in the loaded filings. ` : ""}These are AI-extracted filing claims, not a complete or independently verified account of the business. Filing dates describe the sources, not live relationships.</p>
       {!company.connections.length && <p className="mt-3 text-sm text-slate-400">{company.graphAvailable ? "No published relationships are available for this company yet." : "Filing relationships are temporarily unavailable."}</p>}
       <div className="mt-4 divide-y divide-white/10">
         {company.connections.slice(0, 12).map((connection) => <article key={connection.id} className="py-4">

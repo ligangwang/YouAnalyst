@@ -1,5 +1,7 @@
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "../../src/lib/company-graph/types";
-import { buildIndustryGraph } from "../../src/lib/industry-graph/model";
+import { buildIndustryGraph as buildGraph } from "../../src/lib/industry-graph/model";
+import { INDUSTRY_STARTERS } from "../../src/lib/industry-graph/catalog";
+export const buildIndustryGraph = (runs: Record<string, unknown>) => buildGraph(runs, INDUSTRY_STARTERS);
 
 // Synthetic quotations for local tests only. Never imported into production code.
 export function runFixture(ticker: string, cik: string, name: string, targets: Array<Record<string, unknown>> = []) {
