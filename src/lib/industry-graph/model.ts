@@ -57,7 +57,7 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
     const run = record(runs[starter.ticker]);
     const result = record(run.result);
     const cik = text(result.cik);
-    const valid = run.status === "COMPLETED" && run.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION &&
+    const valid = starter.filingForm !== "20-F" && run.status === "COMPLETED" && run.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION &&
       result.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION && result.dryRun === false &&
       result.ticker === starter.ticker && /^\d{10}$/.test(cik) && text(result.companyName) &&
       Array.isArray(result.edges);

@@ -10,10 +10,13 @@ export async function loadIndustryGraph(): Promise<IndustryGraph> {
   if (pending) return pending;
   pending = (async () => {
     const db = getAdminFirestore();
-    const docs = await db.getAll(...INDUSTRY_STARTERS.map(({ ticker }) =>
+    // The current extraction pipeline supports 10-K only. Foreign issuers can
+    // still join the map through other companies' evidence without a fake 10-K lookup.
+    const supportedStarters = INDUSTRY_STARTERS.filter((starter) => starter.filingForm !== "20-F");
+    const docs = await db.getAll(...supportedStarters.map(({ ticker }) =>
       db.collection("company_graph_runs").doc(`${ticker}_latest_10k`)));
     const graph = buildIndustryGraph(Object.fromEntries(docs.map((doc, index) =>
-      [INDUSTRY_STARTERS[index].ticker, doc.data()])));
+      [supportedStarters[index].ticker, doc.data()])));
     cached = { graph, expires: Date.now() + 300_000 };
     return graph;
   })();

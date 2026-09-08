@@ -75,11 +75,12 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
 
   const nodesById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph]);
   const selected = selectedId ? nodesById.get(selectedId) : null;
+  const selectedStarter = INDUSTRY_STARTERS.find((starter) => starter.ticker === selected?.ticker);
   const selectedEdge = graph.edges.find((edge) => edge.id === edgeId);
   const overview = roots.length === 0 && !allConnections;
   const visible = useMemo(() => selectNeighborhood(graph, roots, type, categories, overview), [graph, roots, type, categories, overview]);
   const searchResults = query.trim() ? graph.nodes.filter((node) => node.kind !== "category" &&
-    `${node.name} ${node.ticker ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8) : [];
+    `${node.name} ${node.ticker ?? ""} ${INDUSTRY_STARTERS.find((starter) => starter.ticker === node.ticker)?.aliases?.join(" ") ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8) : [];
   const connections = selected ? visible.edges.filter((edge) => edge.source === selected.id || edge.target === selected.id) : [];
   const { columns, positions, width: chartWidth, height: chartHeight } = layoutIndustryGraph(visible.nodes, panelWidth);
 
@@ -130,7 +131,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
                 <p>No match in this map. <Link href="/companies">Search all companies</Link></p>}
             </div>}
           </form>
-          <div className={styles.starters}><span>Start with</span>{["NVDA", "AMD", "MU"].map((ticker) =>
+          <div className={styles.starters}><span>Start with</span>{["TSM", "NVDA", "MU"].map((ticker) =>
             <button key={ticker} type="button" onClick={() => { const node = graph.nodes.find((item) => item.ticker === ticker); if (node) selectCompany(node, true); }}>{ticker}</button>)}</div>
           <div className={styles.switcher} aria-label="Display mode">{(["map", "list"] as const).map((value) =>
             <button key={value} type="button" aria-pressed={mode === value} onClick={() => { setMode(value); trackEvent("graph_view_change", { view_mode: value }); }}>{value === "map" ? "Map" : "List"}</button>)}</div>
@@ -218,7 +219,9 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               <p className={styles.eyebrow}>{INDUSTRY_SEGMENTS.find((item) => item.id === selected.segment)?.label}</p>
               <h2>{selected.name}</h2><p className={styles.muted}>{selected.ticker ?? (selected.kind === "category" ? "Group mentioned in a filing" : "Company mentioned in a filing")}</p>
               {selected.kind === "mention" && <p className={styles.matchNote}>Identity unresolved. This mention has not been merged with a company record.</p>}
-              {selected.kind === "coverage" && <p className={styles.matchNote}>This company’s own filing has not been added yet. Connections from other issuers may appear as provisional name matches.</p>}
+              {selected.kind === "coverage" && <p className={styles.matchNote}>{selectedStarter?.filingForm === "20-F"
+                ? "This company files a 20-F. Its own annual filing has not been added yet. Connections shown here come from other companies’ filings and use provisional name matches."
+                : "This company’s own filing has not been added yet. Connections from other issuers may appear as provisional name matches."}</p>}
               {(roots.length !== 1 || roots[0] !== selected.id) && <button className={styles.primary} type="button" onClick={() => {
                 selectCompany(selected, true); trackEvent("graph_view_change", { action: "focus_company", ticker: selected.ticker ?? undefined, view_mode: mode });
               }}>Focus on this company</button>}

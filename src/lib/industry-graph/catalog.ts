@@ -10,10 +10,11 @@ export const INDUSTRY_SEGMENTS = [
   { id: "other", label: "Related companies", color: "#94a3b8" },
 ] as const;
 export type IndustrySegment = (typeof INDUSTRY_SEGMENTS)[number]["id"];
-export const INDUSTRY_STARTERS: { ticker: string; name: string; segment: IndustrySegment; aliases?: string[] }[] = [
+export const INDUSTRY_STARTERS: { ticker: string; name: string; segment: IndustrySegment; aliases?: string[]; filingForm?: "20-F" }[] = [
+  { ticker: "TSM", name: "TSMC", segment: "manufacturing", filingForm: "20-F", aliases: ["Taiwan Semiconductor Manufacturing", "Taiwan Semiconductor Manufacturing Company", "Taiwan Semiconductor Manufacturing Company Limited", "Taiwan Semiconductor Manufacturing Co Ltd"] },
   { ticker: "AMAT", name: "Applied Materials", segment: "manufacturing" },
   { ticker: "LRCX", name: "Lam Research", segment: "manufacturing" },
-  { ticker: "INTC", name: "Intel", segment: "manufacturing" },
+  { ticker: "INTC", name: "Intel", segment: "compute" },
   { ticker: "NVDA", name: "NVIDIA", segment: "compute" },
   { ticker: "AMD", name: "AMD", segment: "compute", aliases: ["Advanced Micro Devices"] },
   { ticker: "MU", name: "Micron", segment: "memory", aliases: ["Micron Technology", "Micron Technology Inc"] },
