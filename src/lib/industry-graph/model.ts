@@ -82,7 +82,11 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
   let omittedEdges = 0;
   // Interleave candidates so a dense first issuer cannot exhaust the preview
   // before later issuers contribute. Bounds and evidence validation are unchanged.
-  for (const { result } of issuers.values()) omittedEdges += Math.max(0, (result.edges as unknown[]).length - 50);
+  for (const { result } of issuers.values()) {
+    if (/^\d{10}-\d{2}-\d{6}$/.test(text(record(result.filing).accessionNumber))) {
+      omittedEdges += Math.max(0, (result.edges as unknown[]).length - 50);
+    }
+  }
   for (let edgeIndex = 0; edgeIndex < 50; edgeIndex++) {
     for (const [ticker, { node, cik, result }] of issuers) {
       const filing = record(result.filing);

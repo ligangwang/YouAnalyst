@@ -112,6 +112,16 @@ test("bounded preview includes later issuers even when an earlier issuer has man
   assert.equal(graph.omittedEdges, 108);
 });
 
+test("invalid filing accessions never inflate the omitted connection count", () => {
+  for (const accessionNumber of ["", "malformed"]) {
+    const run = runFixture("NVDA", "0001045810", "NVIDIA", Array.from({ length: 80 }, (_, i) => ({ targetName: `Supplier ${i}` })));
+    run.result.filing.accessionNumber = accessionNumber;
+    const graph = buildIndustryGraph({ NVDA: run });
+    assert.equal(graph.edges.length, 0);
+    assert.equal(graph.omittedEdges, 0);
+  }
+});
+
 test("wrapped layout keeps every node inside the readable canvas across viewport sizes", () => {
   const graph = buildIndustryGraph(fixtureRuns);
   for (const width of [300, 388, 750, 1100]) {
