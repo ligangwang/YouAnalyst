@@ -6,10 +6,10 @@ and EOD routes retain their behavior. The navigation has an AI Map link.
 
 ## What is implemented
 
-- Editorial starting universe: 18 US 10-K issuers across manufacturing, compute,
+- Editorial starting universe: 19 companies (18 supported 10-K issuers plus TSMC) across manufacturing, compute,
   memory/storage, networking, cloud/platforms, power/infrastructure and devices/edge AI. Segment
   placement is editorial, not evidence of a commercial relationship.
-- Public read-only `/api/industry-graph`: one bounded read of those 18 latest run
+- Public read-only `/api/industry-graph`: one bounded read of the 18 supported latest run
   documents, a five-minute process cache and shared in-flight reads. HTTP caching
   can add another five minutes of freshness delay. No extraction, paid AI call,
   migration or Firestore write is triggered by a visitor.
@@ -53,7 +53,15 @@ means the node has issuer metadata, not that every incoming relationship is veri
 
 Foreign issuers, private companies, subsidiaries and renamed entities need better
 coverage and verified identity resolution. The 10-K pipeline does not yet support
-20-F filings. Evidence dates are displayed, and an old extraction is never described
+20-F filings. TSMC (NYSE: TSM) is an explicit manufacturing starting point despite
+that limitation. Its known names in NVIDIA, AMD and Qualcomm filings join to one
+provisional TSMC node; the map does not claim to have extracted TSMC's own filing.
+The loader skips a nonexistent TSM latest-10-K lookup, and its panel explains the
+20-F coverage gap. Search accepts TSM, TSMC and the catalog's legal-name aliases.
+Intel remains available under Compute; this simplified editorial placement does
+not deny its foundry business. Sources: [TSMC annual reports](https://investor.tsmc.com/english/annual-reports)
+and [Intel's business structure](https://www.intc.com/news-events/press-releases/detail/1687/intel-outlines-financial-framework-for-foundry-business).
+Evidence dates are displayed, and an old extraction is never described
 as a current commercial contract. The extraction confidence is not shown as
 financial exposure, and manually seeded edges are never used as a fallback.
 

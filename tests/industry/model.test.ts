@@ -105,11 +105,9 @@ test("bounded preview includes later issuers even when an earlier issuer has man
     QCOM: runFixture("QCOM", "0000804328", "Qualcomm", targets),
   });
   assert.deepEqual(graph.coveredTickers, ["NVDA", "AAPL", "QCOM"]);
-  for (const ticker of graph.coveredTickers) {
-    assert.equal(graph.edges.filter((edge) => edge.evidence[0].issuerTicker === ticker).length, 14);
-  }
+  assert.deepEqual(graph.coveredTickers.map((ticker) => graph.edges.filter((edge) => edge.evidence[0].issuerTicker === ticker).length), [14, 14, 13]);
   assert.equal(graph.nodes.length, 60);
-  assert.equal(graph.omittedEdges, 108);
+  assert.equal(graph.omittedEdges, 109);
 });
 
 test("invalid filing accessions never inflate the omitted connection count", () => {
@@ -120,6 +118,25 @@ test("invalid filing accessions never inflate the omitted connection count", () 
     assert.equal(graph.edges.length, 0);
     assert.equal(graph.omittedEdges, 0);
   }
+});
+
+test("TSMC is an overview company and joins actual filing names without claiming its own 10-K", () => {
+  const graph = buildIndustryGraph({
+    NVDA: runFixture("NVDA", "0001045810", "NVIDIA", [{ targetName: "Taiwan Semiconductor Manufacturing" }]),
+    AMD: runFixture("AMD", "0000002488", "AMD", [{ targetName: "Taiwan Semiconductor Manufacturing Company Limited" }]),
+    QCOM: runFixture("QCOM", "0000804328", "Qualcomm", [{ targetName: "TSMC" }]),
+    TSM: runFixture("TSM", "0001046179", "TSMC", []),
+  });
+  const overview = selectNeighborhood(graph, [], "all", false, true);
+  const tsm = overview.nodes.find((node) => node.ticker === "TSM")!;
+  assert.equal(tsm.name, "TSMC");
+  assert.equal(tsm.segment, "manufacturing");
+  assert.equal(tsm.kind, "coverage");
+  assert.ok(!graph.coveredTickers.includes("TSM"));
+  assert.equal(overview.nodes.find((node) => node.ticker === "INTC")?.segment, "compute");
+  assert.equal(overview.edges.filter((edge) => edge.source === tsm.id).length, 3);
+  assert.ok(overview.edges.every((edge) => edge.evidence[0].nameMatched));
+  assert.ok(!graph.nodes.some((node) => node.kind === "mention"));
 });
 
 test("wrapped layout keeps every node inside the readable canvas across viewport sizes", () => {
