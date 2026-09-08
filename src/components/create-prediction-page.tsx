@@ -1,5 +1,7 @@
 "use client";
 
+import { trackEvent } from "@/lib/analytics";
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -206,6 +208,7 @@ export function CreatePredictionPage({
         throw new Error(payload.error ?? "Failed to create prediction");
       }
 
+      trackEvent("prediction_publish", { visibility: selectedWatchlist?.isPublic ? "public" : "private" });
       router.push(`/predictions/${payload.id}`);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Failed to create prediction");

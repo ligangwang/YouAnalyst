@@ -67,6 +67,9 @@ export default function RootLayout({
       lang="en"
       className={`${sora.variable} ${ibmPlexSans.variable} h-full antialiased`}
     >
+      <head>
+        <meta name="youanalyst-analytics" content={GOOGLE_ANALYTICS_ID && isProductionAppEnvironment() ? "enabled" : "disabled"} />
+      </head>
       <body className="min-h-full flex flex-col">
         {GOOGLE_ANALYTICS_ID ? (
           <>
@@ -74,7 +77,7 @@ export default function RootLayout({
               src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ANALYTICS_ID}`}
               strategy="afterInteractive"
             />
-            <Script id="google-analytics" strategy="afterInteractive">
+            <Script id="google-analytics" strategy="beforeInteractive">
               {`
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){window.dataLayer.push(arguments);}

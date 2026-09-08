@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { safeAuthDestination } from "@/lib/auth-continuation";
+import { trackEvent } from "@/lib/analytics";
 
 export function AuthPage({ requestedNext }: { requestedNext?: string }) {
   const router = useRouter();
@@ -38,6 +39,7 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
   }
 
   async function submitEmail() {
+    trackEvent("auth_start", { method: "email", action: isCreate ? "sign_up" : "login" });
     setSubmitting(true);
     setLocalError(null);
 
@@ -46,12 +48,14 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
         ? await createAccountWithEmail(email, password)
         : await signInWithEmail(email, password);
 
+      trackEvent(isCreate ? "sign_up" : "login", { method: "email" });
       if (isCreate) {
         setIsCreate(false);
       }
 
       router.push(destinationForAuth(result.user.uid, result.shouldCompleteProfile));
     } catch (nextError) {
+      trackEvent("auth_error", { method: "email" });
       setLocalError(nextError instanceof Error ? nextError.message : "Authentication failed");
     } finally {
       setSubmitting(false);
@@ -66,11 +70,19 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
 
         <button
           type="button"
-          onClick={() =>
+          onClick={() => {
+            trackEvent("auth_start", { method: "google" });
             void signInWithGoogle()
-              .then((result) => router.push(destinationForAuth(result.user.uid, result.shouldCompleteProfile)))
-              .catch(() => undefined)
-          }
+              .then((result) => {
+                trackEvent(result.shouldCompleteProfile ? "sign_up" : "login", { method: "google" });
+                router.push(destinationForAuth(result.user.uid, result.shouldCompleteProfile));
+              })
+              .catch((error: unknown) => {
+                const code = error && typeof error === "object" && "code" in error ? error.code : null;
+                const canceled = code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request";
+                trackEvent(canceled ? "auth_cancel" : "auth_error", { method: "google" });
+              });
+          }}
           className="mb-4 w-full rounded-xl border border-cyan-300/40 bg-cyan-400/10 px-4 py-2.5 text-sm font-medium text-cyan-100 hover:bg-cyan-400/20"
         >
           Continue with Google

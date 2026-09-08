@@ -53,6 +53,12 @@ jobs:
       - name: Verify app
         run: npm run verify
 
+      - name: Verify company graph repository
+        run: npm run test:graph
+
+      - name: Verify industry graph projection
+        run: npm run test:industry
+
       - name: Install conversion test browser
         run: npx playwright install --with-deps chromium
 

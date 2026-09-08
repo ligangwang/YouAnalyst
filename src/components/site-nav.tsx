@@ -276,6 +276,7 @@ export function SiteNav() {
               />
             </Link>
             <nav className="hidden items-center gap-4 text-[15px] text-slate-200 md:flex">
+              <Link href="/" className="hover:text-cyan-200">AI Map</Link>
               <Link href="/predictions" className="hover:text-cyan-200">Feed</Link>
               <Link href="/watchlists" className="hover:text-cyan-200">Watchlists</Link>
               <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
@@ -308,6 +309,7 @@ export function SiteNav() {
         </div>
 
         <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[15px] text-slate-200 md:hidden">
+          <Link href="/" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">AI Map</Link>
           <Link href="/predictions/new" className="shrink-0 rounded-full bg-cyan-500 px-3 py-1.5 font-semibold text-slate-950 hover:bg-cyan-400">
             Predict
           </Link>

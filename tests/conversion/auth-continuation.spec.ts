@@ -23,7 +23,7 @@ test.beforeAll(async () => {
       "next/link": mock,
     },
   });
-  html = `<html><head><meta name="viewport" content="width=device-width, initial-scale=1" /></head><body><div id="root"></div><script>${result.outputFiles[0].text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  html = `<html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="youanalyst-analytics" content="enabled" /></head><body><div id="root"></div><script>${result.outputFiles[0].text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
 test.beforeEach(async ({ page }) => {
@@ -67,6 +67,11 @@ for (const method of ["google-new", "google-existing", "email-new", "email-exist
     await expect(page).toHaveURL(`${origin}${composer}`);
     await expect(page.getByRole("combobox", { name: "Ticker", exact: true })).toHaveValue("AMD");
     await expect(page.locator("#watchlist")).toHaveValue(watchlistId);
+    const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
+    const success = method.endsWith("-new") ? "sign_up" : "login";
+    expect(events.filter((event) => event[1] === success)).toHaveLength(1);
+    expect(events.filter((event) => event[1] === (success === "sign_up" ? "login" : "sign_up"))).toHaveLength(0);
+    expect(JSON.stringify(events)).not.toContain("test@example.invalid");
   });
 }
 
@@ -101,6 +106,30 @@ test("auth failure keeps the continuation available for retry", async ({ page })
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page.getByText("Test authentication failed")).toBeVisible();
   expect(new URL(page.url()).searchParams.get("next")).toBe(composer);
+  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
+  expect(events.filter((event) => event[1] === "auth_error")).toHaveLength(1);
+  expect(events.filter((event) => ["login", "sign_up"].includes(String(event[1])))).toHaveLength(0);
+});
+
+test("publication analytics fires only after a successful response, without sending thesis or account IDs", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.authScenario = { signedIn: true };
+    window.sessionStorage.setItem("youanalyst:graph-visit", String(Date.now()));
+  });
+  await page.goto(`${origin}/predictions/new?ticker=AMD`);
+  await page.getByLabel("Thesis", { exact: true }).fill("Private research must never enter analytics.");
+  // Local response only; this handler intercepts the mutation and never reaches a server.
+  await page.route(`${origin}/api/predictions`, (route) => route.fulfill({ status: 400, json: { error: "Test rejection" } }));
+  await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
+  await expect(page.getByText("Test rejection")).toBeVisible();
+  expect(await page.evaluate(() => (window.dataLayer ?? []).filter((item) => (item as ArrayLike<unknown>)[1] === "prediction_publish").length)).toBe(0);
+  await page.route(`${origin}/api/predictions`, (route) => route.fulfill({ json: { id: "test-prediction" } }));
+  await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/predictions/test-prediction`);
+  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
+  expect(events.filter((event) => event[1] === "prediction_publish")).toHaveLength(1);
+  expect(JSON.stringify(events)).toContain('"graph_origin":"yes"');
+  expect(JSON.stringify(events)).not.toMatch(/Private research|test-user|test-prediction/);
 });
 
 test("destination validation rejects external and ambiguous paths", () => {
@@ -110,3 +139,17 @@ test("destination validation rejects external and ambiguous paths", () => {
   expect(safeAuthDestination("/ticker/AMD")).toBe("/ticker/AMD");
   expect(safeAuthDestination(composer)).toBe(composer);
 });
+
+for (const code of ["auth/popup-closed-by-user", "auth/cancelled-popup-request"]) {
+  test(`Google dismissal ${code} is abandonment rather than an auth error`, async ({ page }) => {
+    await page.addInitScript((googleErrorCode) => { window.authScenario = { googleErrorCode }; }, code);
+    await page.goto(`${origin}/auth`);
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect.poll(() => page.evaluate(() => (window.dataLayer ?? []).filter((item) => (item as ArrayLike<unknown>)[1] === "auth_cancel").length)).toBe(1);
+    const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => (item as ArrayLike<unknown>)[1]));
+    expect(events).not.toContain("auth_error");
+    expect(events).not.toContain("sign_up");
+    expect(events).not.toContain("login");
+    await expect(page).toHaveURL(`${origin}/auth`);
+  });
+}
