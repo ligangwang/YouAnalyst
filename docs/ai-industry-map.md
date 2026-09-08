@@ -6,10 +6,10 @@ and EOD routes retain their behavior. The navigation has an AI Map link.
 
 ## What is implemented
 
-- Editorial starting universe: 19 companies (18 supported 10-K issuers plus TSMC) across manufacturing, compute,
+- Editorial starting universe: 20 companies (19 supported 10-K issuers plus TSMC) across manufacturing, compute,
   memory/storage, networking, cloud/platforms, power/infrastructure and devices/edge AI. Segment
   placement is editorial, not evidence of a commercial relationship.
-- Public read-only `/api/industry-graph`: one bounded read of the 18 supported latest run
+- Public read-only `/api/industry-graph`: one bounded read of the 19 supported latest run
   documents, a five-minute process cache and shared in-flight reads. HTTP caching
   can add another five minutes of freshness delay. No extraction, paid AI call,
   migration or Firestore write is triggered by a visitor.
@@ -90,6 +90,39 @@ or a complete industry graph. Categories are hidden by default. Repeated evidenc
 for the same directed/type pair is grouped; reciprocal symmetric edges are grouped.
 
 ## Identity and data limits
+
+### SanDisk coverage and remaining gaps (2026-09-08)
+
+Sandisk (`SNDK`) is a separate Memory & Storage starting company alongside Micron
+and Western Digital. Its current [SEC issuer CIK is 0002023554](https://www.sec.gov/Archives/edgar/data/2023554/000202355425000034/sndk-20250627.htm).
+Only that CIK can provide SNDK filing coverage; old same-ticker extractions remain
+uncovered. Sandisk and Sandisk Corporation names can join provisionally, but WDC
+evidence is never transferred to SNDK merely because of the separation. Without a
+valid persisted extraction it remains an explicit coverage node, with no invented
+relationships. Search, focused links and saved-company registration use SNDK.
+
+The live pre-release coverage check found six loaded issuers, 19 starting companies,
+60 total nodes and 14 omitted connections. Adding a starter consumes one of the
+existing 60 node slots; the preview remains bounded and reports omissions.
+This is a coverage correction, not a complete industry dataset.
+
+Priority follow-ups identified by checking the catalog against the live graph:
+
+- SK hynix and Samsung Electronics already appear as unresolved filing mentions
+  under Related companies, but are absent from the overview's memory segment.
+  Their [AI memory](https://news.skhynix.com/en/hbm-to-essd/) and
+  [HBM](https://semiconductor.samsung.com/dram/hbm/) businesses justify prioritizing
+  explicit identity and non-US filing support. Do not collapse every "Samsung"
+  mention into Samsung Electronics without reviewing its source context.
+- Seagate is absent despite its [AI storage business](https://www.seagate.com/innovation/ai/data-solutions/).
+  Evaluate it as a separate storage starter with its own filing evidence.
+- Dell, GLOBALFOUNDRIES, Amkor and Advanced Semiconductor Engineering appear as
+  filing mentions but lack overview placement. Review identities and segment
+  assignments before promoting them; older names such as Hewlett-Packard are
+  especially unsafe to assign to current tickers automatically.
+- Most starting companies still lack their own extracted filings. Prioritize
+  filling evidence coverage alongside expanding the overview, rather than treating
+  additional disconnected nodes as completed research.
 
 The [2026-09-08 evidence audit](relationship-quality-audit.md) documents review of
 77 company-API relationships. A shared read-time review layer corrects nine exact
