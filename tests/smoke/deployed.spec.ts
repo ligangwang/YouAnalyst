@@ -9,14 +9,41 @@ test("health endpoint reports ok", async ({ request, baseURL }) => {
   expect(health.service).toBe("ifindata-web");
 });
 
-test("homepage renders company and institution search", async ({ page }) => {
+test("homepage renders the AI industry map", async ({ page }) => {
   await page.goto("/");
 
   // Verify navigation is present
   await expect(page.getByRole("link", { name: "Feed", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Predict", exact: true }).first()).toBeVisible();
   
-  // Verify unified company and institution search is on the page
+  await expect(page.getByRole("heading", { name: "Explore the AI industry.", exact: true })).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "Find a company in the map" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Map", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "List", exact: true })).toBeVisible();
+});
+
+test("industry map serves bounded filing data", async ({ request, baseURL }) => {
+  const response = await request.get(`${baseURL}/api/industry-graph`);
+  expect(response.ok()).toBeTruthy();
+  const graph = await response.json();
+  expect(Array.isArray(graph.nodes)).toBeTruthy();
+  expect(Array.isArray(graph.edges)).toBeTruthy();
+  expect(Array.isArray(graph.coveredTickers)).toBeTruthy();
+  expect(graph.nodes.length).toBeGreaterThan(0);
+  expect(graph.nodes.length).toBeLessThanOrEqual(60);
+  expect(graph.edges.length).toBeLessThanOrEqual(120);
+  const nodeIds = new Set(graph.nodes.map((node: { id: string }) => node.id));
+  for (const edge of graph.edges) {
+    expect(nodeIds.has(edge.source)).toBeTruthy();
+    expect(nodeIds.has(edge.target)).toBeTruthy();
+    expect(edge.evidence.length).toBeGreaterThan(0);
+  }
+});
+
+test("company and institution search remains available", async ({ page }) => {
+  await page.goto("/companies");
+
+  // General search remains separate from the industry map.
   await expect(page.getByRole("combobox", { name: "Company, ticker, or institution" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Go" })).toBeVisible();
   await expect(page.getByTestId("company-graph-chip").first()).toBeVisible();
