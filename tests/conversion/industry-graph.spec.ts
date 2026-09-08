@@ -249,3 +249,21 @@ test("changing accounts hides prior saves and ignores a late save response", asy
   await expect(saved.getByRole("button", { name: "MU", exact: true })).toHaveCount(0);
   await expect(saved.getByRole("button", { name: "NVDA", exact: true })).toHaveCount(0);
 });
+
+test("saved shortcuts wait for graph data before accepting selection", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let release: (() => void) | undefined;
+  const wait = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/industry-graph/saved", (route) => route.fulfill({ json: { tickers: ["MU"] } }));
+  await page.route("**/api/industry-graph", async (route) => {
+    await wait;
+    return route.fulfill({ json: fixtureGraph });
+  });
+  await page.goto(origin);
+  const shortcut = page.getByRole("region", { name: "Your saved companies" }).getByRole("button", { name: "MU", exact: true });
+  await expect(shortcut).toBeDisabled();
+  release!();
+  await expect(shortcut).toBeEnabled();
+  await shortcut.click();
+  await expect(page.getByRole("heading", { name: "Micron", exact: true })).toBeVisible();
+});

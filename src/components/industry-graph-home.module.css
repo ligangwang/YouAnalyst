@@ -86,6 +86,7 @@
 .savedCompanies strong { color: #d0dfe9; }
 .savedCompanies span { color: #9badbd; }
 .savedCompanies button { border: 1px solid #356273; border-radius: 6px; padding: 7px 10px; color: #a5f3fc; background: #103040; }
+.savedCompanies button:disabled { opacity: .5; }
 .saveCard { border: 1px solid #356273; background: #102936; border-radius: 10px; padding: 14px; margin: 18px 0; }
 .saveCard h3 { margin: 0 0 8px; font-size: 14px; }
 .saveCard p { font-size: 12px; line-height: 1.7; color: #bed1df; }

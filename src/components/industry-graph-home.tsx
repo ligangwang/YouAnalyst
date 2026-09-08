@@ -141,7 +141,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
         </div>
         {savedCompanies.signedIn && <section className={styles.savedCompanies} aria-label="Your saved companies">
           <strong>Your saved companies</strong>
-          {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} onClick={() => {
+          {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} disabled={status !== "ready" || !graph.nodes.some((node) => node.ticker === ticker)} onClick={() => {
             const node = graph.nodes.find((item) => item.ticker === ticker);
             if (node) { selectCompany(node, true); trackEvent("graph_saved_company_open", { ticker }); }
           }}>{ticker}</button>)}
