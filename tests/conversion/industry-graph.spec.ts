@@ -27,7 +27,7 @@ test("Sandisk is visible in the overview, searchable and keeps registration cont
   await page.getByRole("button", { name: "Find", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Sandisk", exact: true })).toBeVisible();
   await expect(page.getByText(/company’s own filing has not been added/)).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open company page" })).toHaveAttribute("href", "/ticker/SNDK");
+  await expect(page.getByRole("link", { name: "View SNDK company page" })).toHaveAttribute("href", "/ticker/SNDK");
   await expect(page.getByRole("link", { name: /Create.*account|Sign.*save/i })).toHaveAttribute("href", /company%3DSNDK/);
 });
 
@@ -88,7 +88,9 @@ test("API failure retries, while empty coverage never fabricates relationships",
 test("deep links focus the company and layout does not overflow the viewport", async ({ page }) => {
   await page.goto(`${origin}/?company=MU`);
   await expect(page.getByRole("heading", { name: "Micron", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open company page" })).toHaveAttribute("href", "/ticker/MU");
+  const companyLink = page.getByRole("link", { name: "View MU company page" });
+  await expect(companyLink).toHaveAttribute("href", "/ticker/MU");
+  await expect(companyLink).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
@@ -161,7 +163,7 @@ test("TSM is visible in the overview and its full name reveals source-backed sup
   await page.getByRole("button", { name: "Find", exact: true }).click();
   await expect(page.getByRole("heading", { name: "TSMC", exact: true })).toBeVisible();
   await expect(page.getByText(/This company files a 20-F/)).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open company page" })).toHaveAttribute("href", "/ticker/TSM");
+  await expect(page.getByRole("link", { name: "View TSM company page" })).toHaveAttribute("href", "/ticker/TSM");
   await page.getByRole("button", { name: "TSMC supplies NVIDIA 1 source →", exact: true }).click();
   await expect(page.locator("blockquote")).toContainText("Synthetic test evidence");
   await expect(page.getByRole("link", { name: "Read SEC filing" })).toHaveAttribute("href", /\/1045810\//);

@@ -260,6 +260,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
             </> : selected ? <>
               <p className={styles.eyebrow}>{INDUSTRY_SEGMENTS.find((item) => item.id === selected.segment)?.label}</p>
               <h2>{selected.name}</h2><p className={styles.muted}>{selected.ticker ?? (selected.kind === "category" ? "Group mentioned in a filing" : "Company mentioned in a filing")}</p>
+              {selected.ticker && <Link className={styles.companyLink} href={`/ticker/${encodeURIComponent(selected.ticker)}`} onClick={() => trackEvent("graph_company_open", { ticker: selected.ticker! })}>View {selected.ticker} company page →</Link>}
               {selected.kind === "mention" && <p className={styles.matchNote}>Identity unresolved. This mention has not been merged with a company record.</p>}
               {selected.kind === "coverage" && <p className={styles.matchNote}>{selectedStarter?.filingForm === "20-F"
                 ? "This company files a 20-F. Its own annual filing has not been added yet. Connections shown here come from other companies’ filings and use provisional name matches."
@@ -276,7 +277,6 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               {connections.map((edge) => <button className={styles.connection} key={edge.id} type="button" onClick={() => openEvidence(edge.id)}>{edgeLabel(edge)}<span>{edge.evidence.length} source{edge.evidence.length === 1 ? "" : "s"} →</span></button>)}
               {!connections.length && <p className={styles.muted}>Try changing the filters or choosing another company.</p>}
               {selected.ticker && <div className={styles.actions}>
-                <Link href={`/ticker/${encodeURIComponent(selected.ticker)}`} onClick={() => trackEvent("graph_company_open", { ticker: selected.ticker! })}>Open company page →</Link>
                 <Link href={`/predictions/new?ticker=${encodeURIComponent(selected.ticker)}`} onClick={() => trackEvent("graph_predict_click", { ticker: selected.ticker! })}>Make a prediction →</Link>
                 <button type="button" onClick={async () => {
                   try { const url = new URL("/", window.location.origin); url.searchParams.set("company", selected.ticker!); await navigator.clipboard.writeText(url.href); setNotice("View link copied."); trackEvent("graph_save_view", { ticker: selected.ticker!, method: "copy_link" }); }
