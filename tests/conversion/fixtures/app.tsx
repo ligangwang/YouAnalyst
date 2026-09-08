@@ -7,7 +7,7 @@ async function renderRoute() {
   const query = new URLSearchParams(window.location.search);
   // Render the real route wrappers as well as the real client components.
   const element = window.location.pathname === "/auth"
-    ? await AuthRoutePage({ searchParams: Promise.resolve({ next: query.get("next") ?? undefined }) })
+    ? await AuthRoutePage({ searchParams: Promise.resolve({ next: query.get("next") ?? undefined, mode: query.get("mode") ?? undefined }) })
     : window.location.pathname === "/predictions/new"
       ? await NewPredictionRoutePage({ searchParams: Promise.resolve({
         ticker: query.get("ticker") ?? undefined,

@@ -6,7 +6,7 @@ export function savedCompanyTickers(value: unknown): string[] {
 }
 
 export function mapSignInHref(ticker: string) {
-  return `/auth?${new URLSearchParams({ next: `/?${new URLSearchParams({ company: ticker })}` })}`;
+  return `/auth?${new URLSearchParams({ next: `/?${new URLSearchParams({ company: ticker })}`, mode: "register" })}`;
 }
 
 export function mapAuthCompany(destination: string | null) {

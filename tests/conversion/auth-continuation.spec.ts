@@ -17,6 +17,31 @@ test("map registration explains saving and returns to the selected company witho
   await expect(page).toHaveURL(`${origin}${destination}`);
 });
 
+test("map save opens email registration, supports Enter, and preserves the destination", async ({ page }) => {
+  const destination = "/?company=NVDA";
+  await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination, mode: "register" })}`);
+  await expect(page.getByRole("button", { name: "Create account", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Email", exact: true })).toHaveAttribute("autocomplete", "email");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("autocomplete", "new-password");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill("new@example.invalid");
+  await page.getByLabel("Password", { exact: true }).fill("test-password");
+  await page.getByLabel("Password", { exact: true }).press("Enter");
+  await expect(page).toHaveURL(`${origin}${destination}`);
+  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
+  expect(events.filter((event) => event[1] === "sign_up")).toHaveLength(1);
+});
+
+test("existing users can switch map registration to sign-in without losing context", async ({ page }) => {
+  const destination = "/?company=MU";
+  await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination, mode: "register" })}`);
+  await page.getByRole("button", { name: "Have an account? Sign in", exact: true }).click();
+  await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute("autocomplete", "current-password");
+  await page.getByRole("textbox", { name: "Email", exact: true }).fill("existing@example.invalid");
+  await page.getByLabel("Password", { exact: true }).fill("test-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(`${origin}${destination}`);
+});
+
 test.beforeAll(async () => {
   const mock = path.resolve("tests/conversion/fixtures/mocks.tsx");
   const result = await build({

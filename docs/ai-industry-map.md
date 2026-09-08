@@ -28,12 +28,23 @@ and EOD routes retain their behavior. The navigation has an AI Map link.
 - A company-focused link can be copied and reopened (`/?company=MU`). This is a
   shareable focus link, not a saved account view or a snapshot of all filters.
 - A link to the existing feedback form plus GA4 behavioral instrumentation.
+- Overview discovery questions expose NVIDIA's incoming suppliers and Micron's
+  and TSMC's outgoing supply relationships. Only directed, non-category supplier
+  edges with evidence contribute; empty questions are hidden. Counts describe
+  the bounded map, not complete customer/supplier lists. Selecting a question
+  focuses only those matching edges. Company selection, filters and reset leave
+  that guided view so ordinary exploration remains available.
 - Registered users can save supported ticker companies to a private account list
   above the map, reopen their connections, and remove saves. A selected company's
   save card explains this benefit before registration. Authentication returns to
   that company; the user then explicitly selects Save. No mutation occurs merely
   by opening a continuation URL. This saves company shortcuts, not graph snapshots
   or notifications, and does not change prediction-based watchlists.
+- The same save benefit appears beside relationship evidence. It retains the
+  explored company when that company is an endpoint, otherwise uses the filing
+  issuer. Registration links request `mode=register` while preserving the company
+  continuation; existing users can switch to sign-in. Other auth entry points
+  retain their default mode. Email forms support Enter and password autofill.
 
 ## Saved company access and measurement
 
@@ -63,6 +74,11 @@ signal; it is not counted as publishing a first prediction. No account IDs, toke
 or private lists enter analytics. Existing GA4 events are unchanged. Production
 event configuration and funnel reports still need observation with real traffic;
 these events alone do not establish an increase in registrations.
+
+`graph_discovery_open` records an allowlisted question ID, ticker and displayed
+edge count. Save-intent events distinguish `entry_point=company` from `evidence`.
+Use these to compare discovery → evidence → save intent → registration with the
+existing graph-origin attribution; no raw query or filing excerpt enters GA4.
 
 The projection caps each issuer at 50 candidate edges, and the total preview at
 60 nodes and 120 relationships. Omitted connections are reported. Candidates are

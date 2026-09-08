@@ -55,6 +55,13 @@ test("homepage renders the AI industry map", async ({ page }) => {
   await expect(page.getByRole("button", { name: "List", exact: true })).toBeVisible();
 });
 
+test("map save registration opens account creation with company context", async ({ page }) => {
+  await page.goto("/auth?next=%2F%3Fcompany%3DNVDA&mode=register");
+  await expect(page.getByRole("heading", { name: "Keep NVDA on your map", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create account", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Have an account? Sign in", exact: true })).toBeVisible();
+});
+
 test("industry map serves bounded filing data", async ({ request, baseURL }) => {
   const response = await request.get(`${baseURL}/api/industry-graph`);
   expect(response.ok()).toBeTruthy();
