@@ -9,6 +9,23 @@ test("health endpoint reports ok", async ({ request, baseURL }) => {
   expect(health.service).toBe("ifindata-web");
 });
 
+test("saved map companies require authentication and cannot be publicly cached", async ({ request }) => {
+  // Override the smoke account header so this exercises the anonymous boundary.
+  const response = await request.get("/api/industry-graph/saved", { headers: { Authorization: "" } });
+  expect(response.status()).toBe(401);
+  expect(response.headers()["cache-control"]).toBe("private, no-store");
+});
+
+test("authenticated saved-company reads reach the private account store", async ({ request }) => {
+  test.skip(!process.env.PLAYWRIGHT_AUTH_BEARER_TOKEN, "Requires the deployment smoke account");
+  const response = await request.get("/api/industry-graph/saved");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["cache-control"]).toBe("private, no-store");
+  const result = await response.json();
+  expect(Array.isArray(result.tickers)).toBe(true);
+  expect(result.tickers.length).toBeLessThanOrEqual(19);
+});
+
 test("homepage renders the AI industry map", async ({ page }) => {
   await page.goto("/");
 

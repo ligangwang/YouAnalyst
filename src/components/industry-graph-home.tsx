@@ -6,10 +6,13 @@ import { INDUSTRY_SEGMENTS, INDUSTRY_STARTERS } from "@/lib/industry-graph/catal
 import { buildIndustryGraph, RELATIONSHIP_LABELS, selectNeighborhood, type IndustryGraph, type IndustryNode } from "@/lib/industry-graph/model";
 import { trackEvent } from "@/lib/analytics";
 import { layoutIndustryGraph } from "@/lib/industry-graph/layout";
+import { mapSignInHref } from "@/lib/industry-graph/saved-companies";
+import { useSavedMapCompanies } from "./use-saved-map-companies";
 import styles from "./industry-graph-home.module.css";
 
 const EMPTY_GRAPH = buildIndustryGraph({});
 export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: string }) {
+  const savedCompanies = useSavedMapCompanies();
   const [graph, setGraph] = useState<IndustryGraph>(EMPTY_GRAPH);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
@@ -136,6 +139,16 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
           <div className={styles.switcher} aria-label="Display mode">{(["map", "list"] as const).map((value) =>
             <button key={value} type="button" aria-pressed={mode === value} onClick={() => { setMode(value); trackEvent("graph_view_change", { view_mode: value }); }}>{value === "map" ? "Map" : "List"}</button>)}</div>
         </div>
+        {savedCompanies.signedIn && <section className={styles.savedCompanies} aria-label="Your saved companies">
+          <strong>Your saved companies</strong>
+          {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} onClick={() => {
+            const node = graph.nodes.find((item) => item.ticker === ticker);
+            if (node) { selectCompany(node, true); trackEvent("graph_saved_company_open", { ticker }); }
+          }}>{ticker}</button>)}
+          {savedCompanies.ready && !savedCompanies.tickers.length && <span>Select a company below to save your first one.</span>}
+          {!savedCompanies.ready && !savedCompanies.failed && <span>Loading saved companies…</span>}
+          {savedCompanies.failed && <><span>Saved companies are unavailable.</span><button type="button" onClick={savedCompanies.retry}>Retry saved companies</button></>}
+        </section>}
         <div className={styles.filters}>
           <label>Connections <select aria-label="Relationship type" value={type} onChange={(event) => {
             setType(event.target.value); setEdgeId(null); trackEvent("graph_filter", { relationship_type: event.target.value });
@@ -223,6 +236,15 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               {selected.kind === "coverage" && <p className={styles.matchNote}>{selectedStarter?.filingForm === "20-F"
                 ? "This company files a 20-F. Its own annual filing has not been added yet. Connections shown here come from other companies’ filings and use provisional name matches."
                 : "This company’s own filing has not been added yet. Connections from other issuers may appear as provisional name matches."}</p>}
+              {selected.ticker && selectedStarter && <section className={styles.saveCard} aria-label="Save company">
+                <h3>Keep this company close</h3>
+                <p>Save {selected.ticker} to your account and reopen its connections from your personal list.</p>
+                {savedCompanies.authLoading ? <button type="button" disabled>Loading account…</button> : savedCompanies.signedIn ?
+                  <button type="button" disabled={!savedCompanies.ready || savedCompanies.busy} onClick={() => void savedCompanies.toggle(selected.ticker!)}>
+                    {savedCompanies.busy ? "Saving change…" : savedCompanies.tickers.includes(selected.ticker) ? `Remove saved ${selected.ticker}` : `Save ${selected.ticker}`}
+                  </button> : <Link href={mapSignInHref(selected.ticker)} onClick={() => trackEvent("graph_save_intent", { ticker: selected.ticker!, action: "sign_in" })}>Sign in to save {selected.ticker} →</Link>}
+                {savedCompanies.message && <p role="status">{savedCompanies.message}</p>}
+              </section>}
               {(roots.length !== 1 || roots[0] !== selected.id) && <button className={styles.primary} type="button" onClick={() => {
                 selectCompany(selected, true); trackEvent("graph_view_change", { action: "focus_company", ticker: selected.ticker ?? undefined, view_mode: mode });
               }}>Focus on this company</button>}
