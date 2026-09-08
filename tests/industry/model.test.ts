@@ -70,3 +70,17 @@ test("repeated extraction evidence does not create duplicate edges", () => {
   runs.NVDA.result.edges.push(runs.NVDA.result.edges[0]);
   assert.equal(buildIndustryGraph(runs).edges.length, buildIndustryGraph(fixtureRuns).edges.length);
 });
+
+test("uncovered starters retain incoming evidence through provisional names and aliases", () => {
+  const graph = buildIndustryGraph({ NVDA: runFixture("NVDA", "0001045810", "NVIDIA", [
+    { targetName: "Micron" }, { targetName: "Micron Technology," }, { targetName: "Advanced Micro Devices" },
+  ]) });
+  assert.deepEqual(graph.coveredTickers, ["NVDA"]);
+  assert.equal(graph.nodes.filter((node) => node.ticker === "MU").length, 1);
+  assert.ok(!graph.nodes.some((node) => node.kind === "mention"));
+  const micron = selectNeighborhood(graph, ["coverage:MU"], "all", false);
+  assert.equal(micron.edges.length, 1);
+  assert.equal(micron.edges[0].evidence.length, 2);
+  assert.ok(micron.edges[0].evidence.every((item) => item.nameMatched));
+  assert.equal(selectNeighborhood(graph, ["coverage:AMD"], "all", false).edges.length, 1);
+});

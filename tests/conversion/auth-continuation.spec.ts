@@ -139,3 +139,17 @@ test("destination validation rejects external and ambiguous paths", () => {
   expect(safeAuthDestination("/ticker/AMD")).toBe("/ticker/AMD");
   expect(safeAuthDestination(composer)).toBe(composer);
 });
+
+for (const code of ["auth/popup-closed-by-user", "auth/cancelled-popup-request"]) {
+  test(`Google dismissal ${code} is abandonment rather than an auth error`, async ({ page }) => {
+    await page.addInitScript((googleErrorCode) => { window.authScenario = { googleErrorCode }; }, code);
+    await page.goto(`${origin}/auth`);
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect.poll(() => page.evaluate(() => (window.dataLayer ?? []).filter((item) => (item as ArrayLike<unknown>)[1] === "auth_cancel").length)).toBe(1);
+    const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => (item as ArrayLike<unknown>)[1]));
+    expect(events).not.toContain("auth_error");
+    expect(events).not.toContain("sign_up");
+    expect(events).not.toContain("login");
+    await expect(page).toHaveURL(`${origin}/auth`);
+  });
+}

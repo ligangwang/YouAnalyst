@@ -204,7 +204,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               <p className={styles.eyebrow}>{INDUSTRY_SEGMENTS.find((item) => item.id === selected.segment)?.label}</p>
               <h2>{selected.name}</h2><p className={styles.muted}>{selected.ticker ?? (selected.kind === "category" ? "Group mentioned in a filing" : "Company mentioned in a filing")}</p>
               {selected.kind === "mention" && <p className={styles.matchNote}>Identity unresolved. This mention has not been merged with a company record.</p>}
-              {selected.kind === "coverage" && <p className={styles.matchNote}>No published extraction is available in this map yet. This does not mean the company has no AI industry connections.</p>}
+              {selected.kind === "coverage" && <p className={styles.matchNote}>This company’s own filing has not been added yet. Connections from other issuers may appear as provisional name matches.</p>}
               <button className={styles.primary} type="button" disabled={roots.includes(selected.id) || roots.length >= 8 || selected.kind !== "issuer"} onClick={() => {
                 setRoots((previous) => [...previous, selected.id]); trackEvent("graph_expand", { ticker: selected.ticker ?? undefined });
               }}>{roots.includes(selected.id) ? "Connections in view" : "Expand connections"}</button>

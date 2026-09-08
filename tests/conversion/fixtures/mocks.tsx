@@ -4,6 +4,7 @@ export type AuthScenario = {
   signedIn?: boolean;
   googleNew?: boolean;
   authFails?: boolean;
+  googleErrorCode?: string;
 };
 
 declare global {
@@ -32,7 +33,10 @@ export function useAuth() {
     error: null,
     features: { proFeaturesEnabled: false, canUsePro: false },
     getIdToken,
-    signInWithGoogle: () => authenticate(window.authScenario?.googleNew ?? true),
+    signInWithGoogle: async () => {
+      if (window.authScenario?.googleErrorCode) throw Object.assign(new Error("Popup dismissed"), { code: window.authScenario.googleErrorCode });
+      return authenticate(window.authScenario?.googleNew ?? true);
+    },
     signInWithEmail: () => authenticate(false),
     createAccountWithEmail: () => authenticate(true),
   };

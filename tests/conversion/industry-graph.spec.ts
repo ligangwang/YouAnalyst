@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { buildIndustryFixture } from "../industry/html";
-import { fixtureGraph } from "../industry/fixtures";
+import { fixtureGraph, runFixture } from "../industry/fixtures";
 import { buildIndustryGraph } from "../../src/lib/industry-graph/model";
 
 const origin = "http://industry.test";
@@ -89,4 +89,15 @@ test("staging opt-out and analytics failures do not break exploration", async ({
   });
   await page.getByRole("button", { name: "Explore NVIDIA (NVDA)", exact: true }).click();
   await expect(page.getByRole("heading", { name: "NVIDIA", exact: true })).toBeVisible();
+});
+
+test("selecting an uncovered starter still reveals another issuer's incoming evidence", async ({ page }) => {
+  const graph = buildIndustryGraph({ NVDA: runFixture("NVDA", "0001045810", "NVIDIA", [{ targetName: "Micron Technology," }]) });
+  await page.route("**/api/industry-graph", (route) => route.fulfill({ json: graph }));
+  await page.goto(`${origin}/?company=MU`);
+  await expect(page.getByRole("heading", { name: "Micron", exact: true })).toBeVisible();
+  await expect(page.getByText(/company’s own filing has not been added/)).toBeVisible();
+  await page.getByRole("button", { name: "Micron supplies NVIDIA", exact: false }).last().click();
+  await expect(page.locator("blockquote")).toContainText("Synthetic test evidence");
+  await expect(page.getByText(/pending identity review/)).toBeVisible();
 });

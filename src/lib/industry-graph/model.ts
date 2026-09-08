@@ -66,13 +66,15 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
       name: starter.name, ticker: starter.ticker, segment: starter.segment, kind: valid ? "issuer" : "coverage",
     };
     nodes.set(node.id, node);
-    if (!valid) continue;
-    coveredTickers.push(starter.ticker);
-    issuers.set(starter.ticker, { node, cik, result });
-    for (const name of [starter.name, text(result.companyName)]) {
+    // Register editorial names even before the company's own filing is covered.
+    // All name joins stay provisional and never change persistent company identity.
+    for (const name of [starter.name, ...(starter.aliases ?? []), ...(valid ? [text(result.companyName)] : [])]) {
       const key = nameKey(name);
       names.set(key, new Set([...(names.get(key) ?? []), node.id]));
     }
+    if (!valid) continue;
+    coveredTickers.push(starter.ticker);
+    issuers.set(starter.ticker, { node, cik, result });
     const date = text(run.updatedAt);
     if (date && Number.isFinite(Date.parse(date)) && (!updatedAt || date > updatedAt)) updatedAt = date;
   }

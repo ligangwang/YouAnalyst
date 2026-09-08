@@ -77,7 +77,11 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
                 trackEvent(result.shouldCompleteProfile ? "sign_up" : "login", { method: "google" });
                 router.push(destinationForAuth(result.user.uid, result.shouldCompleteProfile));
               })
-              .catch(() => trackEvent("auth_error", { method: "google" }));
+              .catch((error: unknown) => {
+                const code = error && typeof error === "object" && "code" in error ? error.code : null;
+                const canceled = code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request";
+                trackEvent(canceled ? "auth_cancel" : "auth_error", { method: "google" });
+              });
           }}
           className="mb-4 w-full rounded-xl border border-cyan-300/40 bg-cyan-400/10 px-4 py-2.5 text-sm font-medium text-cyan-100 hover:bg-cyan-400/20"
         >

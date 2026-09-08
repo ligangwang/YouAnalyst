@@ -35,8 +35,9 @@ The production demo companies/relationships were deleted at the user's request.
 This release does not repopulate either collection. Map node IDs such as `sec:...`
 are presentation references, not the future permanent company IDs.
 
-An extracted target that uniquely matches an included issuer's display or legal
-name is joined provisionally. The evidence panel labels that name match as pending
+An extracted target that uniquely matches a starter's editorial name/alias or an
+included issuer's legal name is joined provisionally, even before the target's own
+filing is extracted. The evidence panel labels that name match as pending
 identity review. No fuzzy/acronym match or permanent entity merge is performed.
 Other mentions and categories remain scoped to the source issuer. A solid outline
 means the node has issuer metadata, not that every incoming relationship is verified.
@@ -65,7 +66,7 @@ configuration otherwise remains unchanged; these changes do not change consent.
 | `graph_company_open`, `graph_predict_click` | Does exploration lead to deeper research or a prediction? |
 | `graph_save_view` | Is a company focus link successfully copied? (`method=copy_link`; not account saving) |
 | `graph_feedback_click` | Do visitors open the feedback form? (Not a submitted response.) |
-| `auth_start`, `auth_error`, `sign_up`, `login` | Where does authentication succeed or fail? |
+| `auth_start`, `auth_cancel`, `auth_error`, `sign_up`, `login` | Where does authentication succeed, get canceled or fail? |
 | `prediction_publish` | Does the prediction API confirm successful publication? |
 
 `sign_up` fires for successful email registration or a new Google account through
