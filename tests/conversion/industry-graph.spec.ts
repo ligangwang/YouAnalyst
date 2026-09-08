@@ -283,12 +283,14 @@ test("saved shortcuts wait for graph data before accepting selection", async ({ 
   await expect(page.getByRole("heading", { name: "Micron", exact: true })).toBeVisible();
 });
 
-test("discovery opens directional evidence and keeps registration beside it", async ({ page }) => {
+test("company search opens evidence without suggesting question answering", async ({ page }) => {
   await page.goto(origin);
-  await expect(page.getByRole("region", { name: "Start with a question" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Start with a question" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Who supplies|Who does/ })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-  await page.getByRole("button", { name: /Who supplies NVIDIA\?/ }).click();
-  await expect(page.getByRole("heading", { name: "2 connections in this view" })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Find a company in the map" }).fill("NVIDIA");
+  await page.getByRole("button", { name: "Find", exact: true }).click();
+  await page.getByRole("combobox", { name: "Relationship type" }).selectOption("SUPPLIER_OF");
   await expect(page.getByRole("button", { name: "Evidence: AMD competes with NVIDIA", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Micron supplies NVIDIA 1 source →", exact: true }).click();
   await expect(page.locator("blockquote")).toContainText("Synthetic test evidence");
@@ -298,22 +300,25 @@ test("discovery opens directional evidence and keeps registration beside it", as
   await save.evaluate((link) => link.addEventListener("click", (event) => event.preventDefault()));
   await save.click();
   const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
-  expect(events.some((event) => event[1] === "graph_discovery_open" && (event[2] as { question_id?: string }).question_id === "nvda-suppliers")).toBe(true);
+  expect(events.some((event) => event[1] === "graph_discovery_open")).toBe(false);
+  expect(events.some((event) => event[1] === "graph_search")).toBe(true);
   expect(events.some((event) => event[1] === "graph_save_intent" && (event[2] as { entry_point?: string }).entry_point === "evidence")).toBe(true);
   await page.getByRole("button", { name: "Reset map", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Start with a question" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Start with a question" })).toHaveCount(0);
 });
 
-test("customer discovery saves the explored company and exits when filters change", async ({ page }) => {
+test("company selection retains evidence saving and relationship filters", async ({ page }) => {
   await page.goto(origin);
-  await page.getByRole("button", { name: /Who does Micron supply\?/ }).click();
+  await page.getByRole("searchbox", { name: "Find a company in the map" }).fill("Micron");
+  await page.getByRole("button", { name: "Find", exact: true }).click();
   await page.getByRole("button", { name: "Micron supplies NVIDIA 1 source →", exact: true }).click();
   await expect(page.getByRole("link", { name: "Create account to save MU" })).toBeVisible();
   await page.getByRole("combobox", { name: "Relationship type" }).selectOption("COMPETES_WITH");
   await expect(page.getByText("Company connections", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Evidence: Micron supplies NVIDIA", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Reset map", exact: true }).click();
-  await page.getByRole("button", { name: /Who supplies NVIDIA\?/ }).click();
+  await page.getByRole("searchbox", { name: "Find a company in the map" }).fill("NVIDIA");
+  await page.getByRole("button", { name: "Find", exact: true }).click();
   await page.getByRole("button", { name: "Explore Micron (MU)", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Relationship type" })).toHaveValue("all");
   await expect(page.getByText("Company connections", { exact: true })).toBeVisible();

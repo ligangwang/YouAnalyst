@@ -8,7 +8,6 @@ import { trackEvent } from "@/lib/analytics";
 import { layoutIndustryGraph } from "@/lib/industry-graph/layout";
 import { mapSignInHref } from "@/lib/industry-graph/saved-companies";
 import { useSavedMapCompanies } from "./use-saved-map-companies";
-import { discoveryQuestions, discoveryView } from "@/lib/industry-graph/discovery";
 import styles from "./industry-graph-home.module.css";
 
 const EMPTY_GRAPH = buildIndustryGraph({});
@@ -28,7 +27,6 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   const [panelWidth, setPanelWidth] = useState(800);
   const [zoom, setZoom] = useState(1);
   const [notice, setNotice] = useState("");
-  const [discoveryId, setDiscoveryId] = useState<string | null>(null);
   const viewed = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -67,7 +65,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
         setGraph(payload);
         setStatus("ready");
         const initial = payload.nodes.find((node) => node.ticker === initialTicker.toUpperCase());
-        setSelectedId(initial?.id ?? null); setRoots(initial ? [initial.id] : []); setEdgeId(null); setDiscoveryId(null);
+        setSelectedId(initial?.id ?? null); setRoots(initial ? [initial.id] : []); setEdgeId(null);
         trackEvent("industry_graph_load", { node_count: payload.nodes.length, edge_count: payload.edges.length, coverage_count: payload.coveredTickers.length });
       })
       .catch(() => {
@@ -82,23 +80,19 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   const selected = selectedId ? nodesById.get(selectedId) : null;
   const selectedStarter = INDUSTRY_STARTERS.find((starter) => starter.ticker === selected?.ticker);
   const selectedEdge = graph.edges.find((edge) => edge.id === edgeId);
-  const questions = useMemo(() => discoveryQuestions(graph), [graph]);
-  const activeQuestion = questions.find((question) => question.id === discoveryId);
   const overview = roots.length === 0 && !allConnections;
-  const visible = useMemo(() => activeQuestion ? discoveryView(graph, activeQuestion) : selectNeighborhood(graph, roots, type, categories, overview), [graph, roots, type, categories, overview, activeQuestion]);
+  const visible = useMemo(() => selectNeighborhood(graph, roots, type, categories, overview), [graph, roots, type, categories, overview]);
   const searchResults = query.trim() ? graph.nodes.filter((node) => node.kind !== "category" &&
     `${node.name} ${node.ticker ?? ""} ${INDUSTRY_STARTERS.find((starter) => starter.ticker === node.ticker)?.aliases?.join(" ") ?? ""}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 8) : [];
   const connections = selected ? visible.edges.filter((edge) => edge.source === selected.id || edge.target === selected.id) : [];
   const { columns, positions, width: chartWidth, height: chartHeight } = layoutIndustryGraph(visible.nodes, panelWidth);
 
   function selectCompany(node: IndustryNode, focus = false) {
-    if (discoveryId) { setDiscoveryId(null); setType("all"); }
     setSelectedId(node.id); setEdgeId(null); setNotice("");
     if (focus || !roots.length) { setRoots([node.id]); setZoom(1); }
     trackEvent("graph_company_select", { ticker: node.ticker ?? undefined, node_kind: node.kind, segment: node.segment });
   }
   function reset() {
-    setDiscoveryId(null);
     setRoots([]); setSelectedId(null); setEdgeId(null); setType("all"); setCategories(false); setZoom(1); setQuery(""); setAllConnections(false); setNotice("");
     trackEvent("graph_view_change", { action: "industry_overview", view_mode: mode });
   }
@@ -158,14 +152,6 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
           <div className={styles.switcher} aria-label="Display mode">{(["map", "list"] as const).map((value) =>
             <button key={value} type="button" aria-pressed={mode === value} onClick={() => { setMode(value); trackEvent("graph_view_change", { view_mode: value }); }}>{value === "map" ? "Map" : "List"}</button>)}</div>
         </div>
-        {overview && status === "ready" && questions.length > 0 && <section className={styles.discovery} aria-label="Start with a question">
-          <p>Start with a question <span>Available filing evidence · coverage is incomplete</span></p>
-          <div>{questions.map((question) => <button type="button" key={question.id} onClick={() => {
-            selectCompany(question.company, true);
-            setDiscoveryId(question.id); setType("SUPPLIER_OF"); setCategories(false); setAllConnections(false); setQuery(""); setZoom(1);
-            trackEvent("graph_discovery_open", { ticker: question.ticker, question_id: question.id, edge_count: question.edges.length });
-          }}><strong>{question.title}</strong><span>{question.edges.length} connection{question.edges.length === 1 ? "" : "s"} in this map <span aria-hidden="true">→</span></span></button>)}</div>
-        </section>}
         {savedCompanies.signedIn && <section className={styles.savedCompanies} aria-label="Your saved companies">
           <strong>Your saved companies</strong>
           {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} disabled={status !== "ready" || !graph.nodes.some((node) => node.ticker === ticker)} onClick={() => {
@@ -178,15 +164,15 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
         </section>}
         <div className={styles.filters}>
           <label>Connections <select aria-label="Relationship type" value={type} onChange={(event) => {
-            setDiscoveryId(null); setType(event.target.value); setEdgeId(null); trackEvent("graph_filter", { relationship_type: event.target.value });
+            setType(event.target.value); setEdgeId(null); trackEvent("graph_filter", { relationship_type: event.target.value });
           }}><option value="all">All types</option>{Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          {!overview && !activeQuestion && <label><input type="checkbox" checked={categories} onChange={(event) => { setCategories(event.target.checked); setEdgeId(null); trackEvent("graph_filter", { action: event.target.checked ? "show_categories" : "hide_categories" }); }} /> Include groups</label>}
+          {!overview && <label><input type="checkbox" checked={categories} onChange={(event) => { setCategories(event.target.checked); setEdgeId(null); trackEvent("graph_filter", { action: event.target.checked ? "show_categories" : "hide_categories" }); }} /> Include groups</label>}
           <button type="button" onClick={reset}>Reset map</button>
           <span className={styles.count} aria-live="polite">{visible.nodes.length} nodes · {visible.edges.length} connection{visible.edges.length === 1 ? "" : "s"}</span>
         </div>
         <div className={styles.scope} aria-label="Map scope">
-          <div><strong>{activeQuestion?.title ?? (overview ? "Industry overview" : roots.length ? "Company connections" : "All filing connections")}</strong>
-            <p>{activeQuestion ? "Select a connection to inspect its filing evidence. These are the available matches in this map, not a complete supplier or customer list." : overview ? "Start with the main companies. Select one to reveal suppliers, customers and other filing mentions." : "Select a connection to read its filing evidence. Focus on a company to reduce the map."}</p></div>
+          <div><strong>{overview ? "Industry overview" : roots.length ? "Company connections" : "All filing connections"}</strong>
+            <p>{overview ? "Start with the main companies. Select one to reveal suppliers, customers and other filing mentions." : "Select a connection to read its filing evidence. Focus on a company to reduce the map."}</p></div>
           {overview ? <button type="button" onClick={() => {
             setAllConnections(true); setZoom(1); trackEvent("graph_view_change", { action: "all_connections", view_mode: mode });
           }}>Show all connections</button> : <button type="button" onClick={reset}>Back to industry overview</button>}
