@@ -63,6 +63,7 @@ export function buildIndustryGraph(runs: Record<string, unknown>): IndustryGraph
     const valid = starter.filingForm !== "20-F" && run.status === "COMPLETED" && run.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION &&
       result.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION && result.dryRun === false &&
       result.ticker === starter.ticker && /^\d{10}$/.test(cik) && text(result.companyName) &&
+      (!starter.expectedCik || cik === starter.expectedCik) &&
       Array.isArray(result.edges);
     const node: IndustryNode = {
       id: valid ? `sec:${cik}` : `coverage:${starter.ticker}`,

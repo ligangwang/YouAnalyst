@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { buildIndustryFixture } from "../industry/html";
 import { fixtureGraph, runFixture } from "../industry/fixtures";
 import { buildIndustryGraph } from "../../src/lib/industry-graph/model";
+import { INDUSTRY_STARTERS } from "../../src/lib/industry-graph/catalog";
 import relationshipReviews from "../../src/lib/company-graph/relationship-reviews.json";
 
 const origin = "http://industry.test";
@@ -18,9 +19,21 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test("Sandisk is visible in the overview, searchable and keeps registration context", async ({ page }) => {
+  await page.goto(origin);
+  await expect(page.getByRole("button", { name: "Explore Sandisk (SNDK)", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Explore Western Digital (WDC)", exact: true })).toBeVisible();
+  await page.getByRole("searchbox").fill("SNDK");
+  await page.getByRole("button", { name: "Find", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Sandisk", exact: true })).toBeVisible();
+  await expect(page.getByText(/company’s own filing has not been added/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open company page" })).toHaveAttribute("href", "/ticker/SNDK");
+  await expect(page.getByRole("link", { name: /Create.*account|Sign.*save/i })).toHaveAttribute("href", /company%3DSNDK/);
+});
+
 test("homepage explores real component, evidence, supplier direction and expansion", async ({ page }) => {
   await page.goto(origin);
-  await expect(page.getByText("3 / 19", { exact: true })).toBeVisible();
+  await expect(page.getByText(`3 / ${INDUSTRY_STARTERS.length}`, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Explore NVIDIA (NVDA)", exact: true }).click();
   await page.getByRole("button", { name: "Micron supplies NVIDIA", exact: false }).last().click();
   await expect(page.getByRole("heading", { name: "Micron supplies NVIDIA" })).toBeVisible();
@@ -35,7 +48,7 @@ test("homepage explores real component, evidence, supplier direction and expansi
 
 test("list view filters and retains accessible evidence without a canvas", async ({ page }) => {
   await page.goto(origin);
-  await expect(page.getByText("3 / 19", { exact: true })).toBeVisible();
+  await expect(page.getByText(`3 / ${INDUSTRY_STARTERS.length}`, { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "List", exact: true }).click();
   await page.getByLabel("Relationship type").selectOption("COMPETES_WITH");
   await expect(page.getByRole("region", { name: /Scrollable industry map/ })).toHaveCount(0);
@@ -46,7 +59,7 @@ test("list view filters and retains accessible evidence without a canvas", async
 
 test("search selects a company, keeps prediction context, and never sends raw query to GA", async ({ page }) => {
   await page.goto(origin);
-  await expect(page.getByText("3 / 19", { exact: true })).toBeVisible();
+  await expect(page.getByText(`3 / ${INDUSTRY_STARTERS.length}`, { exact: true })).toBeVisible();
   await page.getByRole("searchbox").fill("private@example.invalid");
   await page.getByRole("button", { name: "Find", exact: true }).click();
   await expect(page.getByText("No match in this map.")).toBeVisible();
@@ -69,7 +82,7 @@ test("API failure retries, while empty coverage never fabricates relationships",
   await page.route("**/api/industry-graph", (route) => route.fulfill({ json: buildIndustryGraph({}) }));
   await page.getByRole("button", { name: "Try again" }).click();
   await expect(page.getByText(/Published filing relationships will appear/)).toBeVisible();
-  await expect(page.getByText("19 nodes · 0 connections")).toBeVisible();
+  await expect(page.getByText(`${INDUSTRY_STARTERS.length} nodes · 0 connections`)).toBeVisible();
 });
 
 test("deep links focus the company and layout does not overflow the viewport", async ({ page }) => {
@@ -82,7 +95,7 @@ test("deep links focus the company and layout does not overflow the viewport", a
 test("staging opt-out and analytics failures do not break exploration", async ({ page }) => {
   await page.route(origin + "/", (route) => route.fulfill({ contentType: "text/html", body: html.replace('content="enabled"', 'content="disabled"') }));
   await page.goto(origin);
-  await expect(page.getByText("3 / 19", { exact: true })).toBeVisible();
+  await expect(page.getByText(`3 / ${INDUSTRY_STARTERS.length}`, { exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.dataLayer?.length ?? 0)).toBe(0);
   await page.evaluate(() => {
     document.querySelector('meta[name="youanalyst-analytics"]')!.setAttribute("content", "enabled");
@@ -105,7 +118,7 @@ test("selecting an uncovered starter still reveals another issuer's incoming evi
 
 test("overview reveals mentions on demand and resets cleanly after focusing a neighbor", async ({ page }) => {
   await page.goto(origin);
-  await expect(page.getByText("3 / 19", { exact: true })).toBeVisible();
+  await expect(page.getByText(`3 / ${INDUSTRY_STARTERS.length}`, { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Explore Unresolved Foundry", exact: true })).toHaveCount(0);
   const canvas = page.getByRole("region", { name: /Scrollable industry map/ });
   await expect.poll(() => canvas.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
@@ -129,7 +142,7 @@ test("overview reveals mentions on demand and resets cleanly after focusing a ne
 
 test("search finds a mention hidden from the overview and filters its focused connections", async ({ page }) => {
   await page.goto(origin);
-  await expect(page.getByText("3 / 19", { exact: true })).toBeVisible();
+  await expect(page.getByText(`3 / ${INDUSTRY_STARTERS.length}`, { exact: true })).toBeVisible();
   await page.getByRole("searchbox").fill("Unresolved Foundry");
   await page.getByRole("button", { name: "Find", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Unresolved Foundry", exact: true })).toBeVisible();

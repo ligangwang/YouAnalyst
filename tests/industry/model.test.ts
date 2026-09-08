@@ -11,6 +11,31 @@ test("empty source creates coverage starting points with no fabricated connectio
   assert.ok(graph.nodes.every((node) => node.kind === "coverage"));
   assert.equal(graph.edges.length, 0);
 });
+test("Sandisk is a distinct memory starter, with only current-issuer filing coverage", () => {
+  const empty = buildIndustryGraph({});
+  assert.deepEqual(empty.nodes.filter((node) => node.segment === "memory").map((node) => node.ticker), ["MU", "SNDK", "WDC"]);
+  assert.equal(empty.nodes.find((node) => node.ticker === "SNDK")?.kind, "coverage");
+  const current = runFixture("SNDK", "0002023554", "Sandisk Corporation", [{ targetName: "Western Digital" }]);
+  const graph = buildIndustryGraph({ SNDK: current });
+  assert.deepEqual(graph.coveredTickers, ["SNDK"]);
+  assert.equal(graph.nodes.find((node) => node.ticker === "SNDK")?.id, "sec:0002023554");
+  assert.equal(graph.edges.length, 1);
+  const legacy = runFixture("SNDK", "0001000180", "SanDisk Corporation", [{ targetName: "Western Digital" }]);
+  const rejected = buildIndustryGraph({ SNDK: legacy });
+  assert.equal(rejected.edges.length, 0);
+  assert.deepEqual(rejected.coveredTickers, []);
+});
+
+test("Sandisk name evidence joins provisionally without reassigning Western Digital", () => {
+  const graph = buildIndustryGraph({ NVDA: runFixture("NVDA", "0001045810", "NVIDIA", [
+    { targetName: "SanDisk" }, { targetName: "Sandisk Corporation" }, { targetName: "Western Digital" },
+  ]) });
+  const sandisk = selectNeighborhood(graph, ["coverage:SNDK"], "all", false);
+  assert.equal(sandisk.edges.length, 1);
+  assert.equal(sandisk.edges[0].evidence.length, 2);
+  assert.ok(sandisk.edges[0].evidence.every((item) => item.nameMatched));
+  assert.equal(selectNeighborhood(graph, ["coverage:WDC"], "all", false).edges.length, 1);
+});
 test("only completed current persisted extractions enter the map", () => {
   const run = fixtureRuns.NVDA;
   for (const rejected of [
@@ -105,9 +130,9 @@ test("bounded preview includes later issuers even when an earlier issuer has man
     QCOM: runFixture("QCOM", "0000804328", "Qualcomm", targets),
   });
   assert.deepEqual(graph.coveredTickers, ["NVDA", "AAPL", "QCOM"]);
-  assert.deepEqual(graph.coveredTickers.map((ticker) => graph.edges.filter((edge) => edge.evidence[0].issuerTicker === ticker).length), [14, 14, 13]);
+  assert.deepEqual(graph.coveredTickers.map((ticker) => graph.edges.filter((edge) => edge.evidence[0].issuerTicker === ticker).length), [14, 13, 13]);
   assert.equal(graph.nodes.length, 60);
-  assert.equal(graph.omittedEdges, 109);
+  assert.equal(graph.omittedEdges, 110);
 });
 
 test("invalid filing accessions never inflate the omitted connection count", () => {

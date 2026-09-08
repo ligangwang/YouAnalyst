@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { INDUSTRY_STARTERS } from "../../src/lib/industry-graph/catalog";
 
 function savedCompanyHeaders(userToken?: string): Record<string, string> {
   const serviceToken = process.env.PLAYWRIGHT_AUTH_BEARER_TOKEN;
@@ -32,7 +33,7 @@ test("authenticated saved-company reads reach the private account store", async 
   expect(response.headers()["cache-control"].split(/,\s*/)).toEqual(expect.arrayContaining(["private", "no-store"]));
   const result = await response.json();
   expect(Array.isArray(result.tickers)).toBe(true);
-  expect(result.tickers.length).toBeLessThanOrEqual(19);
+  expect(result.tickers.length).toBeLessThanOrEqual(INDUSTRY_STARTERS.length);
 });
 
 test("Cloud Run service identity does not grant access to saved companies", async ({ request }) => {
@@ -72,6 +73,9 @@ test("industry map serves bounded filing data", async ({ request, baseURL }) => 
   expect(graph.nodes.length).toBeGreaterThan(0);
   expect(graph.nodes.length).toBeLessThanOrEqual(60);
   expect(graph.edges.length).toBeLessThanOrEqual(120);
+  for (const ticker of ["MU", "SNDK", "WDC"]) {
+    expect(graph.nodes.filter((node: { ticker: string; segment: string }) => node.ticker === ticker && node.segment === "memory")).toHaveLength(1);
+  }
   const nodeIds = new Set(graph.nodes.map((node: { id: string }) => node.id));
   for (const edge of graph.edges) {
     expect(nodeIds.has(edge.source)).toBeTruthy();
