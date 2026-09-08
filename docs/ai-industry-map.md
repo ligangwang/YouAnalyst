@@ -28,6 +28,33 @@ and EOD routes retain their behavior. The navigation has an AI Map link.
 - A company-focused link can be copied and reopened (`/?company=MU`). This is a
   shareable focus link, not a saved account view or a snapshot of all filters.
 - A link to the existing feedback form plus GA4 behavioral instrumentation.
+- Registered users can save supported ticker companies to a private account list
+  above the map, reopen their connections, and remove saves. A selected company's
+  save card explains this benefit before registration. Authentication returns to
+  that company; the user then explicitly selects Save. No mutation occurs merely
+  by opening a continuation URL. This saves company shortcuts, not graph snapshots
+  or notifications, and does not change prediction-based watchlists.
+
+## Saved company access and measurement
+
+`/api/industry-graph/saved` requires a verified Firebase bearer token for GET and
+POST, derives ownership only from that token, and returns `private, no-store`
+responses including errors. Server-only `industry_map_preferences/{uid}` documents
+hold a bounded set of starter tickers. Existing Firestore rules deny direct client
+access to this new collection. Atomic array membership updates make repeated
+save/remove requests idempotent without overwriting concurrent saves of other
+companies. No collection migration, financial computation or extraction is needed.
+Account changes hide previous saves immediately and ignore late responses.
+
+GA4 adds `graph_save_intent` (actions: sign_in/save/remove), `graph_save_complete`
+(save/remove, only after success), `graph_save_error`, and `graph_saved_company_open`.
+Compare visitors who inspect evidence, click save intent with sign_in, register
+(`sign_up`, graph_origin=yes), complete a save, return to a saved company, and
+eventually publish (`prediction_publish`). Saving is an intermediate engagement
+signal; it is not counted as publishing a first prediction. No account IDs, tokens
+or private lists enter analytics. Existing GA4 events are unchanged. Production
+event configuration and funnel reports still need observation with real traffic;
+these events alone do not establish an increase in registrations.
 
 The projection caps each issuer at 50 candidate edges, and the total preview at
 60 nodes and 120 relationships. Omitted connections are reported. Candidates are

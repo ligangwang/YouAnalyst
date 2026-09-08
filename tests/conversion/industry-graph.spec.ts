@@ -166,3 +166,104 @@ test("corrected OEM evidence shows distributor direction and the review explanat
   await expect(page.locator("blockquote")).toContainText("distribution agreements");
   await expect(page.getByRole("link", { name: "Read SEC filing" })).toHaveAttribute("href", /\/789019\//);
 });
+
+test("a visitor can inspect evidence before choosing contextual registration", async ({ page }) => {
+  await page.goto(`${origin}/?company=NVDA`);
+  await expect(page.getByRole("link", { name: "Sign in to save NVDA" })).toHaveAttribute("href", "/auth?next=%2F%3Fcompany%3DNVDA");
+  await expect(page.getByRole("button", { name: "Micron supplies NVIDIA 1 source →" })).toBeVisible();
+  await page.getByRole("link", { name: "Sign in to save NVDA" }).click();
+  await expect(page).toHaveURL(`${origin}/auth?next=%2F%3Fcompany%3DNVDA`);
+});
+
+test("signed-in saves survive reload, reopen the company and can be removed", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let tickers: string[] = [];
+  await page.route("**/api/industry-graph/saved", async (route) => {
+    expect(route.request().headers().authorization).toBe("Bearer isolated-test-token");
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      expect(body.ticker).toBe("NVDA");
+      tickers = body.saved ? ["NVDA"] : [];
+    }
+    await route.fulfill({ json: { tickers } });
+  });
+  await page.goto(`${origin}/?company=NVDA`);
+  await page.getByRole("button", { name: "Save NVDA", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("NVDA saved to your account.");
+  await page.reload();
+  const saved = page.getByRole("region", { name: "Your saved companies" });
+  await expect(saved.getByRole("button", { name: "NVDA", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Reset map", exact: true }).click();
+  await saved.getByRole("button", { name: "NVDA", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "NVIDIA", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Remove saved NVDA", exact: true }).click();
+  await expect(saved.getByRole("button", { name: "NVDA", exact: true })).toHaveCount(0);
+  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
+  expect(events.some((event) => event[1] === "graph_saved_company_open")).toBe(true);
+  expect(events.some((event) => event[1] === "graph_save_complete")).toBe(true);
+});
+
+test("failed save does not claim success and can be retried", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let fail = true;
+  await page.route("**/api/industry-graph/saved", async (route) => {
+    const write = route.request().method() === "POST";
+    await route.fulfill({ status: write && fail ? 503 : 200, json: { tickers: write && !fail ? ["MU"] : [] } });
+  });
+  await page.goto(`${origin}/?company=MU`);
+  await page.getByRole("button", { name: "Save MU", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Could not confirm the change");
+  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
+  expect(events.some((event) => event[1] === "graph_save_complete")).toBe(false);
+  fail = false;
+  await page.getByRole("button", { name: "Save MU", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("MU saved to your account.");
+});
+
+test("changing accounts hides prior saves and ignores a late save response", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let reads = 0;
+  let release: (() => void) | undefined;
+  const wait = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/industry-graph/saved", async (route) => {
+    if (route.request().method() === "POST") {
+      await wait;
+      return route.fulfill({ json: { tickers: ["NVDA", "MU"] } });
+    }
+    reads++;
+    return route.fulfill({ json: { tickers: reads === 1 ? ["MU"] : ["AMD"] } });
+  });
+  await page.goto(`${origin}/?company=NVDA`);
+  const saved = page.getByRole("region", { name: "Your saved companies" });
+  await expect(saved.getByRole("button", { name: "MU", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save NVDA", exact: true }).click();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: null })));
+  await expect(saved).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Sign in to save NVDA" })).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: "another-user" })));
+  await expect(saved.getByRole("button", { name: "AMD", exact: true })).toBeVisible();
+  const completed = page.waitForResponse((response) => response.url().endsWith("/api/industry-graph/saved") && response.request().method() === "POST");
+  release!();
+  await completed;
+  await expect(saved.getByRole("button", { name: "AMD", exact: true })).toBeVisible();
+  await expect(saved.getByRole("button", { name: "MU", exact: true })).toHaveCount(0);
+  await expect(saved.getByRole("button", { name: "NVDA", exact: true })).toHaveCount(0);
+});
+
+test("saved shortcuts wait for graph data before accepting selection", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let release: (() => void) | undefined;
+  const wait = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/industry-graph/saved", (route) => route.fulfill({ json: { tickers: ["MU"] } }));
+  await page.route("**/api/industry-graph", async (route) => {
+    await wait;
+    return route.fulfill({ json: fixtureGraph });
+  });
+  await page.goto(origin);
+  const shortcut = page.getByRole("region", { name: "Your saved companies" }).getByRole("button", { name: "MU", exact: true });
+  await expect(shortcut).toBeDisabled();
+  release!();
+  await expect(shortcut).toBeEnabled();
+  await shortcut.click();
+  await expect(page.getByRole("heading", { name: "Micron", exact: true })).toBeVisible();
+});

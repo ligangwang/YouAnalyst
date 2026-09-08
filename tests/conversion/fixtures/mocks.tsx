@@ -14,6 +14,11 @@ declare global {
 }
 
 let user = window.authScenario?.signedIn ? { uid: "test-user" } : null;
+window.addEventListener("test-auth-user", (event) => {
+  const uid = (event as CustomEvent<string | null>).detail;
+  user = uid ? { uid } : null;
+  window.dispatchEvent(new Event("auth-change"));
+});
 const subscribe = (callback: () => void) => {
   window.addEventListener("auth-change", callback);
   return () => window.removeEventListener("auth-change", callback);

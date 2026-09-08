@@ -3,7 +3,7 @@ import path from "node:path";
 export async function buildIndustryFixture() {
   const result = await build({
     entryPoints: ["tests/industry/app.tsx"], bundle: true, write: false, outfile: "industry-fixture.js",
-    platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/industry/link.tsx") },
+    platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") },
   });
   const js = result.outputFiles.find((file) => file.path.endsWith(".js"))!.text;
   const css = result.outputFiles.find((file) => file.path.endsWith(".css"))!.text;

@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { safeAuthDestination } from "@/lib/auth-continuation";
 import { trackEvent } from "@/lib/analytics";
+import { mapAuthCompany } from "@/lib/industry-graph/saved-companies";
 
 export function AuthPage({ requestedNext }: { requestedNext?: string }) {
   const router = useRouter();
   const destination = safeAuthDestination(requestedNext);
+  const mapCompany = mapAuthCompany(destination);
   const { user, error, signInWithGoogle, signInWithEmail, createAccountWithEmail } = useAuth();
   const [isCreate, setIsCreate] = useState(false);
   const [email, setEmail] = useState("");
@@ -25,7 +27,7 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
       <main className="mx-auto w-full max-w-xl px-4 py-16">
         <div className="rounded-2xl border border-emerald-400/30 bg-emerald-900/20 p-6 text-center">
           <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-emerald-100">Signed in</h1>
-          <p className="text-sm text-emerald-50">Continue to the feed or create your next prediction.</p>
+          <p className="text-sm text-emerald-50">{mapCompany ? `Return to the map and select Save ${mapCompany} to keep it in your account.` : "Continue to the feed or create your next prediction."}</p>
           <button
             type="button"
             className="mt-4 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-900"
@@ -65,8 +67,8 @@ export function AuthPage({ requestedNext }: { requestedNext?: string }) {
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-16">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Sign in to YouAnalyst</h1>
-        <p className="mb-6 text-sm text-slate-300">Use Google or email/password to create predictions and build a score.</p>
+        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? `Keep ${mapCompany} on your map` : "Sign in to YouAnalyst"}</h1>
+        <p className="mb-6 text-sm text-slate-300">{mapCompany ? `Create an account or sign in to keep a personal list of companies. You’ll return to ${mapCompany}; select Save ${mapCompany} to add it.` : "Use Google or email/password to create predictions and build a score."}</p>
 
         <button
           type="button"

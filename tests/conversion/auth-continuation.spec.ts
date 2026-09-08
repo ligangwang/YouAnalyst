@@ -9,6 +9,14 @@ const watchlistId = "owned & research+1";
 const composer = `/predictions/new?${new URLSearchParams({ ticker: "AMD", watchlistId })}`;
 let html: string;
 
+test("map registration explains saving and returns to the selected company without a write", async ({ page }) => {
+  const destination = "/?company=TSM";
+  await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination })}`);
+  await expect(page.getByRole("heading", { name: "Keep TSM on your map" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page).toHaveURL(`${origin}${destination}`);
+});
+
 test.beforeAll(async () => {
   const mock = path.resolve("tests/conversion/fixtures/mocks.tsx");
   const result = await build({
