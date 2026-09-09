@@ -8,7 +8,6 @@ import { buildIndustryGraph, RELATIONSHIP_LABELS, selectNeighborhood, type Indus
 import { trackEvent } from "@/lib/analytics";
 import { layoutIndustryGraph } from "@/lib/industry-graph/layout";
 import { CompanyDirectionActions } from "./company-direction-actions";
-import { useSavedMapCompanies } from "./use-saved-map-companies";
 import styles from "./industry-graph-home.module.css";
 
 const EMPTY_GRAPH = buildIndustryGraph({}, []);
@@ -18,7 +17,6 @@ function subscribeToCompactView(listener: () => void) {
   return () => query.removeEventListener("change", listener);
 }
 export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: string }) {
-  const savedCompanies = useSavedMapCompanies();
   const [graph, setGraph] = useState<IndustryGraph>(EMPTY_GRAPH);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
@@ -175,16 +173,6 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
           <span>Page {pageCursors.length}</span>
           <button type="button" disabled={!graph.nextCursor || status === "loading"} onClick={() => { reset(); setStatus("loading"); setPageCursors((pages) => [...pages, graph.nextCursor!]); }}>Next companies</button>
         </nav>}
-        {savedCompanies.signedIn && savedCompanies.tickers.length > 0 && <section className={styles.savedCompanies} aria-label="Your saved companies">
-          <strong>Your saved companies</strong>
-          {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} disabled={status !== "ready"} onClick={() => {
-            const node = graph.nodes.find((item) => item.ticker === ticker);
-            if (node) { selectCompany(node, true); trackEvent("graph_saved_company_open", { ticker }); }
-            else { setRequestedTicker(ticker); setStatus("loading"); trackEvent("graph_saved_company_open", { ticker }); }
-          }}>{ticker}</button>)}
-          {!savedCompanies.ready && !savedCompanies.failed && <span>Loading saved companies…</span>}
-          {savedCompanies.failed && <><span>Saved companies are unavailable.</span><button type="button" onClick={savedCompanies.retry}>Retry saved companies</button></>}
-        </section>}
         <div className={styles.filters}>
           <label>Connections <select aria-label="Relationship type" value={type} onChange={(event) => {
             setType(event.target.value); setEdgeId(null); trackEvent("graph_filter", { relationship_type: event.target.value });
