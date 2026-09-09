@@ -5,6 +5,33 @@ import { researchRequest, readResearchResponse } from "../../src/lib/industry-re
 import { buildIndustryGraph, selectNeighborhood } from "../../src/lib/industry-graph/model";
 import { createIndustryResearchService } from "../../src/lib/industry-research/service";
 import type { Firestore } from "firebase-admin/firestore";
+import { RESEARCH_SECTORS, resolveResearchTopic, researchTopicLabel } from "../../src/lib/industry-research/taxonomy";
+import { MAP_ROLE_CORRECTIONS, roleCorrectionPatch } from "../../scripts/data/map-role-corrections";
+
+test("reference taxonomy has 11 sectors, 74 unique industries, and validated parent codes", () => {
+  assert.equal(RESEARCH_SECTORS.length, 11);
+  const codes = RESEARCH_SECTORS.flatMap(s => s.industries.map(i => i[0]));
+  assert.equal(codes.length, 74);
+  assert.equal(new Set(codes).size, 74);
+  for (const sector of RESEARCH_SECTORS) for (const [code] of sector.industries) {
+    assert.ok(code.startsWith(sector.code));
+    assert.equal(resolveResearchTopic("", { sectorCode: sector.code, industryCode: code }).industryCode, code);
+  }
+  assert.throws(() => resolveResearchTopic("AI", { sectorCode: "35", industryCode: "453010" }));
+  assert.throws(() => resolveResearchTopic("", null));
+  assert.throws(() => resolveResearchTopic("x".repeat(121)));
+  assert.equal(researchTopicLabel(resolveResearchTopic("Cross-industry AI")), "Cross-industry AI");
+});
+
+test("role migration is idempotent and preserves explicitly classified metadata", () => {
+  for (const company of MAP_ROLE_CORRECTIONS) {
+    const patch = roleCorrectionPatch(undefined, company)!;
+    assert.equal(patch.segment, company.segment);
+    assert.equal(roleCorrectionPatch(patch, company), null);
+    assert.equal(roleCorrectionPatch({ segment: "cloud" }, company), null);
+    assert.equal(roleCorrectionPatch({ name: "Editorial name", segment: "other" }, company)?.name, undefined);
+  }
+});
 
 const url = "https://www.amd.com/en/newsroom/example.html";
 const companies = [{ ticker: "TSM", name: "TSMC", segment: "manufacturing" }, { ticker: "AMD", name: "AMD", segment: "compute" }];
@@ -35,6 +62,8 @@ test("research nodes join existing tickers without claiming filing coverage", ()
   assert.equal(graph.edges[0].evidence[0].sourceKind, "web");
   assert.equal(selectNeighborhood(graph, [], "all", false, true).edges.length, 1);
   assert.equal(mergeResearchGraph(graph, result.companies, result.relationships).edges.length, 1);
+  const unknown = buildIndustryGraph({}, [{ ...result.companies[0], segment: "other" }]);
+  assert.equal(mergeResearchGraph(unknown, result.companies, result.relationships).nodes[0].segment, "manufacturing");
 });
 test("research has bounded tool use and output, background processing and structured JSON", () => {
   const request = researchRequest("Semiconductors", []);
@@ -98,6 +127,21 @@ function serviceFixture() {
   return { data, service, calls: () => calls, usageEvents: () => usageEvents, fail: () => { providerStatus = "incomplete"; } };
 }
 const runId = "00000000-0000-4000-8000-000000000001";
+test("categorized batches persist canonical labels and reject invalid categories without spending", async () => {
+  const f = serviceFixture();
+  await assert.rejects(f.service.startResearch("", runId, "admin", { sectorCode: "35", industryCode: "453010" }));
+  assert.equal(f.calls(), 0);
+  const run = await f.service.startResearch("AI infrastructure", runId, "admin", { sectorCode: "45", industryCode: "453010", sectorName: "forged" });
+  assert.deepEqual(run?.topic, resolveResearchTopic("AI infrastructure", { sectorCode: "45", industryCode: "453010" }));
+  await assert.rejects(f.service.startResearch("Different scope", runId, "admin"), /another topic/);
+  assert.equal(f.calls(), 1);
+  await f.service.refreshResearch(runId);
+  for (const symbol of ["TSM", "AMD"]) f.data.set(`tickers/${symbol}`, { symbol, active: true, predictionSupported: true });
+  await f.service.publishResearch(runId, ["TSM__SUPPLIER_OF__AMD"], "admin");
+  const saved = f.data.get("industry_research_relationships/TSM__SUPPLIER_OF__AMD");
+  assert.ok(saved?.researchIndustryCodes);
+  assert.ok(saved?.researchSectorCodes);
+});
 test("paid submissions are idempotent, industry-locked and globally bounded", async () => {
   const f = serviceFixture();
   await f.service.startResearch("Semiconductors", runId, "admin");

@@ -84,7 +84,8 @@ export function mergeResearchGraph(graph: IndustryGraph, companies: IndustryComp
       const company = directory.get(ticker)!;
       const id = byTicker.get(ticker) ?? `research:${ticker}`;
       const existing = nodes.get(id);
-      nodes.set(id, existing ? { ...existing, kind: existing.kind === "coverage" ? "research" : existing.kind } : { id, ...company, kind: "research" });
+      nodes.set(id, existing ? { ...existing, segment: existing.segment === "other" ? company.segment : existing.segment,
+        kind: existing.kind === "coverage" ? "research" : existing.kind } : { id, ...company, kind: "research" });
       byTicker.set(ticker, id);
     }
     add({ id: relation.id, source: byTicker.get(relation.source)!, target: byTicker.get(relation.target)!, type: relation.type,
