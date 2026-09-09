@@ -1,6 +1,28 @@
 # Company Map Data
 
-The public map is a read-only view of persisted filing extractions. It does not invoke an AI provider or enqueue extraction when a visitor searches, opens a page, or saves a company.
+The public map is a read-only view of persisted filing extractions and explicitly published industry research. It does not invoke an AI provider or enqueue extraction when a visitor searches, opens a page, or saves a company.
+
+## Adding Industry Coverage
+
+Open `/admin/industry-research` (also linked from Company Graph Requests). Sign in as an admin, enter an industry and choose **Research industry**. This uses the production `OPENAI_MODEL` (currently `gpt-5.4`) with medium reasoning and web search. One background response researches up to 40 companies and 80 candidate relationships across the industry, rather than requesting each company independently. The initial integration accepts US-listed stocks and ADRs supported by the ticker directory; private companies and foreign-only listings are excluded.
+
+Runs are saved in `industry_research_runs`. Refreshing checks the existing OpenAI response; it never starts a replacement. Only completed structured output becomes a draft. Source URLs must occur in the provider's web-search sources or citations. This establishes source provenance, not that the model's interpretation is verified. Summaries are paraphrases and must not be presented as source quotations.
+
+Review the company identities, direction, date and linked source for each proposed connection. Select the connections that the sources support, then choose **Publish reviewed connections**. Publication validates the ticker directory and atomically writes:
+
+- `industry_research_companies/{TICKER}`: one reviewed display record per ticker, created only when absent.
+- `industry_research_relationships/{SOURCE}__{TYPE}__{TARGET}`: one canonical relationship, with merged evidence and contributing industry/run IDs.
+- The draft run's publication selection and reviewer audit fields.
+
+`AMD CUSTOMER_OF TSM` and `TSM SUPPLIER_OF AMD` share one key. Partner and competitor keys sort their endpoints. Publication merges evidence rather than creating duplicate connections. Existing display metadata is never silently overwritten. Omission from another batch does not retire a relationship. To withdraw a published research relationship, change its `status` to `RETIRED` in Firestore; do not delete its audit history. Publication of that relationship again requires explicit review.
+
+The map reads up to 120 published research relationships, plus up to 80 outgoing and 80 incoming records for a requested ticker, and joins existing map nodes by ticker. Exact ticker lookup can reach companies outside the overview. This is a bounded preview, not a claim of market completeness. The existing filing cursor pages filings, not research. Larger research coverage will need its own industry selector and pagination. Web research is labeled separately and does not increase the count of companies with published filing extractions. New published companies need no deployment and appear after the existing five-minute cache expires. Industry research companies are not yet added to the sitemap automatically.
+
+### Spending And Recovery
+
+The server enforces three submitted batches per UTC day, at most eight built-in tool calls and 12,000 output tokens per batch. These bound work, not an exact dollar cost: input/search-content tokens and tool fees also apply. Token usage is recorded with purpose `industry_research`; its token-cost estimate excludes search-tool fees, while each run records the number of tool calls. No scheduler is enabled.
+
+Client request IDs prevent duplicate starts on retries. A per-industry lock prevents overlapping research. Failed or incomplete results never alter published data. If a process stops in `STARTING`, inspect provider usage before releasing its `industry_research_locks` record; do not automatically retry an uncertain paid request. If a run is `PROCESSING`, use **Check status** to recover it. OpenAI background response retention is limited, so refresh promptly; completed results are persisted in Firestore.
 
 ## Membership And Metadata
 

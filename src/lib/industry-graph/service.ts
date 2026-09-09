@@ -2,6 +2,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { MAP_PAGE_SIZE, readMapCompany } from "./directory";
 import { buildIndustryGraph, type IndustryGraph } from "./model";
+import { mergeResearchGraph, type ResearchRelationship } from "../industry-research/model";
 
 export function createIndustryGraphLoader(getDb: () => Firestore) {
 const cache = new Map<string, { expires: number; graph: IndustryGraph }>();
@@ -47,7 +48,18 @@ return async function loadIndustryGraph({ ticker = "", after = "" } = {}): Promi
       const company = listing && readMapCompany(ticker, listing);
       if (company) companies.set(ticker, company);
     }
-    const graph = buildIndustryGraph(runs, [...companies.values()]);
+    const research = await db.collection("industry_research_relationships").where("status", "==", "PUBLISHED").limit(120).get();
+    const relations = new Map(research.docs.map(d => [d.id, d.data() as ResearchRelationship]));
+    if (ticker) {
+      for (const field of ["source", "target"]) {
+        const related = await db.collection("industry_research_relationships").where(field, "==", ticker).limit(80).get();
+        for (const doc of related.docs) if (doc.data().status === "PUBLISHED") relations.set(doc.id, doc.data() as ResearchRelationship);
+      }
+    }
+    const researchSymbols = [...new Set([...relations.values()].flatMap(r => [r.source, r.target]))];
+    const researchCompanies = researchSymbols.length ? (await db.getAll(...researchSymbols.map(s => db.collection("industry_research_companies").doc(s))))
+      .flatMap(d => { const c = readMapCompany(d.id, d.data() ?? {}); return c ? [c] : []; }) : [];
+    const graph = mergeResearchGraph(buildIndustryGraph(runs, [...companies.values()]), researchCompanies, [...relations.values()]);
     graph.nextCursor = page.docs.length > MAP_PAGE_SIZE ? docs.at(-1)!.id : null;
     if (ticker) graph.requestedTicker = ticker;
     if (cache.size >= 32) cache.delete(cache.keys().next().value!);
