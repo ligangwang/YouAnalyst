@@ -261,16 +261,16 @@ export function SiteNav() {
               <Image
                 src="/youanalyst-logo-mobile.svg"
                 alt="YouAnalyst"
-                width={140}
-                height={32}
+                width={200}
+                height={44}
                 priority
                 className="h-9 w-auto md:hidden"
               />
               <Image
                 src="/youanalyst-logo.svg"
                 alt="YouAnalyst"
-                width={140}
-                height={32}
+                width={156}
+                height={40}
                 priority
                 className="hidden h-10 w-auto md:block"
               />
