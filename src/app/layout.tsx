@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Sans, Sora } from "next/font/google";
 import Link from "next/link";
 import Script from "next/script";
+import { analyticsBootstrap } from "@/lib/analytics-bootstrap";
 import { AppProviders } from "@/components/providers/app-providers";
 import { EnvironmentBanner } from "@/components/environment-banner";
 import { SiteNav } from "@/components/site-nav";
@@ -68,24 +69,13 @@ export default function RootLayout({
       className={`${sora.variable} ${ibmPlexSans.variable} h-full antialiased`}
     >
       <head>
-        <meta name="youanalyst-analytics" content={GOOGLE_ANALYTICS_ID && isProductionAppEnvironment() ? "enabled" : "disabled"} />
+        <meta name="youanalyst-analytics" content="disabled" suppressHydrationWarning />
       </head>
       <body className="min-h-full flex flex-col">
-        {GOOGLE_ANALYTICS_ID ? (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ANALYTICS_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script id="google-analytics" strategy="beforeInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){window.dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${GOOGLE_ANALYTICS_ID}');
-              `}
-            </Script>
-          </>
+        {GOOGLE_ANALYTICS_ID && isProductionAppEnvironment() ? (
+          <Script id="google-analytics" strategy="beforeInteractive">
+            {analyticsBootstrap(GOOGLE_ANALYTICS_ID, true)}
+          </Script>
         ) : null}
         <Script id="website-jsonld" type="application/ld+json" strategy="beforeInteractive">
           {JSON.stringify(websiteJsonLd)}

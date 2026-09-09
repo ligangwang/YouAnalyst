@@ -19,6 +19,7 @@ export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) 
   try {
     const meta = document.querySelector('meta[name="youanalyst-analytics"]');
     if (meta?.getAttribute("content") !== "enabled") return;
+    if (document.cookie.split(";").some(value => value.trim() === "youanalyst_analytics_opt_out=1")) return;
     if (event === "industry_graph_view") {
       try { window.sessionStorage.setItem("youanalyst:graph-visit", String(Date.now())); } catch { /* Optional attribution. */ }
     }
