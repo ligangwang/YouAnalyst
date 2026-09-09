@@ -96,8 +96,23 @@
 .saveCard p { font-size: 12px; line-height: 1.7; color: #bed1df; }
 .saveCard a, .saveCard button { display: block; width: 100%; text-align: center; margin-top: 12px; border: 1px solid #52c4d6; border-radius: 7px; padding: 10px; color: #b7f6ff; font-size: 12px; }
 .saveCard button:disabled { opacity: .5; }
+.search input { font-size: 16px; }
+.filters, .scope strong, .scope p, .detail p, .connection, .saveCard p { font-size: 14px; }
+.filters button, .filters select, .switcher button, .starters button, .companyList button, .canvasTools button { min-height: 44px; }
+.companyList button { font-size: 14px; text-align: left; }
+.companyList span, .legend, .bottom { font-size: 12px; }
+.detail h3 { font-size: 15px; }
 @media (max-width: 1050px) { .body { grid-template-columns: minmax(0,1fr) 280px; } .detail { padding: 20px 16px; } .starters { display: none; } }
 @media (max-width: 760px) {
+  .heading { margin-bottom: 16px; }
+  .scope p { display: none; }
+  .scope { flex-direction: row !important; align-items: center !important; }
+  .scope button { font-size: 12px; padding: 8px; }
+  .toolbar { gap: 8px !important; }
+  .search { min-width: 100% !important; }
+  .switcher { margin-left: 0; }
+  .list { padding: 14px; max-height: none; overflow: visible; }
+  .companyList { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
   .scope { align-items: flex-start; flex-direction: column; padding: 12px; }
   .page { padding: 22px 12px; } .heading { display: block; } .heading h1 { letter-spacing: -.8px; } .heading p:not(.eyebrow) { font-size: 13px; } .pill { display: inline-block; margin-top: 14px; }
   .body { display: block; } .detail { border-left: 0; border-top: 1px solid #263b4d; max-height: none; padding: 22px; }

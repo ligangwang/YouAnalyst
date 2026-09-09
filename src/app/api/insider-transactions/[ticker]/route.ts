@@ -25,6 +25,8 @@ type InsiderTransactionItem = {
   shares: number | null;
   pricePerShare: number | null;
   valueUsd: number | null;
+  valueQuality: string;
+  valueQualityReason: string | null;
   sharesOwnedFollowing: number | null;
   directOrIndirectOwnership: "D" | "I" | null;
 };
@@ -69,6 +71,10 @@ function mapTransaction(doc: FirebaseFirestore.QueryDocumentSnapshot, ticker: st
     : null;
   const shares = readNumber(doc.get("shares"));
   const amounts = normalizeInsiderTransactionAmounts({
+    accessionNumber: readString(doc.get("accessionNumber")),
+    ticker,
+    filingDate: readString(doc.get("filingDate")),
+    transactionCode: readString(doc.get("transactionCode")),
     shares,
     pricePerShare: readNumber(doc.get("pricePerShare")),
     valueUsd: readNumber(doc.get("valueUsd")),
@@ -91,6 +97,8 @@ function mapTransaction(doc: FirebaseFirestore.QueryDocumentSnapshot, ticker: st
     shares,
     pricePerShare: amounts.pricePerShare,
     valueUsd: amounts.valueUsd,
+    valueQuality: amounts.valueQuality,
+    valueQualityReason: amounts.valueQualityReason,
     sharesOwnedFollowing: readNumber(doc.get("sharesOwnedFollowing")),
     directOrIndirectOwnership: readOwnershipCode(doc.get("directOrIndirectOwnership")),
   };

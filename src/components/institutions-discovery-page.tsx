@@ -173,11 +173,12 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
         {error ? <p className="mt-4 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
       </section>
 
-      <FollowedInstitutionsPanel />
-
-      <InstitutionDigestHistoryPanel />
-
-      <FollowedInstitutionActivityPanel />
+      <details className="mt-4 rounded-xl border border-white/15 p-4">
+        <summary className="cursor-pointer font-semibold text-cyan-100">Your followed institutions and digests</summary>
+        <FollowedInstitutionsPanel />
+        <InstitutionDigestHistoryPanel />
+        <FollowedInstitutionActivityPanel />
+      </details>
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_10rem] lg:items-end">
@@ -208,8 +209,8 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             >
               <option value="gross">Gross activity</option>
-              <option value="net-buying">Net buying</option>
-              <option value="net-selling">Net selling</option>
+              <option value="net-buying">Largest value increases</option>
+              <option value="net-selling">Largest value decreases</option>
               <option value="managers">Manager count</option>
             </select>
           </label>

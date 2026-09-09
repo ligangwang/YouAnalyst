@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { INDUSTRY_SEGMENTS } from "@/lib/industry-graph/catalog";
 import { isMapTicker } from "@/lib/industry-graph/directory";
 import { buildIndustryGraph, RELATIONSHIP_LABELS, selectNeighborhood, type IndustryGraph, type IndustryNode } from "@/lib/industry-graph/model";
@@ -12,6 +12,11 @@ import { useSavedMapCompanies } from "./use-saved-map-companies";
 import styles from "./industry-graph-home.module.css";
 
 const EMPTY_GRAPH = buildIndustryGraph({}, []);
+function subscribeToCompactView(listener: () => void) {
+  const query = window.matchMedia("(max-width: 760px)");
+  query.addEventListener("change", listener);
+  return () => query.removeEventListener("change", listener);
+}
 export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: string }) {
   const savedCompanies = useSavedMapCompanies();
   const [graph, setGraph] = useState<IndustryGraph>(EMPTY_GRAPH);
@@ -26,7 +31,9 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   const [edgeId, setEdgeId] = useState<string | null>(null);
   const [type, setType] = useState("all");
   const [categories, setCategories] = useState(false);
-  const [mode, setMode] = useState<"map" | "list">("map");
+  const compact = useSyncExternalStore(subscribeToCompactView, () => window.matchMedia("(max-width: 760px)").matches, () => false);
+  const [preferredMode, setMode] = useState<"map" | "list" | null>(null);
+  const mode = preferredMode ?? (compact ? "list" : "map");
   const [allConnections, setAllConnections] = useState(false);
   const [panelWidth, setPanelWidth] = useState(800);
   const [zoom, setZoom] = useState(1);
@@ -167,11 +174,11 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
           <div className={styles.switcher} aria-label="Display mode">{(["map", "list"] as const).map((value) =>
             <button key={value} type="button" aria-pressed={mode === value} onClick={() => { setMode(value); trackEvent("graph_view_change", { view_mode: value }); }}>{value === "map" ? "Map" : "List"}</button>)}</div>
         </div>
-        <nav className={styles.filters} aria-label="Company pages">
+        {(pageCursors.length > 1 || graph.nextCursor) && <nav className={styles.filters} aria-label="Company pages">
           <button type="button" disabled={pageCursors.length === 1 || status === "loading"} onClick={() => { reset(); setStatus("loading"); setPageCursors((pages) => pages.slice(0, -1)); }}>Previous companies</button>
           <span>Page {pageCursors.length}</span>
           <button type="button" disabled={!graph.nextCursor || status === "loading"} onClick={() => { reset(); setStatus("loading"); setPageCursors((pages) => [...pages, graph.nextCursor!]); }}>Next companies</button>
-        </nav>
+        </nav>}
         {savedCompanies.signedIn && <section className={styles.savedCompanies} aria-label="Your saved companies">
           <strong>Your saved companies</strong>
           {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} disabled={status !== "ready"} onClick={() => {
@@ -245,7 +252,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
                 <button type="button" aria-label="Zoom in" disabled={zoom >= 1.8} onClick={() => setZoom((value) => Math.min(1.8, value + 0.2))}>+</button>
               </div></div>
             </> : <div className={styles.list} aria-label="Industry relationship list">
-              <h2>Companies in this view</h2><div className={styles.companyList}>{visible.nodes.map((node) => <button key={node.id} type="button" onClick={() => selectCompany(node)}>{node.name}<span>{node.ticker ?? node.kind}</span></button>)}</div>
+              <h2>Companies in this view</h2><div className={styles.companyList}>{visible.nodes.map((node) => <button key={node.id} type="button" aria-label={`Explore ${node.name}${node.ticker ? ` (${node.ticker})` : ""}`} onClick={() => selectCompany(node)}>{node.name}<span>{node.ticker ?? node.kind}</span></button>)}</div>
               <h2>Filing connections</h2>{visible.edges.length ? visible.edges.map((edge) => <button className={styles.connection} key={edge.id} type="button" onClick={() => openEvidence(edge.id)}>{edgeLabel(edge)}<span>Read evidence →</span></button>) : <p>No connections in this view yet.</p>}
             </div>}
             <div className={styles.legend}><span>Solid outline: filing issuer</span><span>Dashed: research, pending coverage, mention or group</span><span>AI-assisted connections · inspect the sources</span></div>

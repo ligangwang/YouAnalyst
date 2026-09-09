@@ -23,8 +23,8 @@ const ibmPlexSans = IBM_Plex_Sans({
 
 export const metadata: Metadata = {
   metadataBase: getSiteUrl(),
-  title: "YouAnalyst | Your watchlist. Your track record.",
-  description: "Create watchlists, publish stock predictions, and build a public track record on YouAnalyst.",
+  title: "YouAnalyst | Company research, connected.",
+  description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
   applicationName: "YouAnalyst",
   alternates: {
     canonical: "/",
@@ -33,13 +33,13 @@ export const metadata: Metadata = {
     type: "website",
     url: "/",
     siteName: "YouAnalyst",
-    title: "YouAnalyst | Your watchlist. Your track record.",
-    description: "Create watchlists, publish stock predictions, and build a public track record on YouAnalyst.",
+    title: "YouAnalyst | Company research, connected.",
+    description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
   },
   twitter: {
     card: "summary",
-    title: "YouAnalyst | Your watchlist. Your track record.",
-    description: "Create watchlists, publish stock predictions, and build a public track record on YouAnalyst.",
+    title: "YouAnalyst | Company research, connected.",
+    description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
   },
   robots: isProductionAppEnvironment()
     ? {
@@ -59,7 +59,7 @@ export default function RootLayout({
     "@type": "WebSite",
     name: "YouAnalyst",
     url: absoluteUrl("/"),
-    description: "Create watchlists, publish stock predictions, and build a public track record on YouAnalyst.",
+    description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
   };
 
   return (
@@ -92,14 +92,16 @@ export default function RootLayout({
         </Script>
         <AppProviders>
           <EnvironmentBanner />
+          <a href="#page-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyan-200 focus:p-3 focus:text-slate-950">Skip to content</a>
           <SiteNav />
-          <div className="flex-1">{children}</div>
+          <div id="page-content" tabIndex={-1} className="flex-1">{children}</div>
           <footer className="border-t border-white/10 bg-slate-950/80">
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs leading-6 text-slate-400">
               Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do
               not constitute financial, investment, legal, or tax advice. Always do your own research before making
               investment decisions.
               <div className="mt-3">
+                <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline">How it works</Link>
                 <Link href="/feedback" className="font-medium text-cyan-200 underline-offset-2 hover:underline">
                   Share thoughts
                 </Link>

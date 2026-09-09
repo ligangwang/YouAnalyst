@@ -27,6 +27,8 @@ export type InsiderOpsRecentTransaction = {
   shares: number | null;
   pricePerShare: number | null;
   valueUsd: number | null;
+  valueQuality: string;
+  valueQualityReason: string | null;
   filingDate: string | null;
   updatedAt: string | null;
 };
@@ -69,6 +71,10 @@ function filingFromDoc(doc: FirebaseFirestore.QueryDocumentSnapshot): InsiderOps
 function transactionFromDoc(doc: FirebaseFirestore.QueryDocumentSnapshot): InsiderOpsRecentTransaction {
   const shares = readNumber(doc.get("shares"));
   const amounts = normalizeInsiderTransactionAmounts({
+    accessionNumber: readString(doc.get("accessionNumber")),
+    ticker: readString(doc.get("ticker")),
+    filingDate: readString(doc.get("filingDate")),
+    transactionCode: readString(doc.get("transactionCode")),
     shares,
     pricePerShare: readNumber(doc.get("pricePerShare")),
     valueUsd: readNumber(doc.get("valueUsd")),
@@ -85,6 +91,8 @@ function transactionFromDoc(doc: FirebaseFirestore.QueryDocumentSnapshot): Insid
     shares,
     pricePerShare: amounts.pricePerShare,
     valueUsd: amounts.valueUsd,
+    valueQuality: amounts.valueQuality,
+    valueQualityReason: amounts.valueQualityReason,
     filingDate: readString(doc.get("filingDate")),
     updatedAt: readString(doc.get("updatedAt")),
   };

@@ -108,6 +108,8 @@ type InsiderTransactionItem = {
   shares: number | null;
   pricePerShare: number | null;
   valueUsd: number | null;
+  valueQuality?: string;
+  valueQualityReason?: string | null;
   sharesOwnedFollowing: number | null;
   directOrIndirectOwnership: "D" | "I" | null;
 };
@@ -311,7 +313,8 @@ function InstitutionalHoldingsSection({
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Net value change</p>
-            <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatSignedCurrency(summary.netValueChangeUsd)}</p>
+            <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{summary.positions.some(position => position.changeStatus) ? formatSignedCurrency(summary.netValueChangeUsd) : "Unavailable"}</p>
+            <p className="mt-2 text-xs text-slate-400">Only comparisons with verified prior reports are included. Value changes also reflect valuation changes.</p>
           </div>
         </div>
       ) : null}
@@ -404,7 +407,7 @@ function InstitutionalHoldingsSection({
                   <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(position.positionCount)}</td>
                   <td className="py-3 pr-3">
                     <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(position.changeStatus)}`}>
-                      {position.changeStatus ?? "CURRENT"} {position.changeStatus ? formatPercent(position.percentChange) : ""}
+                      {position.changeStatus ?? "Comparison unavailable"} {position.changeStatus ? formatPercent(position.percentChange) : ""}
                     </span>
                   </td>
                   <td className="py-3 pr-3 text-right tabular-nums">
@@ -520,7 +523,11 @@ function InsiderTransactionsSection({
                     <td className="py-3 pr-3">{transaction.transactionDate ?? "-"}</td>
                     <td className="py-3 pr-3 text-right tabular-nums">{formatOptionalNumber(transaction.shares)}</td>
                     <td className="py-3 pr-3 text-right tabular-nums">{transaction.pricePerShare === null ? "-" : formatCurrency(transaction.pricePerShare)}</td>
-                    <td className="py-3 pr-3 text-right tabular-nums">{transaction.valueUsd === null ? "-" : formatCurrency(transaction.valueUsd)}</td>
+                    <td className="py-3 pr-3 text-right tabular-nums">
+                      {transaction.valueQuality === "needs_review" ? <span className="text-amber-200">Under review</span>
+                        : transaction.valueUsd === null ? "-" : formatCurrency(transaction.valueUsd)}
+                      {transaction.valueQualityReason ? <p className="mt-1 max-w-56 text-xs font-normal text-slate-400">{transaction.valueQualityReason}</p> : null}
+                    </td>
                     <td className="py-3 text-slate-400">
                       {transaction.filingDate ?? "-"}
                       {url ? (

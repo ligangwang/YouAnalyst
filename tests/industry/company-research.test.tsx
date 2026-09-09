@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { buildCompanyResearch, companyResearchDescription } from "../../src/lib/company-research";
 import { CompanyResearchOverview } from "../../src/components/company-research-overview";
 import { fixtureGraph } from "./fixtures";
+import { AuthProvider } from "../../src/components/providers/auth-provider";
 
 test("company identity selects a supported active listing on the primary exchange", () => {
   const company = buildCompanyResearch("AMD", [
@@ -36,7 +37,7 @@ test("missing data does not invent business facts or relationships", () => {
 
 test("company identity, evidence and crawlable links are present without browser JavaScript", () => {
   const company = buildCompanyResearch("AMD", [], fixtureGraph);
-  const html = renderToStaticMarkup(<CompanyResearchOverview company={company} />);
+  const html = renderToStaticMarkup(<AuthProvider><CompanyResearchOverview company={company} /></AuthProvider>);
   assert.match(html, /<h1[^>]*>Advanced Micro Devices/);
   assert.match(html, /Example Packaging supplies AMD/);
   assert.match(html, /Synthetic test evidence/);

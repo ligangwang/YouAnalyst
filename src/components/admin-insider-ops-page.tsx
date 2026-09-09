@@ -27,6 +27,8 @@ type RecentTransaction = {
   shares: number | null;
   pricePerShare: number | null;
   valueUsd: number | null;
+  valueQuality?: string;
+  valueQualityReason?: string | null;
   filingDate: string | null;
   updatedAt: string | null;
 };
@@ -214,7 +216,10 @@ export function AdminInsiderOpsPage() {
                       <td className="px-3 py-3">{item.transactionCode ?? "-"}</td>
                       <td className="px-3 py-3">{item.transactionDate ?? "-"}</td>
                       <td className="px-3 py-3 text-right">{formatNumber(item.shares)}</td>
-                      <td className="px-3 py-3 text-right">{formatMoney(item.valueUsd)}</td>
+                      <td className="px-3 py-3 text-right">
+                        {item.valueQuality === "needs_review" ? <span className="text-amber-200">Under review</span> : formatMoney(item.valueUsd)}
+                        {item.valueQualityReason ? <p className="mt-1 text-xs text-slate-400">{item.valueQualityReason}</p> : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

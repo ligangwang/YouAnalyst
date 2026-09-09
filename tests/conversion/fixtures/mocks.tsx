@@ -13,10 +13,10 @@ declare global {
   }
 }
 
-let user = window.authScenario?.signedIn ? { uid: "test-user" } : null;
+let user = window.authScenario?.signedIn ? { uid: "test-user", getIdToken: async () => "isolated-test-token" } : null;
 window.addEventListener("test-auth-user", (event) => {
   const uid = (event as CustomEvent<string | null>).detail;
-  user = uid ? { uid } : null;
+  user = uid ? { uid, getIdToken: async () => "isolated-test-token" } : null;
   window.dispatchEvent(new Event("auth-change"));
 });
 const subscribe = (callback: () => void) => {
@@ -26,7 +26,7 @@ const subscribe = (callback: () => void) => {
 const getIdToken = async () => "isolated-test-token";
 async function authenticate(shouldCompleteProfile: boolean) {
   if (window.authScenario?.authFails) throw new Error("Test authentication failed");
-  user = { uid: "test-user" };
+  user = { uid: "test-user", getIdToken: async () => "isolated-test-token" };
   window.dispatchEvent(new Event("auth-change"));
   return { user, shouldCompleteProfile };
 }

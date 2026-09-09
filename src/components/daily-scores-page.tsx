@@ -68,6 +68,7 @@ type DailyScoresResponse = {
     decreases: DailyInstitutionalMove[];
   };
   insiderMoves?: {
+    excludedGroups?: number;
     purchases: DailyInsiderMove[];
     sales: DailyInsiderMove[];
   };
@@ -687,6 +688,12 @@ export function DailyScoresPage({
             Check back after the next Form 4 sync writes purchase and sale activity.
           </p>
         </section>
+      ) : null}
+
+      {showInsiders && (payload?.insiderMoves?.excludedGroups ?? 0) > 0 ? (
+        <p className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm text-amber-100">
+          Activity with dollar totals under review or unavailable is excluded from these rankings. You can inspect the reported transactions on company pages.
+        </p>
       ) : null}
 
       {showInsiders && (insiderPurchases.length > 0 || insiderSales.length > 0) ? (

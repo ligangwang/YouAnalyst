@@ -186,6 +186,7 @@ export function InstitutionDigestHistoryPanel() {
   const unreadCount = serverUnreadCount;
   const displayedItems = items
     .filter((run) => {
+      if (run.dryRun) return false;
       if (filter === "unread") {
         return !run.readAt && !run.dryRun;
       }
@@ -223,16 +224,17 @@ export function InstitutionDigestHistoryPanel() {
         <div className="flex flex-wrap gap-2 text-xs">
           <select
             value={filter}
+            aria-label="Digest status"
             onChange={(event) => setFilter(event.target.value as RunFilter)}
             className="rounded-lg border border-white/15 bg-slate-950 px-2 py-1.5 text-slate-100 outline-none ring-cyan-400/40 focus:ring"
           >
             <option value="all">All</option>
             <option value="unread">Unread live</option>
             <option value="live">Live</option>
-            <option value="dryRun">Dry runs</option>
           </select>
           <select
             value={sortOrder}
+            aria-label="Digest order"
             onChange={(event) => setSortOrder(event.target.value as SortOrder)}
             className="rounded-lg border border-white/15 bg-slate-950 px-2 py-1.5 text-slate-100 outline-none ring-cyan-400/40 focus:ring"
           >
@@ -241,6 +243,7 @@ export function InstitutionDigestHistoryPanel() {
           </select>
           <select
             value={groupBy}
+            aria-label="Group digests"
             onChange={(event) => setGroupBy(event.target.value as GroupBy)}
             className="rounded-lg border border-white/15 bg-slate-950 px-2 py-1.5 text-slate-100 outline-none ring-cyan-400/40 focus:ring"
           >

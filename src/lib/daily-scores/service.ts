@@ -1,5 +1,7 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { normalizeInsiderTransactionAmounts } from "@/lib/securities/insider-transaction-values";
+import { isPublishableInsiderMove } from "@/lib/securities/insider-value-quality";
+import { hasVerifiedHoldingComparison } from "@/lib/securities/thirteen-f-comparison";
 import { sanitizePredictionThesis, sanitizePredictionThesisTitle } from "@/lib/predictions/types";
 
 export type DailyCallHighlight = {
@@ -56,6 +58,7 @@ export type DailyScoresResult = {
   insiderMoves: {
     purchases: DailyInsiderMove[];
     sales: DailyInsiderMove[];
+    excludedGroups?: number;
   };
 };
 
@@ -318,7 +321,7 @@ async function topDailyCalls(db: FirebaseFirestore.Firestore, date: string): Pro
     .slice(0, TOP_CALL_LIMIT);
 }
 
-async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promise<DailyScoresResult["institutionalMoves"]> {
+export async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promise<DailyScoresResult["institutionalMoves"]> {
   const snapshot = await db
     .collection("institutional_holding_changes")
     .orderBy("filingDate", "desc")
@@ -339,6 +342,7 @@ async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promis
     const data = doc.data() as Record<string, unknown>;
     const ticker = asString(data.ticker);
     const nameOfIssuer = asString(data.nameOfIssuer);
+    if (!hasVerifiedHoldingComparison(data)) continue;
     const filingDate = asString(data.filingDate);
     const reportDate = asString(data.reportDate);
     const managerCik = asString(data.managerCik);
@@ -442,7 +446,7 @@ async function latestInstitutionalMoves(db: FirebaseFirestore.Firestore): Promis
   };
 }
 
-async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<DailyScoresResult["insiderMoves"]> {
+export async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<DailyScoresResult["insiderMoves"]> {
   const snapshot = await db
     .collection("insider_transactions")
     .orderBy("updatedAt", "desc")
@@ -450,6 +454,7 @@ async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<Dail
     .get();
   const purchasesByTickerFiling = new Map<string, DailyInsiderMove & { insiderKeys: Set<string> }>();
   const salesByTickerFiling = new Map<string, DailyInsiderMove & { insiderKeys: Set<string> }>();
+  const excludedGroups = new Set<string>();
 
   for (const doc of snapshot.docs) {
     const data = doc.data() as Record<string, unknown>;
@@ -460,11 +465,18 @@ async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<Dail
     const transactionCode = insiderTransactionCode(data.transactionCode);
     const shares = asNumber(data.shares);
     const amounts = normalizeInsiderTransactionAmounts({
+      accessionNumber: asString(data.accessionNumber), ticker, filingDate, transactionCode,
       shares,
       pricePerShare: asNumber(data.pricePerShare),
       valueUsd: asNumber(data.valueUsd),
     });
     const valueUsd = amounts.valueUsd;
+    const key = `${ticker}_${filingDate}_${transactionCode}`;
+    // Exclude the whole group, not just the bad row: partial totals would be
+    // presented as complete totals and could also produce misleading shares.
+    if (ticker && filingDate && transactionCode && amounts.valueQuality !== "usable") {
+      excludedGroups.add(key);
+    }
 
     if (!ticker || !issuerName || !filingDate || !transactionDate || !transactionCode || valueUsd === null || valueUsd <= 0 || shares <= 0) {
       continue;
@@ -472,7 +484,6 @@ async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<Dail
 
     const target = transactionCode === "P" ? purchasesByTickerFiling : salesByTickerFiling;
     const insiderKey = asString(data.reportingOwnerCik) ?? asString(data.reportingOwnerName) ?? doc.id;
-    const key = `${ticker}_${filingDate}_${transactionCode}`;
     const existing = target.get(key) ?? {
       ticker,
       issuerName,
@@ -499,6 +510,11 @@ async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<Dail
 
   function finalize(items: Array<DailyInsiderMove & { insiderKeys: Set<string> }>): DailyInsiderMove[] {
     return items
+      .filter((item) => {
+        const key = `${item.ticker}_${item.filingDate}_${item.transactionCode}`;
+        if (!isPublishableInsiderMove(item)) excludedGroups.add(key);
+        return !excludedGroups.has(key);
+      })
       .sort((left, right) => (
         right.totalValueUsd - left.totalValueUsd ||
         right.insiderCount - left.insiderCount ||
@@ -521,6 +537,7 @@ async function latestInsiderMoves(db: FirebaseFirestore.Firestore): Promise<Dail
   return {
     purchases: finalize([...purchasesByTickerFiling.values()]),
     sales: finalize([...salesByTickerFiling.values()]),
+    excludedGroups: excludedGroups.size,
   };
 }
 

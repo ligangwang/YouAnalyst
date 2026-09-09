@@ -60,7 +60,7 @@ export async function DailyInstitutionalMoveShareView({
   ticker: string;
 }) {
   const normalizedTicker = ticker.trim().toUpperCase();
-  let move: DailyInstitutionalMove | null = snapshot;
+  let move: DailyInstitutionalMove | null = null;
   let resolvedDate = date;
 
   if (!move) {
@@ -68,6 +68,7 @@ export async function DailyInstitutionalMoveShareView({
       const result = await getDailyScores(date);
       resolvedDate = result.date ?? date;
       move = findInstitutionalMove(result.institutionalMoves, kind, normalizedTicker);
+      if (snapshot && move?.reportDate !== snapshot.reportDate) move = null;
     } catch {
       move = null;
     }

@@ -453,21 +453,16 @@ export async function createDailyInstitutionalMoveShareImage(
       return new ImageResponse(institutionalMoveFallbackImage(date, kind, ticker), dailyShareCardSize);
     }
 
-    if (snapshot) {
-      return new ImageResponse(institutionalMoveImage(date, snapshot, kind), dailyShareCardSize);
-    }
-
     const result = await getDailyScores(date);
-    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker);
+    const candidate = findInstitutionalMove(result.institutionalMoves, kind, ticker);
+    const move = snapshot && candidate?.reportDate !== snapshot.reportDate ? null : candidate;
     return new ImageResponse(
       move ? institutionalMoveImage(result.date, move, kind) : institutionalMoveFallbackImage(result.date ?? date, kind, ticker),
       dailyShareCardSize,
     );
   } catch {
     return new ImageResponse(
-      isDailyInstitutionalMoveShareKind(kind) && snapshot
-        ? institutionalMoveImage(date, snapshot, kind)
-        : institutionalMoveFallbackImage(date, kind, ticker),
+      institutionalMoveFallbackImage(date, kind, ticker),
       dailyShareCardSize,
     );
   }

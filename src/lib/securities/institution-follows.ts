@@ -1,6 +1,7 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { FieldPath } from "firebase-admin/firestore";
 import type { InstitutionalHoldingChange } from "@/lib/securities/thirteen-f";
+import { hasVerifiedHoldingComparison } from "./thirteen-f-comparison";
 
 export type FollowedInstitution = {
   cik: string;
@@ -396,7 +397,7 @@ export async function listFollowedInstitutionActivity(userId: string, limit = 24
     }),
   );
   const activities = activitySnapshots.flatMap((snapshot) => (
-    snapshot.docs.map((doc) => followedActivityFromChange(doc.data() as InstitutionalHoldingChange))
+    snapshot.docs.map((doc) => doc.data() as InstitutionalHoldingChange).filter(hasVerifiedHoldingComparison).map(followedActivityFromChange)
   ));
 
   return activities
