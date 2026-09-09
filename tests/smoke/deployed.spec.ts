@@ -48,7 +48,9 @@ test("homepage renders the AI industry map", async ({ page }) => {
 
   // Verify navigation is present
   await expect(page.getByRole("link", { name: "Feed", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Predict", exact: true }).first()).toBeVisible();
+  const companySearch = page.getByRole("link", { name: "Search companies", exact: true });
+  await expect(companySearch).toBeVisible();
+  await expect(companySearch).toHaveAttribute("href", "/companies");
   
   await expect(page.getByRole("heading", { name: "Explore company connections.", exact: true })).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "Find a company in the map" })).toBeVisible();
