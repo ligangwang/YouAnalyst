@@ -12,6 +12,7 @@ async function renderRoute() {
       ? await NewPredictionRoutePage({ searchParams: Promise.resolve({
         ticker: query.get("ticker") ?? undefined,
         watchlistId: query.get("watchlistId") ?? undefined,
+        direction: query.get("direction") ?? undefined,
       }) })
       : <p>Destination reached</p>;
   root.render(element);

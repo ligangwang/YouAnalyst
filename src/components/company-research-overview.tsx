@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CompanyResearch } from "@/lib/company-research";
-import { SaveCompanyControl } from "./save-company-control";
+import { CompanyDirectionActions } from "./company-direction-actions";
 
 export function CompanyResearchOverview({ company }: { company: CompanyResearch }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
@@ -19,7 +19,7 @@ export function CompanyResearchOverview({ company }: { company: CompanyResearch 
       {!company.known && <p className="mt-3 text-sm text-slate-400">Company listing details are not available for this symbol.</p>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
         <Link href={`/?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4">Explore {company.ticker} on the company map</Link>
-        <SaveCompanyControl ticker={company.ticker} />
+      <CompanyDirectionActions ticker={company.ticker} />
       </div>}
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
         {company.inMap && <a href="#company-relationships">Company relationships</a>}

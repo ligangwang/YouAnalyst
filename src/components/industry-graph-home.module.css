@@ -94,7 +94,8 @@
 .saveCard { border: 1px solid #356273; background: #102936; border-radius: 10px; padding: 14px; margin: 18px 0; }
 .saveCard h3 { margin: 0 0 8px; font-size: 14px; }
 .saveCard p { font-size: 12px; line-height: 1.7; color: #bed1df; }
-.saveCard a, .saveCard button { display: block; width: 100%; text-align: center; margin-top: 12px; border: 1px solid #52c4d6; border-radius: 7px; padding: 10px; color: #b7f6ff; font-size: 12px; }
+.saveCard [role="group"] { display: flex; gap: 8px; }
+.saveCard a { flex: 1; text-align: center; margin-top: 8px; font-size: 14px; }
 .saveCard button:disabled { opacity: .5; }
 .search input { font-size: 16px; }
 .filters, .scope strong, .scope p, .detail p, .connection, .saveCard p { font-size: 14px; }

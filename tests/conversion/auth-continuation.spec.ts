@@ -9,6 +9,33 @@ const watchlistId = "owned & research+1";
 const composer = `/predictions/new?${new URLSearchParams({ ticker: "AMD", watchlistId })}`;
 let html: string;
 
+for (const direction of ["UP", "DOWN"] as const) {
+  test(`${direction} survives registration and is submitted to the selected watchlist`, async ({ page }) => {
+    const destination = `/predictions/new?${new URLSearchParams({ ticker: "AMD", direction })}`;
+    await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination, mode: "register" })}`);
+    await page.getByRole("button", { name: "Continue with Google" }).click();
+    await expect(page).toHaveURL(`${origin}${destination}`);
+    await expect(page.getByRole("button", { name: direction === "UP" ? "Bullish" : "Bearish", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#watchlist")).toHaveValue("default");
+    await page.locator("#watchlist").selectOption(watchlistId);
+    let submitted = false;
+    await page.route(`${origin}/api/predictions`, route => {
+      expect(route.request().postDataJSON()).toMatchObject({ ticker: "AMD", direction, watchlistId });
+      submitted = true;
+      return route.fulfill({ json: { id: "direction-test" } });
+    });
+    await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
+    await expect(page).toHaveURL(`${origin}/predictions/direction-test`);
+    expect(submitted).toBe(true);
+  });
+}
+
+test("signed-out composer preserves bearish direction through its sign-in action", async ({ page }) => {
+  await page.goto(`${origin}/predictions/new?ticker=AMD&direction=DOWN`);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  expect(new URL(page.url()).searchParams.get("next")).toBe("/predictions/new?ticker=AMD&direction=DOWN");
+});
+
 test("auth views identify the save funnel once without leaking the destination", async ({ page }) => {
   await page.goto(`${origin}/auth?${new URLSearchParams({ next: "/?company=NVDA", mode: "register" })}`);
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("private@example.invalid");

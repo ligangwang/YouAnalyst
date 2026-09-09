@@ -22,10 +22,11 @@ export function safeAuthDestination(requested: string | null | undefined): strin
   }
 }
 
-export function predictionSignInHref(ticker: string, watchlistId: string): string {
+export function predictionSignInHref(ticker: string, watchlistId: string, direction?: "UP" | "DOWN"): string {
   const query = new URLSearchParams();
   if (ticker) query.set("ticker", ticker);
   if (watchlistId) query.set("watchlistId", watchlistId);
+  if (direction) query.set("direction", direction);
   const destination = `/predictions/new${query.size ? `?${query}` : ""}`;
   return `/auth?${new URLSearchParams({ next: destination })}`;
 }
