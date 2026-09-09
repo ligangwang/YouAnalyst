@@ -52,6 +52,8 @@ export function PredictionsFeed() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [moreError, setMoreError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) {
@@ -59,6 +61,8 @@ export function PredictionsFeed() {
     }
 
     let cancelled = false;
+    setLoading(true);
+    setError(null);
 
     async function loadFeed() {
       const token = await getIdToken();
@@ -100,7 +104,7 @@ export function PredictionsFeed() {
     return () => {
       cancelled = true;
     };
-  }, [authLoading, getIdToken]);
+  }, [authLoading, getIdToken, attempt]);
 
   async function loadMore() {
     if (!nextCursor || loadingMore) {
@@ -111,6 +115,7 @@ export function PredictionsFeed() {
     params.set("cursorCreatedAt", nextCursor);
 
     setLoadingMore(true);
+    setMoreError(null);
 
     try {
       const token = await getIdToken();
@@ -118,12 +123,14 @@ export function PredictionsFeed() {
         headers: token ? { authorization: `Bearer ${token}` } : undefined,
       });
       if (!response.ok) {
-        return;
+        throw new Error("Could not load more calls. Please retry.");
       }
 
       const payload = (await response.json()) as FeedResponse;
       setItems((prev) => [...prev, ...payload.items]);
       setNextCursor(payload.nextCursor);
+    } catch {
+      setMoreError("Could not load more calls. Your loaded calls are still available; please retry.");
     } finally {
       setLoadingMore(false);
     }
@@ -140,7 +147,7 @@ export function PredictionsFeed() {
         </div>
 
         {loading || authLoading ? <p className="text-sm text-slate-300">Loading feed...</p> : null}
-        {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+        {error ? <div role="alert" className="text-sm text-rose-300"><p>{error}</p><button type="button" className="mt-2 underline" onClick={() => setAttempt(value => value + 1)}>Retry loading calls</button></div> : null}
 
         <div className="grid gap-3">
           {items.map((item) => (
@@ -159,11 +166,16 @@ export function PredictionsFeed() {
                 </Link>
               </div>
               <PredictionReturnSummary prediction={item} href={`/predictions/${item.id}`} status={item.status} />
+              {item.thesisTitle || item.thesis ? <Link href={`/predictions/${item.id}`} className="mt-3 block text-sm leading-6 text-slate-200 hover:text-cyan-100">
+                {item.thesisTitle ? <p className="font-semibold">{item.thesisTitle}</p> : null}
+                {item.thesis ? <p className="line-clamp-3 text-slate-300">{item.thesis}</p> : null}
+              </Link> : null}
+              {item.markPriceDate ? <p className="mt-2 text-xs text-slate-400">End-of-day price as of {item.markPriceDate.slice(0, 10)}</p> : null}
               <PredictionAuthorSummary author={item} className="mt-5" />
             </div>
           ))}
 
-          {!loading && items.length === 0 ? (
+          {!loading && !error && items.length === 0 ? (
             <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
               No predictions yet.
             </p>
@@ -195,6 +207,7 @@ export function PredictionsFeed() {
 
         {nextCursor ? (
           <div className="mt-4">
+            {moreError ? <p role="alert" className="mb-2 text-sm text-rose-300">{moreError}</p> : null}
             <button
               type="button"
               onClick={() => void loadMore()}

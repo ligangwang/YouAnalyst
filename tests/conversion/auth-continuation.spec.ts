@@ -38,12 +38,29 @@ test("short registration passwords are caught before attempting authentication",
   expect(events).not.toContain("auth_start");
 });
 
-test("map registration explains saving and returns to the selected company without a write", async ({ page }) => {
+test("map registration explains saving and saves before returning to the selected company", async ({ page }) => {
   const destination = "/?company=TSM";
   await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination })}`);
   await expect(page.getByRole("heading", { name: "Keep TSM on your map" })).toBeVisible();
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(page).toHaveURL(`${origin}${destination}`);
+});
+
+test("failed save stays signed in and retries before returning", async ({ page }) => {
+  const destination = "/?company=TSM";
+  let attempts = 0;
+  await page.route(`${origin}/api/industry-graph/saved`, (route) => {
+    attempts += 1;
+    expect(route.request().postDataJSON()).toEqual({ ticker: "TSM", saved: true });
+    return route.fulfill(attempts === 1 ? { status: 503, json: {} } : { json: { tickers: ["TSM"] } });
+  });
+  await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination })}`);
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page.getByRole("alert")).toContainText("saving TSM could not be confirmed");
+  expect(new URL(page.url()).pathname).toBe("/auth");
+  await page.getByRole("button", { name: "Save TSM and continue" }).click();
+  await expect(page).toHaveURL(`${origin}${destination}`);
+  expect(attempts).toBe(2);
 });
 
 test("map save opens email registration, supports Enter, and preserves the destination", async ({ page }) => {
@@ -89,10 +106,15 @@ test.beforeAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  // Block every external request and every mutation, even if a fixture regresses.
+  // Fulfill saves locally; block all external traffic and other mutations.
   await page.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.origin === origin && url.pathname === "/api/industry-graph/saved" && request.method() === "POST") {
+      const body = request.postDataJSON();
+      expect(body.saved).toBe(true);
+      return route.fulfill({ json: { tickers: [body.ticker] } });
+    }
     if (url.origin !== origin || request.method() !== "GET") {
       await route.abort();
       throw new Error(`Unexpected request: ${request.method()} ${url.origin}${url.pathname}`);

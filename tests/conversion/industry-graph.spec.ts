@@ -138,6 +138,7 @@ test("selecting an uncovered starter still reveals another issuer's incoming evi
 
 test("overview reveals mentions on demand and resets cleanly after focusing a neighbor", async ({ page }) => {
   await page.goto(origin);
+  await page.getByRole("button", { name: "Map", exact: true }).click();
   await expect(page.getByText(`3 / ${INDUSTRY_STARTERS.length}`, { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Explore Unresolved Foundry", exact: true })).toHaveCount(0);
   const canvas = page.getByRole("region", { name: /Scrollable industry map/ });

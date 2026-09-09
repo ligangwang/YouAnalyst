@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { FieldPath } from "firebase-admin/firestore";
 import { getAdminFirestore, getAdminStorageBucket } from "@/lib/firebase/admin";
 import { buildInstitutionSearchPrefixes, institutionNameSearchText } from "@/lib/securities/institution-search";
+import { completeHoldingsBaseline } from "./thirteen-f-comparison";
 
 const SEC_BASE_URL = "https://www.sec.gov";
 const SEC_DATA_BASE_URL = "https://data.sec.gov";
@@ -97,6 +98,7 @@ export type InstitutionalHolding = Parsed13FHolding & {
 };
 
 export type InstitutionalHoldingChange = {
+  baselineVerified?: boolean;
   quarter: string;
   managerCik: string;
   managerName: string;
@@ -612,14 +614,18 @@ function canonicalRankFromDocument(data: Canonical13FFilingDocument | undefined)
 async function loadPreviousHoldings(
   managerCik: string,
   quarter: string,
-): Promise<Map<string, InstitutionalHolding>> {
+): Promise<Map<string, InstitutionalHolding> | null> {
   const priorQuarter = previousQuarter(quarter);
   if (!priorQuarter) {
-    return new Map();
+    return null;
   }
 
   const db = getAdminFirestore();
   const previous = new Map<string, InstitutionalHolding>();
+  const canonicalSnapshot = await db.collection("institutional_13f_canonical_filings")
+    .where("managerCik", "==", managerCik).where("quarter", "==", priorQuarter).get();
+  if (canonicalSnapshot.docs.length !== 1) return null;
+  const canonical = canonicalSnapshot.docs[0].data();
   const docPrefix = `${priorQuarter}_${managerCik}_`;
   const snapshot = await db
     .collection("institutional_holdings")
@@ -633,16 +639,17 @@ async function loadPreviousHoldings(
     previous.set(holding.positionKey ?? holdingPositionKey(holding), holding);
   }
 
-  return previous;
+  return completeHoldingsBaseline(canonical, snapshot.docs.map(doc => doc.data() as InstitutionalHolding), managerCik, priorQuarter) ? previous : null;
 }
 
-function buildHoldingChanges(
+export function buildHoldingChanges(
   holdings: InstitutionalHolding[],
-  previousHoldings: Map<string, InstitutionalHolding>,
+  previousHoldings: Map<string, InstitutionalHolding> | null,
   filing: Latest13FFiling,
   quarter: string,
   updatedAt: string,
 ): InstitutionalHoldingChange[] {
+  if (!previousHoldings || (filing.form === "13F-HR/A" && filing.amendmentType !== "RESTATEMENT")) return [];
   const currentHoldings = new Map(holdings.map((holding) => [holding.positionKey, holding]));
   const changes: InstitutionalHoldingChange[] = holdings.map((holding) => {
     const previous = previousHoldings.get(holding.positionKey);
@@ -668,6 +675,7 @@ function buildHoldingChanges(
       ticker: holding.ticker,
       nameOfIssuer: holding.nameOfIssuer,
       currentShares: holding.shares,
+      baselineVerified: true,
       previousShares,
       shareChange,
       percentChange,
@@ -697,6 +705,7 @@ function buildHoldingChanges(
       ticker: previous.ticker,
       nameOfIssuer: previous.nameOfIssuer,
       currentShares: 0,
+      baselineVerified: true,
       previousShares: previous.shares,
       shareChange: -previous.shares,
       percentChange: previous.shares > 0 ? -1 : null,
@@ -795,6 +804,7 @@ async function persistManager13F(input: {
     }, { merge: true });
 
     transaction.set(canonicalRef, {
+      holdingsComplete: false,
       canonicalKey: canonicalId,
       managerCik: input.filing.managerCik,
       managerName: input.filing.managerName,
@@ -878,6 +888,13 @@ async function persistManager13F(input: {
     await batch.commit();
   }
 
+  // A failed batch or cleanup must never make a partial report a usable baseline.
+  await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(canonicalRef);
+    if (current.get("accessionNumber") === input.filing.accessionNumber && current.get("updatedAt") === input.updatedAt) {
+      transaction.set(canonicalRef, { holdingsComplete: true }, { merge: true });
+    }
+  });
   return { holdingsWritten, changesWritten, canonicalStatus };
 }
 

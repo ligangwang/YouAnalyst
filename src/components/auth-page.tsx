@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { safeAuthDestination } from "@/lib/auth-continuation";
 import { trackEvent } from "@/lib/analytics";
 import { mapAuthCompany } from "@/lib/industry-graph/saved-companies";
+import { saveCompanyToAccount } from "@/lib/save-company";
 
 export function AuthPage({ requestedNext, initialCreate = false }: { requestedNext?: string; initialCreate?: boolean }) {
   const router = useRouter();
@@ -30,18 +31,34 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
     return destination ?? (shouldCompleteProfile ? `/analysts/${userId}?onboarding=nickname` : "/predictions");
   }
 
+  async function finishAuth(account: { uid: string; getIdToken: () => Promise<string> }, shouldCompleteProfile = false) {
+    if (mapCompany) {
+      try {
+        await saveCompanyToAccount(mapCompany, () => account.getIdToken());
+        trackEvent("graph_save_complete", { ticker: mapCompany, action: "save", entry_point: "map_save" });
+      } catch {
+        setLocalError(`You are signed in, but saving ${mapCompany} could not be confirmed. Retry below.`);
+        trackEvent("graph_save_error", { ticker: mapCompany });
+        return;
+      }
+    }
+    router.push(destinationForAuth(account.uid, shouldCompleteProfile));
+  }
+
   if (user) {
     return (
       <main className="mx-auto w-full max-w-xl px-4 py-16">
         <div className="rounded-2xl border border-emerald-400/30 bg-emerald-900/20 p-6 text-center">
           <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-emerald-100">Signed in</h1>
-          <p className="text-sm text-emerald-50">{mapCompany ? `Return to the map and select Save ${mapCompany} to keep it in your account.` : "Continue to the feed or create your next prediction."}</p>
+          <p className="text-sm text-emerald-50">{mapCompany ? `Save ${mapCompany} to your account and return to its connections.` : "Continue to your research."}</p>
+          {localError ? <p role="alert" className="mt-3 text-sm text-rose-200">{localError}</p> : null}
           <button
             type="button"
             className="mt-4 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-900"
-            onClick={() => router.push(destination ?? "/predictions")}
+            disabled={submitting}
+            onClick={() => { setSubmitting(true); setLocalError(null); void finishAuth(user).finally(() => setSubmitting(false)); }}
           >
-            {destination ? "Continue" : "Go to feed"}
+            {submitting ? "Saving…" : mapCompany ? `Save ${mapCompany} and continue` : destination ? "Continue" : "Go to feed"}
           </button>
         </div>
       </main>
@@ -63,7 +80,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
         setIsCreate(false);
       }
 
-      router.push(destinationForAuth(result.user.uid, result.shouldCompleteProfile));
+      await finishAuth(result.user, result.shouldCompleteProfile);
     } catch (nextError) {
       trackEvent("auth_error", { method: "email", entry_point: entryPoint });
       setLocalError(nextError instanceof Error ? nextError.message : "Authentication failed");
@@ -76,7 +93,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
     <main className="mx-auto w-full max-w-xl px-4 py-16">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
         <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? `Keep ${mapCompany} on your map` : isCreate ? "Create your YouAnalyst account" : "Sign in to YouAnalyst"}</h1>
-        <p className="mb-6 text-sm text-slate-300">{mapCompany ? `Create an account or sign in to keep a personal list of companies. You’ll return to ${mapCompany}; select Save ${mapCompany} to add it.` : entryPoint === "prediction" ? "Keep your investment thesis and track how your predictions perform." : "Save companies from the AI industry map and return to their filing connections. You can also publish predictions and track your results."}</p>
+        <p className="mb-6 text-sm text-slate-300">{mapCompany ? `Create an account or sign in to save ${mapCompany}. Then return directly to its connections.` : entryPoint === "prediction" ? "Keep your investment thesis and track how your predictions perform." : "Save companies from the AI industry map and return to their filing connections. You can also publish predictions and track your results."}</p>
 
         <button
           type="button"
@@ -86,9 +103,9 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
             setLocalError(null);
             trackEvent("auth_start", { method: "google", entry_point: entryPoint });
             void signInWithGoogle()
-              .then((result) => {
+              .then(async (result) => {
                 trackEvent(result.shouldCompleteProfile ? "sign_up" : "login", { method: "google", entry_point: entryPoint });
-                router.push(destinationForAuth(result.user.uid, result.shouldCompleteProfile));
+                await finishAuth(result.user, result.shouldCompleteProfile);
               })
               .catch((error: unknown) => {
                 const code = error && typeof error === "object" && "code" in error ? error.code : null;

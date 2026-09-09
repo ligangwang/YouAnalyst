@@ -242,16 +242,13 @@ export async function dailyInstitutionalMoveMetadata(
   snapshot: DailyInstitutionalMove | null = null,
   canonicalPath: string | null = null,
 ): Promise<Metadata> {
-  if (snapshot && canonicalPath) {
-    return buildInstitutionalMoveMetadata(date, kind, ticker, snapshot, canonicalPath);
-  }
-
   try {
     const result = await getDailyScores(date);
-    const move = findInstitutionalMove(result.institutionalMoves, kind, ticker) ?? snapshot;
+    const candidate = findInstitutionalMove(result.institutionalMoves, kind, ticker);
+    const move = snapshot && candidate?.reportDate !== snapshot.reportDate ? null : candidate;
     return buildInstitutionalMoveMetadata(result.date ?? date, kind, ticker, move, canonicalPath);
   } catch {
-    return buildInstitutionalMoveMetadata(date, kind, ticker, snapshot, canonicalPath);
+    return buildInstitutionalMoveMetadata(date, kind, ticker, null, canonicalPath);
   }
 }
 

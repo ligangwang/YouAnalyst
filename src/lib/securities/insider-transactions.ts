@@ -68,6 +68,8 @@ export type InsiderTransaction = {
   shares: number;
   pricePerShare: number | null;
   valueUsd: number | null;
+  valueQuality: "usable" | "needs_review" | "unavailable";
+  valueQualityReason: string | null;
   sharesOwnedFollowing: number | null;
   directOrIndirectOwnership: "D" | "I" | null;
   ownershipNature: string | null;
@@ -441,7 +443,8 @@ function parseOwnershipDocument(
       return;
     }
 
-    const amounts = normalizeInsiderTransactionAmounts({ shares, pricePerShare });
+    const amounts = normalizeInsiderTransactionAmounts({ shares, pricePerShare,
+      accessionNumber: filing.accessionNumber, ticker, filingDate: filing.filingDate, transactionCode: code });
 
     transactions.push({
       accessionNumber: filing.accessionNumber,
@@ -461,6 +464,8 @@ function parseOwnershipDocument(
       shares,
       pricePerShare: amounts.pricePerShare,
       valueUsd: amounts.valueUsd,
+      valueQuality: amounts.valueQuality,
+      valueQualityReason: amounts.valueQualityReason,
       sharesOwnedFollowing: normalizeNumber(nestedValue(block, "sharesOwnedFollowingTransaction")),
       directOrIndirectOwnership: normalizeOwnershipCode(nestedValue(block, "directOrIndirectOwnership")),
       ownershipNature: nestedValue(block, "natureOfOwnership"),

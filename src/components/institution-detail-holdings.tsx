@@ -204,7 +204,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
                 <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(holding.shares)}</td>
                 <td className="py-3 pr-3">
                   <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(holding.changeStatus)}`}>
-                    {holding.changeStatus ?? "CURRENT"} {holding.changeStatus ? formatPercent(holding.percentChange) : ""}
+                    {holding.changeStatus ?? "Comparison unavailable"} {holding.changeStatus ? formatPercent(holding.percentChange) : ""}
                   </span>
                 </td>
                 <td className="py-3 pr-3 text-right tabular-nums">

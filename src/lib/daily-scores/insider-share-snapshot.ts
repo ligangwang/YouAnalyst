@@ -1,4 +1,5 @@
 import type { DailyInsiderMove } from "@/lib/daily-scores/service";
+import { isPublishableInsiderMove } from "@/lib/securities/insider-value-quality";
 
 type SnapshotTuple = [string, string, "P" | "S", number, number, number, number, string];
 
@@ -61,7 +62,7 @@ function moveFromTuple(value: unknown, ticker: string): DailyInsiderMove | null 
     return null;
   }
 
-  return {
+  const move: DailyInsiderMove = {
     ticker: ticker.trim().toUpperCase(),
     issuerName,
     filingDate,
@@ -72,6 +73,7 @@ function moveFromTuple(value: unknown, ticker: string): DailyInsiderMove | null 
     transactionCount: numbers[3],
     latestTransactionDate,
   };
+  return isPublishableInsiderMove(move) ? move : null;
 }
 
 export function insiderMoveSnapshotSegment(move: DailyInsiderMove): string {

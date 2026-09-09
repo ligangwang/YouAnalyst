@@ -5,7 +5,7 @@ import { SCORE_SCALE, TANH_SCALE } from "@/lib/predictions/analytics";
 
 export const metadata: Metadata = {
   title: "How It Works | YouAnalyst",
-  description: "Learn how YouAnalyst predictions, watchlists, scores, XP, and settlement rules work.",
+  description: "Learn how to explore company connections, assess filing evidence, save research, and track predictions.",
   alternates: {
     canonical: "/how-it-works",
   },
@@ -34,12 +34,20 @@ export default function HowItWorksPage() {
       <section className="border-b border-white/10 pb-6">
         <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">How It Works</p>
         <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">
-          Predictions run on end-of-day prices.
+          Follow a company from question to evidence.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-          Make predictions on stocks. We track results using end-of-day prices to keep everything fair and consistent.
+          Find a company, inspect its suppliers, customers and competitors, then save it to revisit your research.
         </p>
       </section>
+
+      <section className="grid gap-6 border-b border-white/10 py-6 md:grid-cols-3">
+        <div><h2 className="text-lg font-semibold text-cyan-100">Explore connections</h2><p className="mt-2 text-sm leading-6 text-slate-300">Search for a company or choose one on the map. Use List view on a small screen, then select a relationship to inspect its sources.</p><Link href="/?company=NVDA" className="mt-3 inline-block text-cyan-200 underline">Explore NVIDIA</Link></div>
+        <div><h2 className="text-lg font-semibold text-cyan-100">Assess the evidence</h2><p className="mt-2 text-sm leading-6 text-slate-300">Connections come from AI-assisted filing extraction and reviewed industry research. Check the linked source, date and company identity. Coverage is incomplete; an older source does not establish whether a relationship remains active.</p></div>
+        <div><h2 className="text-lg font-semibold text-cyan-100">Save and return</h2><p className="mt-2 text-sm leading-6 text-slate-300">Sign in to keep companies in your personal saved list. Saving a company does not publish a prediction or subscribe you to alerts. Predictions are a separate way to record and track a thesis.</p></div>
+      </section>
+
+      <section className="border-b border-white/10 py-6"><h2 className="text-xl font-semibold text-cyan-100">Understand reported activity</h2><p className="mt-2 text-sm leading-6 text-slate-300">Institutional holdings show a report date and filing date. Comparisons require a complete prior report; unavailable history is not a new purchase. Dollar-value changes include valuation changes. Insider transaction totals under review are excluded from rankings while their source filings remain available.</p></section>
 
       <section className="grid gap-4 border-b border-white/10 py-6 md:grid-cols-3">
         <div>

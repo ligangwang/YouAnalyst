@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -49,7 +50,7 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
   }, []);
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative" onKeyDown={event => { if (event.key === "Escape") { setOpen(false); menuRef.current?.querySelector("button")?.focus(); } }}>
       <button
         type="button"
         aria-label="User menu"
@@ -123,18 +124,18 @@ function DailyNavMenu() {
   }, []);
 
   return (
-    <div ref={menuRef} className="relative">
+    <div ref={menuRef} className="relative" onKeyDown={event => { if (event.key === "Escape") { setOpen(false); menuRef.current?.querySelector("button")?.focus(); } }}>
       <button
         type="button"
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-controls="daily-navigation-links"
         onClick={() => setOpen((prev) => !prev)}
         className="hover:text-cyan-200"
       >
         Daily
       </button>
       {open ? (
-        <div className="absolute left-0 z-50 mt-2 w-56 rounded-xl border border-white/10 bg-slate-950 py-1 shadow-xl">
+        <div id="daily-navigation-links" className="absolute left-0 z-50 mt-2 w-56 rounded-xl border border-white/10 bg-slate-950 py-1 shadow-xl">
           {dailyNavItems.map((item) => (
             <Link
               key={item.href}
@@ -152,6 +153,7 @@ function DailyNavMenu() {
 }
 
 export function SiteNav() {
+  const pathname = usePathname();
   const { user, loading, signOut, getIdToken } = useAuth();
   const [adminStatus, setAdminStatus] = useState<{ userId: string; isAdmin: boolean } | null>(null);
   const [institutionDigestStatus, setInstitutionDigestStatus] = useState<{ userId: string; unread: number } | null>(null);
@@ -276,8 +278,8 @@ export function SiteNav() {
               />
             </Link>
             <nav className="hidden items-center gap-4 text-[15px] text-slate-200 md:flex">
-              <Link href="/" className="hover:text-cyan-200">Company Map</Link>
-              <Link href="/predictions" className="hover:text-cyan-200">Feed</Link>
+              <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className="hover:text-cyan-200">Company Map</Link>
+              <Link href="/predictions" aria-current={pathname.startsWith("/predictions") ? "page" : undefined} className="hover:text-cyan-200">Feed</Link>
               <Link href="/watchlists" className="hover:text-cyan-200">Watchlists</Link>
               <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
               <DailyNavMenu />
@@ -287,10 +289,10 @@ export function SiteNav() {
 
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
-              href="/predictions/new"
+              href="/companies"
               className="hidden rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 md:inline-flex"
             >
-              Predict
+              Search companies
             </Link>
             {loading ? (
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-700" />
@@ -307,34 +309,19 @@ export function SiteNav() {
           </div>
         </div>
 
-        <nav className="mt-3 flex gap-2 overflow-x-auto pb-1 text-[15px] text-slate-200 md:hidden">
-          <Link href="/" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">Company Map</Link>
-          <Link href="/predictions/new" className="shrink-0 rounded-full bg-cyan-500 px-3 py-1.5 font-semibold text-slate-950 hover:bg-cyan-400">
-            Predict
-          </Link>
-          <Link href="/predictions" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
-            Feed
-          </Link>
-          <Link href="/watchlists" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
-            Watchlists
-          </Link>
-          <Link href="/institutions" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
-            <InstitutionNavLabel unreadCount={unreadDigestCount} />
-          </Link>
-          {dailyNavItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200"
-            >
-              {item.label}
-            </Link>
-          ))}
-          {showAdminLink ? (
-            <Link href="/admin" className="shrink-0 rounded-full border border-white/10 px-3 py-1.5 hover:border-cyan-300/60 hover:text-cyan-200">
-              Admin
-            </Link>
-          ) : null}
+        <nav aria-label="Mobile navigation" className="mt-2 flex items-center gap-1 text-sm text-slate-200 md:hidden">
+          {[{ href: "/", label: "Map" }, { href: "/companies", label: "Search" }, { href: "/watchlists", label: "Watchlists" }].map(item =>
+            <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3">{item.label}</Link>)}
+          <details className="relative ml-auto" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
+            <summary className="cursor-pointer rounded-lg px-3 py-3">More</summary>
+            <div className="absolute right-0 z-50 mt-2 grid w-56 rounded-xl border border-white/15 bg-slate-950 p-2 shadow-xl"
+              onClick={event => { if ((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
+              {[{ href: "/predictions", label: "Prediction feed" }, { href: "/predictions/new", label: "Make a prediction" },
+                { href: "/institutions", label: "Institutions" }, ...dailyNavItems, { href: "/how-it-works", label: "How it works" },
+                ...(showAdminLink ? [{ href: "/admin", label: "Admin" }] : [])].map(item =>
+                <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3 hover:bg-white/10">{item.label}</Link>)}
+            </div>
+          </details>
         </nav>
       </div>
     </header>

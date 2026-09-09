@@ -2,6 +2,7 @@ import { FieldPath } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { normalizeTicker } from "@/lib/predictions/types";
 import type { InstitutionalHolding, InstitutionalHoldingChange } from "@/lib/securities/thirteen-f";
+import { hasVerifiedHoldingComparison } from "./thirteen-f-comparison";
 
 const DEFAULT_TICKER_SCAN_LIMIT = 1200;
 const DEFAULT_MANAGER_DISPLAY_LIMIT = 100;
@@ -336,14 +337,15 @@ export async function getInstitutionalTickerSummary(
 
   const changes = changesSnapshot.docs
     .map((doc) => doc.data() as InstitutionalHoldingChange)
-    .filter((change) => change.ticker === ticker);
+    .filter((change) => change.ticker === ticker && hasVerifiedHoldingComparison(change));
   const changeByManager = latestChangeByManager(changes);
   const currentPositions = [...latestByManager.values()]
     .map<InstitutionalTickerPosition>((holding) => {
       const managerHoldings = holdingsByManagerReport.get(managerReportHoldingKey(holding.managerCik, holding.reportDate)) ?? [];
       const aggregateShares = managerHoldings.reduce((total, item) => total + item.shares, 0);
       const aggregateValueUsd = managerHoldings.reduce((total, item) => total + item.valueUsd, 0);
-      const change = changeByManager.get(holding.managerCik) ?? null;
+      const candidate = changeByManager.get(holding.managerCik);
+      const change = candidate && candidate.reportDate >= holding.reportDate ? candidate : null;
       const isSoldOut = change?.status === "SOLD_OUT" && isChangeNewerThanHolding(change, holding);
 
       return {
@@ -414,7 +416,7 @@ export async function getInstitutionalDiscoverySummary(input: InstitutionalDisco
     db.collection("institutional_holding_changes").orderBy("updatedAt", "desc").limit(activityLimit).get(),
   ]);
   const managers = managersSnapshot.docs.map((doc) => normalizeDiscoveryManager(doc.id, doc.data() as InstitutionalManagerDocument));
-  const changes = changesSnapshot.docs.map((doc) => doc.data() as InstitutionalHoldingChange);
+  const changes = changesSnapshot.docs.map((doc) => doc.data() as InstitutionalHoldingChange).filter(hasVerifiedHoldingComparison);
 
   return {
     managers,
@@ -455,7 +457,7 @@ export async function getInstitutionalManagerSummary(rawCik: string): Promise<In
       .get(),
   ]);
   const changeByPosition = latestChangeByPosition(
-    changesSnapshot.docs.map((doc) => doc.data() as InstitutionalHoldingChange),
+    changesSnapshot.docs.map((doc) => doc.data() as InstitutionalHoldingChange).filter(hasVerifiedHoldingComparison),
   );
   const holdings = holdingsSnapshot.docs
     .map((doc) => doc.data() as InstitutionalHolding)
