@@ -43,6 +43,8 @@ test("research has bounded tool use and output, background processing and struct
   assert.equal(request.max_output_tokens, 12000);
   assert.equal(request.reasoning.effort, "medium");
   assert.equal(request.text.format.strict, true);
+  assert.match(JSON.stringify(request.text.format.schema), /sourceTicker/);
+  assert.match(JSON.stringify(request.text.format.schema), /never a publication title/);
 });
 test("provider provenance comes from tool output, not model-invented source lists", () => {
   const output = [{ type: "web_search_call", action: { sources: [{ url }] } }, { type: "message", content: [{ type: "output_text", text: JSON.stringify({ companies, relationships: [relation] }) }] }];
@@ -88,7 +90,7 @@ function serviceFixture() {
   } } as unknown as Firestore;
   const service = createIndustryResearchService(() => db, async (_path, body) => {
     if (body) { calls++; return { id: "resp_test", model: "gpt-5.4" }; }
-    return { status: providerStatus, model: "gpt-5.4", usage: {}, output: [
+    return { status: providerStatus, incomplete_details: { reason: "max_output_tokens" }, model: "gpt-5.4", usage: {}, output: [
       { type: "web_search_call", action: { sources: [{ url }] } },
       { type: "message", content: [{ type: "output_text", text: JSON.stringify({ companies, relationships: [relation] }) }] },
     ] };
@@ -128,6 +130,11 @@ test("incomplete provider output does not publish or remove existing data", asyn
   f.data.set("industry_research_relationships/existing", { status: "PUBLISHED" });
   await f.service.startResearch("Semiconductors", runId, "admin");
   f.fail();
-  assert.equal((await f.service.refreshResearch(runId))?.status, "FAILED");
+  const failed = await f.service.refreshResearch(runId);
+  assert.equal(failed?.status, "FAILED");
+  assert.equal(failed?.searchCalls, 1);
+  assert.match(failed?.error, /max_output_tokens/);
+  await f.service.refreshResearch(runId);
+  assert.equal(f.calls(), 1);
   assert.equal(f.data.get("industry_research_relationships/existing")?.status, "PUBLISHED");
 });

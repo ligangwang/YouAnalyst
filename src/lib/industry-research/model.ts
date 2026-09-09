@@ -2,8 +2,8 @@ import { INDUSTRY_SEGMENTS, type IndustryCompany } from "../industry-graph/catal
 import type { IndustryGraph, IndustryEdge } from "../industry-graph/model";
 
 export const RESEARCH_VERSION = 1;
-export const MAX_COMPANIES = 40;
-export const MAX_RELATIONSHIPS = 80;
+export const MAX_COMPANIES = 30;
+export const MAX_RELATIONSHIPS = 40;
 export type ResearchEvidence = { url: string; title: string; summary: string; sourceDate: string | null };
 export type ResearchRelationship = {
   id: string; source: string; target: string; type: "SUPPLIER_OF" | "PARTNER_OF" | "COMPETES_WITH";
@@ -49,7 +49,7 @@ export function normalizeResearch(value: unknown, searchedUrls: string[]): Resea
   const items = Array.isArray(raw.relationships) ? raw.relationships : [];
   withheld += Math.max(0, items.length - MAX_RELATIONSHIPS);
   for (const item of items.slice(0, MAX_RELATIONSHIPS)) {
-    const r = record(item), source = normalizeSymbol(r.source), target = normalizeSymbol(r.target);
+    const r = record(item), source = normalizeSymbol(r.sourceTicker ?? r.source), target = normalizeSymbol(r.targetTicker ?? r.target);
     const key = canonicalRelationship(source, target, text(r.type));
     const url = sourceUrl(r.url), summary = text(r.summary).slice(0, 1200), title = text(r.title).slice(0, 200);
     const date = text(r.sourceDate);

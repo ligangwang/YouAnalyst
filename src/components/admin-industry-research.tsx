@@ -5,12 +5,13 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { RELATIONSHIP_LABELS } from "@/lib/industry-graph/model";
 import type { ResearchResult } from "@/lib/industry-research/model";
 
-type Run = { id: string; industry: string; status: string; model?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
+type Run = { id: string; industry: string; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
 const control = "rounded-md border border-white/20 px-3 py-2 text-sm disabled:opacity-50";
 export function AdminIndustryResearch() {
   const { user, loading, getIdToken } = useAuth();
   const [industry, setIndustry] = useState("Semiconductors and AI infrastructure");
   const [runs, setRuns] = useState<Run[]>([]);
+  const [runsOwner, setRunsOwner] = useState<string | null>(null);
   const [active, setActive] = useState<string>("");
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -28,12 +29,14 @@ export function AdminIndustryResearch() {
   const reload = useCallback(async () => {
     const payload = await api();
     setRuns(payload.items);
+    setRunsOwner(user?.uid ?? null);
     setActive(current => current || payload.items[0]?.id || "");
-  }, [api]);
+  }, [api, user?.uid]);
   useEffect(() => {
     if (!loading && user) void reload().catch(e => setError(e.message));
   }, [loading, user, reload]);
-  const run = runs.find(r => r.id === active);
+  const visibleRuns = user && runsOwner === user.uid ? runs : [];
+  const run = visibleRuns.find(r => r.id === active);
   useEffect(() => {
     if (run?.status !== "PROCESSING") return;
     let stopped = false;
@@ -51,6 +54,7 @@ export function AdminIndustryResearch() {
       const payload = await api({ action, industry, requestId: requestId.current, id: active, selectedIds: selected });
       if (action === "start") requestId.current = null;
       setRuns(current => [payload.item, ...current.filter(r => r.id !== payload.item.id)]);
+      setRunsOwner(user?.uid ?? null);
       setActive(payload.item.id); setSelected([]);
     } catch (e) { setError(e instanceof Error ? e.message : "Research request failed."); }
     finally { setBusy(false); }
@@ -70,14 +74,14 @@ export function AdminIndustryResearch() {
     <label className="my-5 flex flex-col gap-1 text-sm">Research run
       <select className={`${control} bg-slate-950`} value={active} onChange={e => { setActive(e.target.value); setSelected([]); }}>
         <option value="">Select a run</option>
-        {runs.map(r => <option value={r.id} key={r.id}>{r.industry} · {r.status} · {r.createdAt.slice(0, 10)}</option>)}
+        {visibleRuns.map(r => <option value={r.id} key={r.id}>{r.industry} · {r.status} · {r.createdAt.slice(0, 10)}</option>)}
       </select>
     </label>
     {run && <section>
       <div className="flex flex-wrap items-center gap-3 border-y border-white/15 py-3">
         <strong>{run.status}</strong><span>{run.model ?? "Model pending"}</span>
         {run.searchCalls !== undefined && <span>{run.searchCalls} search tool calls</span>}
-        <button className={control} disabled={busy || run.status !== "PROCESSING"} onClick={() => void act("refresh")}>Check status</button>
+        <button className={control} disabled={busy || !run.responseId || !["PROCESSING", "FAILED"].includes(run.status)} onClick={() => void act("refresh")}>Check status</button>
       </div>
       {run.error && <p className="my-4 text-rose-300">{run.error}</p>}
       {run.result && <>

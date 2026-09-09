@@ -31,4 +31,6 @@ test("admin researches once and publishes only explicitly selected draft connect
   await page.getByRole("checkbox", { name: "Approve TSM supplies AMD" }).check();
   await page.getByRole("button", { name: "Publish 1 reviewed connections" }).click();
   expect(requests[1]).toMatchObject({ action: "publish", selectedIds: ["TSM__SUPPLIER_OF__AMD"] });
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: null })));
+  await expect(page.getByRole("link", { name: "Company announcement" })).toHaveCount(0);
 });
