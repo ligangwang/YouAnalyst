@@ -46,27 +46,30 @@ async function refreshResearch(id: string) {
   const db = getDb(), ref = runs().doc(id), snapshot = await ref.get();
   const run = snapshot.data();
   if (!run) throw new Error("Research run not found.");
-  if (run.status !== "PROCESSING") return run;
+  if (!["PROCESSING", "FAILED"].includes(run.status) || !run.responseId) return run;
   if (!/^resp_[a-zA-Z0-9_-]+$/.test(text(run.responseId))) throw new Error("Invalid stored response ID.");
   const response = await provider(`/${run.responseId}`);
   if (["queued", "in_progress"].includes(text(response.status))) return run;
   const now = new Date().toISOString();
-  let result: ResearchResult | null = null, searchCalls = 0;
-  let error = "Research did not complete. Existing published connections were preserved.";
+  let result: ResearchResult | null = null;
+  const searchCalls = (Array.isArray(response.output) ? response.output : []).filter(item => record(item).type === "web_search_call").length;
+  const reason = text(record(response.incomplete_details).reason) || text(record(response.error).code) || text(response.status);
+  let error = `Research did not complete (${reason.slice(0, 100)}). Existing published connections were preserved.`;
   if (response.status === "completed") {
     try {
       const parsed = readResearchResponse(response);
-      searchCalls = parsed.searchCalls;
       result = normalizeResearch(parsed.data, parsed.sources);
       if (!result.relationships.length) { result = null; error = "No sourced relationships passed validation. Existing connections were preserved."; }
     } catch { error = "Research returned invalid structured output. Existing connections were preserved."; }
   }
   const saved = await db.runTransaction(async tx => {
     const current = await tx.get(ref);
-    if (current.data()?.status !== "PROCESSING") return false;
+    if (!["PROCESSING", "FAILED"].includes(current.data()?.status)) return false;
+    const lockRef = db.collection("industry_research_locks").doc(run.industryKey);
+    const lock = await tx.get(lockRef);
     tx.update(ref, { status: result ? "DRAFT" : "FAILED", result, error: result ? null : error, updatedAt: now,
-      usage: record(response.usage), searchCalls, model: text(response.model) || run.model });
-    tx.set(db.collection("industry_research_locks").doc(run.industryKey), { active: false }, { merge: true });
+      usage: record(response.usage), searchCalls, providerStatus: text(response.status), incompleteReason: reason, model: text(response.model) || run.model });
+    if (lock.data()?.runId === id) tx.set(lockRef, { active: false }, { merge: true });
     return true;
   });
   if (saved) await recordUsage({ purpose: "industry_research", model: text(response.model) || run.model,

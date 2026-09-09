@@ -4,7 +4,7 @@ The public map is a read-only view of persisted filing extractions and explicitl
 
 ## Adding Industry Coverage
 
-Open `/admin/industry-research` (also linked from Company Graph Requests). Sign in as an admin, enter an industry and choose **Research industry**. This uses the production `OPENAI_MODEL` (currently `gpt-5.4`) with medium reasoning and web search. One background response researches up to 40 companies and 80 candidate relationships across the industry, rather than requesting each company independently. The initial integration accepts US-listed stocks and ADRs supported by the ticker directory; private companies and foreign-only listings are excluded.
+Open `/admin/industry-research` (also linked from Company Graph Requests). Sign in as an admin, enter an industry and choose **Research industry**. This uses the production `OPENAI_MODEL` (currently `gpt-5.4`) with medium reasoning and web search. One background response researches up to 30 companies and 40 candidate relationships across the industry, targeting 15-25 concise connections per batch rather than requesting each company independently. The initial integration accepts US-listed stocks and ADRs supported by the ticker directory; private companies and foreign-only listings are excluded.
 
 Runs are saved in `industry_research_runs`. Refreshing checks the existing OpenAI response; it never starts a replacement. Only completed structured output becomes a draft. Source URLs must occur in the provider's web-search sources or citations. This establishes source provenance, not that the model's interpretation is verified. Summaries are paraphrases and must not be presented as source quotations.
 
@@ -22,7 +22,7 @@ The map reads up to 120 published research relationships, plus up to 80 outgoing
 
 The server enforces three submitted batches per UTC day, at most eight built-in tool calls and 12,000 output tokens per batch. These bound work, not an exact dollar cost: input/search-content tokens and tool fees also apply. Token usage is recorded with purpose `industry_research`; its token-cost estimate excludes search-tool fees, while each run records the number of tool calls. No scheduler is enabled.
 
-Client request IDs prevent duplicate starts on retries. A per-industry lock prevents overlapping research. Failed or incomplete results never alter published data. If a process stops in `STARTING`, inspect provider usage before releasing its `industry_research_locks` record; do not automatically retry an uncertain paid request. If a run is `PROCESSING`, use **Check status** to recover it. OpenAI background response retention is limited, so refresh promptly; completed results are persisted in Firestore.
+Client request IDs prevent duplicate starts on retries. A per-industry lock prevents overlapping research. Failed or incomplete results never alter published data. If a process stops in `STARTING`, inspect provider usage before releasing its `industry_research_locks` record; do not automatically retry an uncertain paid request. **Check status** retrieves the same response for processing or failed runs without starting new research, including provider failure diagnostics. OpenAI background response retention is limited, so refresh promptly; completed results are persisted in Firestore.
 
 ## Membership And Metadata
 
