@@ -1,5 +1,6 @@
 import { getAdminFirestore, verifyIdToken } from "@/lib/firebase/admin";
 import { canUseProFeaturesForUserData, getAppFeatures } from "@/lib/features";
+import { getOrCreateDefaultWatchlistForUser } from "@/lib/watchlists/service";
 import { NextRequest, NextResponse } from "next/server";
 
 type BootstrapRequest = {
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
 
     if (userSnapshot.exists) {
       const userData = userSnapshot.data() as Record<string, unknown> | undefined;
+      await getOrCreateDefaultWatchlistForUser(decoded.uid);
       return NextResponse.json({
         created: false,
         features: {
@@ -81,10 +83,18 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    await userRef.set(userProfile);
+    // Auth restoration and explicit signup may bootstrap concurrently. Never
+    // overwrite a profile or its watchlist counters created by the other request.
+    const created = await db.runTransaction(async tx => {
+      const current = await tx.get(userRef);
+      if (current.exists) return false;
+      tx.set(userRef, userProfile);
+      return true;
+    });
+    await getOrCreateDefaultWatchlistForUser(decoded.uid);
 
     return NextResponse.json({
-      created: true,
+      created,
       features: {
         ...features,
         canUsePro: canUseProFeaturesForUserData(userProfile as Record<string, unknown>),

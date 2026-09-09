@@ -25,6 +25,11 @@ test("saved map companies require authentication and cannot be publicly cached",
   expect(response.headers()["cache-control"].split(/,\s*/)).toEqual(expect.arrayContaining(["private", "no-store"]));
 });
 
+test("default watchlist creation requires a user session", async ({ request }) => {
+  const response = await request.post("/api/watchlists/default", { headers: savedCompanyHeaders() });
+  expect(response.status()).toBe(401);
+});
+
 test("authenticated saved-company reads reach the private account store", async ({ request }) => {
   const userToken = process.env.PLAYWRIGHT_FIREBASE_ID_TOKEN;
   test.skip(!userToken, "Requires a separate Firebase user ID token, not the Cloud Run service identity token");

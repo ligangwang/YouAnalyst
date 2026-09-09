@@ -570,15 +570,28 @@ export async function assertWatchlistCanReceivePrediction(
 
 export async function getOrCreateDefaultWatchlistForUser(
   userId: string,
-  name = "Main Watchlist",
+  name = "My Watchlist",
+  db = getAdminFirestore(),
 ): Promise<string> {
-  const existing = await listWatchlistsForUser(userId, { includePrivate: true });
-  if (existing[0]) {
-    return existing[0].id;
-  }
-
-  const created = await createWatchlist({ name, description: null }, { uid: userId });
-  return created.id;
+  const userRef = db.collection("users").doc(userId);
+  const watchlists = db.collection("watchlists");
+  const newWatchlistRef = watchlists.doc();
+  return db.runTransaction(async tx => {
+    const [userSnapshot, existing] = await Promise.all([
+      tx.get(userRef), tx.get(watchlists.where("userId", "==", userId)),
+    ]);
+    if (!userSnapshot.exists) throw new Error("User profile not found. Complete bootstrap first.");
+    const active = existing.docs.map(mapWatchlistDoc).filter(item => !item.archivedAt)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    if (active[0]) return active[0].id;
+    const now = new Date().toISOString();
+    tx.set(newWatchlistRef, {
+      userId, name, description: null, isPublic: true, archivedAt: null, createdAt: now, updatedAt: now,
+    });
+    // Serialize concurrent initialization and ordinary watchlist creation on the user.
+    tx.update(userRef, { updatedAt: now, "stats.watchlistCount": 1 });
+    return newWatchlistRef.id;
+  });
 }
 
 export async function getOrCreatePublicWatchlistForUser(
