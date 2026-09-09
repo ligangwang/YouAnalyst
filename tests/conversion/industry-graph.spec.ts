@@ -216,45 +216,8 @@ test("signed-in direction actions preserve company and bypass registration", asy
   await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveAttribute("href", "/predictions/new?ticker=NVDA&direction=UP");
   await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", "/predictions/new?ticker=NVDA&direction=DOWN");
   await expect(page.getByRole("button", { name: "Save NVDA", exact: true })).toHaveCount(0);
-  await page.reload();
-  const saved = page.getByRole("region", { name: "Your saved companies" });
-  await page.getByRole("button", { name: "Reset map", exact: true }).click();
-  await saved.getByRole("button", { name: "NVDA", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "NVIDIA", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Your saved companies" })).toHaveCount(0);
 });
-
-test("changing accounts hides prior saved shortcuts and updates direction links", async ({ page }) => {
-  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
-  let reads = 0;
-  await page.route("**/api/industry-graph/saved", route => route.fulfill({ json: { tickers: ++reads === 1 ? ["MU"] : ["AMD"] } }));
-  await page.goto(`${origin}/?company=NVDA`);
-  const saved = page.getByRole("region", { name: "Your saved companies" });
-  await expect(saved.getByRole("button", { name: "MU", exact: true })).toBeVisible();
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: null })));
-  await expect(saved).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /direction%3DDOWN/);
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: "another-user" })));
-  await expect(saved.getByRole("button", { name: "AMD", exact: true })).toBeVisible();
-  await expect(saved.getByRole("button", { name: "MU", exact: true })).toHaveCount(0);
-});
-test("saved shortcuts wait for graph data before accepting selection", async ({ page }) => {
-  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
-  let release: (() => void) | undefined;
-  const wait = new Promise<void>((resolve) => { release = resolve; });
-  await page.route("**/api/industry-graph/saved", (route) => route.fulfill({ json: { tickers: ["MU"] } }));
-  await page.route(/\/api\/industry-graph(?:\?.*)?$/, async (route) => {
-    await wait;
-    return route.fulfill({ json: fixtureGraph });
-  });
-  await page.goto(origin);
-  const shortcut = page.getByRole("region", { name: "Your saved companies" }).getByRole("button", { name: "MU", exact: true });
-  await expect(shortcut).toBeDisabled();
-  release!();
-  await expect(shortcut).toBeEnabled();
-  await shortcut.click();
-  await expect(page.getByRole("heading", { name: "Micron", exact: true })).toBeVisible();
-});
-
 test("company search opens evidence without suggesting question answering", async ({ page }) => {
   await page.goto(origin);
   await expect(page.getByRole("region", { name: "Start with a question" })).toHaveCount(0);
@@ -339,19 +302,4 @@ test("exact ticker lookup reaches companies outside the current page and handles
   await page.getByRole("button", { name: "Find", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "No company or published filing coverage found for MISSING." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Salesforce", exact: true })).toHaveCount(0);
-});
-
-test("saved companies outside the loaded page can be reopened", async ({ page }) => {
-  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
-  await page.route("**/api/industry-graph/saved", (route) => route.fulfill({ json: { tickers: ["CRM"] } }));
-  await page.route(/\/api\/industry-graph(?:\?.*)?$/, (route) => route.fulfill({ json:
-    new URL(route.request().url()).searchParams.get("company") === "CRM"
-      ? buildPublishedGraph({ CRM: runFixture("CRM", "0001108524", "Salesforce", []) }) : fixtureGraph,
-  }));
-  await page.goto(origin);
-  const saved = page.getByRole("region", { name: "Your saved companies" });
-  await expect(saved.getByRole("button", { name: "CRM", exact: true })).toBeEnabled();
-  await saved.getByRole("button", { name: "CRM", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Salesforce", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Bearish", exact: true })).toBeVisible();
 });
