@@ -45,3 +45,26 @@ The per-process cache retains at most 32 request variants for five minutes. Fail
 ## Release Checks
 
 Run `npm run test:industry`, `npm run test:conversion`, lint, typecheck, and a production build. The regression suite covers non-bootstrap issuers, metadata overrides, pagination, direct ticker lookup, saved-company reopening, evidence provenance, and authentication isolation. Confirm the directory migration and production smoke tests succeed. The main sitemap currently includes up to 500 metadata and 500 completed-run documents, consistent with its existing bounded discovery approach; larger SEO coverage requires sitemap partitioning.
+# Research Categories
+
+The Industry Research form uses the April 2026 GICS sector/industry structure
+(11 sectors, 74 industries) as research topic labels. The versioned catalog is
+`src/lib/industry-research/taxonomy.ts`; review it when MSCI publishes structural
+changes. These labels are not official company-level GICS assignments.
+
+Select a sector and industry, optionally refine the scope, or choose Custom /
+cross-industry. The server validates parent codes and stores canonical names,
+codes, scope and taxonomy version in each run's `topic`. Published relationships
+merge `researchIndustryCodes` and `researchSectorCodes` without replacing older
+memberships. The recent-run sector filter covers the ten latest runs; legacy
+runs remain available as Custom / uncategorized. No additional model requests
+are triggered by selecting or filtering categories.
+
+Map layout categories are separate from the research taxonomy. `applications`
+and `healthcare` supplement the existing roles; `other` remains a fallback.
+The directory migration classifies AI/TEM as AI applications and HIMS/LLY as
+healthcare based on company descriptions linked in its migration data. It adds
+no relationships or featured coverage, preserves existing classifications, and
+does not reapply a completed correction. Future research uses these roles in
+the existing structured schema; assignments remain in Firestore, not a runtime
+ticker allowlist. A role is not proof of a supply-chain connection.

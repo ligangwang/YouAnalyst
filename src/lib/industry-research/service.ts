@@ -4,11 +4,13 @@ import { getAdminFirestore } from "../firebase/admin";
 import { safeRecordOpenAiUsageEvent } from "../openai/usage";
 import { normalizeResearch, record, text, RESEARCH_VERSION, type ResearchResult, type ResearchRelationship } from "./model";
 import { openAiResearch, readResearchResponse, researchRequest } from "./openai";
+import { resolveResearchTopic, researchTopicLabel } from "./taxonomy";
 
 export function createIndustryResearchService(getDb: () => Firestore, provider = openAiResearch, recordUsage = safeRecordOpenAiUsageEvent) {
 const runs = () => getDb().collection("industry_research_runs");
-async function startResearch(industry: string, requestId: string, uid: string) {
-  if (industry.length < 3 || industry.length > 120 || !/^[a-zA-Z0-9][a-zA-Z0-9 &,()./-]+$/.test(industry)) throw new Error("Enter an industry name (3-120 characters).");
+async function startResearch(scope: string, requestId: string, uid: string, category?: unknown) {
+  const topic = resolveResearchTopic(scope, category);
+  const industry = researchTopicLabel(topic);
   if (!/^[a-f0-9-]{36}$/.test(requestId)) throw new Error("Invalid request ID.");
   const db = getDb(), ref = runs().doc(requestId);
   const industryKey = createHash("sha256").update(industry.toLowerCase().replace(/\s+/g, " ")).digest("hex");
@@ -17,11 +19,14 @@ async function startResearch(industry: string, requestId: string, uid: string) {
   const now = new Date().toISOString();
   const created = await db.runTransaction(async tx => {
     const prior = await tx.get(ref);
-    if (prior.exists) return false;
+    if (prior.exists) {
+      if (prior.data()?.industryKey !== industryKey) throw new Error("This request ID belongs to another topic. Refresh runs before starting a different topic.");
+      return false;
+    }
     const locked = await tx.get(lock), limit = await tx.get(budget);
     if (locked.data()?.active === true) throw new Error("This industry already has a research run. Refresh its status first.");
     if ((limit.data()?.count ?? 0) >= 3) throw new Error("Daily research limit reached (3 batches). Try again tomorrow.");
-    tx.set(ref, { id: requestId, industry, industryKey, version: RESEARCH_VERSION, status: "STARTING", createdAt: now, createdBy: uid });
+    tx.set(ref, { id: requestId, industry, topic, industryKey, version: RESEARCH_VERSION, status: "STARTING", createdAt: now, createdBy: uid });
     tx.set(lock, { active: true, runId: requestId });
     tx.set(budget, { count: FieldValue.increment(1) }, { merge: true });
     return true;
@@ -29,7 +34,7 @@ async function startResearch(industry: string, requestId: string, uid: string) {
   if (!created) return (await ref.get()).data();
   try {
     const existing = await db.collection("industry_research_relationships").where("status", "==", "PUBLISHED").limit(160).get();
-    const response = await provider("", researchRequest(industry, existing.docs.map(d => d.id)));
+    const response = await provider("", researchRequest(industry, existing.docs.map(d => d.id), topic));
     if (!/^resp_[a-zA-Z0-9_-]+$/.test(text(response.id))) throw new Error("OpenAI did not return a response ID.");
     await ref.update({ status: "PROCESSING", responseId: response.id, model: text(response.model) || "gpt-5.4", updatedAt: now });
   } catch (error) {
@@ -106,7 +111,8 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
       const prior = existing[i].data();
       const evidence = [...(Array.isArray(prior?.evidence) ? prior.evidence : []), ...r.evidence];
       tx.set(refs[i], { ...r, evidence: evidence.filter((e, n) => evidence.findIndex(x => x.url === e.url) === n).slice(-10),
-        status: "PUBLISHED", updatedAt: now, reviewedBy: uid, industries: FieldValue.arrayUnion(run.industryKey), runIds: FieldValue.arrayUnion(id) }, { merge: true });
+        status: "PUBLISHED", updatedAt: now, reviewedBy: uid, industries: FieldValue.arrayUnion(run.industryKey), runIds: FieldValue.arrayUnion(id),
+        ...(run.topic?.industryCode ? { researchIndustryCodes: FieldValue.arrayUnion(run.topic.industryCode), researchSectorCodes: FieldValue.arrayUnion(run.topic.sectorCode) } : {}) }, { merge: true });
     });
     tx.update(ref, { status: "PUBLISHED", publishedAt: now, publishedBy: uid, publishedIds: FieldValue.arrayUnion(...selectedIds) });
   });

@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = record(await request.json());
     let item;
-    if (body.action === "start") item = await startResearch(text(body.industry), text(body.requestId), user.uid);
+    if (body.action === "start") item = await startResearch(text(body.industry), text(body.requestId), user.uid, body.category);
     else if (body.action === "refresh") item = await refreshResearch(text(body.id));
     else if (body.action === "publish" && Array.isArray(body.selectedIds)) item = await publishResearch(text(body.id), body.selectedIds, user.uid);
     else return NextResponse.json({ error: "Invalid action" }, { status: 400 });

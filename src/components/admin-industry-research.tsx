@@ -4,12 +4,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { RELATIONSHIP_LABELS } from "@/lib/industry-graph/model";
 import type { ResearchResult } from "@/lib/industry-research/model";
+import { RESEARCH_SECTORS, TAXONOMY_SOURCE, type ResearchTopic } from "@/lib/industry-research/taxonomy";
+import { INDUSTRY_SEGMENTS } from "@/lib/industry-graph/catalog";
 
-type Run = { id: string; industry: string; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
+type Run = { id: string; industry: string; topic?: ResearchTopic; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
 const control = "rounded-md border border-white/20 px-3 py-2 text-sm disabled:opacity-50";
 export function AdminIndustryResearch() {
   const { user, loading, getIdToken } = useAuth();
-  const [industry, setIndustry] = useState("Semiconductors and AI infrastructure");
+  const [industry, setIndustry] = useState("AI data-center supply chain");
+  const [sectorCode, setSectorCode] = useState("45");
+  const [industryCode, setIndustryCode] = useState("453010");
+  const [filterSector, setFilterSector] = useState("");
+  const sector = RESEARCH_SECTORS.find(s => s.code === sectorCode);
   const [runs, setRuns] = useState<Run[]>([]);
   const [runsOwner, setRunsOwner] = useState<string | null>(null);
   const [active, setActive] = useState<string>("");
@@ -17,6 +23,7 @@ export function AdminIndustryResearch() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const requestId = useRef<string | null>(null);
+  const requestTopic = useRef("");
   const api = useCallback(async (body?: unknown) => {
     const token = await getIdToken();
     if (!token) throw new Error("Sign in with an admin account.");
@@ -36,7 +43,8 @@ export function AdminIndustryResearch() {
     if (!loading && user) void reload().catch(e => setError(e.message));
   }, [loading, user, reload]);
   const visibleRuns = user && runsOwner === user.uid ? runs : [];
-  const run = visibleRuns.find(r => r.id === active);
+  const filteredRuns = visibleRuns.filter(r => !filterSector || (filterSector === "custom" ? !r.topic?.sectorCode : r.topic?.sectorCode === filterSector));
+  const run = filteredRuns.find(r => r.id === active);
   useEffect(() => {
     if (run?.status !== "PROCESSING") return;
     let stopped = false;
@@ -50,34 +58,56 @@ export function AdminIndustryResearch() {
   async function act(action: "start" | "refresh" | "publish") {
     setBusy(true); setError("");
     try {
+      const topicKey = JSON.stringify([sectorCode, industryCode, industry.trim()]);
+      if (action === "start" && requestTopic.current !== topicKey) { requestId.current = null; requestTopic.current = topicKey; }
       requestId.current ??= crypto.randomUUID();
-      const payload = await api({ action, industry, requestId: requestId.current, id: active, selectedIds: selected });
+      const payload = await api({ action, industry, category: sector ? { sectorCode, industryCode } : null, requestId: requestId.current, id: active, selectedIds: selected });
       if (action === "start") requestId.current = null;
       setRuns(current => [payload.item, ...current.filter(r => r.id !== payload.item.id)]);
       setRunsOwner(user?.uid ?? null);
-      setActive(payload.item.id); setSelected([]);
+      setFilterSector(""); setActive(payload.item.id); setSelected([]);
     } catch (e) { setError(e instanceof Error ? e.message : "Research request failed."); }
     finally { setBusy(false); }
   }
   return <main className="mx-auto max-w-6xl px-4 py-8 text-slate-100">
     <h1 className="text-2xl font-semibold">Industry research</h1>
     <div className="my-5 flex flex-wrap items-end gap-3">
-      <label className="flex min-w-0 flex-1 basis-full flex-col gap-1 text-sm sm:basis-auto">Industry
-        <input value={industry} maxLength={120} onChange={e => setIndustry(e.target.value)} className={`${control} w-full bg-slate-950`} />
+      <label className="flex min-w-0 basis-full flex-col gap-1 text-sm sm:basis-64">Sector
+        <select value={sectorCode} disabled={busy} onChange={e => { setSectorCode(e.target.value); setIndustryCode(RESEARCH_SECTORS.find(s => s.code === e.target.value)?.industries[0][0] ?? ""); setIndustry(""); }} className={`${control} w-full bg-slate-950`}>
+          {RESEARCH_SECTORS.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+          <option value="custom">Custom / cross-industry</option>
+        </select>
       </label>
-      <button className={`${control} bg-cyan-500 text-slate-950`} disabled={busy || !user || industry.trim().length < 3} onClick={() => void act("start")}>Research industry</button>
+      {sector && <label className="flex min-w-0 flex-1 basis-full flex-col gap-1 text-sm sm:basis-72">Industry
+        <select value={industryCode} disabled={busy} onChange={e => { setIndustryCode(e.target.value); setIndustry(""); }} className={`${control} w-full bg-slate-950`}>
+          {sector.industries.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+        </select>
+      </label>}
+      <label className="flex min-w-0 basis-full flex-col gap-1 text-sm">{sector ? "Research scope (optional)" : "Custom research topic"}
+        <input value={industry} disabled={busy} maxLength={120} onChange={e => setIndustry(e.target.value)} className={`${control} w-full bg-slate-950`} />
+      </label>
+      <button className={`${control} bg-cyan-500 text-slate-950`} disabled={busy || !user || (!sector && industry.trim().length < 3)} onClick={() => void act("start")}>Research industry</button>
       <button className={control} disabled={busy || !user} onClick={() => void reload().catch(e => setError(e.message))}>Refresh runs</button>
     </div>
     <p className="text-sm text-slate-400">Paid research · maximum 3 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs</p>
+    <a href={TAXONOMY_SOURCE} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-cyan-200 underline">GICS sector and industry reference</a>
     {!loading && !user && <p role="alert" className="mt-4">Sign in with an admin account.</p>}
     {error && <p role="alert" className="my-4 text-rose-300">{error}</p>}
-    <label className="my-5 flex flex-col gap-1 text-sm">Research run
-      <select className={`${control} bg-slate-950`} value={active} onChange={e => { setActive(e.target.value); setSelected([]); }}>
+    <label className="mt-5 flex flex-col gap-1 text-sm">Recent runs by sector
+      <select className={`${control} w-full bg-slate-950`} value={filterSector} onChange={e => { setFilterSector(e.target.value); setActive(""); setSelected([]); }}>
+        <option value="">All sectors</option>
+        {RESEARCH_SECTORS.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
+        <option value="custom">Custom / uncategorized</option>
+      </select>
+    </label>
+    <label className="my-5 flex min-w-0 flex-col gap-1 text-sm">Research run
+      <select className={`${control} w-full bg-slate-950`} value={run?.id ?? ""} onChange={e => { setActive(e.target.value); setSelected([]); }}>
         <option value="">Select a run</option>
-        {visibleRuns.map(r => <option value={r.id} key={r.id}>{r.industry} · {r.status} · {r.createdAt.slice(0, 10)}</option>)}
+        {filteredRuns.map(r => <option value={r.id} key={r.id}>{r.industry} · {r.status} · {r.createdAt.slice(0, 10)}</option>)}
       </select>
     </label>
     {run && <section>
+      <p className="mb-3 break-words text-sm text-slate-300">{run.topic?.sectorName ? `${run.topic.sectorName} / ${run.topic.industryName}` : "Custom / uncategorized"}</p>
       <div className="flex flex-wrap items-center gap-3 border-y border-white/15 py-3">
         <strong>{run.status}</strong><span>{run.model ?? "Model pending"}</span>
         {run.searchCalls !== undefined && <span>{run.searchCalls} search tool calls</span>}
@@ -86,6 +116,12 @@ export function AdminIndustryResearch() {
       {run.error && <p className="my-4 text-rose-300">{run.error}</p>}
       {run.result && <>
         <p className="my-4 text-sm">{run.result.companies.length} companies · {run.result.relationships.length} sourced candidates · {run.result.withheld} withheld</p>
+        <details className="mb-4 text-sm">
+          <summary className="cursor-pointer">Company map categories</summary>
+          <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">{run.result.companies.map(c => <div key={c.ticker} className="flex flex-wrap justify-between gap-2 border-b border-white/10 py-2">
+            <dt>{c.ticker}</dt><dd>{INDUSTRY_SEGMENTS.find(s => s.id === c.segment)?.label ?? "Related companies"}</dd>
+          </div>)}</dl>
+        </details>
         <div className="overflow-x-auto"><table className="w-full text-left text-sm">
           <thead><tr className="border-b border-white/15"><th className="p-2">Reviewed</th><th className="p-2">Connection</th><th className="p-2">Source and research summary</th></tr></thead>
           <tbody>{run.result.relationships.map(r => <tr key={r.id} className="border-b border-white/10 align-top">
