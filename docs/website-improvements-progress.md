@@ -1,6 +1,6 @@
 # Website improvements — local implementation
 
-September 9, 2026. These changes are local and have not been deployed.
+September 9, 2026. Deployed through PR #568, production commit `3a20ca63a134cdf9ad1d173c79e27daa23b2abe8`, revision `ifindata-web-00253-h2b`. Live health, mobile list layout, company save control, and IHT review holds were verified.
 
 - Insider value review holds preserve source prices, withhold unresolved totals, and exclude affected activity from rankings and share snapshots. See `insider-value-quality.md`.
 - 13F comparisons require a complete prior baseline; unavailable comparisons no longer become fabricated NEW holdings. See `thirteen-f-comparison-integrity.md` for rollout requirements and remaining limitations.
@@ -12,6 +12,6 @@ September 9, 2026. These changes are local and have not been deployed.
 
 ## Remaining work
 
-The original review remains the backlog, not a claim of completion. Further work includes global map search integration, guided research examples, resilient sitemap generation, loading/performance measurement, source-section linking where supported, password recovery, and broader data-quality observability. Product additions such as research notebooks and comparisons require their own implementation and validation. Production deployment and historical-data repair have not occurred.
+The original review remains the backlog, not a claim of completion. Further work includes global map search integration, guided research examples, resilient sitemap generation, loading/performance measurement, source-section linking where supported, password recovery, and broader data-quality observability. Product additions such as research notebooks and comparisons require their own implementation and validation. Historical-data repair has not occurred.
 
-Validation uses isolated synthetic browser fixtures; no live accounts or production records are modified. It does not establish production service availability or real-account credential behavior.
+Predeployment validation used isolated synthetic browser fixtures. Both PR and merged-commit CI passed. The deployment workflow finished rollout but its smoke stage failed on the obsolete navigation label "Predict". The corrected smoke suite checks "Search companies" and its destination; it passed against the live production domain (8 passed, 6 credential-dependent checks skipped). No live account mutation was used to test saving. The original workflow remains recorded as failed because of that stale assertion.
