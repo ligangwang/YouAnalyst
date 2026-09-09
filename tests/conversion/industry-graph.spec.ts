@@ -5,8 +5,25 @@ import { buildIndustryGraph } from "../industry/fixtures";
 import { buildIndustryGraph as buildPublishedGraph } from "../../src/lib/industry-graph/model";
 import { INDUSTRY_STARTERS } from "../../src/lib/industry-graph/catalog";
 import relationshipReviews from "../../src/lib/company-graph/relationship-reviews.json";
+import { mergeResearchGraph, normalizeResearch } from "../../src/lib/industry-research/model";
 
 const origin = "http://industry.test";
+test("published industry research is discoverable and never shown as an SEC quotation", async ({ page }) => {
+  const url = "https://www.example.com/announcement";
+  const research = normalizeResearch({ companies: [
+    { ticker: "ASML", name: "ASML", segment: "manufacturing" }, { ticker: "TSM", name: "TSMC", segment: "manufacturing" },
+  ], relationships: [{ source: "ASML", target: "TSM", type: "SUPPLIER_OF", url, title: "Research source", summary: "Synthetic research summary.", sourceDate: "2026-01-01" }] }, [url]);
+  const graph = mergeResearchGraph(buildPublishedGraph({}), research.companies, research.relationships);
+  await page.route("**/api/industry-graph*", route => route.fulfill({ json: graph }));
+  await page.goto(origin);
+  await page.getByRole("button", { name: "Explore ASML (ASML)", exact: true }).click();
+  await page.getByRole("button", { name: /ASML supplies TSMC/ }).last().click();
+  await expect(page.getByRole("heading", { name: "ASML supplies TSMC" })).toBeVisible();
+  await expect(page.getByText("Synthetic research summary.", { exact: true })).toBeVisible();
+  await expect(page.locator("blockquote")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Research source/ })).toHaveAttribute("href", url);
+  await expect(page.getByRole("link", { name: /Read SEC filing/ })).toHaveCount(0);
+});
 let html: string;
 test.beforeAll(async () => { html = await buildIndustryFixture(); });
 test.beforeEach(async ({ page }) => {

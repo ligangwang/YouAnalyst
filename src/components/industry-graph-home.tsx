@@ -135,9 +135,9 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
         <div>
           <p className={styles.eyebrow}>COMPANY RELATIONSHIPS</p>
           <h1>Explore company connections.</h1>
-          <p>Find suppliers and customers. Read the filings. Keep companies worth following.</p>
+          <p>Find suppliers and customers. Explore the sources. Keep companies worth following.</p>
         </div>
-        <span className={styles.pill}>Early access · SEC filing evidence</span>
+        <span className={styles.pill}>Early access · Sources linked</span>
       </header>
 
       <section className={styles.workspace} aria-label="AI industry explorer">
@@ -229,7 +229,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
                     const point = positions.get(node.id)!;
                     return <g key={node.id} role="button" tabIndex={0} aria-label={`Explore ${node.name}${node.ticker ? ` (${node.ticker})` : ""}`} className={styles.node}
                       onClick={() => selectCompany(node)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectCompany(node); } }}>
-                      <title>{node.name} · {node.kind === "coverage" ? "Coverage pending" : node.kind === "issuer" ? "Filing issuer" : node.kind === "category" ? "Group mentioned in filing" : "Unresolved company mention"}</title>
+                      <title>{node.name} · {node.kind === "research" ? "Published industry research" : node.kind === "coverage" ? "Coverage pending" : node.kind === "issuer" ? "Filing issuer" : node.kind === "category" ? "Group mentioned in filing" : "Unresolved company mention"}</title>
                       <rect x={point.x - 74} y={point.y - 28} width="148" height="56" rx="10" fill={selectedId === node.id ? "#123345" : "#0d1d2b"} stroke={point.color} strokeOpacity={selectedId === node.id ? 1 : 0.5} strokeWidth={selectedId === node.id ? 2 : 1} strokeDasharray={node.kind === "issuer" ? undefined : "4 3"} />
                       <circle cx={point.x - 59} cy={point.y - 8} r="3" fill={point.color} />
                       <text x={point.x - 49} y={point.y - 4} fill="#f1f5f9" fontSize="12" fontWeight="600">{node.name.length > 18 ? `${node.name.slice(0, 17)}…` : node.name}</text>
@@ -248,20 +248,20 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               <h2>Companies in this view</h2><div className={styles.companyList}>{visible.nodes.map((node) => <button key={node.id} type="button" onClick={() => selectCompany(node)}>{node.name}<span>{node.ticker ?? node.kind}</span></button>)}</div>
               <h2>Filing connections</h2>{visible.edges.length ? visible.edges.map((edge) => <button className={styles.connection} key={edge.id} type="button" onClick={() => openEvidence(edge.id)}>{edgeLabel(edge)}<span>Read evidence →</span></button>) : <p>No connections in this view yet.</p>}
             </div>}
-            <div className={styles.legend}><span>Solid outline: filing issuer</span><span>Dashed: pending coverage, mention or group</span><span>AI-extracted connections · inspect the evidence</span></div>
+            <div className={styles.legend}><span>Solid outline: filing issuer</span><span>Dashed: research, pending coverage, mention or group</span><span>AI-assisted connections · inspect the sources</span></div>
           </div>
 
           <aside ref={detailRef} className={styles.detail} aria-label="Company and relationship details" aria-live="polite">
             {selectedEdge ? <>
               <button className={styles.back} type="button" onClick={() => setEdgeId(null)}>← Back to company</button>
               <p className={styles.eyebrow}>RELATIONSHIP EVIDENCE</p><h2>{edgeLabel(selectedEdge)}</h2>
-              <p className={styles.muted}>Extracted by AI from a filing. Read the source to assess the claim and its context.</p>
+              <p className={styles.muted}>{selectedEdge.evidence.some(e => e.sourceKind === "web") ? "Includes reviewed industry research. Summaries are AI-generated, not source quotations. Read the linked sources for context." : "Extracted by AI from a filing. Read the source to assess the claim and its context."}</p>
               {selectedEdge.evidence.map((evidence) => <article key={evidence.id} className={styles.evidence}>
-                <p className={styles.evidenceMeta}>{evidence.issuerTicker} · 10-K · {evidence.filingDate}</p>
-                <blockquote>“{evidence.quote}”</blockquote>
+                <p className={styles.evidenceMeta}>{evidence.issuerTicker} · {evidence.sourceKind === "web" ? "Industry research" : "10-K"} · {evidence.filingDate}</p>
+                {evidence.sourceKind === "web" ? <p>{evidence.quote}</p> : <blockquote>“{evidence.quote}”</blockquote>}
                 {evidence.qualityReview && <p className={styles.matchNote}>Evidence reviewed {evidence.qualityReview.reviewedAt}: {evidence.qualityReview.reason}</p>}
                 {evidence.nameMatched && <p className={styles.matchNote}>Company connection is based on a name match, pending identity review.</p>}
-                <a href={evidence.filingUrl} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("graph_source_open", { ticker: evidence.issuerTicker, relationship_type: selectedEdge.type })}>Read SEC filing ↗</a>
+                <a href={evidence.filingUrl} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("graph_source_open", { ticker: evidence.issuerTicker, relationship_type: selectedEdge.type })}>{evidence.sourceKind === "web" ? `${evidence.sourceTitle ?? "Read source"} ↗` : "Read SEC filing ↗"}</a>
               </article>)}
               {saveCard}
             </> : selected ? <>
@@ -276,7 +276,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               {(roots.length !== 1 || roots[0] !== selected.id) && <button className={styles.primary} type="button" onClick={() => {
                 selectCompany(selected, true); trackEvent("graph_view_change", { action: "focus_company", ticker: selected.ticker ?? undefined, view_mode: mode });
               }}>Focus on this company</button>}
-              <button className={styles.primary} type="button" disabled={roots.includes(selected.id) || roots.length >= 8 || selected.kind !== "issuer"} onClick={() => {
+              <button className={styles.primary} type="button" disabled={roots.includes(selected.id) || roots.length >= 8 || !["issuer", "research"].includes(selected.kind)} onClick={() => {
                 setRoots((previous) => [...previous, selected.id]); trackEvent("graph_expand", { ticker: selected.ticker ?? undefined });
               }}>{roots.includes(selected.id) ? "Connections in view" : "Expand connections"}</button>
               {roots.length >= 8 && <p className={styles.muted}>Eight companies expanded. Reset the map to explore another area.</p>}
@@ -295,7 +295,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
               <p>Choose a company to trace its suppliers, customers and competitors.</p>
               <ol className={styles.steps}><li><span>01</span>Pick a company or search above.</li><li><span>02</span>Follow a connection to its evidence.</li><li><span>03</span>Expand a neighbor to go deeper.</li></ol>
               <div className={styles.coverage}><strong>{graph.coveredTickers.length} / {graph.nodes.filter((node) => node.ticker).length}</strong><span>companies on this page with published extraction</span></div>
-              <p className={styles.muted}>Coverage starts with US 10-K filings. Private companies and foreign issuers may appear as mentions. Connections are limited to the filings loaded on this page, not the full market.</p>
+              <p className={styles.muted}>Connections combine US 10-K filings and reviewed industry research where available. Coverage is limited to the sources loaded on this page, not the full market. Source dates do not establish whether a relationship remains active.</p>
             </>}
             {notice && <p role="status">{notice}</p>}
             <div className={styles.feedback}><p>What’s missing from this map?</p><Link href="/feedback" onClick={() => trackEvent("graph_feedback_click")}>Help shape YouAnalyst ↗</Link></div>

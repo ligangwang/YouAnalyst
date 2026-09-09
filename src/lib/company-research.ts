@@ -36,5 +36,5 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
 export type CompanyResearch = ReturnType<typeof buildCompanyResearch>;
 
 export function companyResearchDescription(company: CompanyResearch) {
-  return `Research ${company.name} (${company.ticker}): institutional 13F holdings, insider transactions${company.inMap ? ", filing-backed company relationships" : ""}, and public investment views.`;
+  return `Research ${company.name} (${company.ticker}): institutional 13F holdings, insider transactions${company.inMap ? ", sourced company relationships" : ""}, and public investment views.`;
 }

@@ -7,7 +7,7 @@ export type IndustryNode = {
   name: string;
   ticker: string | null;
   segment: IndustrySegment;
-  kind: "issuer" | "mention" | "category" | "coverage";
+  kind: "issuer" | "mention" | "category" | "coverage" | "research";
   aliases?: string[];
   filingForm?: "20-F";
 };
@@ -19,6 +19,8 @@ export type IndustryEvidence = {
   issuerTicker: string;
   nameMatched: boolean;
   qualityReview?: RelationshipQualityReview;
+  sourceKind?: "web";
+  sourceTitle?: string;
 };
 export type IndustryEdge = {
   id: string;
@@ -161,7 +163,7 @@ export function buildIndustryGraph(runs: Record<string, unknown>, companies: Ind
 }
 
 export function selectNeighborhood(graph: IndustryGraph, roots: string[], type: string, categories: boolean, overview = false) {
-  const starters = new Set(graph.nodes.filter((node) => node.kind === "issuer" || node.kind === "coverage").map((node) => node.id));
+  const starters = new Set(graph.nodes.filter((node) => ["issuer", "coverage", "research"].includes(node.kind)).map((node) => node.id));
   const edges = graph.edges.filter((edge) => (type === "all" || edge.type === type) &&
     (!overview || (starters.has(edge.source) && starters.has(edge.target))) &&
     (categories || (!edge.source.startsWith("category:") && !edge.target.startsWith("category:"))) &&
@@ -169,6 +171,6 @@ export function selectNeighborhood(graph: IndustryGraph, roots: string[], type: 
   const visibleIds = new Set([...roots, ...edges.flatMap((edge) => [edge.source, edge.target])]);
   return {
     edges,
-    nodes: graph.nodes.filter((node) => (!roots.length && ["issuer", "coverage"].includes(node.kind)) || visibleIds.has(node.id)),
+    nodes: graph.nodes.filter((node) => (!roots.length && ["issuer", "coverage", "research"].includes(node.kind)) || visibleIds.has(node.id)),
   };
 }

@@ -1,6 +1,6 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 
-export type OpenAiUsagePurpose = "ai_analyst_generation" | "company_graph_extraction";
+export type OpenAiUsagePurpose = "ai_analyst_generation" | "company_graph_extraction" | "industry_research";
 
 type OpenAiPriceRate = {
   input: number;

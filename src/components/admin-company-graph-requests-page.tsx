@@ -174,6 +174,7 @@ export function AdminCompanyGraphRequestsPage() {
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <p className="mb-3 text-sm font-medium text-cyan-200">Admin</p>
+      <Link href="/admin/industry-research" className="mb-4 inline-block text-cyan-200 underline">Industry research</Link>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">Company graph requests</h1>
