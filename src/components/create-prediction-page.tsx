@@ -26,14 +26,16 @@ type WatchlistOption = {
 export function CreatePredictionPage({
   requestedTicker = "",
   requestedWatchlistId = "",
+  requestedDirection,
 }: {
   requestedTicker?: string;
   requestedWatchlistId?: string;
+  requestedDirection?: "UP" | "DOWN";
 }) {
   const router = useRouter();
   const { user, loading, getIdToken, features } = useAuth();
   const [ticker, setTicker] = useState(requestedTicker.trim().toUpperCase());
-  const [direction, setDirection] = useState<"UP" | "DOWN">("UP");
+  const [direction, setDirection] = useState<"UP" | "DOWN">(requestedDirection ?? "UP");
   const [thesisTitle, setThesisTitle] = useState("");
   const [thesis, setThesis] = useState("");
   const [watchlists, setWatchlists] = useState<WatchlistOption[]>([]);
@@ -135,7 +137,7 @@ export function CreatePredictionPage({
           <p className="mb-6 text-sm text-slate-300">You need to be signed in to publish predictions and build your score.</p>
           <button
             type="button"
-            onClick={() => router.push(predictionSignInHref(requestedTicker, requestedWatchlistId))}
+            onClick={() => router.push(predictionSignInHref(requestedTicker, requestedWatchlistId, requestedDirection))}
             className="rounded-full bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-900"
           >
             Sign in
@@ -281,9 +283,10 @@ export function CreatePredictionPage({
                   key={option}
                   type="button"
                   onClick={() => setDirection(option)}
+                  aria-pressed={direction === option}
                   className={`flex-1 rounded-full px-3 py-1.5 text-sm sm:flex-none ${direction === option ? "bg-cyan-400 text-slate-900" : "text-slate-200"}`}
                 >
-                  {option}
+                  {option === "UP" ? "Bullish" : "Bearish"}
                 </button>
               ))}
             </div>

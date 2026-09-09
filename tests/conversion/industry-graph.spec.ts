@@ -46,7 +46,7 @@ test("Sandisk is visible in the overview, searchable and keeps registration cont
   await expect(page.getByRole("heading", { name: "Sandisk", exact: true })).toBeVisible();
   await expect(page.getByText(/company’s own filing has not been added/)).toBeVisible();
   await expect(page.getByRole("link", { name: "View SNDK company page" })).toHaveAttribute("href", "/ticker/SNDK");
-  await expect(page.getByRole("link", { name: /Create.*account|Sign.*save/i })).toHaveAttribute("href", /company%3DSNDK/);
+  await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveAttribute("href", /ticker%3DSNDK.*direction%3DUP/);
 });
 
 test("homepage explores real component, evidence, supplier direction and expansion", async ({ page }) => {
@@ -203,87 +203,40 @@ test("corrected OEM evidence shows distributor direction and the review explanat
 
 test("a visitor can inspect evidence before choosing contextual registration", async ({ page }) => {
   await page.goto(`${origin}/?company=NVDA`);
-  await expect(page.getByRole("link", { name: "Create account to save NVDA" })).toHaveAttribute("href", "/auth?next=%2F%3Fcompany%3DNVDA&mode=register");
+  await expect(page.getByRole("link", { name: "Bullish" })).toHaveAttribute("href", "/auth?next=%2Fpredictions%2Fnew%3Fticker%3DNVDA%26direction%3DUP&mode=register");
   await expect(page.getByRole("button", { name: "Micron supplies NVIDIA 1 source →" })).toBeVisible();
-  await page.getByRole("link", { name: "Create account to save NVDA" }).click();
-  await expect(page).toHaveURL(`${origin}/auth?next=%2F%3Fcompany%3DNVDA&mode=register`);
+  await page.getByRole("link", { name: "Bullish" }).click();
+  await expect(page).toHaveURL(`${origin}/auth?next=%2Fpredictions%2Fnew%3Fticker%3DNVDA%26direction%3DUP&mode=register`);
 });
 
-test("signed-in saves survive reload, reopen the company and can be removed", async ({ page }) => {
+test("signed-in direction actions preserve company and bypass registration", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
-  let tickers: string[] = [];
-  await page.route("**/api/industry-graph/saved", async (route) => {
-    expect(route.request().headers().authorization).toBe("Bearer isolated-test-token");
-    if (route.request().method() === "POST") {
-      const body = route.request().postDataJSON();
-      expect(body.ticker).toBe("NVDA");
-      tickers = body.saved ? ["NVDA"] : [];
-    }
-    await route.fulfill({ json: { tickers } });
-  });
+  await page.route("**/api/industry-graph/saved", route => route.fulfill({ json: { tickers: ["NVDA"] } }));
   await page.goto(`${origin}/?company=NVDA`);
-  await page.getByRole("button", { name: "Save NVDA", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("NVDA saved to your account.");
+  await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveAttribute("href", "/predictions/new?ticker=NVDA&direction=UP");
+  await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", "/predictions/new?ticker=NVDA&direction=DOWN");
+  await expect(page.getByRole("button", { name: "Save NVDA", exact: true })).toHaveCount(0);
   await page.reload();
   const saved = page.getByRole("region", { name: "Your saved companies" });
-  await expect(saved.getByRole("button", { name: "NVDA", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Reset map", exact: true }).click();
   await saved.getByRole("button", { name: "NVDA", exact: true }).click();
   await expect(page.getByRole("heading", { name: "NVIDIA", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Remove saved NVDA", exact: true }).click();
-  await expect(saved.getByRole("button", { name: "NVDA", exact: true })).toHaveCount(0);
-  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
-  expect(events.some((event) => event[1] === "graph_saved_company_open")).toBe(true);
-  expect(events.some((event) => event[1] === "graph_save_complete")).toBe(true);
 });
 
-test("failed save does not claim success and can be retried", async ({ page }) => {
-  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
-  let fail = true;
-  await page.route("**/api/industry-graph/saved", async (route) => {
-    const write = route.request().method() === "POST";
-    await route.fulfill({ status: write && fail ? 503 : 200, json: { tickers: write && !fail ? ["MU"] : [] } });
-  });
-  await page.goto(`${origin}/?company=MU`);
-  await page.getByRole("button", { name: "Save MU", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Could not confirm the change");
-  const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
-  expect(events.some((event) => event[1] === "graph_save_complete")).toBe(false);
-  fail = false;
-  await page.getByRole("button", { name: "Save MU", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("MU saved to your account.");
-});
-
-test("changing accounts hides prior saves and ignores a late save response", async ({ page }) => {
+test("changing accounts hides prior saved shortcuts and updates direction links", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   let reads = 0;
-  let release: (() => void) | undefined;
-  const wait = new Promise<void>((resolve) => { release = resolve; });
-  await page.route("**/api/industry-graph/saved", async (route) => {
-    if (route.request().method() === "POST") {
-      await wait;
-      return route.fulfill({ json: { tickers: ["NVDA", "MU"] } });
-    }
-    reads++;
-    return route.fulfill({ json: { tickers: reads === 1 ? ["MU"] : ["AMD"] } });
-  });
+  await page.route("**/api/industry-graph/saved", route => route.fulfill({ json: { tickers: ++reads === 1 ? ["MU"] : ["AMD"] } }));
   await page.goto(`${origin}/?company=NVDA`);
   const saved = page.getByRole("region", { name: "Your saved companies" });
   await expect(saved.getByRole("button", { name: "MU", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Save NVDA", exact: true }).click();
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: null })));
   await expect(saved).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Create account to save NVDA" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /direction%3DDOWN/);
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: "another-user" })));
   await expect(saved.getByRole("button", { name: "AMD", exact: true })).toBeVisible();
-  const completed = page.waitForResponse((response) => response.url().endsWith("/api/industry-graph/saved") && response.request().method() === "POST");
-  release!();
-  await completed;
-  await expect(saved.getByRole("button", { name: "AMD", exact: true })).toBeVisible();
   await expect(saved.getByRole("button", { name: "MU", exact: true })).toHaveCount(0);
-  await expect(saved.getByRole("button", { name: "NVDA", exact: true })).toHaveCount(0);
 });
-
 test("saved shortcuts wait for graph data before accepting selection", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   let release: (() => void) | undefined;
@@ -314,14 +267,14 @@ test("company search opens evidence without suggesting question answering", asyn
   await page.getByRole("button", { name: "Micron supplies NVIDIA 1 source →", exact: true }).click();
   await expect(page.locator("blockquote")).toContainText("Synthetic test evidence");
   await expect(page.getByRole("link", { name: "Read SEC filing" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Create account to save NVDA" })).toHaveAttribute("href", "/auth?next=%2F%3Fcompany%3DNVDA&mode=register");
-  const save = page.getByRole("link", { name: "Create account to save NVDA" });
+  await expect(page.getByRole("link", { name: "Bullish" })).toHaveAttribute("href", "/auth?next=%2Fpredictions%2Fnew%3Fticker%3DNVDA%26direction%3DUP&mode=register");
+  const save = page.getByRole("link", { name: "Bullish" });
   await save.evaluate((link) => link.addEventListener("click", (event) => event.preventDefault()));
   await save.click();
   const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
   expect(events.some((event) => event[1] === "graph_discovery_open")).toBe(false);
   expect(events.some((event) => event[1] === "graph_search")).toBe(true);
-  expect(events.some((event) => event[1] === "graph_save_intent" && (event[2] as { entry_point?: string }).entry_point === "evidence")).toBe(true);
+  expect(events.some((event) => event[1] === "graph_predict_click" && (event[2] as { entry_point?: string }).entry_point === "evidence")).toBe(true);
   await page.getByRole("button", { name: "Reset map", exact: true }).click();
   await expect(page.getByRole("region", { name: "Start with a question" })).toHaveCount(0);
 });
@@ -331,7 +284,7 @@ test("company selection retains evidence saving and relationship filters", async
   await page.getByRole("searchbox", { name: "Find a company in the map" }).fill("Micron");
   await page.getByRole("button", { name: "Find", exact: true }).click();
   await page.getByRole("button", { name: "Micron supplies NVIDIA 1 source →", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Create account to save MU" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Bullish" })).toBeVisible();
   await page.getByRole("combobox", { name: "Relationship type" }).selectOption("COMPETES_WITH");
   await expect(page.getByText("Company connections", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Evidence: Micron supplies NVIDIA", exact: true })).toHaveCount(0);
@@ -364,7 +317,7 @@ test("published company pages navigate forward and back without a fixed company 
   await expect(page.getByRole("button", { name: "Next companies", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Explore Salesforce (CRM)", exact: true }).click();
   await expect(page.getByRole("link", { name: "View CRM company page" })).toHaveAttribute("href", "/ticker/CRM");
-  await expect(page.getByRole("link", { name: "Create account to save CRM" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Bullish" })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("data-driven-map.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.getByRole("button", { name: "Previous companies", exact: true }).click();
@@ -400,5 +353,5 @@ test("saved companies outside the loaded page can be reopened", async ({ page })
   await expect(saved.getByRole("button", { name: "CRM", exact: true })).toBeEnabled();
   await saved.getByRole("button", { name: "CRM", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Salesforce", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Remove saved CRM", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Bearish", exact: true })).toBeVisible();
 });

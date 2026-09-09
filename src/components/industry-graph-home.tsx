@@ -7,7 +7,7 @@ import { isMapTicker } from "@/lib/industry-graph/directory";
 import { buildIndustryGraph, RELATIONSHIP_LABELS, selectNeighborhood, type IndustryGraph, type IndustryNode } from "@/lib/industry-graph/model";
 import { trackEvent } from "@/lib/analytics";
 import { layoutIndustryGraph } from "@/lib/industry-graph/layout";
-import { mapSignInHref } from "@/lib/industry-graph/saved-companies";
+import { CompanyDirectionActions } from "./company-direction-actions";
 import { useSavedMapCompanies } from "./use-saved-map-companies";
 import styles from "./industry-graph-home.module.css";
 
@@ -126,14 +126,10 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   const selectedInEvidence = !selectedEdge || selected?.id === selectedEdge.source || selected?.id === selectedEdge.target;
   const saveTarget = selectedInEvidence && selected?.ticker ? selected : selectedEdge ? graph.nodes.find((node) => node.ticker === selectedEdge.evidence[0]?.issuerTicker) : null;
   const saveTicker = saveTarget?.ticker;
-  const saveCard = saveTicker ? <section className={styles.saveCard} aria-label="Save company">
-    <h3>Keep this company close</h3>
-    <p>Save {saveTicker} to your account and reopen its connections from your personal list.</p>
-    {savedCompanies.authLoading ? <button type="button" disabled>Loading account…</button> : savedCompanies.signedIn ?
-      <button type="button" disabled={!savedCompanies.ready || savedCompanies.busy} onClick={() => void savedCompanies.toggle(saveTicker)}>
-        {savedCompanies.busy ? "Saving change…" : savedCompanies.tickers.includes(saveTicker) ? `Remove saved ${saveTicker}` : `Save ${saveTicker}`}
-      </button> : <Link href={mapSignInHref(saveTicker)} onClick={() => trackEvent("graph_save_intent", { ticker: saveTicker, action: "sign_in", entry_point: selectedEdge ? "evidence" : "company" })}>Create account to save {saveTicker} →</Link>}
-    {savedCompanies.message && <p role="status">{savedCompanies.message}</p>}
+  const saveCard = saveTicker ? <section className={styles.saveCard} aria-label="Track company">
+    <h3>Your outlook on {saveTicker}</h3>
+    <p>Choose a direction, then confirm your call in a watchlist to track its performance.</p>
+    <CompanyDirectionActions ticker={saveTicker} entryPoint={selectedEdge ? "evidence" : "company"} />
   </section> : null;
 
   return (
@@ -179,14 +175,13 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
           <span>Page {pageCursors.length}</span>
           <button type="button" disabled={!graph.nextCursor || status === "loading"} onClick={() => { reset(); setStatus("loading"); setPageCursors((pages) => [...pages, graph.nextCursor!]); }}>Next companies</button>
         </nav>}
-        {savedCompanies.signedIn && <section className={styles.savedCompanies} aria-label="Your saved companies">
+        {savedCompanies.signedIn && savedCompanies.tickers.length > 0 && <section className={styles.savedCompanies} aria-label="Your saved companies">
           <strong>Your saved companies</strong>
           {savedCompanies.tickers.map((ticker) => <button type="button" key={ticker} disabled={status !== "ready"} onClick={() => {
             const node = graph.nodes.find((item) => item.ticker === ticker);
             if (node) { selectCompany(node, true); trackEvent("graph_saved_company_open", { ticker }); }
             else { setRequestedTicker(ticker); setStatus("loading"); trackEvent("graph_saved_company_open", { ticker }); }
           }}>{ticker}</button>)}
-          {savedCompanies.ready && !savedCompanies.tickers.length && <span>Select a company below to save your first one.</span>}
           {!savedCompanies.ready && !savedCompanies.failed && <span>Loading saved companies…</span>}
           {savedCompanies.failed && <><span>Saved companies are unavailable.</span><button type="button" onClick={savedCompanies.retry}>Retry saved companies</button></>}
         </section>}
