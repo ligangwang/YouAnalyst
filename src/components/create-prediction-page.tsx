@@ -47,6 +47,8 @@ export function CreatePredictionPage({
   const [timeHorizonValue, setTimeHorizonValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [watchlistAttempt, setWatchlistAttempt] = useState(0);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
 
   const isValidTicker = isValidTickerFormat(ticker);
   const trimmedThesisTitleLength = thesisTitle.trim().length;
@@ -90,14 +92,20 @@ export function CreatePredictionPage({
     }
 
     let cancelled = false;
+    setWatchlistError(null);
     void getIdToken()
       .then(async (token) => {
+        if (!token) throw new Error("Sign in again to load your watchlists.");
         const headers = token ? { authorization: `Bearer ${token}` } : undefined;
+        const defaultResponse = await fetch("/api/watchlists/default", { method: "POST", headers });
+        if (!defaultResponse.ok) throw new Error("Unable to prepare your watchlist. Please retry.");
+        const defaultWatchlist = await defaultResponse.json() as { id: string };
         const response = await fetch(`/api/watchlists?userId=${encodeURIComponent(user.uid)}`, { headers });
         if (!response.ok) {
           throw new Error("Unable to load watchlists.");
         }
-        return (await response.json()) as { items: WatchlistOption[] };
+        const payload = await response.json() as { items: WatchlistOption[] };
+        return { ...payload, defaultId: defaultWatchlist.id };
       })
       .then((payload) => {
         if (cancelled) {
@@ -111,19 +119,19 @@ export function CreatePredictionPage({
           if (requestedWatchlistId && payload.items.some((watchlist) => watchlist.id === requestedWatchlistId)) {
             return requestedWatchlistId;
           }
-          return payload.items[0]?.id || "";
+          return payload.items.find(item => item.id === payload.defaultId)?.id ?? payload.items[0]?.id ?? "";
         });
       })
       .catch((nextError) => {
         if (!cancelled) {
-          setError(nextError instanceof Error ? nextError.message : "Unable to load watchlists.");
+          setWatchlistError(nextError instanceof Error ? nextError.message : "Unable to load watchlists.");
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [getIdToken, requestedWatchlistId, user]);
+  }, [getIdToken, requestedWatchlistId, user, watchlistAttempt]);
 
   if (loading) {
     return <main className="mx-auto w-full max-w-3xl px-4 py-8 text-sm text-slate-300">Loading...</main>;
@@ -294,6 +302,7 @@ export function CreatePredictionPage({
 
           <div className="grid gap-2">
             <label className="text-sm text-slate-200" htmlFor="watchlist">Watchlist</label>
+            {watchlistError && <div role="alert" className="text-sm text-rose-200">{watchlistError} <button type="button" className="underline" onClick={() => setWatchlistAttempt(value => value + 1)}>Retry watchlists</button></div>}
             {watchlists.length > 0 ? (
               <select
                 id="watchlist"
@@ -309,7 +318,7 @@ export function CreatePredictionPage({
               </select>
             ) : (
               <p className="rounded-xl border border-dashed border-cyan-400/25 bg-cyan-500/5 px-3 py-2 text-sm text-slate-300">
-                Create your first watchlist before publishing this prediction.
+                Preparing your watchlist…
               </p>
             )}
             {selectedWatchlist && !selectedWatchlist.isPublic ? (

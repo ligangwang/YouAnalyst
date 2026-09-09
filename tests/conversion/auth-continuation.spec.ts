@@ -36,6 +36,27 @@ test("signed-out composer preserves bearish direction through its sign-in action
   expect(new URL(page.url()).searchParams.get("next")).toBe("/predictions/new?ticker=AMD&direction=DOWN");
 });
 
+test("empty account receives a default before list loading, with retry after failure", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let ready = false;
+  let attempts = 0;
+  await page.route(`${origin}/api/watchlists/default`, route => {
+    ready = ++attempts > 1;
+    return route.fulfill(ready ? { json: { id: "new-default" } } : { status: 503, json: {} });
+  });
+  await page.route(`${origin}/api/watchlists?*`, route => {
+    expect(ready).toBe(true);
+    return route.fulfill({ json: { items: [{ id: "new-default", name: "My Watchlist", isPublic: true }] } });
+  });
+  await page.goto(`${origin}/predictions/new?ticker=AMD&direction=DOWN`);
+  await expect(page.getByRole("alert")).toContainText("Unable to prepare your watchlist");
+  await expect(page.getByRole("button", { name: "Publish prediction", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Retry watchlists" }).click();
+  await expect(page.locator("#watchlist")).toHaveValue("new-default");
+  await expect(page.getByRole("button", { name: "Bearish", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Publish prediction", exact: true })).toBeEnabled();
+});
+
 test("auth views identify the save funnel once without leaking the destination", async ({ page }) => {
   await page.goto(`${origin}/auth?${new URLSearchParams({ next: "/?company=NVDA", mode: "register" })}`);
   await page.getByRole("textbox", { name: "Email", exact: true }).fill("private@example.invalid");
@@ -137,6 +158,10 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.origin === origin && url.pathname === "/api/watchlists/default" && request.method() === "POST") {
+      expect(request.headers().authorization).toBe("Bearer isolated-test-token");
+      return route.fulfill({ json: { id: "default" } });
+    }
     if (url.origin === origin && url.pathname === "/api/industry-graph/saved" && request.method() === "POST") {
       const body = request.postDataJSON();
       expect(body.saved).toBe(true);
