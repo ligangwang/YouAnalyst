@@ -2,7 +2,8 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 
 const DEFAULT_COUNTRY = "United States";
 const DEFAULT_CURRENCY = "USD";
-const DEFAULT_TYPES = ["Common Stock", "ETF"];
+// US-listed foreign companies such as TSM can be classified as depositary receipts.
+const DEFAULT_TYPES = ["Common Stock", "ETF", "American Depositary Receipt", "Depositary Receipt"];
 const TICKER_WRITE_BATCH_SIZE = 450;
 const MAX_PREFIX_LENGTH = 16;
 const NAME_PREFIX_MIN_LENGTH = 2;

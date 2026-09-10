@@ -24,7 +24,7 @@ on:
       types:
         description: Comma-separated Twelve Data type filter
         required: true
-        default: Common Stock,ETF
+        default: Common Stock,ETF,American Depositary Receipt,Depositary Receipt
         type: string
       limit:
         description: Optional max filtered tickers to process

@@ -18,6 +18,12 @@ Review the company identities, direction, date and linked source for each propos
 
 The map reads up to 120 published research relationships, plus up to 80 outgoing and 80 incoming records for a requested ticker, and joins existing map nodes by ticker. Exact ticker lookup can reach companies outside the overview. This is a bounded preview, not a claim of market completeness. The existing filing cursor pages filings, not research. Larger research coverage will need its own industry selector and pagination. Web research is labeled separately and does not increase the count of companies with published filing extractions. New published companies need no deployment and appear after the existing five-minute cache expires. Industry research companies are not yet added to the sitemap automatically.
 
+### Ticker Directory Recovery
+
+If publishing reports that a ticker has no supported active listing, refresh the ticker directory before retrying the saved draft. The default ticker sync includes common stocks, ETFs, American Depositary Receipts and Depositary Receipts traded in the United States in USD. Older syncs excluded depositary receipts such as TSM.
+
+After deploying the updated sync, call `POST /api/internal/sync-tickers` using the configured internal authentication, first with `{"dryRun":true}` to review the result, then with `{"dryRun":false}` to import it. Omit `types` to use the updated defaults and omit `limit` for the full directory. Existing jobs that explicitly pass only `Common Stock` and `ETF` must also update or remove their `types` override. The sync merges listing records; it does not publish research. Retry **Publish reviewed connections** on the existing draft after the sync succeeds.
+
 ### Spending And Recovery
 
 The server enforces three submitted batches per UTC day, at most eight built-in tool calls and 12,000 output tokens per batch. These bound work, not an exact dollar cost: input/search-content tokens and tool fees also apply. Token usage is recorded with purpose `industry_research`; its token-cost estimate excludes search-tool fees, while each run records the number of tool calls. No scheduler is enabled.
