@@ -98,7 +98,8 @@ function main() {
   const fileData = readFileSync(filePath, "utf-8");
   const parsed = JSON.parse(fileData) as FirestoreIndexesFile;
 
-  const indexes = parsed.indexes ?? [];
+  const groups = process.env.FIRESTORE_COLLECTION_GROUPS?.split(",").map(value => value.trim()).filter(Boolean);
+  const indexes = (parsed.indexes ?? []).filter(index => !groups?.length || groups.includes(index.collectionGroup));
   if (indexes.length === 0) {
     console.log("No composite indexes defined. Skipping.");
     return;

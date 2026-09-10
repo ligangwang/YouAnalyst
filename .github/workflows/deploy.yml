@@ -624,6 +624,17 @@ jobs:
             echo "Skipping bucket smoke test; custom source staging is disabled"
           fi
 
+      - name: Initialize public event feed from verified filings
+        env:
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+        run: npx tsx scripts/events/bootstrap.ts
+
+      - name: Apply filing ingestion and monitoring indexes
+        env:
+          FIRESTORE_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+          FIRESTORE_COLLECTION_GROUPS: sec_insider_filings,sec_13f_filings
+        run: npm run firestore:indexes:apply
+
       - name: Deploy production
         env:
           GOOGLE_CLOUD_PROJECT: ${{ env.GCP_PROJECT_ID }}
