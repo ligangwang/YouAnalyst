@@ -572,16 +572,8 @@ function formatPositionPrice(value: number): string {
   }).format(value);
 }
 
-function formatPositionReturn(value: number): string {
-  return `${value > 0 ? "+" : ""}${new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-    style: "percent",
-  }).format(value)}`;
-}
-
 export function TickerPage({ ticker, overview }: { ticker: string; overview?: ReactNode }) {
-  const { user, loading: authLoading, getIdToken } = useAuth();
+  const { loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<TickerResponse | null>(null);
   const [holdings, setHoldings] = useState<InstitutionalTickerSummary | null>(null);
   const [insiderTransactions, setInsiderTransactions] = useState<InsiderTransactionItem[] | null>(null);
@@ -589,10 +581,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
   const [holdingsError, setHoldingsError] = useState<string | null>(null);
   const [insiderError, setInsiderError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [recordingDirection, setRecordingDirection] = useState<"UP" | "DOWN" | null>(null);
-  const [positionError, setPositionError] = useState<string | null>(null);
   const displayTicker = formatTickerSymbol(payload?.ticker ?? ticker);
-  const viewerPosition = payload?.viewerPosition ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -712,46 +701,6 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
     }
   }
 
-  async function recordPosition(direction: "UP" | "DOWN") {
-    if (!user) {
-      window.location.href = `/auth?next=${encodeURIComponent(`/ticker/${payload?.ticker ?? ticker}`)}`;
-      return;
-    }
-
-    setRecordingDirection(direction);
-    setPositionError(null);
-    try {
-      const token = await getIdToken();
-      if (!token) {
-        throw new Error("Sign in to record your position.");
-      }
-      const response = await fetch(`/api/ticker/${encodeURIComponent(payload?.ticker ?? ticker)}/position`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ direction }),
-      });
-      const body = (await response.json().catch(() => ({}))) as ErrorResponse & { id?: string };
-      if (!response.ok) {
-        throw new Error(readErrorMessage(body, "Unable to record your position."));
-      }
-
-      const refreshed = await fetch(`/api/ticker/${encodeURIComponent(payload?.ticker ?? ticker)}?limit=25`, {
-        headers: { authorization: `Bearer ${token}` },
-      });
-      if (!refreshed.ok) {
-        throw new Error("Position recorded, but the page could not refresh.");
-      }
-      setPayload(await refreshed.json() as TickerResponse);
-    } catch (nextError) {
-      setPositionError(nextError instanceof Error ? nextError.message : "Unable to record your position.");
-    } finally {
-      setRecordingDirection(null);
-    }
-  }
-
   if (!payload) {
     return (
       <main className="mx-auto w-full max-w-6xl px-4 py-8 text-sm text-slate-300">
@@ -774,58 +723,6 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               Public calls, watchlists, and institutional 13F context for {displayTicker}.
             </p>
-          </div>
-          <div className="w-full lg:max-w-md">
-            {viewerPosition ? (
-              <div className={`rounded-xl border p-4 ${viewerPosition.direction === "UP" ? "border-emerald-400/35 bg-emerald-400/10" : "border-rose-400/35 bg-rose-400/10"}`}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Your position</p>
-                <p className="mt-1 text-lg font-semibold text-white">
-                  {viewerPosition.direction === "UP" ? "Bullish · Long" : "Bearish · Short"}
-                </p>
-                {viewerPosition.entryPrice !== null && viewerPosition.entryDate ? (
-                  <p className="mt-1 text-sm text-slate-200">
-                    Opened {viewerPosition.entryDate} at {formatPositionPrice(viewerPosition.entryPrice)}
-                  </p>
-                ) : (
-                  <p className="mt-1 text-sm text-slate-200">
-                    Recorded {viewerPosition.createdAt.slice(0, 10)} · entry pending next EOD close
-                  </p>
-                )}
-                {typeof viewerPosition.markReturnValue === "number" ? (
-                  <p className="mt-2 text-sm font-semibold text-cyan-100">
-                    Return {formatPositionReturn(viewerPosition.markReturnValue)}
-                    {viewerPosition.markPriceDate ? ` as of ${viewerPosition.markPriceDate}` : ""}
-                  </p>
-                ) : null}
-                <Link href={`/predictions/${viewerPosition.id}`} className="mt-2 inline-block text-sm font-semibold text-cyan-200 hover:text-cyan-100">
-                  View and share
-                </Link>
-              </div>
-            ) : (
-              <div>
-                <p className="mb-2 text-sm text-slate-300">What is your view on {displayTicker}?</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void recordPosition("UP")}
-                    disabled={authLoading || recordingDirection !== null}
-                    className="rounded-xl border border-emerald-400/40 bg-emerald-400/15 px-4 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/25 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {recordingDirection === "UP" ? "Recording..." : "Bullish · Long"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void recordPosition("DOWN")}
-                    disabled={authLoading || recordingDirection !== null}
-                    className="rounded-xl border border-rose-400/40 bg-rose-400/15 px-4 py-3 text-sm font-semibold text-rose-100 hover:bg-rose-400/25 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {recordingDirection === "DOWN" ? "Recording..." : "Bearish · Short"}
-                  </button>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-slate-500">Public position · entry recorded at the next EOD close.</p>
-                {positionError ? <p className="mt-2 text-sm text-rose-200">{positionError}</p> : null}
-              </div>
-            )}
           </div>
         </div>
       </section>
