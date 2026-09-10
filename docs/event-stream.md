@@ -29,8 +29,11 @@ not trading recommendations or assertions about current institutional positions.
 ## Rollout and later consumers
 
 Existing ingestion schedules populate the collection as filings are processed.
-There is no automatic historical backfill or new paid data provider. Existing
-reprocessing tools can publish older filings using the same deduplication path.
+Production deployment initializes an empty store with up to 30 already-parsed
+insider filings and 30 completed institutional filings. The import uses saved SEC
+facts, retains the historical filing date, and records today's publication time.
+It uses create-only writes and skips a populated stream. No source reprocessing or
+paid provider is needed. The deployment also applies the filing queue/monitor indexes.
 
 The home page now loads its first page on the server and subscribes to
 `GET /api/events/stream` using browser EventSource. The server shares one bounded
