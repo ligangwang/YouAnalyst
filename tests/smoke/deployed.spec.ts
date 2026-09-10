@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
 import { isMapTicker } from "../../src/lib/industry-graph/directory";
+import { publicEventFromDocument } from "../../src/lib/events/model";
+
+test("public event API returns a bounded page of approved public facts", async ({ request }) => {
+  const response = await request.get("/api/events?limit=2");
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(Array.isArray(body.items)).toBe(true);
+  expect(body.items.length).toBeLessThanOrEqual(2);
+  for (const event of body.items) expect(publicEventFromDocument(event.id, event)).toEqual(event);
+  expect(body.nextCursor === null || typeof body.nextCursor === "string").toBe(true);
+  expect((await request.get("/api/events?limit=500")).status()).toBe(400);
+});
 
 function savedCompanyHeaders(userToken?: string): Record<string, string> {
   const serviceToken = process.env.PLAYWRIGHT_AUTH_BEARER_TOKEN;

@@ -1,0 +1,39 @@
+# Shared public event store
+
+`events/{type}-{accessionNumber}` stores one public SEC filing event per accession.
+The first producers are the existing Form 4 and 13F processing workers. They publish
+after source processing succeeds; dry runs do not publish. Publication failures
+propagate to the existing job retry path. Reprocessing replaces the public facts
+but preserves the first `publishedAt` value in a Firestore transaction.
+
+The store contains public source facts only. Private watchlist calls, personal
+feed delivery, and read/saved/dismissed state do not belong in this collection.
+No client writes or direct database access are introduced. Existing Firestore
+default-deny rules apply; the server read API projects only approved fields.
+
+## Read API
+
+`GET /api/events?limit=30` returns `{ items, nextCursor }` in descending publication
+order. Limits must be integers from 1 to 50. Pass the opaque `nextCursor` as `cursor`
+to retrieve the next page. Publication time plus document ID provides deterministic
+ordering for timestamp ties. No composite index is needed for this global query.
+Bad input returns 400; storage failure returns 503 without internal error details.
+An empty store returns an empty page, not sample data. Writes are server-only.
+
+`occurredAt` is the SEC filing date, with `occurredAtPrecision: "date"`; it is not
+an invented filing timestamp or an insider's transaction date. `publishedAt` is when
+YouAnalyst first published the event; `updatedAt` records the latest processing.
+Amendments have their own accession and event. Events describe processed filings,
+not trading recommendations or assertions about current institutional positions.
+
+## Rollout and later consumers
+
+Existing ingestion schedules populate the collection as filings are processed.
+There is no automatic historical backfill or new paid data provider. Existing
+reprocessing tools can publish older filings using the same deduplication path.
+
+Future work: a bounded realtime listener with explicit read rules; ticker/type
+queries with their corresponding indexes; personalized event references under
+`users/{uid}/feed/{eventId}`; and separate per-user event state. Private activity
+must stay in access-controlled personal feeds. The home page is unchanged in this
+foundation release.
