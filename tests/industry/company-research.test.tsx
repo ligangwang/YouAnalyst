@@ -41,8 +41,10 @@ test("company identity, evidence and crawlable links are present without browser
   require.extensions[".css"] = module => { module.exports = {}; };
   const { CompanyResearchOverview, AuthProvider } = await (async () => {
     try {
-      const { CompanyResearchOverview } = await import("../../src/components/company-research-overview");
-      const { AuthProvider } = await import("../../src/components/providers/auth-provider");
+      // Use the same CommonJS loader as tsx's internal component imports so the
+      // provider and consumer share a context on both Node 20 and Node 24.
+      const { CompanyResearchOverview } = require("../../src/components/company-research-overview") as typeof import("../../src/components/company-research-overview");
+      const { AuthProvider } = require("../../src/components/providers/auth-provider") as typeof import("../../src/components/providers/auth-provider");
       return { CompanyResearchOverview, AuthProvider };
     } finally {
       if (previous) require.extensions[".css"] = previous;
