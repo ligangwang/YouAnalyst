@@ -161,6 +161,9 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
+      - name: Seed A-share company directory
+        run: npx tsx scripts/seed-china-companies.ts
+
       - name: Initialize company map directory
         if: github.event_name == 'workflow_dispatch' && inputs.maintenance
         run: npx tsx scripts/migrate-map-directory.ts
@@ -630,6 +633,9 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
+
+      - name: Seed A-share company directory
+        run: npx tsx scripts/seed-china-companies.ts
 
       - name: Initialize company map directory
         if: github.event_name == 'workflow_dispatch' && inputs.maintenance

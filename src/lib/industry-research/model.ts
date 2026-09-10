@@ -1,5 +1,6 @@
 import { INDUSTRY_SEGMENTS, type IndustryCompany } from "../industry-graph/catalog";
 import type { IndustryGraph, IndustryEdge } from "../industry-graph/model";
+import type { ChinaCompany } from "./china";
 
 export const RESEARCH_VERSION = 1;
 export const MAX_COMPANIES = 30;
@@ -9,7 +10,7 @@ export type ResearchRelationship = {
   id: string; source: string; target: string; type: "SUPPLIER_OF" | "PARTNER_OF" | "COMPETES_WITH";
   evidence: ResearchEvidence[];
 };
-export type ResearchResult = { companies: IndustryCompany[]; relationships: ResearchRelationship[]; withheld: number };
+export type ResearchResult = { companies: IndustryCompany[]; relationships: ResearchRelationship[]; withheld: number; chinaCompanies?: ChinaCompany[] };
 export function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }

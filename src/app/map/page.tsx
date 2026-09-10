@@ -14,7 +14,7 @@ type MapSearchParams = { company?: string | string[]; market?: string | string[]
 export async function generateMetadata({ searchParams }: { searchParams: Promise<MapSearchParams> }): Promise<Metadata> {
   const { company, market } = await searchParams;
   const selected = parseMarket(market) ?? parseMarket((await headers()).get("x-ya-market")) ?? "US";
-  if (selected === "CN_A") return localizedMetadata({ title: "A-share AI supply chain | YouAnalyst", description: "Explore A-share companies behind AI chips, connections, servers and cooling through original disclosures.", alternates: { canonical: "/map?market=CN_A" }, openGraph: { title: "A-share AI supply chain | YouAnalyst", url: "/map?market=CN_A" } });
+  if (selected === "CN_A") return localizedMetadata({ title: "A-share industries | YouAnalyst", description: "Explore reviewed A-share companies by business and industry, with links to original disclosures.", alternates: { canonical: "/map?market=CN_A" }, openGraph: { title: "A-share industries | YouAnalyst", url: "/map?market=CN_A" } });
   const nvidia = typeof company === "string" && company.toUpperCase() === "NVDA";
   const image = {
     url: absoluteUrl(`/map/share-image${nvidia ? "?company=NVDA&v=1" : "?v=1"}`),
