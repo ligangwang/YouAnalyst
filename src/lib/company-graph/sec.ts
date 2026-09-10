@@ -61,8 +61,9 @@ async function fetchSecJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function fetchSecText(url: string): Promise<string> {
+async function fetchSecText(url: string, signal?: AbortSignal): Promise<string> {
   const response = await fetch(url, {
+    signal,
     headers: {
       accept: "text/html,application/xhtml+xml,text/plain",
       "user-agent": getSecUserAgent(),
@@ -445,8 +446,8 @@ export async function fetchLatest10K(cik: string): Promise<SecLatest10K> {
   };
 }
 
-export async function fetchLatest10KSections(cik: string, filing: SecLatest10K): Promise<SecFilingSection[]> {
-  const html = await fetchSecText(filing.filingUrl);
+export async function fetchLatest10KSections(cik: string, filing: SecLatest10K, signal?: AbortSignal): Promise<SecFilingSection[]> {
+  const html = await fetchSecText(filing.filingUrl, signal);
   const anchoredSections = extractAnchoredSections(html);
   const text = htmlToText(html);
   const fallbackSections = [

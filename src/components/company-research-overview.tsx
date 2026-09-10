@@ -1,8 +1,9 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { CompanyResearch } from "@/lib/company-research";
 import { CompanyDirectionActions } from "./company-direction-actions";
 
-export function CompanyResearchOverview({ company }: { company: CompanyResearch }) {
+export function CompanyResearchOverview({ company, fundamentals }: { company: CompanyResearch; fundamentals?: ReactNode }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType], ["Map segment", company.segment]].filter(([, value]) => value);
   return <>
@@ -22,11 +23,13 @@ export function CompanyResearchOverview({ company }: { company: CompanyResearch 
       <CompanyDirectionActions ticker={company.ticker} />
       </div>}
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
+        {fundamentals && <a href="#company-fundamentals">Business and financials</a>}
         {company.inMap && <a href="#company-relationships">Company relationships</a>}
         <a href="#insider-transactions">Insider transactions</a>
         <a href="#institutional-holdings">Institutional holdings</a>
       </nav>
     </header>
+    {fundamentals}
     {company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker} suppliers, customers and competitors</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? `${company.connections.length} relationships in the loaded sources. ` : ""}These are AI-assisted research and filing claims, not a complete or independently verified account of the business. Source dates do not establish whether a relationship remains active.</p>

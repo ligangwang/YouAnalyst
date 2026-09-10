@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { CompanyFundamentalsLoader } from "@/components/company-fundamentals-loader";
 import { TickerPage } from "@/components/ticker-page";
 import { normalizeTicker } from "@/lib/predictions/types";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -62,6 +64,10 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} />} />
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} fundamentals={
+      <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400">Loading SEC business and financials…</p>}>
+        <CompanyFundamentalsLoader ticker={ticker} />
+      </Suspense>
+    } />} />
   </>;
 }
