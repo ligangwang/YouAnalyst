@@ -271,8 +271,8 @@ export function CreatePredictionPage({
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Create prediction</h1>
-        <p className="mb-6 text-sm text-slate-300">Open your thesis with a direction. Entry price will be captured at next end of day (EOD) job.</p>
+        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Track your outlook</h1>
+        <p className="mb-6 text-sm text-slate-300">Choose a company and a direction. Your watchlist keeps the record so you can come back and see how your call develops.</p>
 
         <div className="grid gap-4">
           <div className="grid gap-2">
@@ -321,13 +321,15 @@ export function CreatePredictionPage({
                 Preparing your watchlist…
               </p>
             )}
-            {selectedWatchlist && !selectedWatchlist.isPublic ? (
-              <p className="text-xs text-amber-200">
-                This watchlist is private, so this prediction will be private too.
+            {selectedWatchlist ? (
+              <p className="text-xs text-slate-300">
+                {selectedWatchlist.isPublic ? "This watchlist is public. Your published call and reasoning will be visible to others." : "This watchlist is private, so this prediction will be private too."}
               </p>
             ) : null}
             {watchlists.length < 5 ? (
-              <div className="grid gap-2">
+              <details className="rounded-xl border border-white/10 p-3">
+                <summary className="cursor-pointer text-sm text-cyan-200">Create another watchlist</summary>
+                <div className="mt-3 grid gap-2">
                 <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                   <input
                     type="text"
@@ -377,10 +379,14 @@ export function CreatePredictionPage({
                     ) : null}
                   </div>
                 ) : null}
-              </div>
+                </div>
+              </details>
             ) : null}
           </div>
 
+          <details className="rounded-xl border border-white/10 p-4">
+            <summary className="cursor-pointer text-sm text-cyan-200">Add reasoning or a time horizon (optional)</summary>
+            <div className="mt-4 grid gap-4">
           <div className="grid gap-2">
             <label className="text-sm text-slate-200" htmlFor="time-horizon-unit">Open until (optional)</label>
             <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
@@ -459,6 +465,9 @@ export function CreatePredictionPage({
             {thesisErrorMessage ? <p className="text-xs text-rose-300">{thesisErrorMessage}</p> : null}
           </div>
 
+            </div>
+          </details>
+          <p className="text-xs leading-relaxed text-slate-400">The starting price is recorded at the next end-of-day update. Tracking begins once that price is available. This records a directional call; it does not place a trade.</p>
           <button
             type="button"
             onClick={() => void submit()}

@@ -116,3 +116,8 @@
   .canvas { max-height: 460px; } .canvasTools > span { max-width: 170px; } .legend { font-size: 10px; }
   .detail h2 { font-size: 22px; } .switcher button { padding: 8px; } .bottom { line-height: 1.7; }
 }
+.getStarted { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 24px; margin-bottom: 24px; padding: 18px 22px; border: 1px solid #2b495d; border-radius: 12px; background: #102332; }
+.getStarted div { flex: 1 1 280px; }
+.getStarted strong { color: #e4eef6; font-size: 15px; }
+.getStarted p { margin-top: 6px; color: #a9bece; font-size: 13px; line-height: 1.6; }
+.getStarted a { display: inline-flex; align-items: center; min-height: 44px; color: #9eeef9; font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
