@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { publishFilingEvent } from "@/lib/events/service";
 import { FieldPath } from "firebase-admin/firestore";
 import { getAdminFirestore, getAdminStorageBucket } from "@/lib/firebase/admin";
 import { buildInstitutionSearchPrefixes, institutionNameSearchText } from "@/lib/securities/institution-search";
@@ -940,6 +941,16 @@ export async function parseAndPersist13FFiling(input: {
     dryRun: input.dryRun,
     updatedAt: input.updatedAt,
   });
+
+  if (!input.dryRun) {
+    await publishFilingEvent({
+      type: "SEC_13F", accessionNumber: filing.accessionNumber,
+      filingDate: filing.filingDate, sourceUrl: filing.filingUrl,
+      entityName: filing.managerName,
+      tickers: holdings.flatMap(holding => holding.ticker ? [holding.ticker] : []),
+      amended: filing.form === "13F-HR/A",
+    });
+  }
 
   return {
     managerCik: filing.managerCik,

@@ -1,4 +1,5 @@
 import { FieldValue } from "firebase-admin/firestore";
+import { publishFilingEvent } from "@/lib/events/service";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { normalizeInsiderTransactionAmounts } from "@/lib/securities/insider-transaction-values";
 
@@ -499,6 +500,17 @@ async function persistTransactions(input: {
 
     await batch.commit();
     written += chunk.length;
+  }
+
+  // Publish before marking PARSED so a failed event write remains retryable.
+  if (input.transactions.length) {
+    await publishFilingEvent({
+      type: "SEC_FORM4", accessionNumber: input.filing.accessionNumber,
+      filingDate: input.filing.filingDate, sourceUrl: input.filing.filingUrl,
+      entityName: input.transactions[0].issuerName,
+      tickers: input.transactions.flatMap(transaction => transaction.ticker ? [transaction.ticker] : []),
+      amended: input.filing.form === "4/A",
+    });
   }
 
   await db.collection("sec_insider_filings").doc(input.filing.accessionNumber).set({
