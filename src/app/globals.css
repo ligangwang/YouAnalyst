@@ -7,6 +7,11 @@
   --color-ink: #07111d;
   --color-shell: #0f172a;
   --color-line: rgba(255, 255, 255, 0.12);
+  --text-secondary: #9ba8b7;
+  --text-muted: #8794a4;
+  --surface-hover: #ffffff10;
+  --surface-selected: #ffffff12;
+  --radius-control: 10px;
 }
 
 @theme inline {
@@ -43,7 +48,7 @@ button:disabled {
   outline-offset: 3px;
 }
 
-nav a[aria-current="page"] { color: #a5f3fc; background: #164e6340; border-radius: 6px; }
+nav a[aria-current="page"] { color: var(--foreground); background: var(--surface-selected); border-radius: var(--radius-control); }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

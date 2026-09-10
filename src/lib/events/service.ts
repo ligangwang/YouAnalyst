@@ -1,4 +1,5 @@
-import { FieldPath, type Firestore, type QuerySnapshot } from "firebase-admin/firestore";
+import { type EventFilter } from "./filters";
+import { FieldPath, type Firestore, type Query, type QuerySnapshot } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { EVENT_PAGE_SIZE, MAX_EVENT_PAGE_SIZE, filingEvent, isEventTimestamp, publicEventFromDocument, type FilingEventInput } from "./model";
 
@@ -29,10 +30,10 @@ export async function publishFilingEvent(input: FilingEventInput, dependencies: 
   });
 }
 
-export async function listPublicEvents(input: { limit?: number; cursor?: EventCursor } = {}) {
+export async function listPublicEvents(input: { limit?: number; cursor?: EventCursor; type?: EventFilter } = {}, db = getAdminFirestore()) {
   const limit = Math.max(1, Math.min(MAX_EVENT_PAGE_SIZE, Math.trunc(input.limit ?? EVENT_PAGE_SIZE)));
   // The shared collection is public-only. Private calls never enter this store.
-  let query = getAdminFirestore().collection("events").orderBy("publishedAt", "desc").orderBy(FieldPath.documentId(), "desc");
+  let query = publicEventsQuery(input.type ?? "all", db);
   if (input.cursor) query = query.startAfter(input.cursor.publishedAt, input.cursor.id);
   const snapshot = await query.limit(limit + 1).get();
   return publicEventPage(snapshot, limit);
@@ -48,33 +49,45 @@ function publicEventPage(snapshot: QuerySnapshot, limit: number) {
 
 export type PublicEventPage = Awaited<ReturnType<typeof listPublicEvents>>;
 
-/** One bounded Firestore listener per active server instance, shared by its viewers. */
-const viewers = new Set<{ next: (page: PublicEventPage) => void; error: () => void }>();
-let stopWatching: (() => void) | null = null;
-let latestPage: PublicEventPage | null = null;
+function publicEventsQuery(type: EventFilter, db: Firestore): Query {
+  let query: Query = db.collection("events");
+  if (type !== "all") query = query.where("type", "==", type);
+  return query.orderBy("publishedAt", "desc").orderBy(FieldPath.documentId(), "desc");
+}
 
-export function subscribePublicEvents(next: (page: PublicEventPage) => void, error: () => void): () => void {
+type Viewer = { next: (page: PublicEventPage) => void; error: () => void };
+type Hub = { viewers: Set<Viewer>; stop: (() => void) | null; latest: PublicEventPage | null };
+/** One bounded listener per active filter, shared by viewers on this server. */
+const hubs = new Map<EventFilter, Hub>();
+
+export function subscribePublicEvents(next: Viewer["next"], error: Viewer["error"], type: EventFilter = "all", db = getAdminFirestore()): () => void {
+  let hub = hubs.get(type);
+  if (!hub) { hub = { viewers: new Set(), stop: null, latest: null }; hubs.set(type, hub); }
+  const currentHub = hub;
   const viewer = { next, error };
-  viewers.add(viewer);
-  if (latestPage) next(latestPage);
-  if (!stopWatching) {
+  currentHub.viewers.add(viewer);
+  if (currentHub.latest) next(currentHub.latest);
+  if (!currentHub.stop) {
     try {
-    stopWatching = getAdminFirestore().collection("events").orderBy("publishedAt", "desc")
-      .orderBy(FieldPath.documentId(), "desc").limit(EVENT_PAGE_SIZE + 1).onSnapshot(snapshot => {
-        latestPage = publicEventPage(snapshot, EVENT_PAGE_SIZE);
-        for (const current of [...viewers]) current.next(latestPage);
+      currentHub.stop = publicEventsQuery(type, db).limit(EVENT_PAGE_SIZE + 1).onSnapshot(snapshot => {
+        currentHub.latest = publicEventPage(snapshot, EVENT_PAGE_SIZE);
+        for (const current of [...currentHub.viewers]) current.next(currentHub.latest);
       }, () => {
-        latestPage = null;
-        stopWatching?.(); stopWatching = null;
-        for (const current of [...viewers]) current.error();
+        currentHub.stop?.(); currentHub.stop = null; currentHub.latest = null;
+        if (hubs.get(type) === currentHub) hubs.delete(type);
+        for (const current of [...currentHub.viewers]) current.error();
       });
     } catch (cause) {
-      viewers.delete(viewer);
+      currentHub.viewers.delete(viewer);
+      if (!currentHub.viewers.size && hubs.get(type) === currentHub) hubs.delete(type);
       throw cause;
     }
   }
   return () => {
-    viewers.delete(viewer);
-    if (!viewers.size) { stopWatching?.(); stopWatching = null; latestPage = null; }
+    currentHub.viewers.delete(viewer);
+    if (!currentHub.viewers.size) {
+      currentHub.stop?.(); currentHub.stop = null; currentHub.latest = null;
+      if (hubs.get(type) === currentHub) hubs.delete(type);
+    }
   };
 }
