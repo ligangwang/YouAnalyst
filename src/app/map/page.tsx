@@ -3,6 +3,9 @@ import { MapMarketSwitch } from "@/components/map-market-switch";
 import type { Metadata } from "next";
 import { IndustryGraphHome } from "@/components/industry-graph-home";
 import { absoluteUrl } from "@/lib/seo";
+import { headers } from "next/headers";
+import { parseMarket } from "@/lib/preferences";
+import { localizedMetadata } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +13,8 @@ type MapSearchParams = { company?: string | string[]; market?: string | string[]
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<MapSearchParams> }): Promise<Metadata> {
   const { company, market } = await searchParams;
-  if (market === "CN_A") return { title: "A 股 AI 产业链 | YouAnalyst", description: "从芯片、互连到服务器与散热，发现算力背后的 A 股公司，查看原始披露。", alternates: { canonical: "/map?market=CN_A" }, openGraph: { title: "A 股 AI 产业链 | YouAnalyst", url: "/map?market=CN_A" } };
+  const selected = parseMarket(market) ?? parseMarket((await headers()).get("x-ya-market")) ?? "US";
+  if (selected === "CN_A") return localizedMetadata({ title: "A-share AI supply chain | YouAnalyst", description: "Explore A-share companies behind AI chips, connections, servers and cooling through original disclosures.", alternates: { canonical: "/map?market=CN_A" }, openGraph: { title: "A-share AI supply chain | YouAnalyst", url: "/map?market=CN_A" } });
   const nvidia = typeof company === "string" && company.toUpperCase() === "NVDA";
   const image = {
     url: absoluteUrl(`/map/share-image${nvidia ? "?company=NVDA&v=1" : "?v=1"}`),
@@ -18,7 +22,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
     height: 630,
     alt: nvidia ? "NVIDIA ($NVDA) and Arista Networks ($ANET): networking competitors named in NVIDIA’s February 25, 2026 10-K." : "YouAnalyst: explore company connections and inspect filing evidence.",
   };
-  return {
+  return localizedMetadata({
     title: "Company relationship map | YouAnalyst",
     description: "Explore published company relationships and inspect filing evidence for suppliers, customers and competitors.",
     alternates: {
@@ -36,12 +40,12 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
       title: "Company relationship map | YouAnalyst",
       description: "Explore company connections through SEC filing evidence.",
     },
-  };
+  });
 }
 
 export default async function Home({ searchParams }: { searchParams: Promise<MapSearchParams> }) {
   const { company, market } = await searchParams;
   const ticker = typeof company === "string" ? company : "";
-  const china = market === "CN_A";
-  return <><MapMarketSwitch china={china} />{china ? <ChinaSupplyChain /> : <IndustryGraphHome key={ticker} initialTicker={ticker} />}</>;
+  const selected = parseMarket(market) ?? parseMarket((await headers()).get("x-ya-market")) ?? "US";
+  return <><MapMarketSwitch selected={selected} />{selected !== "US" && <ChinaSupplyChain />}{selected !== "CN_A" && <IndustryGraphHome key={ticker} initialTicker={ticker} />}</>;
 }

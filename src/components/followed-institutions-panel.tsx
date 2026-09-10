@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -44,6 +46,7 @@ function sortInstitutions(items: FollowedInstitution[], sort: FollowSort): Follo
 }
 
 export function FollowedInstitutionsPanel() {
+  const ui = useUiText();
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [items, setItems] = useState<FollowedInstitution[]>([]);
   const [loadedForUser, setLoadedForUser] = useState<string | null>(null);
@@ -107,12 +110,10 @@ export function FollowedInstitutionsPanel() {
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Follow institutions</h2>
-            <p className="mt-1 text-sm text-slate-400">Sign in to save managers you want to revisit.</p>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Follow institutions"} /></h2>
+            <p className="mt-1 text-sm text-slate-400"><UiText text={"Sign in to save managers you want to revisit."} /></p>
           </div>
-          <Link href="/auth" className="w-fit rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400">
-            Sign in
-          </Link>
+          <Link href="/auth" className="w-fit rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"><UiText text={"Sign in"} /></Link>
         </div>
       </section>
     );
@@ -158,40 +159,36 @@ export function FollowedInstitutionsPanel() {
     <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Followed institutions</h2>
-          <p className="mt-1 text-sm text-slate-400">Managers saved to your institutional research list.</p>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Followed institutions"} /></h2>
+          <p className="mt-1 text-sm text-slate-400"><UiText text={"Managers saved to your institutional research list."} /></p>
         </div>
         {!loading && items.length > 0 ? (
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_10rem]">
-            <label className="grid gap-1 text-xs text-slate-400">
-              Search
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Search"} /><input
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Institution or CIK"
+                placeholder={ui("Institution or CIK")}
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
             </label>
-            <label className="grid gap-1 text-xs text-slate-400">
-              Sort
-              <select
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Sort"} /><select
                 value={sort}
                 onChange={(event) => setSort(event.target.value as FollowSort)}
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               >
-                <option value="recent">Recently followed</option>
-                <option value="name">Name</option>
-                <option value="report">Latest report</option>
+                <option value="recent"><UiText text={"Recently followed"} /></option>
+                <option value="name"><UiText text={"Name"} /></option>
+                <option value="report"><UiText text={"Latest report"} /></option>
               </select>
             </label>
           </div>
         ) : null}
       </div>
 
-      {error ? <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+      {error ? <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
 
-      {loading ? <p className="text-sm text-slate-300">Loading followed institutions...</p> : null}
+      {loading ? <p className="text-sm text-slate-300"><UiText text={"Loading followed institutions..."} /></p> : null}
 
       {!loading && visibleItems.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -205,8 +202,8 @@ export function FollowedInstitutionsPanel() {
               </Link>
               <p className="mt-1 text-xs text-slate-500">CIK {institution.cik}</p>
               <div className="mt-4 grid gap-1 text-sm text-slate-300">
-                <p>Quarter {institution.latestQuarter ?? "Unknown"}</p>
-                <p>Report {formatDate(institution.latestReportDate)}</p>
+                <p><UiText text={"Quarter "} />{institution.latestQuarter ?? <UiText text={"Unknown"} />}</p>
+                <p><UiText text={"Report "} />{formatDate(institution.latestReportDate)}</p>
               </div>
               <button
                 type="button"
@@ -214,7 +211,7 @@ export function FollowedInstitutionsPanel() {
                 disabled={savingCik === institution.cik}
                 className="mt-4 rounded-xl border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-rose-400/40 hover:text-rose-200 disabled:opacity-60"
               >
-                {savingCik === institution.cik ? "Saving..." : "Unfollow"}
+                {savingCik === institution.cik ? <UiText text={"Saving..."} /> : <UiText text={"Unfollow"} />}
               </button>
             </article>
           ))}
@@ -222,15 +219,11 @@ export function FollowedInstitutionsPanel() {
       ) : null}
 
       {!loading && items.length > 0 && visibleItems.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No followed institutions match the current filters.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No followed institutions match the current filters."} /></p>
       ) : null}
 
       {!loading && items.length === 0 && !error ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No followed institutions yet.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No followed institutions yet."} /></p>
       ) : null}
     </section>
   );

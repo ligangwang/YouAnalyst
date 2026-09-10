@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -83,6 +85,7 @@ function groupItems(items: InstitutionDigestRunSnapshot["items"], groupBy: Group
 }
 
 export function InstitutionDigestHistoryPanel() {
+  const ui = useUiText();
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [items, setItems] = useState<InstitutionDigestRunSnapshot[]>([]);
   const [loadedForUser, setLoadedForUser] = useState<string | null>(null);
@@ -211,51 +214,50 @@ export function InstitutionDigestHistoryPanel() {
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Institution digests</h2>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Institution digests"} /></h2>
             {unreadCount > 0 ? (
               <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2 py-0.5 text-xs font-semibold text-cyan-100">
-                {unreadCount.toLocaleString()} unread
-              </span>
+                {unreadCount.toLocaleString()}<UiText text={" unread"} /></span>
             ) : null}
           </div>
-          <p className="mt-1 text-sm text-slate-400">Saved in-app summaries generated from followed institutions.</p>
+          <p className="mt-1 text-sm text-slate-400"><UiText text={"Saved in-app summaries generated from followed institutions."} /></p>
         </div>
 
         <div className="flex flex-wrap gap-2 text-xs">
           <select
             value={filter}
-            aria-label="Digest status"
+            aria-label={ui("Digest status")}
             onChange={(event) => setFilter(event.target.value as RunFilter)}
             className="rounded-lg border border-white/15 bg-slate-950 px-2 py-1.5 text-slate-100 outline-none ring-cyan-400/40 focus:ring"
           >
-            <option value="all">All</option>
-            <option value="unread">Unread live</option>
-            <option value="live">Live</option>
+            <option value="all"><UiText text={"All"} /></option>
+            <option value="unread"><UiText text={"Unread live"} /></option>
+            <option value="live"><UiText text={"Live"} /></option>
           </select>
           <select
             value={sortOrder}
-            aria-label="Digest order"
+            aria-label={ui("Digest order")}
             onChange={(event) => setSortOrder(event.target.value as SortOrder)}
             className="rounded-lg border border-white/15 bg-slate-950 px-2 py-1.5 text-slate-100 outline-none ring-cyan-400/40 focus:ring"
           >
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
+            <option value="newest"><UiText text={"Newest"} /></option>
+            <option value="oldest"><UiText text={"Oldest"} /></option>
           </select>
           <select
             value={groupBy}
-            aria-label="Group digests"
+            aria-label={ui("Group digests")}
             onChange={(event) => setGroupBy(event.target.value as GroupBy)}
             className="rounded-lg border border-white/15 bg-slate-950 px-2 py-1.5 text-slate-100 outline-none ring-cyan-400/40 focus:ring"
           >
-            <option value="institution">By institution</option>
-            <option value="ticker">By ticker</option>
-            <option value="none">Ungrouped</option>
+            <option value="institution"><UiText text={"By institution"} /></option>
+            <option value="ticker"><UiText text={"By ticker"} /></option>
+            <option value="none"><UiText text={"Ungrouped"} /></option>
           </select>
         </div>
       </div>
 
-      {error ? <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
-      {loading ? <p className="text-sm text-slate-300">Loading institution digests...</p> : null}
+      {error ? <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
+      {loading ? <p className="text-sm text-slate-300"><UiText text={"Loading institution digests..."} /></p> : null}
 
       {!loading && displayedItems.length > 0 ? (
         <div className="grid gap-3">
@@ -269,20 +271,17 @@ export function InstitutionDigestHistoryPanel() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-semibold text-cyan-100">{formatDateTime(run.generatedAt)}</h3>
                       {unread ? (
-                        <span className="rounded-full border border-cyan-300/35 px-2 py-0.5 text-xs font-semibold text-cyan-100">
-                          Unread
-                        </span>
+                        <span className="rounded-full border border-cyan-300/35 px-2 py-0.5 text-xs font-semibold text-cyan-100"><UiText text={"Unread"} /></span>
                       ) : null}
                     </div>
                     <p className="mt-1 text-xs text-slate-500">
-                      {run.cadence} / {run.status} / {run.itemCount.toLocaleString()} items
-                    </p>
+                      {<UiText text={run.cadence} />} / {<UiText text={run.status} />} / {run.itemCount.toLocaleString()}<UiText text={" items"} /></p>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
-                      <span className="rounded-full border border-white/10 px-2 py-1">New {run.summary.newCount.toLocaleString()}</span>
-                      <span className="rounded-full border border-white/10 px-2 py-1">Increased {run.summary.increasedCount.toLocaleString()}</span>
-                      <span className="rounded-full border border-white/10 px-2 py-1">Reduced {run.summary.reducedCount.toLocaleString()}</span>
-                      <span className="rounded-full border border-white/10 px-2 py-1">Sold out {run.summary.soldOutCount.toLocaleString()}</span>
-                      <span className="rounded-full border border-white/10 px-2 py-1">Net {formatSignedCurrency(run.summary.netValueChangeUsd)}</span>
+                      <span className="rounded-full border border-white/10 px-2 py-1"><UiText text={"New "} />{run.summary.newCount.toLocaleString()}</span>
+                      <span className="rounded-full border border-white/10 px-2 py-1"><UiText text={"Increased "} />{run.summary.increasedCount.toLocaleString()}</span>
+                      <span className="rounded-full border border-white/10 px-2 py-1"><UiText text={"Reduced "} />{run.summary.reducedCount.toLocaleString()}</span>
+                      <span className="rounded-full border border-white/10 px-2 py-1"><UiText text={"Sold out "} />{run.summary.soldOutCount.toLocaleString()}</span>
+                      <span className="rounded-full border border-white/10 px-2 py-1"><UiText text={"Net "} />{formatSignedCurrency(run.summary.netValueChangeUsd)}</span>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -293,7 +292,7 @@ export function InstitutionDigestHistoryPanel() {
                         disabled={markingReadId === run.id}
                         className="w-fit rounded-xl border border-cyan-400/35 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
                       >
-                        {markingReadId === run.id ? "Saving..." : "Mark read"}
+                        {markingReadId === run.id ? <UiText text={"Saving..."} /> : <UiText text={"Mark read"} />}
                       </button>
                     ) : null}
                     <button
@@ -301,7 +300,7 @@ export function InstitutionDigestHistoryPanel() {
                       onClick={() => setExpandedRunId(expanded ? null : run.id)}
                       className="w-fit rounded-xl border border-cyan-400/35 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
                     >
-                      {expanded ? "Hide" : "Open"}
+                      {expanded ? <UiText text={"Hide"} /> : <UiText text={"Open"} />}
                     </button>
                   </div>
                 </div>
@@ -309,16 +308,13 @@ export function InstitutionDigestHistoryPanel() {
                 {expanded ? (
                   <div className="mt-4 grid gap-2">
                     {run.items.length === 0 ? (
-                      <p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-slate-300">
-                        This digest had no activity items to display.
-                      </p>
+                      <p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-slate-300"><UiText text={"This digest had no activity items to display."} /></p>
                     ) : (
                       groupItems(run.items, groupBy).map((group) => (
                         <div key={`${run.id}_${group.label}`} className="rounded-lg border border-white/10 bg-slate-950/35 p-3">
                           {groupBy !== "none" ? (
                             <p className="mb-2 text-xs font-semibold uppercase text-slate-500">
-                              {group.label} / {group.items.length.toLocaleString()} items
-                            </p>
+                              {group.label} / {group.items.length.toLocaleString()}<UiText text={" items"} /></p>
                           ) : null}
                           <div className="grid gap-2">
                             {group.items.map((item) => (
@@ -334,26 +330,24 @@ export function InstitutionDigestHistoryPanel() {
                                           {item.ticker}
                                         </Link>
                                       ) : (
-                                        <span className="font-semibold text-slate-100">Unmapped</span>
+                                        <span className="font-semibold text-slate-100"><UiText text={"Unmapped"} /></span>
                                       )}{" "}
                                       <span className="text-slate-400">{item.nameOfIssuer}</span>
                                     </p>
                                   </div>
                                   <span className={`w-fit rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(item.status)}`}>
-                                    {item.status}
+                                    {<UiText text={item.status} />}
                                   </span>
                                 </div>
                                 <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-                                  <span>Value <strong className="text-slate-100">{formatSignedCurrency(item.valueChangeUsd)}</strong></span>
-                                  <span>Report <strong className="text-slate-100">{item.reportDate}</strong></span>
+                                  <span><UiText text={"Value "} /><strong className="text-slate-100">{formatSignedCurrency(item.valueChangeUsd)}</strong></span>
+                                  <span><UiText text={"Report "} /><strong className="text-slate-100">{item.reportDate}</strong></span>
                                   <a
                                     href={filingUrl(item)}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="font-semibold text-cyan-200 hover:text-cyan-100"
-                                  >
-                                    SEC filing
-                                  </a>
+                                  ><UiText text={"SEC filing"} /></a>
                                 </div>
                               </div>
                             ))}
@@ -370,15 +364,11 @@ export function InstitutionDigestHistoryPanel() {
       ) : null}
 
       {!loading && items.length > 0 && displayedItems.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No digests match the selected filters.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No digests match the selected filters."} /></p>
       ) : null}
 
       {!loading && items.length === 0 && !error ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No institution digests have been generated yet.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No institution digests have been generated yet."} /></p>
       ) : null}
     </section>
   );

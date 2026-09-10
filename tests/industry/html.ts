@@ -4,6 +4,10 @@ export async function buildIndustryFixture() {
   const result = await build({
     entryPoints: ["tests/industry/app.tsx"], bundle: true, write: false, outfile: "industry-fixture.js",
     platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") },
+    plugins: [{ name: "request-headers", setup(builder) {
+      builder.onResolve({ filter: /^next\/headers$/ }, () => ({ path: "headers", namespace: "fixture" }));
+      builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "export async function headers(){return new Headers({'x-ya-language':'en','x-ya-market':'US'})}", loader: "js" }));
+    } }],
   });
   const js = result.outputFiles.find((file) => file.path.endsWith(".js"))!.text;
   const css = result.outputFiles.find((file) => file.path.endsWith(".css"))!.text;

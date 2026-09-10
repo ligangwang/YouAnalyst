@@ -1,3 +1,5 @@
+
+import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CompanyFundamentalsLoader } from "@/components/company-fundamentals-loader";
@@ -65,7 +67,7 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
     <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} fundamentals={
-      <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400">Loading SEC business and financials…</p>}>
+      <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} />
       </Suspense>
     } />} />

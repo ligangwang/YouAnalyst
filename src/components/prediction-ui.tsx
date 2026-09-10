@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import Image from "next/image";
 export { RelativeTime } from "./relative-time";
@@ -138,7 +140,7 @@ export function DirectionBadge({ direction }: { direction: PredictionDirection }
   return (
     <span className={`inline-flex items-center gap-1 font-semibold ${isUp ? "text-emerald-300" : "text-rose-300"}`}>
       <span aria-hidden="true">{isUp ? "\u2191" : "\u2193"}</span>
-      {direction}
+      {<UiText text={direction} />}
     </span>
   );
 }
@@ -171,19 +173,19 @@ export function PredictionReturnSummary({
           <span className={`font-semibold ${markToneClass(markReturnValue)}`}>
             {formatReturnPercent(markReturnValue)}
           </span>
-          <span className="text-slate-400"> since call ({sinceCallDays}d)</span>
+          <span className="text-slate-400"><UiText text={" since call ("} />{sinceCallDays}d)</span>
         </>
       ) : null}
-      {isAwaitingEntry ? <span className="text-slate-400">Awaiting entry price</span> : null}
+      {isAwaitingEntry ? <span className="text-slate-400"><UiText text={"Awaiting entry price"} /></span> : null}
       {isAwaitingFirstMark ? (
         <>
-          <span className="text-slate-400">Entry: ${entryPrice.toFixed(2)}</span>
-          <span className="text-slate-500"> &middot; </span>
-          <span className="text-slate-400">awaiting first mark</span>
+          <span className="text-slate-400"><UiText text={"Entry: $"} />{entryPrice.toFixed(2)}</span>
+          <span className="text-slate-500"><UiText text={" &middot; "} /></span>
+          <span className="text-slate-400"><UiText text={"awaiting first mark"} /></span>
         </>
       ) : null}
-      {(hasReturn || isAwaitingEntry) && statusLabel ? <span className="text-slate-500"> &middot; </span> : null}
-      {!isAwaitingFirstMark && statusLabel ? <span className="text-slate-400">{statusLabel}</span> : null}
+      {(hasReturn || isAwaitingEntry) && statusLabel ? <span className="text-slate-500"><UiText text={" &middot; "} /></span> : null}
+      {!isAwaitingFirstMark && statusLabel ? <span className="text-slate-400">{<UiText text={statusLabel} />}</span> : null}
     </>
   );
 
@@ -232,14 +234,12 @@ export function PredictionAuthorSummary({ author, className = "" }: { author: Pr
       )}
       <span className="font-medium text-cyan-200">{label}</span>
       {isAiAnalyst ? (
-        <span className="rounded-full border border-cyan-400/35 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100">
-          AI Analyst
-        </span>
+        <span className="rounded-full border border-cyan-400/35 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-100"><UiText text={"AI Analyst"} /></span>
       ) : null}
       {hasLevel ? (
         <>
-          <span className="text-slate-500">&middot;</span>
-          <span className="font-medium text-cyan-200">Level {Math.max(1, Math.floor(level))}</span>
+          <span className="text-slate-500"><UiText text={"&middot;"} /></span>
+          <span className="font-medium text-cyan-200"><UiText text={"Level "} />{Math.max(1, Math.floor(level))}</span>
         </>
       ) : null}
     </Link>
@@ -265,19 +265,18 @@ export function PredictionMarkSummary({ prediction }: { prediction: PredictionMa
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-400">
-      {hasEntryData ? <span>Entry {entryPrice.toFixed(2)} @ {entryDate}</span> : null}
+      {hasEntryData ? <span><UiText text={"Entry "} />{entryPrice.toFixed(2)} @ {entryDate}</span> : null}
       {hasMarkData ? (
         <>
-          <span>
-            Mark {markPrice.toFixed(2)} @ {markPriceDate}
+          <span><UiText text={"Mark "} />{markPrice.toFixed(2)} @ {markPriceDate}
           </span>
           <span className={markToneClass(markReturnValue)}>
             {formatReturnPercent(markReturnValue)}
           </span>
         </>
       ) : null}
-      {timeHorizon ? <span>Open until {timeHorizon}</span> : null}
-      <span>{prediction.commentCount ?? 0} comments</span>
+      {timeHorizon ? <span><UiText text={"Open until "} />{timeHorizon}</span> : null}
+      <span>{prediction.commentCount ?? 0}<UiText text={" comments"} /></span>
     </div>
   );
 }

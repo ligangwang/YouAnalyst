@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import { trackEvent } from "@/lib/analytics";
 
 import { useEffect, useMemo, useState } from "react";
@@ -32,6 +34,7 @@ export function CreatePredictionPage({
   requestedWatchlistId?: string;
   requestedDirection?: "UP" | "DOWN";
 }) {
+  const ui = useUiText();
   const router = useRouter();
   const { user, loading, getIdToken, features } = useAuth();
   const [ticker, setTicker] = useState(requestedTicker.trim().toUpperCase());
@@ -134,22 +137,20 @@ export function CreatePredictionPage({
   }, [getIdToken, requestedWatchlistId, user, watchlistAttempt]);
 
   if (loading) {
-    return <main className="mx-auto w-full max-w-3xl px-4 py-8 text-sm text-slate-300">Loading...</main>;
+    return <main className="mx-auto w-full max-w-3xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading..."} /></main>;
   }
 
   if (!user) {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-8">
         <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 text-center shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-          <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Sign in to create a prediction</h1>
-          <p className="mb-6 text-sm text-slate-300">You need to be signed in to publish predictions and build your score.</p>
+          <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Sign in to create a prediction"} /></h1>
+          <p className="mb-6 text-sm text-slate-300"><UiText text={"You need to be signed in to publish predictions and build your score."} /></p>
           <button
             type="button"
             onClick={() => router.push(predictionSignInHref(requestedTicker, requestedWatchlistId, requestedDirection))}
             className="rounded-full bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-900"
-          >
-            Sign in
-          </button>
+          ><UiText text={"Sign in"} /></button>
         </section>
       </main>
     );
@@ -271,8 +272,8 @@ export function CreatePredictionPage({
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Track your outlook</h1>
-        <p className="mb-6 text-sm text-slate-300">Choose a company and a direction. Your watchlist keeps the record so you can come back and see how your call develops.</p>
+        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Track your outlook"} /></h1>
+        <p className="mb-6 text-sm text-slate-300"><UiText text={"Choose a company and a direction. Your watchlist keeps the record so you can come back and see how your call develops."} /></p>
 
         <div className="grid gap-4">
           <div className="grid gap-2">
@@ -284,7 +285,7 @@ export function CreatePredictionPage({
           </div>
 
           <div className="grid gap-2">
-            <label className="text-sm text-slate-200">Direction</label>
+            <label className="text-sm text-slate-200"><UiText text={"Direction"} /></label>
             <div className="inline-flex w-full rounded-full border border-white/15 p-1 sm:w-fit">
               {(["UP", "DOWN"] as const).map((option) => (
                 <button
@@ -294,15 +295,15 @@ export function CreatePredictionPage({
                   aria-pressed={direction === option}
                   className={`flex-1 rounded-full px-3 py-1.5 text-sm sm:flex-none ${direction === option ? "bg-cyan-400 text-slate-900" : "text-slate-200"}`}
                 >
-                  {option === "UP" ? "Bullish" : "Bearish"}
+                  {option === "UP" ? <UiText text={"Bullish"} /> : <UiText text={"Bearish"} />}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="grid gap-2">
-            <label className="text-sm text-slate-200" htmlFor="watchlist">Watchlist</label>
-            {watchlistError && <div role="alert" className="text-sm text-rose-200">{watchlistError} <button type="button" className="underline" onClick={() => setWatchlistAttempt(value => value + 1)}>Retry watchlists</button></div>}
+            <label className="text-sm text-slate-200" htmlFor="watchlist"><UiText text={"Watchlist"} /></label>
+            {watchlistError && <div role="alert" className="text-sm text-rose-200">{<UiText text={watchlistError} />} <button type="button" className="underline" onClick={() => setWatchlistAttempt(value => value + 1)}><UiText text={"Retry watchlists"} /></button></div>}
             {watchlists.length > 0 ? (
               <select
                 id="watchlist"
@@ -312,23 +313,21 @@ export function CreatePredictionPage({
               >
                 {watchlists.map((watchlist) => (
                   <option key={watchlist.id} value={watchlist.id}>
-                    {watchlist.name}{watchlist.isPublic ? "" : " (Private)"}
+                    {watchlist.name}{watchlist.isPublic ? "" : <UiText text={" (Private)"} />}
                   </option>
                 ))}
               </select>
             ) : (
-              <p className="rounded-xl border border-dashed border-cyan-400/25 bg-cyan-500/5 px-3 py-2 text-sm text-slate-300">
-                Preparing your watchlist…
-              </p>
+              <p className="rounded-xl border border-dashed border-cyan-400/25 bg-cyan-500/5 px-3 py-2 text-sm text-slate-300"><UiText text={"Preparing your watchlist…"} /></p>
             )}
             {selectedWatchlist ? (
               <p className="text-xs text-slate-300">
-                {selectedWatchlist.isPublic ? "This watchlist is public. Your published call and reasoning will be visible to others." : "This watchlist is private, so this prediction will be private too."}
+                {selectedWatchlist.isPublic ? <UiText text={"This watchlist is public. Your published call and reasoning will be visible to others."} /> : <UiText text={"This watchlist is private, so this prediction will be private too."} />}
               </p>
             ) : null}
             {watchlists.length < 5 ? (
               <details className="rounded-xl border border-white/10 p-3">
-                <summary className="cursor-pointer text-sm text-cyan-200">Create another watchlist</summary>
+                <summary className="cursor-pointer text-sm text-cyan-200"><UiText text={"Create another watchlist"} /></summary>
                 <div className="mt-3 grid gap-2">
                 <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                   <input
@@ -336,7 +335,7 @@ export function CreatePredictionPage({
                     value={newWatchlistName}
                     onChange={(event) => setNewWatchlistName(event.target.value)}
                     maxLength={80}
-                    placeholder="New watchlist name"
+                    placeholder={ui("New watchlist name")}
                     className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
                   />
                   <button
@@ -345,20 +344,18 @@ export function CreatePredictionPage({
                     disabled={creatingWatchlist}
                     className="rounded-xl border border-cyan-400/35 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
                   >
-                    {creatingWatchlist ? "Creating..." : "Create watchlist"}
+                    {creatingWatchlist ? <UiText text={"Creating..."} /> : <UiText text={"Create watchlist"} />}
                   </button>
                 </div>
                 {proFeaturesEnabled ? (
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-xs text-slate-400">New watchlist visibility</span>
+                    <span className="text-xs text-slate-400"><UiText text={"New watchlist visibility"} /></span>
                     <div className="inline-flex rounded-full border border-slate-700 bg-slate-900/70 p-1 text-xs">
                       <button
                         type="button"
                         onClick={() => setNewWatchlistIsPublic(true)}
                         className={`rounded-full px-3 py-1.5 transition ${newWatchlistIsPublic ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"}`}
-                      >
-                        Public
-                      </button>
+                      ><UiText text={"Public"} /></button>
                       <button
                         type="button"
                         onClick={() => {
@@ -368,14 +365,10 @@ export function CreatePredictionPage({
                         }}
                         disabled={!canUsePro}
                         className={`rounded-full px-3 py-1.5 transition ${!newWatchlistIsPublic ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"} ${!canUsePro ? "cursor-not-allowed opacity-50" : ""}`}
-                      >
-                        Private
-                      </button>
+                      ><UiText text={"Private"} /></button>
                     </div>
                     {!canUsePro ? (
-                      <p className="text-xs text-slate-400">
-                        Private watchlists are part of Pro. Upgrade to unlock them.
-                      </p>
+                      <p className="text-xs text-slate-400"><UiText text={"Private watchlists are part of Pro. Upgrade to unlock them."} /></p>
                     ) : null}
                   </div>
                 ) : null}
@@ -385,10 +378,10 @@ export function CreatePredictionPage({
           </div>
 
           <details className="rounded-xl border border-white/10 p-4">
-            <summary className="cursor-pointer text-sm text-cyan-200">Add reasoning or a time horizon (optional)</summary>
+            <summary className="cursor-pointer text-sm text-cyan-200"><UiText text={"Add reasoning or a time horizon (optional)"} /></summary>
             <div className="mt-4 grid gap-4">
           <div className="grid gap-2">
-            <label className="text-sm text-slate-200" htmlFor="time-horizon-unit">Open until (optional)</label>
+            <label className="text-sm text-slate-200" htmlFor="time-horizon-unit"><UiText text={"Open until (optional)"} /></label>
             <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
               <select
                 id="time-horizon-unit"
@@ -402,10 +395,10 @@ export function CreatePredictionPage({
                 }}
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               >
-                <option value="NONE">No limit</option>
-                <option value="DAYS">Days</option>
-                <option value="MONTHS">Months</option>
-                <option value="YEARS">Years</option>
+                <option value="NONE"><UiText text={"No limit"} /></option>
+                <option value="DAYS"><UiText text={"Days"} /></option>
+                <option value="MONTHS"><UiText text={"Months"} /></option>
+                <option value="YEARS"><UiText text={"Years"} /></option>
               </select>
               <input
                 type="number"
@@ -414,17 +407,15 @@ export function CreatePredictionPage({
                 value={timeHorizonValue}
                 onChange={(event) => setTimeHorizonValue(event.target.value)}
                 disabled={timeHorizonUnit === "NONE"}
-                placeholder="Value"
+                placeholder={ui("Value")}
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring disabled:opacity-50"
               />
             </div>
-            <p className={`text-xs ${timeHorizonErrorMessage ? "text-rose-300" : "text-slate-400"}`}>
-              Optional open window for this prediction.
-            </p>
+            <p className={`text-xs ${timeHorizonErrorMessage ? "text-rose-300" : "text-slate-400"}`}><UiText text={"Optional open window for this prediction."} /></p>
           </div>
 
           <div className="grid gap-2">
-            <label className="text-sm text-slate-200" htmlFor="thesis-title">Title</label>
+            <label className="text-sm text-slate-200" htmlFor="thesis-title"><UiText text={"Title"} /></label>
             <input
               id="thesis-title"
               type="text"
@@ -432,21 +423,19 @@ export function CreatePredictionPage({
               onChange={(event) => setThesisTitle(event.target.value)}
               maxLength={MAX_PREDICTION_THESIS_TITLE_LENGTH}
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
-              placeholder="Summarize the prediction"
+              placeholder={ui("Summarize the prediction")}
             />
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <p className={thesisTitleErrorMessage ? "text-rose-300" : "text-slate-400"}>
-                Optional.
-              </p>
+              <p className={thesisTitleErrorMessage ? "text-rose-300" : "text-slate-400"}><UiText text={"Optional."} /></p>
               <p className={trimmedThesisTitleLength > MAX_PREDICTION_THESIS_TITLE_LENGTH ? "text-rose-300" : "text-slate-400"}>
                 {trimmedThesisTitleLength}/{MAX_PREDICTION_THESIS_TITLE_LENGTH}
               </p>
             </div>
-            {thesisTitleErrorMessage ? <p className="text-xs text-rose-300">{thesisTitleErrorMessage}</p> : null}
+            {thesisTitleErrorMessage ? <p className="text-xs text-rose-300">{<UiText text={thesisTitleErrorMessage} />}</p> : null}
           </div>
 
           <div className="grid gap-2">
-            <label className="text-sm text-slate-200" htmlFor="prediction-thesis">Thesis</label>
+            <label className="text-sm text-slate-200" htmlFor="prediction-thesis"><UiText text={"Thesis"} /></label>
             <textarea
               id="prediction-thesis"
               value={thesis}
@@ -454,30 +443,30 @@ export function CreatePredictionPage({
               rows={10}
               maxLength={MAX_PREDICTION_THESIS_LENGTH}
               className="min-h-56 rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
-              placeholder="Optional thesis: explain why this setup should work"
+              placeholder={ui("Optional thesis: explain why this setup should work")}
             />
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              {thesisErrorMessage ? <span /> : <p className="text-slate-400">Optional.</p>}
+              {thesisErrorMessage ? <span /> : <p className="text-slate-400"><UiText text={"Optional."} /></p>}
               <p className={trimmedThesisLength > MAX_PREDICTION_THESIS_LENGTH ? "text-rose-300" : "text-slate-400"}>
                 {trimmedThesisLength}/{MAX_PREDICTION_THESIS_LENGTH}
               </p>
             </div>
-            {thesisErrorMessage ? <p className="text-xs text-rose-300">{thesisErrorMessage}</p> : null}
+            {thesisErrorMessage ? <p className="text-xs text-rose-300">{<UiText text={thesisErrorMessage} />}</p> : null}
           </div>
 
             </div>
           </details>
-          <p className="text-xs leading-relaxed text-slate-400">The starting price is recorded at the next end-of-day update. Tracking begins once that price is available. This records a directional call; it does not place a trade.</p>
+          <p className="text-xs leading-relaxed text-slate-400"><UiText text={"The starting price is recorded at the next end-of-day update. Tracking begins once that price is available. This records a directional call; it does not place a trade."} /></p>
           <button
             type="button"
             onClick={() => void submit()}
             disabled={submitting || !isValidTicker || !isValidWatchlist || !isValidThesisTitle || !isValidThesis || !isValidTimeHorizon}
             className="w-full rounded-full bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-900 disabled:opacity-60 sm:w-fit"
           >
-            {submitting ? "Publishing..." : "Publish prediction"}
+            {submitting ? <UiText text={"Publishing..."} /> : <UiText text={"Publish prediction"} />}
           </button>
 
-          {error ? <p className="text-sm text-rose-300">{error}</p> : null}
+          {error ? <p className="text-sm text-rose-300">{<UiText text={error} />}</p> : null}
         </div>
       </section>
     </main>

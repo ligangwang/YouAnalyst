@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Image from "next/image";
 import Link from "next/link";
 import { RelativeTime } from "./relative-time";
@@ -55,6 +57,7 @@ export function FollowListPage({
   userId: string;
   kind: FollowListKind;
 }) {
+  const ui = useUiText();
   const [payload, setPayload] = useState<FollowListResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -126,7 +129,7 @@ export function FollowListPage({
   if (!payload) {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300">
-        {error ?? `Loading ${kind}...`}
+        {error ?? <UiText text={`Loading ${kind}...`} />}
       </main>
     );
   }
@@ -134,10 +137,8 @@ export function FollowListPage({
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
-        <Link href={`/analysts/${userId}`} className="text-xs font-semibold text-cyan-300 hover:text-cyan-100">
-          Back to profile
-        </Link>
-        <h1 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{title}</h1>
+        <Link href={`/analysts/${userId}`} className="text-xs font-semibold text-cyan-300 hover:text-cyan-100"><UiText text={"Back to profile"} /></Link>
+        <h1 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={title} /></h1>
       </section>
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
@@ -154,7 +155,7 @@ export function FollowListPage({
                 {item.photoURL ? (
                   <Image
                     src={item.photoURL}
-                    alt={`${name} avatar`}
+                    alt={ui(`${name} avatar`)}
                     width={44}
                     height={44}
                     className="h-11 w-11 rounded-full object-cover ring-1 ring-cyan-400/40"
@@ -168,8 +169,8 @@ export function FollowListPage({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-100">{name}</p>
                   <p className="mt-1 text-xs text-slate-400">
-                    {scoreText(item.totalScore)} / {countText(item.followingCount, "following", "following")} /{" "}
-                    {countText(item.followersCount, "follower")}
+                    {scoreText(item.totalScore)} / {<UiText text={countText(item.followingCount, "following", "following")} />} /{" "}
+                    {<UiText text={countText(item.followersCount, "follower")} />}
                   </p>
                 </div>
                 </Link>
@@ -180,7 +181,7 @@ export function FollowListPage({
             );
           })}
 
-          {payload.items.length === 0 ? <p className="text-sm text-slate-300">{emptyText}</p> : null}
+          {payload.items.length === 0 ? <p className="text-sm text-slate-300">{<UiText text={emptyText} />}</p> : null}
 
           {payload.nextCursor ? (
             <button
@@ -189,13 +190,13 @@ export function FollowListPage({
               disabled={loadingMore}
               className="mt-2 rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-200 hover:border-cyan-300/60 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loadingMore ? "Loading..." : "Load more"}
+              {loadingMore ? <UiText text={"Loading..."} /> : <UiText text={"Load more"} />}
             </button>
           ) : null}
         </div>
 
         {error && payload.items.length > 0 ? (
-          <p className="mt-3 text-center text-sm text-rose-200">{error}</p>
+          <p className="mt-3 text-center text-sm text-rose-200">{<UiText text={error} />}</p>
         ) : null}
       </section>
     </main>

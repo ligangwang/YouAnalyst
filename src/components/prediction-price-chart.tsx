@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import { formatReturnPercent, markToneClass } from "@/components/prediction-ui";
 
 export type PredictionPricePoint = {
@@ -134,11 +136,12 @@ export function PredictionPriceChart({
   loading: boolean;
   error: string | null;
 }) {
+  const ui = useUiText();
   if (loading) {
     return (
       <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">Price Since Entry</h2>
-        <p className="mt-3 text-sm text-slate-400">Loading price history...</p>
+        <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Price Since Entry"} /></h2>
+        <p className="mt-3 text-sm text-slate-400"><UiText text={"Loading price history..."} /></p>
       </section>
     );
   }
@@ -146,8 +149,8 @@ export function PredictionPriceChart({
   if (error) {
     return (
       <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">Price Since Entry</h2>
-        <p className="mt-3 text-sm text-rose-200">{error}</p>
+        <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Price Since Entry"} /></h2>
+        <p className="mt-3 text-sm text-rose-200">{<UiText text={error} />}</p>
       </section>
     );
   }
@@ -155,8 +158,8 @@ export function PredictionPriceChart({
   if (!history || history.points.length === 0 || typeof history.entryPrice !== "number") {
     return (
       <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">Price Since Entry</h2>
-        <p className="mt-3 text-sm text-slate-400">Chart starts after the first end-of-day mark.</p>
+        <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Price Since Entry"} /></h2>
+        <p className="mt-3 text-sm text-slate-400"><UiText text={"Chart starts after the first end-of-day mark."} /></p>
       </section>
     );
   }
@@ -180,13 +183,12 @@ export function PredictionPriceChart({
     <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">Price Since Entry</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            Daily end-of-day closes from {formatDateLabel(firstPoint.date)} to {formatDateLabel(latestPoint.date)}.
+          <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Price Since Entry"} /></h2>
+          <p className="mt-1 text-sm text-slate-400"><UiText text={"Daily end-of-day closes from "} />{formatDateLabel(firstPoint.date)}<UiText text={" to "} />{formatDateLabel(latestPoint.date)}.
           </p>
         </div>
         <div className="text-sm sm:text-right">
-          <p className="text-slate-400">Latest close</p>
+          <p className="text-slate-400"><UiText text={"Latest close"} /></p>
           <p className="font-semibold text-slate-100">{formatCurrency(latestPoint.close)}</p>
           <p className={`font-semibold ${latestReturnClass}`}>{pointReturnText(latestPoint)}</p>
         </div>
@@ -196,7 +198,7 @@ export function PredictionPriceChart({
         <svg
           viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
           role="img"
-          aria-label="Daily close price chart since prediction entry"
+          aria-label={ui("Daily close price chart since prediction entry")}
           className="h-auto w-full"
           preserveAspectRatio="xMidYMid meet"
         >
@@ -210,8 +212,7 @@ export function PredictionPriceChart({
             strokeDasharray="6 6"
             strokeWidth="1"
           />
-          <text x={CHART_PADDING.left} y={entryY - 8} fill="#94a3b8" fontSize="12">
-            Entry {formatCurrency(history.entryPrice)}
+          <text x={CHART_PADDING.left} y={entryY - 8} fill="#94a3b8" fontSize="12"><UiText text={"Entry "} />{formatCurrency(history.entryPrice)}
           </text>
           <line
             x1={CHART_PADDING.left}
@@ -260,9 +261,9 @@ export function PredictionPriceChart({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-        <span>Entry {formatCurrency(history.entryPrice)} on {history.entryDate}</span>
-        <span>{history.points.length} marked trading days</span>
-        {history.truncated ? <span>Showing latest {history.points.length} marks</span> : null}
+        <span><UiText text={"Entry "} />{formatCurrency(history.entryPrice)}<UiText text={" on "} />{history.entryDate}</span>
+        <span>{history.points.length}<UiText text={" marked trading days"} /></span>
+        {history.truncated ? <span><UiText text={"Showing latest "} />{history.points.length}<UiText text={" marks"} /></span> : null}
       </div>
     </section>
   );

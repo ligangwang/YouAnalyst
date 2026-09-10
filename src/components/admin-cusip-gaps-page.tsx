@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -151,9 +153,9 @@ function formatDate(value: string | null | undefined): string {
 function Metric({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-      <p className="text-xs uppercase text-slate-500">{label}</p>
+      <p className="text-xs uppercase text-slate-500"><UiText text={label} /></p>
       <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{value}</p>
-      {note ? <p className="mt-2 text-xs text-slate-400">{note}</p> : null}
+      {note ? <p className="mt-2 text-xs text-slate-400"><UiText text={note} /></p> : null}
     </div>
   );
 }
@@ -165,25 +167,23 @@ function GapRow({ gap, onSelect }: { gap: CusipMappingGap; onSelect: (gap: Cusip
     <article className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[0.7fr_1.2fr_0.8fr_0.8fr_1.1fr_auto]">
       <div>
         <p className="font-semibold text-cyan-100">{gap.cusip}</p>
-        <p className="mt-1 text-xs text-slate-500">{gap.positionCount} positions</p>
+        <p className="mt-1 text-xs text-slate-500">{gap.positionCount}<UiText text={" positions"} /></p>
       </div>
       <div>
-        <p className="font-semibold text-slate-100">{gap.nameOfIssuer || "Unknown issuer"}</p>
-        <p className="mt-1 text-xs text-slate-500">Latest report {formatDate(gap.latestReportDate)}</p>
+        <p className="font-semibold text-slate-100">{gap.nameOfIssuer || <UiText text={"Unknown issuer"} />}</p>
+        <p className="mt-1 text-xs text-slate-500"><UiText text={"Latest report "} />{formatDate(gap.latestReportDate)}</p>
       </div>
       <p className="font-semibold text-cyan-100">{formatMoney(gap.totalValueUsd)}</p>
       <p className="text-slate-300">{formatDate(gap.latestFilingDate)}</p>
       <div>
         <p className="text-slate-200">{topManager?.managerName || topManager?.managerCik || "-"}</p>
-        {gap.managers.length > 1 ? <p className="mt-1 text-xs text-slate-500">+{gap.managers.length - 1} more managers in sample</p> : null}
+        {gap.managers.length > 1 ? <p className="mt-1 text-xs text-slate-500">+{gap.managers.length - 1}<UiText text={" more managers in sample"} /></p> : null}
       </div>
       <button
         type="button"
         onClick={() => onSelect(gap)}
         className="h-fit rounded-xl border border-cyan-400/35 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
-      >
-        Map
-      </button>
+      ><UiText text={"Map"} /></button>
     </article>
   );
 }
@@ -388,19 +388,15 @@ export function AdminCusipGapsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <p className="mb-3 text-sm font-medium text-cyan-200">Admin</p>
+      <p className="mb-3 text-sm font-medium text-cyan-200"><UiText text={"Admin"} /></p>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">CUSIP mapping gaps</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-            Find 13F holdings that could not be mapped to tickers, ranked by sampled position value.
-          </p>
-          {payload?.generatedAt ? <p className="mt-2 text-xs text-slate-500">Updated {formatDateTime(payload.generatedAt)}</p> : null}
+          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"CUSIP mapping gaps"} /></h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Find 13F holdings that could not be mapped to tickers, ranked by sampled position value."} /></p>
+          {payload?.generatedAt ? <p className="mt-2 text-xs text-slate-500"><UiText text={"Updated "} />{formatDateTime(payload.generatedAt)}</p> : null}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <label className="grid gap-1 text-xs text-slate-400">
-            Sample limit
-            <input
+          <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Sample limit"} /><input
               type="number"
               min="1"
               max="1000"
@@ -415,7 +411,7 @@ export function AdminCusipGapsPage() {
             disabled={loadingGaps || batchApplying}
             className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
           >
-            {loadingGaps ? "Refreshing..." : "Refresh"}
+            {loadingGaps ? <UiText text={"Refreshing..."} /> : <UiText text={"Refresh"} />}
           </button>
           <button
             type="button"
@@ -423,12 +419,12 @@ export function AdminCusipGapsPage() {
             disabled={batchApplying || loadingGaps}
             className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
           >
-            {batchApplying ? "Applying..." : "Apply mapped sample"}
+            {batchApplying ? <UiText text={"Applying..."} /> : <UiText text={"Apply mapped sample"} />}
           </button>
         </div>
       </div>
 
-      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
 
       {overrideResult?.error ? (
         <p className="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{overrideResult.error}</p>
@@ -438,34 +434,29 @@ export function AdminCusipGapsPage() {
         <section className="mb-6 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
           {overrideResult.action === "applyMappedGaps" ? (
             <>
-              <p className="text-sm font-semibold text-emerald-100">Applied mapped CUSIP sample</p>
-              <p className="mt-1 text-sm text-emerald-50/80">
-                Scanned {formatCount(overrideResult.result.cusipsScanned ?? 0)} CUSIPs, found {formatCount(overrideResult.result.cusipsWithMappings ?? 0)} mappings, and updated {formatCount(overrideResult.result.holdingsUpdated ?? 0)} holdings plus {formatCount(overrideResult.result.changesUpdated ?? 0)} holding changes.
-                {overrideResult.result.hasMore ? " Run it again to continue the bounded refresh." : ""}
+              <p className="text-sm font-semibold text-emerald-100"><UiText text={"Applied mapped CUSIP sample"} /></p>
+              <p className="mt-1 text-sm text-emerald-50/80"><UiText text={"Scanned "} />{formatCount(overrideResult.result.cusipsScanned ?? 0)}<UiText text={" CUSIPs, found "} />{formatCount(overrideResult.result.cusipsWithMappings ?? 0)}<UiText text={" mappings, and updated "} />{formatCount(overrideResult.result.holdingsUpdated ?? 0)}<UiText text={" holdings plus "} />{formatCount(overrideResult.result.changesUpdated ?? 0)}<UiText text={" holding changes."} />{overrideResult.result.hasMore ? <UiText text={" Run it again to continue the bounded refresh."} /> : ""}
               </p>
             </>
           ) : (
             <>
               <p className="text-sm font-semibold text-emerald-100">
-                {overrideResult.action === "applyOverride" ? "Applied" : "Saved"} {overrideResult.result.cusip} to {overrideResult.result.ticker}
+                {overrideResult.action === "applyOverride" ? <UiText text={"Applied"} /> : <UiText text={"Saved"} />} {overrideResult.result.cusip}<UiText text={" to "} />{overrideResult.result.ticker}
               </p>
               {overrideResult.action === "applyOverride" ? (
-                <p className="mt-1 text-sm text-emerald-50/80">
-                  Updated {formatCount(overrideResult.result.holdingsUpdated ?? 0)} holdings and {formatCount(overrideResult.result.changesUpdated ?? 0)} holding changes.
-                  {overrideResult.result.hasMore ? " Run apply again to continue the bounded refresh." : ""}
+                <p className="mt-1 text-sm text-emerald-50/80"><UiText text={"Updated "} />{formatCount(overrideResult.result.holdingsUpdated ?? 0)}<UiText text={" holdings and "} />{formatCount(overrideResult.result.changesUpdated ?? 0)}<UiText text={" holding changes."} />{overrideResult.result.hasMore ? <UiText text={" Run apply again to continue the bounded refresh."} /> : ""}
                 </p>
               ) : (
                 <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <p className="text-sm text-emerald-50/80">
-                    {formatCount(overrideResult.result.affectedCurrentHoldings ?? 0)} current unmapped holdings can be refreshed with this override.
-                  </p>
+                    {formatCount(overrideResult.result.affectedCurrentHoldings ?? 0)}<UiText text={" current unmapped holdings can be refreshed with this override."} /></p>
                   <button
                     type="button"
                     onClick={() => void applyOverride(overrideResult.result?.cusip ?? "")}
                     disabled={overrideApplying}
                     className="w-fit rounded-xl border border-emerald-200/50 px-4 py-2 text-sm font-semibold text-emerald-50 hover:bg-emerald-300/10 disabled:opacity-60"
                   >
-                    {overrideApplying ? "Applying..." : "Apply now"}
+                    {overrideApplying ? <UiText text={"Applying..."} /> : <UiText text={"Apply now"} />}
                   </button>
                 </div>
               )}
@@ -478,21 +469,17 @@ export function AdminCusipGapsPage() {
         <section className="mb-6 rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Mapping override</p>
+              <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Mapping override"} /></p>
               <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">{overrideDraft.cusip}</h2>
             </div>
             <button
               type="button"
               onClick={() => setOverrideDraft(null)}
               className="w-fit rounded-xl border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10"
-            >
-              Cancel
-            </button>
+            ><UiText text={"Cancel"} /></button>
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_0.7fr_auto] lg:items-end">
-            <label className="grid gap-1 text-xs text-slate-400">
-              Ticker
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Ticker"} /><input
                 type="text"
                 value={overrideDraft.ticker}
                 onChange={(event) => setOverrideDraft({ ...overrideDraft, ticker: event.target.value })}
@@ -500,9 +487,7 @@ export function AdminCusipGapsPage() {
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
             </label>
-            <label className="grid gap-1 text-xs text-slate-400">
-              Provider symbol
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Provider symbol"} /><input
                 type="text"
                 value={overrideDraft.symbol}
                 onChange={(event) => setOverrideDraft({ ...overrideDraft, symbol: event.target.value })}
@@ -510,9 +495,7 @@ export function AdminCusipGapsPage() {
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
             </label>
-            <label className="grid gap-1 text-xs text-slate-400">
-              Exchange
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Exchange"} /><input
                 type="text"
                 value={overrideDraft.exchange}
                 onChange={(event) => setOverrideDraft({ ...overrideDraft, exchange: event.target.value })}
@@ -526,7 +509,7 @@ export function AdminCusipGapsPage() {
               disabled={overrideSaving}
               className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
             >
-              {overrideSaving ? "Saving..." : "Save override"}
+              {overrideSaving ? <UiText text={"Saving..."} /> : <UiText text={"Save override"} />}
             </button>
           </div>
         </section>
@@ -559,64 +542,64 @@ export function AdminCusipGapsPage() {
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Largest sampled gaps</h2>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Largest sampled gaps"} /></h2>
         </div>
         {gaps.map((gap) => <GapRow key={gap.cusip} gap={gap} onSelect={selectGapForOverride} />)}
         {!loadingGaps && gaps.length === 0 ? (
-          <p className="p-6 text-sm text-slate-300">No unmapped holdings found in the current sample.</p>
+          <p className="p-6 text-sm text-slate-300"><UiText text={"No unmapped holdings found in the current sample."} /></p>
         ) : null}
       </section>
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent mapping syncs</h2>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent mapping syncs"} /></h2>
         </div>
         {recentSyncs.map((run) => (
           <article key={run.id} className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[0.6fr_1fr_1fr_1fr_1fr]">
             <p className="font-semibold text-cyan-100">{run.exchange || "-"}</p>
-            <p className="text-slate-300">{formatCount(run.fetched)} fetched<br /><span className="text-xs text-slate-500">{formatCount(run.mapped)} mapped</span></p>
-            <p className="text-slate-300">{formatCount(run.written)} written<br /><span className="text-xs text-slate-500">{formatCount(run.skipped)} skipped</span></p>
-            <p className="text-slate-300">{formatCount(run.pages)} pages<br /><span className="text-xs text-slate-500">{run.hasMore ? `next ${run.nextOffset ?? "-"}` : "complete"}</span></p>
+            <p className="text-slate-300">{formatCount(run.fetched)}<UiText text={" fetched"} /><br /><span className="text-xs text-slate-500">{formatCount(run.mapped)}<UiText text={" mapped"} /></span></p>
+            <p className="text-slate-300">{formatCount(run.written)}<UiText text={" written"} /><br /><span className="text-xs text-slate-500">{formatCount(run.skipped)}<UiText text={" skipped"} /></span></p>
+            <p className="text-slate-300">{formatCount(run.pages)}<UiText text={" pages"} /><br /><span className="text-xs text-slate-500">{run.hasMore ? <UiText text={`next ${run.nextOffset ?? "-"}`} /> : <UiText text={"complete"} />}</span></p>
             <p className="text-xs text-slate-400">{formatDateTime(run.updatedAt)}</p>
           </article>
         ))}
         {!loadingGaps && recentSyncs.length === 0 ? (
-          <p className="p-6 text-sm text-slate-300">No mapping sync runs have been recorded yet.</p>
+          <p className="p-6 text-sm text-slate-300"><UiText text={"No mapping sync runs have been recorded yet."} /></p>
         ) : null}
       </section>
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent mapping applies</h2>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent mapping applies"} /></h2>
         </div>
         {recentApplies.map((run) => (
           <article key={run.id} className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[0.8fr_0.8fr_1fr_1fr_1fr]">
             <p className="font-semibold text-cyan-100">{run.cusip || "-"}</p>
             <p className="font-semibold text-slate-100">{run.ticker || "-"}</p>
-            <p className="text-slate-300">{formatCount(run.holdingsUpdated)} holdings<br /><span className="text-xs text-slate-500">{formatCount(run.changesUpdated)} changes</span></p>
-            <p className="text-slate-300">{run.hasMore ? "More remaining" : "Complete"}<br /><span className="text-xs text-slate-500">{run.updatedBy || "-"}</span></p>
+            <p className="text-slate-300">{formatCount(run.holdingsUpdated)}<UiText text={" holdings"} /><br /><span className="text-xs text-slate-500">{formatCount(run.changesUpdated)}<UiText text={" changes"} /></span></p>
+            <p className="text-slate-300">{run.hasMore ? <UiText text={"More remaining"} /> : <UiText text={"Complete"} />}<br /><span className="text-xs text-slate-500">{run.updatedBy || "-"}</span></p>
             <p className="text-xs text-slate-400">{formatDateTime(run.updatedAt)}</p>
           </article>
         ))}
         {!loadingGaps && recentApplies.length === 0 ? (
-          <p className="p-6 text-sm text-slate-300">No mapping apply runs have been recorded yet.</p>
+          <p className="p-6 text-sm text-slate-300"><UiText text={"No mapping apply runs have been recorded yet."} /></p>
         ) : null}
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent batch applies</h2>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent batch applies"} /></h2>
         </div>
         {recentBatchApplies.map((run) => (
           <article key={run.id} className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[1fr_1fr_1fr_1fr]">
-            <p className="font-semibold text-cyan-100">{formatCount(run.cusipsWithMappings)} mapped<br /><span className="text-xs text-slate-500">{formatCount(run.cusipsScanned)} scanned</span></p>
-            <p className="text-slate-300">{formatCount(run.holdingsUpdated)} holdings<br /><span className="text-xs text-slate-500">{formatCount(run.changesUpdated)} changes</span></p>
-            <p className="text-slate-300">{run.hasMore ? "More remaining" : "Complete"}<br /><span className="text-xs text-slate-500">{run.updatedBy || "-"}</span></p>
+            <p className="font-semibold text-cyan-100">{formatCount(run.cusipsWithMappings)}<UiText text={" mapped"} /><br /><span className="text-xs text-slate-500">{formatCount(run.cusipsScanned)}<UiText text={" scanned"} /></span></p>
+            <p className="text-slate-300">{formatCount(run.holdingsUpdated)}<UiText text={" holdings"} /><br /><span className="text-xs text-slate-500">{formatCount(run.changesUpdated)}<UiText text={" changes"} /></span></p>
+            <p className="text-slate-300">{run.hasMore ? <UiText text={"More remaining"} /> : <UiText text={"Complete"} />}<br /><span className="text-xs text-slate-500">{run.updatedBy || "-"}</span></p>
             <p className="text-xs text-slate-400">{formatDateTime(run.updatedAt)}</p>
           </article>
         ))}
         {!loadingGaps && recentBatchApplies.length === 0 ? (
-          <p className="p-6 text-sm text-slate-300">No batch apply runs have been recorded yet.</p>
+          <p className="p-6 text-sm text-slate-300"><UiText text={"No batch apply runs have been recorded yet."} /></p>
         ) : null}
       </section>
     </main>

@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatTickerSymbol, PredictionReturnSummary } from "@/components/prediction-ui";
@@ -126,6 +128,7 @@ function watchlistShareIntentUrl(watchlist: WatchlistDetail): string {
 }
 
 function PredictionRow({ prediction }: { prediction: WatchlistPrediction }) {
+  const ui = useUiText();
   const title = prediction.thesisTitle?.trim();
 
   return (
@@ -133,7 +136,7 @@ function PredictionRow({ prediction }: { prediction: WatchlistPrediction }) {
       <Link
         href={`/ticker/${prediction.ticker}`}
         className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
-        aria-label={`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`}
+        aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`)}
       >
         <span aria-hidden="true">{prediction.direction === "UP" ? "\u2191" : "\u2193"}</span>
         <span>{formatTickerSymbol(prediction.ticker)}</span>
@@ -210,11 +213,11 @@ export function WatchlistDetailPage({
   }, [authLoading, getIdToken, watchlistId]);
 
   if (loading || authLoading) {
-    return <main className="mx-auto w-full max-w-5xl px-4 py-8 text-sm text-slate-300">Loading watchlist...</main>;
+    return <main className="mx-auto w-full max-w-5xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading watchlist..."} /></main>;
   }
 
   if (!watchlist || error) {
-    return <main className="mx-auto w-full max-w-5xl px-4 py-8 text-sm text-rose-300">{error ?? "Watchlist not found."}</main>;
+    return <main className="mx-auto w-full max-w-5xl px-4 py-8 text-sm text-rose-300">{error ?? <UiText text={"Watchlist not found."} />}</main>;
   }
 
   const isPreview = watchlist.viewerAccess === "preview";
@@ -236,18 +239,14 @@ export function WatchlistDetailPage({
                 <Link
                   href={`/analysts/${watchlist.owner.id}`}
                   className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15"
-                >
-                  Analyst profile
-                </Link>
+                ><UiText text={"Analyst profile"} /></Link>
               )}
               <a
                 href={watchlistShareIntentUrl(watchlist)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-              >
-                Share to X
-              </a>
+              ><UiText text={"Share to X"} /></a>
             </div>
           ) : null}
         </div>
@@ -268,39 +267,37 @@ export function WatchlistDetailPage({
             <Link href={`/analysts/${watchlist.owner.id}`} className="text-sm font-semibold text-cyan-100 hover:text-cyan-50">
               {ownerLabel(watchlist.owner)}
             </Link>
-            <p className="mt-0.5 text-xs text-slate-400">
-              Level {watchlist.owner.stats.level} &middot; {watchlist.owner.stats.followersCount.toLocaleString()} followers &middot; {watchlist.owner.stats.settledCalls.toLocaleString()} settled calls
-            </p>
+            <p className="mt-0.5 text-xs text-slate-400"><UiText text={"Level "} />{watchlist.owner.stats.level}<UiText text={" &middot; "} />{watchlist.owner.stats.followersCount.toLocaleString()}<UiText text={" followers &middot; "} />{watchlist.owner.stats.settledCalls.toLocaleString()}<UiText text={" settled calls"} /></p>
           </div>
         </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Total predictions</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Total predictions"} /></p>
           <p className="mt-1 text-xl font-semibold text-slate-100">{watchlist.metrics.totalPredictionCount.toLocaleString()}</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Open predictions</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Open predictions"} /></p>
           <p className="mt-1 text-xl font-semibold text-slate-100">{watchlist.metrics.livePredictionCount.toLocaleString()}</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Settled predictions</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Settled predictions"} /></p>
           <p className="mt-1 text-xl font-semibold text-slate-100">{watchlist.metrics.settledPredictionCount.toLocaleString()}</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Total return</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Total return"} /></p>
           <p className="mt-1 text-xl font-semibold text-cyan-100">{returnText(watchlist.metrics.totalReturn)}</p>
         </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Live return</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Live return"} /></p>
           <p className="mt-1 text-xl font-semibold text-cyan-100">{returnText(watchlist.metrics.liveReturn)}</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Win rate</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Win rate"} /></p>
           <p className="mt-1 text-xl font-semibold text-cyan-100">{percentText(watchlist.metrics.winRate)}</p>
         </div>
       </section>
@@ -309,19 +306,17 @@ export function WatchlistDetailPage({
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">
-              {isPreview ? "Preview predictions" : "Live predictions"}
+              {isPreview ? <UiText text={"Preview predictions"} /> : <UiText text={"Live predictions"} />}
             </h2>
             {isPreview ? (
-              <p className="mt-1 text-sm text-slate-400">First 3 public predictions are visible before sign-in.</p>
+              <p className="mt-1 text-sm text-slate-400"><UiText text={"First 3 public predictions are visible before sign-in."} /></p>
             ) : null}
           </div>
           {!isPreview ? (
             <Link
               href={`/predictions/new?watchlistId=${encodeURIComponent(watchlist.id)}`}
               className="text-sm font-semibold text-cyan-300 hover:text-cyan-200"
-            >
-              Make your call on this theme
-            </Link>
+            ><UiText text={"Make your call on this theme"} /></Link>
           ) : null}
         </div>
         <div className="mt-4 grid gap-3">
@@ -333,7 +328,7 @@ export function WatchlistDetailPage({
           )) : null}
           {(isPreview ? !hasPreviewPredictions : watchlist.livePredictions.length === 0) ? (
             <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-              {isPreview ? "No preview predictions in this watchlist." : "No live predictions in this watchlist."}
+              {isPreview ? <UiText text={"No preview predictions in this watchlist."} /> : <UiText text={"No live predictions in this watchlist."} />}
             </p>
           ) : null}
         </div>
@@ -341,24 +336,18 @@ export function WatchlistDetailPage({
 
       {isPreview ? (
         <section className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-5">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Unlock the full watchlist</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-            Sign in to view all public calls, full watchlist history, and performance details.
-            {hiddenPredictionCount > 0 ? ` ${hiddenPredictionCount.toLocaleString()} more call${hiddenPredictionCount === 1 ? "" : "s"} are waiting behind this preview.` : ""}
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Unlock the full watchlist"} /></h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300"><UiText text={"Sign in to view all public calls, full watchlist history, and performance details."} />{hiddenPredictionCount > 0 ? <UiText text={` ${hiddenPredictionCount.toLocaleString()} more call${hiddenPredictionCount === 1 ? "" : "s"} are waiting behind this preview.`} /> : ""}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link
               href="/auth"
               className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-            >
-              Sign in to unlock full watchlist
-            </Link>
+            ><UiText text={"Sign in to unlock full watchlist"} /></Link>
             <Link
               href="/predictions/new"
               className="rounded-lg border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15"
-            >
-              Make your own call
-            </Link>
+            ><UiText text={"Make your own call"} /></Link>
           </div>
         </section>
       ) : (
@@ -368,8 +357,8 @@ export function WatchlistDetailPage({
           onClick={() => setSettledOpen((current) => !current)}
           className="flex w-full items-center justify-between gap-3 text-left"
         >
-          <span className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Settled predictions</span>
-          <span className="text-sm text-cyan-300">{settledOpen ? "Hide" : "Show"}</span>
+          <span className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Settled predictions"} /></span>
+          <span className="text-sm text-cyan-300">{settledOpen ? <UiText text={"Hide"} /> : <UiText text={"Show"} />}</span>
         </button>
         {settledOpen ? (
           <div className="mt-4 grid gap-3">
@@ -377,9 +366,7 @@ export function WatchlistDetailPage({
               <PredictionRow key={prediction.id} prediction={prediction} />
             ))}
             {watchlist.settledPredictions.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-                No settled predictions in this watchlist.
-              </p>
+              <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No settled predictions in this watchlist."} /></p>
             ) : null}
           </div>
         ) : null}

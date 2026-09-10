@@ -1,4 +1,7 @@
 "use client";
+import { DisplayPreferencesPanel } from "./display-preferences";
+
+import { UiText, useUiText } from "@/components/ui-text";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -176,6 +179,7 @@ function escapeHtmlAttribute(value: string): string {
 }
 
 function ProfileWatchlistPredictionRow({ prediction }: { prediction: WatchlistPrediction }) {
+  const ui = useUiText();
   const title = prediction.thesisTitle?.trim();
 
   return (
@@ -185,7 +189,7 @@ function ProfileWatchlistPredictionRow({ prediction }: { prediction: WatchlistPr
           <Link
             href={`/predictions/${prediction.id}`}
             className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
-            aria-label={`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`}
+            aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`)}
           >
             <span aria-hidden="true">{prediction.direction === "UP" ? "\u2191" : "\u2193"}</span>
             <span>{formatTickerSymbol(prediction.ticker)}</span>
@@ -194,8 +198,8 @@ function ProfileWatchlistPredictionRow({ prediction }: { prediction: WatchlistPr
           <PredictionReturnSummary prediction={prediction} href={`/predictions/${prediction.id}`} status={prediction.status} />
         </div>
         <div className="shrink-0 text-right text-xs text-slate-500">
-          <p>{predictionStatusLabel(prediction.status)}</p>
-          <p className="mt-1">{prediction.commentCount.toLocaleString()} comments</p>
+          <p>{<UiText text={predictionStatusLabel(prediction.status)} />}</p>
+          <p className="mt-1">{prediction.commentCount.toLocaleString()}<UiText text={" comments"} /></p>
         </div>
       </div>
     </article>
@@ -209,6 +213,7 @@ export function AnalystProfilePage({
   userId: string;
   promptForNickname?: boolean;
 }) {
+  const ui = useUiText();
   const { user, loading: authLoading, getIdToken } = useAuth();
   const isOwner = Boolean(user && user.uid === userId);
   const [status, setStatus] = useState<ProfileStatusFilter>("ALL");
@@ -587,13 +592,14 @@ export function AnalystProfilePage({
   if (loading || !payload) {
     return (
       <main className="mx-auto w-full max-w-5xl px-4 py-8 text-sm text-slate-300">
-        {error ?? "Loading profile..."}
+        {error ?? <UiText text={"Loading profile..."} />}
       </main>
     );
   }
 
   return (
     <main className="mx-auto grid w-full max-w-5xl gap-4 px-4 py-8">
+      {isOwner ? <DisplayPreferencesPanel /> : null}
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -601,7 +607,7 @@ export function AnalystProfilePage({
               {payload.profile.photoURL ? (
                 <Image
                   src={payload.profile.photoURL}
-                  alt={`${preferredName} avatar`}
+                  alt={ui(`${preferredName} avatar`)}
                   width={48}
                   height={48}
                   className="h-12 w-12 rounded-full border border-white/15 object-cover"
@@ -619,42 +625,41 @@ export function AnalystProfilePage({
                 {payload.profile.aiAnalyst ? (
                   <p className="mt-2">
                     <span className="rounded-full border border-cyan-400/35 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-100">
-                      {payload.profile.aiAnalyst.badgeLabel}
+                      {<UiText text={payload.profile.aiAnalyst.badgeLabel} />}
                     </span>
                   </p>
                 ) : null}
-                <nav className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400" aria-label="Profile follow lists">
+                <nav className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400" aria-label={ui("Profile follow lists")}>
                   <Link href={`/analysts/${userId}/following`} className="hover:text-cyan-200">
-                    {countText(payload.profile.stats.followingCount, "following", "following")}
+                    {<UiText text={countText(payload.profile.stats.followingCount, "following", "following")} />}
                   </Link>
                   <span aria-hidden="true">/</span>
                   <Link href={`/analysts/${userId}/followers`} className="hover:text-cyan-200">
-                    {countText(payload.profile.stats.followersCount, "follower")}
+                    {<UiText text={countText(payload.profile.stats.followersCount, "follower")} />}
                   </Link>
                 </nav>
               </div>
             </div>
             <div className="mt-4 grid gap-2 text-slate-200">
               <p className="text-base">
-                <span className="text-slate-400">Score: </span>
+                <span className="text-slate-400"><UiText text={"Score: "} /></span>
                 <span className="text-xl font-semibold text-cyan-100">
                   {scoreValueText(payload.profile.stats.totalScore)}
                 </span>
               </p>
               <p className="text-sm">
-                <span className="text-slate-400">Level: </span>
-                <span className="font-semibold text-cyan-100">
-                  Level {payload.profile.stats.level} &middot; {analystLevelName(payload.profile.stats.level)}
+                <span className="text-slate-400"><UiText text={"Level: "} /></span>
+                <span className="font-semibold text-cyan-100"><UiText text={"Level "} />{payload.profile.stats.level}<UiText text={" &middot; "} />{<UiText text={analystLevelName(payload.profile.stats.level)} />}
                 </span>
               </p>
               <p className="text-xs">
-                <span className="text-slate-400">XP: </span>
+                <span className="text-slate-400"><UiText text={"XP: "} /></span>
                 <span className="font-semibold text-cyan-100">
                   {xpProgressText(payload.profile.stats.totalXP, payload.profile.stats.level)}
                 </span>
               </p>
               <p className="text-xs">
-                <span className="text-slate-400">Settled: </span>
+                <span className="text-slate-400"><UiText text={"Settled: "} /></span>
                 <span className="font-semibold text-cyan-100">{settledCalls.toLocaleString()}</span>
               </p>
             </div>
@@ -665,9 +670,7 @@ export function AnalystProfilePage({
                 type="button"
                 onClick={startEditing}
                 className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200"
-              >
-                Edit profile
-              </button>
+              ><UiText text={"Edit profile"} /></button>
             ) : null}
             {!isOwner && !authLoading && user ? (
               <button
@@ -680,65 +683,55 @@ export function AnalystProfilePage({
                     : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
                 }`}
               >
-                {followSaving ? "Saving..." : payload.relationship.isFollowing ? "Unfollow" : "Follow"}
+                {followSaving ? <UiText text={"Saving..."} /> : payload.relationship.isFollowing ? <UiText text={"Unfollow"} /> : <UiText text={"Follow"} />}
               </button>
             ) : null}
             {!isOwner && !authLoading && !user ? (
               <Link
                 href="/auth"
                 className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
-              >
-                Sign in to follow
-              </Link>
+              ><UiText text={"Sign in to follow"} /></Link>
             ) : null}
             <button
               type="button"
               onClick={() => setShareOpen(true)}
               className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
-            >
-              Share badge
-            </button>
+            ><UiText text={"Share badge"} /></button>
           </div>
         </div>
-        {followError ? <p className="mt-2 text-xs text-rose-300">{followError}</p> : null}
+        {followError ? <p className="mt-2 text-xs text-rose-300">{<UiText text={followError} />}</p> : null}
 
         {editing ? (
           <div className="mt-3 grid gap-3">
             {promptForNickname && !payload.profile.nickname ? (
-              <p className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100">
-                Choose a nickname. This is the name people will see publicly on YouAnalyst.
-              </p>
+              <p className="rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-100"><UiText text={"Choose a nickname. This is the name people will see publicly on YouAnalyst."} /></p>
             ) : null}
             <div>
-              <label className="mb-1 block text-xs text-slate-400" htmlFor="edit-nickname">
-                Nickname
-              </label>
-              <p className="mb-2 text-xs text-slate-500">This is the name people will see publicly on YouAnalyst.</p>
+              <label className="mb-1 block text-xs text-slate-400" htmlFor="edit-nickname"><UiText text={"Nickname"} /></label>
+              <p className="mb-2 text-xs text-slate-500"><UiText text={"This is the name people will see publicly on YouAnalyst."} /></p>
               <input
                 id="edit-nickname"
                 type="text"
                 maxLength={30}
                 value={editNickname}
                 onChange={(e) => setEditNickname(e.target.value)}
-                placeholder="your_handle"
+                placeholder={ui("your_handle")}
                 className="w-full rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-500/50"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-400" htmlFor="edit-bio">
-                Bio
-              </label>
+              <label className="mb-1 block text-xs text-slate-400" htmlFor="edit-bio"><UiText text={"Bio"} /></label>
               <textarea
                 id="edit-bio"
                 maxLength={500}
                 rows={3}
                 value={editBio}
                 onChange={(e) => setEditBio(e.target.value)}
-                placeholder="Tell others about yourself..."
+                placeholder={ui("Tell others about yourself...")}
                 className="w-full resize-none rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-500/50"
               />
             </div>
-            {saveError ? <p className="text-xs text-rose-400">{saveError}</p> : null}
+            {saveError ? <p className="text-xs text-rose-400">{<UiText text={saveError} />}</p> : null}
             <div className="flex gap-2">
               <button
                 type="button"
@@ -746,26 +739,24 @@ export function AnalystProfilePage({
                 disabled={saving}
                 className="rounded-lg bg-cyan-500 px-4 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Save"}
+                {saving ? <UiText text={"Saving..."} /> : <UiText text={"Save"} />}
               </button>
               <button
                 type="button"
                 onClick={cancelEditing}
                 disabled={saving}
                 className="rounded-lg border border-white/10 px-4 py-1.5 text-xs text-slate-300 hover:border-white/25 disabled:opacity-50"
-              >
-                Cancel
-              </button>
+              ><UiText text={"Cancel"} /></button>
             </div>
           </div>
         ) : (
           <p className="mt-2 text-sm text-slate-300">
-            {payload.profile.bio || "Add a bio to tell others what you analyze"}
+            {payload.profile.bio || <UiText text={"Add a bio to tell others what you analyze"} />}
           </p>
         )}
         {payload.profile.aiAnalyst ? (
           <p className="mt-3 text-xs leading-6 text-slate-400">
-            {payload.profile.aiAnalyst.disclosureLong}
+            {<UiText text={payload.profile.aiAnalyst.disclosureLong} />}
           </p>
         ) : null}
       </section>
@@ -774,17 +765,17 @@ export function AnalystProfilePage({
         <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Institution digest</h2>
-              <p className="mt-1 text-sm text-slate-300">Activity summaries for institutions you follow.</p>
+              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Institution digest"} /></h2>
+              <p className="mt-1 text-sm text-slate-300"><UiText text={"Activity summaries for institutions you follow."} /></p>
               {payload.profile.settings.institutionDigestLastSentAt ? (
-                <p className="mt-2 text-xs text-slate-500">Last sent {payload.profile.settings.institutionDigestLastSentAt}</p>
+                <p className="mt-2 text-xs text-slate-500"><UiText text={"Last sent "} />{payload.profile.settings.institutionDigestLastSentAt}</p>
               ) : null}
             </div>
             <div className="grid gap-3 sm:min-w-72">
               <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-900/55 px-4 py-3">
                 <span>
-                  <span className="block text-sm font-semibold text-slate-100">Digest</span>
-                  <span className="mt-1 block text-xs text-slate-500">Prepare followed-institution activity summaries.</span>
+                  <span className="block text-sm font-semibold text-slate-100"><UiText text={"Digest"} /></span>
+                  <span className="mt-1 block text-xs text-slate-500"><UiText text={"Prepare followed-institution activity summaries."} /></span>
                 </span>
                 <input
                   type="checkbox"
@@ -794,21 +785,19 @@ export function AnalystProfilePage({
                   className="h-5 w-5 accent-cyan-400"
                 />
               </label>
-              <label className="grid gap-1 text-xs text-slate-400">
-                Cadence
-                <select
+              <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Cadence"} /><select
                   value={payload.profile.settings.institutionDigestCadence}
                   disabled={digestSaving || !payload.profile.settings.institutionDigestEnabled}
                   onChange={(event) => void saveInstitutionDigestSettings({ institutionDigestCadence: event.target.value as InstitutionDigestCadence })}
                   className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring disabled:opacity-60"
                 >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
+                  <option value="daily"><UiText text={"Daily"} /></option>
+                  <option value="weekly"><UiText text={"Weekly"} /></option>
                 </select>
               </label>
-              {digestSaving ? <p className="text-xs text-slate-400">Saving digest settings...</p> : null}
-              {digestMessage ? <p className="text-xs text-emerald-300">{digestMessage}</p> : null}
-              {digestError ? <p className="text-xs text-rose-300">{digestError}</p> : null}
+              {digestSaving ? <p className="text-xs text-slate-400"><UiText text={"Saving digest settings..."} /></p> : null}
+              {digestMessage ? <p className="text-xs text-emerald-300">{<UiText text={digestMessage} />}</p> : null}
+              {digestError ? <p className="text-xs text-rose-300">{<UiText text={digestError} />}</p> : null}
               <InstitutionDigestPreviewPanel />
             </div>
           </div>
@@ -819,7 +808,7 @@ export function AnalystProfilePage({
         <section className="grid gap-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5 md:grid-cols-3">
           <div>
             <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">
-              {payload.profile.aiAnalyst.profileSections.coverageUniverseTitle}
+              {<UiText text={payload.profile.aiAnalyst.profileSections.coverageUniverseTitle} />}
             </h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {payload.profile.aiAnalyst.coverageTickers.map((ticker) => (
@@ -834,25 +823,25 @@ export function AnalystProfilePage({
           </div>
           <div>
             <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">
-              {payload.profile.aiAnalyst.profileSections.methodologyTitle}
+              {<UiText text={payload.profile.aiAnalyst.profileSections.methodologyTitle} />}
             </h2>
             <div className="mt-2 space-y-2 text-sm leading-6 text-slate-300">
-              <p>{payload.profile.aiAnalyst.howItWorks.summary}</p>
+              <p>{<UiText text={payload.profile.aiAnalyst.howItWorks.summary} />}</p>
               {payload.profile.aiAnalyst.howItWorks.methodology.map((item) => (
-                <p key={item}>{item}</p>
+                <p key={item}><UiText text={item} /></p>
               ))}
             </div>
           </div>
           <div>
             <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">
-              {payload.profile.aiAnalyst.profileSections.limitationsTitle}
+              {<UiText text={payload.profile.aiAnalyst.profileSections.limitationsTitle} />}
             </h2>
             <div className="mt-2 space-y-2 text-sm leading-6 text-slate-300">
               {payload.profile.aiAnalyst.howItWorks.rules.map((item) => (
-                <p key={item}>{item}</p>
+                <p key={item}><UiText text={item} /></p>
               ))}
               {payload.profile.aiAnalyst.howItWorks.limitations.map((item) => (
-                <p key={item}>{item}</p>
+                <p key={item}><UiText text={item} /></p>
               ))}
             </div>
           </div>
@@ -862,16 +851,14 @@ export function AnalystProfilePage({
       <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Watchlists</h2>
-            <p className="mt-1 text-sm text-slate-300">Public watchlists and track record for this analyst.</p>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Watchlists"} /></h2>
+            <p className="mt-1 text-sm text-slate-300"><UiText text={"Public watchlists and track record for this analyst."} /></p>
           </div>
           {isOwner ? (
             <Link
               href="/watchlists?tab=mine"
               className="rounded-full border border-cyan-400/35 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
-            >
-              Manage watchlists
-            </Link>
+            ><UiText text={"Manage watchlists"} /></Link>
           ) : null}
         </div>
 
@@ -905,9 +892,7 @@ export function AnalystProfilePage({
                       <Link
                         href={`/analysts/${userId}/watchlists/${selectedWatchlistSummary.id}`}
                         className="text-xs font-medium text-cyan-300 hover:text-cyan-100"
-                      >
-                        Open page
-                      </Link>
+                      ><UiText text={"Open page"} /></Link>
                     </div>
                     {selectedWatchlistSummary.description ? (
                       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
@@ -925,7 +910,7 @@ export function AnalystProfilePage({
                           status === option ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"
                         }`}
                       >
-                        {statusFilterLabel(option)}
+                        {<UiText text={statusFilterLabel(option)} />}
                       </button>
                     ))}
                   </div>
@@ -934,35 +919,33 @@ export function AnalystProfilePage({
                 {selectedMetrics ? (
                   <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                     <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Live return</p>
+                      <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Live return"} /></p>
                       <p className="mt-1 font-semibold text-cyan-100">
                         {watchlistReturnText(selectedMetrics.liveReturn)}
                       </p>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Settled return</p>
+                      <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Settled return"} /></p>
                       <p className="mt-1 font-semibold text-cyan-100">
                         {watchlistReturnText(selectedMetrics.settledReturn)}
                       </p>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Live</p>
+                      <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Live"} /></p>
                       <p className="mt-1 font-semibold text-slate-100">
-                        {selectedMetrics.livePredictionCount.toLocaleString()} predictions
-                      </p>
+                        {selectedMetrics.livePredictionCount.toLocaleString()}<UiText text={" predictions"} /></p>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Settled</p>
+                      <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Settled"} /></p>
                       <p className="mt-1 font-semibold text-slate-100">
-                        {selectedMetrics.settledPredictionCount.toLocaleString()} predictions
-                      </p>
+                        {selectedMetrics.settledPredictionCount.toLocaleString()}<UiText text={" predictions"} /></p>
                     </div>
                   </div>
                 ) : null}
 
                 <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/45 p-4">
                   {watchlistState.loading && watchlistState.watchlistId === selectedWatchlistId ? (
-                    <p className="text-sm text-slate-300">Loading watchlist...</p>
+                    <p className="text-sm text-slate-300"><UiText text={"Loading watchlist..."} /></p>
                   ) : watchlistState.error && watchlistState.watchlistId === selectedWatchlistId ? (
                     <p className="text-sm text-rose-300">{watchlistState.error}</p>
                   ) : selectedPredictions.length > 0 ? (
@@ -974,10 +957,10 @@ export function AnalystProfilePage({
                   ) : (
                     <p className="text-sm text-slate-300">
                       {status === "LIVE"
-                        ? "No live predictions in this watchlist."
+                        ? <UiText text={"No live predictions in this watchlist."} />
                         : status === "SETTLED"
-                          ? "No settled predictions in this watchlist."
-                          : "No predictions in this watchlist yet."}
+                          ? <UiText text={"No settled predictions in this watchlist."} />
+                          : <UiText text={"No predictions in this watchlist yet."} />}
                     </p>
                   )}
                 </div>
@@ -986,7 +969,7 @@ export function AnalystProfilePage({
           </>
         ) : (
           <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-            {isOwner ? "No watchlists yet. Create one to organize your predictions." : "No watchlists yet."}
+            {isOwner ? <UiText text={"No watchlists yet. Create one to organize your predictions."} /> : <UiText text={"No watchlists yet."} />}
           </p>
         )}
       </section>
@@ -996,21 +979,19 @@ export function AnalystProfilePage({
           <div className="w-full max-w-lg rounded-lg border border-cyan-500/25 bg-slate-950 p-4 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">Share badge</h2>
-                <p className="mt-1 text-sm text-slate-400">Embed your YouAnalyst analyst badge anywhere.</p>
+                <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Share badge"} /></h2>
+                <p className="mt-1 text-sm text-slate-400"><UiText text={"Embed your YouAnalyst analyst badge anywhere."} /></p>
               </div>
               <button
                 type="button"
                 onClick={() => setShareOpen(false)}
                 className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-300 hover:border-white/25"
-              >
-                Close
-              </button>
+              ><UiText text={"Close"} /></button>
             </div>
 
             <Image
               src={badgePath}
-              alt={`YouAnalyst badge for ${preferredName}`}
+              alt={ui(`YouAnalyst badge for ${preferredName}`)}
               width={420}
               height={180}
               className="mt-4 w-full rounded-lg border border-white/10"
@@ -1018,7 +999,7 @@ export function AnalystProfilePage({
 
             <div className="mt-4 grid gap-3">
               <div>
-                <p className="mb-1 text-xs text-slate-400">Badge URL</p>
+                <p className="mb-1 text-xs text-slate-400"><UiText text={"Badge URL"} /></p>
                 <div className="flex gap-2">
                   <input
                     readOnly
@@ -1029,14 +1010,12 @@ export function AnalystProfilePage({
                     type="button"
                     onClick={() => void copyBadgeText(absoluteUrl(badgePath), "Badge URL copied.")}
                     className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
-                  >
-                    Copy
-                  </button>
+                  ><UiText text={"Copy"} /></button>
                 </div>
               </div>
 
               <div>
-                <p className="mb-1 text-xs text-slate-400">Embed code</p>
+                <p className="mb-1 text-xs text-slate-400"><UiText text={"Embed code"} /></p>
                 <textarea
                   readOnly
                   rows={3}
@@ -1047,12 +1026,10 @@ export function AnalystProfilePage({
                   type="button"
                   onClick={() => void copyBadgeText(badgeEmbedCode(), "Embed code copied.")}
                   className="mt-2 rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
-                >
-                  Copy embed
-                </button>
+                ><UiText text={"Copy embed"} /></button>
               </div>
 
-              {copyMessage ? <p className="text-xs text-emerald-300">{copyMessage}</p> : null}
+              {copyMessage ? <p className="text-xs text-emerald-300">{<UiText text={copyMessage} />}</p> : null}
             </div>
           </div>
         </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -238,58 +240,54 @@ export function AdminAiAnalystPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <p className="mb-3 text-sm font-medium text-cyan-200">Admin</p>
+      <p className="mb-3 text-sm font-medium text-cyan-200"><UiText text={"Admin"} /></p>
 
       <section className="mb-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Users</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Users"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.users) : <>&mdash;</>}
+            {stats ? formatCount(stats.users) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Predictions</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Predictions"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.predictions) : <>&mdash;</>}
+            {stats ? formatCount(stats.predictions) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Feedback</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Feedback"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.feedback) : <>&mdash;</>}
+            {stats ? formatCount(stats.feedback) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
       </section>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">AI analyst drafts</h1>
-          <p className="mt-2 text-sm text-slate-300">
-            Review generated AI analyst calls before they are published to the feed.
-          </p>
+          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"AI analyst drafts"} /></h1>
+          <p className="mt-2 text-sm text-slate-300"><UiText text={"Review generated AI analyst calls before they are published to the feed."} /></p>
         </div>
         <Link
           href="/how-it-works"
           className="w-fit rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/15"
-        >
-          View methodology
-        </Link>
+        ><UiText text={"View methodology"} /></Link>
       </div>
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/70 shadow-[0_8px_40px_rgba(8,47,73,0.35)]">
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-          <p className="text-sm font-medium text-slate-200">{loadingData ? "Loading..." : countLabel}</p>
+          <p className="text-sm font-medium text-slate-200">{loadingData ? <UiText text={"Loading..."} /> : countLabel}</p>
           <p className="text-xs text-slate-500">
-            {runCreatedAt ? `Latest run: ${formatDateTime(runCreatedAt)}` : "Latest run"}
+            {runCreatedAt ? <UiText text={`Latest run: ${formatDateTime(runCreatedAt)}`} /> : <UiText text={"Latest run"} />}
           </p>
         </div>
 
         {error ? (
-          <div className="px-5 py-8 text-sm text-rose-300">{error}</div>
+          <div className="px-5 py-8 text-sm text-rose-300">{<UiText text={error} />}</div>
         ) : loadingData ? (
-          <div className="px-5 py-8 text-sm text-slate-300">Loading AI analyst drafts...</div>
+          <div className="px-5 py-8 text-sm text-slate-300"><UiText text={"Loading AI analyst drafts..."} /></div>
         ) : drafts.length === 0 ? (
-          <div className="px-5 py-8 text-sm text-slate-300">No AI analyst drafts yet.</div>
+          <div className="px-5 py-8 text-sm text-slate-300"><UiText text={"No AI analyst drafts yet."} /></div>
         ) : (
           <div className="divide-y divide-white/10">
             {drafts.map((draft) => (
@@ -298,14 +296,14 @@ export function AdminAiAnalystPage() {
                   <div>
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${toneForStatus(draft.status)}`}>
-                        {draft.status}
+                        {<UiText text={draft.status} />}
                       </span>
                       <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-300">
-                        {draft.action}
+                        {<UiText text={draft.action} />}
                       </span>
                       {draft.direction ? (
                         <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-300">
-                          {draft.direction}
+                          {<UiText text={draft.direction} />}
                         </span>
                       ) : null}
                     </div>
@@ -315,61 +313,59 @@ export function AdminAiAnalystPage() {
                     <p className="mt-1 text-xs text-slate-500">{draft.id}</p>
                   </div>
                   <div className="text-sm text-slate-400">
-                    <p>Run date: {draft.runDate ?? "Unknown"}</p>
-                    <p>Created: {formatDateTime(draft.createdAt)}</p>
+                    <p><UiText text={"Run date: "} />{draft.runDate ?? <UiText text={"Unknown"} />}</p>
+                    <p><UiText text={"Created: "} />{formatDateTime(draft.createdAt)}</p>
                   </div>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-4">
                   <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-3">
-                    <p className="text-xs uppercase text-slate-500">Confidence</p>
-                    <p className="mt-1 text-sm font-semibold text-cyan-100">{confidenceText(draft.confidence)}</p>
+                    <p className="text-xs uppercase text-slate-500"><UiText text={"Confidence"} /></p>
+                    <p className="mt-1 text-sm font-semibold text-cyan-100">{<UiText text={confidenceText(draft.confidence)} />}</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-3">
-                    <p className="text-xs uppercase text-slate-500">Catalyst</p>
-                    <p className="mt-1 text-sm text-slate-200">{draft.catalyst ?? "None"}</p>
+                    <p className="text-xs uppercase text-slate-500"><UiText text={"Catalyst"} /></p>
+                    <p className="mt-1 text-sm text-slate-200">{draft.catalyst ?? <UiText text={"None"} />}</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-3">
-                    <p className="text-xs uppercase text-slate-500">Validation</p>
+                    <p className="text-xs uppercase text-slate-500"><UiText text={"Validation"} /></p>
                     <p className="mt-1 text-sm text-slate-200">
-                      {draft.validation?.eligibleTicker === false ? "Outside universe" : "Eligible ticker"}
+                      {draft.validation?.eligibleTicker === false ? <UiText text={"Outside universe"} /> : <UiText text={"Eligible ticker"} />}
                     </p>
                     <p className="text-xs text-slate-400">
-                      {draft.validation?.meetsConfidenceThreshold === false ? "Below threshold" : "Confidence ok"}
+                      {draft.validation?.meetsConfidenceThreshold === false ? <UiText text={"Below threshold"} /> : <UiText text={"Confidence ok"} />}
                     </p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-3">
-                    <p className="text-xs uppercase text-slate-500">Publish</p>
+                    <p className="text-xs uppercase text-slate-500"><UiText text={"Publish"} /></p>
                     {draft.publishedPredictionId ? (
                       <Link
                         href={`/predictions/${draft.publishedPredictionId}`}
                         className="mt-1 inline-block text-sm font-medium text-cyan-200 hover:text-cyan-100"
-                      >
-                        View published prediction
-                      </Link>
+                      ><UiText text={"View published prediction"} /></Link>
                     ) : (
-                      <p className="mt-1 text-sm text-slate-300">Not published</p>
+                      <p className="mt-1 text-sm text-slate-300"><UiText text={"Not published"} /></p>
                     )}
                   </div>
                 </div>
 
                 {draft.thesis ? (
                   <div>
-                    <p className="text-xs uppercase text-slate-500">Thesis</p>
+                    <p className="text-xs uppercase text-slate-500"><UiText text={"Thesis"} /></p>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{draft.thesis}</p>
                   </div>
                 ) : null}
 
                 {draft.rationale ? (
                   <div>
-                    <p className="text-xs uppercase text-slate-500">Rationale</p>
+                    <p className="text-xs uppercase text-slate-500"><UiText text={"Rationale"} /></p>
                     <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{draft.rationale}</p>
                   </div>
                 ) : null}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <p className="text-xs uppercase text-slate-500">Signals</p>
+                    <p className="text-xs uppercase text-slate-500"><UiText text={"Signals"} /></p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {(draft.signals ?? []).length > 0 ? (
                         draft.signals?.map((signal) => (
@@ -381,12 +377,12 @@ export function AdminAiAnalystPage() {
                           </span>
                         ))
                       ) : (
-                        <span className="text-sm text-slate-400">None</span>
+                        <span className="text-sm text-slate-400"><UiText text={"None"} /></span>
                       )}
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs uppercase text-slate-500">Risks</p>
+                    <p className="text-xs uppercase text-slate-500"><UiText text={"Risks"} /></p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {(draft.risks ?? []).length > 0 ? (
                         draft.risks?.map((risk) => (
@@ -398,7 +394,7 @@ export function AdminAiAnalystPage() {
                           </span>
                         ))
                       ) : (
-                        <span className="text-sm text-slate-400">None</span>
+                        <span className="text-sm text-slate-400"><UiText text={"None"} /></span>
                       )}
                     </div>
                   </div>
@@ -411,19 +407,16 @@ export function AdminAiAnalystPage() {
                     disabled={pendingDraftId === draft.id || draft.status !== "DRAFT"}
                     className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {pendingDraftId === draft.id ? "Saving..." : "Approve & publish"}
+                    {pendingDraftId === draft.id ? <UiText text={"Saving..."} /> : <UiText text={"Approve & publish"} />}
                   </button>
                   <button
                     type="button"
                     onClick={() => void mutateDraft(draft.id, "reject")}
                     disabled={pendingDraftId === draft.id || draft.status !== "DRAFT"}
                     className="rounded-lg border border-rose-400/35 px-4 py-2 text-sm font-medium text-rose-200 hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Reject
-                  </button>
+                  ><UiText text={"Reject"} /></button>
                   {draft.review?.action ? (
-                    <p className="text-xs text-slate-500">
-                      Last review: {draft.review.action} {draft.review.reviewedAt ? `on ${formatDateTime(draft.review.reviewedAt)}` : ""}
+                    <p className="text-xs text-slate-500"><UiText text={"Last review: "} />{draft.review.action} {draft.review.reviewedAt ? <UiText text={`on ${formatDateTime(draft.review.reviewedAt)}`} /> : ""}
                     </p>
                   ) : null}
                 </div>

@@ -1,3 +1,5 @@
+
+import { UiText } from "@/components/ui-text";
 import Image from "next/image";
 import Link from "next/link";
 import { formatTickerSymbol, PredictionReturnSummary } from "@/components/prediction-ui";
@@ -38,8 +40,8 @@ function WatchlistPreviewRow({
           <PredictionReturnSummary prediction={prediction} href={`/predictions/${prediction.id}`} status={prediction.status} />
         </div>
         <div className="shrink-0 text-right text-xs text-slate-500">
-          <p>{predictionStatusLabel(prediction.status)}</p>
-          <p className="mt-1">{prediction.commentCount.toLocaleString()} comments</p>
+          <p>{<UiText text={predictionStatusLabel(prediction.status)} />}</p>
+          <p className="mt-1">{prediction.commentCount.toLocaleString()}<UiText text={" comments"} /></p>
         </div>
       </div>
     </article>
@@ -84,8 +86,8 @@ export function PublicWatchlistsPage({
     <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-4 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
       {showHeader ? (
         <div className="mb-4">
-          <h1 className="text-lg font-semibold tracking-tight text-white sm:text-xl">Community Watchlists</h1>
-          <p className="mt-1 text-sm text-slate-300">Best-performing public watchlists, with newer watchlists breaking ties.</p>
+          <h1 className="text-lg font-semibold tracking-tight text-white sm:text-xl"><UiText text={"Community Watchlists"} /></h1>
+          <p className="mt-1 text-sm text-slate-300"><UiText text={"Best-performing public watchlists, with newer watchlists breaking ties."} /></p>
         </div>
       ) : null}
 
@@ -119,10 +121,10 @@ export function PublicWatchlistsPage({
                     )}
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-cyan-200">
-                        {group.owner.nickname ? `@${group.owner.nickname}` : group.owner.displayName ?? "Analyst"}
+                        {group.owner.nickname ? `@${group.owner.nickname}` : group.owner.displayName ?? <UiText text={"Analyst"} />}
                       </p>
                       <p className="mt-1 text-xs text-slate-400">
-                        {group.watchlists.length === 1 ? "1 public watchlist" : `${group.watchlists.length} public watchlists`}
+                        {group.watchlists.length === 1 ? <UiText text={"1 public watchlist"} /> : <UiText text={`${group.watchlists.length} public watchlists`} />}
                       </p>
                     </div>
                   </Link>
@@ -141,9 +143,7 @@ export function PublicWatchlistsPage({
                           <Link
                             href={`/analysts/${watchlist.owner.id}/watchlists/${watchlist.id}`}
                             className="shrink-0 text-xs font-medium text-cyan-300 hover:text-cyan-100"
-                          >
-                            View watchlist
-                          </Link>
+                          ><UiText text={"View watchlist"} /></Link>
                         </div>
                         <div className="mt-4">
                           {watchlist.previewPredictions.length > 0 ? (
@@ -159,13 +159,13 @@ export function PublicWatchlistsPage({
                                     aria-label={`View ${hiddenPredictions} more predictions in ${watchlist.name}`}
                                   >
                                     <span aria-hidden="true">...</span>
-                                    <span>{hiddenPredictions} more</span>
+                                    <span>{hiddenPredictions}<UiText text={" more"} /></span>
                                   </Link>
                                 </div>
                               ) : null}
                             </div>
                           ) : (
-                            <p className="text-sm text-slate-300">No predictions in this watchlist yet.</p>
+                            <p className="text-sm text-slate-300"><UiText text={"No predictions in this watchlist yet."} /></p>
                           )}
                         </div>
                       </section>
@@ -177,9 +177,7 @@ export function PublicWatchlistsPage({
           })}
         </div>
       ) : (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No public watchlists yet.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No public watchlists yet."} /></p>
       )}
     </section>
   );

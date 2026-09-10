@@ -1,7 +1,10 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import { LanguageSwitch, useLocale } from "@/components/providers/locale-provider";
 import Image from "next/image";
+import { MarketSwitch, PreferenceError } from "./display-preferences";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,6 +42,7 @@ function AvatarButton({ photoURL, displayName, email }: { photoURL: string | nul
 }
 
 function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: () => void }) {
+  const ui = useUiText();
   const t = useNavText();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -58,7 +62,7 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
     <div ref={menuRef} className="relative" onKeyDown={event => { if (event.key === "Escape") { setOpen(false); menuRef.current?.querySelector("button")?.focus(); } }}>
       <button
         type="button"
-        aria-label="User menu"
+        aria-label={ui("User menu")}
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
         className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
@@ -73,7 +77,7 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
       {open && (
         <div className="absolute right-0 mt-2 w-48 rounded-2xl border border-white/10 bg-slate-900 py-1 shadow-xl">
           <div className="border-b border-white/10 px-4 py-2">
-            <p className="truncate text-sm font-medium text-cyan-100">{user?.displayName ?? user?.email ?? "Account"}</p>
+            <p className="truncate text-sm font-medium text-cyan-100">{user?.displayName ?? user?.email ?? <UiText text={"Account"} />}</p>
           </div>
           <Link
             href={profileHref}
@@ -154,6 +158,7 @@ function DailyNavMenu() {
 }
 
 export function SiteNav() {
+  const ui = useUiText();
   const t = useNavText();
   const pathname = usePathname();
   const { user, loading, signOut, getIdToken } = useAuth();
@@ -259,7 +264,7 @@ export function SiteNav() {
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/85 backdrop-blur">
       <div className="mx-auto w-full max-w-6xl px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-1 sm:gap-3">
           <div className="flex items-center gap-5">
             <Link href="/" className="inline-flex shrink-0 items-center">
               <Image
@@ -268,7 +273,7 @@ export function SiteNav() {
                 width={200}
                 height={44}
                 priority
-                className="h-9 w-auto md:hidden"
+                className="h-7 w-auto max-w-[80px] min-[375px]:max-w-[110px] sm:max-w-[150px] lg:hidden"
               />
               <Image
                 src="/youanalyst-logo.svg"
@@ -276,10 +281,10 @@ export function SiteNav() {
                 width={156}
                 height={40}
                 priority
-                className="hidden h-10 w-auto md:block"
+                className="hidden h-10 w-auto lg:block"
               />
             </Link>
-            <nav className="hidden items-center gap-4 text-[15px] text-slate-200 md:flex">
+            <nav className="hidden items-center gap-4 text-[15px] text-slate-200 lg:flex">
               <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className="hover:text-cyan-200">{t("Feed")}</Link>
               <Link href="/map" aria-current={pathname === "/map" ? "page" : undefined} className="hover:text-cyan-200">{t("Explore")}</Link>
               <Link href="/predictions" aria-current={pathname.startsWith("/predictions") ? "page" : undefined} className="hover:text-cyan-200">{t("Calls")}</Link>
@@ -290,11 +295,12 @@ export function SiteNav() {
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-3">
+            <MarketSwitch />
             <LanguageSwitch />
             <Link
               href="/companies"
-              className="hidden rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 md:inline-flex"
+              className="hidden rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 lg:inline-flex"
             >{t("Search companies")}</Link>
             {loading ? (
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-700" />
@@ -303,13 +309,13 @@ export function SiteNav() {
             ) : (
               <Link
                 href="/auth"
-                className="rounded-full border border-cyan-400/35 px-3 py-1.5 text-sm text-cyan-100 hover:bg-cyan-500/15"
+                className="shrink-0 whitespace-nowrap rounded-full border border-cyan-400/35 px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-cyan-100 hover:bg-cyan-500/15"
               >{t("Sign in")}</Link>
             )}
           </div>
         </div>
 
-        <nav aria-label="Mobile navigation" className="mt-2 flex items-center gap-1 text-sm text-slate-200 md:hidden">
+        <nav aria-label={ui("Mobile navigation")} className="mt-2 flex items-center gap-1 text-sm text-slate-200 lg:hidden">
           {[{ href: "/", label: "Feed" }, { href: "/companies", label: "Search" }, { href: "/watchlists", label: "Watchlists" }].map(item =>
             <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3">{t(item.label)}</Link>)}
           <details className="relative ml-auto" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
@@ -324,6 +330,7 @@ export function SiteNav() {
           </details>
         </nav>
       </div>
+      <PreferenceError />
     </header>
   );
 }

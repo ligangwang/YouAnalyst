@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { parseLocale } from "./lib/locale";
+import { parseMarket } from "./lib/preferences";
 
 const REDIRECT_HOSTS = new Set([
   "www.youanalyst.com",
@@ -20,10 +21,14 @@ export function proxy(request: NextRequest) {
     const locale = explicit ?? parseLocale(request.cookies.get("ya-language")?.value) ?? "en";
     const headers = new Headers(request.headers);
     headers.set("x-ya-language", locale);
+    const explicitMarket = parseMarket(request.nextUrl.searchParams.get("market"));
+    const market = explicitMarket ?? parseMarket(request.cookies.get("ya-market")?.value) ?? "US";
+    headers.set("x-ya-market", market);
     const response = NextResponse.next({ request: { headers } });
     if (explicit && !request.nextUrl.pathname.startsWith("/api/") && !request.nextUrl.pathname.startsWith("/_next/")) {
       response.cookies.set("ya-language", explicit, { path: "/", maxAge: 31536000, sameSite: "lax", secure: request.nextUrl.protocol === "https:" });
     }
+    if (explicitMarket && !request.nextUrl.pathname.startsWith("/api/") && !request.nextUrl.pathname.startsWith("/_next/")) response.cookies.set("ya-market", explicitMarket, { path: "/", maxAge: 31536000, sameSite: "lax", secure: request.nextUrl.protocol === "https:" });
     return response;
   }
 

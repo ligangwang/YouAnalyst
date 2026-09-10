@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -10,6 +12,7 @@ type FollowResponse = {
 };
 
 export function InstitutionFollowButton({ cik, name, compact = false }: { cik: string; name: string; compact?: boolean }) {
+  const ui = useUiText();
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [isFollowing, setIsFollowing] = useState(false);
   const [loadedForUser, setLoadedForUser] = useState<string | null>(null);
@@ -101,9 +104,7 @@ export function InstitutionFollowButton({ cik, name, compact = false }: { cik: s
         type="button"
         disabled
         className={`${compact ? "rounded-lg px-2 py-1 text-xs" : "rounded-xl px-4 py-2 text-sm"} border border-white/10 font-semibold text-slate-400`}
-      >
-        Loading...
-      </button>
+      ><UiText text={"Loading..."} /></button>
     );
   }
 
@@ -113,7 +114,7 @@ export function InstitutionFollowButton({ cik, name, compact = false }: { cik: s
         href="/auth"
         className={`${compact ? "rounded-lg px-2 py-1 text-xs" : "rounded-xl px-4 py-2 text-sm"} bg-cyan-500 font-semibold text-slate-950 hover:bg-cyan-400`}
       >
-        {compact ? "Sign in" : "Sign in to follow"}
+        {compact ? <UiText text={"Sign in"} /> : <UiText text={"Sign in to follow"} />}
       </Link>
     );
   }
@@ -126,16 +127,16 @@ export function InstitutionFollowButton({ cik, name, compact = false }: { cik: s
         type="button"
         onClick={() => void toggleFollow()}
         disabled={saving || !isLoaded}
-        aria-label={`${isFollowing ? "Unfollow" : "Follow"} ${name}`}
+        aria-label={`${isFollowing ? ui("Unfollow") : ui("Follow")} ${name}`}
         className={`${compact ? "rounded-lg px-2 py-1 text-xs" : "rounded-xl px-4 py-2 text-sm"} font-semibold disabled:cursor-not-allowed disabled:opacity-60 ${
           isFollowing
             ? "border border-white/10 text-slate-200 hover:border-rose-400/40 hover:text-rose-200"
             : "bg-cyan-500 text-slate-950 hover:bg-cyan-400"
         }`}
       >
-        {saving ? "Saving..." : !isLoaded ? "Loading..." : isFollowing ? "Following" : "Follow"}
+        {saving ? <UiText text={"Saving..."} /> : !isLoaded ? <UiText text={"Loading..."} /> : isFollowing ? <UiText text={"Following"} /> : <UiText text={"Follow"} />}
       </button>
-      {error ? <p className="max-w-56 text-right text-xs text-rose-300">{error}</p> : null}
+      {error ? <p className="max-w-56 text-right text-xs text-rose-300">{<UiText text={error} />}</p> : null}
     </div>
   );
 }

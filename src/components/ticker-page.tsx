@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { InstitutionFollowButton } from "@/components/institution-follow-button";
@@ -214,7 +216,7 @@ function ActivityList({
 }) {
   return (
     <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
-      <h3 className="font-[var(--font-sora)] text-base font-semibold text-cyan-100">{title}</h3>
+      <h3 className="font-[var(--font-sora)] text-base font-semibold text-cyan-100"><UiText text={title} /></h3>
       <div className="mt-3 grid gap-3">
         {items.map((item) => (
           <article key={`${item.managerCik}_${item.accessionNumber}_${item.status}`} className="rounded-lg border border-white/10 bg-slate-950/60 p-3">
@@ -225,7 +227,7 @@ function ActivityList({
                 </Link>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(item.status)}`}>
-                    {item.status}
+                    {<UiText text={item.status} />}
                   </span>
                   <span className="text-xs text-slate-500">CIK {item.managerCik}</span>
                 </div>
@@ -233,13 +235,9 @@ function ActivityList({
               <InstitutionFollowButton cik={item.managerCik} name={item.managerName} compact />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-              <p className="text-slate-400">
-                Value change
-                <span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatSignedCurrency(item.valueChangeUsd)}</span>
+              <p className="text-slate-400"><UiText text={"Value change"} /><span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatSignedCurrency(item.valueChangeUsd)}</span>
               </p>
-              <p className="text-slate-400">
-                Shares
-                <span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatNumber(item.shareChange)}</span>
+              <p className="text-slate-400"><UiText text={"Shares"} /><span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatNumber(item.shareChange)}</span>
               </p>
             </div>
             <a
@@ -247,12 +245,11 @@ function ActivityList({
               target="_blank"
               rel="noreferrer"
               className="mt-3 inline-block text-xs font-semibold text-cyan-200 hover:text-cyan-100"
-            >
-              Filing {item.reportDate}
+            ><UiText text={"Filing "} />{item.reportDate}
             </a>
           </article>
         ))}
-        {items.length === 0 ? <p className="text-sm text-slate-400">{empty}</p> : null}
+        {items.length === 0 ? <p className="text-sm text-slate-400"><UiText text={empty} /></p> : null}
       </div>
     </div>
   );
@@ -281,40 +278,39 @@ function InstitutionalHoldingsSection({
     <section id="institutional-holdings" className="scroll-mt-24 border-b border-white/15 py-6">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Institutional holdings</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            Latest 13F positions and changes reported by tracked institutions for {displayTicker}.
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Institutional holdings"} /></h2>
+          <p className="mt-1 text-sm text-slate-400"><UiText text={"Latest 13F positions and changes reported by tracked institutions for "} />{displayTicker}.
           </p>
         </div>
         {summary?.latestReportDate ? (
-          <p className="text-sm font-semibold text-slate-300">Latest report {summary.latestReportDate}</p>
+          <p className="text-sm font-semibold text-slate-300"><UiText text={"Latest report "} />{summary.latestReportDate}</p>
         ) : null}
       </div>
 
       {error ? (
         <p className="mb-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
-          {error}
+          {<UiText text={error} />}
         </p>
       ) : null}
 
       {summary ? (
         <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Managers</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Managers"} /></p>
             <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{summary.totalManagers}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reported value</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Reported value"} /></p>
             <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatCurrency(summary.totalValueUsd)}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reported shares</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Reported shares"} /></p>
             <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatNumber(summary.totalShares)}</p>
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Net value change</p>
-            <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{summary.positions.some(position => position.changeStatus) ? formatSignedCurrency(summary.netValueChangeUsd) : "Unavailable"}</p>
-            <p className="mt-2 text-xs text-slate-400">Only comparisons with verified prior reports are included. Value changes also reflect valuation changes.</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Net value change"} /></p>
+            <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{summary.positions.some(position => position.changeStatus) ? formatSignedCurrency(summary.netValueChangeUsd) : <UiText text={"Unavailable"} />}</p>
+            <p className="mt-2 text-xs text-slate-400"><UiText text={"Only comparisons with verified prior reports are included. Value changes also reflect valuation changes."} /></p>
           </div>
         </div>
       ) : null}
@@ -337,19 +333,19 @@ function InstitutionalHoldingsSection({
       {summary ? (
         <div className="mb-4 grid gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200">New</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200"><UiText text={"New"} /></p>
             <p className="mt-1 font-[var(--font-sora)] text-xl font-semibold text-emerald-100">{summary.newManagers}</p>
           </div>
           <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200">Increased</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200"><UiText text={"Increased"} /></p>
             <p className="mt-1 font-[var(--font-sora)] text-xl font-semibold text-emerald-100">{summary.increasedManagers}</p>
           </div>
           <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-rose-200">Reduced</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-200"><UiText text={"Reduced"} /></p>
             <p className="mt-1 font-[var(--font-sora)] text-xl font-semibold text-rose-100">{summary.reducedManagers}</p>
           </div>
           <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-rose-200">Sold out</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-200"><UiText text={"Sold out"} /></p>
             <p className="mt-1 font-[var(--font-sora)] text-xl font-semibold text-rose-100">{summary.soldOutManagers}</p>
           </div>
         </div>
@@ -369,7 +365,7 @@ function InstitutionalHoldingsSection({
                 statusFilter === nextStatus ? "border-cyan-300 bg-cyan-400/15 text-cyan-100" : "border-white/10 text-slate-300 hover:border-cyan-300/60"
               }`}
             >
-              {nextStatus === "ALL" ? "All" : nextStatus.replace("_", " ")}
+              {nextStatus === "ALL" ? <UiText text={"All"} /> : nextStatus.replace("_", " ")}
             </button>
           ))}
         </div>
@@ -380,14 +376,14 @@ function InstitutionalHoldingsSection({
           <table className="w-full min-w-[1040px] text-left text-sm">
             <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="py-3 pr-3">Institution</th>
-                <th className="py-3 pr-3">Follow</th>
-                <th className="py-3 pr-3 text-right">Value</th>
-                <th className="py-3 pr-3 text-right">Shares</th>
-                <th className="py-3 pr-3 text-right">Positions</th>
-                <th className="py-3 pr-3">Change</th>
-                <th className="py-3 pr-3 text-right">Value change</th>
-                <th className="py-3">Report</th>
+                <th className="py-3 pr-3"><UiText text={"Institution"} /></th>
+                <th className="py-3 pr-3"><UiText text={"Follow"} /></th>
+                <th className="py-3 pr-3 text-right"><UiText text={"Value"} /></th>
+                <th className="py-3 pr-3 text-right"><UiText text={"Shares"} /></th>
+                <th className="py-3 pr-3 text-right"><UiText text={"Positions"} /></th>
+                <th className="py-3 pr-3"><UiText text={"Change"} /></th>
+                <th className="py-3 pr-3 text-right"><UiText text={"Value change"} /></th>
+                <th className="py-3"><UiText text={"Report"} /></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -407,11 +403,11 @@ function InstitutionalHoldingsSection({
                   <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(position.positionCount)}</td>
                   <td className="py-3 pr-3">
                     <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(position.changeStatus)}`}>
-                      {position.changeStatus ?? "Comparison unavailable"} {position.changeStatus ? formatPercent(position.percentChange) : ""}
+                      {position.changeStatus ?? <UiText text={"Comparison unavailable"} />} {position.changeStatus ? formatPercent(position.percentChange) : ""}
                     </span>
                   </td>
                   <td className="py-3 pr-3 text-right tabular-nums">
-                    {position.valueChangeUsd === null ? "Unknown" : formatSignedCurrency(position.valueChangeUsd)}
+                    {position.valueChangeUsd === null ? <UiText text={"Unknown"} /> : formatSignedCurrency(position.valueChangeUsd)}
                   </td>
                   <td className="py-3 text-slate-400">
                     {position.quarter}
@@ -437,33 +433,24 @@ function InstitutionalHoldingsSection({
             type="button"
             onClick={() => setVisibleHolders((value) => value + INITIAL_HOLDER_COUNT)}
             className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15"
-          >
-            Show more holders
-          </button>
+          ><UiText text={"Show more holders"} /></button>
         </div>
       ) : null}
 
       {summary && summary.positions.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No tracked institutional 13F positions are available for {displayTicker} yet.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No tracked institutional 13F positions are available for "} />{displayTicker}<UiText text={" yet."} /></p>
       ) : null}
 
       {summary && summary.positions.length > 0 && filteredPositions.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No holders match the current filter for {displayTicker}.
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No holders match the current filter for "} />{displayTicker}.
         </p>
       ) : null}
 
       {!summary && !error ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          Loading institutional holdings...
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"Loading institutional holdings..."} /></p>
       ) : null}
 
-      <p className="mt-4 text-xs leading-5 text-slate-500">
-        13F filings are delayed, may omit some positions, and are not investment advice. Review original filings and do your own due diligence.
-      </p>
+      <p className="mt-4 text-xs leading-5 text-slate-500"><UiText text={"13F filings are delayed, may omit some positions, and are not investment advice. Review original filings and do your own due diligence."} /></p>
     </section>
   );
 }
@@ -480,15 +467,14 @@ function InsiderTransactionsSection({
   return (
     <section id="insider-transactions" className="scroll-mt-24 border-b border-white/15 py-6">
       <div className="mb-4">
-        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Insider transactions</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Recent SEC Form 4 open-market purchases and sales in the U.S. Section 16 feed for {displayTicker}.
+        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Insider transactions"} /></h2>
+        <p className="mt-1 text-sm text-slate-400"><UiText text={"Recent SEC Form 4 open-market purchases and sales in the U.S. Section 16 feed for "} />{displayTicker}.
         </p>
       </div>
 
       {error ? (
         <p className="mb-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
-          {error}
+          {<UiText text={error} />}
         </p>
       ) : null}
 
@@ -497,13 +483,13 @@ function InsiderTransactionsSection({
           <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="py-3 pr-3">Insider</th>
-                <th className="py-3 pr-3">Code</th>
-                <th className="py-3 pr-3">Date</th>
-                <th className="py-3 pr-3 text-right">Shares</th>
-                <th className="py-3 pr-3 text-right">Price</th>
-                <th className="py-3 pr-3 text-right">Value</th>
-                <th className="py-3">Filing</th>
+                <th className="py-3 pr-3"><UiText text={"Insider"} /></th>
+                <th className="py-3 pr-3"><UiText text={"Code"} /></th>
+                <th className="py-3 pr-3"><UiText text={"Date"} /></th>
+                <th className="py-3 pr-3 text-right"><UiText text={"Shares"} /></th>
+                <th className="py-3 pr-3 text-right"><UiText text={"Price"} /></th>
+                <th className="py-3 pr-3 text-right"><UiText text={"Value"} /></th>
+                <th className="py-3"><UiText text={"Filing"} /></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -512,28 +498,26 @@ function InsiderTransactionsSection({
                 return (
                   <tr key={transaction.id} className="text-slate-200">
                     <td className="py-3 pr-3">
-                      <p className="font-semibold text-cyan-100">{transaction.reportingOwnerName ?? "Unknown insider"}</p>
-                      <p className="mt-1 text-xs text-slate-500">{transaction.relationship?.officerTitle ?? (transaction.relationship?.isDirector ? "Director" : "Reporting owner")}</p>
+                      <p className="font-semibold text-cyan-100">{transaction.reportingOwnerName ?? <UiText text={"Unknown insider"} />}</p>
+                      <p className="mt-1 text-xs text-slate-500">{transaction.relationship?.officerTitle ?? (transaction.relationship?.isDirector ? <UiText text={"Director"} /> : <UiText text={"Reporting owner"} />)}</p>
                     </td>
                     <td className="py-3 pr-3">
                       <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${insiderCodeTone(transaction.transactionCode)}`}>
-                        {transaction.transactionCode === "P" ? "Purchase" : transaction.transactionCode === "S" ? "Sale" : transaction.transactionCode ?? "-"}
+                        {transaction.transactionCode === "P" ? <UiText text={"Purchase"} /> : transaction.transactionCode === "S" ? <UiText text={"Sale"} /> : transaction.transactionCode ?? "-"}
                       </span>
                     </td>
                     <td className="py-3 pr-3">{transaction.transactionDate ?? "-"}</td>
                     <td className="py-3 pr-3 text-right tabular-nums">{formatOptionalNumber(transaction.shares)}</td>
                     <td className="py-3 pr-3 text-right tabular-nums">{transaction.pricePerShare === null ? "-" : formatCurrency(transaction.pricePerShare)}</td>
                     <td className="py-3 pr-3 text-right tabular-nums">
-                      {transaction.valueQuality === "needs_review" ? <span className="text-amber-200">Under review</span>
+                      {transaction.valueQuality === "needs_review" ? <span className="text-amber-200"><UiText text={"Under review"} /></span>
                         : transaction.valueUsd === null ? "-" : formatCurrency(transaction.valueUsd)}
                       {transaction.valueQualityReason ? <p className="mt-1 max-w-56 text-xs font-normal text-slate-400">{transaction.valueQualityReason}</p> : null}
                     </td>
                     <td className="py-3 text-slate-400">
                       {transaction.filingDate ?? "-"}
                       {url ? (
-                        <a href={url} target="_blank" rel="noreferrer" className="block text-xs text-cyan-300 hover:text-cyan-100">
-                          SEC filing
-                        </a>
+                        <a href={url} target="_blank" rel="noreferrer" className="block text-xs text-cyan-300 hover:text-cyan-100"><UiText text={"SEC filing"} /></a>
                       ) : null}
                     </td>
                   </tr>
@@ -545,20 +529,14 @@ function InsiderTransactionsSection({
       ) : null}
 
       {transactions && transactions.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No recent SEC Form 4 open-market purchases or sales are available for {displayTicker} yet.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No recent SEC Form 4 open-market purchases or sales are available for "} />{displayTicker}<UiText text={" yet."} /></p>
       ) : null}
 
       {!transactions && !error ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          Loading insider transactions...
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"Loading insider transactions..."} /></p>
       ) : null}
 
-      <p className="mt-4 text-xs leading-5 text-slate-500">
-        Form 4 filings can include grants, exercises, tax withholding, and other transactions. Foreign private issuers and ADRs may report manager transactions through Form 6-K or local market-abuse disclosures instead of this feed.
-      </p>
+      <p className="mt-4 text-xs leading-5 text-slate-500"><UiText text={"Form 4 filings can include grants, exercises, tax withholding, and other transactions. Foreign private issuers and ADRs may report manager transactions through Form 6-K or local market-abuse disclosures instead of this feed."} /></p>
     </section>
   );
 }
@@ -573,6 +551,7 @@ function formatPositionPrice(value: number): string {
 }
 
 export function TickerPage({ ticker, overview }: { ticker: string; overview?: ReactNode }) {
+  const ui = useUiText();
   const { loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<TickerResponse | null>(null);
   const [holdings, setHoldings] = useState<InstitutionalTickerSummary | null>(null);
@@ -705,7 +684,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
     return (
       <main className="mx-auto w-full max-w-6xl px-4 py-8 text-sm text-slate-300">
         {overview}
-        <p role="status" className="py-6">{error ?? "Loading company activity..."}</p>
+        <p role="status" className="py-6">{error ?? <UiText text={"Loading company activity..."} />}</p>
         <InsiderTransactionsSection displayTicker={displayTicker} error={insiderError} transactions={insiderTransactions} />
         <InstitutionalHoldingsSection displayTicker={displayTicker} summary={holdings} error={holdingsError} />
       </main>
@@ -718,10 +697,9 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
       <section className="border-b border-white/15 py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Community</p>
-            {overview ? <h2 className="mt-2 text-xl font-semibold text-cyan-100">Investment views on {displayTicker}</h2> : <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>}
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Public calls, watchlists, and institutional 13F context for {displayTicker}.
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300"><UiText text={"Community"} /></p>
+            {overview ? <h2 className="mt-2 text-xl font-semibold text-cyan-100"><UiText text={"Investment views on "} />{displayTicker}</h2> : <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>}
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Public calls, watchlists, and institutional 13F context for "} />{displayTicker}.
             </p>
           </div>
         </div>
@@ -741,8 +719,8 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
       />
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Community position history</h2>
-        <p className="mb-3 mt-1 text-sm text-slate-400">See who turned bullish or bearish, when their position opened, and how it has performed.</p>
+        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Community position history"} /></h2>
+        <p className="mb-3 mt-1 text-sm text-slate-400"><UiText text={"See who turned bullish or bearish, when their position opened, and how it has performed."} /></p>
         <div className="grid gap-2">
           {payload.items.map((prediction) => (
             <article
@@ -753,17 +731,17 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
                 <Link
                   href={`/ticker/${payload.ticker}`}
                   className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
-                  aria-label={`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${payload.ticker}`}
+                  aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${payload.ticker}`)}
                 >
                   <span aria-hidden="true">{prediction.direction === "UP" ? "\u2191" : "\u2193"}</span>
                   <span>{displayTicker}</span>
                 </Link>
               </div>
               <p className="mt-2 text-sm text-slate-300">
-                {prediction.direction === "UP" ? "Bullish · Long" : "Bearish · Short"}
+                {prediction.direction === "UP" ? <UiText text={"Bullish · Long"} /> : <UiText text={"Bearish · Short"} />}
                 {prediction.entryDate && prediction.entryPrice !== null
-                  ? ` · opened ${prediction.entryDate} at ${formatPositionPrice(prediction.entryPrice)}`
-                  : ` · recorded ${prediction.createdAt.slice(0, 10)} · entry pending`}
+                  ? <UiText text={` · opened ${prediction.entryDate} at ${formatPositionPrice(prediction.entryPrice)}`} />
+                  : <UiText text={` · recorded ${prediction.createdAt.slice(0, 10)} · entry pending`} />}
               </p>
               <PredictionReturnSummary prediction={prediction} href={`/predictions/${prediction.id}`} status={prediction.status} />
               <PredictionAuthorSummary author={prediction} />
@@ -771,9 +749,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
           ))}
 
           {payload.items.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-              No community positions for {displayTicker} yet. Be the first to record your view.
-            </p>
+            <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No community positions for "} />{displayTicker}<UiText text={" yet. Be the first to record your view."} /></p>
           ) : null}
         </div>
 
@@ -785,13 +761,13 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
               disabled={loadingMore}
               className="rounded-lg border border-cyan-400/40 px-4 py-2 text-sm font-semibold text-cyan-100 hover:border-cyan-300 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loadingMore ? "Loading..." : "Load more"}
+              {loadingMore ? <UiText text={"Loading..."} /> : <UiText text={"Load more"} />}
             </button>
           </div>
         ) : null}
 
         {error && payload.items.length > 0 ? (
-          <p className="mt-3 text-center text-sm text-rose-200">{error}</p>
+          <p className="mt-3 text-center text-sm text-rose-200">{<UiText text={error} />}</p>
         ) : null}
       </section>
     </main>

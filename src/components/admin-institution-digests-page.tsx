@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -96,14 +98,13 @@ function RunSummary({ result }: { result: DigestRunResponse | null }) {
     <section className="mb-6 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-emerald-100">Digest run completed</p>
+          <p className="text-sm font-semibold text-emerald-100"><UiText text={"Digest run completed"} /></p>
           <p className="mt-1 text-xs text-emerald-100/70">
-            {result.dryRun ? "Dry run" : "Live checkpoint"} at {formatDateTime(result.timestamp ?? result.generatedAt)}
+            {result.dryRun ? <UiText text={"Dry run"} /> : <UiText text={"Live checkpoint"} />}<UiText text={" at "} />{formatDateTime(result.timestamp ?? result.generatedAt)}
           </p>
         </div>
         <span className="w-fit rounded-full border border-emerald-300/30 px-2.5 py-1 text-xs font-semibold text-emerald-50">
-          {formatCount(result.sendableUsers)} sendable users
-        </span>
+          {formatCount(result.sendableUsers)}<UiText text={" sendable users"} /></span>
       </div>
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -114,7 +115,7 @@ function RunSummary({ result }: { result: DigestRunResponse | null }) {
           ["Failures", failedUsers.length],
         ].map(([label, value]) => (
           <div key={label} className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-            <p className="text-xs uppercase text-emerald-200/70">{label}</p>
+            <p className="text-xs uppercase text-emerald-200/70"><UiText text={label} /></p>
             <p className="mt-1 text-sm font-semibold text-emerald-50">{formatCount(Number(value))}</p>
           </div>
         ))}
@@ -122,11 +123,11 @@ function RunSummary({ result }: { result: DigestRunResponse | null }) {
 
       {failedUsers.length > 0 ? (
         <div className="mt-3 rounded-xl border border-rose-300/20 bg-rose-500/10 p-3">
-          <p className="text-xs font-semibold uppercase text-rose-100">Errors</p>
+          <p className="text-xs font-semibold uppercase text-rose-100"><UiText text={"Errors"} /></p>
           <div className="mt-2 grid gap-2">
             {failedUsers.slice(0, 6).map((item) => (
               <p key={item.userId} className="text-xs text-rose-100">
-                <span className="font-semibold">{item.userId}</span>: {item.error}
+                <span className="font-semibold">{item.userId}</span>: {<UiText text={item.error} />}
               </p>
             ))}
           </div>
@@ -137,6 +138,7 @@ function RunSummary({ result }: { result: DigestRunResponse | null }) {
 }
 
 export function AdminInstitutionDigestsPage() {
+  const ui = useUiText();
   const { user, loading, getIdToken } = useAuth();
   const [runs, setRuns] = useState<InstitutionDigestRunSnapshot[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -247,7 +249,7 @@ export function AdminInstitutionDigestsPage() {
   if (loading) {
     return (
       <main className="mx-auto w-full max-w-6xl px-4 py-8">
-        <p className="text-sm text-slate-300">Loading admin tools...</p>
+        <p className="text-sm text-slate-300"><UiText text={"Loading admin tools..."} /></p>
       </main>
     );
   }
@@ -256,11 +258,9 @@ export function AdminInstitutionDigestsPage() {
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <Link href="/admin" className="text-sm text-cyan-300 hover:text-cyan-100">Admin</Link>
-          <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">Institution digests</h1>
-          <p className="mt-2 max-w-3xl text-sm text-slate-300">
-            Generate in-app digest snapshots for followed institutions and inspect recent run status.
-          </p>
+          <Link href="/admin" className="text-sm text-cyan-300 hover:text-cyan-100"><UiText text={"Admin"} /></Link>
+          <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Institution digests"} /></h1>
+          <p className="mt-2 max-w-3xl text-sm text-slate-300"><UiText text={"Generate in-app digest snapshots for followed institutions and inspect recent run status."} /></p>
         </div>
         <button
           type="button"
@@ -268,18 +268,16 @@ export function AdminInstitutionDigestsPage() {
           disabled={loadingRuns}
           className="w-fit rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
         >
-          {loadingRuns ? "Refreshing..." : "Refresh"}
+          {loadingRuns ? <UiText text={"Refreshing..."} /> : <UiText text={"Refresh"} />}
         </button>
       </div>
 
       <RunSummary result={result} />
-      {error ? <p className="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+      {error ? <p className="mb-6 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
 
       <section className="mb-6 rounded-2xl border border-white/15 bg-slate-900/70 p-5">
         <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1fr_1fr_auto]">
-          <label className="grid gap-2 text-sm text-slate-300">
-            User limit
-            <input
+          <label className="grid gap-2 text-sm text-slate-300"><UiText text={"User limit"} /><input
               type="number"
               min="1"
               max="500"
@@ -288,9 +286,7 @@ export function AdminInstitutionDigestsPage() {
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             />
           </label>
-          <label className="grid gap-2 text-sm text-slate-300">
-            Item limit per user
-            <input
+          <label className="grid gap-2 text-sm text-slate-300"><UiText text={"Item limit per user"} /><input
               type="number"
               min="1"
               max="100"
@@ -309,19 +305,15 @@ export function AdminInstitutionDigestsPage() {
                   setConfirmLiveRun(false);
                 }}
                 className="h-4 w-4 accent-cyan-400"
-              />
-              Dry run
-            </label>
+              /><UiText text={"Dry run"} /></label>
           </div>
         </div>
 
-        <label className="mt-4 grid gap-2 text-sm text-slate-300">
-          Explicit user IDs
-          <textarea
+        <label className="mt-4 grid gap-2 text-sm text-slate-300"><UiText text={"Explicit user IDs"} /><textarea
             value={userIds}
             onChange={(event) => setUserIds(event.target.value)}
             rows={3}
-            placeholder="Optional. Paste comma, space, or newline separated user IDs."
+            placeholder={ui("Optional. Paste comma, space, or newline separated user IDs.")}
             className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
           />
         </label>
@@ -333,9 +325,7 @@ export function AdminInstitutionDigestsPage() {
               checked={confirmLiveRun}
               onChange={(event) => setConfirmLiveRun(event.target.checked)}
               className="mt-0.5 h-4 w-4 accent-amber-300"
-            />
-            Confirm this live run should checkpoint user digest timestamps.
-          </label>
+            /><UiText text={"Confirm this live run should checkpoint user digest timestamps."} /></label>
         ) : null}
 
         <div className="mt-4">
@@ -345,7 +335,7 @@ export function AdminInstitutionDigestsPage() {
             disabled={running || (!dryRun && !confirmLiveRun)}
             className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
           >
-            {running ? "Running..." : dryRun ? "Generate dry run" : "Generate live digest"}
+            {running ? <UiText text={"Running..."} /> : dryRun ? <UiText text={"Generate dry run"} /> : <UiText text={"Generate live digest"} />}
           </button>
         </div>
       </section>
@@ -353,20 +343,18 @@ export function AdminInstitutionDigestsPage() {
       <section className="rounded-2xl border border-white/15 bg-slate-900/70">
         <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent run records</h2>
-            <p className="mt-1 text-sm text-slate-400">Latest saved digest snapshots across users.</p>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent run records"} /></h2>
+            <p className="mt-1 text-sm text-slate-400"><UiText text={"Latest saved digest snapshots across users."} /></p>
           </div>
-          <label className="grid gap-1 text-xs text-slate-400">
-            Filter
-            <select
+          <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Filter"} /><select
               value={runFilter}
               onChange={(event) => setRunFilter(event.target.value as RunStatusFilter)}
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             >
-              <option value="all">All runs</option>
-              <option value="live">Live</option>
-              <option value="dryRun">Dry runs</option>
-              <option value="unread">Unread live</option>
+              <option value="all"><UiText text={"All runs"} /></option>
+              <option value="live"><UiText text={"Live"} /></option>
+              <option value="dryRun"><UiText text={"Dry runs"} /></option>
+              <option value="unread"><UiText text={"Unread live"} /></option>
             </select>
           </label>
         </div>
@@ -391,26 +379,25 @@ export function AdminInstitutionDigestsPage() {
                 </div>
                 <div>
                   <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(run.status)}`}>
-                    {run.status}
+                    {<UiText text={run.status} />}
                   </span>
-                  <p className="mt-2 text-xs text-slate-400">{run.cadence} cadence</p>
+                  <p className="mt-2 text-xs text-slate-400">{<UiText text={run.cadence} />}<UiText text={" cadence"} /></p>
                 </div>
                 <div>
-                  <p className="text-slate-200">{formatCount(run.itemCount)} items</p>
+                  <p className="text-slate-200">{formatCount(run.itemCount)}<UiText text={" items"} /></p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {formatCount(run.summary.managerCount)} managers / {formatCount(run.summary.tickerCount)} tickers
-                  </p>
+                    {formatCount(run.summary.managerCount)}<UiText text={" managers / "} />{formatCount(run.summary.tickerCount)}<UiText text={" tickers"} /></p>
                 </div>
                 <div>
                   <p className="text-slate-300">{formatDateTime(run.generatedAt)}</p>
-                  <p className="mt-1 text-xs text-slate-500">Net {formatCurrency(run.summary.netValueChangeUsd)}</p>
+                  <p className="mt-1 text-xs text-slate-500"><UiText text={"Net "} />{formatCurrency(run.summary.netValueChangeUsd)}</p>
                 </div>
               </article>
             ))}
           </div>
         ) : (
           <p className="px-5 py-6 text-sm text-slate-300">
-            {loadingRuns ? "Loading digest runs..." : "No institution digest runs found."}
+            {loadingRuns ? <UiText text={"Loading digest runs..."} /> : <UiText text={"No institution digest runs found."} />}
           </p>
         )}
       </section>

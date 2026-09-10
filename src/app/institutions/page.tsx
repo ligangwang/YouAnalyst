@@ -1,3 +1,4 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { InstitutionsDiscoveryPage } from "@/components/institutions-discovery-page";
 import { getInstitutionalDiscoverySummary } from "@/lib/securities/institutional-data";
@@ -7,7 +8,7 @@ export const dynamic = "force-dynamic";
 const title = "Institutional activity | YouAnalyst";
 const description = "Browse tracked 13F institutions and recent institutional buying and selling activity.";
 
-export const metadata: Metadata = {
+const pageMetadata: Metadata = {
   title,
   description,
   alternates: {
@@ -23,6 +24,7 @@ export const metadata: Metadata = {
     description,
   },
 };
+export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
 
 export default async function InstitutionsPage() {
   const summary = await getInstitutionalDiscoverySummary();

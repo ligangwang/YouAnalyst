@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatCashtag, formatTickerSymbol } from "@/components/prediction-ui";
@@ -321,24 +323,24 @@ function InstitutionalMoveCard({
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Value change</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Value change"} /></p>
           <p className={`mt-1 font-semibold tabular-nums ${isIncrease ? "text-emerald-300" : "text-rose-300"}`}>
             {formatSignedCurrency(move.valueChangeUsd)}
           </p>
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Shares</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Shares"} /></p>
           <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.shareChange)}</p>
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Managers</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Managers"} /></p>
           <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.managerCount)}</p>
         </div>
       </div>
       <p className="mt-3 text-xs text-slate-500">
-        {statusText}
-        {move.filingDate ? ` \u00b7 filed ${compactDateLabel(move.filingDate)}` : ""}
-        {" \u00b7 "}report {compactDateLabel(move.reportDate)}
+        {<UiText text={statusText} />}
+        {move.filingDate ? <UiText text={` \u00b7 filed ${compactDateLabel(move.filingDate)}`} /> : ""}
+        {" \u00b7 "}<UiText text={"report "} />{compactDateLabel(move.reportDate)}
       </p>
     </article>
   );
@@ -363,22 +365,22 @@ function InsiderMoveCard({
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Value</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Value"} /></p>
           <p className={`mt-1 font-semibold tabular-nums ${isPurchase ? "text-emerald-300" : "text-rose-300"}`}>
             {formatCurrency(move.totalValueUsd)}
           </p>
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Shares</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Shares"} /></p>
           <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.totalShares)}</p>
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Insiders</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Insiders"} /></p>
           <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.insiderCount)}</p>
         </div>
       </div>
       <p className="mt-3 text-xs text-slate-500">
-        {formatNumber(move.transactionCount)} transaction{move.transactionCount === 1 ? "" : "s"} &middot; latest transaction {compactDateLabel(move.latestTransactionDate)} &middot; filed {compactDateLabel(move.filingDate)}
+        {formatNumber(move.transactionCount)}<UiText text={" transaction"} />{move.transactionCount === 1 ? "" : <UiText text={"s"} />}<UiText text={" &middot; latest transaction "} />{compactDateLabel(move.latestTransactionDate)}<UiText text={" &middot; filed "} />{compactDateLabel(move.filingDate)}
       </p>
     </article>
   );
@@ -391,6 +393,7 @@ export function DailyScoresPage({
   initialDate?: string | null;
   section?: DailyScoresSection;
 }) {
+  const ui = useUiText();
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<DailyScoresResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -496,7 +499,7 @@ export function DailyScoresPage({
   }
 
   if (loading) {
-    return <main className="mx-auto w-full max-w-5xl px-4 py-8 text-sm text-slate-300">Loading daily highlights...</main>;
+    return <main className="mx-auto w-full max-w-5xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading daily highlights..."} /></main>;
   }
 
   const topCalls = payload?.topCalls ?? [];
@@ -533,9 +536,9 @@ export function DailyScoresPage({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-wide text-cyan-300">{dateLabel(payload?.date ?? null)}</p>
-            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">{heroCopy.title}</h1>
+            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">{<UiText text={heroCopy.title} />}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-              {heroCopy.description}
+              {<UiText text={heroCopy.description} />}
             </p>
           </div>
           {payload && showCalls ? (
@@ -546,24 +549,20 @@ export function DailyScoresPage({
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
-                >
-                  Share on X
-                </a>
+                ><UiText text={"Share on X"} /></a>
               ) : null}
               <button
                 type="button"
                 onClick={() => void copyDailyLink()}
                 className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
-              >
-                Copy link
-              </button>
-              {copied ? <span className="self-center text-xs text-emerald-300">Copied</span> : null}
+              ><UiText text={"Copy link"} /></button>
+              {copied ? <span className="self-center text-xs text-emerald-300"><UiText text={"Copied"} /></span> : null}
             </div>
           ) : null}
         </div>
       </section>
 
-      <nav className="mt-3 flex flex-wrap gap-2 text-sm" aria-label="Daily sections">
+      <nav className="mt-3 flex flex-wrap gap-2 text-sm" aria-label={ui("Daily sections")}>
         {([
           ["calls", "Top Calls"],
           ["institutional", "Institutional Moves"],
@@ -583,20 +582,16 @@ export function DailyScoresPage({
         ))}
       </nav>
 
-      {error ? <p className="mt-4 text-sm text-rose-300">{error}</p> : null}
+      {error ? <p className="mt-4 text-sm text-rose-300">{<UiText text={error} />}</p> : null}
 
       {showCalls && payload && topCalls.length === 0 ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-5">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">No daily highlights yet.</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            Check back after more predictions settle and update.
-          </p>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"No daily highlights yet."} /></h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Check back after more predictions settle and update."} /></p>
           <Link
             href="/predictions/new"
             className="mt-4 inline-flex rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-          >
-            Make the first call
-          </Link>
+          ><UiText text={"Make the first call"} /></Link>
         </section>
       ) : null}
 
@@ -605,7 +600,7 @@ export function DailyScoresPage({
           href={predictionPath(callOfTheDay.predictionId)}
           className="mt-4 block rounded-xl border border-cyan-400/35 bg-slate-900/80 p-5 hover:border-cyan-300/70"
         >
-          <p className="text-sm font-semibold text-cyan-200">🏆 Call of the Day</p>
+          <p className="text-sm font-semibold text-cyan-200"><UiText text={"🏆 Call of the Day"} /></p>
           <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">
@@ -614,17 +609,17 @@ export function DailyScoresPage({
                 </span>
                 {formatTickerSymbol(callOfTheDay.ticker)}
               </p>
-              <p className="mt-2 text-sm text-slate-300">by {userName(callOfTheDay)}</p>
+              <p className="mt-2 text-sm text-slate-300"><UiText text={"by "} />{userName(callOfTheDay)}</p>
               <p className="mt-3 text-sm text-slate-400">{callDescription(callOfTheDay)}</p>
             </div>
             <div className="sm:text-right">
               <p className={`text-4xl font-semibold ${returnTone(callOfTheDay.dailyReturnChange)}`}>
                 {dailyReturnText(callOfTheDay.dailyReturnChange)}
               </p>
-              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">today</p>
-              <p className="mt-1 text-xs text-slate-400">{scoreText(callOfTheDay.dailyScoreChange)} score today</p>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400"><UiText text={"today"} /></p>
+              <p className="mt-1 text-xs text-slate-400">{scoreText(callOfTheDay.dailyScoreChange)}<UiText text={" score today"} /></p>
               {callOfTheDay.dailyReturnChange !== null && returnText(callOfTheDay.returnSinceEntry) && callOfTheDay.returnSinceEntry !== callOfTheDay.dailyReturnChange ? (
-                <p className="mt-1 text-xs text-slate-500">{returnText(callOfTheDay.returnSinceEntry)} since entry</p>
+                <p className="mt-1 text-xs text-slate-500">{returnText(callOfTheDay.returnSinceEntry)}<UiText text={" since entry"} /></p>
               ) : null}
             </div>
           </div>
@@ -634,10 +629,8 @@ export function DailyScoresPage({
       {showCalls && topCalls.length > 0 ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <div>
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Top Calls Today</h2>
-            <p className="mt-1 text-sm text-slate-300">
-              The strongest prediction moves from the latest end-of-day update.
-            </p>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Top Calls Today"} /></h2>
+            <p className="mt-1 text-sm text-slate-300"><UiText text={"The strongest prediction moves from the latest end-of-day update."} /></p>
           </div>
           <div className="mt-4 grid gap-2">
             {topCalls.map((call, index) => (
@@ -665,14 +658,12 @@ export function DailyScoresPage({
                   <span className={`block text-sm font-semibold ${returnTone(call.dailyReturnChange)}`}>
                     {dailyReturnText(call.dailyReturnChange)}
                   </span>
-                  <span className="block text-[11px] text-slate-500">today &middot; {scoreText(call.dailyScoreChange)} score today</span>
+                  <span className="block text-[11px] text-slate-500"><UiText text={"today &middot; "} />{scoreText(call.dailyScoreChange)}<UiText text={" score today"} /></span>
                   {call.dailyReturnChange === null ? (
                     <Link
                       href={missingDailyReturnReportPath(call, payload?.date ?? null)}
                       className="mt-1 inline-block text-[11px] font-semibold text-rose-300 hover:text-rose-200"
-                    >
-                      Report issue
-                    </Link>
+                    ><UiText text={"Report issue"} /></Link>
                   ) : null}
                 </span>
               </article>
@@ -683,27 +674,21 @@ export function DailyScoresPage({
 
       {showInsiders && insiderPurchases.length === 0 && insiderSales.length === 0 ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-5">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">No insider transactions yet.</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            Check back after the next Form 4 sync writes purchase and sale activity.
-          </p>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"No insider transactions yet."} /></h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Check back after the next Form 4 sync writes purchase and sale activity."} /></p>
         </section>
       ) : null}
 
       {showInsiders && (payload?.insiderMoves?.excludedGroups ?? 0) > 0 ? (
-        <p className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm text-amber-100">
-          Activity with dollar totals under review or unavailable is excluded from these rankings. You can inspect the reported transactions on company pages.
-        </p>
+        <p className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm text-amber-100"><UiText text={"Activity with dollar totals under review or unavailable is excluded from these rankings. You can inspect the reported transactions on company pages."} /></p>
       ) : null}
 
       {showInsiders && (insiderPurchases.length > 0 || insiderSales.length > 0) ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Insider Activity</h2>
-              <p className="mt-1 text-sm text-slate-300">
-                Latest Form 4 open-market purchases and sales ranked by reported dollar value.
-              </p>
+              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Insider Activity"} /></h2>
+              <p className="mt-1 text-sm text-slate-300"><UiText text={"Latest Form 4 open-market purchases and sales ranked by reported dollar value."} /></p>
             </div>
             {canShareOnX ? (
               <div className="flex flex-wrap gap-2">
@@ -713,9 +698,7 @@ export function DailyScoresPage({
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-lg border border-emerald-400/35 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15"
-                  >
-                    Share purchase to X
-                  </a>
+                  ><UiText text={"Share purchase to X"} /></a>
                 ) : null}
                 {topInsiderSale ? (
                   <a
@@ -723,28 +706,26 @@ export function DailyScoresPage({
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-lg border border-rose-400/35 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/15"
-                  >
-                    Share sale to X
-                  </a>
+                  ><UiText text={"Share sale to X"} /></a>
                 ) : null}
               </div>
             ) : null}
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest purchases</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300"><UiText text={"Largest purchases"} /></h3>
               <div className="mt-3 grid gap-2">
                 {insiderPurchases.length > 0 ? insiderPurchases.map((move) => (
                   <InsiderMoveCard key={`purchase-${move.ticker}-${move.filingDate}`} kind="purchase" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No insider purchases are available yet.</p>}
+                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No insider purchases are available yet."} /></p>}
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest sales</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300"><UiText text={"Largest sales"} /></h3>
               <div className="mt-3 grid gap-2">
                 {insiderSales.length > 0 ? insiderSales.map((move) => (
                   <InsiderMoveCard key={`sale-${move.ticker}-${move.filingDate}`} kind="sale" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No insider sales are available yet.</p>}
+                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No insider sales are available yet."} /></p>}
               </div>
             </div>
           </div>
@@ -753,10 +734,8 @@ export function DailyScoresPage({
 
       {showInstitutional && institutionalIncreases.length === 0 && institutionalDecreases.length === 0 ? (
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-5">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">No institutional moves yet.</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            Check back after the next 13F queue run writes holding changes.
-          </p>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"No institutional moves yet."} /></h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Check back after the next 13F queue run writes holding changes."} /></p>
         </section>
       ) : null}
 
@@ -764,10 +743,8 @@ export function DailyScoresPage({
         <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Institutional Moves</h2>
-              <p className="mt-1 text-sm text-slate-300">
-                Latest reported 13F position changes ranked by net reported dollar change.
-              </p>
+              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Institutional Moves"} /></h2>
+              <p className="mt-1 text-sm text-slate-300"><UiText text={"Latest reported 13F position changes ranked by net reported dollar change."} /></p>
             </div>
             {canShareOnX ? (
               <div className="flex flex-wrap gap-2">
@@ -777,9 +754,7 @@ export function DailyScoresPage({
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-lg border border-emerald-400/35 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15"
-                  >
-                    Share increase to X
-                  </a>
+                  ><UiText text={"Share increase to X"} /></a>
                 ) : null}
                 {topInstitutionalDecrease ? (
                   <a
@@ -787,28 +762,26 @@ export function DailyScoresPage({
                     target="_blank"
                     rel="noreferrer"
                     className="rounded-lg border border-rose-400/35 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/15"
-                  >
-                    Share decrease to X
-                  </a>
+                  ><UiText text={"Share decrease to X"} /></a>
                 ) : null}
               </div>
             ) : null}
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300">Largest increases from latest filings</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300"><UiText text={"Largest increases from latest filings"} /></h3>
               <div className="mt-3 grid gap-2">
                 {institutionalIncreases.length > 0 ? institutionalIncreases.map((move) => (
                   <InstitutionalMoveCard key={`increase-${move.ticker}`} kind="increase" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No increased 13F positions are available yet.</p>}
+                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No increased 13F positions are available yet."} /></p>}
               </div>
             </div>
             <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300">Largest decreases from latest filings</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300"><UiText text={"Largest decreases from latest filings"} /></h3>
               <div className="mt-3 grid gap-2">
                 {institutionalDecreases.length > 0 ? institutionalDecreases.map((move) => (
                   <InstitutionalMoveCard key={`decrease-${move.ticker}`} kind="decrease" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400">No reduced 13F positions are available yet.</p>}
+                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No reduced 13F positions are available yet."} /></p>}
               </div>
             </div>
           </div>
@@ -816,23 +789,17 @@ export function DailyScoresPage({
       ) : null}
 
       <section className="mt-4 rounded-xl border border-white/10 bg-slate-900/55 p-5">
-        <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">
-          Think you can beat today&apos;s top call?
-        </p>
-        <p className="mt-1 text-sm text-slate-300">Make your prediction on YouAnalyst.</p>
+        <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Think you can beat today&apos;s top call?"} /></p>
+        <p className="mt-1 text-sm text-slate-300"><UiText text={"Make your prediction on YouAnalyst."} /></p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href="/predictions/new"
             className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-          >
-            Make a prediction
-          </Link>
+          ><UiText text={"Make a prediction"} /></Link>
           <Link
             href="/predictions"
             className="rounded-lg border border-cyan-400/35 px-4 py-2 text-sm text-cyan-100 hover:bg-cyan-500/15"
-          >
-            View feed
-          </Link>
+          ><UiText text={"View feed"} /></Link>
         </div>
       </section>
     </main>

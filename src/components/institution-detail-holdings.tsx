@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { InstitutionalManagerSummary } from "@/lib/securities/institutional-data";
@@ -102,6 +104,7 @@ function sortHoldings(holdings: Holding[], sort: HoldingSort): Holding[] {
 }
 
 export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] }) {
+  const ui = useUiText();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<HoldingStatus>("ALL");
   const [sort, setSort] = useState<HoldingSort>("value");
@@ -120,35 +123,29 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
     <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
       <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_13rem_11rem] lg:items-end">
         <div>
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Latest 13F holdings</h2>
-          <p className="mt-1 text-sm text-slate-400">
-            Top reported positions by market value. 13F filings are delayed and may not reflect current holdings.
-          </p>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Latest 13F holdings"} /></h2>
+          <p className="mt-1 text-sm text-slate-400"><UiText text={"Top reported positions by market value. 13F filings are delayed and may not reflect current holdings."} /></p>
         </div>
-        <label className="grid gap-1 text-xs text-slate-400">
-          Search holdings
-          <input
+        <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Search holdings"} /><input
             type="text"
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
               setVisible(INITIAL_VISIBLE);
             }}
-            placeholder="Ticker, issuer, CUSIP"
+            placeholder={ui("Ticker, issuer, CUSIP")}
             className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
           />
         </label>
-        <label className="grid gap-1 text-xs text-slate-400">
-          Sort
-          <select
+        <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Sort"} /><select
             value={sort}
             onChange={(event) => setSort(event.target.value as HoldingSort)}
             className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
           >
-            <option value="value">Value</option>
-            <option value="shares">Shares</option>
-            <option value="change">Value change</option>
-            <option value="ticker">Ticker</option>
+            <option value="value"><UiText text={"Value"} /></option>
+            <option value="shares"><UiText text={"Shares"} /></option>
+            <option value="change"><UiText text={"Value change"} /></option>
+            <option value="ticker"><UiText text={"Ticker"} /></option>
           </select>
         </label>
       </div>
@@ -166,7 +163,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
               status === nextStatus ? "border-cyan-300 bg-cyan-400/15 text-cyan-100" : "border-white/10 text-slate-300 hover:border-cyan-300/60"
             }`}
           >
-            {nextStatus === "ALL" ? "All" : nextStatus.replace("_", " ")}
+            {nextStatus === "ALL" ? <UiText text={"All"} /> : nextStatus.replace("_", " ")}
           </button>
         ))}
       </div>
@@ -175,13 +172,13 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
         <table className="w-full min-w-[920px] text-left text-sm">
           <thead className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="py-3 pr-3">Ticker</th>
-              <th className="py-3 pr-3">Issuer</th>
-              <th className="py-3 pr-3 text-right">Value</th>
-              <th className="py-3 pr-3 text-right">Shares</th>
-              <th className="py-3 pr-3">Change</th>
-              <th className="py-3 pr-3 text-right">Value change</th>
-              <th className="py-3">Report</th>
+              <th className="py-3 pr-3"><UiText text={"Ticker"} /></th>
+              <th className="py-3 pr-3"><UiText text={"Issuer"} /></th>
+              <th className="py-3 pr-3 text-right"><UiText text={"Value"} /></th>
+              <th className="py-3 pr-3 text-right"><UiText text={"Shares"} /></th>
+              <th className="py-3 pr-3"><UiText text={"Change"} /></th>
+              <th className="py-3 pr-3 text-right"><UiText text={"Value change"} /></th>
+              <th className="py-3"><UiText text={"Report"} /></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/10">
@@ -204,11 +201,11 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
                 <td className="py-3 pr-3 text-right tabular-nums">{formatNumber(holding.shares)}</td>
                 <td className="py-3 pr-3">
                   <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(holding.changeStatus)}`}>
-                    {holding.changeStatus ?? "Comparison unavailable"} {holding.changeStatus ? formatPercent(holding.percentChange) : ""}
+                    {holding.changeStatus ?? <UiText text={"Comparison unavailable"} />} {holding.changeStatus ? formatPercent(holding.percentChange) : ""}
                   </span>
                 </td>
                 <td className="py-3 pr-3 text-right tabular-nums">
-                  {holding.valueChangeUsd === null ? "Unknown" : formatSignedCurrency(holding.valueChangeUsd)}
+                  {holding.valueChangeUsd === null ? <UiText text={"Unknown"} /> : formatSignedCurrency(holding.valueChangeUsd)}
                 </td>
                 <td className="py-3 text-slate-400">
                   {holding.reportDate}
@@ -217,9 +214,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
                     target="_blank"
                     rel="noreferrer"
                     className="block text-xs text-cyan-300 hover:text-cyan-100"
-                  >
-                    SEC filing
-                  </a>
+                  ><UiText text={"SEC filing"} /></a>
                 </td>
               </tr>
             ))}
@@ -228,9 +223,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
       </div>
 
       {filteredHoldings.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No holdings match the current filters.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No holdings match the current filters."} /></p>
       ) : null}
 
       {visible < filteredHoldings.length ? (
@@ -239,9 +232,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
             type="button"
             onClick={() => setVisible((value) => value + INITIAL_VISIBLE)}
             className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15"
-          >
-            Show more holdings
-          </button>
+          ><UiText text={"Show more holdings"} /></button>
         </div>
       ) : null}
     </section>

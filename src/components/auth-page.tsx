@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import { useLocale } from "./providers/locale-provider";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -60,15 +62,15 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
       <main className="mx-auto w-full max-w-xl px-4 py-16">
         <div className="rounded-2xl border border-emerald-400/30 bg-emerald-900/20 p-6 text-center">
           <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-emerald-100">{t("Signed in")}</h1>
-          <p className="text-sm text-emerald-50">{mapCompany ? `Save ${mapCompany} to your account and return to its connections.` : t("Continue to your research.")}</p>
-          {localError ? <p role="alert" className="mt-3 text-sm text-rose-200">{localError}</p> : null}
+          <p className="text-sm text-emerald-50">{mapCompany ? <UiText text={`Save ${mapCompany} to your account and return to its connections.`} /> : t("Continue to your research.")}</p>
+          {localError ? <p role="alert" className="mt-3 text-sm text-rose-200">{<UiText text={localError} />}</p> : null}
           <button
             type="button"
             className="mt-4 rounded-full bg-emerald-400 px-4 py-2 text-sm font-semibold text-slate-900"
             disabled={submitting}
             onClick={() => { setSubmitting(true); setLocalError(null); void finishAuth(user).finally(() => setSubmitting(false)); }}
           >
-            {submitting ? t("Saving…") : mapCompany ? `Save ${mapCompany} and continue` : destination ? t("Continue") : t("Go to feed")}
+            {submitting ? t("Saving…") : mapCompany ? <UiText text={`Save ${mapCompany} and continue`} /> : destination ? t("Continue") : t("Go to feed")}
           </button>
         </div>
       </main>
@@ -102,8 +104,8 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-16">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? `Keep ${mapCompany} on your map` : callOutlook ? `Track your ${callOutlook}` : isCreate ? t("Create your YouAnalyst account") : t("Sign in to YouAnalyst")}</h1>
-        <p className="mb-4 text-sm text-slate-300">{mapCompany ? `Create an account or sign in to save ${mapCompany}. Then return directly to its connections.` : t("Turn your research into a record you can revisit. Keep bullish and bearish calls in watchlists and see how prices move after each call.")}</p>
+        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? <UiText text={`Keep ${mapCompany} on your map`} /> : callOutlook ? <UiText text={`Track your ${callOutlook}`} /> : isCreate ? t("Create your YouAnalyst account") : t("Sign in to YouAnalyst")}</h1>
+        <p className="mb-4 text-sm text-slate-300">{mapCompany ? <UiText text={`Create an account or sign in to save ${mapCompany}. Then return directly to its connections.`} /> : t("Turn your research into a record you can revisit. Keep bullish and bearish calls in watchlists and see how prices move after each call.")}</p>
         {!mapCompany && <div className="mb-6 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4 text-sm text-slate-300">
           <p className="font-medium text-cyan-100">{t("Your first watchlist is ready automatically.")}</p>
           <p className="mt-2">{callOutlook ? t("Your company and direction will carry through. Review your call before publishing; creating an account does not publish it.") : t("Choose a company, pick Bullish or Bearish, and confirm your call. Add your reasoning whenever you have something to say.")}</p>
@@ -182,7 +184,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
           {isCreate ? t("Have an account? Sign in") : t("Need an account? Create one")}
         </button>
 
-        {localError || error ? <p className="mt-3 text-sm text-rose-300">{localError || error}</p> : null}
+        {localError || error ? <p className="mt-3 text-sm text-rose-300">{<UiText text={localError || error} />}</p> : null}
       </section>
     </main>
   );
