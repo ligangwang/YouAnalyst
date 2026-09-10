@@ -7,6 +7,7 @@ import type { PublicEventPage } from "@/lib/events/service";
 import styles from "./live-event-feed.module.css";
 import { eventFilters, type EventFilter } from "@/lib/events/filters";
 import { FilterTabs } from "./filter-tabs";
+import { RelativeTime } from "./relative-time";
 
 function parsePage(value: unknown): PublicEventPage {
   const page = value as PublicEventPage;
@@ -110,7 +111,7 @@ function EventCard({ event }: { event: PublicEvent }) {
     <div className={styles.meta}><span className={styles.icon} aria-hidden="true"><FeedIcon /></span><span>{event.type === "SEC_FORM4" ? "INSIDER FILING" : "INSTITUTIONAL HOLDINGS"}</span><span aria-hidden="true">·</span><span>SEC EDGAR</span></div>
     <h2>{event.title}</h2><p>{event.summary}</p>
     <div className={styles.bottom}><div className={styles.tickers}>{event.tickers.slice(0, 5).map(ticker => <Link key={ticker} href={`/ticker/${encodeURIComponent(ticker)}`}>{ticker}</Link>)}{event.tickers.length > 5 && <span className={styles.status}>+{event.tickers.length - 5}</span>}</div><a className={styles.source} href={event.sourceUrl} target="_blank" rel="noopener noreferrer">Read filing <span aria-hidden="true">↗</span></a></div>
-    <div className={styles.date}>Filed <time dateTime={event.occurredAt}>{dateLabel(event.occurredAt)}</time> · Added <time dateTime={event.publishedAt}>{dateLabel(event.publishedAt)}, {new Date(event.publishedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" })} UTC</time></div>
+    <div className={styles.date}><span>Filed <time dateTime={event.occurredAt}>{dateLabel(event.occurredAt)}</time></span><span aria-hidden="true"> · </span><RelativeTime value={event.publishedAt} /></div>
   </article>;
 }
 

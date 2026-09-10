@@ -22,11 +22,11 @@ test.beforeAll(async () => {
       const data = { report, metrics: annualMetrics({cik:2488, facts:{"us-gaap":{Revenues:{units:{USD:[{val:1000000000,start:"2024-12-29",end:report.end,filed:report.filed,accn:report.accession,form:"10-K"}]}}}}}, report), excerpt: "Synthetic business excerpt for company-page testing.", fetchedAt: "2026-09-09T00:00:00Z" };
       createRoot(document.getElementById("root")).render(<TickerPage ticker="AMD" overview={<CompanyResearchOverview company={company} fundamentals={<CompanyFundamentalsView data={data} />} />} />);
     `, resolveDir: process.cwd(), loader: "tsx" },
-    bundle: true, write: false, platform: "browser", define: { "process.env": "{}" },
+    bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" },
     alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") },
   });
   const css = await postcss([tailwind()]).process('@import "tailwindcss";', { from: path.resolve("company-test.css") });
-  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${css.css}body{background:#07111d;color:#f8fafc;font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundled.outputFiles[0].text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${bundled.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}${css.css}body{background:#07111d;color:#f8fafc;font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
 for (const predictionsAvailable of [true, false]) {

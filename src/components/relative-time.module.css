@@ -1,0 +1,5 @@
+.timestamp { display: inline-block; position: relative; font-family: var(--font-ibm-plex-sans), sans-serif; font-size: 12px; font-weight: 400; line-height: 1.6; color: var(--text-muted, #8794a4); font-variant-numeric: tabular-nums; vertical-align: baseline; }
+.timestamp button { font: inherit; color: inherit; background: none; border: 0; padding: 3px 0; cursor: pointer; }
+.timestamp button:hover { color: var(--foreground, #f8fafc); }
+.timestamp button:focus-visible { outline: 2px solid #67e8f9; outline-offset: 3px; border-radius: 3px; }
+.exact { display: block; max-width: min(250px, 60vw); padding: 8px 12px; border: 1px solid #ffffff20; border-radius: var(--radius-control, 10px); background: #13202e; color: #eef2f6; box-shadow: 0 4px 16px #0005; }

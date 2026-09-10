@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { RelativeTime } from "./relative-time";
 import { useEffect, useState } from "react";
 
 type FollowListKind = "followers" | "following";
@@ -45,19 +46,6 @@ function scoreText(score: number): string {
 function countText(count: number, singular: string, plural = `${singular}s`): string {
   const rounded = Math.max(0, Math.round(count));
   return `${rounded.toLocaleString()} ${rounded === 1 ? singular : plural}`;
-}
-
-function dateText(value: string): string {
-  if (!value) {
-    return "Followed recently";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Followed recently";
-  }
-
-  return `Followed ${date.toLocaleDateString()}`;
 }
 
 export function FollowListPage({
@@ -158,11 +146,11 @@ export function FollowListPage({
             const name = displayName(item);
 
             return (
-              <Link
+              <div
                 key={item.userId}
-                href={`/analysts/${item.userId}`}
                 className="grid grid-cols-[auto_1fr] gap-3 rounded-xl border border-white/10 p-3 hover:border-cyan-300/60 sm:grid-cols-[auto_1fr_auto]"
               >
+                <Link href={`/analysts/${item.userId}`} className="contents">
                 {item.photoURL ? (
                   <Image
                     src={item.photoURL}
@@ -184,10 +172,11 @@ export function FollowListPage({
                     {countText(item.followersCount, "follower")}
                   </p>
                 </div>
+                </Link>
                 <p className="col-span-2 text-xs text-slate-500 sm:col-span-1 sm:self-center sm:text-right">
-                  {dateText(item.followedAt)}
+                  <RelativeTime value={item.followedAt} prefix="Followed" />
                 </p>
-              </Link>
+              </div>
             );
           })}
 
