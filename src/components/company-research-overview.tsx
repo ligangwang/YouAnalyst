@@ -19,7 +19,7 @@ export function CompanyResearchOverview({ company, fundamentals }: { company: Co
       {company.listingUpdatedAt && <p className="mt-3 text-xs text-slate-400">Listing data synced {company.listingUpdatedAt.slice(0, 10)}.</p>}
       {!company.known && <p className="mt-3 text-sm text-slate-400">Company listing details are not available for this symbol.</p>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
-        <Link href={`/?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4">Explore {company.ticker} on the company map</Link>
+        <Link href={`/map?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4">Explore {company.ticker} on the company map</Link>
       </div>}
       <CompanyCallActions ticker={company.ticker} />
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
@@ -50,7 +50,7 @@ export function CompanyResearchOverview({ company, fundamentals }: { company: Co
           </details>
         </article>)}
       </div>
-      {company.connections.length > 12 && <Link href={`/?company=${encodeURIComponent(company.ticker)}`} className="mt-3 inline-block text-sm text-cyan-200 underline underline-offset-4">View all {company.connections.length} relationships on the map</Link>}
+      {company.connections.length > 12 && <Link href={`/map?company=${encodeURIComponent(company.ticker)}`} className="mt-3 inline-block text-sm text-cyan-200 underline underline-offset-4">View all {company.connections.length} relationships on the map</Link>}
     </section>}
   </>;
 }

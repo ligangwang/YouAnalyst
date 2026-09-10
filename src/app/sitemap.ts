@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
+  { url: absoluteUrl("/map"), changeFrequency: "daily", priority: 0.7 },
   {
     url: absoluteUrl("/"),
     changeFrequency: "hourly",

@@ -66,11 +66,15 @@ test("Cloud Run service identity does not grant access to saved companies", asyn
   expect(response.status()).toBe(401);
 });
 
-test("homepage renders the AI industry map", async ({ page }) => {
+test("homepage renders the live feed", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Latest", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Explore company connections.", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
+});
 
-  // Verify navigation is present
-  await expect(page.getByRole("link", { name: "Feed", exact: true })).toBeVisible();
+test("company map remains accessible under Explore", async ({ page }) => {
+  await page.goto("/map");
   const companySearch = page.getByRole("link", { name: "Search companies", exact: true });
   await expect(companySearch).toBeVisible();
   await expect(companySearch).toHaveAttribute("href", "/companies");
