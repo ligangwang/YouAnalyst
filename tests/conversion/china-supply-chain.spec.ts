@@ -12,10 +12,11 @@ test("Chinese landscape searches tickers, filters stages and links to primary ev
   await page.goto("http://china.test/map?market=CN_A&lang=zh-CN");
   await expect(page.getByRole("heading", { name: "看懂 AI 产业链" })).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(5);
+  await expect(page.getByRole("link", { name: /2026 年半年度报告|2026 interim report/ })).toHaveCount(5);
   await page.getByRole("textbox", { name: "搜索 A 股公司" }).fill("002837");
   await expect(page.getByRole("article")).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "英维克" })).toBeVisible();
-  await expect(page.getByRole("article").getByRole("link")).toHaveAttribute("href", "https://static.cninfo.com.cn/finalpage/2026-04-21/1225131813.PDF");
+  await expect(page.getByRole("article").getByRole("link")).toHaveAttribute("href", "https://money.finance.sina.com.cn/corp/view/vCB_AllBulletinDetail.php?id=12525843&stockid=002837");
   await page.getByRole("textbox").fill("");
   await page.getByRole("button", { name: "算力芯片", exact: true }).click();
   await expect(page.getByRole("heading", { name: "海光信息" })).toBeVisible();
