@@ -8,6 +8,8 @@ import { EnvironmentBanner } from "@/components/environment-banner";
 import { SiteNav } from "@/components/site-nav";
 import { absoluteUrl, getSiteUrl, isProductionAppEnvironment, noIndexRobots } from "@/lib/seo";
 import "./globals.css";
+import { headers } from "next/headers";
+import { parseLocale } from "@/lib/locale";
 
 const GOOGLE_ANALYTICS_ID = process.env.GOOGLE_ANALYTICS_ID;
 
@@ -50,11 +52,13 @@ export const metadata: Metadata = {
     : noIndexRobots(),
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = parseLocale((await headers()).get("x-ya-language")) ?? "en";
+  const zh = locale === "zh-CN";
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -65,7 +69,7 @@ export default function RootLayout({
 
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${sora.variable} ${ibmPlexSans.variable} h-full antialiased`}
     >
       <head>
@@ -80,23 +84,21 @@ export default function RootLayout({
         <Script id="website-jsonld" type="application/ld+json" strategy="beforeInteractive">
           {JSON.stringify(websiteJsonLd)}
         </Script>
-        <AppProviders>
+        <AppProviders locale={locale}>
           <EnvironmentBanner />
           <a href="#page-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyan-200 focus:p-3 focus:text-slate-950">Skip to content</a>
           <SiteNav />
           <div id="page-content" tabIndex={-1} className="flex-1">{children}</div>
           <footer className="border-t border-white/10 bg-slate-950/80">
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs leading-6 text-slate-400">
-              Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do
-              not constitute financial, investment, legal, or tax advice. Always do your own research before making
-              investment decisions.
+              {zh ? "YouAnalyst 的观点、排名与评论仅供参考，不构成投资、法律或税务建议。投资决策前，请独立研究。" : "Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."}
               <div className="mt-3">
-                <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline">How it works</Link>
+                <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline">{zh ? "使用指南" : "How it works"}</Link>
                 <Link href="/feedback" className="font-medium text-cyan-200 underline-offset-2 hover:underline">
-                  Share thoughts
+                  {zh ? "意见反馈" : "Share thoughts"}
                 </Link>
               </div>
-              <p className="mt-2 text-slate-500">Copyright {new Date().getFullYear()} YouAnalyst. All rights reserved.</p>
+              <p className="mt-2 text-slate-500">© {new Date().getFullYear()} YouAnalyst. {zh ? "保留所有权利。" : "All rights reserved."}</p>
             </div>
           </footer>
         </AppProviders>

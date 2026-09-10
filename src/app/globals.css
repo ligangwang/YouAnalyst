@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html[lang="zh-CN"] body {
+  font-family: var(--font-ibm-plex-sans), "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
 :root {
   --background: #07111d;
   --foreground: #f8fafc;

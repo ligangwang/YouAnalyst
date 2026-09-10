@@ -1,13 +1,16 @@
+import { ChinaSupplyChain } from "@/components/china-supply-chain";
+import { MapMarketSwitch } from "@/components/map-market-switch";
 import type { Metadata } from "next";
 import { IndustryGraphHome } from "@/components/industry-graph-home";
 import { absoluteUrl } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-type MapSearchParams = { company?: string | string[] };
+type MapSearchParams = { company?: string | string[]; market?: string | string[] };
 
 export async function generateMetadata({ searchParams }: { searchParams: Promise<MapSearchParams> }): Promise<Metadata> {
-  const { company } = await searchParams;
+  const { company, market } = await searchParams;
+  if (market === "CN_A") return { title: "A 股 AI 产业链 | YouAnalyst", description: "从芯片、互连到服务器与散热，发现算力背后的 A 股公司，查看原始披露。", alternates: { canonical: "/map?market=CN_A" }, openGraph: { title: "A 股 AI 产业链 | YouAnalyst", url: "/map?market=CN_A" } };
   const nvidia = typeof company === "string" && company.toUpperCase() === "NVDA";
   const image = {
     url: absoluteUrl(`/map/share-image${nvidia ? "?company=NVDA&v=1" : "?v=1"}`),
@@ -36,8 +39,9 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   };
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ company?: string | string[] }> }) {
-  const { company } = await searchParams;
+export default async function Home({ searchParams }: { searchParams: Promise<MapSearchParams> }) {
+  const { company, market } = await searchParams;
   const ticker = typeof company === "string" ? company : "";
-  return <IndustryGraphHome key={ticker} initialTicker={ticker} />;
+  const china = market === "CN_A";
+  return <><MapMarketSwitch china={china} />{china ? <ChinaSupplyChain /> : <IndustryGraphHome key={ticker} initialTicker={ticker} />}</>;
 }
