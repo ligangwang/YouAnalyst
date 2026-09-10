@@ -73,6 +73,21 @@ test("homepage renders the live feed", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
 });
 
+test("event filters navigate between live categories", async ({ page, request }) => {
+  await page.goto("/");
+  for (const [label, type] of [["Insider activity", "SEC_FORM4"], ["Institutional holdings", "SEC_13F"]]) {
+    await page.getByRole("navigation", { name: "Event types" }).getByRole("link", { name: label }).click();
+    await expect(page).toHaveURL(new RegExp(`type=${type}`));
+    await expect(page.getByRole("navigation", { name: "Event types" }).getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
+    await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
+    const response = await request.get(`/api/events?type=${type}&limit=2`);
+    expect(response.status()).toBe(200);
+    for (const event of (await response.json()).items) expect(event.type).toBe(type);
+  }
+  await page.getByRole("navigation", { name: "Event types" }).getByRole("link", { name: "All", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
+});
+
 test("company map remains accessible under Explore", async ({ page }) => {
   await page.goto("/map");
   const companySearch = page.getByRole("link", { name: "Search companies", exact: true });

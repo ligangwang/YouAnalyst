@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { publicEventFromDocument, type PublicEvent } from "@/lib/events/model";
 import type { PublicEventPage } from "@/lib/events/service";
 import styles from "./live-event-feed.module.css";
+import { eventFilters, type EventFilter } from "@/lib/events/filters";
+import { FilterTabs } from "./filter-tabs";
 
 function parsePage(value: unknown): PublicEventPage {
   const page = value as PublicEventPage;
@@ -20,7 +22,7 @@ function dateLabel(date: string) {
   return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
-export function LiveEventFeed({ initialPage, initialError = false }: { initialPage: PublicEventPage; initialError?: boolean }) {
+export function LiveEventFeed({ initialPage, initialError = false, type = "all" }: { initialPage: PublicEventPage; initialError?: boolean; type?: EventFilter }) {
   const [page, setPage] = useState(initialPage);
   const [pending, setPending] = useState<PublicEventPage | null>(null);
   const [status, setStatus] = useState<"connecting" | "live" | "reconnecting" | "paused">("connecting");
@@ -42,7 +44,7 @@ export function LiveEventFeed({ initialPage, initialError = false }: { initialPa
     const connect = () => {
       source?.close();
       if (document.hidden) { setStatus("paused"); return; }
-      source = new EventSource("/api/events/stream");
+      source = new EventSource(type === "all" ? "/api/events/stream" : `/api/events/stream?type=${type}`);
       source.addEventListener("snapshot", event => {
         try {
           const next = parsePage(JSON.parse((event as MessageEvent).data));
@@ -64,7 +66,7 @@ export function LiveEventFeed({ initialPage, initialError = false }: { initialPa
     connect();
     document.addEventListener("visibilitychange", connect);
     return () => { source?.close(); moreController.current?.abort(); document.removeEventListener("visibilitychange", connect); };
-  }, []);
+  }, [type]);
 
   async function loadMore() {
     if (!current.current.nextCursor || loadingMore) return;
@@ -72,7 +74,7 @@ export function LiveEventFeed({ initialPage, initialError = false }: { initialPa
     const controller = new AbortController(); moreController.current = controller;
     setLoadingMore(true); setError("");
     try {
-      const response = await fetch(`/api/events?cursor=${encodeURIComponent(current.current.nextCursor)}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]) });
+      const response = await fetch(`/api/events?cursor=${encodeURIComponent(current.current.nextCursor)}${type === "all" ? "" : `&type=${type}`}`, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]) });
       if (!response.ok) throw new Error();
       const next = parsePage(await response.json());
       if (version !== generation.current || controller.signal.aborted) return;
@@ -86,11 +88,12 @@ export function LiveEventFeed({ initialPage, initialError = false }: { initialPa
   return <main className={styles.feed}>
     <div className={styles.heading}><h1>Latest</h1><span role="status" className={`${styles.status} ${status === "live" ? styles.live : ""}`}><span className={styles.dot} />{status === "live" ? "Live" : status === "paused" ? "Paused" : status === "reconnecting" ? "Reconnecting" : "Connecting"}</span></div>
     <p className={styles.intro}>A quieter view of the market. Updated as events arrive.</p>
+    <FilterTabs label="Event types" items={eventFilters.map(filter => ({ label: filter.label, href: filter.value === "all" ? "/" : `/?type=${filter.value}`, active: type === filter.value }))} />
     {pending && <div className={styles.updates}><button type="button" onClick={() => { replacePage(pending); window.scrollTo({ top: 0, behavior: "instant" }); }}>↑ New updates</button></div>}
     {error && <p role="alert" className={styles.error}>{error}</p>}
     {!page.items.length ? <div className={styles.empty}>
       <div className={styles.emptyIcon} aria-hidden="true"><FeedIcon /></div>
-      <h2>{initialError && status !== "live" ? "We’ll be right back." : "You’re here early."}</h2>
+      <h2>{initialError && status !== "live" ? "We’ll be right back." : type === "all" ? "You’re here early." : "Nothing here yet."}</h2>
       <p>{initialError && status !== "live" ? "Your feed will appear when the connection is restored." : "New filings will appear here as they’re processed. Leave this page open—we’ll bring them to you."}</p>
     </div> : <ol className={styles.list} aria-label="Latest market events">{page.items.map(event => <li key={event.id}><EventCard event={event} /></li>)}</ol>}
     {page.nextCursor && page.items.length < 300 && <button className={styles.more} type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Earlier events"}</button>}

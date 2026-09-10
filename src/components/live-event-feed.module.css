@@ -7,14 +7,14 @@
 .intro { font-size: 15px; line-height: 1.7; color: #8e9baa; margin: 0 0 32px; }
 .list { list-style: none; padding: 0; margin: 0; }
 .card { padding: 28px 0; border-top: 1px solid #ffffff0e; overflow-wrap: anywhere; }
-.meta { display: flex; align-items: center; gap: 9px; font-size: 11px; letter-spacing: .045em; color: #8794a4; }
+.meta { display: flex; align-items: center; gap: 9px; font-size: 11px; letter-spacing: .045em; color: var(--text-muted, #8794a4); }
 .icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: #a8b8cf0d; color: #aebfd2; }
 .card h2 { margin: 15px 0 10px; font-size: clamp(19px, 3vw, 23px); font-weight: 500; line-height: 1.45; letter-spacing: -.025em; color: #eef2f6; }
-.card p { margin: 0; font-size: 15px; line-height: 1.8; color: #9ba8b7; }
+.card p { margin: 0; font-size: 15px; line-height: 1.8; color: var(--text-secondary, #9ba8b7); }
 .bottom { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
 .tickers { display: flex; flex-wrap: wrap; gap: 6px; }
 .tickers a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #c1cedc; background: #ffffff06; transition: background .15s; }
-.tickers a:hover { background: #ffffff10; }
+.tickers a:hover { background: var(--surface-hover, #ffffff10); }
 .source { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 12px; color: #b7c6d8; }
 .source:hover { color: #fff; }
 .date { font-size: 11px; color: #778596; margin-top: 10px; }

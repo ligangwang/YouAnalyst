@@ -1,0 +1,13 @@
+.gcloudignore
+.git
+.github
+.next
+node_modules
+.env*
+gha-creds-*.json
+test-results
+playwright-report
+*.tsbuildinfo
+docs
+.codex
+.agents

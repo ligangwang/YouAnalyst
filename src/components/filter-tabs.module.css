@@ -1,0 +1,6 @@
+.tabs { display: flex; gap: 4px; overflow-x: auto; padding: 4px 0 16px; margin-bottom: 8px; }
+.tabs a { flex-shrink: 0; display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: var(--radius-control, 10px); color: var(--text-secondary, #9ba8b7); font-size: 13px; transition: background .15s, color .15s; }
+.tabs a:hover { color: var(--foreground, #f8fafc); background: var(--surface-hover, #ffffff10); }
+.tabs a[aria-current="page"] { color: var(--foreground, #f8fafc); background: var(--surface-selected, #ffffff12); border-radius: var(--radius-control, 10px); }
+@media (prefers-reduced-motion: reduce) { .tabs a { transition: none; } }
+@media (max-width: 400px) { .tabs { gap: 0; } .tabs a { padding: 0 10px; font-size: 12px; } }

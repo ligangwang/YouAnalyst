@@ -32,9 +32,14 @@ else
 fi
 
 echo "[2/5] Verifying application"
-npm run verify
+if [[ "${VERIFIED_COMMIT:-}" == "${GIT_SHA:-local}" && "${GITHUB_ACTIONS:-}" == "true" && "$(git rev-parse HEAD)" == "$VERIFIED_COMMIT" ]]; then
+  echo "Checks already passed for this exact commit in the required CI jobs."
+else
+  npm run verify
+fi
 
 echo "[3/5] Deploying $service_name to Cloud Run via Cloud Build"
+build_started=$SECONDS
 image_tag="${region}-docker.pkg.dev/${project_id}/ifindata/ifindata-web:${GIT_SHA:-local}"
 
 build_submit_args=(
@@ -65,9 +70,7 @@ if [[ "${DEBUG_GCLOUD_DEPLOY:-0}" == "1" ]]; then
   echo "  cloud_build_source_staging_dir=${CLOUD_BUILD_SOURCE_STAGING_DIR:-<unset>}"
   echo "  cloud_build_use_custom_source_staging=${CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING:-0}"
   echo "  cloud_build_default_buckets_behavior=${CLOUD_BUILD_DEFAULT_BUCKETS_BEHAVIOR:-<unset>}"
-  printf '  gcloud builds submit args:'
-  printf ' %q' "${build_submit_args[@]}"
-  printf ' %q\n' .
+  # Substitutions contain credentials; never print the command arguments.
   echo "Authenticated accounts:"
   gcloud auth list
   echo "Active gcloud config:"
@@ -120,6 +123,12 @@ while true; do
       ;;
   esac
 done
+
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  printf 'Cloud Build and rollout: %s seconds\n' "$((SECONDS - build_started))" >> "$GITHUB_STEP_SUMMARY"
+  gcloud builds describe "$build_id" --project "$project_id" \
+    --format='table(steps.name,steps.status,steps.timing.startTime,steps.timing.endTime)' >> "$GITHUB_STEP_SUMMARY"
+fi
 
 echo "[4/5] Resolving deployed service URL"
 service_url="$(gcloud run services describe "$service_name" \

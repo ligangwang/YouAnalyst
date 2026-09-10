@@ -25,6 +25,10 @@ on:
         options:
           - staging
           - production
+      maintenance:
+        description: Apply indexes and initialize data (new environments or schema changes)
+        type: boolean
+        default: false
 
 env:
   GCP_REGION: us-central1
@@ -37,9 +41,24 @@ jobs:
   verify:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    outputs:
+      indexes: ${{ steps.schema.outputs.indexes }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect index changes
+        id: schema
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: |
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null && git diff --quiet "$BASE_SHA" HEAD -- firestore.indexes.json scripts/firestore/apply-indexes.ts; then
+            echo 'indexes=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'indexes=true' >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -50,6 +69,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-next-${{ hashFiles('package-lock.json') }}-
+
       - name: Verify app
         run: npm run verify
 
@@ -59,15 +85,25 @@ jobs:
       - name: Verify industry graph projection
         run: npm run test:industry
 
+  verify-browser:
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
       - name: Install conversion test browser
         run: npx playwright install --with-deps chromium
 
-      - name: Verify auth continuation
+      - name: Verify user journeys
         run: npm run test:conversion
 
   deploy-staging:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/dev') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
-    needs: verify
+    needs: [verify, verify-browser]
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -126,6 +162,7 @@ jobs:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
       - name: Initialize company map directory
+        if: github.event_name == 'workflow_dispatch' && inputs.maintenance
         run: npx tsx scripts/migrate-map-directory.ts
 
       - name: Debug staging deploy context
@@ -166,6 +203,8 @@ jobs:
           CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING: ${{ vars.CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING }}
           DEBUG_GCLOUD_DEPLOY: "1"
           GIT_SHA: ${{ github.sha }}
+          VERIFIED_COMMIT: ${{ github.sha }}
+          APPLY_FIRESTORE_INDEXES: ${{ (needs.verify.outputs.indexes == 'true' || inputs.maintenance) && '1' || '0' }}
           APP_ENVIRONMENT: staging
           FINNHUB_API_KEY: ${{ env.FINNHUB_API_KEY }}
           FINNHUB_API_URL: ${{ env.FINNHUB_API_URL }}
@@ -534,7 +573,7 @@ jobs:
 
   deploy-production:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
-    needs: verify
+    needs: [verify, verify-browser]
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -593,6 +632,7 @@ jobs:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
       - name: Initialize company map directory
+        if: github.event_name == 'workflow_dispatch' && inputs.maintenance
         run: npx tsx scripts/migrate-map-directory.ts
 
       - name: Debug production deploy context
@@ -625,15 +665,10 @@ jobs:
           fi
 
       - name: Initialize public event feed from verified filings
+        if: github.event_name == 'workflow_dispatch' && inputs.maintenance
         env:
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
         run: npx tsx scripts/events/bootstrap.ts
-
-      - name: Apply filing ingestion and monitoring indexes
-        env:
-          FIRESTORE_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
-          FIRESTORE_COLLECTION_GROUPS: sec_insider_filings,sec_13f_filings
-        run: npm run firestore:indexes:apply
 
       - name: Deploy production
         env:
@@ -644,6 +679,8 @@ jobs:
           CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING: ${{ vars.CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING }}
           DEBUG_GCLOUD_DEPLOY: "1"
           GIT_SHA: ${{ github.sha }}
+          VERIFIED_COMMIT: ${{ github.sha }}
+          APPLY_FIRESTORE_INDEXES: ${{ (needs.verify.outputs.indexes == 'true' || inputs.maintenance) && '1' || '0' }}
           APP_ENVIRONMENT: production
           FINNHUB_API_KEY: ${{ env.FINNHUB_API_KEY }}
           FINNHUB_API_URL: ${{ env.FINNHUB_API_URL }}

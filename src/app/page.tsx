@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { LiveEventFeed, LiveFeedLoading } from "@/components/live-event-feed";
 import { listPublicEvents } from "@/lib/events/service";
+import { parseEventFilter, type EventFilter } from "@/lib/events/filters";
 
 export const dynamic = "force-dynamic";
 
@@ -23,15 +24,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ company?: string | string[] }> }) {
-  const { company } = await searchParams;
+export default async function Home({ searchParams }: { searchParams: Promise<{ company?: string | string[]; type?: string | string[] }> }) {
+  const { company, type: rawType } = await searchParams;
   const ticker = typeof company === "string" ? company : "";
   if (ticker) redirect(`/map?company=${encodeURIComponent(ticker)}`);
-  return <Suspense fallback={<LiveFeedLoading />}><InitialFeed /></Suspense>;
+  let type: EventFilter;
+  try { type = parseEventFilter(rawType); } catch { redirect("/"); }
+  return <Suspense key={type} fallback={<LiveFeedLoading />}><InitialFeed type={type} /></Suspense>;
 }
 
-async function InitialFeed() {
-  const initial = await listPublicEvents().then(page => ({ page, error: false }))
+async function InitialFeed({ type }: { type: EventFilter }) {
+  const initial = await listPublicEvents({ type }).then(page => ({ page, error: false }))
     .catch(() => ({ page: { items: [], nextCursor: null }, error: true }));
-  return <LiveEventFeed initialPage={initial.page} initialError={initial.error} />;
+  return <LiveEventFeed key={type} type={type} initialPage={initial.page} initialError={initial.error} />;
 }
