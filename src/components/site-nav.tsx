@@ -1,10 +1,14 @@
 "use client";
 
+import { LanguageSwitch, useLocale } from "@/components/providers/locale-provider";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
+
+const navigationChinese: Record<string, string> = {"Feed":"动态","Explore":"探索","Calls":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
+function useNavText() { const { chinese } = useLocale(); return (value: string) => chinese ? navigationChinese[value] ?? value : value; }
 
 function initials(name: string | null | undefined, email: string | null | undefined): string {
   const source = (name || email || "U").trim();
@@ -35,6 +39,7 @@ function AvatarButton({ photoURL, displayName, email }: { photoURL: string | nul
 }
 
 function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: () => void }) {
+  const t = useNavText();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
@@ -74,16 +79,12 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
             href={profileHref}
             onClick={() => setOpen(false)}
             className="flex w-full items-center px-4 py-2 text-sm text-slate-200 hover:bg-white/5"
-          >
-            My profile
-          </Link>
+          >{t("My profile")}</Link>
           <button
             type="button"
             onClick={() => { setOpen(false); onSignOut(); }}
             className="flex w-full items-center px-4 py-2 text-sm text-rose-300 hover:bg-white/5"
-          >
-            Sign out
-          </button>
+          >{t("Sign out")}</button>
         </div>
       )}
     </div>
@@ -91,9 +92,10 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
 }
 
 function InstitutionNavLabel({ unreadCount }: { unreadCount: number }) {
+  const t = useNavText();
   return (
     <span className="inline-flex items-center gap-1.5">
-      Institutions
+      {t("Institutions")}
       {unreadCount > 0 ? (
         <span className="rounded-full bg-cyan-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-slate-950">
           {unreadCount > 9 ? "9+" : unreadCount}
@@ -110,6 +112,7 @@ const dailyNavItems = [
 ];
 
 function DailyNavMenu() {
+  const t = useNavText();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -131,9 +134,7 @@ function DailyNavMenu() {
         aria-controls="daily-navigation-links"
         onClick={() => setOpen((prev) => !prev)}
         className="hover:text-cyan-200"
-      >
-        Daily
-      </button>
+      >{t("Daily")}</button>
       {open ? (
         <div id="daily-navigation-links" className="absolute left-0 z-50 mt-2 w-56 rounded-xl border border-white/10 bg-slate-950 py-1 shadow-xl">
           {dailyNavItems.map((item) => (
@@ -143,7 +144,7 @@ function DailyNavMenu() {
               onClick={() => setOpen(false)}
               className="block px-4 py-2 text-sm text-slate-200 hover:bg-white/5 hover:text-cyan-100"
             >
-              {item.label}
+              {t(item.label)}
             </Link>
           ))}
         </div>
@@ -153,6 +154,7 @@ function DailyNavMenu() {
 }
 
 export function SiteNav() {
+  const t = useNavText();
   const pathname = usePathname();
   const { user, loading, signOut, getIdToken } = useAuth();
   const [adminStatus, setAdminStatus] = useState<{ userId: string; isAdmin: boolean } | null>(null);
@@ -278,23 +280,22 @@ export function SiteNav() {
               />
             </Link>
             <nav className="hidden items-center gap-4 text-[15px] text-slate-200 md:flex">
-              <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className="hover:text-cyan-200">Feed</Link>
-              <Link href="/map" aria-current={pathname === "/map" ? "page" : undefined} className="hover:text-cyan-200">Explore</Link>
-              <Link href="/predictions" aria-current={pathname.startsWith("/predictions") ? "page" : undefined} className="hover:text-cyan-200">Calls</Link>
-              <Link href="/watchlists" className="hover:text-cyan-200">Watchlists</Link>
+              <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className="hover:text-cyan-200">{t("Feed")}</Link>
+              <Link href="/map" aria-current={pathname === "/map" ? "page" : undefined} className="hover:text-cyan-200">{t("Explore")}</Link>
+              <Link href="/predictions" aria-current={pathname.startsWith("/predictions") ? "page" : undefined} className="hover:text-cyan-200">{t("Calls")}</Link>
+              <Link href="/watchlists" className="hover:text-cyan-200">{t("Watchlists")}</Link>
               <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
               <DailyNavMenu />
-              {showAdminLink ? <Link href="/admin" className="hover:text-cyan-200">Admin</Link> : null}
+              {showAdminLink ? <Link href="/admin" className="hover:text-cyan-200">{t("Admin")}</Link> : null}
             </nav>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <LanguageSwitch />
             <Link
               href="/companies"
               className="hidden rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 md:inline-flex"
-            >
-              Search companies
-            </Link>
+            >{t("Search companies")}</Link>
             {loading ? (
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-700" />
             ) : user ? (
@@ -303,24 +304,22 @@ export function SiteNav() {
               <Link
                 href="/auth"
                 className="rounded-full border border-cyan-400/35 px-3 py-1.5 text-sm text-cyan-100 hover:bg-cyan-500/15"
-              >
-                Sign in
-              </Link>
+              >{t("Sign in")}</Link>
             )}
           </div>
         </div>
 
         <nav aria-label="Mobile navigation" className="mt-2 flex items-center gap-1 text-sm text-slate-200 md:hidden">
           {[{ href: "/", label: "Feed" }, { href: "/companies", label: "Search" }, { href: "/watchlists", label: "Watchlists" }].map(item =>
-            <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3">{item.label}</Link>)}
+            <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3">{t(item.label)}</Link>)}
           <details className="relative ml-auto" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
-            <summary className="cursor-pointer rounded-lg px-3 py-3">More</summary>
+            <summary className="cursor-pointer rounded-lg px-3 py-3">{t("More")}</summary>
             <div className="absolute right-0 z-50 mt-2 grid w-56 rounded-xl border border-white/15 bg-slate-950 p-2 shadow-xl"
               onClick={event => { if ((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
-              {[{ href: "/map", label: "Explore company map" }, { href: "/predictions", label: "Calls" }, { href: "/predictions/new", label: "Make a prediction" },
+              {[{ href: "/map", label: "Explore company map" }, { href: "/map?market=CN_A", label: "AI supply chain" }, { href: "/predictions", label: "Calls" }, { href: "/predictions/new", label: "Make a prediction" },
                 { href: "/institutions", label: "Institutions" }, ...dailyNavItems, { href: "/how-it-works", label: "How it works" },
                 ...(showAdminLink ? [{ href: "/admin", label: "Admin" }] : [])].map(item =>
-                <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3 hover:bg-white/10">{item.label}</Link>)}
+                <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3 hover:bg-white/10">{t(item.label)}</Link>)}
             </div>
           </details>
         </nav>
