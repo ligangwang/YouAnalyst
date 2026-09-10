@@ -7,6 +7,9 @@ import { createIndustryResearchService } from "../../src/lib/industry-research/s
 import type { Firestore } from "firebase-admin/firestore";
 import { RESEARCH_SECTORS, resolveResearchTopic, researchTopicLabel } from "../../src/lib/industry-research/taxonomy";
 import { MAP_ROLE_CORRECTIONS, roleCorrectionPatch } from "../../scripts/data/map-role-corrections";
+import { normalizeChinaResearch, validChinaId, MARKET_COMPANIES } from "../../src/lib/industry-research/china";
+import { seedChinaCompanies, listChinaCompanies } from "../../src/lib/industry-research/china-directory";
+import { chinaSupplyChain } from "../../src/lib/industry-graph/china";
 
 test("reference taxonomy has 11 sectors, 74 unique industries, and validated parent codes", () => {
   assert.equal(RESEARCH_SECTORS.length, 11);
@@ -83,7 +86,7 @@ test("provider provenance comes from tool output, not model-invented source list
   assert.throws(() => readResearchResponse({ output: [] }));
 });
 
-function serviceFixture() {
+function serviceFixture(outputData: unknown = { companies, relationships: [relation] }, sources: string[] = [url]) {
   const data = new Map<string, Record<string, unknown>>();
   let calls = 0, usageEvents = 0;
   let providerStatus = "completed";
@@ -120,13 +123,85 @@ function serviceFixture() {
   const service = createIndustryResearchService(() => db, async (_path, body) => {
     if (body) { calls++; return { id: "resp_test", model: "gpt-5.4" }; }
     return { status: providerStatus, incomplete_details: { reason: "max_output_tokens" }, model: "gpt-5.4", usage: {}, output: [
-      { type: "web_search_call", action: { sources: [{ url }] } },
-      { type: "message", content: [{ type: "output_text", text: JSON.stringify({ companies, relationships: [relation] }) }] },
+      { type: "web_search_call", action: { sources: sources.map(url => ({ url })) } },
+      { type: "message", content: [{ type: "output_text", text: JSON.stringify(outputData) }] },
     ] };
   }, async () => { usageEvents++; return null; });
-  return { data, service, calls: () => calls, usageEvents: () => usageEvents, fail: () => { providerStatus = "incomplete"; } };
+  return { db, data, service, calls: () => calls, usageEvents: () => usageEvents, fail: () => { providerStatus = "incomplete"; } };
 }
 const runId = "00000000-0000-4000-8000-000000000001";
+
+test("A-share research requires exchange-qualified stock IDs, bilingual fields and searched evidence", () => {
+  for (const id of ["688041", "AMD", "XSHG:900001", "XSHE:200001", "XHKG:00700", "XSHG:002837", "XSHE:688041"]) assert.equal(validChinaId(id), false);
+  const company = chinaSupplyChain[0];
+  const result = normalizeChinaResearch({ companies: [company, company, { ...company, id: "AMD" }, { ...chinaSupplyChain[1], en: "" }, chinaSupplyChain[2]] }, [company.source]);
+  assert.equal(result.chinaCompanies.length, 1);
+  assert.equal(result.withheld, 4);
+  assert.equal(result.relationships.length, 0);
+  assert.match(JSON.stringify(researchRequest("Semiconductors", [], undefined, "CN_A")), /a_share_companies/);
+});
+
+test("A-share seed is idempotent and preserves editorial changes and archived records", async () => {
+  const f = serviceFixture();
+  assert.deepEqual(await seedChinaCompanies(f.db, "admin"), { created: 5, preserved: 0 });
+  const path = `${MARKET_COMPANIES}/${chinaSupplyChain[0].id}`;
+  f.data.set(path, { ...f.data.get(path), name: "Edited name", status: "ARCHIVED" });
+  assert.deepEqual(await seedChinaCompanies(f.db, "admin"), { created: 0, preserved: 5 });
+  assert.equal(f.data.get(path)?.name, "Edited name");
+  assert.equal(f.data.get(path)?.status, "ARCHIVED");
+});
+
+test("public A-share directory returns only published CN profiles and validates cursors", async () => {
+  const calls: unknown[][] = [];
+  const company = chinaSupplyChain[0];
+  const documents = [
+    { ...company, market: "CN_A", status: "PUBLISHED", reviewedBy: "private-admin" },
+    { ...company, market: "CN_A", status: "DRAFT" },
+    { ...company, market: "US", status: "PUBLISHED" },
+    { ...company, market: "CN_A", status: "ARCHIVED" },
+    { ...company, market: "CN_A", status: "PUBLISHED", source: "javascript:alert(1)" },
+  ];
+  const query = {
+    orderBy() { return query; }, startAt(value: string) { calls.push(["start", value]); return query; },
+    endBefore(value: string) { calls.push(["end", value]); return query; }, limit(value: number) { calls.push(["limit", value]); return query; },
+    startAfter(value: string) { calls.push(["after", value]); return query; },
+    async get() { return { size: documents.length, docs: documents.map(data => ({ id: data.id, data: () => data })) }; },
+  };
+  const db = { collection: () => query } as unknown as Firestore;
+  const result = await listChinaCompanies(db, "XSHG:601138");
+  assert.deepEqual(result.items, [company]);
+  assert.equal(result.nextCursor, null);
+  assert.ok(calls.some(c => c[0] === "after" && c[1] === "XSHG:601138"));
+  await assert.rejects(listChinaCompanies(db, "US:AMD"), /Invalid company cursor/);
+});
+
+test("A-share publication needs explicit review, works without US tickers, and preserves existing profiles", async () => {
+  const company = chinaSupplyChain[0];
+  const f = serviceFixture({ companies: [company] }, [company.source]);
+  await f.service.startResearch("Semiconductors", runId, "admin", undefined, "CN_A");
+  await assert.rejects(f.service.startResearch("Semiconductors", runId, "admin"), /another topic/);
+  const draft = await f.service.refreshResearch(runId);
+  assert.equal(draft?.status, "DRAFT");
+  assert.equal([...f.data.keys()].filter(k => k.startsWith(`${MARKET_COMPANIES}/`)).length, 0);
+  await assert.rejects(f.service.publishResearch(runId, ["AMD"], "admin"), /Unknown or invalid/);
+  await f.service.publishResearch(runId, [company.id], "admin");
+  const path = `${MARKET_COMPANIES}/${company.id}`;
+  assert.equal(f.data.get(path)?.market, "CN_A");
+  assert.equal(f.data.get(path)?.status, "PUBLISHED");
+  f.data.set(path, { ...f.data.get(path), sourceLabel: "Newer report" });
+  await f.service.publishResearch(runId, [company.id], "admin");
+  assert.equal(f.data.get(path)?.sourceLabel, "Newer report");
+  assert.equal([...f.data.keys()].filter(k => k.startsWith("industry_research_relationships/")).length, 0);
+});
+
+test("markets have separate topic locks but share the daily research budget", async () => {
+  const f = serviceFixture();
+  await f.service.startResearch("Semiconductors", runId, "admin");
+  await f.service.startResearch("Semiconductors", runId.replace(/1$/, "2"), "admin", undefined, "CN_A");
+  await f.service.startResearch("Healthcare", runId.replace(/1$/, "3"), "admin", undefined, "CN_A");
+  await assert.rejects(f.service.startResearch("Energy", runId.replace(/1$/, "4"), "admin"), /Daily research limit/);
+  assert.equal(f.calls(), 3);
+});
 test("categorized batches persist canonical labels and reject invalid categories without spending", async () => {
   const f = serviceFixture();
   await assert.rejects(f.service.startResearch("", runId, "admin", { sectorCode: "35", industryCode: "453010" }));

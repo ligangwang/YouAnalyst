@@ -8,11 +8,15 @@ import { RELATIONSHIP_LABELS } from "@/lib/industry-graph/model";
 import type { ResearchResult } from "@/lib/industry-research/model";
 import { RESEARCH_SECTORS, TAXONOMY_SOURCE, type ResearchTopic } from "@/lib/industry-research/taxonomy";
 import { INDUSTRY_SEGMENTS } from "@/lib/industry-graph/catalog";
+import { useLocale } from "./providers/locale-provider";
 
-type Run = { id: string; industry: string; topic?: ResearchTopic; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
+type Run = { id: string; market?: "US" | "CN_A"; industry: string; topic?: ResearchTopic; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
 const control = "rounded-md border border-white/20 px-3 py-2 text-sm disabled:opacity-50";
 export function AdminIndustryResearch() {
   const ui = useUiText();
+  const { text, chinese } = useLocale();
+  const [market, setMarket] = useState<"US" | "CN_A">("US");
+  const [seedMessage, setSeedMessage] = useState("");
   const { user, loading, getIdToken } = useAuth();
   const [industry, setIndustry] = useState("AI data-center supply chain");
   const [sectorCode, setSectorCode] = useState("45");
@@ -46,7 +50,7 @@ export function AdminIndustryResearch() {
     if (!loading && user) void reload().catch(e => setError(e.message));
   }, [loading, user, reload]);
   const visibleRuns = user && runsOwner === user.uid ? runs : [];
-  const filteredRuns = visibleRuns.filter(r => !filterSector || (filterSector === "custom" ? !r.topic?.sectorCode : r.topic?.sectorCode === filterSector));
+  const filteredRuns = visibleRuns.filter(r => (r.market ?? "US") === market && (!filterSector || (filterSector === "custom" ? !r.topic?.sectorCode : r.topic?.sectorCode === filterSector)));
   const run = filteredRuns.find(r => r.id === active);
   useEffect(() => {
     if (run?.status !== "PROCESSING") return;
@@ -61,10 +65,10 @@ export function AdminIndustryResearch() {
   async function act(action: "start" | "refresh" | "publish") {
     setBusy(true); setError("");
     try {
-      const topicKey = JSON.stringify([sectorCode, industryCode, industry.trim()]);
+      const topicKey = JSON.stringify([market, sectorCode, industryCode, industry.trim()]);
       if (action === "start" && requestTopic.current !== topicKey) { requestId.current = null; requestTopic.current = topicKey; }
       requestId.current ??= crypto.randomUUID();
-      const payload = await api({ action, industry, category: sector ? { sectorCode, industryCode } : null, requestId: requestId.current, id: active, selectedIds: selected });
+      const payload = await api({ action, market, industry, category: sector ? { sectorCode, industryCode } : null, requestId: requestId.current, id: active, selectedIds: selected });
       if (action === "start") requestId.current = null;
       setRuns(current => [payload.item, ...current.filter(r => r.id !== payload.item.id)]);
       setRunsOwner(user?.uid ?? null);
@@ -75,6 +79,9 @@ export function AdminIndustryResearch() {
   return <main className="mx-auto max-w-6xl px-4 py-8 text-slate-100">
     <h1 className="text-2xl font-semibold"><UiText text={"Industry research"} /></h1>
     <div className="my-5 flex flex-wrap items-end gap-3">
+      <label className="flex flex-col gap-1 text-sm">{text("Research market", "研究市场")}<select value={market} disabled={busy} onChange={e => { setMarket(e.target.value as "US" | "CN_A"); setActive(""); setSelected([]); }} className={`${control} bg-slate-950`}>
+        <option value="US">{text("US stocks and ADRs", "美股与 ADR")}</option><option value="CN_A">{text("China A-shares", "中国 A 股")}</option>
+      </select></label>
       <label className="flex min-w-0 basis-full flex-col gap-1 text-sm sm:basis-64"><UiText text={"Sector"} /><select value={sectorCode} disabled={busy} onChange={e => { setSectorCode(e.target.value); setIndustryCode(RESEARCH_SECTORS.find(s => s.code === e.target.value)?.industries[0][0] ?? ""); setIndustry(""); }} className={`${control} w-full bg-slate-950`}>
           {RESEARCH_SECTORS.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
           <option value="custom"><UiText text={"Custom / cross-industry"} /></option>
@@ -90,7 +97,17 @@ export function AdminIndustryResearch() {
       <button className={`${control} bg-cyan-500 text-slate-950`} disabled={busy || !user || (!sector && industry.trim().length < 3)} onClick={() => void act("start")}><UiText text={"Research industry"} /></button>
       <button className={control} disabled={busy || !user} onClick={() => void reload().catch(e => setError(e.message))}><UiText text={"Refresh runs"} /></button>
     </div>
-    <p className="text-sm text-slate-400"><UiText text={"Paid research · maximum 3 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs"} /></p>
+    <p className="text-sm text-slate-400">{market === "CN_A" ? text("Discover A-share companies by industry. Review their identity, business and sources before publishing. Paid research shares the 3 batches/day limit; up to 8 tool calls and 12,000 output tokens per batch.", "按行业发现 A 股公司，核对公司身份、业务与来源后发布。付费研究共享每日 3 批限额；每批最多 8 次工具调用及 12,000 个输出 token。") : ui("Paid research · maximum 3 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs")}</p>
+    {market === "CN_A" && <div className="mt-4 flex flex-wrap items-center gap-3">
+      <button className={control} disabled={busy || !user} onClick={async () => {
+        setBusy(true); setError(""); setSeedMessage("");
+        try { const result = await api({ action: "seed-china" }); setSeedMessage(text(`Imported ${result.created}; preserved ${result.preserved} existing companies.`, `已导入 ${result.created} 家，保留 ${result.preserved} 家现有公司。`)); }
+        catch (e) { setError(e instanceof Error ? e.message : "Research request failed."); }
+        finally { setBusy(false); }
+      }}>{text("Import five starter companies", "导入首批五家公司")}</button>
+      <a href="/map?market=CN_A" className="text-sm text-cyan-200 underline">{text("View A-share companies", "查看 A 股公司")}</a>
+      {seedMessage && <p role="status" className="text-sm text-emerald-300">{seedMessage}</p>}
+    </div>}
     <a href={TAXONOMY_SOURCE} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-cyan-200 underline"><UiText text={"GICS sector and industry reference"} /></a>
     {!loading && !user && <p role="alert" className="mt-4"><UiText text={"Sign in with an admin account."} /></p>}
     {error && <p role="alert" className="my-4 text-rose-300">{<UiText text={error} />}</p>}
@@ -113,7 +130,20 @@ export function AdminIndustryResearch() {
         <button className={control} disabled={busy || !run.responseId || !["PROCESSING", "FAILED"].includes(run.status)} onClick={() => void act("refresh")}><UiText text={"Check status"} /></button>
       </div>
       {run.error && <p className="my-4 text-rose-300">{<UiText text={run.error} />}</p>}
-      {run.result && <>
+      {run.result && run.market === "CN_A" && <>
+        <p className="my-4 text-sm">{text(`${run.result.chinaCompanies?.length ?? 0} companies ready for review; ${run.result.withheld} withheld.`, `${run.result.chinaCompanies?.length ?? 0} 家公司待审核；${run.result.withheld} 家未通过验证。`)}</p>
+        <div className="grid gap-4 md:grid-cols-2">{run.result.chinaCompanies?.map(c => <article key={c.id} className="rounded-xl border border-white/15 p-4">
+          <label className="flex items-start gap-3"><input type="checkbox" aria-label={text(`Approve ${c.id}`, `审核 ${c.id}`)} checked={selected.includes(c.id)} disabled={busy || run.publishedIds?.includes(c.id)} onChange={e => setSelected(current => e.target.checked ? [...current, c.id] : current.filter(id => id !== c.id))} />
+            <strong>{c.name} · {c.en} · {c.id}</strong></label>
+          <p className="mt-2 text-xs text-cyan-200">{c.stage} · {c.stageEn}</p>
+          <p className="mt-3 text-sm">{c.description}</p><p className="mt-2 text-sm text-slate-400">{c.descriptionEn}</p>
+          <a href={c.source} target="_blank" rel="noopener noreferrer" className="mt-3 block break-words text-sm text-cyan-200 underline">{chinese ? c.sourceLabel : c.sourceLabelEn}</a>
+          <p className="mt-1 break-all text-xs text-slate-500">{c.source}</p>
+          {run.publishedIds?.includes(c.id) && <p className="mt-3 text-sm text-emerald-300">{text("Published", "已发布")}</p>}
+        </article>)}</div>
+        <button className={`${control} mt-5 bg-emerald-600`} disabled={busy || !selected.length} onClick={() => void act("publish")}>{text(`Publish ${selected.length} reviewed companies`, `发布 ${selected.length} 家已审核公司`)}</button>
+      </>}
+      {run.result && run.market !== "CN_A" && <>
         <p className="my-4 text-sm">{run.result.companies.length}<UiText text={" companies · "} />{run.result.relationships.length}<UiText text={" sourced candidates · "} />{run.result.withheld}<UiText text={" withheld"} /></p>
         <details className="mb-4 text-sm">
           <summary className="cursor-pointer"><UiText text={"Company map categories"} /></summary>

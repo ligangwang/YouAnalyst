@@ -5,15 +5,17 @@ import { safeRecordOpenAiUsageEvent } from "../openai/usage";
 import { normalizeResearch, record, text, RESEARCH_VERSION, type ResearchResult, type ResearchRelationship } from "./model";
 import { openAiResearch, readResearchResponse, researchRequest } from "./openai";
 import { resolveResearchTopic, researchTopicLabel } from "./taxonomy";
+import { MARKET_COMPANIES, normalizeChinaCompany, normalizeChinaResearch } from "./china";
 
 export function createIndustryResearchService(getDb: () => Firestore, provider = openAiResearch, recordUsage = safeRecordOpenAiUsageEvent) {
 const runs = () => getDb().collection("industry_research_runs");
-async function startResearch(scope: string, requestId: string, uid: string, category?: unknown) {
+async function startResearch(scope: string, requestId: string, uid: string, category?: unknown, market: "US" | "CN_A" = "US") {
+  if (!["US", "CN_A"].includes(market)) throw new Error("Invalid research market.");
   const topic = resolveResearchTopic(scope, category);
   const industry = researchTopicLabel(topic);
   if (!/^[a-f0-9-]{36}$/.test(requestId)) throw new Error("Invalid request ID.");
   const db = getDb(), ref = runs().doc(requestId);
-  const industryKey = createHash("sha256").update(industry.toLowerCase().replace(/\s+/g, " ")).digest("hex");
+  const industryKey = createHash("sha256").update((market === "CN_A" ? "CN_A:" : "") + industry.toLowerCase().replace(/\s+/g, " ")).digest("hex");
   const lock = db.collection("industry_research_locks").doc(industryKey);
   const budget = db.collection("industry_research_limits").doc(new Date().toISOString().slice(0, 10));
   const now = new Date().toISOString();
@@ -26,15 +28,15 @@ async function startResearch(scope: string, requestId: string, uid: string, cate
     const locked = await tx.get(lock), limit = await tx.get(budget);
     if (locked.data()?.active === true) throw new Error("This industry already has a research run. Refresh its status first.");
     if ((limit.data()?.count ?? 0) >= 3) throw new Error("Daily research limit reached (3 batches). Try again tomorrow.");
-    tx.set(ref, { id: requestId, industry, topic, industryKey, version: RESEARCH_VERSION, status: "STARTING", createdAt: now, createdBy: uid });
+    tx.set(ref, { id: requestId, industry, topic, market, industryKey, version: RESEARCH_VERSION, status: "STARTING", createdAt: now, createdBy: uid });
     tx.set(lock, { active: true, runId: requestId });
     tx.set(budget, { count: FieldValue.increment(1) }, { merge: true });
     return true;
   });
   if (!created) return (await ref.get()).data();
   try {
-    const existing = await db.collection("industry_research_relationships").where("status", "==", "PUBLISHED").limit(160).get();
-    const response = await provider("", researchRequest(industry, existing.docs.map(d => d.id), topic));
+    const existing = await db.collection(market === "CN_A" ? MARKET_COMPANIES : "industry_research_relationships").where("status", "==", "PUBLISHED").limit(160).get();
+    const response = await provider("", researchRequest(industry, existing.docs.map(d => d.id), topic, market));
     if (!/^resp_[a-zA-Z0-9_-]+$/.test(text(response.id))) throw new Error("OpenAI did not return a response ID.");
     await ref.update({ status: "PROCESSING", responseId: response.id, model: text(response.model) || "gpt-5.4", updatedAt: now });
   } catch (error) {
@@ -63,8 +65,8 @@ async function refreshResearch(id: string) {
   if (response.status === "completed") {
     try {
       const parsed = readResearchResponse(response);
-      result = normalizeResearch(parsed.data, parsed.sources);
-      if (!result.relationships.length) { result = null; error = "No sourced relationships passed validation. Existing connections were preserved."; }
+      result = run.market === "CN_A" ? normalizeChinaResearch(parsed.data, parsed.sources) : normalizeResearch(parsed.data, parsed.sources);
+      if (!(run.market === "CN_A" ? result.chinaCompanies?.length : result.relationships.length)) { result = null; error = "No sourced candidates passed validation. Existing published data was preserved."; }
     } catch { error = "Research returned invalid structured output. Existing connections were preserved."; }
   }
   const saved = await db.runTransaction(async tx => {
@@ -90,6 +92,23 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
     const snapshot = await tx.get(ref), run = snapshot.data();
     if (!run || !["DRAFT", "PUBLISHED"].includes(run.status) || run.version !== RESEARCH_VERSION) throw new Error("A completed draft is required.");
     const result = run.result as ResearchResult;
+    if (run.market === "CN_A") {
+      const selected = (result.chinaCompanies ?? []).filter(c => selectedIds.includes(c.id));
+      if (selected.length !== new Set(selectedIds).size || selected.some(c => !normalizeChinaCompany(c))) throw new Error("Unknown or invalid company selected.");
+      const refs = selected.map(c => db.collection(MARKET_COMPANIES).doc(c.id));
+      const existing = await tx.getAll(...refs);
+      const now = new Date().toISOString();
+      selected.forEach((company, i) => {
+        // Existing editorial profiles and newer reports are never replaced by discovery.
+        tx.set(refs[i], {
+          ...(!existing[i].exists ? { ...company, market: "CN_A", status: "PUBLISHED", createdAt: now, reviewedAt: now, reviewedBy: uid } : {}),
+          researchTopics: FieldValue.arrayUnion(run.industry), runIds: FieldValue.arrayUnion(id),
+          ...(run.topic?.industryCode ? { researchIndustryCodes: FieldValue.arrayUnion(run.topic.industryCode), researchSectorCodes: FieldValue.arrayUnion(run.topic.sectorCode) } : {}),
+        }, { merge: true });
+      });
+      tx.update(ref, { status: "PUBLISHED", publishedAt: now, publishedBy: uid, publishedIds: FieldValue.arrayUnion(...selectedIds) });
+      return;
+    }
     const selected = result.relationships.filter(r => selectedIds.includes(r.id));
     if (selected.length !== new Set(selectedIds).size) throw new Error("Unknown relationship selected.");
     const symbols = new Set(selected.flatMap(r => [r.source, r.target]));
