@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -74,8 +76,8 @@ export function InstitutionDigestPreviewPanel() {
     <div className="rounded-xl border border-white/10 bg-slate-900/55 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="font-[var(--font-sora)] text-base font-semibold text-cyan-100">Digest preview</h3>
-          <p className="mt-1 text-xs text-slate-500">Preview candidate activity before delivery is connected.</p>
+          <h3 className="font-[var(--font-sora)] text-base font-semibold text-cyan-100"><UiText text={"Digest preview"} /></h3>
+          <p className="mt-1 text-xs text-slate-500"><UiText text={"Preview candidate activity before delivery is connected."} /></p>
         </div>
         <button
           type="button"
@@ -83,26 +85,20 @@ export function InstitutionDigestPreviewPanel() {
           disabled={loading}
           className="w-fit rounded-xl border border-cyan-400/35 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
         >
-          {loading ? "Loading..." : "Preview"}
+          {loading ? <UiText text={"Loading..."} /> : <UiText text={"Preview"} />}
         </button>
       </div>
 
-      {error ? <p className="mt-3 text-xs text-rose-300">{error}</p> : null}
+      {error ? <p className="mt-3 text-xs text-rose-300">{<UiText text={error} />}</p> : null}
 
       {preview ? (
         <div className="mt-4">
           <div className="grid gap-2 text-xs text-slate-400 sm:grid-cols-3">
-            <p>
-              Delivery
-              <span className="mt-1 block font-semibold text-slate-100">{preview.wouldSend ? "Ready" : "Would skip"}</span>
+            <p><UiText text={"Delivery"} /><span className="mt-1 block font-semibold text-slate-100">{preview.wouldSend ? <UiText text={"Ready"} /> : <UiText text={"Would skip"} />}</span>
             </p>
-            <p>
-              Cadence
-              <span className="mt-1 block font-semibold text-slate-100">{preview.preferences.cadence}</span>
+            <p><UiText text={"Cadence"} /><span className="mt-1 block font-semibold text-slate-100">{<UiText text={preview.preferences.cadence} />}</span>
             </p>
-            <p>
-              Generated
-              <span className="mt-1 block font-semibold text-slate-100">{preview.generatedAt}</span>
+            <p><UiText text={"Generated"} /><span className="mt-1 block font-semibold text-slate-100">{preview.generatedAt}</span>
             </p>
           </div>
 
@@ -121,26 +117,24 @@ export function InstitutionDigestPreviewPanel() {
                             {item.ticker}
                           </Link>
                         ) : (
-                          <span className="font-semibold text-slate-100">Unmapped</span>
+                          <span className="font-semibold text-slate-100"><UiText text={"Unmapped"} /></span>
                         )}{" "}
                         <span className="text-slate-400">{item.nameOfIssuer}</span>
                       </p>
                     </div>
                     <span className={`w-fit rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(item.status)}`}>
-                      {item.status}
+                      {<UiText text={item.status} />}
                     </span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-                    <span>Value <strong className="text-slate-100">{formatSignedCurrency(item.valueChangeUsd)}</strong></span>
-                    <span>Report <strong className="text-slate-100">{item.reportDate}</strong></span>
+                    <span><UiText text={"Value "} /><strong className="text-slate-100">{formatSignedCurrency(item.valueChangeUsd)}</strong></span>
+                    <span><UiText text={"Report "} /><strong className="text-slate-100">{item.reportDate}</strong></span>
                   </div>
                 </article>
               ))}
             </div>
           ) : (
-            <p className="mt-4 rounded-lg border border-dashed border-white/20 p-3 text-sm text-slate-300">
-              No new followed-institution activity would be included right now.
-            </p>
+            <p className="mt-4 rounded-lg border border-dashed border-white/20 p-3 text-sm text-slate-300"><UiText text={"No new followed-institution activity would be included right now."} /></p>
           )}
         </div>
       ) : null}

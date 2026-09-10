@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -173,14 +175,12 @@ export function AdminCompanyGraphRequestsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <p className="mb-3 text-sm font-medium text-cyan-200">Admin</p>
-      <Link href="/admin/industry-research" className="mb-4 inline-block text-cyan-200 underline">Industry research</Link>
+      <p className="mb-3 text-sm font-medium text-cyan-200"><UiText text={"Admin"} /></p>
+      <Link href="/admin/industry-research" className="mb-4 inline-block text-cyan-200 underline"><UiText text={"Industry research"} /></Link>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">Company graph requests</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-            Generate queued supply-chain and competitor graphs one ticker at a time.
-          </p>
+          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Company graph requests"} /></h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Generate queued supply-chain and competitor graphs one ticker at a time."} /></p>
         </div>
         <button
           type="button"
@@ -188,12 +188,12 @@ export function AdminCompanyGraphRequestsPage() {
           disabled={loadingQueue}
           className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
         >
-          {loadingQueue ? "Refreshing..." : "Refresh"}
+          {loadingQueue ? <UiText text={"Refreshing..."} /> : <UiText text={"Refresh"} />}
         </button>
       </div>
 
-      {message ? <p className="mb-3 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-sm text-emerald-100">{message}</p> : null}
-      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+      {message ? <p className="mb-3 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-sm text-emerald-100">{<UiText text={message} />}</p> : null}
+      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
 
       <section className="grid gap-3">
         {items.map((item) => (
@@ -206,29 +206,26 @@ export function AdminCompanyGraphRequestsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">${item.ticker}</h2>
                   <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClassName(item.status)}`}>
-                    {item.status}
+                    {<UiText text={item.status} />}
                   </span>
                 </div>
-                <p className="mt-2 text-sm text-slate-300">
-                  Requested {item.requestedCount} time{item.requestedCount === 1 ? "" : "s"} - last requested {formatDate(item.lastRequestedAt)}
+                <p className="mt-2 text-sm text-slate-300"><UiText text={"Requested "} />{item.requestedCount}<UiText text={" time"} />{item.requestedCount === 1 ? "" : <UiText text={"s"} />}<UiText text={" - last requested "} />{formatDate(item.lastRequestedAt)}
                 </p>
-                {item.error ? <p className="mt-2 text-sm text-rose-200">{item.error}</p> : null}
+                {item.error ? <p className="mt-2 text-sm text-rose-200">{<UiText text={item.error} />}</p> : null}
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row lg:items-center">
                 <Link
                   href={`/ticker/${encodeURIComponent(item.ticker)}`}
                   className="rounded-lg border border-white/15 px-4 py-2 text-center text-sm font-semibold text-slate-100 hover:border-cyan-300/60"
-                >
-                  View ticker
-                </Link>
+                ><UiText text={"View ticker"} /></Link>
                 <button
                   type="button"
                   onClick={() => void generateGraph(item)}
                   disabled={activeTicker === item.ticker || item.status === "PROCESSING"}
                   className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {activeTicker === item.ticker ? "Generating..." : item.status === "COMPLETED" ? "Regenerate" : "Generate"}
+                  {activeTicker === item.ticker ? <UiText text={"Generating..."} /> : item.status === "COMPLETED" ? <UiText text={"Regenerate"} /> : <UiText text={"Generate"} />}
                 </button>
               </div>
             </div>
@@ -236,9 +233,7 @@ export function AdminCompanyGraphRequestsPage() {
         ))}
 
         {!loadingQueue && items.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-white/20 p-6 text-sm text-slate-300">
-            No company graph requests yet.
-          </p>
+          <p className="rounded-2xl border border-dashed border-white/20 p-6 text-sm text-slate-300"><UiText text={"No company graph requests yet."} /></p>
         ) : null}
       </section>
     </main>

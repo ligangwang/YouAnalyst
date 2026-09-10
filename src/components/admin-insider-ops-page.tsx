@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -88,7 +90,7 @@ function formatDateTime(value: string | null | undefined): string {
 function StatusCard({ label, value }: { label: string; value: number | null | undefined }) {
   return (
     <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-      <p className="text-xs uppercase text-slate-500">{label}</p>
+      <p className="text-xs uppercase text-slate-500"><UiText text={label} /></p>
       <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatCount(value)}</p>
     </div>
   );
@@ -110,7 +112,7 @@ function statusClass(status: string | null | undefined): string {
 function StatusPill({ value }: { value: string | null | undefined }) {
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(value)}`}>
-      {value || "UNKNOWN"}
+      {value || <UiText text={"UNKNOWN"} />}
     </span>
   );
 }
@@ -172,16 +174,14 @@ export function AdminInsiderOpsPage() {
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       <div className="mb-6">
-        <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Admin</p>
-        <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">Insider Transactions</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-          Monitor SEC Form 4 ingestion, parsed filings, failures, and latest open-market insider transactions.
-        </p>
-        {data?.generatedAt ? <p className="mt-2 text-xs text-slate-500">Generated {formatDateTime(data.generatedAt)}</p> : null}
+        <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Admin"} /></p>
+        <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Insider Transactions"} /></h1>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Monitor SEC Form 4 ingestion, parsed filings, failures, and latest open-market insider transactions."} /></p>
+        {data?.generatedAt ? <p className="mt-2 text-xs text-slate-500"><UiText text={"Generated "} />{formatDateTime(data.generatedAt)}</p> : null}
       </div>
 
-      {loading ? <p className="rounded-xl border border-white/10 bg-slate-900/70 p-4 text-slate-300">Loading insider transaction operations...</p> : null}
-      {error ? <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</p> : null}
+      {loading ? <p className="rounded-xl border border-white/10 bg-slate-900/70 p-4 text-slate-300"><UiText text={"Loading insider transaction operations..."} /></p> : null}
+      {error ? <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
 
       {data ? (
         <>
@@ -193,18 +193,18 @@ export function AdminInsiderOpsPage() {
           </section>
 
           <section className="mb-6 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent transactions</h2>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent transactions"} /></h2>
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="text-xs uppercase text-slate-500">
                   <tr>
-                    <th className="px-3 py-2">Ticker</th>
-                    <th className="px-3 py-2">Issuer</th>
-                    <th className="px-3 py-2">Owner</th>
-                    <th className="px-3 py-2">Code</th>
-                    <th className="px-3 py-2">Date</th>
-                    <th className="px-3 py-2 text-right">Shares</th>
-                    <th className="px-3 py-2 text-right">Value</th>
+                    <th className="px-3 py-2"><UiText text={"Ticker"} /></th>
+                    <th className="px-3 py-2"><UiText text={"Issuer"} /></th>
+                    <th className="px-3 py-2"><UiText text={"Owner"} /></th>
+                    <th className="px-3 py-2"><UiText text={"Code"} /></th>
+                    <th className="px-3 py-2"><UiText text={"Date"} /></th>
+                    <th className="px-3 py-2 text-right"><UiText text={"Shares"} /></th>
+                    <th className="px-3 py-2 text-right"><UiText text={"Value"} /></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
@@ -217,7 +217,7 @@ export function AdminInsiderOpsPage() {
                       <td className="px-3 py-3">{item.transactionDate ?? "-"}</td>
                       <td className="px-3 py-3 text-right">{formatNumber(item.shares)}</td>
                       <td className="px-3 py-3 text-right">
-                        {item.valueQuality === "needs_review" ? <span className="text-amber-200">Under review</span> : formatMoney(item.valueUsd)}
+                        {item.valueQuality === "needs_review" ? <span className="text-amber-200"><UiText text={"Under review"} /></span> : formatMoney(item.valueUsd)}
                         {item.valueQualityReason ? <p className="mt-1 text-xs text-slate-400">{item.valueQualityReason}</p> : null}
                       </td>
                     </tr>
@@ -229,7 +229,7 @@ export function AdminInsiderOpsPage() {
 
           <section className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent filings</h2>
+              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent filings"} /></h2>
               <div className="mt-4 grid gap-3">
                 {(data.recentFilings ?? []).map((filing) => (
                   <article key={filing.accessionNumber} className="rounded-xl border border-white/10 bg-slate-900/60 p-3">
@@ -240,23 +240,23 @@ export function AdminInsiderOpsPage() {
                       </div>
                       <StatusPill value={filing.status} />
                     </div>
-                    <p className="mt-2 text-xs text-slate-400">Transactions written: {formatCount(filing.transactionsWritten)}</p>
+                    <p className="mt-2 text-xs text-slate-400"><UiText text={"Transactions written: "} />{formatCount(filing.transactionsWritten)}</p>
                   </article>
                 ))}
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent failures</h2>
+              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent failures"} /></h2>
               <div className="mt-4 grid gap-3">
                 {(data.recentFailures ?? []).length > 0 ? (data.recentFailures ?? []).map((filing) => (
                   <article key={filing.accessionNumber} className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-3">
                     <p className="font-semibold text-rose-100">{filing.indexCompanyName ?? filing.accessionNumber}</p>
                     <p className="mt-1 text-xs text-rose-100/70">{filing.accessionNumber} · {filing.filingDate ?? "-"}</p>
-                    <p className="mt-2 text-xs text-rose-100">{filing.lastError ?? "Unknown error"}</p>
+                    <p className="mt-2 text-xs text-rose-100">{filing.lastError ?? <UiText text={"Unknown error"} />}</p>
                   </article>
                 )) : (
-                  <p className="rounded-xl border border-dashed border-white/10 p-3 text-sm text-slate-400">No recent insider filing failures.</p>
+                  <p className="rounded-xl border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No recent insider filing failures."} /></p>
                 )}
               </div>
             </div>

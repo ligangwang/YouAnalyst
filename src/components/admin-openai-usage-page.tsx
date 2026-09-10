@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -88,12 +90,12 @@ function metadataLabel(event: OpenAiUsageEvent): string {
 function SummaryCard({ label, summary }: { label: string; summary: OpenAiUsageSummary | null }) {
   return (
     <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-      <p className="text-xs uppercase text-slate-500">{label}</p>
+      <p className="text-xs uppercase text-slate-500"><UiText text={label} /></p>
       <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
         {summary ? formatCost(summary.estimatedCostUsd) : "-"}
       </p>
       <p className="mt-2 text-xs text-slate-400">
-        {summary ? `${formatCount(summary.eventCount)} calls - ${formatCount(summary.totalTokens)} tokens` : "Loading"}
+        {summary ? <UiText text={`${formatCount(summary.eventCount)} calls - ${formatCount(summary.totalTokens)} tokens`} /> : <UiText text={"Loading"} />}
       </p>
     </div>
   );
@@ -153,13 +155,11 @@ export function AdminOpenAiUsagePage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <p className="mb-3 text-sm font-medium text-cyan-200">Admin</p>
+      <p className="mb-3 text-sm font-medium text-cyan-200"><UiText text={"Admin"} /></p>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">OpenAI usage</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-            Review token usage and estimated USD cost for recent OpenAI calls.
-          </p>
+          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"OpenAI usage"} /></h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Review token usage and estimated USD cost for recent OpenAI calls."} /></p>
         </div>
         <button
           type="button"
@@ -167,11 +167,11 @@ export function AdminOpenAiUsagePage() {
           disabled={loadingUsage}
           className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
         >
-          {loadingUsage ? "Refreshing..." : "Refresh"}
+          {loadingUsage ? <UiText text={"Refreshing..."} /> : <UiText text={"Refresh"} />}
         </button>
       </div>
 
-      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2">
         <SummaryCard label="Recent loaded calls" summary={summary} />
@@ -180,11 +180,11 @@ export function AdminOpenAiUsagePage() {
 
       <section className="overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr] gap-3 border-b border-white/10 px-4 py-3 text-xs uppercase text-slate-500">
-          <span>Call</span>
-          <span>Model</span>
-          <span>Tokens</span>
-          <span>Cost</span>
-          <span>Pricing</span>
+          <span><UiText text={"Call"} /></span>
+          <span><UiText text={"Model"} /></span>
+          <span><UiText text={"Tokens"} /></span>
+          <span><UiText text={"Cost"} /></span>
+          <span><UiText text={"Pricing"} /></span>
         </div>
 
         {events.map((event) => (
@@ -193,28 +193,27 @@ export function AdminOpenAiUsagePage() {
             className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 md:grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr]"
           >
             <div>
-              <p className="font-semibold text-cyan-100">{purposeLabel(event.purpose)} - {metadataLabel(event)}</p>
+              <p className="font-semibold text-cyan-100">{<UiText text={purposeLabel(event.purpose)} />} - {metadataLabel(event)}</p>
               <p className="mt-1 text-xs text-slate-400">{formatDate(event.createdAt)}</p>
               {event.responseId ? <p className="mt-1 break-all text-xs text-slate-500">{event.responseId}</p> : null}
             </div>
             <p className="text-slate-200">{event.model}</p>
             <div className="text-slate-300">
-              <p>{formatCount(event.totalTokens)} total</p>
+              <p>{formatCount(event.totalTokens)}<UiText text={" total"} /></p>
               <p className="mt-1 text-xs text-slate-500">
-                {formatCount(event.inputTokens)} in - {formatCount(event.cachedInputTokens)} cached - {formatCount(event.outputTokens)} out
-              </p>
+                {formatCount(event.inputTokens)}<UiText text={" in - "} />{formatCount(event.cachedInputTokens)}<UiText text={" cached - "} />{formatCount(event.outputTokens)}<UiText text={" out"} /></p>
             </div>
             <p className="font-semibold text-cyan-100">{formatCost(event.estimatedCostUsd)}</p>
             <p className="text-xs text-slate-400">
               {event.pricing.source === "unknown"
-                ? "No rate configured"
-                : `${event.pricing.source === "env" ? "Env" : "Built-in"} rates`}
+                ? <UiText text={"No rate configured"} />
+                : <UiText text={`${event.pricing.source === "env" ? "Env" : "Built-in"} rates`} />}
             </p>
           </article>
         ))}
 
         {!loadingUsage && events.length === 0 ? (
-          <p className="p-6 text-sm text-slate-300">No OpenAI usage events have been recorded yet.</p>
+          <p className="p-6 text-sm text-slate-300"><UiText text={"No OpenAI usage events have been recorded yet."} /></p>
         ) : null}
       </section>
     </main>

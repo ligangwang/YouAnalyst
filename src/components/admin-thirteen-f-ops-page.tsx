@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -93,9 +95,9 @@ function formatDate(value: string | null | undefined): string {
 function StatusCard({ label, value, note }: { label: string; value: number; note?: string }) {
   return (
     <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-      <p className="text-xs uppercase text-slate-500">{label}</p>
+      <p className="text-xs uppercase text-slate-500"><UiText text={label} /></p>
       <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatCount(value)}</p>
-      {note ? <p className="mt-2 text-xs text-slate-400">{note}</p> : null}
+      {note ? <p className="mt-2 text-xs text-slate-400"><UiText text={note} /></p> : null}
     </div>
   );
 }
@@ -119,7 +121,7 @@ function statusClass(status: string | null | undefined): string {
 function StatusPill({ value }: { value: string | null | undefined }) {
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusClass(value)}`}>
-      {value || "UNKNOWN"}
+      {value || <UiText text={"UNKNOWN"} />}
     </span>
   );
 }
@@ -166,11 +168,11 @@ function ActionResult({ result }: { result: ActionResponse | null }) {
 
   return (
     <section className="mb-6 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 p-4">
-      <p className="text-sm font-semibold text-emerald-100">Last action completed</p>
+      <p className="text-sm font-semibold text-emerald-100"><UiText text={"Last action completed"} /></p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {summaryItems.map(([label, value]) => (
           <div key={String(label)} className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
-            <p className="text-xs uppercase text-emerald-200/70">{label}</p>
+            <p className="text-xs uppercase text-emerald-200/70"><UiText text={label} /></p>
             <p className="mt-1 text-sm font-semibold text-emerald-50">{typeof value === "number" ? formatCount(value) : String(value)}</p>
           </div>
         ))}
@@ -183,18 +185,18 @@ function FilingRow({ filing }: { filing: RecentFiling }) {
   return (
     <article className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[1.1fr_0.7fr_0.8fr_0.8fr_1fr]">
       <div>
-        <p className="font-semibold text-cyan-100">{filing.managerName || filing.managerCik || "Unknown manager"}</p>
+        <p className="font-semibold text-cyan-100">{filing.managerName || filing.managerCik || <UiText text={"Unknown manager"} />}</p>
         <p className="mt-1 break-all text-xs text-slate-500">{filing.accessionNumber}</p>
       </div>
       <div>
         <StatusPill value={filing.status} />
-        {filing.canonicalStatus ? <p className="mt-2 text-xs text-slate-400">{filing.canonicalStatus}</p> : null}
+        {filing.canonicalStatus ? <p className="mt-2 text-xs text-slate-400">{<UiText text={filing.canonicalStatus} />}</p> : null}
       </div>
       <p className="text-slate-300">{filing.form || "-"}<br /><span className="text-xs text-slate-500">{formatDate(filing.filingDate)}</span></p>
-      <p className="text-slate-300">{formatDate(filing.reportDate)}<br /><span className="text-xs text-slate-500">{filing.attempts} attempts</span></p>
+      <p className="text-slate-300">{formatDate(filing.reportDate)}<br /><span className="text-xs text-slate-500">{filing.attempts}<UiText text={" attempts"} /></span></p>
       <div>
         <p className="text-xs text-slate-400">{formatDateTime(filing.updatedAt)}</p>
-        {filing.lastError ? <p className="mt-1 line-clamp-2 text-xs text-rose-200">{filing.lastError}</p> : null}
+        {filing.lastError ? <p className="mt-1 line-clamp-2 text-xs text-rose-200">{<UiText text={filing.lastError} />}</p> : null}
       </div>
     </article>
   );
@@ -342,14 +344,12 @@ export function AdminThirteenFOpsPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <p className="mb-3 text-sm font-medium text-cyan-200">Admin</p>
+      <p className="mb-3 text-sm font-medium text-cyan-200"><UiText text={"Admin"} /></p>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">13F operations</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-            Monitor SEC discovery, queue processing, canonical parsing, and historical backfills.
-          </p>
-          {payload?.generatedAt ? <p className="mt-2 text-xs text-slate-500">Updated {formatDateTime(payload.generatedAt)}</p> : null}
+          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"13F operations"} /></h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Monitor SEC discovery, queue processing, canonical parsing, and historical backfills."} /></p>
+          {payload?.generatedAt ? <p className="mt-2 text-xs text-slate-500"><UiText text={"Updated "} />{formatDateTime(payload.generatedAt)}</p> : null}
         </div>
         <button
           type="button"
@@ -357,11 +357,11 @@ export function AdminThirteenFOpsPage() {
           disabled={loadingOps}
           className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
         >
-          {loadingOps ? "Refreshing..." : "Refresh"}
+          {loadingOps ? <UiText text={"Refreshing..."} /> : <UiText text={"Refresh"} />}
         </button>
       </div>
 
-      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
       <ActionResult result={actionResult} />
 
       <section className="mb-6 grid gap-3 lg:grid-cols-3">
@@ -376,21 +376,17 @@ export function AdminThirteenFOpsPage() {
 
       <section className="mb-6 grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/15 bg-slate-900/70 p-5">
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Discovery</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Find SEC filings</h2>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Discovery"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Find SEC filings"} /></h2>
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-1 text-xs text-slate-400">
-              Index date
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Index date"} /><input
                 type="date"
                 value={discoverDate}
                 onChange={(event) => setDiscoverDate(event.target.value)}
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
             </label>
-            <label className="grid gap-1 text-xs text-slate-400">
-              Lookback days
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Lookback days"} /><input
                 type="number"
                 min="1"
                 max="14"
@@ -400,9 +396,7 @@ export function AdminThirteenFOpsPage() {
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring disabled:opacity-50"
               />
             </label>
-            <label className="grid gap-1 text-xs text-slate-400">
-              Max filings
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Max filings"} /><input
                 type="number"
                 min="1"
                 max="5000"
@@ -412,27 +406,23 @@ export function AdminThirteenFOpsPage() {
               />
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" checked={discoverDryRun} onChange={(event) => setDiscoverDryRun(event.target.checked)} />
-              Dry run
-            </label>
+              <input type="checkbox" checked={discoverDryRun} onChange={(event) => setDiscoverDryRun(event.target.checked)} /><UiText text={"Dry run"} /></label>
             <button
               type="button"
               onClick={() => void runDiscovery()}
               disabled={runningAction !== null}
               className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
             >
-              {runningAction === "discover" ? "Running..." : "Run discovery"}
+              {runningAction === "discover" ? <UiText text={"Running..."} /> : <UiText text={"Run discovery"} />}
             </button>
           </div>
         </div>
 
         <div className="rounded-2xl border border-white/15 bg-slate-900/70 p-5">
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Queue</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Process filings</h2>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Queue"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Process filings"} /></h2>
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-1 text-xs text-slate-400">
-              Batch limit
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Batch limit"} /><input
                 type="number"
                 min="1"
                 max="100"
@@ -441,9 +431,7 @@ export function AdminThirteenFOpsPage() {
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
             </label>
-            <label className="grid gap-1 text-xs text-slate-400">
-              Stale minutes
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Stale minutes"} /><input
                 type="number"
                 min="5"
                 max="1440"
@@ -453,40 +441,32 @@ export function AdminThirteenFOpsPage() {
               />
             </label>
             <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" checked={queueIncludeStale} onChange={(event) => setQueueIncludeStale(event.target.checked)} />
-              Include stale processing
-            </label>
+              <input type="checkbox" checked={queueIncludeStale} onChange={(event) => setQueueIncludeStale(event.target.checked)} /><UiText text={"Include stale processing"} /></label>
             <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" checked={queueDryRun} onChange={(event) => setQueueDryRun(event.target.checked)} />
-              Dry run
-            </label>
+              <input type="checkbox" checked={queueDryRun} onChange={(event) => setQueueDryRun(event.target.checked)} /><UiText text={"Dry run"} /></label>
             <button
               type="button"
               onClick={() => void runQueue()}
               disabled={runningAction !== null}
               className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
             >
-              {runningAction === "processQueue" ? "Running..." : "Process queue"}
+              {runningAction === "processQueue" ? <UiText text={"Running..."} /> : <UiText text={"Process queue"} />}
             </button>
           </div>
         </div>
 
         <div className="rounded-2xl border border-white/15 bg-slate-900/70 p-5">
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Backfill</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Run bounded backfill</h2>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Backfill"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Run bounded backfill"} /></h2>
           <div className="mt-4 grid gap-3">
-            <label className="grid gap-1 text-xs text-slate-400">
-              Start date
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Start date"} /><input
                 type="date"
                 value={backfillStartDate}
                 onChange={(event) => setBackfillStartDate(event.target.value)}
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
             </label>
-            <label className="grid gap-1 text-xs text-slate-400">
-              End date
-              <input
+            <label className="grid gap-1 text-xs text-slate-400"><UiText text={"End date"} /><input
                 type="date"
                 value={backfillEndDate}
                 onChange={(event) => setBackfillEndDate(event.target.value)}
@@ -494,9 +474,7 @@ export function AdminThirteenFOpsPage() {
               />
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 text-xs text-slate-400">
-                Batches
-                <input
+              <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Batches"} /><input
                   type="number"
                   min="0"
                   max="100"
@@ -505,9 +483,7 @@ export function AdminThirteenFOpsPage() {
                   className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
                 />
               </label>
-              <label className="grid gap-1 text-xs text-slate-400">
-                Batch size
-                <input
+              <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Batch size"} /><input
                   type="number"
                   min="1"
                   max="100"
@@ -518,16 +494,14 @@ export function AdminThirteenFOpsPage() {
               </label>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input type="checkbox" checked={backfillDryRun} onChange={(event) => setBackfillDryRun(event.target.checked)} />
-              Dry run
-            </label>
+              <input type="checkbox" checked={backfillDryRun} onChange={(event) => setBackfillDryRun(event.target.checked)} /><UiText text={"Dry run"} /></label>
             <button
               type="button"
               onClick={() => void runBackfill()}
               disabled={runningAction !== null}
               className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
             >
-              {runningAction === "backfill" ? "Running..." : "Run backfill"}
+              {runningAction === "backfill" ? <UiText text={"Running..."} /> : <UiText text={"Run backfill"} />}
             </button>
           </div>
         </div>
@@ -543,7 +517,7 @@ export function AdminThirteenFOpsPage() {
       <section className="mb-6 grid gap-3 sm:grid-cols-5">
         {QUEUE_STATUSES.map((status) => (
           <div key={status} className="rounded-xl border border-white/10 bg-slate-950/45 p-3">
-            <p className="text-xs uppercase text-slate-500">{status}</p>
+            <p className="text-xs uppercase text-slate-500">{<UiText text={status} />}</p>
             <p className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-cyan-100">
               {formatCount(queue?.statuses[status] ?? 0)}
             </p>
@@ -553,45 +527,45 @@ export function AdminThirteenFOpsPage() {
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent backfills</h2>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent backfills"} /></h2>
         </div>
         {(payload?.recentBackfills ?? []).map((run) => (
           <article key={run.runId} className="grid grid-cols-1 gap-3 border-b border-white/10 px-4 py-4 text-sm last:border-b-0 lg:grid-cols-[1.1fr_0.7fr_0.8fr_1fr_1fr]">
             <div>
               <p className="font-semibold text-cyan-100">{run.runId}</p>
-              <p className="mt-1 text-xs text-slate-500">{formatDate(run.startDate)} to {formatDate(run.endDate)}</p>
+              <p className="mt-1 text-xs text-slate-500">{formatDate(run.startDate)}<UiText text={" to "} />{formatDate(run.endDate)}</p>
             </div>
             <StatusPill value={run.status} />
-            <p className="text-slate-300">{formatCount(run.filingsFound)} found<br /><span className="text-xs text-slate-500">{formatCount(run.filingsQueued)} queued</span></p>
-            <p className="text-slate-300">{formatCount(run.filingsProcessed)} processed<br /><span className="text-xs text-slate-500">{formatCount(run.filingsParsed)} parsed, {formatCount(run.filingsFailed)} failed</span></p>
+            <p className="text-slate-300">{formatCount(run.filingsFound)}<UiText text={" found"} /><br /><span className="text-xs text-slate-500">{formatCount(run.filingsQueued)}<UiText text={" queued"} /></span></p>
+            <p className="text-slate-300">{formatCount(run.filingsProcessed)}<UiText text={" processed"} /><br /><span className="text-xs text-slate-500">{formatCount(run.filingsParsed)}<UiText text={" parsed, "} />{formatCount(run.filingsFailed)}<UiText text={" failed"} /></span></p>
             <div>
               <p className="text-xs text-slate-400">{formatDateTime(run.updatedAt)}</p>
-              {run.lastError ? <p className="mt-1 line-clamp-2 text-xs text-rose-200">{run.lastError}</p> : null}
+              {run.lastError ? <p className="mt-1 line-clamp-2 text-xs text-rose-200">{<UiText text={run.lastError} />}</p> : null}
             </div>
           </article>
         ))}
         {!loadingOps && (payload?.recentBackfills ?? []).length === 0 ? (
-          <p className="p-6 text-sm text-slate-300">No 13F backfill runs have been recorded yet.</p>
+          <p className="p-6 text-sm text-slate-300"><UiText text={"No 13F backfill runs have been recorded yet."} /></p>
         ) : null}
       </section>
 
       <section className="mb-6 overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent failures</h2>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent failures"} /></h2>
         </div>
         {(payload?.recentFailures ?? []).map((filing) => <FilingRow key={filing.accessionNumber} filing={filing} />)}
         {!loadingOps && (payload?.recentFailures ?? []).length === 0 ? (
-          <p className="p-6 text-sm text-slate-300">No recent failed filings in the latest activity window.</p>
+          <p className="p-6 text-sm text-slate-300"><UiText text={"No recent failed filings in the latest activity window."} /></p>
         ) : null}
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="border-b border-white/10 px-4 py-3">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent queue activity</h2>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent queue activity"} /></h2>
         </div>
         {(payload?.recentFilings ?? []).slice(0, 20).map((filing) => <FilingRow key={filing.accessionNumber} filing={filing} />)}
         {!loadingOps && (payload?.recentFilings ?? []).length === 0 ? (
-          <p className="p-6 text-sm text-slate-300">No 13F queue records have been discovered yet.</p>
+          <p className="p-6 text-sm text-slate-300"><UiText text={"No 13F queue records have been discovered yet."} /></p>
         ) : null}
       </section>
     </main>

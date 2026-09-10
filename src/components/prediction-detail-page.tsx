@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -173,6 +175,7 @@ function predictionShareUrl(prediction: PredictionDetail, returnText: string): s
 }
 
 export function PredictionDetailPage({ predictionId }: { predictionId: string }) {
+  const ui = useUiText();
   const { getIdToken, user } = useAuth();
   const [prediction, setPrediction] = useState<PredictionDetail | null>(null);
   const [comments, setComments] = useState<PredictionComment[]>([]);
@@ -505,11 +508,11 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
   }
 
   if (loading) {
-    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300">Loading prediction...</main>;
+    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading prediction..."} /></main>;
   }
 
   if (!prediction) {
-    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-rose-300">{error ?? "Prediction not found."}</main>;
+    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-rose-300">{error ?? <UiText text={"Prediction not found."} />}</main>;
   }
 
   const thesis = sanitizePredictionThesis(prediction.thesis);
@@ -554,7 +557,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
             <Link
               href={`/ticker/${prediction.ticker}`}
               className="flex w-fit items-center gap-1 text-cyan-200 hover:text-cyan-100"
-              aria-label={`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`}
+              aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`)}
             >
               <span aria-hidden="true">{prediction.direction === "UP" ? "\u2191" : "\u2193"}</span>
               <span>{formatTickerSymbol(prediction.ticker)}</span>
@@ -562,15 +565,13 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
           </h1>
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-lg border border-cyan-400/30 px-2.5 py-1 text-xs font-medium text-cyan-100">
-              {statusLabel}
+              {<UiText text={statusLabel} />}
             </span>
             {canShareToX ? (
               <a
                 href={xShareUrl}
                 className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
-              >
-                Share to X
-              </a>
+              ><UiText text={"Share to X"} /></a>
             ) : null}
             {ownerAction ? (
               ownerAction.action === "close" ? (
@@ -583,7 +584,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                   disabled={actionPending !== null}
                   className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {showCloseComposer ? "Cancel close" : ownerAction.label}
+                  {showCloseComposer ? <UiText text={"Cancel close"} /> : ownerAction.label}
                 </button>
               ) : (
                 <button
@@ -592,7 +593,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                   disabled={actionPending !== null}
                   className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {actionPending === ownerAction.action ? "Working..." : ownerAction.label}
+                  {actionPending === ownerAction.action ? <UiText text={"Working..."} /> : ownerAction.label}
                 </button>
               )
             ) : null}
@@ -601,48 +602,41 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                 type="button"
                 onClick={startEditing}
                 className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/15"
-              >
-                Edit
-              </button>
+              ><UiText text={"Edit"} /></button>
             ) : null}
           </div>
         </div>
 
         {prediction.status === "CLOSING" ? (
           <div className="mb-4 rounded-xl border border-cyan-400/15 bg-cyan-500/5 px-4 py-3 text-sm text-slate-300">
-            <p>Your exit request is locked. Final settlement happens at the next end-of-day update.</p>
+            <p><UiText text={"Your exit request is locked. Final settlement happens at the next end-of-day update."} /></p>
             {prediction.closeReason ? (
               <p className="mt-2 text-sm text-slate-200">
-                <span className="text-slate-400">Reason: </span>
+                <span className="text-slate-400"><UiText text={"Reason: "} /></span>
                 {prediction.closeReason}
               </p>
             ) : null}
             {prediction.closeTargetDate ? (
-              <p className="mt-1 text-xs text-slate-400">
-                Expected settlement: {formatDetailDate(prediction.closeTargetDate)}
+              <p className="mt-1 text-xs text-slate-400"><UiText text={"Expected settlement: "} />{formatDetailDate(prediction.closeTargetDate)}
               </p>
             ) : null}
-            <p className="mt-1 text-xs text-slate-400">
-              Next EOD update runs around 9:00 PM ET on trading days.
-            </p>
+            <p className="mt-1 text-xs text-slate-400"><UiText text={"Next EOD update runs around 9:00 PM ET on trading days."} /></p>
           </div>
         ) : null}
 
         {showCloseComposer && ownerAction?.action === "close" ? (
           <div className="mb-4 grid gap-3 rounded-xl border border-cyan-400/15 bg-slate-950/45 px-4 py-4">
             <div className="grid gap-1">
-              <label className="text-xs text-slate-400" htmlFor="close-reason">
-                Close reason
-              </label>
+              <label className="text-xs text-slate-400" htmlFor="close-reason"><UiText text={"Close reason"} /></label>
               <textarea
                 id="close-reason"
                 rows={3}
                 value={closeReason}
                 onChange={(event) => setCloseReason(event.target.value)}
-                placeholder="Why are you closing this prediction?"
+                placeholder={ui("Why are you closing this prediction?")}
                 className="rounded-lg border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
-              <p className="text-xs text-slate-500">A reason is required. There is no minimum length.</p>
+              <p className="text-xs text-slate-500"><UiText text={"A reason is required. There is no minimum length."} /></p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -651,7 +645,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                 disabled={actionPending !== null}
                 className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
               >
-                {actionPending === "close" ? "Working..." : "Confirm close"}
+                {actionPending === "close" ? <UiText text={"Working..."} /> : <UiText text={"Confirm close"} />}
               </button>
               <button
                 type="button"
@@ -662,9 +656,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                 }}
                 disabled={actionPending !== null}
                 className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:border-white/30 disabled:opacity-50"
-              >
-                Cancel
-              </button>
+              ><UiText text={"Cancel"} /></button>
             </div>
           </div>
         ) : null}
@@ -672,7 +664,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         {editing ? (
           <div className="grid gap-3">
             <div className="grid gap-1">
-              <label className="text-xs text-slate-400" htmlFor="edit-thesis-title">Title</label>
+              <label className="text-xs text-slate-400" htmlFor="edit-thesis-title"><UiText text={"Title"} /></label>
               <input
                 id="edit-thesis-title"
                 value={editTitle}
@@ -682,7 +674,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
               />
             </div>
             <div className="grid gap-1">
-              <label className="text-xs text-slate-400" htmlFor="edit-thesis">Thesis</label>
+              <label className="text-xs text-slate-400" htmlFor="edit-thesis"><UiText text={"Thesis"} /></label>
               <textarea
                 id="edit-thesis"
                 value={editThesis}
@@ -696,7 +688,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
               </p>
             </div>
             <div className="grid gap-1">
-              <label className="text-xs text-slate-400" htmlFor="edit-horizon-unit">Open until</label>
+              <label className="text-xs text-slate-400" htmlFor="edit-horizon-unit"><UiText text={"Open until"} /></label>
               <div className="grid gap-2 sm:grid-cols-[1fr_160px]">
                 <select
                   id="edit-horizon-unit"
@@ -710,10 +702,10 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                   }}
                   className="rounded-lg border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
                 >
-                  <option value="NONE">No limit</option>
-                  <option value="DAYS">Days</option>
-                  <option value="MONTHS">Months</option>
-                  <option value="YEARS">Years</option>
+                  <option value="NONE"><UiText text={"No limit"} /></option>
+                  <option value="DAYS"><UiText text={"Days"} /></option>
+                  <option value="MONTHS"><UiText text={"Months"} /></option>
+                  <option value="YEARS"><UiText text={"Years"} /></option>
                 </select>
                 <input
                   type="number"
@@ -722,7 +714,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                   value={editHorizonValue}
                   onChange={(event) => setEditHorizonValue(event.target.value)}
                   disabled={editHorizonUnit === "NONE"}
-                  placeholder="Value"
+                  placeholder={ui("Value")}
                   className="rounded-lg border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring disabled:opacity-50"
                 />
               </div>
@@ -734,16 +726,14 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                 disabled={editSaving}
                 className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
               >
-                {editSaving ? "Saving..." : "Save"}
+                {editSaving ? <UiText text={"Saving..."} /> : <UiText text={"Save"} />}
               </button>
               <button
                 type="button"
                 onClick={() => setEditing(false)}
                 disabled={editSaving}
                 className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:border-white/30 disabled:opacity-50"
-              >
-                Cancel
-              </button>
+              ><UiText text={"Cancel"} /></button>
             </div>
           </div>
         ) : (
@@ -763,19 +753,19 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         <div className="mt-4 grid gap-6 text-sm text-slate-300 sm:grid-cols-2">
           <dl className="grid gap-1">
             <div className="grid grid-cols-[110px_1fr] gap-3">
-              <dt className="text-slate-400">Watchlist:</dt>
-              <dd className="text-slate-100">{prediction.watchlistName || "Unassigned"}</dd>
+              <dt className="text-slate-400"><UiText text={"Watchlist:"} /></dt>
+              <dd className="text-slate-100">{prediction.watchlistName || <UiText text={"Unassigned"} />}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
-              <dt className="text-slate-400">Entry Price:</dt>
+              <dt className="text-slate-400"><UiText text={"Entry Price:"} /></dt>
               <dd className="text-slate-100">{formatDetailCurrency(prediction.entryPrice)}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
-              <dt className="text-slate-400">Last Price:</dt>
+              <dt className="text-slate-400"><UiText text={"Last Price:"} /></dt>
               <dd className="text-slate-100">{formatDetailCurrency(prediction.markPrice)}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
-              <dt className="text-slate-400">Return:</dt>
+              <dt className="text-slate-400"><UiText text={"Return:"} /></dt>
               <dd className={typeof prediction.markReturnValue === "number" ? markToneClass(prediction.markReturnValue) : "text-slate-100"}>
                 {returnText}
               </dd>
@@ -784,11 +774,11 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
           <dl className="grid gap-1">
             <div className="grid grid-cols-[110px_1fr] gap-3">
-              <dt className="text-slate-400">Opened:</dt>
+              <dt className="text-slate-400"><UiText text={"Opened:"} /></dt>
               <dd className="text-slate-100">{formatDetailDate(prediction.entryDate)}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
-              <dt className="text-slate-400">Last Updated:</dt>
+              <dt className="text-slate-400"><UiText text={"Last Updated:"} /></dt>
               <dd className="text-slate-100">{formatDetailDate(prediction.markPriceDate)}</dd>
             </div>
           </dl>
@@ -796,7 +786,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
         {isOwner && ownerWatchlists.length > 0 ? (
           <div className="mt-4 grid gap-2 rounded-xl border border-white/10 bg-slate-950/45 p-3">
-            <label className="text-xs text-slate-400" htmlFor="move-watchlist">Move to watchlist</label>
+            <label className="text-xs text-slate-400" htmlFor="move-watchlist"><UiText text={"Move to watchlist"} /></label>
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <select
                 id="move-watchlist"
@@ -811,7 +801,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                     disabled={prediction.visibility === "PUBLIC" && !watchlist.isPublic}
                   >
                     {watchlist.name}
-                    {watchlist.isPublic ? "" : prediction.visibility === "PUBLIC" ? " (Private unavailable for public calls)" : " (Private)"}
+                    {watchlist.isPublic ? "" : prediction.visibility === "PUBLIC" ? <UiText text={" (Private unavailable for public calls)"} /> : <UiText text={" (Private)"} />}
                   </option>
                 ))}
               </select>
@@ -821,17 +811,13 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                 disabled={moveSaving || !moveWatchlistId || moveWatchlistId === prediction.watchlistId || movingPublicPredictionToPrivate}
                 className="rounded-lg border border-cyan-400/35 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
               >
-                {moveSaving ? "Moving..." : "Move"}
+                {moveSaving ? <UiText text={"Moving..."} /> : <UiText text={"Move"} />}
               </button>
             </div>
             {movingPublicPredictionToPrivate ? (
-              <p className="text-xs text-slate-400">
-                Public predictions stay public. Close this prediction if you no longer want to continue it publicly.
-              </p>
+              <p className="text-xs text-slate-400"><UiText text={"Public predictions stay public. Close this prediction if you no longer want to continue it publicly."} /></p>
             ) : ownerWatchlists.find((watchlist) => watchlist.id === moveWatchlistId)?.isPublic === false ? (
-              <p className="text-xs text-amber-200">
-                Moving this prediction into a private watchlist will make the prediction private too.
-              </p>
+              <p className="text-xs text-amber-200"><UiText text={"Moving this prediction into a private watchlist will make the prediction private too."} /></p>
             ) : null}
           </div>
         ) : null}
@@ -839,11 +825,10 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         {!isOwner ? <PredictionAuthorSummary author={prediction} className="mt-5" /> : null}
 
         {prediction.result ? (
-          <div className="mt-4 rounded-xl border border-emerald-400/35 bg-emerald-900/20 p-3 text-sm text-emerald-50">
-            Closed at {prediction.result.exitPrice.toFixed(2)} with return {formatResultReturn(prediction.result)}.
+          <div className="mt-4 rounded-xl border border-emerald-400/35 bg-emerald-900/20 p-3 text-sm text-emerald-50"><UiText text={"Closed at "} />{prediction.result.exitPrice.toFixed(2)}<UiText text={" with return "} />{formatResultReturn(prediction.result)}.
             {prediction.closeReason ? (
               <p className="mt-2 text-sm text-emerald-100">
-                <span className="text-emerald-200/80">Close reason: </span>
+                <span className="text-emerald-200/80"><UiText text={"Close reason: "} /></span>
                 {prediction.closeReason}
               </p>
             ) : null}
@@ -854,19 +839,19 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
       <PredictionPriceChart history={priceHistory} loading={priceHistoryLoading} error={priceHistoryError} />
 
       <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <h2 className="mb-3 font-[var(--font-sora)] text-lg font-semibold text-cyan-100">Discussion</h2>
+        <h2 className="mb-3 font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Discussion"} /></h2>
 
         <div className="mb-4 grid gap-2">
           {comments.map((comment) => (
             <article key={comment.id} className="rounded-xl border border-white/10 p-3">
               <p className="text-sm text-slate-100">{comment.content}</p>
               <p className="mt-2 text-xs text-slate-400">
-                {comment.authorNickname ? `@${comment.authorNickname}` : comment.authorDisplayName ?? "Anonymous"} / <RelativeTime value={comment.createdAt} />
+                {comment.authorNickname ? `@${comment.authorNickname}` : comment.authorDisplayName ?? <UiText text={"Anonymous"} />} / <RelativeTime value={comment.createdAt} />
               </p>
             </article>
           ))}
 
-          {comments.length === 0 ? <p className="text-sm text-slate-300">No comments yet.</p> : null}
+          {comments.length === 0 ? <p className="text-sm text-slate-300"><UiText text={"No comments yet."} /></p> : null}
         </div>
 
         {user ? (
@@ -875,27 +860,23 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
               value={commentText}
               onChange={(event) => setCommentText(event.target.value)}
               rows={3}
-              placeholder="Add a thoughtful comment"
+              placeholder={ui("Add a thoughtful comment")}
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             />
             <button
               type="button"
               onClick={() => void submitComment()}
               className="w-full rounded-full border border-cyan-400/35 px-4 py-2 text-sm text-cyan-100 hover:bg-cyan-500/15 sm:w-fit"
-            >
-              Post comment
-            </button>
+            ><UiText text={"Post comment"} /></button>
           </div>
         ) : (
           <Link
             href="/auth"
             className="inline-block rounded-full border border-cyan-400/35 px-4 py-2 text-sm text-cyan-100 hover:bg-cyan-500/15"
-          >
-            Sign in to join the discussion
-          </Link>
+          ><UiText text={"Sign in to join the discussion"} /></Link>
         )}
 
-        {error ? <p className="mt-3 text-sm text-rose-300">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-rose-300">{<UiText text={error} />}</p> : null}
       </section>
     </main>
   );

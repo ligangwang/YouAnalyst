@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import { useLocale } from "./providers/locale-provider";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -29,6 +31,7 @@ function dateLabel(date: string, chinese = false) {
 
 export function LiveEventFeed({ initialPage, initialError = false, type = "all" }: { initialPage: PublicEventPage; initialError?: boolean; type?: EventFilter }) {
   const t = useFeedText();
+  const { text } = useLocale();
   const [page, setPage] = useState(initialPage);
   const [pending, setPending] = useState<PublicEventPage | null>(null);
   const [status, setStatus] = useState<"connecting" | "live" | "reconnecting" | "paused">("connecting");
@@ -101,7 +104,7 @@ export function LiveEventFeed({ initialPage, initialError = false, type = "all" 
       <div className={styles.emptyIcon} aria-hidden="true"><FeedIcon /></div>
       <h2>{initialError && status !== "live" ? t("We’ll be right back.") : type === "all" ? t("You’re here early.") : t("Nothing here yet.")}</h2>
       <p>{initialError && status !== "live" ? t("Your feed will appear when the connection is restored.") : t("New filings will appear here as they’re processed. Leave this page open—we’ll bring them to you.")}</p>
-    </div> : <ol className={styles.list} aria-label="Latest market events">{page.items.map(event => <li key={event.id}><EventCard event={event} /></li>)}</ol>}
+    </div> : <ol className={styles.list} aria-label={text("Latest market events", "最新市场动态")}>{page.items.map(event => <li key={event.id}><EventCard event={event} /></li>)}</ol>}
     {page.nextCursor && page.items.length < 300 && <button className={styles.more} type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? t("Loading…") : t("Earlier events")}</button>}
     {page.nextCursor && page.items.length >= 300 && <p className={styles.intro}>{t("You’ve reached the end of this view.")}</p>}
   </main>;
@@ -118,7 +121,7 @@ function EventCard({ event }: { event: PublicEvent }) {
     <div className={styles.meta}><span className={styles.icon} aria-hidden="true"><FeedIcon /></span><span>{event.type === "SEC_FORM4" ? t("INSIDER FILING") : t("INSTITUTIONAL HOLDINGS")}</span><span aria-hidden="true">·</span><span>SEC EDGAR</span></div>
     <h2>{event.title}</h2><p>{event.summary}</p>
     <div className={styles.bottom}><div className={styles.tickers}>{event.tickers.slice(0, 5).map(ticker => <Link key={ticker} href={`/ticker/${encodeURIComponent(ticker)}`}>{ticker}</Link>)}{event.tickers.length > 5 && <span className={styles.status}>+{event.tickers.length - 5}</span>}</div><a className={styles.source} href={event.sourceUrl} target="_blank" rel="noopener noreferrer">{t("Read filing")} <span aria-hidden="true">↗</span></a></div>
-    <div className={styles.date}><span>{chinese ? "披露于" : "Filed"} <time dateTime={event.occurredAt}>{dateLabel(event.occurredAt, chinese)}</time></span><span aria-hidden="true"> · </span><RelativeTime value={event.publishedAt} /></div>
+    <div className={styles.date}><span>{chinese ? "披露于" : <UiText text={"Filed"} />} <time dateTime={event.occurredAt}>{dateLabel(event.occurredAt, chinese)}</time></span><span aria-hidden="true"> · </span><RelativeTime value={event.publishedAt} /></div>
   </article>;
 }
 

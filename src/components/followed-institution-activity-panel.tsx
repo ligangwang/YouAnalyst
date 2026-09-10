@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -99,6 +101,7 @@ function sortActivity(items: FollowedInstitutionActivity[], sort: ActivitySort):
 }
 
 export function FollowedInstitutionActivityPanel() {
+  const ui = useUiText();
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [items, setItems] = useState<FollowedInstitutionActivity[]>([]);
   const [loadedForUser, setLoadedForUser] = useState<string | null>(null);
@@ -176,8 +179,8 @@ export function FollowedInstitutionActivityPanel() {
     <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Followed institution activity</h2>
-          <p className="mt-1 text-sm text-slate-400">Recent reported position changes from managers you follow.</p>
+          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Followed institution activity"} /></h2>
+          <p className="mt-1 text-sm text-slate-400"><UiText text={"Recent reported position changes from managers you follow."} /></p>
         </div>
         <button
           type="button"
@@ -185,37 +188,33 @@ export function FollowedInstitutionActivityPanel() {
           disabled={refreshing}
           className="w-fit rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
         >
-          {refreshing ? "Refreshing..." : "Refresh"}
+          {refreshing ? <UiText text={"Refreshing..."} /> : <UiText text={"Refresh"} />}
         </button>
       </div>
 
-      {error ? <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+      {error ? <p className="rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
 
-      {loading ? <p className="text-sm text-slate-300">Loading followed institution activity...</p> : null}
+      {loading ? <p className="text-sm text-slate-300"><UiText text={"Loading followed institution activity..."} /></p> : null}
 
       {!loading && items.length > 0 ? (
         <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem] lg:items-end">
-          <label className="grid gap-1 text-xs text-slate-400">
-            Activity search
-            <input
+          <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Activity search"} /><input
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ticker, issuer, or institution"
+              placeholder={ui("Ticker, issuer, or institution")}
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             />
           </label>
-          <label className="grid gap-1 text-xs text-slate-400">
-            Sort
-            <select
+          <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Sort"} /><select
               value={sort}
               onChange={(event) => setSort(event.target.value as ActivitySort)}
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             >
-              <option value="newest">Newest</option>
-              <option value="largest">Largest change</option>
-              <option value="buying">Buying</option>
-              <option value="selling">Selling</option>
+              <option value="newest"><UiText text={"Newest"} /></option>
+              <option value="largest"><UiText text={"Largest change"} /></option>
+              <option value="buying"><UiText text={"Buying"} /></option>
+              <option value="selling"><UiText text={"Selling"} /></option>
             </select>
           </label>
         </div>
@@ -232,7 +231,7 @@ export function FollowedInstitutionActivityPanel() {
                 statusFilter === status ? "border-cyan-300 bg-cyan-400/15 text-cyan-100" : "border-white/10 text-slate-300 hover:border-cyan-300/60"
               }`}
             >
-              {status === "ALL" ? "All" : status.replace("_", " ")}
+              {status === "ALL" ? <UiText text={"All"} /> : status.replace("_", " ")}
             </button>
           ))}
         </div>
@@ -256,32 +255,24 @@ export function FollowedInstitutionActivityPanel() {
                         {activity.ticker}
                       </Link>
                     ) : (
-                      <span className="font-semibold text-slate-100">Unmapped</span>
+                      <span className="font-semibold text-slate-100"><UiText text={"Unmapped"} /></span>
                     )}{" "}
                     <span className="text-slate-400">{activity.nameOfIssuer}</span>
                   </p>
                 </div>
                 <span className={`w-fit rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(activity.status)}`}>
-                  {activity.status}
+                  {<UiText text={activity.status} />}
                 </span>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                <p className="text-slate-400">
-                  Value
-                  <span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatSignedCurrency(activity.valueChangeUsd)}</span>
+                <p className="text-slate-400"><UiText text={"Value"} /><span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatSignedCurrency(activity.valueChangeUsd)}</span>
                 </p>
-                <p className="text-slate-400">
-                  Shares
-                  <span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatNumber(activity.shareChange)}</span>
+                <p className="text-slate-400"><UiText text={"Shares"} /><span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatNumber(activity.shareChange)}</span>
                 </p>
-                <p className="text-slate-400">
-                  Change
-                  <span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatPercent(activity.percentChange)}</span>
+                <p className="text-slate-400"><UiText text={"Change"} /><span className="mt-1 block font-semibold tabular-nums text-slate-100">{formatPercent(activity.percentChange)}</span>
                 </p>
-                <p className="text-slate-400">
-                  Report
-                  <span className="mt-1 block font-semibold text-slate-100">{activity.reportDate}</span>
+                <p className="text-slate-400"><UiText text={"Report"} /><span className="mt-1 block font-semibold text-slate-100">{activity.reportDate}</span>
                 </p>
               </div>
 
@@ -290,24 +281,18 @@ export function FollowedInstitutionActivityPanel() {
                 target="_blank"
                 rel="noreferrer"
                 className="mt-4 inline-block text-xs font-semibold text-cyan-200 hover:text-cyan-100"
-              >
-                SEC filing
-              </a>
+              ><UiText text={"SEC filing"} /></a>
             </article>
           ))}
         </div>
       ) : null}
 
       {!loading && items.length > 0 && filteredItems.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          No followed institution activity matches the current filters.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No followed institution activity matches the current filters."} /></p>
       ) : null}
 
       {!loading && items.length === 0 && !error ? (
-        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-          Follow institutions with parsed recent changes to build this feed.
-        </p>
+        <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"Follow institutions with parsed recent changes to build this feed."} /></p>
       ) : null}
     </section>
   );

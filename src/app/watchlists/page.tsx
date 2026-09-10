@@ -1,10 +1,11 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { WatchlistsPage } from "@/components/watchlists-page";
 import { listPublicWatchlists } from "@/lib/watchlists/service";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+const pageMetadata: Metadata = {
   title: "Watchlists | YouAnalyst",
   description: "Browse community watchlists and manage your own watchlists on YouAnalyst.",
   alternates: {
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
     description: "Browse community watchlists and manage your own watchlists on YouAnalyst.",
   },
 };
+export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
 
 export default async function WatchlistsRoutePage({
   searchParams,

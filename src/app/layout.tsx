@@ -1,3 +1,6 @@
+import { localizedMetadata } from "@/lib/i18n/server";
+
+import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
 import { IBM_Plex_Sans, Sora } from "next/font/google";
 import Link from "next/link";
@@ -10,6 +13,8 @@ import { absoluteUrl, getSiteUrl, isProductionAppEnvironment, noIndexRobots } fr
 import "./globals.css";
 import { headers } from "next/headers";
 import { parseLocale } from "@/lib/locale";
+import { parseMarket } from "@/lib/preferences";
+import { MarketContent } from "@/components/market-content";
 
 const GOOGLE_ANALYTICS_ID = process.env.GOOGLE_ANALYTICS_ID;
 
@@ -24,7 +29,7 @@ const ibmPlexSans = IBM_Plex_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-export const metadata: Metadata = {
+const pageMetadata: Metadata = {
   metadataBase: getSiteUrl(),
   title: "YouAnalyst | Company research, connected.",
   description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
@@ -51,6 +56,7 @@ export const metadata: Metadata = {
       }
     : noIndexRobots(),
 };
+export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
 
 export default async function RootLayout({
   children,
@@ -58,6 +64,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = parseLocale((await headers()).get("x-ya-language")) ?? "en";
+  const market = parseMarket((await headers()).get("x-ya-market")) ?? "US";
   const zh = locale === "zh-CN";
   const websiteJsonLd = {
     "@context": "https://schema.org",
@@ -84,21 +91,21 @@ export default async function RootLayout({
         <Script id="website-jsonld" type="application/ld+json" strategy="beforeInteractive">
           {JSON.stringify(websiteJsonLd)}
         </Script>
-        <AppProviders locale={locale}>
+        <AppProviders locale={locale} market={market}>
           <EnvironmentBanner />
-          <a href="#page-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyan-200 focus:p-3 focus:text-slate-950">Skip to content</a>
+          <a href="#page-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyan-200 focus:p-3 focus:text-slate-950"><UiText text={"Skip to content"} /></a>
           <SiteNav />
-          <div id="page-content" tabIndex={-1} className="flex-1">{children}</div>
+          <div id="page-content" tabIndex={-1} className="flex-1"><MarketContent>{children}</MarketContent></div>
           <footer className="border-t border-white/10 bg-slate-950/80">
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs leading-6 text-slate-400">
-              {zh ? "YouAnalyst 的观点、排名与评论仅供参考，不构成投资、法律或税务建议。投资决策前，请独立研究。" : "Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."}
+              {zh ? "YouAnalyst 的观点、排名与评论仅供参考，不构成投资、法律或税务建议。投资决策前，请独立研究。" : <UiText text={"Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."} />}
               <div className="mt-3">
-                <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline">{zh ? "使用指南" : "How it works"}</Link>
+                <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline">{zh ? "使用指南" : <UiText text={"How it works"} />}</Link>
                 <Link href="/feedback" className="font-medium text-cyan-200 underline-offset-2 hover:underline">
-                  {zh ? "意见反馈" : "Share thoughts"}
+                  {zh ? "意见反馈" : <UiText text={"Share thoughts"} />}
                 </Link>
               </div>
-              <p className="mt-2 text-slate-500">© {new Date().getFullYear()} YouAnalyst. {zh ? "保留所有权利。" : "All rights reserved."}</p>
+              <p className="mt-2 text-slate-500">© {new Date().getFullYear()}<UiText text={" YouAnalyst. "} />{zh ? "保留所有权利。" : <UiText text={"All rights reserved."} />}</p>
             </div>
           </footer>
         </AppProviders>

@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -31,6 +33,7 @@ function countFromPayload(value: unknown): number {
 }
 
 export function AdminDashboardPage() {
+  const ui = useUiText();
   const { user, loading, getIdToken } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -193,33 +196,31 @@ export function AdminDashboardPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <p className="mb-3 text-sm font-medium text-cyan-200">Admin</p>
+      <p className="mb-3 text-sm font-medium text-cyan-200"><UiText text={"Admin"} /></p>
 
       <div className="mb-6 max-w-3xl">
-        <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">Admin dashboard</h1>
-        <p className="mt-2 text-sm text-slate-300">
-          Manage AI analyst drafts and review user feedback from one place.
-        </p>
-        {error ? <p className="mt-3 text-sm text-rose-300">{error}</p> : null}
+        <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Admin dashboard"} /></h1>
+        <p className="mt-2 text-sm text-slate-300"><UiText text={"Manage AI analyst drafts and review user feedback from one place."} /></p>
+        {error ? <p className="mt-3 text-sm text-rose-300">{<UiText text={error} />}</p> : null}
       </div>
 
       <section className="mb-6 grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Users</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Users"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.users) : <>&mdash;</>}
+            {stats ? formatCount(stats.users) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Predictions</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Predictions"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.predictions) : <>&mdash;</>}
+            {stats ? formatCount(stats.predictions) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Feedback</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Feedback"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.feedback) : <>&mdash;</>}
+            {stats ? formatCount(stats.feedback) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
       </section>
@@ -229,104 +230,86 @@ export function AdminDashboardPage() {
           href="/admin/securities/13f"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">13F Operations</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Monitor filing pipeline</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            Review SEC discovery, queue health, failed filings, and backfill progress.
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"13F Operations"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Monitor filing pipeline"} /></h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Review SEC discovery, queue health, failed filings, and backfill progress."} /></p>
         </Link>
 
         <Link
           href="/admin/securities/cusip-gaps"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">CUSIP Gaps</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Improve ticker coverage</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            Find unmapped 13F holdings by CUSIP, issuer, value, and filing context.
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"CUSIP Gaps"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Improve ticker coverage"} /></h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Find unmapped 13F holdings by CUSIP, issuer, value, and filing context."} /></p>
         </Link>
 
         <Link
           href="/admin/securities/insiders"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Insider Transactions</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Monitor Form 4 ingestion</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            Inspect parsed SEC Form 4 filings, recent insider buys and sells, and ingestion failures.
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Insider Transactions"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Monitor Form 4 ingestion"} /></h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Inspect parsed SEC Form 4 filings, recent insider buys and sells, and ingestion failures."} /></p>
         </Link>
 
         <Link
           href="/admin/institutions/digests"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Institution Digests</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Generate in-app summaries</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            Run dry previews, checkpoint live digest batches, and inspect saved activity snapshots.
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Institution Digests"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Generate in-app summaries"} /></h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Run dry previews, checkpoint live digest batches, and inspect saved activity snapshots."} /></p>
         </Link>
 
         <Link
           href="/admin/openai-usage"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">OpenAI Usage</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Review API cost</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            Inspect recent OpenAI calls, token counts, and estimated spend by workflow.
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"OpenAI Usage"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Review API cost"} /></h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Inspect recent OpenAI calls, token counts, and estimated spend by workflow."} /></p>
         </Link>
 
         <Link
           href="/admin/company-graph"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Company Graph</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Generate requested graphs</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            Review queued tickers and generate focused SEC supply-chain graphs one at a time.
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Company Graph"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Generate requested graphs"} /></h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Review queued tickers and generate focused SEC supply-chain graphs one at a time."} /></p>
         </Link>
 
         <Link
           href="/admin/ai-analyst"
           className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">AI Analyst</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Review generated drafts</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            Approve or reject AI-generated calls before they appear in the public feed.
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"AI Analyst"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Review generated drafts"} /></h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Approve or reject AI-generated calls before they appear in the public feed."} /></p>
         </Link>
 
         <Link
           href="/admin/feedback"
           className="rounded-2xl border border-white/15 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
         >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Feedback</p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Review user submissions</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300">
-            Read feature requests, bug reports, and suggestions submitted by users.
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Feedback"} /></p>
+          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Review user submissions"} /></h2>
+          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Read feature requests, bug reports, and suggestions submitted by users."} /></p>
         </Link>
       </section>
 
       <section className="mt-6 rounded-2xl border border-white/15 bg-slate-900/70 p-5">
-        <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Billing</p>
-        <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">Set user plan</h2>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-          Look up a user by uid, email, or nickname and switch their plan between FREE and PRO for staging tests.
-        </p>
+        <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Billing"} /></p>
+        <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Set user plan"} /></h2>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Look up a user by uid, email, or nickname and switch their plan between FREE and PRO for staging tests."} /></p>
 
         <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
           <input
             type="text"
             value={planIdentifier}
             onChange={(event) => setPlanIdentifier(event.target.value)}
-            placeholder="User id, email, or nickname"
+            placeholder={ui("User id, email, or nickname")}
             className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
           />
           <button
@@ -335,7 +318,7 @@ export function AdminDashboardPage() {
             disabled={planLoading}
             className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
           >
-            {planLoading ? "Loading..." : "Load user"}
+            {planLoading ? <UiText text={"Loading..."} /> : <UiText text={"Load user"} />}
           </button>
         </div>
 
@@ -345,23 +328,20 @@ export function AdminDashboardPage() {
               <p className="text-slate-100">
                 {planLookup.nickname ? `@${planLookup.nickname}` : planLookup.displayName ?? planLookup.id}
               </p>
-              <p className="text-xs text-slate-400">UID: {planLookup.id}</p>
-              {planLookup.email ? <p className="text-xs text-slate-400">Email: {planLookup.email}</p> : null}
-              <p className="text-xs text-slate-400">
-                Effective Pro access right now: {planLookup.canUsePro ? "Yes" : "No"}
+              <p className="text-xs text-slate-400"><UiText text={"UID: "} />{planLookup.id}</p>
+              {planLookup.email ? <p className="text-xs text-slate-400"><UiText text={"Email: "} />{planLookup.email}</p> : null}
+              <p className="text-xs text-slate-400"><UiText text={"Effective Pro access right now: "} />{planLookup.canUsePro ? <UiText text={"Yes"} /> : <UiText text={"No"} />}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-xs text-slate-400">Plan</span>
+              <span className="text-xs text-slate-400"><UiText text={"Plan"} /></span>
               <div className="inline-flex rounded-full border border-slate-700 bg-slate-900/70 p-1 text-xs">
                 <button
                   type="button"
                   onClick={() => setPlanSelection("FREE")}
                   className={`rounded-full px-3 py-1.5 transition ${planSelection === "FREE" ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"}`}
-                >
-                  Free
-                </button>
+                ><UiText text={"Free"} /></button>
                 <button
                   type="button"
                   onClick={() => setPlanSelection("PRO")}
@@ -376,13 +356,13 @@ export function AdminDashboardPage() {
                 disabled={planLoading || planSaving || planSelection === planLookup.plan}
                 className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
               >
-                {planSaving ? "Saving..." : "Save plan"}
+                {planSaving ? <UiText text={"Saving..."} /> : <UiText text={"Save plan"} />}
               </button>
             </div>
           </div>
         ) : null}
 
-        {planMessage ? <p className="mt-3 text-sm text-slate-300">{planMessage}</p> : null}
+        {planMessage ? <p className="mt-3 text-sm text-slate-300">{<UiText text={planMessage} />}</p> : null}
       </section>
     </main>
   );

@@ -1,3 +1,4 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
@@ -7,7 +8,7 @@ import { parseEventFilter, type EventFilter } from "@/lib/events/filters";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+const pageMetadata: Metadata = {
   title: "Live market feed | YouAnalyst",
   description: "Follow the latest SEC filings and company developments in a calm, live market feed.",
   alternates: {
@@ -23,6 +24,8 @@ export const metadata: Metadata = {
     description: "Source-linked market developments, delivered as they arrive.",
   },
 };
+
+export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ company?: string | string[]; type?: string | string[] }> }) {
   const { company, type: rawType } = await searchParams;

@@ -1,12 +1,14 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { CreatePredictionPage } from "@/components/create-prediction-page";
 import { noIndexRobots } from "@/lib/seo";
 
-export const metadata: Metadata = {
+const pageMetadata: Metadata = {
   title: "New prediction | YouAnalyst",
   description: "Create a new public stock prediction on YouAnalyst.",
   robots: noIndexRobots(),
 };
+export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
 
 export default async function NewPredictionRoutePage({
   searchParams,

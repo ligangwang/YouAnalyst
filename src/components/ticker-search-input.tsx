@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { formatTickerSymbol } from "@/components/prediction-ui";
@@ -65,6 +67,7 @@ export function TickerSearchInput({
   label = "Ticker",
   showHelperText = true,
 }: TickerSearchInputProps) {
+  const ui = useUiText();
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
@@ -181,7 +184,7 @@ export function TickerSearchInput({
   return (
     <div ref={containerRef} className="relative grid gap-2">
       <label className={hideLabel ? "sr-only" : "text-sm text-slate-200"} htmlFor="ticker-search">
-        {label}
+        {ui(label)}
       </label>
       <input
         id="ticker-search"
@@ -205,7 +208,7 @@ export function TickerSearchInput({
           }
         }}
         onKeyDown={handleKeyDown}
-        placeholder="Search company, ticker, or institution"
+        placeholder={ui("Search company, ticker, or institution")}
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={showPanel}
@@ -216,9 +219,9 @@ export function TickerSearchInput({
         }`}
       />
       {showHelperText || searchError || loading ? (
-        <p className={`text-xs ${searchError ? "text-rose-300" : "text-slate-400"}`}>{helperText}</p>
+        <p className={`text-xs ${searchError ? "text-rose-300" : "text-slate-400"}`}>{<UiText text={helperText} />}</p>
       ) : null}
-      {error ? <p className="text-xs text-rose-300">{error}</p> : null}
+      {error ? <p className="text-xs text-rose-300">{<UiText text={error} />}</p> : null}
 
       {showPanel ? (
         <div
@@ -242,7 +245,7 @@ export function TickerSearchInput({
               <span className="font-semibold text-cyan-100">
                 {item.kind === "institution" ? (
                   <>
-                    {item.name} <span className="font-normal text-slate-300">Institution</span>
+                    {item.name} <span className="font-normal text-slate-300"><UiText text={"Institution"} /></span>
                   </>
                 ) : (
                   <>
@@ -255,7 +258,7 @@ export function TickerSearchInput({
           ))}
 
           {!loading && !searchError && suggestions.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-slate-400">No matching company or institution found.</p>
+            <p className="px-3 py-2 text-sm text-slate-400"><UiText text={"No matching company or institution found."} /></p>
           ) : null}
         </div>
       ) : null}

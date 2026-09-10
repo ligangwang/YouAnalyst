@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { RelativeTime } from "./relative-time";
 import { useMemo, useState, useTransition } from "react";
@@ -91,6 +93,7 @@ function sortActivities(items: InstitutionalDiscoveryTickerActivity[], sort: Act
 }
 
 export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: InstitutionalDiscoverySummary }) {
+  const ui = useUiText();
   const [summary, setSummary] = useState(initialSummary);
   const [activityFilter, setActivityFilter] = useState("");
   const [managerFilter, setManagerFilter] = useState("");
@@ -137,14 +140,10 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Institutional activity</p>
-            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100 sm:text-4xl">
-              Browse 13F institutions
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Recent manager filings and ticker-level activity from the tracked 13F pipeline.
-            </p>
-            <p className="mt-3 text-xs text-slate-500">{summary.generatedAt ? <RelativeTime value={summary.generatedAt} prefix="Updated" /> : "Update time unavailable"}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300"><UiText text={"Institutional activity"} /></p>
+            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100 sm:text-4xl"><UiText text={"Browse 13F institutions"} /></h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Recent manager filings and ticker-level activity from the tracked 13F pipeline."} /></p>
+            <p className="mt-3 text-xs text-slate-500">{summary.generatedAt ? <RelativeTime value={summary.generatedAt} prefix="Updated" /> : <UiText text={"Update time unavailable"} />}</p>
           </div>
           <button
             type="button"
@@ -152,14 +151,14 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
             disabled={isPending}
             className="w-fit rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
           >
-            {isPending ? "Refreshing..." : "Refresh"}
+            {isPending ? <UiText text={"Refreshing..."} /> : <UiText text={"Refresh"} />}
           </button>
         </div>
-        {error ? <p className="mt-4 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</p> : null}
+        {error ? <p className="mt-4 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
       </section>
 
       <details className="mt-4 rounded-xl border border-white/15 p-4">
-        <summary className="cursor-pointer font-semibold text-cyan-100">Your followed institutions and digests</summary>
+        <summary className="cursor-pointer font-semibold text-cyan-100"><UiText text={"Your followed institutions and digests"} /></summary>
         <FollowedInstitutionsPanel />
         <InstitutionDigestHistoryPanel />
         <FollowedInstitutionActivityPanel />
@@ -168,35 +167,29 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_10rem] lg:items-end">
           <div>
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recent ticker activity</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Tickers with the largest reported value changes in recent parsed filings.
-            </p>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recent ticker activity"} /></h2>
+            <p className="mt-1 text-sm text-slate-400"><UiText text={"Tickers with the largest reported value changes in recent parsed filings."} /></p>
           </div>
-          <label className="grid gap-1 text-xs text-slate-400">
-            Ticker filter
-            <input
+          <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Ticker filter"} /><input
               type="text"
               value={activityFilter}
               onChange={(event) => {
                 setActivityFilter(event.target.value);
                 setActivityVisible(INITIAL_ACTIVITY_COUNT);
               }}
-              placeholder="AAPL or Apple"
+              placeholder={ui("AAPL or Apple")}
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             />
           </label>
-          <label className="grid gap-1 text-xs text-slate-400">
-            Sort
-            <select
+          <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Sort"} /><select
               value={activitySort}
               onChange={(event) => setActivitySort(event.target.value as ActivitySort)}
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             >
-              <option value="gross">Gross activity</option>
-              <option value="net-buying">Largest value increases</option>
-              <option value="net-selling">Largest value decreases</option>
-              <option value="managers">Manager count</option>
+              <option value="gross"><UiText text={"Gross activity"} /></option>
+              <option value="net-buying"><UiText text={"Largest value increases"} /></option>
+              <option value="net-selling"><UiText text={"Largest value decreases"} /></option>
+              <option value="managers"><UiText text={"Manager count"} /></option>
             </select>
           </label>
         </div>
@@ -215,10 +208,10 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                <p className="text-slate-400">Managers<span className="mt-1 block font-semibold text-slate-100">{activity.managerCount}</span></p>
-                <p className="text-emerald-200">Added<span className="mt-1 block font-semibold">{activity.newManagers + activity.increasedManagers}</span></p>
-                <p className="text-rose-200">Trimmed<span className="mt-1 block font-semibold">{activity.reducedManagers + activity.soldOutManagers}</span></p>
-                <p className="text-slate-400">Report<span className="mt-1 block font-semibold text-slate-100">{formatDate(activity.reportDate)}</span></p>
+                <p className="text-slate-400"><UiText text={"Managers"} /><span className="mt-1 block font-semibold text-slate-100">{activity.managerCount}</span></p>
+                <p className="text-emerald-200"><UiText text={"Added"} /><span className="mt-1 block font-semibold">{activity.newManagers + activity.increasedManagers}</span></p>
+                <p className="text-rose-200"><UiText text={"Trimmed"} /><span className="mt-1 block font-semibold">{activity.reducedManagers + activity.soldOutManagers}</span></p>
+                <p className="text-slate-400"><UiText text={"Report"} /><span className="mt-1 block font-semibold text-slate-100">{formatDate(activity.reportDate)}</span></p>
               </div>
 
               <div className="mt-4 grid gap-2">
@@ -228,7 +221,7 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
                       {manager.managerName}
                     </Link>
                     <div className="flex items-center gap-2">
-                      <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(manager.status)}`}>{manager.status}</span>
+                      <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${changeTone(manager.status)}`}>{<UiText text={manager.status} />}</span>
                       <span className="text-sm tabular-nums text-slate-300">{formatSignedCurrency(manager.valueChangeUsd)}</span>
                     </div>
                   </div>
@@ -238,12 +231,10 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
           ))}
         </div>
 
-        {filteredActivities.length === 0 ? <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">No matching institutional ticker activity is available.</p> : null}
+        {filteredActivities.length === 0 ? <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No matching institutional ticker activity is available."} /></p> : null}
         {activityVisible < filteredActivities.length ? (
           <div className="mt-4 flex justify-center">
-            <button type="button" onClick={() => setActivityVisible((value) => value + 12)} className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15">
-              Load more activity
-            </button>
+            <button type="button" onClick={() => setActivityVisible((value) => value + 12)} className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15"><UiText text={"Load more activity"} /></button>
           </div>
         ) : null}
       </section>
@@ -251,19 +242,17 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-end">
           <div>
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Recently updated institutions</h2>
-            <p className="mt-1 text-sm text-slate-400">Managers with recent parsed 13F filings.</p>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Recently updated institutions"} /></h2>
+            <p className="mt-1 text-sm text-slate-400"><UiText text={"Managers with recent parsed 13F filings."} /></p>
           </div>
-          <label className="grid gap-1 text-xs text-slate-400">
-            Institution filter
-            <input
+          <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Institution filter"} /><input
               type="text"
               value={managerFilter}
               onChange={(event) => {
                 setManagerFilter(event.target.value);
                 setManagerVisible(INITIAL_MANAGER_COUNT);
               }}
-              placeholder="Berkshire or CIK"
+              placeholder={ui("Berkshire or CIK")}
               className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
             />
           </label>
@@ -280,20 +269,18 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
               </div>
               <p className="mt-1 text-xs text-slate-500">CIK {manager.cik}</p>
               <div className="mt-4 grid gap-1 text-sm text-slate-300">
-                <p>Quarter {manager.latestQuarter ?? "Unknown"}</p>
-                <p>Report {formatDate(manager.latestReportDate)}</p>
-                <p className="truncate text-xs text-slate-500">Filing {manager.latestAccessionNumber ?? "Unknown"}</p>
+                <p><UiText text={"Quarter "} />{manager.latestQuarter ?? <UiText text={"Unknown"} />}</p>
+                <p><UiText text={"Report "} />{formatDate(manager.latestReportDate)}</p>
+                <p className="truncate text-xs text-slate-500"><UiText text={"Filing "} />{manager.latestAccessionNumber ?? <UiText text={"Unknown"} />}</p>
               </div>
             </article>
           ))}
         </div>
 
-        {filteredManagers.length === 0 ? <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">No matching institutions found.</p> : null}
+        {filteredManagers.length === 0 ? <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No matching institutions found."} /></p> : null}
         {managerVisible < filteredManagers.length ? (
           <div className="mt-4 flex justify-center">
-            <button type="button" onClick={() => setManagerVisible((value) => value + 18)} className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15">
-              Load more institutions
-            </button>
+            <button type="button" onClick={() => setManagerVisible((value) => value + 18)} className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15"><UiText text={"Load more institutions"} /></button>
           </div>
         ) : null}
       </section>

@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText, useUiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -107,8 +109,8 @@ function WatchlistPredictionRow({ prediction }: { prediction: WatchlistPredictio
           <PredictionReturnSummary prediction={prediction} href={`/predictions/${prediction.id}`} status={prediction.status} />
         </div>
         <div className="shrink-0 text-right text-xs text-slate-500">
-          <p>{predictionStatusLabel(prediction.status)}</p>
-          <p className="mt-1">{prediction.commentCount.toLocaleString()} comments</p>
+          <p>{<UiText text={predictionStatusLabel(prediction.status)} />}</p>
+          <p className="mt-1">{prediction.commentCount.toLocaleString()}<UiText text={" comments"} /></p>
         </div>
       </div>
     </article>
@@ -116,6 +118,7 @@ function WatchlistPredictionRow({ prediction }: { prediction: WatchlistPredictio
 }
 
 export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = {}) {
+  const ui = useUiText();
   const { user, loading: authLoading, getIdToken, features } = useAuth();
   const [watchlists, setWatchlists] = useState<WatchlistSummary[]>([]);
   const [selectedWatchlistId, setSelectedWatchlistId] = useState<string | null>(null);
@@ -483,14 +486,12 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
   if (!user) {
     const content = (
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 text-center shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-        <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">My Watchlists</h1>
-        <p className="mt-3 text-sm text-slate-300">Sign in to create watchlists, organize predictions, and manage your research workspace.</p>
+        <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"My Watchlists"} /></h1>
+        <p className="mt-3 text-sm text-slate-300"><UiText text={"Sign in to create watchlists, organize predictions, and manage your research workspace."} /></p>
         <Link
           href="/auth"
           className="mt-6 inline-flex rounded-full bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-        >
-          Sign in
-        </Link>
+        ><UiText text={"Sign in"} /></Link>
       </section>
     );
 
@@ -503,10 +504,10 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
 
   if (authLoading || loadingWorkspace) {
     if (embedded) {
-      return <div className="py-4 text-sm text-slate-300">Loading watchlists...</div>;
+      return <div className="py-4 text-sm text-slate-300"><UiText text={"Loading watchlists..."} /></div>;
     }
 
-    return <main className="mx-auto w-full max-w-6xl px-4 py-8 text-sm text-slate-300">Loading watchlists...</main>;
+    return <main className="mx-auto w-full max-w-6xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading watchlists..."} /></main>;
   }
 
   const content = (
@@ -514,17 +515,15 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">Workspace</p>
-            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">My Watchlists</h1>
+            <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Workspace"} /></p>
+            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"My Watchlists"} /></h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               {proFeaturesEnabled
-                ? "Create, edit, and review the public and private watchlists that organize your predictions."
-                : "Create, edit, and review the public watchlists that organize your predictions."}
+                ? <UiText text={"Create, edit, and review the public and private watchlists that organize your predictions."} />
+                : <UiText text={"Create, edit, and review the public watchlists that organize your predictions."} />}
             </p>
             {proFeaturesEnabled && !canUsePro ? (
-              <p className="mt-2 text-xs text-amber-200">
-                Private watchlists are part of Pro. Upgrade to unlock private tracking.
-              </p>
+              <p className="mt-2 text-xs text-amber-200"><UiText text={"Private watchlists are part of Pro. Upgrade to unlock private tracking."} /></p>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -537,15 +536,13 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                 }}
                 className="rounded-full border border-cyan-400/35 px-3 py-1.5 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15"
               >
-                {composerOpen ? "Close" : "New watchlist"}
+                {composerOpen ? <UiText text={"Close"} /> : <UiText text={"New watchlist"} />}
               </button>
             ) : null}
             <Link
               href={selectedWatchlistId ? `/predictions/new?watchlistId=${encodeURIComponent(selectedWatchlistId)}` : "/predictions/new"}
               className="rounded-full bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-            >
-              Add prediction
-            </Link>
+            ><UiText text={"Add prediction"} /></Link>
           </div>
         </div>
 
@@ -557,7 +554,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                 value={newWatchlistName}
                 onChange={(event) => setNewWatchlistName(event.target.value)}
                 maxLength={80}
-                placeholder="Watchlist name"
+                placeholder={ui("Watchlist name")}
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
               <input
@@ -565,7 +562,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                 value={newWatchlistDescription}
                 onChange={(event) => setNewWatchlistDescription(event.target.value)}
                 maxLength={240}
-                placeholder="Optional description"
+                placeholder={ui("Optional description")}
                 className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
               <button
@@ -574,20 +571,18 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                 disabled={creatingWatchlist}
                 className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
               >
-                {creatingWatchlist ? "Creating..." : "Create"}
+                {creatingWatchlist ? <UiText text={"Creating..."} /> : <UiText text={"Create"} />}
               </button>
             </div>
             {proFeaturesEnabled ? (
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <span className="text-xs text-slate-400">New watchlist visibility</span>
+                <span className="text-xs text-slate-400"><UiText text={"New watchlist visibility"} /></span>
                 <div className="inline-flex rounded-full border border-slate-700 bg-slate-900/70 p-1 text-xs">
                   <button
                     type="button"
                     onClick={() => setNewWatchlistIsPublic(true)}
                     className={`rounded-full px-3 py-1.5 transition ${newWatchlistIsPublic ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"}`}
-                  >
-                    Public
-                  </button>
+                  ><UiText text={"Public"} /></button>
                   <button
                     type="button"
                     onClick={() => {
@@ -597,21 +592,17 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                     }}
                     disabled={!canUsePro}
                     className={`rounded-full px-3 py-1.5 transition ${!newWatchlistIsPublic ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"} ${!canUsePro ? "cursor-not-allowed opacity-50" : ""}`}
-                  >
-                    Private
-                  </button>
+                  ><UiText text={"Private"} /></button>
                 </div>
                 {!canUsePro ? (
-                  <p className="text-xs text-slate-400">
-                    Private watchlists unlock with Pro.
-                  </p>
+                  <p className="text-xs text-slate-400"><UiText text={"Private watchlists unlock with Pro."} /></p>
                 ) : null}
               </div>
             ) : null}
           </div>
         ) : null}
 
-        {error ? <p className="mt-3 text-sm text-rose-300">{error}</p> : null}
+        {error ? <p className="mt-3 text-sm text-rose-300">{<UiText text={error} />}</p> : null}
       </section>
 
       {watchlists.length > 0 ? (
@@ -629,7 +620,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                       : "border border-white/10 text-slate-300 hover:border-cyan-300/40 hover:text-cyan-100"
                   }`}
                 >
-                  {item.name}{item.isPublic ? "" : " (Private)"}
+                  {item.name}{item.isPublic ? "" : <UiText text={" (Private)"} />}
                 </button>
               ))}
             </div>
@@ -640,7 +631,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
               {editing ? (
                 <div className="grid gap-3">
                   <div className="grid gap-1">
-                    <label className="text-xs text-slate-400" htmlFor="edit-watchlist-name">Name</label>
+                    <label className="text-xs text-slate-400" htmlFor="edit-watchlist-name"><UiText text={"Name"} /></label>
                     <input
                       id="edit-watchlist-name"
                       value={editName}
@@ -650,7 +641,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                     />
                   </div>
                   <div className="grid gap-1">
-                    <label className="text-xs text-slate-400" htmlFor="edit-watchlist-description">Description</label>
+                    <label className="text-xs text-slate-400" htmlFor="edit-watchlist-description"><UiText text={"Description"} /></label>
                     <textarea
                       id="edit-watchlist-description"
                       value={editDescription}
@@ -662,15 +653,13 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                   </div>
                   {proFeaturesEnabled ? (
                     <div className="grid gap-1">
-                      <span className="text-xs text-slate-400">Visibility</span>
+                      <span className="text-xs text-slate-400"><UiText text={"Visibility"} /></span>
                       <div className="inline-flex w-fit rounded-full border border-slate-700 bg-slate-900/70 p-1 text-xs">
                         <button
                           type="button"
                           onClick={() => setEditIsPublic(true)}
                           className={`rounded-full px-3 py-1.5 transition ${editIsPublic ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"}`}
-                        >
-                          Public
-                        </button>
+                        ><UiText text={"Public"} /></button>
                         <button
                           type="button"
                           onClick={() => {
@@ -680,22 +669,14 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                           }}
                           disabled={selectedWatchlistLockedPublic || !canUsePro}
                           className={`rounded-full px-3 py-1.5 transition ${!editIsPublic ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"} ${selectedWatchlistLockedPublic || !canUsePro ? "cursor-not-allowed opacity-50" : ""}`}
-                        >
-                          Private
-                        </button>
+                        ><UiText text={"Private"} /></button>
                       </div>
                       {selectedWatchlistLockedPublic ? (
-                        <p className="text-xs text-slate-400">
-                          Public watchlists stay public once shared. Close predictions you no longer want to continue publicly, then use a private watchlist for new ideas.
-                        </p>
+                        <p className="text-xs text-slate-400"><UiText text={"Public watchlists stay public once shared. Close predictions you no longer want to continue publicly, then use a private watchlist for new ideas."} /></p>
                       ) : !canUsePro ? (
-                        <p className="text-xs text-slate-400">
-                          Private watchlists are part of Pro. Upgrade to move this watchlist into your private workspace.
-                        </p>
+                        <p className="text-xs text-slate-400"><UiText text={"Private watchlists are part of Pro. Upgrade to move this watchlist into your private workspace."} /></p>
                       ) : editIsPublic ? (
-                        <p className="text-xs text-slate-400">
-                          Once this watchlist is public, it stays public as part of your track record.
-                        </p>
+                        <p className="text-xs text-slate-400"><UiText text={"Once this watchlist is public, it stays public as part of your track record."} /></p>
                       ) : null}
                     </div>
                   ) : null}
@@ -706,7 +687,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                       disabled={saving}
                       className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
                     >
-                      {saving ? "Saving..." : "Save"}
+                      {saving ? <UiText text={"Saving..."} /> : <UiText text={"Save"} />}
                     </button>
                     <button
                       type="button"
@@ -718,9 +699,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                       }}
                       disabled={saving}
                       className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:border-white/30 disabled:opacity-60"
-                    >
-                      Cancel
-                    </button>
+                    ><UiText text={"Cancel"} /></button>
                   </div>
                 </div>
               ) : (
@@ -731,21 +710,19 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                         {selectedSummary.name}
                       </h2>
                       <span className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-wide text-slate-300">
-                        {selectedSummary.isPublic ? "Public" : "Private"}
+                        {selectedSummary.isPublic ? <UiText text={"Public"} /> : <UiText text={"Private"} />}
                       </span>
                       {selectedSummary.isPublic ? (
                         <Link
                           href={`/analysts/${user.uid}/watchlists/${selectedSummary.id}`}
                           className="text-xs font-medium text-cyan-300 hover:text-cyan-100"
-                        >
-                          View public page
-                        </Link>
+                        ><UiText text={"View public page"} /></Link>
                       ) : null}
                     </div>
                     {selectedSummary.description ? (
                       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{selectedSummary.description}</p>
                     ) : (
-                      <p className="mt-2 text-sm text-slate-400">No description yet.</p>
+                      <p className="mt-2 text-sm text-slate-400"><UiText text={"No description yet."} /></p>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -753,15 +730,11 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                       type="button"
                       onClick={startEditing}
                       className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
-                    >
-                      Edit watchlist
-                    </button>
+                    ><UiText text={"Edit watchlist"} /></button>
                     <Link
                       href={selectedWatchlistId ? `/predictions/new?watchlistId=${encodeURIComponent(selectedWatchlistId)}` : "/predictions/new"}
                       className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
-                    >
-                      Add prediction
-                    </Link>
+                    ><UiText text={"Add prediction"} /></Link>
                     <button
                       type="button"
                       onClick={() => {
@@ -771,7 +744,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                       }}
                       className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-200 hover:border-white/30"
                     >
-                      {quickAddOpen ? "Close quick add" : "Quick add"}
+                      {quickAddOpen ? <UiText text={"Close quick add"} /> : <UiText text={"Quick add"} />}
                     </button>
                   </div>
                 </div>
@@ -780,19 +753,15 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
               {quickAddOpen ? (
                 <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 p-4">
                   <div className="mb-3">
-                    <h3 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">Quick add predictions</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                      Enter comma-separated tickers by direction. Thesis is optional, so these predictions will be created without a title or thesis.
-                    </p>
+                    <h3 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Quick add predictions"} /></h3>
+                    <p className="mt-1 text-sm text-slate-300"><UiText text={"Enter comma-separated tickers by direction. Thesis is optional, so these predictions will be created without a title or thesis."} /></p>
                     {!selectedSummary.isPublic ? (
-                      <p className="mt-2 text-xs text-amber-200">
-                        This watchlist is private, so quick-added predictions will be private too.
-                      </p>
+                      <p className="mt-2 text-xs text-amber-200"><UiText text={"This watchlist is private, so quick-added predictions will be private too."} /></p>
                     ) : null}
                   </div>
                   <div className="grid gap-3">
                     <div className="grid gap-1">
-                      <label className="text-xs text-slate-400" htmlFor="quick-add-up">UP tickers</label>
+                      <label className="text-xs text-slate-400" htmlFor="quick-add-up"><UiText text={"UP tickers"} /></label>
                       <textarea
                         id="quick-add-up"
                         value={quickAddUpTickers}
@@ -803,7 +772,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                       />
                     </div>
                     <div className="grid gap-1">
-                      <label className="text-xs text-slate-400" htmlFor="quick-add-down">DOWN tickers</label>
+                      <label className="text-xs text-slate-400" htmlFor="quick-add-down"><UiText text={"DOWN tickers"} /></label>
                       <textarea
                         id="quick-add-down"
                         value={quickAddDownTickers}
@@ -820,11 +789,11 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                         disabled={quickAddSubmitting}
                         className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-60"
                       >
-                        {quickAddSubmitting ? "Creating..." : "Create predictions"}
+                        {quickAddSubmitting ? <UiText text={"Creating..."} /> : <UiText text={"Create predictions"} />}
                       </button>
-                      <p className="text-xs text-slate-400">One ticker can only appear in one direction row.</p>
+                      <p className="text-xs text-slate-400"><UiText text={"One ticker can only appear in one direction row."} /></p>
                     </div>
-                    {quickAddMessage ? <p className="text-sm text-emerald-300">{quickAddMessage}</p> : null}
+                    {quickAddMessage ? <p className="text-sm text-emerald-300">{<UiText text={quickAddMessage} />}</p> : null}
                   </div>
                 </div>
               ) : null}
@@ -832,26 +801,26 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
               {selectedMetrics ? (
                 <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Live return</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Live return"} /></p>
                     <p className="mt-1 font-semibold text-cyan-100">{watchlistReturnText(selectedMetrics.liveReturn)}</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Settled return</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Settled return"} /></p>
                     <p className="mt-1 font-semibold text-cyan-100">{watchlistReturnText(selectedMetrics.settledReturn)}</p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Live</p>
-                    <p className="mt-1 font-semibold text-slate-100">{selectedMetrics.livePredictionCount.toLocaleString()} predictions</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Live"} /></p>
+                    <p className="mt-1 font-semibold text-slate-100">{selectedMetrics.livePredictionCount.toLocaleString()}<UiText text={" predictions"} /></p>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-                    <p className="text-xs uppercase tracking-wide text-slate-500">Settled</p>
-                    <p className="mt-1 font-semibold text-slate-100">{selectedMetrics.settledPredictionCount.toLocaleString()} predictions</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500"><UiText text={"Settled"} /></p>
+                    <p className="mt-1 font-semibold text-slate-100">{selectedMetrics.settledPredictionCount.toLocaleString()}<UiText text={" predictions"} /></p>
                   </div>
                 </div>
               ) : null}
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Predictions</h3>
+                <h3 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Predictions"} /></h3>
                 <div className="inline-flex rounded-full border border-slate-700 bg-slate-800/70 p-1 text-xs">
                   {(["ALL", "LIVE", "SETTLED"] as const).map((option) => (
                     <button
@@ -862,7 +831,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                         status === option ? "bg-cyan-500 text-slate-950" : "text-slate-200 hover:text-white"
                       }`}
                     >
-                      {statusFilterLabel(option)}
+                      {<UiText text={statusFilterLabel(option)} />}
                     </button>
                   ))}
                 </div>
@@ -870,7 +839,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
 
               <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/45 p-4">
                 {loadingDetail ? (
-                  <p className="text-sm text-slate-300">Loading watchlist...</p>
+                  <p className="text-sm text-slate-300"><UiText text={"Loading watchlist..."} /></p>
                 ) : selectedPredictions.length > 0 ? (
                   <div>
                     {selectedPredictions.map((prediction) => (
@@ -880,10 +849,10 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
                 ) : (
                   <p className="text-sm text-slate-300">
                     {status === "LIVE"
-                      ? "No live predictions in this watchlist."
+                      ? <UiText text={"No live predictions in this watchlist."} />
                       : status === "SETTLED"
-                        ? "No settled predictions in this watchlist."
-                        : "No predictions in this watchlist yet."}
+                        ? <UiText text={"No settled predictions in this watchlist."} />
+                        : <UiText text={"No predictions in this watchlist yet."} />}
                   </p>
                 )}
               </div>
@@ -892,9 +861,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
         </>
       ) : (
         <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-          <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
-            Create your first watchlist to organize your predictions.
-          </p>
+          <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"Create your first watchlist to organize your predictions."} /></p>
         </section>
       )}
     </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SearchSuggestion, TickerSearchInput } from "@/components/ticker-search-input";
@@ -90,7 +92,7 @@ export function CompanySearchCard() {
           disabled={isPending}
           className="h-11 rounded-xl bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isPending ? "Opening..." : "Go"}
+          {isPending ? <UiText text={"Opening..."} /> : <UiText text={"Go"} />}
         </button>
       </div>
     </form>

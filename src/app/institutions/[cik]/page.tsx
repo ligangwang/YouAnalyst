@@ -1,3 +1,5 @@
+
+import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { InstitutionDetailHoldings } from "@/components/institution-detail-holdings";
@@ -80,7 +82,7 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Institution</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300"><UiText text={"Institution"} /></p>
             <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100 sm:text-4xl">
               {summary.manager.name}
             </h1>
@@ -96,20 +98,20 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
 
       <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Shown positions</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Shown positions"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{summary.holdings.length}</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Shown market value</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Shown market value"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatCurrency(totalValueUsd)}</p>
         </div>
         <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Net value change</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Net value change"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{formatSignedCurrency(netValueChangeUsd)}</p>
-          <p className="mt-1 text-xs text-slate-500">{changedHoldings} changed positions shown</p>
+          <p className="mt-1 text-xs text-slate-500">{changedHoldings}<UiText text={" changed positions shown"} /></p>
         </div>
         <div className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest filing</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Latest filing"} /></p>
           {latestFilingUrl ? (
             <a
               href={latestFilingUrl}
@@ -120,14 +122,14 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
               {summary.manager.latestAccessionNumber}
             </a>
           ) : (
-            <p className="mt-2 break-all text-sm font-semibold text-cyan-100">Unknown</p>
+            <p className="mt-2 break-all text-sm font-semibold text-cyan-100"><UiText text={"Unknown"} /></p>
           )}
         </div>
       </section>
 
       <section className="mt-4 grid gap-3 md:grid-cols-2">
         <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200/80">Largest reported increase</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-200/80"><UiText text={"Largest reported increase"} /></p>
           {topBuy ? (
             <>
               <p className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-emerald-50">
@@ -139,11 +141,11 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
               </p>
             </>
           ) : (
-            <p className="mt-2 text-sm text-emerald-100/80">No positive value changes shown.</p>
+            <p className="mt-2 text-sm text-emerald-100/80"><UiText text={"No positive value changes shown."} /></p>
           )}
         </div>
         <div className="rounded-xl border border-rose-400/20 bg-rose-400/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-rose-200/80">Largest reported decrease</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-rose-200/80"><UiText text={"Largest reported decrease"} /></p>
           {topSale ? (
             <>
               <p className="mt-2 font-[var(--font-sora)] text-xl font-semibold text-rose-50">
@@ -155,7 +157,7 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
               </p>
             </>
           ) : (
-            <p className="mt-2 text-sm text-rose-100/80">No negative value changes shown.</p>
+            <p className="mt-2 text-sm text-rose-100/80"><UiText text={"No negative value changes shown."} /></p>
           )}
         </div>
       </section>

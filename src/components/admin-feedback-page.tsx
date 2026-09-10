@@ -1,5 +1,7 @@
 "use client";
 
+import { UiText } from "@/components/ui-text";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -159,54 +161,52 @@ export function AdminFeedbackPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
-      <p className="mb-3 text-sm font-medium text-cyan-200">Admin</p>
+      <p className="mb-3 text-sm font-medium text-cyan-200"><UiText text={"Admin"} /></p>
 
       <section className="mb-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Users</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Users"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.users) : <>&mdash;</>}
+            {stats ? formatCount(stats.users) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Predictions</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Predictions"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.predictions) : <>&mdash;</>}
+            {stats ? formatCount(stats.predictions) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
         <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
-          <p className="text-xs uppercase text-slate-500">Feedback</p>
+          <p className="text-xs uppercase text-slate-500"><UiText text={"Feedback"} /></p>
           <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
-            {stats ? formatCount(stats.feedback) : <>&mdash;</>}
+            {stats ? formatCount(stats.feedback) : <><UiText text={"&mdash;"} /></>}
           </p>
         </div>
       </section>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100">Feedback submissions</h1>
-          <p className="mt-2 text-sm text-slate-300">Review the latest notes sent from the public feedback page.</p>
+          <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Feedback submissions"} /></h1>
+          <p className="mt-2 text-sm text-slate-300"><UiText text={"Review the latest notes sent from the public feedback page."} /></p>
         </div>
         <Link
           href="/feedback"
           className="w-fit rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/15"
-        >
-          Submit feedback
-        </Link>
+        ><UiText text={"Submit feedback"} /></Link>
       </div>
 
       <section className="rounded-2xl border border-white/10 bg-slate-900/70 shadow-[0_8px_40px_rgba(8,47,73,0.35)]">
         <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-          <p className="text-sm font-medium text-slate-200">{loadingSubmissions ? "Loading..." : countLabel}</p>
-          <p className="text-xs text-slate-500">Latest 100</p>
+          <p className="text-sm font-medium text-slate-200">{loadingSubmissions ? <UiText text={"Loading..."} /> : countLabel}</p>
+          <p className="text-xs text-slate-500"><UiText text={"Latest 100"} /></p>
         </div>
 
         {error ? (
-          <div className="px-5 py-8 text-sm text-rose-300">{error}</div>
+          <div className="px-5 py-8 text-sm text-rose-300">{<UiText text={error} />}</div>
         ) : loadingSubmissions ? (
-          <div className="px-5 py-8 text-sm text-slate-300">Loading feedback...</div>
+          <div className="px-5 py-8 text-sm text-slate-300"><UiText text={"Loading feedback..."} /></div>
         ) : submissions.length === 0 ? (
-          <div className="px-5 py-8 text-sm text-slate-300">No feedback has been submitted yet.</div>
+          <div className="px-5 py-8 text-sm text-slate-300"><UiText text={"No feedback has been submitted yet."} /></div>
         ) : (
           <div className="divide-y divide-white/10">
             {submissions.map((submission) => (
@@ -215,10 +215,10 @@ export function AdminFeedbackPage() {
                   <div>
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-2.5 py-1 text-xs font-medium text-cyan-100">
-                        {categoryLabels[submission.category]}
+                        {<UiText text={categoryLabels[submission.category]} />}
                       </span>
                       <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-300">
-                        {submission.status}
+                        {<UiText text={submission.status} />}
                       </span>
                     </div>
                     <h2 className="text-lg font-semibold text-white">{submission.subject}</h2>
@@ -233,20 +233,20 @@ export function AdminFeedbackPage() {
 
                 <dl className="grid gap-3 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-xs uppercase text-slate-500">From</dt>
+                    <dt className="text-xs uppercase text-slate-500"><UiText text={"From"} /></dt>
                     <dd className="mt-1 text-slate-200">{submitterLabel(submission)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase text-slate-500">Contact</dt>
-                    <dd className="mt-1 text-slate-200">{submission.contactEmail ?? "None"}</dd>
+                    <dt className="text-xs uppercase text-slate-500"><UiText text={"Contact"} /></dt>
+                    <dd className="mt-1 text-slate-200">{submission.contactEmail ?? <UiText text={"None"} />}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase text-slate-500">User ID</dt>
-                    <dd className="mt-1 break-all text-slate-200">{submission.userId ?? "Anonymous"}</dd>
+                    <dt className="text-xs uppercase text-slate-500"><UiText text={"User ID"} /></dt>
+                    <dd className="mt-1 break-all text-slate-200">{submission.userId ?? <UiText text={"Anonymous"} />}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase text-slate-500">User agent</dt>
-                    <dd className="mt-1 break-words text-slate-400">{submission.userAgent ?? "Unknown"}</dd>
+                    <dt className="text-xs uppercase text-slate-500"><UiText text={"User agent"} /></dt>
+                    <dd className="mt-1 break-words text-slate-400">{submission.userAgent ?? <UiText text={"Unknown"} />}</dd>
                   </div>
                 </dl>
               </article>
