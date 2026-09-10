@@ -13,10 +13,14 @@ test.beforeAll(async () => {
       import { createRoot } from "react-dom/client";
       import { TickerPage } from "./src/components/ticker-page";
       import { CompanyResearchOverview } from "./src/components/company-research-overview";
+      import { CompanyFundamentalsView } from "./src/components/company-fundamentals";
+      import { annualMetrics } from "./src/lib/fundamentals/model";
       import { buildCompanyResearch } from "./src/lib/company-research";
       import { fixtureGraph } from "./tests/industry/fixtures";
       const company = buildCompanyResearch("AMD", [], fixtureGraph);
-      createRoot(document.getElementById("root")).render(<TickerPage ticker="AMD" overview={<CompanyResearchOverview company={company} />} />);
+      const report = { cik: "0000002488", accession: "0000002488-26-000010", form: "10-K", filed: "2026-02-01", end: "2025-12-27", url: "https://www.sec.gov/Archives/example.htm" };
+      const data = { report, metrics: annualMetrics({cik:2488, facts:{"us-gaap":{Revenues:{units:{USD:[{val:1000000000,start:"2024-12-29",end:report.end,filed:report.filed,accn:report.accession,form:"10-K"}]}}}}}, report), excerpt: "Synthetic business excerpt for company-page testing.", fetchedAt: "2026-09-09T00:00:00Z" };
+      createRoot(document.getElementById("root")).render(<TickerPage ticker="AMD" overview={<CompanyResearchOverview company={company} fundamentals={<CompanyFundamentalsView data={data} />} />} />);
     `, resolveDir: process.cwd(), loader: "tsx" },
     bundle: true, write: false, platform: "browser", define: { "process.env": "{}" },
     alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") },
@@ -38,6 +42,11 @@ for (const predictionsAvailable of [true, false]) {
     });
     await page.goto(origin);
     await expect(page.getByRole("heading", { name: "Advanced Micro Devices (AMD)", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Business and financials", exact: true })).toBeVisible();
+    await expect(page.getByText("1B USD", { exact: true })).toBeVisible();
+    await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Filed 2026-02-01 ↗", exact: true })).toHaveAttribute("href", /sec.gov\/Archives\/edgar\/data\/2488\//);
+    await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(5);
     await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DUP/);
     await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DDOWN/);
     await expect(page.getByRole("link", { name: "Research NVIDIA (NVDA)" })).toHaveAttribute("href", "/ticker/NVDA");
