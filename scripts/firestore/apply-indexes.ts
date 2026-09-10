@@ -66,7 +66,7 @@ function applyIndex(projectId: string, index: CompositeIndex): void {
     "create",
     `--project=${projectId}`,
     `--collection-group=${index.collectionGroup}`,
-    `--query-scope=${index.queryScope}`,
+    `--query-scope=${index.queryScope.toLowerCase().replaceAll("_", "-")}`,
     "--async",
   ];
 
