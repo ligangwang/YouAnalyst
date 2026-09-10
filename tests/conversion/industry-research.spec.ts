@@ -61,7 +61,7 @@ test("sector changes reset industry and scope; custom topics remain available", 
   await expect(page.getByRole("button", { name: "Research industry", exact: true })).toBeDisabled();
   await page.getByLabel("Custom research topic").fill("AI in healthcare and cloud");
   await page.getByRole("button", { name: "Research industry", exact: true }).click();
-  expect(requests[1]).toMatchObject({ category: null, industry: "AI in healthcare and cloud" });
+  await expect.poll(() => requests[1]).toMatchObject({ category: null, industry: "AI in healthcare and cloud" });
 });
 
 test("recent sector filter keeps legacy runs and hides unrelated drafts", async ({ page }) => {

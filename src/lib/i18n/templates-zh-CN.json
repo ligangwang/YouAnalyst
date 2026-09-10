@@ -58,5 +58,6 @@
   "{0} competes with {1}": "{0} 与 {1} 竞争",
   "{0} partners with {1}": "{0} 与 {1} 合作",
   "{0} distributes for {1}": "{0} 为 {1} 分销",
-  "{0} manufactures for {1}": "{0} 为 {1} 代工"
+  "{0} manufactures for {1}": "{0} 为 {1} 代工",
+  "since call ({0}d)": "自发布以来（{0}天）"
 }
