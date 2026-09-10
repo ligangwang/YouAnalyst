@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+export { RelativeTime } from "./relative-time";
+export { formatRelativeDateTime, formatAbsoluteDateTime } from "@/lib/time";
 import type { AiAnalystTheme } from "@/lib/ai-analyst/config";
 import type { PredictionDirection, PredictionStatus, PredictionTimeHorizon } from "@/lib/predictions/types";
 
@@ -54,98 +55,6 @@ export function formatCashtag(ticker: string | null | undefined): string {
 
 export function formatReturnPercent(returnValue: number): string {
   return formatSignedPercent(returnValue * 100);
-}
-
-export function formatAbsoluteDateTime(value: string): string {
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) {
-    return value;
-  }
-  return new Date(timestamp).toLocaleString();
-}
-
-function wholeCalendarMonthsBetween(start: Date, end: Date): number {
-  const months =
-    (end.getFullYear() - start.getFullYear()) * 12 +
-    end.getMonth() -
-    start.getMonth();
-  const anniversary = new Date(start);
-  anniversary.setMonth(start.getMonth() + months);
-  return anniversary > end ? months - 1 : months;
-}
-
-function wholeCalendarYearsBetween(start: Date, end: Date): number {
-  const years = end.getFullYear() - start.getFullYear();
-  const anniversary = new Date(start);
-  anniversary.setFullYear(start.getFullYear() + years);
-  return anniversary > end ? years - 1 : years;
-}
-
-export function formatRelativeDateTime(value: string, now = Date.now()): string {
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) {
-    return value;
-  }
-
-  const date = new Date(timestamp);
-  const nowDate = new Date(now);
-  const elapsedSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
-  if (elapsedSeconds < 60) {
-    return `${Math.max(1, elapsedSeconds)}s`;
-  }
-  if (elapsedSeconds < 60 * 60) {
-    return `${Math.floor(elapsedSeconds / 60)}m`;
-  }
-  if (elapsedSeconds < 24 * 60 * 60) {
-    return `${Math.floor(elapsedSeconds / (60 * 60))}h`;
-  }
-  if (elapsedSeconds < 30 * 24 * 60 * 60) {
-    return `${Math.floor(elapsedSeconds / (24 * 60 * 60))}d`;
-  }
-
-  const months = wholeCalendarMonthsBetween(date, nowDate);
-  if (months < 12) {
-    return `${Math.max(1, months)}M`;
-  }
-  return `${Math.max(1, wholeCalendarYearsBetween(date, nowDate))}y`;
-}
-
-function relativeTimeRefreshDelay(value: string, now = Date.now()): number {
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) {
-    return 60 * 1000;
-  }
-
-  const elapsedSeconds = Math.max(0, Math.floor((now - timestamp) / 1000));
-  if (elapsedSeconds < 60) {
-    return 1000;
-  }
-  if (elapsedSeconds < 60 * 60) {
-    return (60 - (elapsedSeconds % 60)) * 1000;
-  }
-  if (elapsedSeconds < 24 * 60 * 60) {
-    return (60 * 60 - (elapsedSeconds % (60 * 60))) * 1000;
-  }
-  return (24 * 60 * 60 - (elapsedSeconds % (24 * 60 * 60))) * 1000;
-}
-
-export function RelativeTime({ value, prefix }: { value: string; prefix?: string }) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setNow(Date.now());
-    }, relativeTimeRefreshDelay(value, now));
-
-    return () => window.clearTimeout(timeout);
-  }, [value, now]);
-
-  return (
-    <time dateTime={value} title={formatAbsoluteDateTime(value)} suppressHydrationWarning>
-      {prefix ? `${prefix} ` : ""}
-      {formatRelativeDateTime(value, now)}
-    </time>
-  );
 }
 
 export function PredictionThesisText({

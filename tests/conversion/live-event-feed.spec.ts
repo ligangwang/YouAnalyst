@@ -76,6 +76,24 @@ test("empty feed is honest and fills itself when the first event arrives", async
   await expect(page.getByRole("heading", { name: "You’re here early." })).toHaveCount(0);
 });
 
+test("compact timestamps advance locally and reveal the exact time on tap", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-09-10T12:00:08.000Z") });
+  await page.goto(origin);
+  const card = page.getByRole("article").first();
+  const timestamp = card.locator('time[datetime="2026-09-10T12:00:08.000Z"]');
+  await expect(timestamp).toHaveText("now");
+  await expect(card).not.toContainText("Added");
+  await page.clock.fastForward(60_000);
+  await expect(timestamp).toHaveText("1m");
+  await page.clock.fastForward(60_000);
+  await expect(timestamp).toHaveText("2m");
+  await card.getByRole("button", { name: "Sep 10, 2026, 12:00:08 PM UTC", exact: true }).click();
+  await expect(card.getByText("Sep 10, 2026, 12:00:08 PM UTC", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(card.getByText("Sep 10, 2026, 12:00:08 PM UTC", { exact: true })).toHaveCount(0);
+});
+
 test("category links are shareable and pagination uses the selected live category", async ({ page }) => {
   await page.goto(origin + "/?type=SEC_FORM4");
   const filters = page.getByRole("navigation", { name: "Event types" });

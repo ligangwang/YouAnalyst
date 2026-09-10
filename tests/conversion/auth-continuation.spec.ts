@@ -160,7 +160,7 @@ test.beforeAll(async () => {
   const result = await build({
     entryPoints: ["tests/conversion/fixtures/app.tsx"],
     bundle: true,
-    write: false,
+    write: false, outfile: "fixture.js",
     platform: "browser",
     define: { "process.env": "{}" },
     alias: {
@@ -169,7 +169,7 @@ test.beforeAll(async () => {
       "next/link": mock,
     },
   });
-  html = `<html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="youanalyst-analytics" content="enabled" /></head><body><div id="root"></div><script>${result.outputFiles[0].text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  html = `<html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="youanalyst-analytics" content="enabled" /><style>${result.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}</style></head><body><div id="root"></div><script>${result.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
 test.beforeEach(async ({ page }) => {

@@ -71,6 +71,11 @@ test("homepage renders the live feed", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Latest", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Explore company connections.", exact: true })).toHaveCount(0);
   await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
+  const first = page.getByRole("article").first();
+  if (await first.count()) {
+    await expect(first.locator("button time")).toHaveText(/^(now|\d+(m|h|d|mo|y))$/);
+    await expect(first).not.toContainText("Added");
+  }
 });
 
 test("event filters navigate between live categories", async ({ page, request }) => {

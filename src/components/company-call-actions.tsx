@@ -1,4 +1,5 @@
 "use client";
+import { RelativeTime } from "./relative-time";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -79,7 +80,7 @@ function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
         return <article key={call.id} aria-label={`${call.watchlistName}: ${label}`} className={`rounded-xl border p-4 ${call.direction === "UP" ? "border-emerald-400/35 bg-emerald-400/5" : "border-rose-400/35 bg-rose-400/5"}`}>
           <h3 className="font-semibold text-white">{call.watchlistName} · {label}</h3>
           <p className="mt-1 text-xs text-slate-400">{call.isDefault ? "Default watchlist · " : ""}{call.visibility}</p>
-          <p className="mt-2 text-slate-300">Set {call.createdAt ? new Date(call.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "date unavailable"}</p>
+          <p className="mt-2 text-slate-300">{call.createdAt ? <RelativeTime value={call.createdAt} prefix="Set" /> : "Date unavailable"}</p>
           <p className="mt-1 text-slate-300">{call.entryPrice !== null ? `Entry ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(call.entryPrice)}${call.entryDate ? ` · recorded ${call.entryDate}` : ""}` : "Entry price pending the next end-of-day update."}</p>
           {call.status === "CLOSING" ? <p className="mt-3 text-amber-200">Closing — awaiting end-of-day settlement.</p>
             : call.status === "CREATED" ? canCancel ? <button type="button" disabled={!!pending} onClick={() => void act(call, "cancel")} className="mt-3 min-h-11 rounded-lg border border-white/25 px-4 text-slate-100 disabled:opacity-50">{pending === call.id ? "Canceling…" : `Cancel ${label}`}</button>

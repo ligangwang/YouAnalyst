@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { RelativeTime } from "./relative-time";
 import { useMemo, useState, useTransition } from "react";
 import { FollowedInstitutionActivityPanel } from "@/components/followed-institution-activity-panel";
 import { FollowedInstitutionsPanel } from "@/components/followed-institutions-panel";
@@ -33,22 +34,6 @@ function formatCurrency(value: number): string {
 function formatSignedCurrency(value: number): string {
   const formatted = formatCurrency(value);
   return value > 0 ? `+${formatted}` : formatted;
-}
-
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "Unknown";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
 }
 
 function formatDate(value: string | null): string {
@@ -159,7 +144,7 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               Recent manager filings and ticker-level activity from the tracked 13F pipeline.
             </p>
-            <p className="mt-3 text-xs text-slate-500">Updated {formatDateTime(summary.generatedAt)}</p>
+            <p className="mt-3 text-xs text-slate-500">{summary.generatedAt ? <RelativeTime value={summary.generatedAt} prefix="Updated" /> : "Update time unavailable"}</p>
           </div>
           <button
             type="button"
