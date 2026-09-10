@@ -13,10 +13,14 @@ for (const direction of ["UP", "DOWN"] as const) {
   test(`${direction} survives registration and is submitted to the selected watchlist`, async ({ page }) => {
     const destination = `/predictions/new?${new URLSearchParams({ ticker: "AMD", direction })}`;
     await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination, mode: "register" })}`);
+    await expect(page.getByRole("heading", { name: `Track your ${direction === "UP" ? "bullish" : "bearish"} view on AMD` })).toBeVisible();
+    await expect(page.getByText("Your company and direction will carry through.", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "Continue with Google" }).click();
     await expect(page).toHaveURL(`${origin}${destination}`);
     await expect(page.getByRole("button", { name: direction === "UP" ? "Bullish" : "Bearish", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("#watchlist")).toHaveValue("default");
+    await expect(page.getByText("This watchlist is public.", { exact: false })).toBeVisible();
+    await expect(page.getByLabel("Thesis", { exact: true })).not.toBeVisible();
     await page.locator("#watchlist").selectOption(watchlistId);
     let submitted = false;
     await page.route(`${origin}/api/predictions`, route => {
@@ -29,6 +33,21 @@ for (const direction of ["UP", "DOWN"] as const) {
     expect(submitted).toBe(true);
   });
 }
+
+test("optional reasoning survives collapsing the editor and is published with the call", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  await page.goto(`${origin}/predictions/new?ticker=AMD&direction=UP`);
+  await page.getByText("Add reasoning or a time horizon (optional)", { exact: true }).click();
+  await page.getByLabel("Title", { exact: true }).fill("Demand thesis");
+  await page.getByLabel("Thesis", { exact: true }).fill("Watch customer demand in the next filing.");
+  await page.getByText("Add reasoning or a time horizon (optional)", { exact: true }).click();
+  await page.route(`${origin}/api/predictions`, route => {
+    expect(route.request().postDataJSON()).toMatchObject({ ticker: "AMD", direction: "UP", watchlistId: "default", thesisTitle: "Demand thesis", thesis: "Watch customer demand in the next filing." });
+    return route.fulfill({ json: { id: "optional-reasoning" } });
+  });
+  await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/predictions/optional-reasoning`);
+});
 
 test("signed-out composer preserves bearish direction through its sign-in action", async ({ page }) => {
   await page.goto(`${origin}/predictions/new?ticker=AMD&direction=DOWN`);
@@ -253,6 +272,7 @@ test("publication analytics fires only after a successful response, without send
     window.sessionStorage.setItem("youanalyst:graph-visit", String(Date.now()));
   });
   await page.goto(`${origin}/predictions/new?ticker=AMD`);
+  await page.getByText("Add reasoning or a time horizon (optional)", { exact: true }).click();
   await page.getByLabel("Thesis", { exact: true }).fill("Private research must never enter analytics.");
   // Local response only; this handler intercepts the mutation and never reaches a server.
   await page.route(`${origin}/api/predictions`, (route) => route.fulfill({ status: 400, json: { error: "Test rejection" } }));

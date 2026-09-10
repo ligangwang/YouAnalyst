@@ -12,6 +12,11 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   const router = useRouter();
   const destination = safeAuthDestination(requestedNext);
   const mapCompany = mapAuthCompany(destination);
+  const callUrl = destination ? new URL(destination, "https://youanalyst.invalid") : null;
+  const callTicker = callUrl?.pathname === "/predictions/new" ? callUrl.searchParams.get("ticker")?.toUpperCase() : null;
+  const callDirection = callUrl?.searchParams.get("direction");
+  const callOutlook = callTicker && /^[A-Z0-9][A-Z0-9.-]{0,14}$/.test(callTicker) && (callDirection === "UP" || callDirection === "DOWN")
+    ? `${callDirection === "UP" ? "bullish" : "bearish"} view on ${callTicker}` : null;
   const { user, loading, error, signInWithGoogle, signInWithEmail, createAccountWithEmail } = useAuth();
   const [isCreate, setIsCreate] = useState(initialCreate);
   const [email, setEmail] = useState("");
@@ -92,8 +97,12 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-16">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? `Keep ${mapCompany} on your map` : isCreate ? "Create your YouAnalyst account" : "Sign in to YouAnalyst"}</h1>
-        <p className="mb-6 text-sm text-slate-300">{mapCompany ? `Create an account or sign in to save ${mapCompany}. Then return directly to its connections.` : entryPoint === "prediction" ? "Keep your investment thesis and track how your predictions perform." : "Save companies from the AI industry map and return to their filing connections. You can also publish predictions and track your results."}</p>
+        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? `Keep ${mapCompany} on your map` : callOutlook ? `Track your ${callOutlook}` : isCreate ? "Create your YouAnalyst account" : "Sign in to YouAnalyst"}</h1>
+        <p className="mb-4 text-sm text-slate-300">{mapCompany ? `Create an account or sign in to save ${mapCompany}. Then return directly to its connections.` : "Turn your research into a record you can revisit. Keep bullish and bearish calls in watchlists and see how prices move after each call."}</p>
+        {!mapCompany && <div className="mb-6 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4 text-sm text-slate-300">
+          <p className="font-medium text-cyan-100">Your first watchlist is ready automatically.</p>
+          <p className="mt-2">{callOutlook ? "Your company and direction will carry through. Review your call before publishing; creating an account does not publish it." : "Choose a company, pick Bullish or Bearish, and confirm your call. Add your reasoning whenever you have something to say."}</p>
+        </div>}
 
         <button
           type="button"
@@ -125,7 +134,9 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
           event.preventDefault();
           if (!submitting && email && password) void submitEmail();
         }}>
+          <label htmlFor="auth-email" className="text-sm text-slate-200">Email</label>
           <input
+            id="auth-email"
             type="email"
             aria-label="Email"
             autoComplete="email"
@@ -135,7 +146,9 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
             required
             className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
           />
+          <label htmlFor="auth-password" className="text-sm text-slate-200">Password</label>
           <input
+            id="auth-password"
             type="password"
             aria-label="Password"
             autoComplete={isCreate ? "new-password" : "current-password"}
@@ -144,8 +157,10 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
             placeholder="Password"
             required
             minLength={isCreate ? 6 : undefined}
+            aria-describedby={isCreate ? "password-help" : undefined}
             className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
           />
+          {isCreate && <p id="password-help" className="text-xs text-slate-400">Use at least 6 characters.</p>}
           <button
             type="submit"
             disabled={submitting || !email || !password}

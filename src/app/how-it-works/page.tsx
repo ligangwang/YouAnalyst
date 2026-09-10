@@ -5,7 +5,7 @@ import { SCORE_SCALE, TANH_SCALE } from "@/lib/predictions/analytics";
 
 export const metadata: Metadata = {
   title: "How It Works | YouAnalyst",
-  description: "Learn how to explore company connections, assess filing evidence, save research, and track predictions.",
+  description: "Learn how to explore company connections, assess filing evidence, and track bullish or bearish calls in watchlists.",
   alternates: {
     canonical: "/how-it-works",
   },
@@ -37,14 +37,14 @@ export default function HowItWorksPage() {
           Follow a company from question to evidence.
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-          Find a company, inspect its suppliers, customers and competitors, then save it to revisit your research.
+          Find a company, inspect its suppliers, customers and competitors, then track your bullish or bearish outlook in a watchlist.
         </p>
       </section>
 
       <section className="grid gap-6 border-b border-white/10 py-6 md:grid-cols-3">
         <div><h2 className="text-lg font-semibold text-cyan-100">Explore connections</h2><p className="mt-2 text-sm leading-6 text-slate-300">Search for a company or choose one on the map. Use List view on a small screen, then select a relationship to inspect its sources.</p><Link href="/?company=NVDA" className="mt-3 inline-block text-cyan-200 underline">Explore NVIDIA</Link></div>
         <div><h2 className="text-lg font-semibold text-cyan-100">Assess the evidence</h2><p className="mt-2 text-sm leading-6 text-slate-300">Connections come from AI-assisted filing extraction and reviewed industry research. Check the linked source, date and company identity. Coverage is incomplete; an older source does not establish whether a relationship remains active.</p></div>
-        <div><h2 className="text-lg font-semibold text-cyan-100">Save and return</h2><p className="mt-2 text-sm leading-6 text-slate-300">Sign in to keep companies in your personal saved list. Saving a company does not publish a prediction or subscribe you to alerts. Predictions are a separate way to record and track a thesis.</p></div>
+        <div><h2 className="text-lg font-semibold text-cyan-100">Track your outlook</h2><p className="mt-2 text-sm leading-6 text-slate-300">Choose Bullish or Bearish on a company, then sign in to review your call. Your first watchlist is created automatically; you can create more. Nothing is published until you confirm. Calls in public watchlists are visible to others.</p></div>
       </section>
 
       <section className="border-b border-white/10 py-6"><h2 className="text-xl font-semibold text-cyan-100">Understand reported activity</h2><p className="mt-2 text-sm leading-6 text-slate-300">Institutional holdings show a report date and filing date. Comparisons require a complete prior report; unavailable history is not a new purchase. Dollar-value changes include valuation changes. Insider transaction totals under review are excluded from rankings while their source filings remain available.</p></section>
@@ -53,7 +53,7 @@ export default function HowItWorksPage() {
         <div>
           <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">Make a prediction</h2>
           <p className="mt-2 text-sm leading-6 text-slate-300">
-            Pick a stock, choose Up or Down, and share your view.
+            Pick a stock, choose Bullish or Bearish, and confirm your watchlist. Reasoning and a time horizon are optional.
           </p>
         </div>
         <div>

@@ -136,10 +136,16 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
         <div>
           <p className={styles.eyebrow}>COMPANY RELATIONSHIPS</p>
           <h1>Explore company connections.</h1>
-          <p>Find suppliers and customers. Explore the sources. Keep companies worth following.</p>
+          <p>Research the businesses behind a stock. Check the filing evidence, form your view, and track your bullish or bearish calls.</p>
         </div>
         <span className={styles.pill}>Early access · Sources linked</span>
       </header>
+
+      <section className={styles.getStarted} aria-label="Start your research">
+        <div><strong>Start with a stock you know.</strong><p>Explore its customers, suppliers and competitors before deciding what you think.</p></div>
+        <Link href="/companies" onClick={() => trackEvent("graph_discovery_open", { entry_point: "homepage", action: "company_search" })}>Find a company →</Link>
+        <Link href="/how-it-works">How tracking works</Link>
+      </section>
 
       <section className={styles.workspace} aria-label="AI industry explorer">
         <div className={styles.toolbar}>
@@ -179,7 +185,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
           }}><option value="all">All types</option>{Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           {!overview && <label><input type="checkbox" checked={categories} onChange={(event) => { setCategories(event.target.checked); setEdgeId(null); trackEvent("graph_filter", { action: event.target.checked ? "show_categories" : "hide_categories" }); }} /> Include groups</label>}
           <button type="button" onClick={reset}>Reset map</button>
-          <span className={styles.count} aria-live="polite">{visible.nodes.length} nodes · {visible.edges.length} connection{visible.edges.length === 1 ? "" : "s"}</span>
+          <span className={styles.count} aria-live="polite">{status === "loading" ? "Loading coverage…" : status === "error" ? "Coverage unavailable" : `${visible.nodes.length} nodes · ${visible.edges.length} connection${visible.edges.length === 1 ? "" : "s"}`}</span>
         </div>
         <div className={styles.scope} aria-label="Map scope">
           <div><strong>{overview ? "Industry overview" : roots.length ? "Company connections" : "All filing connections"}</strong>
