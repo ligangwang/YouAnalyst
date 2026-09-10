@@ -6,14 +6,16 @@ import { useAuth } from "@/components/providers/auth-provider";
 import type { CompanyCall } from "@/lib/predictions/company-calls";
 import { CompanyDirectionActions } from "./company-direction-actions";
 
-export function CompanyCallActions({ ticker }: { ticker: string }) {
+type CompanyCallActionsProps = { ticker: string; compact?: boolean; entryPoint?: "company" | "evidence" };
+
+export function CompanyCallActions({ ticker, compact = false, entryPoint = "company" }: CompanyCallActionsProps) {
   const { user, loading } = useAuth();
   if (loading) return <p role="status" className="mt-4 text-sm text-slate-400">Loading your outlook…</p>;
-  if (!user) return <div className="mt-4"><CompanyDirectionActions ticker={ticker} /></div>;
-  return <ViewerCalls key={`${user.uid}:${ticker}`} ticker={ticker} />;
+  if (!user) return <div className="mt-4">{compact && <h3>Your outlook on {ticker}</h3>}<CompanyDirectionActions ticker={ticker} entryPoint={entryPoint} /></div>;
+  return <ViewerCalls key={`${user.uid}:${ticker}`} ticker={ticker} compact={compact} entryPoint={entryPoint} />;
 }
 
-function ViewerCalls({ ticker }: { ticker: string }) {
+function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
   const { getIdToken } = useAuth();
   const [items, setItems] = useState<CompanyCall[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,8 +71,8 @@ function ViewerCalls({ ticker }: { ticker: string }) {
     {error && <p role="alert" className="mt-2 text-rose-200">{error} <button type="button" className="underline" disabled={!!pending} onClick={() => setAttempt(value => value + 1)}>Refresh your calls</button></p>}
     {notice && <p role="status" className="mt-2 text-cyan-200">{notice}</p>}
     {!items && !error && <p role="status" className="mt-2 text-slate-400">Loading your calls…</p>}
-    {items?.length === 0 && <div className="mt-3"><CompanyDirectionActions ticker={ticker} /></div>}
-    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+    {items?.length === 0 && <div className="mt-3"><CompanyDirectionActions ticker={ticker} entryPoint={entryPoint} /></div>}
+    <div className={`mt-3 grid min-w-0 gap-3 ${compact ? "grid-cols-1" : "sm:grid-cols-2"}`}>
       {items?.map(call => {
         const label = call.direction === "UP" ? "Bullish" : "Bearish";
         const canCancel = call.cancelUntil && now <= Date.parse(call.cancelUntil);

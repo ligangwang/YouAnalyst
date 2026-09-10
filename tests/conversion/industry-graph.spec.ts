@@ -8,6 +8,24 @@ import relationshipReviews from "../../src/lib/company-graph/relationship-review
 import { mergeResearchGraph, normalizeResearch } from "../../src/lib/industry-research/model";
 
 const origin = "http://industry.test";
+test("homepage shows existing watchlist calls and resets them when selecting another company", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  await page.route("**/api/ticker/*/my-calls", route => route.fulfill({ json: { items: route.request().url().includes("/AMD/") ? [
+    { id: "amd-main", watchlistId: "main", watchlistName: "My Watchlist", isDefault: true, visibility: "Public", direction: "UP", status: "OPEN", createdAt: "2026-09-07T18:00:00Z", entryDate: "2026-09-08", entryPrice: 150.25, cancelUntil: null },
+    { id: "amd-hedge", watchlistId: "hedge", watchlistName: "Hedges", isDefault: false, visibility: "Private", direction: "DOWN", status: "OPEN", createdAt: "2026-09-07T18:00:00Z", entryDate: "2026-09-08", entryPrice: 150.25, cancelUntil: null },
+  ] : [] } }));
+  await page.goto(origin);
+  await page.getByRole("button", { name: "Explore AMD (AMD)", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Close Bullish", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close Bearish", exact: true })).toBeVisible();
+  await expect(page.getByText("Default watchlist · Public")).toBeVisible();
+  await expect(page.getByText("Entry $150.25 · recorded 2026-09-08")).toHaveCount(2);
+  await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Explore NVIDIA (NVDA)", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveAttribute("href", /ticker=NVDA/);
+  await expect(page.getByRole("button", { name: /Close Bullish|Close Bearish/ })).toHaveCount(0);
+});
+
 test("published industry research is discoverable and never shown as an SEC quotation", async ({ page }) => {
   const url = "https://www.example.com/announcement";
   const research = normalizeResearch({ companies: [
@@ -32,6 +50,7 @@ test.beforeEach(async ({ page }) => {
     const url = new URL(request.url());
     if (request.method() !== "GET" || url.origin !== origin) return route.abort();
     if (url.pathname === "/api/industry-graph") return route.fulfill({ json: fixtureGraph });
+    if (/^\/api\/ticker\/[^/]+\/my-calls$/.test(url.pathname)) return route.fulfill({ json: { items: [] } });
     if (request.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
     return route.abort();
   });

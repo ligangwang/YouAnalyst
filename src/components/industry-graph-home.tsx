@@ -7,7 +7,7 @@ import { isMapTicker } from "@/lib/industry-graph/directory";
 import { buildIndustryGraph, RELATIONSHIP_LABELS, selectNeighborhood, type IndustryGraph, type IndustryNode } from "@/lib/industry-graph/model";
 import { trackEvent } from "@/lib/analytics";
 import { layoutIndustryGraph } from "@/lib/industry-graph/layout";
-import { CompanyDirectionActions } from "./company-direction-actions";
+import { CompanyCallActions } from "./company-call-actions";
 import styles from "./industry-graph-home.module.css";
 
 const EMPTY_GRAPH = buildIndustryGraph({}, []);
@@ -125,9 +125,7 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   const saveTarget = selectedInEvidence && selected?.ticker ? selected : selectedEdge ? graph.nodes.find((node) => node.ticker === selectedEdge.evidence[0]?.issuerTicker) : null;
   const saveTicker = saveTarget?.ticker;
   const saveCard = saveTicker ? <section className={styles.saveCard} aria-label="Track company">
-    <h3>Your outlook on {saveTicker}</h3>
-    <p>Choose a direction, then confirm your call in a watchlist to track its performance.</p>
-    <CompanyDirectionActions ticker={saveTicker} entryPoint={selectedEdge ? "evidence" : "company"} />
+    <CompanyCallActions ticker={saveTicker} compact entryPoint={selectedEdge ? "evidence" : "company"} />
   </section> : null;
 
   return (
