@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { CompanyResearch } from "@/lib/company-research";
-import { CompanyDirectionActions } from "./company-direction-actions";
+import { CompanyCallActions } from "./company-call-actions";
 
 export function CompanyResearchOverview({ company, fundamentals }: { company: CompanyResearch; fundamentals?: ReactNode }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
@@ -20,8 +20,8 @@ export function CompanyResearchOverview({ company, fundamentals }: { company: Co
       {!company.known && <p className="mt-3 text-sm text-slate-400">Company listing details are not available for this symbol.</p>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
         <Link href={`/?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4">Explore {company.ticker} on the company map</Link>
-      <CompanyDirectionActions ticker={company.ticker} />
       </div>}
+      <CompanyCallActions ticker={company.ticker} />
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
         {fundamentals && <a href="#company-fundamentals">Business and financials</a>}
         {company.inMap && <a href="#company-relationships">Company relationships</a>}
