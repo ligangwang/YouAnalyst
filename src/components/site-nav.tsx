@@ -278,8 +278,9 @@ export function SiteNav() {
               />
             </Link>
             <nav className="hidden items-center gap-4 text-[15px] text-slate-200 md:flex">
-              <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className="hover:text-cyan-200">Company Map</Link>
-              <Link href="/predictions" aria-current={pathname.startsWith("/predictions") ? "page" : undefined} className="hover:text-cyan-200">Feed</Link>
+              <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className="hover:text-cyan-200">Feed</Link>
+              <Link href="/map" aria-current={pathname === "/map" ? "page" : undefined} className="hover:text-cyan-200">Explore</Link>
+              <Link href="/predictions" aria-current={pathname.startsWith("/predictions") ? "page" : undefined} className="hover:text-cyan-200">Calls</Link>
               <Link href="/watchlists" className="hover:text-cyan-200">Watchlists</Link>
               <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
               <DailyNavMenu />
@@ -310,13 +311,13 @@ export function SiteNav() {
         </div>
 
         <nav aria-label="Mobile navigation" className="mt-2 flex items-center gap-1 text-sm text-slate-200 md:hidden">
-          {[{ href: "/", label: "Map" }, { href: "/companies", label: "Search" }, { href: "/watchlists", label: "Watchlists" }].map(item =>
+          {[{ href: "/", label: "Feed" }, { href: "/companies", label: "Search" }, { href: "/watchlists", label: "Watchlists" }].map(item =>
             <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3">{item.label}</Link>)}
           <details className="relative ml-auto" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
             <summary className="cursor-pointer rounded-lg px-3 py-3">More</summary>
             <div className="absolute right-0 z-50 mt-2 grid w-56 rounded-xl border border-white/15 bg-slate-950 p-2 shadow-xl"
               onClick={event => { if ((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
-              {[{ href: "/predictions", label: "Prediction feed" }, { href: "/predictions/new", label: "Make a prediction" },
+              {[{ href: "/map", label: "Explore company map" }, { href: "/predictions", label: "Calls" }, { href: "/predictions/new", label: "Make a prediction" },
                 { href: "/institutions", label: "Institutions" }, ...dailyNavItems, { href: "/how-it-works", label: "How it works" },
                 ...(showAdminLink ? [{ href: "/admin", label: "Admin" }] : [])].map(item =>
                 <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3 hover:bg-white/10">{item.label}</Link>)}

@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     url: "/",
     siteName: "YouAnalyst",
     title: "YouAnalyst | Company research, connected.",
-    description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
+    description: "Follow source-linked market developments in a live feed, explore companies, and track your investment views.",
   },
   twitter: {
     card: "summary",
