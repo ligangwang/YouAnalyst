@@ -29,11 +29,12 @@ not trading recommendations or assertions about current institutional positions.
 ## Rollout and later consumers
 
 Existing ingestion schedules populate the collection as filings are processed.
-Production deployment initializes an empty store with up to 30 already-parsed
+Manual production deployment with maintenance enabled initializes an empty store with up to 30 already-parsed
 insider filings and 30 completed institutional filings. The import uses saved SEC
 facts, retains the historical filing date, and records today's publication time.
 It uses create-only writes and skips a populated stream. No source reprocessing or
-paid provider is needed. The deployment also applies the filing queue/monitor indexes.
+paid provider is needed. Changed index definitions are applied automatically; manual
+maintenance also applies all defined indexes.
 
 The home page now loads its first page on the server and subscribes to
 `GET /api/events/stream` using browser EventSource. The server shares one bounded
@@ -49,11 +50,12 @@ returns to the latest page; older pages remain available through cursor paginati
 Repeated snapshots after reconnect do not discard already-loaded history.
 The company map is now `/map`; old `/?company=...` links redirect there.
 
-Future work: ticker/type
+Future work: ticker
 queries with their corresponding indexes; personalized event references under
 `users/{uid}/feed/{eventId}`; and separate per-user event state. Private activity
 must stay in access-controlled personal feeds.
-# Event type filters
+
+## Event type filters
 
 The homepage accepts `?type=SEC_FORM4` or `?type=SEC_13F`; omitting it shows all.
 The initial server query, `/api/events` pagination, and `/api/events/stream` all
