@@ -29,3 +29,4 @@
 .sources a { display: block; color: #81cddd; font-size: 11px; line-height: 1.7; margin: 10px 0; overflow-wrap: anywhere; }
 .clear { font-size: 11px; margin-bottom: 16px; }.empty { text-align: center; padding: 80px 20px; color: #9eb1c2; }
 @media(max-width: 800px) { .page { padding: 24px 16px; }.workspace { grid-template-columns: 1fr; }.canvas { height: 58vh; min-height: 340px; }.detail { max-height: none; border-left: 0; border-top: 1px solid #263c4c; }.date { display: none; }.controls input { order: 3; flex-basis: 100%; }.zoom { margin-left: auto; }.controls button { padding: 10px 12px; } }
+.filingLink { color: #a7bbca; font-size: 12px; padding: 8px; white-space: nowrap; }

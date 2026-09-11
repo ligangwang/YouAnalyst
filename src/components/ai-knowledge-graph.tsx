@@ -43,7 +43,7 @@ export function AiKnowledgeGraph({ initialMarket = "ALL", initialCompany = "" }:
     <div className={styles.controls}>
       <div className={styles.markets} aria-label={text("Markets", "市场")}><button aria-pressed={markets.includes("US")} onClick={() => toggle("US")}><i className={styles.us}/>{text("US stocks", "美股")}</button><button aria-pressed={markets.includes("CN_A")} onClick={() => toggle("CN_A")}><i className={styles.china}/>{text("A-shares", "A 股")}</button></div>
       <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search company or ticker…", "搜索公司或股票代码…")} value={query} onChange={e => setQuery(e.target.value)}/>
-      <div className={styles.zoom}><button aria-label={text("Zoom out", "缩小")} disabled={zoom <= 40} onClick={() => setZoom(z => Math.max(40, z - 15))}>−</button><output>{zoom}%</output><button aria-label={text("Zoom in", "放大")} disabled={zoom >= 160} onClick={() => setZoom(z => Math.min(160, z + 15))}>+</button></div>
+      <a className={styles.filingLink} href="/map?view=filings">{text("Filing explorer", "财报关系探索")}</a><div className={styles.zoom}><button aria-label={text("Zoom out", "缩小")} disabled={zoom <= 40} onClick={() => setZoom(z => Math.max(40, z - 15))}>−</button><output>{zoom}%</output><button aria-label={text("Zoom in", "放大")} disabled={zoom >= 160} onClick={() => setZoom(z => Math.min(160, z + 15))}>+</button></div>
     </div>
     <div className={styles.legend}><span role="status">{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</span><span>{text("Solid: company relationship · Dashed: industry role", "实线：公司关系 · 虚线：产业归属")}</span></div>
     {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !visible.nodes.length ? <p className={styles.empty}>{!markets.length ? text("Turn on a market to explore its companies.", "开启一个市场以查看公司。") : text("No matching companies.", "没有匹配的公司。")}</p> : <div className={styles.workspace}>
@@ -65,3 +65,4 @@ export function AiKnowledgeGraph({ initialMarket = "ALL", initialCompany = "" }:
     </div>}
   </main>;
 }
+
