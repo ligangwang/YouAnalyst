@@ -49,3 +49,17 @@ test("upstream network failures return a private, sanitized error", async (t) =>
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.deepEqual(await response.json(), { error: { message: "INTERNAL_ERROR" } });
 });
+
+test("Cloud Run internal URLs accept the configured public origin and use its referrer", async (t) => {
+  const mock = t.mock.method(globalThis, "fetch", async (_url: URL, init: RequestInit) => {
+    assert.equal(new Headers(init.headers).get("referer"), "https://youanalyst.com/");
+    return Response.json({ error: { message: "INVALID_EMAIL" } }, { status: 400 });
+  });
+  const path = ["identity", "v1", "accounts:signUp"];
+  const request = (origin: string) => new Request("http://localhost:8080/api/firebase-auth/identity/v1/accounts:signUp", {
+    method: "POST", headers: { origin, "sec-fetch-site": "same-origin" }, body: "{}",
+  });
+  assert.equal((await proxyAuthRequest(request("https://youanalyst.com"), path, "key", "https://youanalyst.com")).status, 400);
+  assert.equal((await proxyAuthRequest(request("https://evil.example"), path, "key", "https://youanalyst.com")).status, 403);
+  assert.equal(mock.mock.callCount(), 1);
+});
