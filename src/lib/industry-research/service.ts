@@ -5,7 +5,7 @@ import { safeRecordOpenAiUsageEvent } from "../openai/usage";
 import { normalizeResearch, record, text, RESEARCH_VERSION, type ResearchResult, type ResearchRelationship } from "./model";
 import { openAiResearch, readResearchResponse, researchRequest } from "./openai";
 import { resolveResearchTopic, researchTopicLabel } from "./taxonomy";
-import { MARKET_COMPANIES, normalizeChinaCompany, normalizeChinaResearch } from "./china";
+import { MARKET_COMPANIES, normalizeChinaCompany, normalizeChinaResearch, chinaResearchDiagnostics } from "./china";
 
 export function createIndustryResearchService(getDb: () => Firestore, provider = openAiResearch, recordUsage = safeRecordOpenAiUsageEvent) {
 const runs = () => getDb().collection("industry_research_runs");
@@ -141,7 +141,23 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
 async function listResearch() {
   return (await runs().orderBy("createdAt", "desc").limit(10).get()).docs.map(d => d.data());
 }
-return { startResearch, refreshResearch, publishResearch, listResearch };
+async function diagnoseResearch(id: string) {
+  if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error("Invalid run ID.");
+  const ref = runs().doc(id), run = (await ref.get()).data();
+  if (!run || run.market !== "CN_A" || !/^resp_[a-zA-Z0-9_-]+$/.test(text(run.responseId))) throw new Error("An A-share research response is required.");
+  // Retrieve the existing response only; never submit a new paid generation.
+  const response = await provider(`/${run.responseId}`);
+  let diagnostics;
+  try {
+    const parsed = readResearchResponse(response);
+    diagnostics = { ...chinaResearchDiagnostics(parsed.data, parsed.sources), providerStatus: text(response.status), incompleteReason: text(record(response.incomplete_details).reason) };
+  } catch {
+    diagnostics = { providerStatus: text(response.status), incompleteReason: text(record(response.incomplete_details).reason), parseError: "The saved response contains no complete company JSON." };
+  }
+  await ref.update({ diagnostics });
+  return (await ref.get()).data();
 }
-export const { startResearch, refreshResearch, publishResearch, listResearch } = createIndustryResearchService(getAdminFirestore);
+return { startResearch, refreshResearch, publishResearch, listResearch, diagnoseResearch };
+}
+export const { startResearch, refreshResearch, publishResearch, listResearch, diagnoseResearch } = createIndustryResearchService(getAdminFirestore);
 export type PublishedResearchRelationship = ResearchRelationship & { status: "PUBLISHED" };

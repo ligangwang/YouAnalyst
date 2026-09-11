@@ -7,7 +7,7 @@ import { createIndustryResearchService } from "../../src/lib/industry-research/s
 import type { Firestore } from "firebase-admin/firestore";
 import { RESEARCH_SECTORS, resolveResearchTopic, researchTopicLabel } from "../../src/lib/industry-research/taxonomy";
 import { MAP_ROLE_CORRECTIONS, roleCorrectionPatch } from "../../scripts/data/map-role-corrections";
-import { normalizeChinaCompany, normalizeChinaResearch, validChinaId, MARKET_COMPANIES } from "../../src/lib/industry-research/china";
+import { chinaResearchDiagnostics, normalizeChinaCompany, normalizeChinaResearch, validChinaId, MARKET_COMPANIES } from "../../src/lib/industry-research/china";
 import { seedChinaCompanies, listChinaCompanies } from "../../src/lib/industry-research/china-directory";
 import { chinaSupplyChain } from "../../src/lib/industry-graph/china";
 
@@ -268,3 +268,13 @@ test("A-share requests produce five Chinese-only profiles within the existing to
  const c = normalizeChinaCompany(chinaSupplyChain[0])!; assert.ok(c); assert.equal(c.en, undefined);
  assert.equal(normalizeChinaResearch({ companies: [c] }, [c.source]).chinaCompanies.length, 1);
  });
+
+test("saved response diagnostics distinguish empty output, bad fields and unsearched URLs without new generation", async () => {
+ const c = chinaSupplyChain[0];
+ assert.equal(chinaResearchDiagnostics({companies:[]},[]).returnedCompanies,0);
+ assert.match(chinaResearchDiagnostics({companies:[c]},[]).candidates[0].reason,/absent from search/);
+ assert.match(chinaResearchDiagnostics({companies:[{...c, source:"http://example.com"}]},[]).candidates[0].reason,/Invalid source/);
+ const f=serviceFixture({companies:[c]},[c.source]); await f.service.startResearch("Semiconductors",runId,"admin",undefined,"CN_A");
+ const result=await f.service.diagnoseResearch(runId); assert.equal(f.calls(),1); assert.equal(f.usageEvents(),0); assert.equal(result?.status,"PROCESSING");
+ assert.equal((result?.diagnostics as {returnedCompanies:number}).returnedCompanies,1);
+});

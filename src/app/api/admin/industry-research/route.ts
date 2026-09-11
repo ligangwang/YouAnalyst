@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { isAdminUser } from "@/lib/firebase/admin-role";
-import { listResearch, publishResearch, refreshResearch, startResearch } from "@/lib/industry-research/service";
+import { listResearch, publishResearch, refreshResearch, startResearch, diagnoseResearch } from "@/lib/industry-research/service";
 import { record, text } from "@/lib/industry-research/model";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { seedChinaCompanies } from "@/lib/industry-research/china-directory";
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     let item;
     if (body.action === "start") item = await startResearch(text(body.industry), text(body.requestId), user.uid, body.category, body.market === "CN_A" ? "CN_A" : "US");
     else if (body.action === "refresh") item = await refreshResearch(text(body.id));
+    else if (body.action === "diagnose") item = await diagnoseResearch(text(body.id));
     else if (body.action === "publish" && Array.isArray(body.selectedIds)) item = await publishResearch(text(body.id), body.selectedIds, user.uid);
     else return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     return NextResponse.json({ item }, { headers: { "Cache-Control": "private, no-store" } });

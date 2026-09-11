@@ -28,3 +28,19 @@ export function normalizeChinaResearch(value: unknown, sources: string[]) {
   }
   return { companies: [], relationships: [], chinaCompanies: [...companies.values()], withheld: items.length - companies.size };
 }
+
+export function chinaResearchDiagnostics(value: unknown, sources: string[]) {
+  const raw = record(value), allowed = new Set(sources.map(sourceUrl).filter(Boolean));
+  const items = Array.isArray(raw.companies) ? raw.companies : [];
+  return {
+    returnedCompanies: items.length, searchedSources: allowed.size,
+    fields: Object.keys(raw).slice(0, 20),
+    candidates: items.slice(0, MAX_COMPANIES).map(item => {
+      const c = record(item), company = normalizeChinaCompany(c);
+      const missing = ["id", "name", "stage", "description", "source", "sourceLabel"].filter(key => !text(c[key]));
+      const reason = missing.length ? `Missing fields: ${missing.join(", ")}` : !validChinaId(text(c.id)) ? "Invalid exchange-qualified A-share code" : !sourceUrl(c.source) ? "Invalid source URL" : !company ? "Invalid company profile" : !allowed.has(company.source) ? "Source URL absent from search provenance" : "Accepted";
+      return { id: text(c.id).slice(0, 40), name: text(c.name).slice(0, 160), source: text(c.source).slice(0, 2000), reason };
+    }),
+    sources: [...allowed].slice(0, 80),
+  };
+}
