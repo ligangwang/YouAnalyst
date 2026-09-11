@@ -1,21 +1,31 @@
-import { createHash } from "node:crypto";
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { randomUUID, createHash } from "node:crypto";
+import { FieldPath, FieldValue, type Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "../firebase/admin";
 import { safeRecordOpenAiUsageEvent } from "../openai/usage";
 import { normalizeResearch, record, text, RESEARCH_VERSION, type ResearchResult, type ResearchRelationship } from "./model";
-import { openAiResearch, readResearchResponse, researchRequest } from "./openai";
+import { openAiResearch, readResearchResponse, researchRequest, candidateResearchRequest } from "./openai";
 import { resolveResearchTopic, researchTopicLabel } from "./taxonomy";
 import { MARKET_COMPANIES, normalizeChinaCompany, normalizeChinaResearch, chinaResearchDiagnostics } from "./china";
 
+import { chinaConnectionsRequest, normalizeChinaConnections } from "./china-connections";
+import { CANDIDATES, type Candidate } from "./candidates";
+
 export function createIndustryResearchService(getDb: () => Firestore, provider = openAiResearch, recordUsage = safeRecordOpenAiUsageEvent) {
 const runs = () => getDb().collection("industry_research_runs");
-async function startResearch(scope: string, requestId: string, uid: string, category?: unknown, market: "US" | "CN_A" = "US") {
+async function startResearch(scope: string, requestId: string, uid: string, category?: unknown, market: "US" | "CN_A" = "US", mode: "legacy" | "candidate" | "connections" = "legacy", candidate?: Candidate) {
   if (!["US", "CN_A"].includes(market)) throw new Error("Invalid research market.");
-  const topic = resolveResearchTopic(scope, category);
+  const topic = resolveResearchTopic(scope, mode === "connections" ? null : category);
+  if (mode === "connections") {
+    const code = text(record(category).cniCode);
+    const metadata = (await getDb().collection("directory_syncs").doc("CN_A_CNI").get()).data();
+    const classification = metadata?.industries?.find((c: { code: string }) => c.code === code);
+    if (!classification) throw new Error("Select an imported CNI industry.");
+    topic.taxonomy = "CNI"; topic.industryCode = code; topic.industryName = classification.name;
+  }
   const industry = researchTopicLabel(topic);
   if (!/^[a-f0-9-]{36}$/.test(requestId)) throw new Error("Invalid request ID.");
   const db = getDb(), ref = runs().doc(requestId);
-  const industryKey = createHash("sha256").update((market === "CN_A" ? "CN_A:" : "") + industry.toLowerCase().replace(/\s+/g, " ")).digest("hex");
+  const industryKey = createHash("sha256").update((market === "CN_A" ? "CN_A:" : "") + (mode === "legacy" ? "" : `${mode}:${candidate?.id ?? ""}:`) + industry.toLowerCase().replace(/\s+/g, " ")).digest("hex");
   const lock = db.collection("industry_research_locks").doc(industryKey);
   const budget = db.collection("industry_research_limits").doc(new Date().toISOString().slice(0, 10));
   const now = new Date().toISOString();
@@ -28,7 +38,7 @@ async function startResearch(scope: string, requestId: string, uid: string, cate
     const locked = await tx.get(lock), limit = await tx.get(budget);
     if (locked.data()?.active === true) throw new Error("This industry already has a research run. Refresh its status first.");
     if ((limit.data()?.count ?? 0) >= 100) throw new Error("Daily research limit reached (100 batches). Try again tomorrow.");
-    tx.set(ref, { id: requestId, industry, topic, market, industryKey, version: RESEARCH_VERSION, status: "STARTING", createdAt: now, createdBy: uid });
+    tx.set(ref, { id: requestId, industry, topic, market, industryKey, version: RESEARCH_VERSION, status: "STARTING", mode, ...(candidate ? { candidateId: candidate.id } : {}), createdAt: now, createdBy: uid });
     tx.set(lock, { active: true, runId: requestId });
     tx.set(budget, { count: FieldValue.increment(1) }, { merge: true });
     return true;
@@ -36,7 +46,16 @@ async function startResearch(scope: string, requestId: string, uid: string, cate
   if (!created) return (await ref.get()).data();
   try {
     const existing = await db.collection(market === "CN_A" ? MARKET_COMPANIES : "industry_research_relationships").where("status", "==", "PUBLISHED").limit(160).get();
-    const response = await provider("", researchRequest(industry, existing.docs.map(d => d.id), topic, market));
+    let connectionCandidates: { id: string; name: string }[] = [];
+    if (mode === "connections") {
+      const docs = await db.collection("company_directory").where("market", "==", "CN_A").get();
+      const code = typeof category === "object" && category ? text(record(category).cniCode) : "";
+      connectionCandidates = docs.docs.filter(d => !code || (d.data().classification ?? []).some((c: { code: string }) => c.code === code)).map(d => ({ id: d.id, name: text(d.data().name) }));
+      if (connectionCandidates.length < 2) throw new Error("Import the directory and select an industry with at least two companies.");
+      if (connectionCandidates.length > 500) throw new Error("Select a narrower industry (at most 500 companies per connection request).");
+      await ref.update({ connectionCandidates });
+    }
+    const response = await provider("", mode === "connections" ? chinaConnectionsRequest(industry, connectionCandidates) : candidate ? candidateResearchRequest(industry, candidate) : researchRequest(industry, existing.docs.map(d => d.id), topic, market));
     if (!/^resp_[a-zA-Z0-9_-]+$/.test(text(response.id))) throw new Error("OpenAI did not return a response ID.");
     await ref.update({ status: "PROCESSING", responseId: response.id, model: text(response.model) || "gpt-5.4", updatedAt: now });
   } catch (error) {
@@ -65,8 +84,9 @@ async function refreshResearch(id: string) {
   if (response.status === "completed") {
     try {
       const parsed = readResearchResponse(response);
-      result = run.market === "CN_A" ? normalizeChinaResearch(parsed.data, parsed.sources) : normalizeResearch(parsed.data, parsed.sources);
-      if (!(run.market === "CN_A" ? result.chinaCompanies?.length : result.relationships.length)) { result = null; error = "No sourced candidates passed validation. Existing published data was preserved."; }
+      result = run.mode === "connections" ? normalizeChinaConnections(parsed.data, parsed.sources, run.connectionCandidates ?? []) : run.market === "CN_A" ? normalizeChinaResearch(parsed.data, parsed.sources) : normalizeResearch(parsed.data, parsed.sources);
+      if (run.candidateId && result.chinaCompanies) result.chinaCompanies = result.chinaCompanies.filter(c => c.id === run.candidateId);
+      if (!(run.mode === "connections" ? result.relationships.length : run.market === "CN_A" ? result.chinaCompanies?.length : result.relationships.length)) { result = null; error = "No sourced candidates passed validation. Existing published data was preserved."; }
     } catch { error = "Research returned invalid structured output. Existing connections were preserved."; }
   }
   const saved = await db.runTransaction(async tx => {
@@ -92,6 +112,15 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
     const snapshot = await tx.get(ref), run = snapshot.data();
     if (!run || !["DRAFT", "PUBLISHED"].includes(run.status) || run.version !== RESEARCH_VERSION) throw new Error("A completed draft is required.");
     const result = run.result as ResearchResult;
+    if (run.mode === "connections") {
+      const selected = result.relationships.filter(r => selectedIds.includes(r.id));
+      if (selected.length !== new Set(selectedIds).size) throw new Error("Unknown connection selected.");
+      const refs = selected.map(r => db.collection("market_company_relationships").doc(r.id));
+      const previous = refs.length ? await tx.getAll(...refs) : [];
+      selected.forEach((r, i) => tx.set(refs[i], { ...r, market: "CN_A", status: "PUBLISHED", evidence: [...(previous[i].data()?.evidence ?? []), ...r.evidence].filter((e, n, all) => all.findIndex(x => x.url === e.url) === n).slice(-10), reviewedBy: uid, updatedAt: new Date().toISOString(), industries: FieldValue.arrayUnion(run.industry), runIds: FieldValue.arrayUnion(id) }, { merge: true }));
+      tx.update(ref, { status: "PUBLISHED", publishedIds: FieldValue.arrayUnion(...selectedIds) });
+      return;
+    }
     if (run.market === "CN_A") {
       const selected = (result.chinaCompanies ?? []).filter(c => selectedIds.includes(c.id));
       if (selected.length !== new Set(selectedIds).size || selected.some(c => !normalizeChinaCompany(c))) throw new Error("Unknown or invalid company selected.");
@@ -157,7 +186,71 @@ async function diagnoseResearch(id: string) {
   await ref.update({ diagnostics });
   return (await ref.get()).data();
 }
-return { startResearch, refreshResearch, publishResearch, listResearch, diagnoseResearch };
+async function listCandidates(status = "", after = "") {
+  if (status && !["PENDING", "RESEARCHING", "DRAFT", "FAILED", "PUBLISHED"].includes(status)) throw new Error("Invalid candidate status.");
+  if (after && !/^X(SHG:6|SHE:[03])\d{5}$/.test(after)) throw new Error("Invalid cursor.");
+  let query = dbCandidates().orderBy(FieldPath.documentId());
+  if (status) query = query.where("status", "==", status);
+  if (after) query = query.startAfter(after);
+  const docs = (await query.limit(51).get()).docs;
+  const candidates = await Promise.all(docs.slice(0, 50).map(async d => { const c = d.data(); const run = c.runId ? (await runs().doc(c.runId).get()).data() : null; return { ...c, profile: run?.result?.chinaCompanies?.find((p: { id: string }) => p.id === d.id) ?? null }; }));
+  return { candidates, nextCursor: docs.length > 50 ? docs[49].id : null };
 }
-export const { startResearch, refreshResearch, publishResearch, listResearch, diagnoseResearch } = createIndustryResearchService(getAdminFirestore);
+function dbCandidates() { return getDb().collection(CANDIDATES); }
+async function syncCandidate(id: string) {
+  const ref = dbCandidates().doc(id), c = (await ref.get()).data();
+  if (!c || c.status !== "RESEARCHING") return;
+  const run = c.runId ? await refreshResearch(c.runId).catch(() => null) : null;
+  const stale = Date.now() - Date.parse(c.startedAt) > 15 * 60 * 1000;
+  if (!run && !stale) return;
+  const status = run?.status === "PUBLISHED" ? "PUBLISHED" : run?.status === "DRAFT" ? "DRAFT" : run?.status === "FAILED" || stale ? "FAILED" : "RESEARCHING";
+  await getDb().runTransaction(async tx => {
+    const current = (await tx.get(ref)).data();
+    if (current?.runId !== c.runId || current?.status !== "RESEARCHING") return;
+    if (status === "FAILED" && stale && run?.industryKey) {
+      const lock = getDb().collection("industry_research_locks").doc(run.industryKey);
+      const locked = (await tx.get(lock)).data();
+      if (locked?.runId === c.runId) tx.set(lock, { active: false }, { merge: true });
+      if (["STARTING", "PROCESSING"].includes(run.status)) tx.update(runs().doc(c.runId), { status: "FAILED", error: "Timed out. Check provider usage before retrying." });
+    }
+    tx.update(ref, { status, error: status === "FAILED" ? run?.error || "Research timed out. Check provider usage before retrying." : null, updatedAt: new Date().toISOString() });
+  });
+}
+async function refreshCandidates() {
+  const active = await dbCandidates().where("status", "==", "RESEARCHING").limit(50).get();
+  await Promise.all(active.docs.map(d => syncCandidate(d.id)));
+}
+async function processCandidates(requestId: string, uid: string, retryId = "") {
+  if (!/^[a-f0-9-]{36}$/.test(requestId)) throw new Error("Invalid batch ID.");
+  if (retryId && !/^X(SHG:6|SHE:[03])\d{5}$/.test(retryId)) throw new Error("Invalid candidate ID.");
+  const db = getDb(), batch = db.collection("industry_candidate_batches").doc(requestId);
+  const claimed = await db.runTransaction(async tx => {
+    if ((await tx.get(batch)).exists) return [];
+    const active = await tx.get(dbCandidates().where("status", "==", "RESEARCHING").limit(5));
+    if (active.docs.length >= 5) throw new Error("Five companies are already researching. Refresh results before processing more.");
+    const snapshot = retryId ? await tx.get(dbCandidates().doc(retryId)) : null;
+    const pending = snapshot ? (snapshot.exists ? [{ id: retryId, data: () => snapshot.data()! }] : []) : (await tx.get(dbCandidates().where("status", "==", "PENDING").limit(5))).docs;
+    const rows = pending.map(d => ({ ...d.data(), id: d.id } as Candidate & { status: string; industry: string; topic?: unknown })).filter(c => c.status === (retryId ? "FAILED" : "PENDING")).slice(0, 5 - active.docs.length);
+    const now = new Date().toISOString();
+    const jobs = rows.map(c => ({ ...c, runId: randomUUID() }));
+    jobs.forEach(c => tx.update(dbCandidates().doc(c.id), { status: "RESEARCHING", runId: c.runId, runIds: FieldValue.arrayUnion(c.runId), startedAt: now, attempts: FieldValue.increment(1), error: null }));
+    tx.set(batch, { candidateIds: jobs.map(c => c.id), createdAt: now, createdBy: uid });
+    return jobs;
+  });
+  await Promise.all(claimed.map(async c => {
+    try { await startResearch(c.industry.slice(0,120), c.runId, uid, c.topic, "CN_A", "candidate", c); await syncCandidate(c.id); }
+    catch (error) { await dbCandidates().doc(c.id).update({ status: "FAILED", error: error instanceof Error ? error.message : "Research failed." }); }
+  }));
+  return { started: claimed.length };
+}
+async function publishCandidate(id: string, uid: string) {
+  if (!/^X(SHG:6|SHE:[03])\d{5}$/.test(id)) throw new Error("Invalid candidate ID.");
+  const ref = dbCandidates().doc(id), c = (await ref.get()).data();
+  if (!c || !["DRAFT", "PUBLISHED"].includes(c.status) || !c.runId) throw new Error("A reviewed draft is required.");
+  await publishResearch(c.runId, [id], uid);
+  await ref.update({ status: "PUBLISHED", reviewedBy: uid, updatedAt: new Date().toISOString() });
+}
+return { startResearch, refreshResearch, publishResearch, listResearch, diagnoseResearch, listCandidates, refreshCandidates, processCandidates, publishCandidate };
+}
+export const { startResearch, refreshResearch, publishResearch, listResearch, diagnoseResearch, listCandidates, refreshCandidates, processCandidates, publishCandidate } = createIndustryResearchService(getAdminFirestore);
 export type PublishedResearchRelationship = ResearchRelationship & { status: "PUBLISHED" };

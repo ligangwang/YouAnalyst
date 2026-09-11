@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { build } from "esbuild";
 import path from "node:path";
-import { normalizeChinaCompany } from "../../src/lib/industry-research/china";
-import { chinaSupplyChain } from "../../src/lib/industry-graph/china";
 
 let html = "";
 test.beforeAll(async () => {
@@ -28,7 +26,7 @@ test("admin researches once and publishes only explicitly selected draft connect
   await page.goto("http://localhost/research-fixture");
   await expect(page.getByRole("combobox", { name: "Sector", exact: true })).toHaveValue("45");
   await expect(page.getByRole("combobox", { name: "Industry", exact: true })).toHaveValue("453010");
-  await page.getByRole("button", { name: "Research industry", exact: true }).click();
+  await page.getByRole("button", { name: "Research industry connections", exact: true }).click();
   await expect(page.getByRole("link", { name: "Company announcement" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Publish 0 reviewed connections" })).toBeDisabled();
   expect(requests).toHaveLength(1);
@@ -40,34 +38,29 @@ test("admin researches once and publishes only explicitly selected draft connect
   await expect(page.getByRole("link", { name: "Company announcement" })).toHaveCount(0);
 });
 
-test("A-share industry discovery imports starters and publishes selected company profiles", async ({ page }) => {
-  const requests: Array<Record<string, unknown>> = [];
-  const company = normalizeChinaCompany(chinaSupplyChain[0])!;
-  const run = { id: "00000000-0000-4000-8000-000000000001", market: "CN_A", industry: "Semiconductors", status: "DRAFT", createdAt: "2026-09-10", result: { companies: [], relationships: [], chinaCompanies: [company], withheld: 0 } };
+test("A-share connections use imported CNI classifications and require review", async ({ page }) => {
+  const requests: Record<string, unknown>[] = [];
+  const relation = { id: "XSHG:688041__SUPPLIER_OF__XSHG:688008", source: "XSHG:688041", target: "XSHG:688008", type: "SUPPLIER_OF", evidence: [{ url: "https://example.com/source", title: "公司公告", summary: "有来源支持的关系", sourceDate: null }] };
   await page.route("**/*", route => {
     const request = route.request();
+    if (request.url().includes("/api/admin/company-research")) return route.fulfill({ json: { industries: [{ code: "C080301", name: "半导体" }] } });
     if (request.url().includes("/api/admin/industry-research")) {
       if (request.method() === "GET") return route.fulfill({ json: { items: [] } });
-      const body = request.postDataJSON(); requests.push(body);
-      if (body.action === "seed-china") return route.fulfill({ json: { created: 5, preserved: 0 } });
-      return route.fulfill({ json: { item: { ...run, ...(body.action === "publish" ? { status: "PUBLISHED", publishedIds: [company.id] } : {}) } } });
+      requests.push(request.postDataJSON());
+      return route.fulfill({ json: { item: { id: "run", mode: "connections", market: "CN_A", industry: "半导体", createdAt: "2026-09-11", status: "DRAFT", result: { companies: [], relationships: [relation], withheld: 0 } } } });
     }
     return request.isNavigationRequest() ? route.fulfill({ contentType: "text/html", body: html }) : route.abort();
   });
   await page.goto("http://localhost/research-fixture");
   await page.getByRole("combobox", { name: "Research market", exact: true }).selectOption("CN_A");
-  await page.getByRole("button", { name: "Import five starter companies" }).click();
-  await expect(page.getByRole("status")).toContainText("Imported 5");
-  await page.getByRole("button", { name: "Research industry", exact: true }).click();
-  await expect(page.getByRole("link", { name: "2026 年半年度报告" })).toBeVisible();
-  await expect.poll(() => requests[1]).toMatchObject({ action: "start", market: "CN_A", category: { sectorCode: "45", industryCode: "453010" } });
-  await expect(page.getByRole("button", { name: "Publish 0 reviewed companies" })).toBeDisabled();
-  await page.getByRole("checkbox", { name: `Approve ${company.id}` }).check();
-  await page.getByRole("button", { name: "Publish 1 reviewed companies" }).click();
-  await expect.poll(() => requests[2]).toMatchObject({ action: "publish", selectedIds: [company.id] });
-  await expect(page.getByRole("checkbox", { name: `Approve ${company.id}` })).toBeDisabled();
-  await page.getByRole("combobox", { name: "Research market", exact: true }).selectOption("US");
-  await expect(page.getByRole("link", { name: "2026 年半年度报告" })).toHaveCount(0);
+  await page.getByRole("combobox", { name: "CNI industry", exact: true }).selectOption("C080301");
+  await page.getByRole("button", { name: "Research industry connections", exact: true }).click();
+  await expect(page.getByRole("link", { name: "公司公告", exact: true })).toBeVisible();
+  expect(requests[0]).toMatchObject({ market: "CN_A", category: { cniCode: "C080301" } });
+  await expect(page.getByRole("button", { name: "Publish 0 reviewed connections" })).toBeDisabled();
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Publish 1 reviewed connections" }).click();
+  expect(requests[1]).toMatchObject({ action: "publish", selectedIds: [relation.id] });
 });
 
 test("sector changes reset industry and scope; custom topics remain available", async ({ page }) => {
@@ -86,13 +79,13 @@ test("sector changes reset industry and scope; custom topics remain available", 
   await expect(page.getByRole("combobox", { name: "Industry", exact: true })).toHaveValue("351010");
   await expect(page.getByLabel("Research scope (optional)")).toHaveValue("");
   await page.getByRole("combobox", { name: "Industry", exact: true }).selectOption("352020");
-  await page.getByRole("button", { name: "Research industry", exact: true }).click();
+  await page.getByRole("button", { name: "Research industry connections", exact: true }).click();
   expect(requests[0]).toMatchObject({ category: { sectorCode: "35", industryCode: "352020" }, industry: "" });
   await page.getByRole("combobox", { name: "Sector", exact: true }).selectOption("custom");
   await expect(page.getByRole("combobox", { name: "Industry", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Research industry", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Research industry connections", exact: true })).toBeDisabled();
   await page.getByLabel("Custom research topic").fill("AI in healthcare and cloud");
-  await page.getByRole("button", { name: "Research industry", exact: true }).click();
+  await page.getByRole("button", { name: "Research industry connections", exact: true }).click();
   await expect.poll(() => requests[1]).toMatchObject({ category: null, industry: "AI in healthcare and cloud" });
 });
 
