@@ -1,0 +1,3197 @@
+{
+  "id": "ai-us",
+  "schemaVersion": 1,
+  "topic": "AI_SUPPLY_CHAIN",
+  "market": "US",
+  "language": "en",
+  "asOf": "2026-09-11",
+  "title": "AI supply chain · US-listed companies",
+  "status": "RESEARCH_SNAPSHOT",
+  "coverage": {
+    "selection": "CURATED_BROAD_COVERAGE",
+    "exhaustive": false,
+    "companyCount": 67,
+    "stageCount": 19,
+    "businessRelationshipCount": 28,
+    "stageMembershipCount": 72,
+    "notes": [
+      "Includes US-listed ADRs and foreign issuers; listing market does not mean company domicile.",
+      "Roles cover infrastructure enablers, direct AI participants and adjacent products.",
+      "Sources span different dates. Announced adoption is distinguished from documented integration.",
+      "Stage membership is an editorial classification, not a supplier/customer assertion.",
+      "Relationship research is incomplete; no line does not mean no relationship.",
+      "This dataset is saved for application integration; it does not update the existing public graph automatically."
+    ]
+  },
+  "nodes": [
+    {
+      "id": "stage:materials",
+      "kind": "STAGE",
+      "label": "Materials",
+      "order": 0
+    },
+    {
+      "id": "stage:equipment",
+      "kind": "STAGE",
+      "label": "Manufacturing equipment",
+      "order": 1
+    },
+    {
+      "id": "stage:design",
+      "kind": "STAGE",
+      "label": "EDA & semiconductor IP",
+      "order": 2
+    },
+    {
+      "id": "stage:foundry",
+      "kind": "STAGE",
+      "label": "Wafer fabrication",
+      "order": 3
+    },
+    {
+      "id": "stage:packaging",
+      "kind": "STAGE",
+      "label": "Advanced packaging & test",
+      "order": 4
+    },
+    {
+      "id": "stage:compute",
+      "kind": "STAGE",
+      "label": "AI accelerators & CPUs",
+      "order": 5
+    },
+    {
+      "id": "stage:memory",
+      "kind": "STAGE",
+      "label": "Memory & storage",
+      "order": 6
+    },
+    {
+      "id": "stage:interconnect",
+      "kind": "STAGE",
+      "label": "Electrical interconnects",
+      "order": 7
+    },
+    {
+      "id": "stage:optics",
+      "kind": "STAGE",
+      "label": "Optical communications",
+      "order": 8
+    },
+    {
+      "id": "stage:boards",
+      "kind": "STAGE",
+      "label": "PCBs & substrates",
+      "order": 9
+    },
+    {
+      "id": "stage:servers",
+      "kind": "STAGE",
+      "label": "Servers & systems",
+      "order": 10
+    },
+    {
+      "id": "stage:networking",
+      "kind": "STAGE",
+      "label": "Network equipment & silicon",
+      "order": 11
+    },
+    {
+      "id": "stage:power",
+      "kind": "STAGE",
+      "label": "Power delivery",
+      "order": 12
+    },
+    {
+      "id": "stage:cooling",
+      "kind": "STAGE",
+      "label": "Thermal management",
+      "order": 13
+    },
+    {
+      "id": "stage:energy",
+      "kind": "STAGE",
+      "label": "Energy supply",
+      "order": 14
+    },
+    {
+      "id": "stage:datacenters",
+      "kind": "STAGE",
+      "label": "Data-center facilities",
+      "order": 15
+    },
+    {
+      "id": "stage:cloud",
+      "kind": "STAGE",
+      "label": "Cloud & model platforms",
+      "order": 16
+    },
+    {
+      "id": "stage:edge",
+      "kind": "STAGE",
+      "label": "Edge AI & devices",
+      "order": 17
+    },
+    {
+      "id": "stage:applications",
+      "kind": "STAGE",
+      "label": "AI software & applications",
+      "order": 18
+    },
+    {
+      "id": "US:ASML",
+      "symbol": "ASML",
+      "name": "ASML",
+      "stageIds": [
+        "equipment"
+      ],
+      "sourceIds": [
+        "s001"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Lithography systems used to manufacture advanced chips.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 0,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:LRCX",
+      "symbol": "LRCX",
+      "name": "Lam Research",
+      "stageIds": [
+        "equipment"
+      ],
+      "sourceIds": [
+        "s002"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Etch and deposition equipment for semiconductor fabrication.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 1,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:KLAC",
+      "symbol": "KLAC",
+      "name": "KLA",
+      "stageIds": [
+        "equipment"
+      ],
+      "sourceIds": [
+        "s003"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Process control and inspection for semiconductor manufacturing.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 2,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:CDNS",
+      "symbol": "CDNS",
+      "name": "Cadence",
+      "stageIds": [
+        "design"
+      ],
+      "sourceIds": [
+        "s004"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Electronic design automation for advanced chip design.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 3,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:ARM",
+      "symbol": "ARM",
+      "name": "Arm",
+      "stageIds": [
+        "design"
+      ],
+      "sourceIds": [
+        "s005"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Neoverse processor IP and compute platforms for cloud and AI infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 4,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:AMKR",
+      "symbol": "AMKR",
+      "name": "Amkor",
+      "stageIds": [
+        "packaging"
+      ],
+      "sourceIds": [
+        "s006"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Advanced packaging for chiplets, logic and high-bandwidth memory.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 5,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:GFS",
+      "symbol": "GFS",
+      "name": "GlobalFoundries",
+      "stageIds": [
+        "foundry"
+      ],
+      "sourceIds": [
+        "s007"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Foundry silicon-photonics technology for data-center connectivity.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 6,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:ALAB",
+      "symbol": "ALAB",
+      "name": "Astera Labs",
+      "stageIds": [
+        "interconnect"
+      ],
+      "sourceIds": [
+        "s008"
+      ],
+      "exposure": "DIRECT",
+      "summary": "PCIe connectivity and switching for AI servers and clusters.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 7,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:CRDO",
+      "symbol": "CRDO",
+      "name": "Credo",
+      "stageIds": [
+        "interconnect"
+      ],
+      "sourceIds": [
+        "s009"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Active electrical cables and high-speed connectivity for AI clusters.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 8,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:COHR",
+      "symbol": "COHR",
+      "name": "Coherent",
+      "stageIds": [
+        "optics"
+      ],
+      "sourceIds": [
+        "s010"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Optical components and connectivity for AI networks.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 9,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:GLW",
+      "symbol": "GLW",
+      "name": "Corning",
+      "stageIds": [
+        "optics"
+      ],
+      "sourceIds": [
+        "s011"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Optical fiber and connectivity for AI infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 10,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:SNDK",
+      "symbol": "SNDK",
+      "name": "Sandisk",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s012"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Flash storage for AI data infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 11,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:WDC",
+      "symbol": "WDC",
+      "name": "Western Digital",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s013"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Hard drives and storage platforms for data centers.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 12,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:P",
+      "symbol": "P",
+      "name": "Everpure",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s014",
+        "s053"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Enterprise storage and data management; formerly Pure Storage.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 13,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:NTAP",
+      "symbol": "NTAP",
+      "name": "NetApp",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s015"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Storage and data management integrated with NVIDIA AI infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 14,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:CLS",
+      "symbol": "CLS",
+      "name": "Celestica",
+      "stageIds": [
+        "servers",
+        "networking"
+      ],
+      "sourceIds": [
+        "s016"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Data-center switches, storage and infrastructure platforms.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 15,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:JBL",
+      "symbol": "JBL",
+      "name": "Jabil",
+      "stageIds": [
+        "servers"
+      ],
+      "sourceIds": [
+        "s017"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Manufacturing and integration for cloud and AI data-center hardware.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 16,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:FLEX",
+      "symbol": "FLEX",
+      "name": "Flex",
+      "stageIds": [
+        "power",
+        "cooling"
+      ],
+      "sourceIds": [
+        "s018"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Integrated power, cooling and compute infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 17,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:ETN",
+      "symbol": "ETN",
+      "name": "Eaton",
+      "stageIds": [
+        "power"
+      ],
+      "sourceIds": [
+        "s019"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Power distribution and management from grid to rack.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 18,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:MOD",
+      "symbol": "MOD",
+      "name": "Modine",
+      "stageIds": [
+        "cooling"
+      ],
+      "sourceIds": [
+        "s020"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Cooling equipment for high-density data centers.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 19,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:TT",
+      "symbol": "TT",
+      "name": "Trane Technologies",
+      "stageIds": [
+        "cooling"
+      ],
+      "sourceIds": [
+        "s021"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Data-center cooling and energy management.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 20,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:EQIX",
+      "symbol": "EQIX",
+      "name": "Equinix",
+      "stageIds": [
+        "datacenters"
+      ],
+      "sourceIds": [
+        "s022"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Colocation and interconnection facilities supporting AI deployments.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 21,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:DLR",
+      "symbol": "DLR",
+      "name": "Digital Realty",
+      "stageIds": [
+        "datacenters"
+      ],
+      "sourceIds": [
+        "s023"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Data-center facilities supporting AI-ready workloads.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 22,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:CEG",
+      "symbol": "CEG",
+      "name": "Constellation Energy",
+      "stageIds": [
+        "energy"
+      ],
+      "sourceIds": [
+        "s024"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Electricity supply agreements supporting data centers.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 23,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:VST",
+      "symbol": "VST",
+      "name": "Vistra",
+      "stageIds": [
+        "energy"
+      ],
+      "sourceIds": [
+        "s025"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Nuclear electricity agreements supporting Meta's infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 24,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:GEV",
+      "symbol": "GEV",
+      "name": "GE Vernova",
+      "stageIds": [
+        "energy"
+      ],
+      "sourceIds": [
+        "s026"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Grid and electrical infrastructure for data-center power.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 25,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:QCOM",
+      "symbol": "QCOM",
+      "name": "Qualcomm",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s027"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI inference accelerators for data-center workloads.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 26,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:NXPI",
+      "symbol": "NXPI",
+      "name": "NXP",
+      "stageIds": [
+        "edge"
+      ],
+      "sourceIds": [
+        "s028"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Neural processing units and software for edge AI.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 27,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:ENTG",
+      "symbol": "ENTG",
+      "name": "Entegris",
+      "stageIds": [
+        "materials"
+      ],
+      "sourceIds": [
+        "s029"
+      ],
+      "exposure": "ENABLER",
+      "summary": "High-purity materials and contamination control for semiconductor production.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 28,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:LIN",
+      "symbol": "LIN",
+      "name": "Linde",
+      "stageIds": [
+        "materials"
+      ],
+      "sourceIds": [
+        "s030"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Electronic gases used in chip manufacturing.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 29,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:CRM",
+      "symbol": "CRM",
+      "name": "Salesforce",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "s031"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Agentforce enterprise AI agents.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 30,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:NOW",
+      "symbol": "NOW",
+      "name": "ServiceNow",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "s032"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI-enabled enterprise workflow platform.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 31,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:PLTR",
+      "symbol": "PLTR",
+      "name": "Palantir",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "s033"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AIP connects enterprise data and operations with AI models.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 32,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:SNOW",
+      "symbol": "SNOW",
+      "name": "Snowflake",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "s034"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Cortex AI functions for analytics over enterprise data.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 33,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:DDOG",
+      "symbol": "DDOG",
+      "name": "Datadog",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "s035"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Observability for LLM applications and AI agents.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 34,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:BABA",
+      "symbol": "BABA",
+      "name": "Alibaba",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s036"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Alibaba Cloud infrastructure and Qwen model services.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 35,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:BIDU",
+      "symbol": "BIDU",
+      "name": "Baidu",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s037"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI cloud infrastructure and Kunlunxin computing technology.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 36,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:GDS",
+      "symbol": "GDS",
+      "name": "GDS Holdings",
+      "stageIds": [
+        "datacenters"
+      ],
+      "sourceIds": [
+        "s038"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Data-center facilities serving hyperscale and enterprise workloads.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 37,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:VNET",
+      "symbol": "VNET",
+      "name": "VNET Group",
+      "stageIds": [
+        "datacenters"
+      ],
+      "sourceIds": [
+        "s039"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Carrier-neutral data-center services in China.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 38,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:NVDA",
+      "symbol": "NVDA",
+      "name": "NVIDIA",
+      "stageIds": [
+        "compute",
+        "networking"
+      ],
+      "sourceIds": [
+        "s040"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI GPUs, accelerated computing platforms and networking.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 39,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:AMD",
+      "symbol": "AMD",
+      "name": "AMD",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s041"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Instinct AI accelerators and EPYC server processors.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 40,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:INTC",
+      "symbol": "INTC",
+      "name": "Intel",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s040"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Xeon host processors for accelerated server systems.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 41,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:TSM",
+      "symbol": "TSM",
+      "name": "TSMC",
+      "stageIds": [
+        "foundry",
+        "packaging"
+      ],
+      "sourceIds": [
+        "s040"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Foundry manufacturing and advanced integration for AI chips.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 42,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:SNPS",
+      "symbol": "SNPS",
+      "name": "Synopsys",
+      "stageIds": [
+        "design"
+      ],
+      "sourceIds": [
+        "s042"
+      ],
+      "exposure": "ENABLER",
+      "summary": "EDA tools and design technology for semiconductor development.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 43,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:AMAT",
+      "symbol": "AMAT",
+      "name": "Applied Materials",
+      "stageIds": [
+        "equipment"
+      ],
+      "sourceIds": [
+        "s043"
+      ],
+      "exposure": "ENABLER",
+      "summary": "Materials engineering and semiconductor manufacturing equipment.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 44,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:MU",
+      "symbol": "MU",
+      "name": "Micron",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s044"
+      ],
+      "exposure": "DIRECT",
+      "summary": "HBM, server DRAM and data-center SSDs.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 45,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:STX",
+      "symbol": "STX",
+      "name": "Seagate",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s045"
+      ],
+      "exposure": "DIRECT",
+      "summary": "High-capacity storage supporting AI data workflows.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 46,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:AVGO",
+      "symbol": "AVGO",
+      "name": "Broadcom",
+      "stageIds": [
+        "networking"
+      ],
+      "sourceIds": [
+        "s046"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Ethernet switching silicon and adapters for AI networks.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 47,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:ANET",
+      "symbol": "ANET",
+      "name": "Arista Networks",
+      "stageIds": [
+        "networking"
+      ],
+      "sourceIds": [
+        "s046"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Ethernet switches and network management for AI clusters.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 48,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:MRVL",
+      "symbol": "MRVL",
+      "name": "Marvell",
+      "stageIds": [
+        "interconnect"
+      ],
+      "sourceIds": [
+        "s047"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Custom silicon and connectivity for AI infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 49,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:LITE",
+      "symbol": "LITE",
+      "name": "Lumentum",
+      "stageIds": [
+        "optics"
+      ],
+      "sourceIds": [
+        "s048"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Optical and laser technology for data-center interconnects.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 50,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:APH",
+      "symbol": "APH",
+      "name": "Amphenol",
+      "stageIds": [
+        "interconnect"
+      ],
+      "sourceIds": [
+        "s040"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Electrical interconnect components for accelerated computing.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 51,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:DOV",
+      "symbol": "DOV",
+      "name": "Dover",
+      "stageIds": [
+        "cooling"
+      ],
+      "sourceIds": [
+        "s040"
+      ],
+      "exposure": "DIRECT",
+      "summary": "CPC subsidiary provides liquid-cooling connectors.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 52,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:DELL",
+      "symbol": "DELL",
+      "name": "Dell Technologies",
+      "stageIds": [
+        "servers"
+      ],
+      "sourceIds": [
+        "s040"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Server systems integrating NVIDIA accelerated computing.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 53,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:HPE",
+      "symbol": "HPE",
+      "name": "Hewlett Packard Enterprise",
+      "stageIds": [
+        "servers"
+      ],
+      "sourceIds": [
+        "s040"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Servers and systems for accelerated computing.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 54,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:SMCI",
+      "symbol": "SMCI",
+      "name": "Supermicro",
+      "stageIds": [
+        "servers"
+      ],
+      "sourceIds": [
+        "s040"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Rack-scale AI servers and liquid-cooled systems.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 55,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:CSCO",
+      "symbol": "CSCO",
+      "name": "Cisco",
+      "stageIds": [
+        "networking"
+      ],
+      "sourceIds": [
+        "s049"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Networking and integrated AI infrastructure with NVIDIA.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 56,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:VRT",
+      "symbol": "VRT",
+      "name": "Vertiv",
+      "stageIds": [
+        "cooling",
+        "power"
+      ],
+      "sourceIds": [
+        "s050"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Data-center power and thermal infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 57,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:MSFT",
+      "symbol": "MSFT",
+      "name": "Microsoft",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s051"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Azure cloud computing and AI infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 58,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:AMZN",
+      "symbol": "AMZN",
+      "name": "Amazon",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s051"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AWS cloud computing and AI infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 59,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:GOOGL",
+      "symbol": "GOOGL",
+      "name": "Alphabet",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s051"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Google Cloud computing and AI infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 60,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:META",
+      "symbol": "META",
+      "name": "Meta",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s051"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI model and application infrastructure; a demand-side participant.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 61,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:ORCL",
+      "symbol": "ORCL",
+      "name": "Oracle",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s051"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Oracle Cloud Infrastructure for AI workloads.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 62,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:CRWV",
+      "symbol": "CRWV",
+      "name": "CoreWeave",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s051"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Specialized GPU cloud infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 63,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:NBIS",
+      "symbol": "NBIS",
+      "name": "Nebius",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s051"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI cloud infrastructure and services.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 64,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:AAPL",
+      "symbol": "AAPL",
+      "name": "Apple",
+      "stageIds": [
+        "edge"
+      ],
+      "sourceIds": [
+        "s052"
+      ],
+      "exposure": "DIRECT",
+      "summary": "On-device AI and Private Cloud Compute.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 65,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "US:TTMI",
+      "symbol": "TTMI",
+      "name": "TTM Technologies",
+      "stageIds": [
+        "boards"
+      ],
+      "sourceIds": [
+        "s116"
+      ],
+      "exposure": "DIRECT",
+      "summary": "Printed circuit boards for AI servers and hyperscale infrastructure.",
+      "kind": "COMPANY",
+      "market": "US",
+      "listingScope": "US_LISTED_INCLUDING_ADRS",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 66,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "US:ASML__PARTICIPATES_IN__equipment",
+      "source": "US:ASML",
+      "target": "stage:equipment",
+      "type": "PARTICIPATES_IN",
+      "summary": "Lithography systems used to manufacture advanced chips.",
+      "sourceIds": [
+        "s001"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:LRCX__PARTICIPATES_IN__equipment",
+      "source": "US:LRCX",
+      "target": "stage:equipment",
+      "type": "PARTICIPATES_IN",
+      "summary": "Etch and deposition equipment for semiconductor fabrication.",
+      "sourceIds": [
+        "s002"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:KLAC__PARTICIPATES_IN__equipment",
+      "source": "US:KLAC",
+      "target": "stage:equipment",
+      "type": "PARTICIPATES_IN",
+      "summary": "Process control and inspection for semiconductor manufacturing.",
+      "sourceIds": [
+        "s003"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:CDNS__PARTICIPATES_IN__design",
+      "source": "US:CDNS",
+      "target": "stage:design",
+      "type": "PARTICIPATES_IN",
+      "summary": "Electronic design automation for advanced chip design.",
+      "sourceIds": [
+        "s004"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:ARM__PARTICIPATES_IN__design",
+      "source": "US:ARM",
+      "target": "stage:design",
+      "type": "PARTICIPATES_IN",
+      "summary": "Neoverse processor IP and compute platforms for cloud and AI infrastructure.",
+      "sourceIds": [
+        "s005"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:AMKR__PARTICIPATES_IN__packaging",
+      "source": "US:AMKR",
+      "target": "stage:packaging",
+      "type": "PARTICIPATES_IN",
+      "summary": "Advanced packaging for chiplets, logic and high-bandwidth memory.",
+      "sourceIds": [
+        "s006"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:GFS__PARTICIPATES_IN__foundry",
+      "source": "US:GFS",
+      "target": "stage:foundry",
+      "type": "PARTICIPATES_IN",
+      "summary": "Foundry silicon-photonics technology for data-center connectivity.",
+      "sourceIds": [
+        "s007"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:ALAB__PARTICIPATES_IN__interconnect",
+      "source": "US:ALAB",
+      "target": "stage:interconnect",
+      "type": "PARTICIPATES_IN",
+      "summary": "PCIe connectivity and switching for AI servers and clusters.",
+      "sourceIds": [
+        "s008"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:CRDO__PARTICIPATES_IN__interconnect",
+      "source": "US:CRDO",
+      "target": "stage:interconnect",
+      "type": "PARTICIPATES_IN",
+      "summary": "Active electrical cables and high-speed connectivity for AI clusters.",
+      "sourceIds": [
+        "s009"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:COHR__PARTICIPATES_IN__optics",
+      "source": "US:COHR",
+      "target": "stage:optics",
+      "type": "PARTICIPATES_IN",
+      "summary": "Optical components and connectivity for AI networks.",
+      "sourceIds": [
+        "s010"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:GLW__PARTICIPATES_IN__optics",
+      "source": "US:GLW",
+      "target": "stage:optics",
+      "type": "PARTICIPATES_IN",
+      "summary": "Optical fiber and connectivity for AI infrastructure.",
+      "sourceIds": [
+        "s011"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:SNDK__PARTICIPATES_IN__memory",
+      "source": "US:SNDK",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "Flash storage for AI data infrastructure.",
+      "sourceIds": [
+        "s012"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:WDC__PARTICIPATES_IN__memory",
+      "source": "US:WDC",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "Hard drives and storage platforms for data centers.",
+      "sourceIds": [
+        "s013"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:P__PARTICIPATES_IN__memory",
+      "source": "US:P",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "Enterprise storage and data management; formerly Pure Storage.",
+      "sourceIds": [
+        "s014",
+        "s053"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:NTAP__PARTICIPATES_IN__memory",
+      "source": "US:NTAP",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "Storage and data management integrated with NVIDIA AI infrastructure.",
+      "sourceIds": [
+        "s015"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:CLS__PARTICIPATES_IN__servers",
+      "source": "US:CLS",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "Data-center switches, storage and infrastructure platforms.",
+      "sourceIds": [
+        "s016"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:CLS__PARTICIPATES_IN__networking",
+      "source": "US:CLS",
+      "target": "stage:networking",
+      "type": "PARTICIPATES_IN",
+      "summary": "Data-center switches, storage and infrastructure platforms.",
+      "sourceIds": [
+        "s016"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:JBL__PARTICIPATES_IN__servers",
+      "source": "US:JBL",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "Manufacturing and integration for cloud and AI data-center hardware.",
+      "sourceIds": [
+        "s017"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:FLEX__PARTICIPATES_IN__power",
+      "source": "US:FLEX",
+      "target": "stage:power",
+      "type": "PARTICIPATES_IN",
+      "summary": "Integrated power, cooling and compute infrastructure.",
+      "sourceIds": [
+        "s018"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:FLEX__PARTICIPATES_IN__cooling",
+      "source": "US:FLEX",
+      "target": "stage:cooling",
+      "type": "PARTICIPATES_IN",
+      "summary": "Integrated power, cooling and compute infrastructure.",
+      "sourceIds": [
+        "s018"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:ETN__PARTICIPATES_IN__power",
+      "source": "US:ETN",
+      "target": "stage:power",
+      "type": "PARTICIPATES_IN",
+      "summary": "Power distribution and management from grid to rack.",
+      "sourceIds": [
+        "s019"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:MOD__PARTICIPATES_IN__cooling",
+      "source": "US:MOD",
+      "target": "stage:cooling",
+      "type": "PARTICIPATES_IN",
+      "summary": "Cooling equipment for high-density data centers.",
+      "sourceIds": [
+        "s020"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:TT__PARTICIPATES_IN__cooling",
+      "source": "US:TT",
+      "target": "stage:cooling",
+      "type": "PARTICIPATES_IN",
+      "summary": "Data-center cooling and energy management.",
+      "sourceIds": [
+        "s021"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:EQIX__PARTICIPATES_IN__datacenters",
+      "source": "US:EQIX",
+      "target": "stage:datacenters",
+      "type": "PARTICIPATES_IN",
+      "summary": "Colocation and interconnection facilities supporting AI deployments.",
+      "sourceIds": [
+        "s022"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:DLR__PARTICIPATES_IN__datacenters",
+      "source": "US:DLR",
+      "target": "stage:datacenters",
+      "type": "PARTICIPATES_IN",
+      "summary": "Data-center facilities supporting AI-ready workloads.",
+      "sourceIds": [
+        "s023"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:CEG__PARTICIPATES_IN__energy",
+      "source": "US:CEG",
+      "target": "stage:energy",
+      "type": "PARTICIPATES_IN",
+      "summary": "Electricity supply agreements supporting data centers.",
+      "sourceIds": [
+        "s024"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:VST__PARTICIPATES_IN__energy",
+      "source": "US:VST",
+      "target": "stage:energy",
+      "type": "PARTICIPATES_IN",
+      "summary": "Nuclear electricity agreements supporting Meta's infrastructure.",
+      "sourceIds": [
+        "s025"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:GEV__PARTICIPATES_IN__energy",
+      "source": "US:GEV",
+      "target": "stage:energy",
+      "type": "PARTICIPATES_IN",
+      "summary": "Grid and electrical infrastructure for data-center power.",
+      "sourceIds": [
+        "s026"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:QCOM__PARTICIPATES_IN__compute",
+      "source": "US:QCOM",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI inference accelerators for data-center workloads.",
+      "sourceIds": [
+        "s027"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:NXPI__PARTICIPATES_IN__edge",
+      "source": "US:NXPI",
+      "target": "stage:edge",
+      "type": "PARTICIPATES_IN",
+      "summary": "Neural processing units and software for edge AI.",
+      "sourceIds": [
+        "s028"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:ENTG__PARTICIPATES_IN__materials",
+      "source": "US:ENTG",
+      "target": "stage:materials",
+      "type": "PARTICIPATES_IN",
+      "summary": "High-purity materials and contamination control for semiconductor production.",
+      "sourceIds": [
+        "s029"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:LIN__PARTICIPATES_IN__materials",
+      "source": "US:LIN",
+      "target": "stage:materials",
+      "type": "PARTICIPATES_IN",
+      "summary": "Electronic gases used in chip manufacturing.",
+      "sourceIds": [
+        "s030"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:CRM__PARTICIPATES_IN__applications",
+      "source": "US:CRM",
+      "target": "stage:applications",
+      "type": "PARTICIPATES_IN",
+      "summary": "Agentforce enterprise AI agents.",
+      "sourceIds": [
+        "s031"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:NOW__PARTICIPATES_IN__applications",
+      "source": "US:NOW",
+      "target": "stage:applications",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI-enabled enterprise workflow platform.",
+      "sourceIds": [
+        "s032"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:PLTR__PARTICIPATES_IN__applications",
+      "source": "US:PLTR",
+      "target": "stage:applications",
+      "type": "PARTICIPATES_IN",
+      "summary": "AIP connects enterprise data and operations with AI models.",
+      "sourceIds": [
+        "s033"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:SNOW__PARTICIPATES_IN__applications",
+      "source": "US:SNOW",
+      "target": "stage:applications",
+      "type": "PARTICIPATES_IN",
+      "summary": "Cortex AI functions for analytics over enterprise data.",
+      "sourceIds": [
+        "s034"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:DDOG__PARTICIPATES_IN__applications",
+      "source": "US:DDOG",
+      "target": "stage:applications",
+      "type": "PARTICIPATES_IN",
+      "summary": "Observability for LLM applications and AI agents.",
+      "sourceIds": [
+        "s035"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:BABA__PARTICIPATES_IN__cloud",
+      "source": "US:BABA",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "Alibaba Cloud infrastructure and Qwen model services.",
+      "sourceIds": [
+        "s036"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:BIDU__PARTICIPATES_IN__cloud",
+      "source": "US:BIDU",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI cloud infrastructure and Kunlunxin computing technology.",
+      "sourceIds": [
+        "s037"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:GDS__PARTICIPATES_IN__datacenters",
+      "source": "US:GDS",
+      "target": "stage:datacenters",
+      "type": "PARTICIPATES_IN",
+      "summary": "Data-center facilities serving hyperscale and enterprise workloads.",
+      "sourceIds": [
+        "s038"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:VNET__PARTICIPATES_IN__datacenters",
+      "source": "US:VNET",
+      "target": "stage:datacenters",
+      "type": "PARTICIPATES_IN",
+      "summary": "Carrier-neutral data-center services in China.",
+      "sourceIds": [
+        "s039"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:NVDA__PARTICIPATES_IN__compute",
+      "source": "US:NVDA",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI GPUs, accelerated computing platforms and networking.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:NVDA__PARTICIPATES_IN__networking",
+      "source": "US:NVDA",
+      "target": "stage:networking",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI GPUs, accelerated computing platforms and networking.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:AMD__PARTICIPATES_IN__compute",
+      "source": "US:AMD",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "Instinct AI accelerators and EPYC server processors.",
+      "sourceIds": [
+        "s041"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:INTC__PARTICIPATES_IN__compute",
+      "source": "US:INTC",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "Xeon host processors for accelerated server systems.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:TSM__PARTICIPATES_IN__foundry",
+      "source": "US:TSM",
+      "target": "stage:foundry",
+      "type": "PARTICIPATES_IN",
+      "summary": "Foundry manufacturing and advanced integration for AI chips.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:TSM__PARTICIPATES_IN__packaging",
+      "source": "US:TSM",
+      "target": "stage:packaging",
+      "type": "PARTICIPATES_IN",
+      "summary": "Foundry manufacturing and advanced integration for AI chips.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:SNPS__PARTICIPATES_IN__design",
+      "source": "US:SNPS",
+      "target": "stage:design",
+      "type": "PARTICIPATES_IN",
+      "summary": "EDA tools and design technology for semiconductor development.",
+      "sourceIds": [
+        "s042"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:AMAT__PARTICIPATES_IN__equipment",
+      "source": "US:AMAT",
+      "target": "stage:equipment",
+      "type": "PARTICIPATES_IN",
+      "summary": "Materials engineering and semiconductor manufacturing equipment.",
+      "sourceIds": [
+        "s043"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:MU__PARTICIPATES_IN__memory",
+      "source": "US:MU",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "HBM, server DRAM and data-center SSDs.",
+      "sourceIds": [
+        "s044"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:STX__PARTICIPATES_IN__memory",
+      "source": "US:STX",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "High-capacity storage supporting AI data workflows.",
+      "sourceIds": [
+        "s045"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:AVGO__PARTICIPATES_IN__networking",
+      "source": "US:AVGO",
+      "target": "stage:networking",
+      "type": "PARTICIPATES_IN",
+      "summary": "Ethernet switching silicon and adapters for AI networks.",
+      "sourceIds": [
+        "s046"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:ANET__PARTICIPATES_IN__networking",
+      "source": "US:ANET",
+      "target": "stage:networking",
+      "type": "PARTICIPATES_IN",
+      "summary": "Ethernet switches and network management for AI clusters.",
+      "sourceIds": [
+        "s046"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:MRVL__PARTICIPATES_IN__interconnect",
+      "source": "US:MRVL",
+      "target": "stage:interconnect",
+      "type": "PARTICIPATES_IN",
+      "summary": "Custom silicon and connectivity for AI infrastructure.",
+      "sourceIds": [
+        "s047"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:LITE__PARTICIPATES_IN__optics",
+      "source": "US:LITE",
+      "target": "stage:optics",
+      "type": "PARTICIPATES_IN",
+      "summary": "Optical and laser technology for data-center interconnects.",
+      "sourceIds": [
+        "s048"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:APH__PARTICIPATES_IN__interconnect",
+      "source": "US:APH",
+      "target": "stage:interconnect",
+      "type": "PARTICIPATES_IN",
+      "summary": "Electrical interconnect components for accelerated computing.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:DOV__PARTICIPATES_IN__cooling",
+      "source": "US:DOV",
+      "target": "stage:cooling",
+      "type": "PARTICIPATES_IN",
+      "summary": "CPC subsidiary provides liquid-cooling connectors.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:DELL__PARTICIPATES_IN__servers",
+      "source": "US:DELL",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "Server systems integrating NVIDIA accelerated computing.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:HPE__PARTICIPATES_IN__servers",
+      "source": "US:HPE",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "Servers and systems for accelerated computing.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:SMCI__PARTICIPATES_IN__servers",
+      "source": "US:SMCI",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "Rack-scale AI servers and liquid-cooled systems.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:CSCO__PARTICIPATES_IN__networking",
+      "source": "US:CSCO",
+      "target": "stage:networking",
+      "type": "PARTICIPATES_IN",
+      "summary": "Networking and integrated AI infrastructure with NVIDIA.",
+      "sourceIds": [
+        "s049"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:VRT__PARTICIPATES_IN__cooling",
+      "source": "US:VRT",
+      "target": "stage:cooling",
+      "type": "PARTICIPATES_IN",
+      "summary": "Data-center power and thermal infrastructure.",
+      "sourceIds": [
+        "s050"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:VRT__PARTICIPATES_IN__power",
+      "source": "US:VRT",
+      "target": "stage:power",
+      "type": "PARTICIPATES_IN",
+      "summary": "Data-center power and thermal infrastructure.",
+      "sourceIds": [
+        "s050"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:MSFT__PARTICIPATES_IN__cloud",
+      "source": "US:MSFT",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "Azure cloud computing and AI infrastructure.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:AMZN__PARTICIPATES_IN__cloud",
+      "source": "US:AMZN",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "AWS cloud computing and AI infrastructure.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:GOOGL__PARTICIPATES_IN__cloud",
+      "source": "US:GOOGL",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "Google Cloud computing and AI infrastructure.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:META__PARTICIPATES_IN__cloud",
+      "source": "US:META",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI model and application infrastructure; a demand-side participant.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:ORCL__PARTICIPATES_IN__cloud",
+      "source": "US:ORCL",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "Oracle Cloud Infrastructure for AI workloads.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:CRWV__PARTICIPATES_IN__cloud",
+      "source": "US:CRWV",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "Specialized GPU cloud infrastructure.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:NBIS__PARTICIPATES_IN__cloud",
+      "source": "US:NBIS",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI cloud infrastructure and services.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:AAPL__PARTICIPATES_IN__edge",
+      "source": "US:AAPL",
+      "target": "stage:edge",
+      "type": "PARTICIPATES_IN",
+      "summary": "On-device AI and Private Cloud Compute.",
+      "sourceIds": [
+        "s052"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:TTMI__PARTICIPATES_IN__boards",
+      "source": "US:TTMI",
+      "target": "stage:boards",
+      "type": "PARTICIPATES_IN",
+      "summary": "Printed circuit boards for AI servers and hyperscale infrastructure.",
+      "sourceIds": [
+        "s116"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "US:TSM__SUPPLIER_OF__US:NVDA",
+      "source": "US:TSM",
+      "target": "US:NVDA",
+      "type": "SUPPLIER_OF",
+      "summary": "TSMC manufactures chips for NVIDIA.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:APH__SUPPLIER_OF__US:NVDA",
+      "source": "US:APH",
+      "target": "US:NVDA",
+      "type": "SUPPLIER_OF",
+      "summary": "Amphenol supplies interconnect components for Blackwell.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:MU__SUPPLIER_OF__US:NVDA",
+      "source": "US:MU",
+      "target": "US:NVDA",
+      "type": "SUPPLIER_OF",
+      "summary": "Micron announced HBM3E inclusion in NVIDIA H200 GPUs.",
+      "sourceIds": [
+        "s117"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:DELL__INTEGRATES_TECHNOLOGY_FROM__US:NVDA",
+      "source": "US:DELL",
+      "target": "US:NVDA",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "Server systems incorporate NVIDIA accelerated computing.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:HPE__INTEGRATES_TECHNOLOGY_FROM__US:NVDA",
+      "source": "US:HPE",
+      "target": "US:NVDA",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "Server systems incorporate NVIDIA accelerated computing.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:SMCI__INTEGRATES_TECHNOLOGY_FROM__US:NVDA",
+      "source": "US:SMCI",
+      "target": "US:NVDA",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "Server systems incorporate NVIDIA accelerated computing.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:AMD__ECOSYSTEM_PARTNER_OF__US:NVDA",
+      "source": "US:AMD",
+      "target": "US:NVDA",
+      "type": "ECOSYSTEM_PARTNER_OF",
+      "summary": "Host processor designs support the NVIDIA MGX architecture.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:INTC__ECOSYSTEM_PARTNER_OF__US:NVDA",
+      "source": "US:INTC",
+      "target": "US:NVDA",
+      "type": "ECOSYSTEM_PARTNER_OF",
+      "summary": "Host processor designs support the NVIDIA MGX architecture.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:DOV__ECOSYSTEM_PARTNER_OF__US:NVDA",
+      "source": "US:DOV",
+      "target": "US:NVDA",
+      "type": "ECOSYSTEM_PARTNER_OF",
+      "summary": "Dover's CPC contributes liquid-cooling connectors.",
+      "sourceIds": [
+        "s040"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:MRVL__PARTNER_OF__US:NVDA",
+      "source": "US:MRVL",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "summary": "Documented collaboration on AI infrastructure.",
+      "sourceIds": [
+        "s047"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:LITE__PARTNER_OF__US:NVDA",
+      "source": "US:LITE",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "summary": "Documented collaboration on AI infrastructure.",
+      "sourceIds": [
+        "s048"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:GLW__PARTNER_OF__US:NVDA",
+      "source": "US:GLW",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "summary": "Documented collaboration on AI infrastructure.",
+      "sourceIds": [
+        "s011"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:VRT__PARTNER_OF__US:NVDA",
+      "source": "US:VRT",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "summary": "Documented collaboration on AI infrastructure.",
+      "sourceIds": [
+        "s118"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:ETN__PARTNER_OF__US:NVDA",
+      "source": "US:ETN",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "summary": "Documented collaboration on AI infrastructure.",
+      "sourceIds": [
+        "s019"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:CSCO__PARTNER_OF__US:NVDA",
+      "source": "US:CSCO",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "summary": "Documented collaboration on AI infrastructure.",
+      "sourceIds": [
+        "s049"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:NTAP__PARTNER_OF__US:NVDA",
+      "source": "US:NTAP",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "summary": "Documented collaboration on AI infrastructure.",
+      "sourceIds": [
+        "s015"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:P__INTEGRATES_TECHNOLOGY_FROM__US:NVDA",
+      "source": "US:P",
+      "target": "US:NVDA",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "AIRI combines storage with NVIDIA DGX; the source uses the former Pure Storage name.",
+      "sourceIds": [
+        "s014"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:AVGO__PARTNER_OF__US:ANET",
+      "source": "US:AVGO",
+      "target": "US:ANET",
+      "type": "PARTNER_OF",
+      "summary": "Jointly tested Ethernet networking for AI workloads.",
+      "sourceIds": [
+        "s046"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:AMZN__PLANNED_ADOPTER_OF__US:NVDA",
+      "source": "US:AMZN",
+      "target": "US:NVDA",
+      "type": "PLANNED_ADOPTER_OF",
+      "summary": "Named in NVIDIA's announcement of planned Rubin deployment; this is not proof of delivery.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:GOOGL__PLANNED_ADOPTER_OF__US:NVDA",
+      "source": "US:GOOGL",
+      "target": "US:NVDA",
+      "type": "PLANNED_ADOPTER_OF",
+      "summary": "Named in NVIDIA's announcement of planned Rubin deployment; this is not proof of delivery.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:MSFT__PLANNED_ADOPTER_OF__US:NVDA",
+      "source": "US:MSFT",
+      "target": "US:NVDA",
+      "type": "PLANNED_ADOPTER_OF",
+      "summary": "Named in NVIDIA's announcement of planned Rubin deployment; this is not proof of delivery.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:ORCL__PLANNED_ADOPTER_OF__US:NVDA",
+      "source": "US:ORCL",
+      "target": "US:NVDA",
+      "type": "PLANNED_ADOPTER_OF",
+      "summary": "Named in NVIDIA's announcement of planned Rubin deployment; this is not proof of delivery.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:CRWV__PLANNED_ADOPTER_OF__US:NVDA",
+      "source": "US:CRWV",
+      "target": "US:NVDA",
+      "type": "PLANNED_ADOPTER_OF",
+      "summary": "Named in NVIDIA's announcement of planned Rubin deployment; this is not proof of delivery.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:NBIS__PLANNED_ADOPTER_OF__US:NVDA",
+      "source": "US:NBIS",
+      "target": "US:NVDA",
+      "type": "PLANNED_ADOPTER_OF",
+      "summary": "Named in NVIDIA's announcement of planned Rubin deployment; this is not proof of delivery.",
+      "sourceIds": [
+        "s051"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    },
+    {
+      "id": "US:MSFT__INTEGRATES_TECHNOLOGY_FROM__US:AMD",
+      "source": "US:MSFT",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "Cloud infrastructure deploys AMD Instinct accelerators.",
+      "sourceIds": [
+        "s041"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:ORCL__INTEGRATES_TECHNOLOGY_FROM__US:AMD",
+      "source": "US:ORCL",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "Cloud infrastructure deploys AMD Instinct accelerators.",
+      "sourceIds": [
+        "s041"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:CEG__ENERGY_AGREEMENT_WITH__US:MSFT",
+      "source": "US:CEG",
+      "target": "US:MSFT",
+      "type": "ENERGY_AGREEMENT_WITH",
+      "summary": "Agreement for hourly carbon-free energy matching for a data center.",
+      "sourceIds": [
+        "s024"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "US:VST__ENERGY_AGREEMENT_WITH__US:META",
+      "source": "US:VST",
+      "target": "US:META",
+      "type": "ENERGY_AGREEMENT_WITH",
+      "summary": "Announced long-term nuclear power purchase agreements.",
+      "sourceIds": [
+        "s025"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "ANNOUNCED"
+    }
+  ],
+  "sources": [
+    {
+      "id": "s001",
+      "url": "https://www.asml.com/en/company/stories/2026/machines-behind-machines",
+      "title": "The machines behind the machines",
+      "publisher": "www.asml.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s002",
+      "url": "https://newsroom.lamresearch.com/how-deposition-and-etch-are-reshaping-chips-for-the-ai-era?blog=true",
+      "title": "How Deposition and Etch Are Reshaping Chips for the AI Era",
+      "publisher": "newsroom.lamresearch.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s003",
+      "url": "https://ir.kla.com/news-events/investor-day-2026",
+      "title": "Investor Day 2026 :: KLA Corporation (KLAC)",
+      "publisher": "ir.kla.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s004",
+      "url": "https://www.cadence.com/en_US/home/explore/ai-chip-design.html",
+      "title": "AI in Chip Design | Cadence",
+      "publisher": "www.cadence.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s005",
+      "url": "https://www.arm.com/products/cloud-datacenter",
+      "title": "Arm Neoverse for cloud and AI data centers – Arm®",
+      "publisher": "www.arm.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s006",
+      "url": "https://amkor.com/applications/artificial-intelligence/",
+      "title": "Artificial Intelligence Machine Learning - Amkor Technology",
+      "publisher": "amkor.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s007",
+      "url": "https://gf.com/technologies/silicon-photonics/",
+      "title": "Silicon photonics technology | GlobalFoundries",
+      "publisher": "gf.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s008",
+      "url": "https://www.asteralabs.com/solutions/ai-servers-and-clustering/",
+      "title": "AI Servers and Clustering - ASTERA LABS, INC.",
+      "publisher": "www.asteralabs.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s009",
+      "url": "https://credosemi.com/",
+      "title": "Credo | We Connect",
+      "publisher": "credosemi.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s010",
+      "url": "https://www.coherent.com/datacenter-communications",
+      "title": "Datacenter and Communications | Coherent",
+      "publisher": "www.coherent.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s011",
+      "url": "https://www.corning.com/optical-communications/emea/en/home/news-and-events/news-releases/2026/05/nvidia-and-corning-announce-long-term-partnership.html",
+      "title": "NVIDIA and Corning Announce Long-Term Partnership to Strengthen U.S. Manufacturing for AI Infrastructure",
+      "publisher": "www.corning.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s012",
+      "url": "https://www.sandisk.com/company/newsroom/blogs/2026/powering-ai-factories-from-the-data-layer-up",
+      "title": "Powering AI Factories from the Data Layer Up | Sandisk",
+      "publisher": "www.sandisk.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s013",
+      "url": "https://www.westerndigital.com/solutions/data-center",
+      "title": "Enterprise Data Center Storage Solutions | WD",
+      "publisher": "www.westerndigital.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s014",
+      "url": "https://www.purestorage.com/content/dam/pdf/en/case-studies/cs-ai-ready-infrastructure.pdf",
+      "title": "AI Object Detection by NVIDIA and AIRI | Pure Storage",
+      "publisher": "www.purestorage.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s015",
+      "url": "https://www.netapp.com/nvidia/",
+      "title": "NetApp and NVIDIA: Delivering AI factory & AI as a Service | NetApp",
+      "publisher": "www.netapp.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s016",
+      "url": "https://www.celestica.com/uploadedFiles/artifact/AI_Infra_Brochure.pdf",
+      "title": "AI Infra brochure.indd",
+      "publisher": "www.celestica.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s017",
+      "url": "https://jabil.com/industries/data-center.html",
+      "title": "Data Center | Jabil",
+      "publisher": "jabil.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s018",
+      "url": "https://flex.com/resources/flex-ai-infrastructure-platform",
+      "title": "Flex AI infrastructure platform | Flex",
+      "publisher": "flex.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s019",
+      "url": "https://www.eaton.com/us/en-us/company/news-insights/news-releases/2025/eaton-accelerates-data-center-infrastrructure-in-ai-era-with-nvidia.html",
+      "title": "Eaton accelerates the transformation of data center infrastructure in the AI era with NVIDIA",
+      "publisher": "www.eaton.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2025-07-15",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s020",
+      "url": "https://www.modine.com/news/modine-invests-in-liquid-immersion-cooling-technology-to-support-high-density-data-center-applications/",
+      "title": "Modine Invests in Liquid Immersion Cooling Technology to Support High-Density Data Center Applications - Modine",
+      "publisher": "www.modine.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s021",
+      "url": "https://www.tranetechnologies.com/en/index/company/data-centers.html",
+      "title": "Data Center Cooling and Energy Management | Trane Technologies",
+      "publisher": "www.tranetechnologies.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s022",
+      "url": "https://www.equinix.com/data-centers",
+      "title": "Colocation and connectivity in global, AI-ready data centers | Equinix",
+      "publisher": "www.equinix.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s023",
+      "url": "https://www.digitalrealty.com/data-centers",
+      "title": "Global Data Centers Solutions | Digital Realty",
+      "publisher": "www.digitalrealty.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s024",
+      "url": "https://www.constellationenergy.com/news/2023/Constellation-signs-hourly-carbon-free-energy-matching-agreement-with-Microsoft-to-support-a-clean-powered-data-center.html",
+      "title": "Constellation Signs Hourly Carbon-Free Energy Matching Agreement with Microsoft to Support a Clean-Powered Data Center",
+      "publisher": "www.constellationenergy.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s025",
+      "url": "https://vistracorp.com/vistra-and-meta-a-smart-scalable-nuclear-partnership/",
+      "title": "Vistra and Meta: A Smart, Scalable Nuclear Partnership - Vistra Corp.",
+      "publisher": "vistracorp.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s026",
+      "url": "https://www.gevernova.com/electrification/industries/data-centers",
+      "title": "Data Centers | GE Vernova",
+      "publisher": "www.gevernova.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s027",
+      "url": "https://www.qualcomm.com/data-center/expertise/ai-accelerators",
+      "title": "Data Center AI Inference Accelerators | Dragonfly",
+      "publisher": "www.qualcomm.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s028",
+      "url": "https://www.nxp.com/products/processors-and-microcontrollers/discrete-neural-processing-units%3ADNPU",
+      "title": "Discrete Neural Processing Units for AI Acceleration | NXP Semiconductors",
+      "publisher": "www.nxp.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s029",
+      "url": "https://www.entegris.com/en/home/our-science/by-industry/microelectronics/semiconductor.html",
+      "title": "Semiconductor | Entegris",
+      "publisher": "www.entegris.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s030",
+      "url": "https://assets.linde.com/-/media/celum-connect/2023/12/21/15/11/linde20electronics20brochure185963.pdf",
+      "title": "Linde Electronics brochure",
+      "publisher": "assets.linde.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2023-12-21",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s031",
+      "url": "https://www.salesforce.com/agentforce/?bc=OTH&nc=7013y0000020IUKAA2",
+      "title": "Agentforce: The AI Agent Platform | Salesforce",
+      "publisher": "www.salesforce.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s032",
+      "url": "https://www.servicenow.com/platform.html",
+      "title": "ServiceNow AI Platform - ServiceNow",
+      "publisher": "www.servicenow.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s033",
+      "url": "https://www.palantir.com/docs/foundry/aip",
+      "title": "Overview • AIP • Palantir",
+      "publisher": "www.palantir.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s034",
+      "url": "https://docs.snowflake.com/en/user-guide/snowflake-cortex/aisql",
+      "title": "Snowflake Cortex AI Functions (including LLM functions) | Snowflake Documentation",
+      "publisher": "docs.snowflake.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s035",
+      "url": "https://www.datadoghq.com/knowledge-center/llm-observability/",
+      "title": "What Is LLM Observability & Monitoring? | Datadog",
+      "publisher": "www.datadoghq.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s036",
+      "url": "https://www.alibabacloud.com/en/press-room/alibaba-cloud-unveil-advanced-agentic-ai-ecosystem",
+      "title": "Alibaba Cloud Unveils Advanced Agentic AI Ecosystem for Global Customers - Alibaba Cloud",
+      "publisher": "www.alibabacloud.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s037",
+      "url": "https://ir.baidu.com/static-files/1e05da69-6988-4365-aee0-e45f23d71b48",
+      "title": "PowerPoint 演示文稿",
+      "publisher": "ir.baidu.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s038",
+      "url": "https://investors.gds-services.com/static-files/2e100f68-03ab-4e28-a16e-be80cadbf912",
+      "title": "Form 6-K for GDS Holdings LTD filed 05/27/2025",
+      "publisher": "investors.gds-services.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s039",
+      "url": "https://ir.vnet.com/news-releases/news-release-details/vnet-reports-unaudited-fourth-quarter-and-full-year-2025",
+      "title": "VNET Reports Unaudited Fourth Quarter and Full Year 2025 Financial Results | VNET Group, Inc.",
+      "publisher": "ir.vnet.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s040",
+      "url": "https://nvidianews.nvidia.com/news/computer-industry-ai-factories-data-centers",
+      "title": "Computer Industry Joins NVIDIA to Build AI Factories and Data Centers for the Next Industrial Revolution | NVIDIA Newsroom",
+      "publisher": "nvidianews.nvidia.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2024-06-02",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s041",
+      "url": "https://www.amd.com/en/solutions/ai/trust-your-instinct.html",
+      "title": "AMD Instinct™ AI Infrastructure | AMD",
+      "publisher": "www.amd.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s042",
+      "url": "https://www.synopsys.com/resources/ai-powered-eda-chip-design-solutions.html",
+      "title": "Accelerate Chip Design with AI-Powered EDA Solutions | Synopsys",
+      "publisher": "www.synopsys.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s043",
+      "url": "https://www.appliedmaterials.com/us/en/semiconductor/products.html",
+      "title": "Products",
+      "publisher": "www.appliedmaterials.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s044",
+      "url": "https://www.micron.com/markets-industries/ai/ai-data-center",
+      "title": "AI data center | Micron Technology Inc.",
+      "publisher": "www.micron.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s045",
+      "url": "https://www.seagate.com/innovation/ai/storage-and-compute-infrastructure/",
+      "title": "Data Storage for AI | Seagate US",
+      "publisher": "www.seagate.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s046",
+      "url": "https://www.arista.com/assets/data/pdf/Datasheets/Arista-Broadcom-AI-Networking-Solution-Brief.pdf",
+      "title": "Arista-Broadcom AI Networking Solution Brief 05-0057",
+      "publisher": "www.arista.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s047",
+      "url": "https://nvidianews.nvidia.com/news/nvidia-ai-ecosystem-expands-as-marvell-joins-forces-through-nvlink-fusion",
+      "title": "NVIDIA AI Ecosystem Expands as Marvell Joins Forces Through NVLink Fusion | NVIDIA Newsroom",
+      "publisher": "nvidianews.nvidia.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-03-31",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s048",
+      "url": "https://nvidianews.nvidia.com/news/nvidia-announces-strategic-partnership-with-lumentum-to-develop-state-of-the-art-optics-technology",
+      "title": "NVIDIA Announces Strategic Partnership With Lumentum to Develop State-of-the-Art Optics Technology | NVIDIA Newsroom",
+      "publisher": "nvidianews.nvidia.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s049",
+      "url": "https://newsroom.cisco.com/c/r/newsroom/en/us/a/y2026/m08/cisco-secure-ai-factory-nvidia-rack-scale.html",
+      "title": "Cisco Expands Secure AI Factory with NVIDIA for the Rack-Scale Era",
+      "publisher": "newsroom.cisco.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-08-25",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s050",
+      "url": "https://www.vertiv.com/en-us/solutions/artificial-intelligence/",
+      "title": "Unleash your AI Evolution with Vertiv",
+      "publisher": "www.vertiv.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s051",
+      "url": "https://nvidianews.nvidia.com/news/rubin-platform-ai-supercomputer",
+      "title": "NVIDIA Kicks Off the Next Generation of AI With Rubin — Six New Chips, One Incredible AI Supercomputer | NVIDIA Newsroom",
+      "publisher": "nvidianews.nvidia.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-01-05",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s052",
+      "url": "https://www.apple.com/apple-intelligence/",
+      "title": "Apple Intelligence and Siri - Apple",
+      "publisher": "www.apple.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s053",
+      "url": "https://www.everpuredata.com/company/newsroom/press-releases/pure-storage-becomes-everpure.html",
+      "title": "Pure Storage Becomes Everpure; Announces Intent to Acquire 1touch | Everpure",
+      "publisher": "www.everpuredata.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s116",
+      "url": "https://www.ttm.com/en/blog/powering-the-ai-revolution",
+      "title": "Powering the AI Revolution: TTM Technologies' Advanced PCBs for Hyperscale Data Centers | TTM Technologies",
+      "publisher": "www.ttm.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s117",
+      "url": "https://investors.micron.com/news/press-release/2024/Micron-Commences-Volume-Production-of-Industry-Leading-HBM3E-Solution-to-Accelerate-the-Growth-of-AI-02-26-2024/default.aspx",
+      "title": "Micron Technology, Inc. - Micron Commences Volume Production of Industry-Leading HBM3E Solution to Accelerate the Growth of AI",
+      "publisher": "investors.micron.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2024-02-26",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s118",
+      "url": "https://investors.vertiv.com/financials/annual-reports/2026-Shareholder-Letter/",
+      "title": "Vertiv Holdings Co. - Financials - Annual Reports - 2025 Shareholder Letter",
+      "publisher": "investors.vertiv.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    }
+  ]
+}

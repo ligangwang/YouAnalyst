@@ -1,0 +1,27 @@
+name: Import AI knowledge graphs
+on:
+  workflow_dispatch:
+concurrency:
+  group: import-ai-knowledge-graphs
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Validate both graph datasets
+        run: npx tsx --test tests/knowledge-graph.test.ts
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Save and verify both market graphs
+        run: npx tsx scripts/import-ai-knowledge-graphs.ts --write
