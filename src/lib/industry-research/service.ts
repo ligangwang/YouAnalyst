@@ -27,7 +27,7 @@ async function startResearch(scope: string, requestId: string, uid: string, cate
     }
     const locked = await tx.get(lock), limit = await tx.get(budget);
     if (locked.data()?.active === true) throw new Error("This industry already has a research run. Refresh its status first.");
-    if ((limit.data()?.count ?? 0) >= 3) throw new Error("Daily research limit reached (3 batches). Try again tomorrow.");
+    if ((limit.data()?.count ?? 0) >= 100) throw new Error("Daily research limit reached (100 batches). Try again tomorrow.");
     tx.set(ref, { id: requestId, industry, topic, market, industryKey, version: RESEARCH_VERSION, status: "STARTING", createdAt: now, createdBy: uid });
     tx.set(lock, { active: true, runId: requestId });
     tx.set(budget, { count: FieldValue.increment(1) }, { merge: true });

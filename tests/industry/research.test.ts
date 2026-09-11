@@ -199,6 +199,7 @@ test("markets have separate topic locks but share the daily research budget", as
   await f.service.startResearch("Semiconductors", runId, "admin");
   await f.service.startResearch("Semiconductors", runId.replace(/1$/, "2"), "admin", undefined, "CN_A");
   await f.service.startResearch("Healthcare", runId.replace(/1$/, "3"), "admin", undefined, "CN_A");
+  f.data.set(`industry_research_limits/${new Date().toISOString().slice(0, 10)}`, { count: 100 });
   await assert.rejects(f.service.startResearch("Energy", runId.replace(/1$/, "4"), "admin"), /Daily research limit/);
   assert.equal(f.calls(), 3);
 });
@@ -223,8 +224,9 @@ test("paid submissions are idempotent, industry-locked and globally bounded", as
   await f.service.startResearch("Semiconductors", runId, "admin");
   assert.equal(f.calls(), 1);
   await assert.rejects(f.service.startResearch("Semiconductors", runId.replace(/1$/, "2"), "admin"), /already has/);
-  for (const n of [2, 3]) await f.service.startResearch(`Industry ${n}`, runId.replace(/1$/, String(n)), "admin");
-  await assert.rejects(f.service.startResearch("Industry 4", runId.replace(/1$/, "4"), "admin"), /Daily research limit/);
+  for (let n = 2; n <= 100; n++) await f.service.startResearch(`Industry ${n}`, `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`, "admin");
+  assert.equal(f.calls(), 100);
+  await assert.rejects(f.service.startResearch("Industry 101", "00000000-0000-4000-8000-000000000101", "admin"), /Daily research limit/);
 });
 test("refresh stores a private draft once; publishing requires listed companies and explicit selection", async () => {
   const f = serviceFixture();
