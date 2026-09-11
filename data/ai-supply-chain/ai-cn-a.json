@@ -1,0 +1,2788 @@
+{
+  "id": "ai-cn-a",
+  "schemaVersion": 1,
+  "topic": "AI_SUPPLY_CHAIN",
+  "market": "CN_A",
+  "language": "zh-CN",
+  "asOf": "2026-09-11",
+  "title": "AI 产业链 · A 股公司",
+  "status": "RESEARCH_SNAPSHOT",
+  "coverage": {
+    "selection": "CURATED_BROAD_COVERAGE",
+    "exhaustive": false,
+    "companyCount": 62,
+    "stageCount": 18,
+    "businessRelationshipCount": 3,
+    "stageMembershipCount": 66,
+    "notes": [
+      "覆盖沪深 A 股；暂不包括北交所、港股及未上市公司。",
+      "区分直接 AI 业务、通用使能环节与邻近应用；不代表 AI 收入占比。",
+      "来源时间不同；规划与已披露产品集成明确区分。",
+      "产业链环节归属为依据业务资料作出的编辑分类，不等于供应商或客户关系。",
+      "公司间关系尚未穷尽；没有连线不代表不存在关系。",
+      "该数据集供应用接入使用，保存后不会自动替换现有公开图谱。"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "stage:materials",
+      "kind": "STAGE",
+      "label": "半导体材料",
+      "order": 0
+    },
+    {
+      "id": "stage:equipment",
+      "kind": "STAGE",
+      "label": "制造设备",
+      "order": 1
+    },
+    {
+      "id": "stage:design",
+      "kind": "STAGE",
+      "label": "EDA 与半导体 IP",
+      "order": 2
+    },
+    {
+      "id": "stage:foundry",
+      "kind": "STAGE",
+      "label": "晶圆制造",
+      "order": 3
+    },
+    {
+      "id": "stage:packaging",
+      "kind": "STAGE",
+      "label": "先进封装与测试",
+      "order": 4
+    },
+    {
+      "id": "stage:compute",
+      "kind": "STAGE",
+      "label": "AI 加速器与处理器",
+      "order": 5
+    },
+    {
+      "id": "stage:memory",
+      "kind": "STAGE",
+      "label": "内存与存储",
+      "order": 6
+    },
+    {
+      "id": "stage:interconnect",
+      "kind": "STAGE",
+      "label": "高速电互连",
+      "order": 7
+    },
+    {
+      "id": "stage:optics",
+      "kind": "STAGE",
+      "label": "光通信",
+      "order": 8
+    },
+    {
+      "id": "stage:boards",
+      "kind": "STAGE",
+      "label": "PCB 与基板",
+      "order": 9
+    },
+    {
+      "id": "stage:servers",
+      "kind": "STAGE",
+      "label": "服务器与系统",
+      "order": 10
+    },
+    {
+      "id": "stage:networking",
+      "kind": "STAGE",
+      "label": "网络设备与芯片",
+      "order": 11
+    },
+    {
+      "id": "stage:power",
+      "kind": "STAGE",
+      "label": "供配电",
+      "order": 12
+    },
+    {
+      "id": "stage:cooling",
+      "kind": "STAGE",
+      "label": "散热与液冷",
+      "order": 13
+    },
+    {
+      "id": "stage:datacenters",
+      "kind": "STAGE",
+      "label": "数据中心设施",
+      "order": 14
+    },
+    {
+      "id": "stage:cloud",
+      "kind": "STAGE",
+      "label": "云与模型平台",
+      "order": 15
+    },
+    {
+      "id": "stage:edge",
+      "kind": "STAGE",
+      "label": "端侧 AI 与设备",
+      "order": 16
+    },
+    {
+      "id": "stage:applications",
+      "kind": "STAGE",
+      "label": "AI 软件与应用",
+      "order": 17
+    },
+    {
+      "id": "XSHG:688795",
+      "symbol": "688795",
+      "name": "摩尔线程",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s054"
+      ],
+      "exposure": "DIRECT",
+      "summary": "全功能 GPU、智算卡及大模型训推平台。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 0,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688802",
+      "symbol": "688802",
+      "name": "沐曦股份",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s055"
+      ],
+      "exposure": "DIRECT",
+      "summary": "通用 GPU 芯片及人工智能训练、推理计算平台。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 1,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688047",
+      "symbol": "688047",
+      "name": "龙芯中科",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s056"
+      ],
+      "exposure": "ADJACENT",
+      "summary": "国产处理器及软件生态，作为通用计算配套。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 2,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300474",
+      "symbol": "300474",
+      "name": "景嘉微",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s057"
+      ],
+      "exposure": "ADJACENT",
+      "summary": "国产 GPU 设计；图形处理业务与 AI 训练业务应区分。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 3,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688018",
+      "symbol": "688018",
+      "name": "乐鑫科技",
+      "stageIds": [
+        "edge"
+      ],
+      "sourceIds": [
+        "s058"
+      ],
+      "exposure": "DIRECT",
+      "summary": "面向微控制器和物联网设备的端侧 AI 框架与芯片。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 4,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:603501",
+      "symbol": "603501",
+      "name": "豪威集团",
+      "stageIds": [
+        "edge"
+      ],
+      "sourceIds": [
+        "s059"
+      ],
+      "exposure": "ADJACENT",
+      "summary": "通过豪威业务提供图像传感器，属于感知端配套。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 5,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:603986",
+      "symbol": "603986",
+      "name": "兆易创新",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s060"
+      ],
+      "exposure": "DIRECT",
+      "summary": "用于 AI 服务器固件等场景的闪存产品。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 6,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688525",
+      "symbol": "688525",
+      "name": "佰维存储",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s061"
+      ],
+      "exposure": "DIRECT",
+      "summary": "SSD、DRAM 模组及终端 AI 存储产品。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 7,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:301308",
+      "symbol": "301308",
+      "name": "江波龙",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s062"
+      ],
+      "exposure": "DIRECT",
+      "summary": "人工智能设备与计算场景的存储产品。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 8,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688766",
+      "symbol": "688766",
+      "name": "普冉股份",
+      "stageIds": [
+        "memory"
+      ],
+      "sourceIds": [
+        "s063"
+      ],
+      "exposure": "DIRECT",
+      "summary": "非易失性存储芯片，覆盖服务器等应用。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 9,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688126",
+      "symbol": "688126",
+      "name": "沪硅产业",
+      "stageIds": [
+        "materials"
+      ],
+      "sourceIds": [
+        "s064"
+      ],
+      "exposure": "ENABLER",
+      "summary": "半导体硅片及 SOI 材料，属于上游通用使能环节。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 10,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688012",
+      "symbol": "688012",
+      "name": "中微公司",
+      "stageIds": [
+        "equipment"
+      ],
+      "sourceIds": [
+        "s065"
+      ],
+      "exposure": "ENABLER",
+      "summary": "用于半导体制造的等离子体刻蚀设备。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 11,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002371",
+      "symbol": "002371",
+      "name": "北方华创",
+      "stageIds": [
+        "equipment"
+      ],
+      "sourceIds": [
+        "s066"
+      ],
+      "exposure": "ENABLER",
+      "summary": "刻蚀、沉积、热处理及清洗等半导体设备。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 12,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688120",
+      "symbol": "688120",
+      "name": "华海清科",
+      "stageIds": [
+        "equipment"
+      ],
+      "sourceIds": [
+        "s067"
+      ],
+      "exposure": "ENABLER",
+      "summary": "晶圆化学机械抛光（CMP）设备。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 13,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688072",
+      "symbol": "688072",
+      "name": "拓荆科技",
+      "stageIds": [
+        "equipment"
+      ],
+      "sourceIds": [
+        "s068"
+      ],
+      "exposure": "ENABLER",
+      "summary": "半导体薄膜沉积设备。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 14,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688981",
+      "symbol": "688981",
+      "name": "中芯国际",
+      "stageIds": [
+        "foundry"
+      ],
+      "sourceIds": [
+        "s069"
+      ],
+      "exposure": "ENABLER",
+      "summary": "晶圆代工服务；不据此推断特定 AI 芯片客户。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 15,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688347",
+      "symbol": "688347",
+      "name": "华虹公司",
+      "stageIds": [
+        "foundry"
+      ],
+      "sourceIds": [
+        "s070"
+      ],
+      "exposure": "ENABLER",
+      "summary": "特色工艺晶圆代工，属于通用使能环节。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 16,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:600584",
+      "symbol": "600584",
+      "name": "长电科技",
+      "stageIds": [
+        "packaging"
+      ],
+      "sourceIds": [
+        "s071"
+      ],
+      "exposure": "ENABLER",
+      "summary": "面向高算力、存储及连接等领域的先进封装测试。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 17,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002156",
+      "symbol": "002156",
+      "name": "通富微电",
+      "stageIds": [
+        "packaging"
+      ],
+      "sourceIds": [
+        "s072"
+      ],
+      "exposure": "ENABLER",
+      "summary": "集成电路封装测试与高性能计算封装技术。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 18,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002185",
+      "symbol": "002185",
+      "name": "华天科技",
+      "stageIds": [
+        "packaging"
+      ],
+      "sourceIds": [
+        "s073"
+      ],
+      "exposure": "ENABLER",
+      "summary": "封装测试及面向 AI、云服务器的先进封装研发。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 19,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688206",
+      "symbol": "688206",
+      "name": "概伦电子",
+      "stageIds": [
+        "design"
+      ],
+      "sourceIds": [
+        "s074"
+      ],
+      "exposure": "ENABLER",
+      "summary": "面向集成电路设计与制造协同优化的 EDA 工具。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 20,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:301269",
+      "symbol": "301269",
+      "name": "华大九天",
+      "stageIds": [
+        "design"
+      ],
+      "sourceIds": [
+        "s075"
+      ],
+      "exposure": "ENABLER",
+      "summary": "模拟、存储及数字电路设计 EDA 工具。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 21,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688521",
+      "symbol": "688521",
+      "name": "芯原股份",
+      "stageIds": [
+        "design"
+      ],
+      "sourceIds": [
+        "s076"
+      ],
+      "exposure": "ENABLER",
+      "summary": "AI 图像处理、神经网络处理及接口 IP。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 22,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:000977",
+      "symbol": "000977",
+      "name": "浪潮信息",
+      "stageIds": [
+        "servers"
+      ],
+      "sourceIds": [
+        "s077"
+      ],
+      "exposure": "DIRECT",
+      "summary": "元脑 AI 服务器、GPU 系统及算力管理平台。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 23,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:603019",
+      "symbol": "603019",
+      "name": "中科曙光",
+      "stageIds": [
+        "servers"
+      ],
+      "sourceIds": [
+        "s078"
+      ],
+      "exposure": "DIRECT",
+      "summary": "人工智能服务器、存储和高性能计算系统。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 24,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:601138",
+      "symbol": "601138",
+      "name": "工业富联",
+      "stageIds": [
+        "servers"
+      ],
+      "sourceIds": [
+        "s079"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI 服务器及数据中心机柜的研发与制造。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 25,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:000938",
+      "symbol": "000938",
+      "name": "紫光股份",
+      "stageIds": [
+        "servers",
+        "networking"
+      ],
+      "sourceIds": [
+        "s080"
+      ],
+      "exposure": "DIRECT",
+      "summary": "通过新华三提供 AI 服务器及网络基础设施。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 26,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:603296",
+      "symbol": "603296",
+      "name": "华勤技术",
+      "stageIds": [
+        "servers"
+      ],
+      "sourceIds": [
+        "s081"
+      ],
+      "exposure": "DIRECT",
+      "summary": "用于云计算与 AI 推理等场景的服务器产品。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 27,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:000063",
+      "symbol": "000063",
+      "name": "中兴通讯",
+      "stageIds": [
+        "networking",
+        "servers"
+      ],
+      "sourceIds": [
+        "s082"
+      ],
+      "exposure": "DIRECT",
+      "summary": "智算服务器、交换机及软硬件一体化方案。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 28,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:301165",
+      "symbol": "301165",
+      "name": "锐捷网络",
+      "stageIds": [
+        "networking"
+      ],
+      "sourceIds": [
+        "s083"
+      ],
+      "exposure": "DIRECT",
+      "summary": "智算中心以太网交换及集群网络方案。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 29,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300502",
+      "symbol": "300502",
+      "name": "新易盛",
+      "stageIds": [
+        "optics"
+      ],
+      "sourceIds": [
+        "s084"
+      ],
+      "exposure": "DIRECT",
+      "summary": "面向 AI 数据中心的高速光模块。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 30,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300394",
+      "symbol": "300394",
+      "name": "天孚通信",
+      "stageIds": [
+        "optics"
+      ],
+      "sourceIds": [
+        "s085"
+      ],
+      "exposure": "DIRECT",
+      "summary": "光引擎、光器件及高速光模块配套产品。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 31,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688498",
+      "symbol": "688498",
+      "name": "源杰科技",
+      "stageIds": [
+        "optics"
+      ],
+      "sourceIds": [
+        "s086"
+      ],
+      "exposure": "DIRECT",
+      "summary": "用于数据中心互连的激光器芯片。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 32,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002281",
+      "symbol": "002281",
+      "name": "光迅科技",
+      "stageIds": [
+        "optics"
+      ],
+      "sourceIds": [
+        "s087"
+      ],
+      "exposure": "DIRECT",
+      "summary": "用于数据中心的高速光模块及光互连方案。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 33,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002463",
+      "symbol": "002463",
+      "name": "沪电股份",
+      "stageIds": [
+        "boards"
+      ],
+      "sourceIds": [
+        "s088"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI 服务器、高性能计算及高速网络用 PCB。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 34,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300476",
+      "symbol": "300476",
+      "name": "胜宏科技",
+      "stageIds": [
+        "boards"
+      ],
+      "sourceIds": [
+        "s089"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI 算力卡和服务器用高阶 HDI、高多层 PCB。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 35,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002916",
+      "symbol": "002916",
+      "name": "深南电路",
+      "stageIds": [
+        "boards",
+        "packaging"
+      ],
+      "sourceIds": [
+        "s090"
+      ],
+      "exposure": "DIRECT",
+      "summary": "数据中心及服务器用 PCB，并布局封装基板。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 36,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002938",
+      "symbol": "002938",
+      "name": "鹏鼎控股",
+      "stageIds": [
+        "boards"
+      ],
+      "sourceIds": [
+        "s091"
+      ],
+      "exposure": "DIRECT",
+      "summary": "面向服务器等场景的 PCB；部分 AI 产品处于认证阶段。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 37,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002837",
+      "symbol": "002837",
+      "name": "英维克",
+      "stageIds": [
+        "cooling"
+      ],
+      "sourceIds": [
+        "s092"
+      ],
+      "exposure": "DIRECT",
+      "summary": "数据中心温控、液冷板及液冷系统。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 38,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300499",
+      "symbol": "300499",
+      "name": "高澜股份",
+      "stageIds": [
+        "cooling"
+      ],
+      "sourceIds": [
+        "s093"
+      ],
+      "exposure": "DIRECT",
+      "summary": "数据中心液冷及热管理方案。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 39,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:301018",
+      "symbol": "301018",
+      "name": "申菱环境",
+      "stageIds": [
+        "cooling"
+      ],
+      "sourceIds": [
+        "s094"
+      ],
+      "exposure": "DIRECT",
+      "summary": "数据中心风冷、液冷及环境控制方案。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 40,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002335",
+      "symbol": "002335",
+      "name": "科华数据",
+      "stageIds": [
+        "power"
+      ],
+      "sourceIds": [
+        "s095"
+      ],
+      "exposure": "DIRECT",
+      "summary": "数据中心 UPS 与供电保障设备。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 41,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002518",
+      "symbol": "002518",
+      "name": "科士达",
+      "stageIds": [
+        "power"
+      ],
+      "sourceIds": [
+        "s096"
+      ],
+      "exposure": "DIRECT",
+      "summary": "数据中心 UPS、配电及热管理产品。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 42,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300442",
+      "symbol": "300442",
+      "name": "润泽科技",
+      "stageIds": [
+        "datacenters"
+      ],
+      "sourceIds": [
+        "s097"
+      ],
+      "exposure": "DIRECT",
+      "summary": "数据中心、智算基础设施及算力服务。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 43,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:603881",
+      "symbol": "603881",
+      "name": "数据港",
+      "stageIds": [
+        "datacenters"
+      ],
+      "sourceIds": [
+        "s098"
+      ],
+      "exposure": "DIRECT",
+      "summary": "定制化数据中心规划、集成与运营。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 44,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300383",
+      "symbol": "300383",
+      "name": "光环新网",
+      "stageIds": [
+        "datacenters"
+      ],
+      "sourceIds": [
+        "s099"
+      ],
+      "exposure": "DIRECT",
+      "summary": "数据中心及训练、推理算力服务。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 45,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:600588",
+      "symbol": "600588",
+      "name": "用友网络",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "s100"
+      ],
+      "exposure": "DIRECT",
+      "summary": "企业业务场景的 AI 平台与应用。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 46,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688111",
+      "symbol": "688111",
+      "name": "金山办公",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "s101"
+      ],
+      "exposure": "DIRECT",
+      "summary": "WPS AI 办公助手与文档、演示、表格应用。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 47,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002230",
+      "symbol": "002230",
+      "name": "科大讯飞",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "s102"
+      ],
+      "exposure": "DIRECT",
+      "summary": "星火大模型及认知智能应用。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 48,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:600941",
+      "symbol": "600941",
+      "name": "中国移动",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s103"
+      ],
+      "exposure": "DIRECT",
+      "summary": "移动云、算力网络与智算服务。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 49,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:601728",
+      "symbol": "601728",
+      "name": "中国电信",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s104"
+      ],
+      "exposure": "DIRECT",
+      "summary": "天翼云与智能云基础设施。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 50,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:600050",
+      "symbol": "600050",
+      "name": "中国联通",
+      "stageIds": [
+        "cloud"
+      ],
+      "sourceIds": [
+        "s105"
+      ],
+      "exposure": "DIRECT",
+      "summary": "算力调度平台、云及智能体服务。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 51,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688036",
+      "symbol": "688036",
+      "name": "传音控股",
+      "stageIds": [
+        "edge"
+      ],
+      "sourceIds": [
+        "s106"
+      ],
+      "exposure": "DIRECT",
+      "summary": "智能终端与端侧 AI 技术开发。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 52,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:603160",
+      "symbol": "603160",
+      "name": "汇顶科技",
+      "stageIds": [
+        "edge"
+      ],
+      "sourceIds": [
+        "s107"
+      ],
+      "exposure": "ADJACENT",
+      "summary": "智能终端触控与相关芯片，属于端侧配套。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 53,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:600183",
+      "symbol": "600183",
+      "name": "生益科技",
+      "stageIds": [
+        "boards"
+      ],
+      "sourceIds": [
+        "s108"
+      ],
+      "exposure": "DIRECT",
+      "summary": "覆铜板及粘结片等电路板基础材料。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 54,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:002138",
+      "symbol": "002138",
+      "name": "顺络电子",
+      "stageIds": [
+        "power"
+      ],
+      "sourceIds": [
+        "s109"
+      ],
+      "exposure": "DIRECT",
+      "summary": "AI 服务器电源管理用电感等元器件。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 55,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300666",
+      "symbol": "300666",
+      "name": "江丰电子",
+      "stageIds": [
+        "materials"
+      ],
+      "sourceIds": [
+        "s110"
+      ],
+      "exposure": "ENABLER",
+      "summary": "半导体晶圆制造及封装用高纯溅射靶材。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 56,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300346",
+      "symbol": "300346",
+      "name": "南大光电",
+      "stageIds": [
+        "materials"
+      ],
+      "sourceIds": [
+        "s111"
+      ],
+      "exposure": "ENABLER",
+      "summary": "半导体前驱体、电子特气与光刻胶材料。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 57,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688041",
+      "symbol": "688041",
+      "name": "海光信息",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s112"
+      ],
+      "exposure": "DIRECT",
+      "summary": "面向数据中心的国产处理器。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 58,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688256",
+      "symbol": "688256",
+      "name": "寒武纪",
+      "stageIds": [
+        "compute"
+      ],
+      "sourceIds": [
+        "s113"
+      ],
+      "exposure": "DIRECT",
+      "summary": "面向人工智能训练与推理的芯片及加速卡。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 59,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHG:688008",
+      "symbol": "688008",
+      "name": "澜起科技",
+      "stageIds": [
+        "interconnect",
+        "memory"
+      ],
+      "sourceIds": [
+        "s114"
+      ],
+      "exposure": "DIRECT",
+      "summary": "内存接口、PCIe Retimer 及 CXL 内存扩展芯片。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 60,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    },
+    {
+      "id": "XSHE:300308",
+      "symbol": "300308",
+      "name": "中际旭创",
+      "stageIds": [
+        "optics"
+      ],
+      "sourceIds": [
+        "s115"
+      ],
+      "exposure": "DIRECT",
+      "summary": "通过旭创科技提供 AI 与数据中心高速光模块。",
+      "kind": "COMPANY",
+      "market": "CN_A",
+      "listingScope": "SHANGHAI_SHENZHEN_A_SHARES",
+      "listingStatus": "NOT_REALTIME_VERIFIED",
+      "order": 61,
+      "evidenceStatus": "SOURCE_CHECKED",
+      "classificationBasis": "EDITORIAL_FROM_SOURCED_BUSINESS_ROLE"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "XSHG:688795__PARTICIPATES_IN__compute",
+      "source": "XSHG:688795",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "全功能 GPU、智算卡及大模型训推平台。",
+      "sourceIds": [
+        "s054"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688802__PARTICIPATES_IN__compute",
+      "source": "XSHG:688802",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "通用 GPU 芯片及人工智能训练、推理计算平台。",
+      "sourceIds": [
+        "s055"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688047__PARTICIPATES_IN__compute",
+      "source": "XSHG:688047",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "国产处理器及软件生态，作为通用计算配套。",
+      "sourceIds": [
+        "s056"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300474__PARTICIPATES_IN__compute",
+      "source": "XSHE:300474",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "国产 GPU 设计；图形处理业务与 AI 训练业务应区分。",
+      "sourceIds": [
+        "s057"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688018__PARTICIPATES_IN__edge",
+      "source": "XSHG:688018",
+      "target": "stage:edge",
+      "type": "PARTICIPATES_IN",
+      "summary": "面向微控制器和物联网设备的端侧 AI 框架与芯片。",
+      "sourceIds": [
+        "s058"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:603501__PARTICIPATES_IN__edge",
+      "source": "XSHG:603501",
+      "target": "stage:edge",
+      "type": "PARTICIPATES_IN",
+      "summary": "通过豪威业务提供图像传感器，属于感知端配套。",
+      "sourceIds": [
+        "s059"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:603986__PARTICIPATES_IN__memory",
+      "source": "XSHG:603986",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "用于 AI 服务器固件等场景的闪存产品。",
+      "sourceIds": [
+        "s060"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688525__PARTICIPATES_IN__memory",
+      "source": "XSHG:688525",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "SSD、DRAM 模组及终端 AI 存储产品。",
+      "sourceIds": [
+        "s061"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:301308__PARTICIPATES_IN__memory",
+      "source": "XSHE:301308",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "人工智能设备与计算场景的存储产品。",
+      "sourceIds": [
+        "s062"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688766__PARTICIPATES_IN__memory",
+      "source": "XSHG:688766",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "非易失性存储芯片，覆盖服务器等应用。",
+      "sourceIds": [
+        "s063"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688126__PARTICIPATES_IN__materials",
+      "source": "XSHG:688126",
+      "target": "stage:materials",
+      "type": "PARTICIPATES_IN",
+      "summary": "半导体硅片及 SOI 材料，属于上游通用使能环节。",
+      "sourceIds": [
+        "s064"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688012__PARTICIPATES_IN__equipment",
+      "source": "XSHG:688012",
+      "target": "stage:equipment",
+      "type": "PARTICIPATES_IN",
+      "summary": "用于半导体制造的等离子体刻蚀设备。",
+      "sourceIds": [
+        "s065"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002371__PARTICIPATES_IN__equipment",
+      "source": "XSHE:002371",
+      "target": "stage:equipment",
+      "type": "PARTICIPATES_IN",
+      "summary": "刻蚀、沉积、热处理及清洗等半导体设备。",
+      "sourceIds": [
+        "s066"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688120__PARTICIPATES_IN__equipment",
+      "source": "XSHG:688120",
+      "target": "stage:equipment",
+      "type": "PARTICIPATES_IN",
+      "summary": "晶圆化学机械抛光（CMP）设备。",
+      "sourceIds": [
+        "s067"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688072__PARTICIPATES_IN__equipment",
+      "source": "XSHG:688072",
+      "target": "stage:equipment",
+      "type": "PARTICIPATES_IN",
+      "summary": "半导体薄膜沉积设备。",
+      "sourceIds": [
+        "s068"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688981__PARTICIPATES_IN__foundry",
+      "source": "XSHG:688981",
+      "target": "stage:foundry",
+      "type": "PARTICIPATES_IN",
+      "summary": "晶圆代工服务；不据此推断特定 AI 芯片客户。",
+      "sourceIds": [
+        "s069"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688347__PARTICIPATES_IN__foundry",
+      "source": "XSHG:688347",
+      "target": "stage:foundry",
+      "type": "PARTICIPATES_IN",
+      "summary": "特色工艺晶圆代工，属于通用使能环节。",
+      "sourceIds": [
+        "s070"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:600584__PARTICIPATES_IN__packaging",
+      "source": "XSHG:600584",
+      "target": "stage:packaging",
+      "type": "PARTICIPATES_IN",
+      "summary": "面向高算力、存储及连接等领域的先进封装测试。",
+      "sourceIds": [
+        "s071"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002156__PARTICIPATES_IN__packaging",
+      "source": "XSHE:002156",
+      "target": "stage:packaging",
+      "type": "PARTICIPATES_IN",
+      "summary": "集成电路封装测试与高性能计算封装技术。",
+      "sourceIds": [
+        "s072"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002185__PARTICIPATES_IN__packaging",
+      "source": "XSHE:002185",
+      "target": "stage:packaging",
+      "type": "PARTICIPATES_IN",
+      "summary": "封装测试及面向 AI、云服务器的先进封装研发。",
+      "sourceIds": [
+        "s073"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688206__PARTICIPATES_IN__design",
+      "source": "XSHG:688206",
+      "target": "stage:design",
+      "type": "PARTICIPATES_IN",
+      "summary": "面向集成电路设计与制造协同优化的 EDA 工具。",
+      "sourceIds": [
+        "s074"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:301269__PARTICIPATES_IN__design",
+      "source": "XSHE:301269",
+      "target": "stage:design",
+      "type": "PARTICIPATES_IN",
+      "summary": "模拟、存储及数字电路设计 EDA 工具。",
+      "sourceIds": [
+        "s075"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688521__PARTICIPATES_IN__design",
+      "source": "XSHG:688521",
+      "target": "stage:design",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI 图像处理、神经网络处理及接口 IP。",
+      "sourceIds": [
+        "s076"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:000977__PARTICIPATES_IN__servers",
+      "source": "XSHE:000977",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "元脑 AI 服务器、GPU 系统及算力管理平台。",
+      "sourceIds": [
+        "s077"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:603019__PARTICIPATES_IN__servers",
+      "source": "XSHG:603019",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "人工智能服务器、存储和高性能计算系统。",
+      "sourceIds": [
+        "s078"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:601138__PARTICIPATES_IN__servers",
+      "source": "XSHG:601138",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI 服务器及数据中心机柜的研发与制造。",
+      "sourceIds": [
+        "s079"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:000938__PARTICIPATES_IN__servers",
+      "source": "XSHE:000938",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "通过新华三提供 AI 服务器及网络基础设施。",
+      "sourceIds": [
+        "s080"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:000938__PARTICIPATES_IN__networking",
+      "source": "XSHE:000938",
+      "target": "stage:networking",
+      "type": "PARTICIPATES_IN",
+      "summary": "通过新华三提供 AI 服务器及网络基础设施。",
+      "sourceIds": [
+        "s080"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:603296__PARTICIPATES_IN__servers",
+      "source": "XSHG:603296",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "用于云计算与 AI 推理等场景的服务器产品。",
+      "sourceIds": [
+        "s081"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:000063__PARTICIPATES_IN__networking",
+      "source": "XSHE:000063",
+      "target": "stage:networking",
+      "type": "PARTICIPATES_IN",
+      "summary": "智算服务器、交换机及软硬件一体化方案。",
+      "sourceIds": [
+        "s082"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:000063__PARTICIPATES_IN__servers",
+      "source": "XSHE:000063",
+      "target": "stage:servers",
+      "type": "PARTICIPATES_IN",
+      "summary": "智算服务器、交换机及软硬件一体化方案。",
+      "sourceIds": [
+        "s082"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:301165__PARTICIPATES_IN__networking",
+      "source": "XSHE:301165",
+      "target": "stage:networking",
+      "type": "PARTICIPATES_IN",
+      "summary": "智算中心以太网交换及集群网络方案。",
+      "sourceIds": [
+        "s083"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300502__PARTICIPATES_IN__optics",
+      "source": "XSHE:300502",
+      "target": "stage:optics",
+      "type": "PARTICIPATES_IN",
+      "summary": "面向 AI 数据中心的高速光模块。",
+      "sourceIds": [
+        "s084"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300394__PARTICIPATES_IN__optics",
+      "source": "XSHE:300394",
+      "target": "stage:optics",
+      "type": "PARTICIPATES_IN",
+      "summary": "光引擎、光器件及高速光模块配套产品。",
+      "sourceIds": [
+        "s085"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688498__PARTICIPATES_IN__optics",
+      "source": "XSHG:688498",
+      "target": "stage:optics",
+      "type": "PARTICIPATES_IN",
+      "summary": "用于数据中心互连的激光器芯片。",
+      "sourceIds": [
+        "s086"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002281__PARTICIPATES_IN__optics",
+      "source": "XSHE:002281",
+      "target": "stage:optics",
+      "type": "PARTICIPATES_IN",
+      "summary": "用于数据中心的高速光模块及光互连方案。",
+      "sourceIds": [
+        "s087"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002463__PARTICIPATES_IN__boards",
+      "source": "XSHE:002463",
+      "target": "stage:boards",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI 服务器、高性能计算及高速网络用 PCB。",
+      "sourceIds": [
+        "s088"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300476__PARTICIPATES_IN__boards",
+      "source": "XSHE:300476",
+      "target": "stage:boards",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI 算力卡和服务器用高阶 HDI、高多层 PCB。",
+      "sourceIds": [
+        "s089"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002916__PARTICIPATES_IN__boards",
+      "source": "XSHE:002916",
+      "target": "stage:boards",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心及服务器用 PCB，并布局封装基板。",
+      "sourceIds": [
+        "s090"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002916__PARTICIPATES_IN__packaging",
+      "source": "XSHE:002916",
+      "target": "stage:packaging",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心及服务器用 PCB，并布局封装基板。",
+      "sourceIds": [
+        "s090"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002938__PARTICIPATES_IN__boards",
+      "source": "XSHE:002938",
+      "target": "stage:boards",
+      "type": "PARTICIPATES_IN",
+      "summary": "面向服务器等场景的 PCB；部分 AI 产品处于认证阶段。",
+      "sourceIds": [
+        "s091"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002837__PARTICIPATES_IN__cooling",
+      "source": "XSHE:002837",
+      "target": "stage:cooling",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心温控、液冷板及液冷系统。",
+      "sourceIds": [
+        "s092"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300499__PARTICIPATES_IN__cooling",
+      "source": "XSHE:300499",
+      "target": "stage:cooling",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心液冷及热管理方案。",
+      "sourceIds": [
+        "s093"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:301018__PARTICIPATES_IN__cooling",
+      "source": "XSHE:301018",
+      "target": "stage:cooling",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心风冷、液冷及环境控制方案。",
+      "sourceIds": [
+        "s094"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002335__PARTICIPATES_IN__power",
+      "source": "XSHE:002335",
+      "target": "stage:power",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心 UPS 与供电保障设备。",
+      "sourceIds": [
+        "s095"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002518__PARTICIPATES_IN__power",
+      "source": "XSHE:002518",
+      "target": "stage:power",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心 UPS、配电及热管理产品。",
+      "sourceIds": [
+        "s096"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300442__PARTICIPATES_IN__datacenters",
+      "source": "XSHE:300442",
+      "target": "stage:datacenters",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心、智算基础设施及算力服务。",
+      "sourceIds": [
+        "s097"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:603881__PARTICIPATES_IN__datacenters",
+      "source": "XSHG:603881",
+      "target": "stage:datacenters",
+      "type": "PARTICIPATES_IN",
+      "summary": "定制化数据中心规划、集成与运营。",
+      "sourceIds": [
+        "s098"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300383__PARTICIPATES_IN__datacenters",
+      "source": "XSHE:300383",
+      "target": "stage:datacenters",
+      "type": "PARTICIPATES_IN",
+      "summary": "数据中心及训练、推理算力服务。",
+      "sourceIds": [
+        "s099"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:600588__PARTICIPATES_IN__applications",
+      "source": "XSHG:600588",
+      "target": "stage:applications",
+      "type": "PARTICIPATES_IN",
+      "summary": "企业业务场景的 AI 平台与应用。",
+      "sourceIds": [
+        "s100"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688111__PARTICIPATES_IN__applications",
+      "source": "XSHG:688111",
+      "target": "stage:applications",
+      "type": "PARTICIPATES_IN",
+      "summary": "WPS AI 办公助手与文档、演示、表格应用。",
+      "sourceIds": [
+        "s101"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002230__PARTICIPATES_IN__applications",
+      "source": "XSHE:002230",
+      "target": "stage:applications",
+      "type": "PARTICIPATES_IN",
+      "summary": "星火大模型及认知智能应用。",
+      "sourceIds": [
+        "s102"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:600941__PARTICIPATES_IN__cloud",
+      "source": "XSHG:600941",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "移动云、算力网络与智算服务。",
+      "sourceIds": [
+        "s103"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:601728__PARTICIPATES_IN__cloud",
+      "source": "XSHG:601728",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "天翼云与智能云基础设施。",
+      "sourceIds": [
+        "s104"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:600050__PARTICIPATES_IN__cloud",
+      "source": "XSHG:600050",
+      "target": "stage:cloud",
+      "type": "PARTICIPATES_IN",
+      "summary": "算力调度平台、云及智能体服务。",
+      "sourceIds": [
+        "s105"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688036__PARTICIPATES_IN__edge",
+      "source": "XSHG:688036",
+      "target": "stage:edge",
+      "type": "PARTICIPATES_IN",
+      "summary": "智能终端与端侧 AI 技术开发。",
+      "sourceIds": [
+        "s106"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:603160__PARTICIPATES_IN__edge",
+      "source": "XSHG:603160",
+      "target": "stage:edge",
+      "type": "PARTICIPATES_IN",
+      "summary": "智能终端触控与相关芯片，属于端侧配套。",
+      "sourceIds": [
+        "s107"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:600183__PARTICIPATES_IN__boards",
+      "source": "XSHG:600183",
+      "target": "stage:boards",
+      "type": "PARTICIPATES_IN",
+      "summary": "覆铜板及粘结片等电路板基础材料。",
+      "sourceIds": [
+        "s108"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:002138__PARTICIPATES_IN__power",
+      "source": "XSHE:002138",
+      "target": "stage:power",
+      "type": "PARTICIPATES_IN",
+      "summary": "AI 服务器电源管理用电感等元器件。",
+      "sourceIds": [
+        "s109"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300666__PARTICIPATES_IN__materials",
+      "source": "XSHE:300666",
+      "target": "stage:materials",
+      "type": "PARTICIPATES_IN",
+      "summary": "半导体晶圆制造及封装用高纯溅射靶材。",
+      "sourceIds": [
+        "s110"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300346__PARTICIPATES_IN__materials",
+      "source": "XSHE:300346",
+      "target": "stage:materials",
+      "type": "PARTICIPATES_IN",
+      "summary": "半导体前驱体、电子特气与光刻胶材料。",
+      "sourceIds": [
+        "s111"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688041__PARTICIPATES_IN__compute",
+      "source": "XSHG:688041",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "面向数据中心的国产处理器。",
+      "sourceIds": [
+        "s112"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688256__PARTICIPATES_IN__compute",
+      "source": "XSHG:688256",
+      "target": "stage:compute",
+      "type": "PARTICIPATES_IN",
+      "summary": "面向人工智能训练与推理的芯片及加速卡。",
+      "sourceIds": [
+        "s113"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688008__PARTICIPATES_IN__interconnect",
+      "source": "XSHG:688008",
+      "target": "stage:interconnect",
+      "type": "PARTICIPATES_IN",
+      "summary": "内存接口、PCIe Retimer 及 CXL 内存扩展芯片。",
+      "sourceIds": [
+        "s114"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:688008__PARTICIPATES_IN__memory",
+      "source": "XSHG:688008",
+      "target": "stage:memory",
+      "type": "PARTICIPATES_IN",
+      "summary": "内存接口、PCIe Retimer 及 CXL 内存扩展芯片。",
+      "sourceIds": [
+        "s114"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHE:300308__PARTICIPATES_IN__optics",
+      "source": "XSHE:300308",
+      "target": "stage:optics",
+      "type": "PARTICIPATES_IN",
+      "summary": "通过旭创科技提供 AI 与数据中心高速光模块。",
+      "sourceIds": [
+        "s115"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "NOT_A_COMMERCIAL_RELATIONSHIP"
+    },
+    {
+      "id": "XSHG:603019__INTEGRATES_TECHNOLOGY_FROM__XSHG:688041",
+      "source": "XSHG:603019",
+      "target": "XSHG:688041",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "曙光 H520G50 服务器采用海光处理器；不据此推断采购金额或独家关系。",
+      "sourceIds": [
+        "s078"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "XSHE:000063__INTEGRATES_TECHNOLOGY_FROM__XSHG:688041",
+      "source": "XSHE:000063",
+      "target": "XSHG:688041",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "中兴 R5330 G3 服务器采用海光 C86-4G 处理器。",
+      "sourceIds": [
+        "s119"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    },
+    {
+      "id": "XSHE:000938__INTEGRATES_TECHNOLOGY_FROM__XSHG:688041",
+      "source": "XSHE:000938",
+      "target": "XSHG:688041",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "紫光股份旗下新华三 R4930 G3 服务器采用海光二号处理器。",
+      "sourceIds": [
+        "s120"
+      ],
+      "evidenceStatus": "SOURCE_CHECKED",
+      "commercialStatus": "DOCUMENTED"
+    }
+  ],
+  "sources": [
+    {
+      "id": "s054",
+      "url": "https://www.mthreads.com/",
+      "title": "摩尔线程官方网站 | 全栈AI 为美好世界加速",
+      "publisher": "www.mthreads.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s055",
+      "url": "https://www.metax-tech.com/",
+      "title": "沐曦MetaX | 致力于成为全球一流的GPU企业",
+      "publisher": "www.metax-tech.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s056",
+      "url": "https://loongson.cn/download/index",
+      "title": "下载中心",
+      "publisher": "loongson.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s057",
+      "url": "https://www.jingjiamicro.com/",
+      "title": "长沙景嘉微电子股份有限公司",
+      "publisher": "www.jingjiamicro.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s058",
+      "url": "https://docs.espressif.com/projects/esp-techpedia/en/latest/esp-friends/solution-introduction/ai/ai-solution.html",
+      "title": "Introduction to Edge AI Solutions - - — ESP-Techpedia latest documentation",
+      "publisher": "docs.espressif.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s059",
+      "url": "https://www.ovt.com/image-sensors/",
+      "title": "Image Sensors | OMNIVISION",
+      "publisher": "www.ovt.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s060",
+      "url": "https://wcwebtest.gigadevice.com/about/blog/gigadevice-memory-ai-server-innovation",
+      "title": "AI+时代，兆易创新存储助力AI服务器创新升级 | 博客 | 兆易创新 GigaDevice | 官方网站",
+      "publisher": "wcwebtest.gigadevice.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s061",
+      "url": "https://www.biwin.com.cn/",
+      "title": "首页 - 佰维存储-存储赋能万物智联",
+      "publisher": "www.biwin.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s062",
+      "url": "https://www.longsys.com/industry-application/artificial-intelligence/",
+      "title": "Storage Solution for AI industry - Storage Products Solution – Longsys acquired LEXAR & Foreseee",
+      "publisher": "www.longsys.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s063",
+      "url": "https://www.puyasemi.com/",
+      "title": "普冉半导体（上海）股份有限公司",
+      "publisher": "www.puyasemi.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s064",
+      "url": "https://www.nsig.com/",
+      "title": "硅产业集团",
+      "publisher": "www.nsig.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s065",
+      "url": "https://www.amec-inc.com/uploads/files/20221128/16696220508592.pdf",
+      "title": "第一章  \n匠心经营  \n提供高质量产品服务\n\n1.1 产品创新引领  \n1.2 优化客户服务",
+      "publisher": "www.amec-inc.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s066",
+      "url": "https://www.naura.com/Public/Upload/file/20230724/1690182376bfaea2da5e412c13.pdf",
+      "title": "前言  诚信经营  创新与服务  责任供应链  绿色制造  进取职场  共好社会  附录",
+      "publisher": "www.naura.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s067",
+      "url": "https://www.hwatsing.com/en/product_detail/757.html",
+      "title": "Universal-H300_我的网站",
+      "publisher": "www.hwatsing.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s068",
+      "url": "https://www.piotech.cn/index.php/Pro/detail?id=130",
+      "title": "拓荆科技股份有限公司",
+      "publisher": "www.piotech.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s069",
+      "url": "https://www.smics.com/uploads/7-26-3%26e4%26b8%26ad%26e8%268a%26af%26e5%269b%26bd%26e9%2699%2685%26e7%26a4%26be%26e4%26bc%269a%26e8%26b4%26a3%26e4%26bb%26bb%26e6%268a%26a5%26e5%2691%268a.pdf",
+      "title": "1",
+      "publisher": "www.smics.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s070",
+      "url": "https://dataclouds.cninfo.com.cn/shgonggao/2024/2024-11-08/9b24b3b69ce311ef953afa163e26e5de.pdf",
+      "title": "HUA HONG SEMICONDUCTOR LIMITED 華虹半導體有限公司",
+      "publisher": "dataclouds.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2024-11-08",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s071",
+      "url": "https://www.jcetglobal.com/uploads/%26e9%2695%26bf%26e7%2694%26b5%26e7%26a7%2691%26e6%268a%26802024%26e5%268d%268a%26e5%26b9%26b4%26e6%268a%26a5.pdf",
+      "title": "2024 年半年度报告",
+      "publisher": "www.jcetglobal.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s072",
+      "url": "https://static.cninfo.com.cn/finalpage/2026-06-05/1225353054.PDF",
+      "title": "通富微电子股份有限公司　　　　　　　　　　　　　　　　　　　　　　　　　募集说明书",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-06-05",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s073",
+      "url": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225059982.PDF",
+      "title": "天水华天科技股份有限公司 2025 年年度报告全文",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-03-31",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s074",
+      "url": "https://www.primarius-tech.com/en/aboutus/",
+      "title": "PRIMARIUS - Company Profile",
+      "publisher": "www.primarius-tech.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s075",
+      "url": "https://empyrean.com.cn/product/eda.html",
+      "title": "EDA软件_华大九天 | EDA及相关服务",
+      "publisher": "empyrean.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s076",
+      "url": "https://www.verisilicon.com/en/IPPortfolio/AIPixelProcessingIP",
+      "title": "AI Pixel Processing IP",
+      "publisher": "www.verisilicon.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s077",
+      "url": "https://www.ieisystem.com/product/",
+      "title": "产品中心_服务器_元脑®通用服务器_GPU服务器_数据存储_边缘服务器_开放网络_数据中心基础设施-浪潮信息",
+      "publisher": "www.ieisystem.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s078",
+      "url": "https://www.sugon.com/product/lists?cate_id=68&category_id=33",
+      "title": "产品列表-更新、更全、更灵活-中科曙光",
+      "publisher": "www.sugon.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s079",
+      "url": "https://panel.fii-foxconn.com/static/upload/2025/04/30/202504304482.pdf",
+      "title": "富士康工业互联网股份有限公司2024年年度报告",
+      "publisher": "panel.fii-foxconn.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2025-04-30",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s080",
+      "url": "https://www.h3c.com/cn/d_202605/2842859_30008_0.htm",
+      "title": "智算双擎 新华三发布AI训推旗舰服务器新品-新华三集团-H3C",
+      "publisher": "www.h3c.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s081",
+      "url": "https://www.huaqin.com/product_server/1",
+      "title": "华勤技术-智能产品_ODM_消费电子",
+      "publisher": "www.huaqin.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s082",
+      "url": "https://www.zte.com.cn/china/solutions_latest/computing_infrastructure/AiCube.html",
+      "title": "AiCube智算一体机解决方案 | 中兴通讯",
+      "publisher": "www.zte.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s083",
+      "url": "https://www.ruijie.com.cn/fa/ai-datacenter-networking/",
+      "title": "智算中心网络解决方案 | 承载万卡级算力互联 - 锐捷网络",
+      "publisher": "www.ruijie.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s084",
+      "url": "https://eoptolink.com/news/13-new-products/364-eoptolink-joins-xpo-msa-and-unveils-industry-first-12-8-tbps-liquid-cooled-pluggable-optics-for-ai-data-centers",
+      "title": "Eoptolink Joins XPO MSA and Unveils Industry-First 12.8 Tbps Liquid-Cooled Pluggable Optics for AI Data Centers",
+      "publisher": "eoptolink.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s085",
+      "url": "https://www.tfcsz.com/product_service.html",
+      "title": "产品与服务",
+      "publisher": "www.tfcsz.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s086",
+      "url": "https://www.yj-semitech.com/",
+      "title": "源杰科技_源杰半导体_陕西源杰半导体科技股份有限公司",
+      "publisher": "www.yj-semitech.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s087",
+      "url": "https://www.accelink.com/lighting_your_dreams/CloudandEnterprise.html",
+      "title": "Cloud and Enterprise 光迅科技 | 让光引领梦想",
+      "publisher": "www.accelink.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s088",
+      "url": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225502252.PDF",
+      "title": "沪电股份2026年半年度报告",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-08-26",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s089",
+      "url": "https://www.shpcb.com/productprocess.html",
+      "title": "制程能力-胜宏科技(惠州)股份有限公司",
+      "publisher": "www.shpcb.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s090",
+      "url": "https://www.scc.com.cn/yskjcmsresource/document/20240827/1013213911656169472.PDF",
+      "title": "深南电路股份有限公司 2024 年半年度报告全文",
+      "publisher": "www.scc.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s091",
+      "url": "https://www.avaryholding.com/upload/file/2026-03-31/6d316ca7-f41d-4b24-b813-bc91facf842e.pdf",
+      "title": "鹏鼎控股（深圳）股份有限公司 2025 年年度报告全文",
+      "publisher": "www.avaryholding.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-03-31",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s092",
+      "url": "https://www.envicool.com/product.html",
+      "title": "设备级环境 - 英维克(Envicool)官方网站",
+      "publisher": "www.envicool.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s093",
+      "url": "https://static.cninfo.com.cn/finalpage/2024-05-13/1220043365.PDF",
+      "title": "高澜股份投资者关系活动记录表（2024年度）",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2024-05-13",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s094",
+      "url": "https://www.shenling.com/applications/data-services/idc/",
+      "title": "广东申菱环境系统股份有限公司",
+      "publisher": "www.shenling.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s095",
+      "url": "https://www.kehua.com.cn/products/product_list?level1=%E9%AB%98%E7%AB%AF%E7%94%B5%E6%BA%90&level2=UPS",
+      "title": "科华集团",
+      "publisher": "www.kehua.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s096",
+      "url": "https://kstar.com.cn/index.php/product/index/160.html?c=1",
+      "title": "产品中心-科士达官网",
+      "publisher": "kstar.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s097",
+      "url": "https://static.cninfo.com.cn/finalpage/2025-04-24/1223249829.PDF",
+      "title": "润泽智算科技集团股份有限公司 2024 年年度报告全文",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2025-04-24",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s098",
+      "url": "https://static.cninfo.com.cn/finalpage/2026-04-18/1225123486.PDF",
+      "title": "2025数据港ESG__0417",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-04-18",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s099",
+      "url": "https://www.sinnet.com.cn/ic_service.html",
+      "title": "北京光环新网科技股份有限公司 Beijing Sinnet Technology Co., Ltd.",
+      "publisher": "www.sinnet.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s100",
+      "url": "https://www.yonyou.com/",
+      "title": "企业数智化 用友BIP—用友集团官网",
+      "publisher": "www.yonyou.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s101",
+      "url": "https://ai.wps.cn/",
+      "title": "WPS AI - PPT一键生成 | AI写作文档 | AI表格处理",
+      "publisher": "ai.wps.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s102",
+      "url": "https://cogskl.iflytek.com/%E4%BB%A3%E8%A1%A8%E6%80%A7%E6%88%90%E6%9E%9C",
+      "title": "代表性成果 – 认知智能全国重点实验室",
+      "publisher": "cogskl.iflytek.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s103",
+      "url": "https://www.chinamobileltd.com/sc/ir/reports/sd2023_ashare.pdf",
+      "title": "Security\n6G\nIntegration\nPlatform\nComputility\nnetwo",
+      "publisher": "www.chinamobileltd.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s104",
+      "url": "https://www.chinatelecom-h.com/tc/ir/presentations/annpre260324.pdf",
+      "title": "积极推进战略升级，持续深化智能云体系",
+      "publisher": "www.chinatelecom-h.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s105",
+      "url": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480022.PDF",
+      "title": "中国联合网络通信股份有限公司　　　　　　　　　　　　　　　　　　　　　　　　　2026 年半年度报告摘要",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-08-19",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s106",
+      "url": "https://transsion.com/zh-CN/news?currentPage=2",
+      "title": "深圳传音控股股份有限公司 Together we can",
+      "publisher": "transsion.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s107",
+      "url": "https://www.goodix.com/zh/product/touch/active_stylus_driver_chip",
+      "title": "主动笔驱动芯片丨触控产品丨汇顶科技",
+      "publisher": "www.goodix.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s108",
+      "url": "https://static.cninfo.com.cn/finalpage/2026-04-25/1225195409.PDF",
+      "title": "广东生益科技股份有限公司2025年年度报告",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-04-25",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s109",
+      "url": "https://static.cninfo.com.cn/finalpage/2024-10-29/1221561573.PDF",
+      "title": "证券代码：002138                     证券简称：顺络电子",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2024-10-29",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s110",
+      "url": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225228777.PDF",
+      "title": "宁波江丰电子材料股份有限公司　　　　　　　　　　　　　　　　　　　　　　　　　募集说明书",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-04-28",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s111",
+      "url": "https://static.cninfo.com.cn/finalpage/2026-04-10/1225087469.PDF",
+      "title": "江苏南大光电材料股份有限公司 2025 年年度报告全文",
+      "publisher": "static.cninfo.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": "2026-04-10",
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s112",
+      "url": "https://www.hygon.cn/product/cpu",
+      "title": "海光--用“芯”计算未来",
+      "publisher": "www.hygon.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s113",
+      "url": "https://cambricon.com/index.php?a=lists&c=index&catid=360&m=content",
+      "title": "思元370系列 - 寒武纪",
+      "publisher": "cambricon.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s114",
+      "url": "https://www.montage-tech.com/Solution/AI_Server",
+      "title": "AI Server | Montage Technology",
+      "publisher": "www.montage-tech.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s115",
+      "url": "https://www.innolight.com/en/goods/solution/cid/",
+      "title": "AI and Data Center Networking",
+      "publisher": "www.innolight.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s119",
+      "url": "https://enterprise.zte.com.cn/product-detail.html?id=267",
+      "title": "ZTE-服务器及存储",
+      "publisher": "enterprise.zte.com.cn",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    },
+    {
+      "id": "s120",
+      "url": "https://www.h3c.com/cn/Products_And_Solution/Server/H3C/Products/RackServer/Products_Series/Dualway_Server/R4930_G3/",
+      "title": "cn-rel3",
+      "publisher": "www.h3c.com",
+      "retrievedAt": "2026-09-11",
+      "sourceDate": null,
+      "kind": "PRIMARY_SOURCE"
+    }
+  ]
+}
