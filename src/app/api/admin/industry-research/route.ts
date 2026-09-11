@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     if (body.action === "seed-china") return NextResponse.json(await seedChinaCompanies(getAdminFirestore(), user.uid), { headers: { "Cache-Control": "private, no-store" } });
     if (body.action === "start" && body.market !== undefined && !["US", "CN_A"].includes(body.market as string)) return NextResponse.json({ error: "Invalid research market." }, { status: 400 });
     let item;
-    if (body.action === "start") item = await startResearch(text(body.industry), text(body.requestId), user.uid, body.category, body.market === "CN_A" ? "CN_A" : "US");
+    if (body.action === "start") item = await startResearch(text(body.industry), text(body.requestId), user.uid, body.category, body.market === "CN_A" ? "CN_A" : "US", body.market === "CN_A" ? "connections" : "legacy");
     else if (body.action === "refresh") item = await refreshResearch(text(body.id));
     else if (body.action === "diagnose") item = await diagnoseResearch(text(body.id));
     else if (body.action === "publish" && Array.isArray(body.selectedIds)) item = await publishResearch(text(body.id), body.selectedIds, user.uid);

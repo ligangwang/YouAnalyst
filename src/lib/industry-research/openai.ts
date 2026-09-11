@@ -23,7 +23,7 @@ export function researchRequest(industry: string, existing: string[], topic?: Re
     }) } },
   };
 }
-function chinaResearchRequest(industry: string, existing: string[], topic?: ResearchTopic) {
+export function chinaResearchRequest(industry: string, existing: string[], topic?: ResearchTopic) {
   return {
     model: getOpenAiModel(), background: true, store: true, reasoning: { effort: "low" },
     max_output_tokens: 12000, max_tool_calls: 4,
@@ -39,6 +39,12 @@ function chinaResearchRequest(industry: string, existing: string[], topic?: Rese
       }) },
     }) } },
   };
+}
+export function candidateResearchRequest(industry: string, candidate: { id: string; name: string }) {
+  const request = chinaResearchRequest(industry, []);
+  request.reasoning.effort = "medium";
+  request.input[1].content = JSON.stringify({ industry, candidate, asOf: new Date().toISOString().slice(0, 10), task: "Research only this candidate. Verify identity and business relevance to the industry using consulted sources. Return one complete Chinese company profile with exactly this ID, or an empty companies array if verification fails. Do not substitute another company." });
+  return request;
 }
 export async function openAiResearch(path: string, body?: unknown): Promise<Record<string, unknown>> {
   const response = await fetch(`https://api.openai.com/v1/responses${path}`, {

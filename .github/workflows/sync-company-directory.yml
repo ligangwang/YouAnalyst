@@ -1,0 +1,33 @@
+name: Sync A-share company directory
+on:
+  schedule:
+    - cron: '20 2 * * 1'
+  workflow_dispatch:
+concurrency:
+  group: sync-cni-directory
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install openpyxl==3.1.5
+      - name: Download and validate the latest official snapshot
+        run: python scripts/download-cni-directory.py /tmp/cni-directory.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Import directory and enqueue missing profiles
+        run: npx tsx scripts/sync-cni-directory.ts /tmp/cni-directory.json

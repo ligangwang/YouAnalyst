@@ -10,13 +10,14 @@ import { RESEARCH_SECTORS, TAXONOMY_SOURCE, type ResearchTopic } from "@/lib/ind
 import { INDUSTRY_SEGMENTS } from "@/lib/industry-graph/catalog";
 import { useLocale } from "./providers/locale-provider";
 
-type Run = { diagnostics?: Record<string, unknown>; id: string; market?: "US" | "CN_A"; industry: string; topic?: ResearchTopic; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
+type Run = { mode?: string; diagnostics?: Record<string, unknown>; id: string; market?: "US" | "CN_A"; industry: string; topic?: ResearchTopic; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
 const control = "rounded-md border border-white/20 px-3 py-2 text-sm disabled:opacity-50";
 export function AdminIndustryResearch() {
   const ui = useUiText();
   const { text } = useLocale();
   const [market, setMarket] = useState<"US" | "CN_A">("US");
-  const [seedMessage, setSeedMessage] = useState("");
+  const [cniIndustries, setCniIndustries] = useState<{ code: string; name: string }[]>([]);
+  const [cniCode, setCniCode] = useState("");
   const { user, loading, getIdToken } = useAuth();
   const [industry, setIndustry] = useState("AI data-center supply chain");
   const [sectorCode, setSectorCode] = useState("45");
@@ -47,8 +48,8 @@ export function AdminIndustryResearch() {
     setActive(current => current || payload.items[0]?.id || "");
   }, [api, user?.uid]);
   useEffect(() => {
-    if (!loading && user) void reload().catch(e => setError(e.message));
-  }, [loading, user, reload]);
+    if (!loading && user) { void reload().catch(e => setError(e.message)); void getIdToken().then(token => fetch("/api/admin/company-research", { headers: { authorization: `Bearer ${token}` } })).then(r => r.json()).then(d => setCniIndustries(d.industries ?? [])).catch(() => {}); }
+  }, [loading, user, reload, getIdToken]);
   const visibleRuns = user && runsOwner === user.uid ? runs : [];
   const filteredRuns = visibleRuns.filter(r => (r.market ?? "US") === market && (!filterSector || (filterSector === "custom" ? !r.topic?.sectorCode : r.topic?.sectorCode === filterSector)));
   const run = filteredRuns.find(r => r.id === active);
@@ -65,10 +66,10 @@ export function AdminIndustryResearch() {
   async function act(action: "start" | "refresh" | "publish" | "diagnose") {
     setBusy(true); setError("");
     try {
-      const topicKey = JSON.stringify([market, sectorCode, industryCode, industry.trim()]);
+      const topicKey = JSON.stringify([market, sectorCode, industryCode, cniCode, industry.trim()]);
       if (action === "start" && requestTopic.current !== topicKey) { requestId.current = null; requestTopic.current = topicKey; }
       requestId.current ??= crypto.randomUUID();
-      const payload = await api({ action, market, industry, category: sector ? { sectorCode, industryCode } : null, requestId: requestId.current, id: active, selectedIds: selected });
+      const payload = await api({ action, market, industry: market === "CN_A" ? `国证行业：${cniIndustries.find(c => c.code === cniCode)?.name ?? ""}${industry ? `；${industry}` : ""}` : industry, category: market === "CN_A" ? { cniCode } : sector ? { sectorCode, industryCode } : null, requestId: requestId.current, id: active, selectedIds: selected });
       if (action === "start") requestId.current = null;
       setRuns(current => [payload.item, ...current.filter(r => r.id !== payload.item.id)]);
       setRunsOwner(user?.uid ?? null);
@@ -77,61 +78,52 @@ export function AdminIndustryResearch() {
     finally { setBusy(false); }
   }
   return <main className="mx-auto max-w-6xl px-4 py-8 text-slate-100">
-    <h1 className="text-2xl font-semibold"><UiText text={"Industry research"} /></h1>
+    <h1 className="text-2xl font-semibold">{text("Industry connection research", "行业关系研究")}</h1><a href="/admin/company-research" className="mt-3 block text-cyan-300 underline">{text("Company directory and research queue", "公司目录与研究队列")}</a>
     <div className="my-5 flex flex-wrap items-end gap-3">
-      <label className="flex flex-col gap-1 text-sm">{text("Research market", "研究市场")}<select value={market} disabled={busy} onChange={e => { setMarket(e.target.value as "US" | "CN_A"); setActive(""); setSelected([]); }} className={`${control} bg-slate-950`}>
+      <label className="flex flex-col gap-1 text-sm">{text("Research market", "研究市场")}<select value={market} disabled={busy} onChange={e => { setMarket(e.target.value as "US" | "CN_A"); setFilterSector(""); setActive(""); setSelected([]); }} className={`${control} bg-slate-950`}>
         <option value="US">{text("US stocks and ADRs", "美股与 ADR")}</option><option value="CN_A">{text("China A-shares", "中国 A 股")}</option>
       </select></label>
-      <label className="flex min-w-0 basis-full flex-col gap-1 text-sm sm:basis-64"><UiText text={"Sector"} /><select value={sectorCode} disabled={busy} onChange={e => { setSectorCode(e.target.value); setIndustryCode(RESEARCH_SECTORS.find(s => s.code === e.target.value)?.industries[0][0] ?? ""); setIndustry(""); }} className={`${control} w-full bg-slate-950`}>
+      {market === "US" && <label className="flex min-w-0 basis-full flex-col gap-1 text-sm sm:basis-64"><UiText text={"Sector"} /><select value={sectorCode} disabled={busy} onChange={e => { setSectorCode(e.target.value); setIndustryCode(RESEARCH_SECTORS.find(s => s.code === e.target.value)?.industries[0][0] ?? ""); setIndustry(""); }} className={`${control} w-full bg-slate-950`}>
           {RESEARCH_SECTORS.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
           <option value="custom"><UiText text={"Custom / cross-industry"} /></option>
         </select>
-      </label>
-      {sector && <label className="flex min-w-0 flex-1 basis-full flex-col gap-1 text-sm sm:basis-72"><UiText text={"Industry"} /><select value={industryCode} disabled={busy} onChange={e => { setIndustryCode(e.target.value); setIndustry(""); }} className={`${control} w-full bg-slate-950`}>
+      </label>}
+      {market === "CN_A" && <label className="flex flex-col gap-1">{text("CNI industry", "国证行业")}<select className={`${control} bg-slate-950`} value={cniCode} onChange={e => { setCniCode(e.target.value); setIndustry(""); }}><option value="">{text("Select an industry", "选择行业")}</option>{cniIndustries.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}</select></label>}
+      {market === "US" && sector && <label className="flex min-w-0 flex-1 basis-full flex-col gap-1 text-sm sm:basis-72"><UiText text={"Industry"} /><select value={industryCode} disabled={busy} onChange={e => { setIndustryCode(e.target.value); setIndustry(""); }} className={`${control} w-full bg-slate-950`}>
           {sector.industries.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
         </select>
       </label>}
       <label className="flex min-w-0 basis-full flex-col gap-1 text-sm">{sector ? <UiText text={"Research scope (optional)"} /> : <UiText text={"Custom research topic"} />}
-        <input value={industry} disabled={busy} maxLength={120} onChange={e => setIndustry(e.target.value)} className={`${control} w-full bg-slate-950`} />
+        <input value={industry} disabled={busy} maxLength={80} onChange={e => setIndustry(e.target.value)} className={`${control} w-full bg-slate-950`} />
       </label>
-      <button className={`${control} bg-cyan-500 text-slate-950`} disabled={busy || !user || (!sector && industry.trim().length < 3)} onClick={() => void act("start")}><UiText text={"Research industry"} /></button>
+      <button className={`${control} bg-cyan-500 text-slate-950`} disabled={busy || !user || (market === "CN_A" ? !cniCode : !sector && industry.trim().length < 3)} onClick={() => void act("start")}>{text("Research industry connections", "研究行业关系")}</button>
       <button className={control} disabled={busy || !user} onClick={() => void reload().catch(e => setError(e.message))}><UiText text={"Refresh runs"} /></button>
     </div>
-    <p className="text-sm text-slate-400">{market === "CN_A" ? text("Discover A-share companies by industry. Review their identity, business and sources before publishing. Paid research shares the 100 batches/day limit; up to five Chinese profiles, 4 tool calls and 12,000 output tokens per batch.", "按行业发现 A 股公司，核对公司身份、业务与来源后发布。付费研究共享每日 100 批限额；每批最多 5 家公司，仅生成中文内容；最多 4 次工具调用及 12,000 个输出 token。") : ui("Paid research · maximum 100 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs")}</p>
-    {market === "CN_A" && <div className="mt-4 flex flex-wrap items-center gap-3">
-      <button className={control} disabled={busy || !user} onClick={async () => {
-        setBusy(true); setError(""); setSeedMessage("");
-        try { const result = await api({ action: "seed-china" }); setSeedMessage(text(`Imported ${result.created}; preserved ${result.preserved} existing companies.`, `已导入 ${result.created} 家，保留 ${result.preserved} 家现有公司。`)); }
-        catch (e) { setError(e instanceof Error ? e.message : "Research request failed."); }
-        finally { setBusy(false); }
-      }}>{text("Import five starter companies", "导入首批五家公司")}</button>
-      <a href="/map?market=CN_A" className="text-sm text-cyan-200 underline">{text("View A-share companies", "查看 A 股公司")}</a>
-      {seedMessage && <p role="status" className="text-sm text-emerald-300">{seedMessage}</p>}
-    </div>}
-    <a href={TAXONOMY_SOURCE} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-cyan-200 underline"><UiText text={"GICS sector and industry reference"} /></a>
+    <p className="text-sm text-slate-400">{market === "CN_A" ? text("Research sourced connections between imported companies. Each run uses the shared daily research allowance; company profiles are processed separately.", "基于已导入的公司研究有来源支持的关系。每次运行占用共享每日研究额度；公司资料在独立队列中处理。") : ui("Paid research · maximum 100 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs")}</p>
+    {market === "US" && <a href={TAXONOMY_SOURCE} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-cyan-200 underline"><UiText text={"GICS sector and industry reference"} /></a>}
     {!loading && !user && <p role="alert" className="mt-4"><UiText text={"Sign in with an admin account."} /></p>}
     {error && <p role="alert" className="my-4 text-rose-300">{<UiText text={error} />}</p>}
-    <label className="mt-5 flex flex-col gap-1 text-sm"><UiText text={"Recent runs by sector"} /><select className={`${control} w-full bg-slate-950`} value={filterSector} onChange={e => { setFilterSector(e.target.value); setActive(""); setSelected([]); }}>
+    {market === "US" && <label className="mt-5 flex flex-col gap-1 text-sm"><UiText text={"Recent runs by sector"} /><select className={`${control} w-full bg-slate-950`} value={filterSector} onChange={e => { setFilterSector(e.target.value); setActive(""); setSelected([]); }}>
         <option value=""><UiText text={"All sectors"} /></option>
         {RESEARCH_SECTORS.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
         <option value="custom"><UiText text={"Custom / uncategorized"} /></option>
       </select>
-    </label>
+    </label>}
     <label className="my-5 flex min-w-0 flex-col gap-1 text-sm"><UiText text={"Research run"} /><select className={`${control} w-full bg-slate-950`} value={run?.id ?? ""} onChange={e => { setActive(e.target.value); setSelected([]); }}>
         <option value=""><UiText text={"Select a run"} /></option>
         {filteredRuns.map(r => <option value={r.id} key={r.id}>{r.industry} · {<UiText text={r.status} />} · {r.createdAt.slice(0, 10)}</option>)}
       </select>
     </label>
     {run && <section>
-      <p className="mb-3 break-words text-sm text-slate-300">{run.topic?.sectorName ? `${run.topic.sectorName} / ${run.topic.industryName}` : <UiText text={"Custom / uncategorized"} />}</p>
+      <p className="mb-3 break-words text-sm text-slate-300">{run.mode === "connections" ? run.industry : run.topic?.sectorName ? `${run.topic.sectorName} / ${run.topic.industryName}` : <UiText text={"Custom / uncategorized"} />}</p>
       <div className="flex flex-wrap items-center gap-3 border-y border-white/15 py-3">
         <strong>{<UiText text={run.status} />}</strong><span>{run.model ?? <UiText text={"Model pending"} />}</span>
         {run.searchCalls !== undefined && <span>{run.searchCalls}<UiText text={" search tool calls"} /></span>}
         <button className={control} disabled={busy || !run.responseId || run.status !== "PROCESSING"} onClick={() => void act("refresh")}><UiText text={"Check status"} /></button>
       </div>
       {run.error && <p className="my-4 text-rose-300">{run.error.includes("max_output_tokens") ? text("This batch reached its output limit and cannot resume. Start a new research batch above; existing companies are unchanged. New A-share batches produce up to five Chinese profiles.", "本批研究达到输出上限，无法继续。请在上方重新发起研究；现有公司不受影响。新的 A 股研究每批最多生成 5 家公司的中文资料。") : <UiText text={run.error} />}</p>}
-      {run.market === "CN_A" && run.responseId && <div className="my-4"><button className={control} disabled={busy} onClick={() => void act("diagnose")}>{text("Inspect saved response (no new research)", "检查已保存的结果（不发起新研究）")}</button>{run.diagnostics && <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-white/5 p-4 text-xs">{JSON.stringify(run.diagnostics, null, 2)}</pre>}</div>}
-      {run.result && run.market === "CN_A" && <>
+      {run.market === "CN_A" && run.mode !== "connections" && run.responseId && <div className="my-4"><button className={control} disabled={busy} onClick={() => void act("diagnose")}>{text("Inspect saved response (no new research)", "检查已保存的结果（不发起新研究）")}</button>{run.diagnostics && <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-white/5 p-4 text-xs">{JSON.stringify(run.diagnostics, null, 2)}</pre>}</div>}
+      {run.result && run.market === "CN_A" && run.mode !== "connections" && <>
         <p className="my-4 text-sm">{text(`${run.result.chinaCompanies?.length ?? 0} companies ready for review; ${run.result.withheld} withheld.`, `${run.result.chinaCompanies?.length ?? 0} 家公司待审核；${run.result.withheld} 家未通过验证。`)}</p>
         <div className="grid gap-4 md:grid-cols-2">{run.result.chinaCompanies?.map(c => <article key={c.id} className="rounded-xl border border-white/15 p-4">
           <label className="flex items-start gap-3"><input type="checkbox" aria-label={text(`Approve ${c.id}`, `审核 ${c.id}`)} checked={selected.includes(c.id)} disabled={busy || run.publishedIds?.includes(c.id)} onChange={e => setSelected(current => e.target.checked ? [...current, c.id] : current.filter(id => id !== c.id))} />
@@ -144,7 +136,7 @@ export function AdminIndustryResearch() {
         </article>)}</div>
         <button className={`${control} mt-5 bg-emerald-600`} disabled={busy || !selected.length} onClick={() => void act("publish")}>{text(`Publish ${selected.length} reviewed companies`, `发布 ${selected.length} 家已审核公司`)}</button>
       </>}
-      {run.result && run.market !== "CN_A" && <>
+      {run.result && (run.market !== "CN_A" || run.mode === "connections") && <>
         <p className="my-4 text-sm">{run.result.companies.length}<UiText text={" companies · "} />{run.result.relationships.length}<UiText text={" sourced candidates · "} />{run.result.withheld}<UiText text={" withheld"} /></p>
         <details className="mb-4 text-sm">
           <summary className="cursor-pointer"><UiText text={"Company map categories"} /></summary>

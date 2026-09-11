@@ -10,6 +10,9 @@ import { MAP_ROLE_CORRECTIONS, roleCorrectionPatch } from "../../scripts/data/ma
 import { chinaResearchDiagnostics, normalizeChinaCompany, normalizeChinaResearch, validChinaId, MARKET_COMPANIES } from "../../src/lib/industry-research/china";
 import { seedChinaCompanies, listChinaCompanies } from "../../src/lib/industry-research/china-directory";
 import { chinaSupplyChain } from "../../src/lib/industry-graph/china";
+import { importCniDirectory } from "../../src/lib/industry-research/directory-sync";
+import { CANDIDATES } from "../../src/lib/industry-research/candidates";
+import { normalizeChinaConnections } from "../../src/lib/industry-research/china-connections";
 
 test("reference taxonomy has 11 sectors, 74 unique industries, and validated parent codes", () => {
   assert.equal(RESEARCH_SECTORS.length, 11);
@@ -287,4 +290,47 @@ test("A-share source schema rejects publisher names and requires a full HTTPS UR
  const pattern=new RegExp(schema.items.properties.source.pattern);
  assert.equal(pattern.test("巨潮资讯"),false); assert.equal(pattern.test("turn0search0"),false); assert.equal(pattern.test("http://example.com/report"),false); assert.equal(pattern.test("https://example.com/bad url"),false);
  assert.equal(pattern.test(chinaSupplyChain[0].source),true);
+});
+
+test("CNI import queues every company, preserves research and profiles, and replays safely", async () => {
+  const f = serviceFixture();
+  const companies = Array.from({ length: 4001 }, (_, i) => ({ id: `XSHG:${600000+i}`, name: `公司${i}`, legalName: `公司${i}`, classification: [1,2,3,4].map(n => ({code:`C${n}`,name:`行业${n}`})) }));
+  const payload = { source: "https://www.cnindex.com.cn/zh_information/data_resource/fljg/202605/test.xlsx", snapshot: "2026-6", sha256: "a".repeat(64), companies };
+  f.data.set(`${CANDIDATES}/XSHG:600000`, { id: "XSHG:600000", status: "DRAFT", attempts: 2, name: "Editorial" });
+  f.data.set("market_companies/XSHG:600001", { name: "Published", status: "PUBLISHED" });
+  assert.equal((await importCniDirectory(f.db, payload)).count,4001);
+  assert.equal(f.data.get(`${CANDIDATES}/XSHG:600000`)?.status,"DRAFT");
+  assert.equal(f.data.get(`${CANDIDATES}/XSHG:600001`)?.status,"PUBLISHED");
+  assert.equal(f.data.get(`${CANDIDATES}/XSHG:604000`)?.status,"PENDING");
+  assert.equal(f.data.get("market_companies/XSHG:600001")?.name,"Published");
+  assert.equal((await importCniDirectory(f.db,payload)).unchanged,true);
+  await assert.rejects(importCniDirectory(f.db,{...payload,snapshot:"2025-6",sha256:"b".repeat(64)}),/older/);
+  await assert.rejects(importCniDirectory(f.db,{...payload,companies:companies.slice(0,5)}),/Invalid directory/);
+});
+
+test("company batch requests are idempotent and isolate failed candidates from completed profiles", async () => {
+  const c = chinaSupplyChain[0], f = serviceFixture({companies:[c]},[c.source]);
+  for (const company of chinaSupplyChain) f.data.set(`${CANDIDATES}/${company.id}`, {...company,industry:"半导体产业",status:"PENDING",attempts:0});
+  assert.equal((await f.service.processCandidates(runId,"admin")).started,5);
+  assert.equal((await f.service.processCandidates(runId,"admin")).started,0);
+  assert.equal(f.calls(),5);
+  assert.equal(f.data.get(`${CANDIDATES}/${c.id}`)?.status,"DRAFT");
+  const failed = chinaSupplyChain[1];
+  assert.equal(f.data.get(`${CANDIDATES}/${failed.id}`)?.status,"FAILED");
+  await assert.rejects(f.service.publishCandidate(failed.id,"admin"),/reviewed draft/);
+  await f.service.publishCandidate(c.id,"admin");
+  assert.equal(f.data.get(`${CANDIDATES}/${c.id}`)?.status,"PUBLISHED");
+  assert.equal(f.data.get(`market_companies/${c.id}`)?.name,c.name);
+  await f.service.processCandidates(runId.replace(/1$/,"2"),"admin",failed.id);
+  assert.equal(f.calls(),6);
+  assert.equal(f.data.get(`${CANDIDATES}/${c.id}`)?.status,"PUBLISHED");
+});
+
+test("connections support directory IDs beyond the first 30 and reject unsourced or unknown endpoints", () => {
+  const candidates = Array.from({length:175},(_,i)=>({id:`XSHG:${600000+i}`,name:`公司${i}`}));
+  const edge = {source:candidates[170].id,target:candidates[174].id,type:"CUSTOMER_OF",url,title:"公司公告",summary:"采购关系",sourceDate:null};
+  const result=normalizeChinaConnections({relationships:[edge,{...edge,url:"https://unseen.example/report"},{...edge,target:"XSHE:399999"}]},[url],candidates);
+  assert.equal(result.relationships.length,1); assert.equal(result.withheld,2);
+  assert.equal(result.relationships[0].source,candidates[174].id);
+  assert.equal(result.relationships[0].target,candidates[170].id);
 });
