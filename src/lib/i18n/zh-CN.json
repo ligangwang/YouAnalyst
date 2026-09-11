@@ -119,7 +119,7 @@
   "Industry": "行业",
   "Research industry": "研究行业",
   "Refresh runs": "刷新运行记录",
-  "Paid research · maximum 3 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs": "付费研究 · 每天最多 3 批 · 每批最多 8 次工具调用、12,000 个输出令牌 · 美股与 ADR",
+  "Paid research · maximum 100 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs": "付费研究 · 每天最多 100 批 · 每批最多 8 次工具调用、12,000 个输出令牌 · 美股与 ADR",
   "GICS sector and industry reference": "GICS 板块与行业参考",
   "Sign in with an admin account.": "请使用管理员账号登录。",
   "Recent runs by sector": "按板块查看最近运行",

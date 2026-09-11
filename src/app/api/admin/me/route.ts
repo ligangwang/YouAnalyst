@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     return NextResponse.json({
       isAdmin: await isAdminUser(decoded),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Failed to resolve admin status:", error);
     return NextResponse.json({ error: "Failed to resolve admin status." }, { status: 500 });

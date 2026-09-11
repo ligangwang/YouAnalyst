@@ -97,7 +97,7 @@ export function AdminIndustryResearch() {
       <button className={`${control} bg-cyan-500 text-slate-950`} disabled={busy || !user || (!sector && industry.trim().length < 3)} onClick={() => void act("start")}><UiText text={"Research industry"} /></button>
       <button className={control} disabled={busy || !user} onClick={() => void reload().catch(e => setError(e.message))}><UiText text={"Refresh runs"} /></button>
     </div>
-    <p className="text-sm text-slate-400">{market === "CN_A" ? text("Discover A-share companies by industry. Review their identity, business and sources before publishing. Paid research shares the 3 batches/day limit; up to five Chinese profiles, 4 tool calls and 12,000 output tokens per batch.", "按行业发现 A 股公司，核对公司身份、业务与来源后发布。付费研究共享每日 3 批限额；每批最多 5 家公司，仅生成中文内容；最多 4 次工具调用及 12,000 个输出 token。") : ui("Paid research · maximum 3 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs")}</p>
+    <p className="text-sm text-slate-400">{market === "CN_A" ? text("Discover A-share companies by industry. Review their identity, business and sources before publishing. Paid research shares the 100 batches/day limit; up to five Chinese profiles, 4 tool calls and 12,000 output tokens per batch.", "按行业发现 A 股公司，核对公司身份、业务与来源后发布。付费研究共享每日 100 批限额；每批最多 5 家公司，仅生成中文内容；最多 4 次工具调用及 12,000 个输出 token。") : ui("Paid research · maximum 100 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs")}</p>
     {market === "CN_A" && <div className="mt-4 flex flex-wrap items-center gap-3">
       <button className={control} disabled={busy || !user} onClick={async () => {
         setBusy(true); setError(""); setSeedMessage("");
