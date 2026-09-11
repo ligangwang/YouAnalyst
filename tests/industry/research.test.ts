@@ -7,7 +7,7 @@ import { createIndustryResearchService } from "../../src/lib/industry-research/s
 import type { Firestore } from "firebase-admin/firestore";
 import { RESEARCH_SECTORS, resolveResearchTopic, researchTopicLabel } from "../../src/lib/industry-research/taxonomy";
 import { MAP_ROLE_CORRECTIONS, roleCorrectionPatch } from "../../scripts/data/map-role-corrections";
-import { normalizeChinaResearch, validChinaId, MARKET_COMPANIES } from "../../src/lib/industry-research/china";
+import { normalizeChinaCompany, normalizeChinaResearch, validChinaId, MARKET_COMPANIES } from "../../src/lib/industry-research/china";
 import { seedChinaCompanies, listChinaCompanies } from "../../src/lib/industry-research/china-directory";
 import { chinaSupplyChain } from "../../src/lib/industry-graph/china";
 
@@ -131,10 +131,10 @@ function serviceFixture(outputData: unknown = { companies, relationships: [relat
 }
 const runId = "00000000-0000-4000-8000-000000000001";
 
-test("A-share research requires exchange-qualified stock IDs, bilingual fields and searched evidence", () => {
+test("A-share research requires exchange-qualified stock IDs, Chinese fields and searched evidence", () => {
   for (const id of ["688041", "AMD", "XSHG:900001", "XSHE:200001", "XHKG:00700", "XSHG:002837", "XSHE:688041"]) assert.equal(validChinaId(id), false);
   const company = chinaSupplyChain[0];
-  const result = normalizeChinaResearch({ companies: [company, company, { ...company, id: "AMD" }, { ...chinaSupplyChain[1], en: "" }, chinaSupplyChain[2]] }, [company.source]);
+  const result = normalizeChinaResearch({ companies: [company, company, { ...company, id: "AMD" }, { ...chinaSupplyChain[1], description: "" }, chinaSupplyChain[2]] }, [company.source]);
   assert.equal(result.chinaCompanies.length, 1);
   assert.equal(result.withheld, 4);
   assert.equal(result.relationships.length, 0);
@@ -169,7 +169,7 @@ test("public A-share directory returns only published CN profiles and validates 
   };
   const db = { collection: () => query } as unknown as Firestore;
   const result = await listChinaCompanies(db, "XSHG:601138");
-  assert.deepEqual(result.items, [company]);
+  assert.deepEqual(result.items, [normalizeChinaCompany(company)]);
   assert.equal(result.nextCursor, null);
   assert.ok(calls.some(c => c[0] === "after" && c[1] === "XSHG:601138"));
   await assert.rejects(listChinaCompanies(db, "US:AMD"), /Invalid company cursor/);
@@ -251,9 +251,20 @@ test("incomplete provider output does not publish or remove existing data", asyn
   f.fail();
   const failed = await f.service.refreshResearch(runId);
   assert.equal(failed?.status, "FAILED");
+  assert.equal(f.usageEvents(), 1);
   assert.equal(failed?.searchCalls, 1);
   assert.match(failed?.error, /max_output_tokens/);
   await f.service.refreshResearch(runId);
   assert.equal(f.calls(), 1);
+  assert.equal(f.usageEvents(), 1);
   assert.equal(f.data.get("industry_research_relationships/existing")?.status, "PUBLISHED");
 });
+
+test("A-share requests produce five Chinese-only profiles within the existing token cap", () => {
+ const r = researchRequest("Semiconductors", [], undefined, "CN_A");
+ assert.equal(r.reasoning.effort, "low"); assert.equal(r.max_tool_calls, 4); assert.equal(r.max_output_tokens, 12000);
+ const schema = r.text.format.schema.properties.companies as { maxItems: number; items: { required: string[] } };
+ assert.equal(schema.maxItems, 5); assert.deepEqual(schema.items.required, ["id", "name", "stage", "description", "source", "sourceLabel"]);
+ const c = normalizeChinaCompany(chinaSupplyChain[0])!; assert.ok(c); assert.equal(c.en, undefined);
+ assert.equal(normalizeChinaResearch({ companies: [c] }, [c.source]).chinaCompanies.length, 1);
+ });

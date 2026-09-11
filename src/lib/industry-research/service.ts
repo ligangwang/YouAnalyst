@@ -53,7 +53,7 @@ async function refreshResearch(id: string) {
   const db = getDb(), ref = runs().doc(id), snapshot = await ref.get();
   const run = snapshot.data();
   if (!run) throw new Error("Research run not found.");
-  if (!["PROCESSING", "FAILED"].includes(run.status) || !run.responseId) return run;
+  if (run.status !== "PROCESSING" || !run.responseId) return run;
   if (!/^resp_[a-zA-Z0-9_-]+$/.test(text(run.responseId))) throw new Error("Invalid stored response ID.");
   const response = await provider(`/${run.responseId}`);
   if (["queued", "in_progress"].includes(text(response.status))) return run;
@@ -71,7 +71,7 @@ async function refreshResearch(id: string) {
   }
   const saved = await db.runTransaction(async tx => {
     const current = await tx.get(ref);
-    if (!["PROCESSING", "FAILED"].includes(current.data()?.status)) return false;
+    if (current.data()?.status !== "PROCESSING") return false;
     const lockRef = db.collection("industry_research_locks").doc(run.industryKey);
     const lock = await tx.get(lockRef);
     tx.update(ref, { status: result ? "DRAFT" : "FAILED", result, error: result ? null : error, updatedAt: now,

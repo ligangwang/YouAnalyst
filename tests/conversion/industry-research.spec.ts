@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { build } from "esbuild";
 import path from "node:path";
+import { normalizeChinaCompany } from "../../src/lib/industry-research/china";
 import { chinaSupplyChain } from "../../src/lib/industry-graph/china";
 
 let html = "";
@@ -41,7 +42,7 @@ test("admin researches once and publishes only explicitly selected draft connect
 
 test("A-share industry discovery imports starters and publishes selected company profiles", async ({ page }) => {
   const requests: Array<Record<string, unknown>> = [];
-  const company = chinaSupplyChain[0];
+  const company = normalizeChinaCompany(chinaSupplyChain[0])!;
   const run = { id: "00000000-0000-4000-8000-000000000001", market: "CN_A", industry: "Semiconductors", status: "DRAFT", createdAt: "2026-09-10", result: { companies: [], relationships: [], chinaCompanies: [company], withheld: 0 } };
   await page.route("**/*", route => {
     const request = route.request();
@@ -58,7 +59,7 @@ test("A-share industry discovery imports starters and publishes selected company
   await page.getByRole("button", { name: "Import five starter companies" }).click();
   await expect(page.getByRole("status")).toContainText("Imported 5");
   await page.getByRole("button", { name: "Research industry", exact: true }).click();
-  await expect(page.getByRole("link", { name: "2026 interim report" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "2026 年半年度报告" })).toBeVisible();
   await expect.poll(() => requests[1]).toMatchObject({ action: "start", market: "CN_A", category: { sectorCode: "45", industryCode: "453010" } });
   await expect(page.getByRole("button", { name: "Publish 0 reviewed companies" })).toBeDisabled();
   await page.getByRole("checkbox", { name: `Approve ${company.id}` }).check();
@@ -66,7 +67,7 @@ test("A-share industry discovery imports starters and publishes selected company
   await expect.poll(() => requests[2]).toMatchObject({ action: "publish", selectedIds: [company.id] });
   await expect(page.getByRole("checkbox", { name: `Approve ${company.id}` })).toBeDisabled();
   await page.getByRole("combobox", { name: "Research market", exact: true }).selectOption("US");
-  await expect(page.getByRole("link", { name: "2026 interim report" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "2026 年半年度报告" })).toHaveCount(0);
 });
 
 test("sector changes reset industry and scope; custom topics remain available", async ({ page }) => {

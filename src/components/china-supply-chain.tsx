@@ -5,7 +5,7 @@ import { useLocale } from "./providers/locale-provider";
 import type { ChinaCompany } from "@/lib/industry-research/china";
 
 export function ChinaSupplyChain() {
-  const { text, chinese } = useLocale();
+  const { text } = useLocale();
   const [query, setQuery] = useState("");
   const [stage, setStage] = useState("");
   const [directory, setDirectory] = useState<ChinaCompany[]>([]);
@@ -32,7 +32,7 @@ export function ChinaSupplyChain() {
     void load();
     return () => controller.abort();
   }, [retry]);
-  const companies = directory.filter(company => (!stage || company.stage === stage) && `${company.name} ${company.en} ${company.id} ${company.description} ${company.descriptionEn} ${company.stage} ${company.stageEn}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const companies = directory.filter(company => (!stage || company.stage === stage) && `${company.name} ${company.en ?? ""} ${company.id} ${company.description} ${company.descriptionEn ?? ""} ${company.stage} ${company.stageEn ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()));
   return <main className="mx-auto max-w-6xl px-4 py-10 sm:py-16">
     <p className="text-xs font-medium tracking-widest text-cyan-200">{text("CHINA · A-SHARES", "中国 · A 股")}</p>
     <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">{text("Explore A-share industries", "探索 A 股产业")}</h1>
@@ -42,15 +42,15 @@ export function ChinaSupplyChain() {
       <span className="text-xs text-slate-400">{text("Reviewed company profiles", "已审核公司资料")}</span>
     </div>
     <div className="my-6 flex flex-wrap gap-2" role="group" aria-label={text("Industry stages", "产业环节")}>
-      {[{ stage: "", stageEn: "All" }, ...new Map(directory.map(c => [c.stage, c])).values()].map(item => <button key={item.stage} type="button" aria-pressed={stage === item.stage} onClick={() => setStage(item.stage)} className={`rounded-full border px-4 py-2 text-sm transition-colors ${stage === item.stage ? "border-white/30 bg-white/15 text-white" : "border-white/10 text-slate-400 hover:bg-white/5"}`}>{chinese ? item.stage || "全部" : item.stageEn}</button>)}
+      {[{ stage: "", stageEn: "All" }, ...new Map(directory.map(c => [c.stage, c])).values()].map(item => <button key={item.stage} type="button" aria-pressed={stage === item.stage} onClick={() => setStage(item.stage)} className={`rounded-full border px-4 py-2 text-sm transition-colors ${stage === item.stage ? "border-white/30 bg-white/15 text-white" : "border-white/10 text-slate-400 hover:bg-white/5"}`}>{item.stage || text("All", "全部")}</button>)}
     </div>
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {companies.map(company => <article key={company.id} className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.025] p-6 transition-colors hover:border-white/25">
-        <p className="text-xs text-cyan-200">{chinese ? company.stage : company.stageEn}</p>
-        <h2 className="mt-4 text-2xl font-medium">{chinese ? company.name : company.en}</h2>
+        <p className="text-xs text-cyan-200">{company.stage}</p>
+        <h2 className="mt-4 text-2xl font-medium">{company.name}</h2>
         <p className="mt-2 text-xs tabular-nums text-slate-400">{company.id.split(":")[1]} · {company.id.startsWith("XSHG") ? text("Shanghai", "上交所") : text("Shenzhen", "深交所")}</p>
-        <p className="mb-6 mt-5 flex-1 text-sm leading-7 text-slate-300">{chinese ? company.description : company.descriptionEn}</p>
-        <a href={company.source} target="_blank" rel="noopener noreferrer" className="border-t border-white/10 pt-4 text-xs leading-6 text-slate-400 hover:text-cyan-200">{chinese ? company.sourceLabel : company.sourceLabelEn} <span aria-hidden="true">↗</span><span className="sr-only">{text(" (opens in a new tab)", "（新窗口打开）")}</span></a>
+        <p className="mb-6 mt-5 flex-1 text-sm leading-7 text-slate-300">{company.description}</p>
+        <a href={company.source} target="_blank" rel="noopener noreferrer" className="border-t border-white/10 pt-4 text-xs leading-6 text-slate-400 hover:text-cyan-200">{company.sourceLabel} <span aria-hidden="true">↗</span><span className="sr-only">{text(" (opens in a new tab)", "（新窗口打开）")}</span></a>
       </article>)}
     </div>
     {loading && <p role="status" className="py-12 text-center text-slate-400">{text("Loading companies…", "正在加载公司…")}</p>}

@@ -14,7 +14,7 @@ type Run = { id: string; market?: "US" | "CN_A"; industry: string; topic?: Resea
 const control = "rounded-md border border-white/20 px-3 py-2 text-sm disabled:opacity-50";
 export function AdminIndustryResearch() {
   const ui = useUiText();
-  const { text, chinese } = useLocale();
+  const { text } = useLocale();
   const [market, setMarket] = useState<"US" | "CN_A">("US");
   const [seedMessage, setSeedMessage] = useState("");
   const { user, loading, getIdToken } = useAuth();
@@ -97,7 +97,7 @@ export function AdminIndustryResearch() {
       <button className={`${control} bg-cyan-500 text-slate-950`} disabled={busy || !user || (!sector && industry.trim().length < 3)} onClick={() => void act("start")}><UiText text={"Research industry"} /></button>
       <button className={control} disabled={busy || !user} onClick={() => void reload().catch(e => setError(e.message))}><UiText text={"Refresh runs"} /></button>
     </div>
-    <p className="text-sm text-slate-400">{market === "CN_A" ? text("Discover A-share companies by industry. Review their identity, business and sources before publishing. Paid research shares the 3 batches/day limit; up to 8 tool calls and 12,000 output tokens per batch.", "按行业发现 A 股公司，核对公司身份、业务与来源后发布。付费研究共享每日 3 批限额；每批最多 8 次工具调用及 12,000 个输出 token。") : ui("Paid research · maximum 3 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs")}</p>
+    <p className="text-sm text-slate-400">{market === "CN_A" ? text("Discover A-share companies by industry. Review their identity, business and sources before publishing. Paid research shares the 3 batches/day limit; up to five Chinese profiles, 4 tool calls and 12,000 output tokens per batch.", "按行业发现 A 股公司，核对公司身份、业务与来源后发布。付费研究共享每日 3 批限额；每批最多 5 家公司，仅生成中文内容；最多 4 次工具调用及 12,000 个输出 token。") : ui("Paid research · maximum 3 batches/day · 8 tool calls and 12,000 output tokens/batch · US-listed companies and ADRs")}</p>
     {market === "CN_A" && <div className="mt-4 flex flex-wrap items-center gap-3">
       <button className={control} disabled={busy || !user} onClick={async () => {
         setBusy(true); setError(""); setSeedMessage("");
@@ -127,17 +127,17 @@ export function AdminIndustryResearch() {
       <div className="flex flex-wrap items-center gap-3 border-y border-white/15 py-3">
         <strong>{<UiText text={run.status} />}</strong><span>{run.model ?? <UiText text={"Model pending"} />}</span>
         {run.searchCalls !== undefined && <span>{run.searchCalls}<UiText text={" search tool calls"} /></span>}
-        <button className={control} disabled={busy || !run.responseId || !["PROCESSING", "FAILED"].includes(run.status)} onClick={() => void act("refresh")}><UiText text={"Check status"} /></button>
+        <button className={control} disabled={busy || !run.responseId || run.status !== "PROCESSING"} onClick={() => void act("refresh")}><UiText text={"Check status"} /></button>
       </div>
-      {run.error && <p className="my-4 text-rose-300">{<UiText text={run.error} />}</p>}
+      {run.error && <p className="my-4 text-rose-300">{run.error.includes("max_output_tokens") ? text("This batch reached its output limit and cannot resume. Start a new research batch above; existing companies are unchanged. New A-share batches produce up to five Chinese profiles.", "本批研究达到输出上限，无法继续。请在上方重新发起研究；现有公司不受影响。新的 A 股研究每批最多生成 5 家公司的中文资料。") : <UiText text={run.error} />}</p>}
       {run.result && run.market === "CN_A" && <>
         <p className="my-4 text-sm">{text(`${run.result.chinaCompanies?.length ?? 0} companies ready for review; ${run.result.withheld} withheld.`, `${run.result.chinaCompanies?.length ?? 0} 家公司待审核；${run.result.withheld} 家未通过验证。`)}</p>
         <div className="grid gap-4 md:grid-cols-2">{run.result.chinaCompanies?.map(c => <article key={c.id} className="rounded-xl border border-white/15 p-4">
           <label className="flex items-start gap-3"><input type="checkbox" aria-label={text(`Approve ${c.id}`, `审核 ${c.id}`)} checked={selected.includes(c.id)} disabled={busy || run.publishedIds?.includes(c.id)} onChange={e => setSelected(current => e.target.checked ? [...current, c.id] : current.filter(id => id !== c.id))} />
-            <strong>{c.name} · {c.en} · {c.id}</strong></label>
-          <p className="mt-2 text-xs text-cyan-200">{c.stage} · {c.stageEn}</p>
-          <p className="mt-3 text-sm">{c.description}</p><p className="mt-2 text-sm text-slate-400">{c.descriptionEn}</p>
-          <a href={c.source} target="_blank" rel="noopener noreferrer" className="mt-3 block break-words text-sm text-cyan-200 underline">{chinese ? c.sourceLabel : c.sourceLabelEn}</a>
+            <strong>{c.name} · {c.id}</strong></label>
+          <p className="mt-2 text-xs text-cyan-200">{c.stage}</p>
+          <p className="mt-3 text-sm">{c.description}</p>
+          <a href={c.source} target="_blank" rel="noopener noreferrer" className="mt-3 block break-words text-sm text-cyan-200 underline">{c.sourceLabel}</a>
           <p className="mt-1 break-all text-xs text-slate-500">{c.source}</p>
           {run.publishedIds?.includes(c.id) && <p className="mt-3 text-sm text-emerald-300">{text("Published", "已发布")}</p>}
         </article>)}</div>
