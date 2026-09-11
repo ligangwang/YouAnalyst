@@ -1,5 +1,31 @@
 # Deployment
 
+## Same-origin email authentication
+
+Email signup, password login, persisted-user lookup and token refresh use
+`/api/firebase-auth/*` on the current website origin. The server forwards only
+allowlisted Firebase REST endpoints, using the existing Firebase project key.
+Existing accounts and Firebase ID tokens are preserved. Do not change
+`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` to the website domain for this fix; that setting
+controls OAuth widgets, not the email/password REST endpoint.
+
+Run `npm run test:auth` (requires Playwright Chromium), `npm run typecheck` and
+`npm run build`. The browser regression uses mocked Firebase responses and verifies
+signup, refresh, reload and login make no external-domain requests.
+
+After deployment, test with a disposable account on a mainland China connection:
+register, reload, sign out/in and force a token refresh. Confirm all email-auth
+requests use the website origin. Verify the production Firebase key's referrer
+restrictions accept the website origin and monitor Firebase signup quotas, since
+upstream requests now originate from the server. Exclude these routes and their
+credential/token bodies from CDN caching and request/response-body logging.
+
+Google popup login still needs Google connectivity. If Firebase reCAPTCHA
+Enterprise enforcement is enabled for email/password, its browser challenge can
+still need external Google resources; this proxy does not bypass that challenge.
+Real production connectivity, quota settings and reCAPTCHA configuration are not
+covered by the mocked regression.
+
 The goal is a fast, safe loop:
 
 1. Build locally.

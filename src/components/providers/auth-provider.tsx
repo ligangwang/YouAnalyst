@@ -2,6 +2,7 @@
 
 import {
   browserLocalPersistence,
+  browserPopupRedirectResolver,
   createUserWithEmailAndPassword,
   getAdditionalUserInfo,
   onAuthStateChanged,
@@ -168,7 +169,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
     try {
       const { auth, googleProvider } = getFirebaseServices();
-      const credential = await signInWithPopup(auth, googleProvider);
+      const credential = await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
       const additionalUserInfo = getAdditionalUserInfo(credential);
       const payload = await bootstrapUserProfile(credential.user);
       setFeatures(payload.features ?? DEFAULT_FEATURES);
