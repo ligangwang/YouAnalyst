@@ -4,6 +4,7 @@ export const MARKET_COMPANIES = "market_companies";
 export type ChinaCompany = {
   id: string; name: string; en?: string; stage: string; stageEn?: string;
   description: string; descriptionEn?: string; source: string; sourceLabel: string; sourceLabelEn?: string;
+  searchText?: string;
 };
 export function validChinaId(id: string) {
   return /^(XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(id);

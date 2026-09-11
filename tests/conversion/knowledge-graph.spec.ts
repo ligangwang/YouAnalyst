@@ -3,8 +3,21 @@ import { build } from "esbuild";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
+import { matchesCompanySearch } from "../../src/lib/knowledge-graph/model";
+import { graphChinaCompanies } from "../../src/lib/knowledge-graph/china-companies";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+test("A-share directory and graph return identical companies for every name, code and stage", () => {
+  const directory = graphChinaCompanies(graph);
+  expect(directory).toHaveLength(62);
+  const queries = ["", "不存在", " ６８８０４１ ", "xshg:688041", "AI", "memory", "半导体", ...directory.flatMap(c => [c.name, c.id.split(":")[1], c.stage])];
+  for (const query of queries) {
+    const listIds = directory.filter(c => matchesCompanySearch(c.searchText!, query)).map(c => c.id).sort();
+    const graphIds = filterGraph(graph, ["CN_A"], query).nodes.filter(n => n.kind === "COMPANY").map(n => n.id).sort();
+    expect(listIds, query).toEqual(graphIds);
+  }
+  expect(directory.every(c => graph.sources.some(s => s.url === c.source))).toBe(true);
+});
 let html: string;
 test.beforeAll(async () => {
   const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser" });

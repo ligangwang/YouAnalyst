@@ -22,9 +22,18 @@ export function combineGraphs(graphs: (KnowledgeGraph & { id: string; language: 
   return { nodes: [...nodes.values()], relationships, sources, asOf: graphs.map(g => g.asOf).sort()[0] ?? "" };
 }
 
+export function companySearchText(graph: KnowledgeGraph, company: GraphNode): string {
+  const stages = graph.nodes.filter(n => n.kind === "STAGE" && company.stageIds?.includes(n.id.slice(6)));
+  return [company.id, company.name, company.symbol, company.summary, ...stages.flatMap(n => [n.label, ...Object.values(n.labels ?? {})])].filter(Boolean).join(" ");
+}
+
+export function matchesCompanySearch(searchText: string, query: string): boolean {
+  return searchText.normalize("NFKC").toLowerCase().includes(query.normalize("NFKC").trim().toLowerCase());
+}
+
 export function filterGraph(graph: KnowledgeGraph, markets: Market[], query = ""): KnowledgeGraph {
   const q = query.trim().toLowerCase();
-  const companies = graph.nodes.filter(n => n.kind === "COMPANY" && n.market && markets.includes(n.market) && (!q || `${n.name} ${n.symbol} ${n.summary}`.toLowerCase().includes(q)));
+  const companies = graph.nodes.filter(n => n.kind === "COMPANY" && n.market && markets.includes(n.market) && (!q || matchesCompanySearch(companySearchText(graph, n), query)));
   const stages = new Set(companies.flatMap(n => n.stageIds ?? []).map(id => `stage:${id}`));
   const nodes = [...graph.nodes.filter(n => n.kind === "STAGE" && stages.has(n.id)), ...companies];
   const ids = new Set(nodes.map(n => n.id));
