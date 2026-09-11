@@ -8,7 +8,7 @@
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; padding: 16px; border-bottom: 1px solid #213142; }
 .search { position: relative; display: flex; flex: 1; max-width: 430px; min-width: 220px; }
 .search input { background: #101f2e; border: 1px solid #354b5e; border-radius: 8px 0 0 8px; padding: 11px 13px; min-width: 0; width: 100%; color: #f1f5f9; font-size: 13px; }
-.search > button { background: #163b4a; color: #9eeef9; border-radius: 0 8px 8px 0; padding: 8px 14px; font-size: 12px; }
+.search > button { flex-shrink: 0; white-space: nowrap; background: #163b4a; color: #9eeef9; border-radius: 0 8px 8px 0; padding: 8px 14px; font-size: 12px; }
 .results { position: absolute; z-index: 10; top: 48px; width: 100%; background: #132638; border: 1px solid #426079; border-radius: 8px; box-shadow: 0 10px 24px #0008; }
 .results button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 12px; font-size: 12px; text-align: left; }
 .results button:hover { background: #224357; }

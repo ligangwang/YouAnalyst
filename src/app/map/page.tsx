@@ -1,4 +1,5 @@
 import { ChinaSupplyChain } from "@/components/china-supply-chain";
+import { AllMarketsOverview } from "@/components/all-markets-overview";
 import { MapMarketSwitch } from "@/components/map-market-switch";
 import type { Metadata } from "next";
 import { IndustryGraphHome } from "@/components/industry-graph-home";
@@ -47,5 +48,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Map
   const { company, market } = await searchParams;
   const ticker = typeof company === "string" ? company : "";
   const selected = parseMarket(market) ?? parseMarket((await headers()).get("x-ya-market")) ?? "US";
-  return <><MapMarketSwitch selected={selected} />{selected !== "US" && <ChinaSupplyChain />}{selected !== "CN_A" && <IndustryGraphHome key={ticker} initialTicker={ticker} />}</>;
+  return <><MapMarketSwitch selected={selected} />{selected === "ALL"
+    ? <AllMarketsOverview><ChinaSupplyChain embedded /><IndustryGraphHome key={ticker} initialTicker={ticker} embedded /></AllMarketsOverview>
+    : selected === "CN_A" ? <ChinaSupplyChain /> : <IndustryGraphHome key={ticker} initialTicker={ticker} />}</>;
 }

@@ -11,6 +11,8 @@ import { trackEvent } from "@/lib/analytics";
 import { layoutIndustryGraph } from "@/lib/industry-graph/layout";
 import { CompanyCallActions } from "./company-call-actions";
 import styles from "./industry-graph-home.module.css";
+import marketStyles from "./all-markets-overview.module.css";
+import { useLocale } from "./providers/locale-provider";
 
 const EMPTY_GRAPH = buildIndustryGraph({}, []);
 function subscribeToCompactView(listener: () => void) {
@@ -18,7 +20,9 @@ function subscribeToCompactView(listener: () => void) {
   query.addEventListener("change", listener);
   return () => query.removeEventListener("change", listener);
 }
-export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: string }) {
+export function IndustryGraphHome({ initialTicker = "", embedded = false }: { initialTicker?: string; embedded?: boolean }) {
+  const Container = embedded ? "section" : "main";
+  const { text } = useLocale();
   const ui = useUiText();
   const [graph, setGraph] = useState<IndustryGraph>(EMPTY_GRAPH);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -132,21 +136,21 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
   </section> : null;
 
   return (
-    <main className={styles.page}>
-      <header className={styles.heading}>
+    <Container className={styles.page} id={embedded ? "us-company-connections" : undefined} aria-labelledby={embedded ? "us-connections-heading" : undefined}>
+      {embedded ? <header className={marketStyles.sectionHeading}><h2 id="us-connections-heading">{text("US company connections", "美股公司关系")}</h2><p>{text("Explore company connections and check the supporting evidence.", "探索公司之间的联系，核查来源证据。")}</p></header> : <header className={styles.heading}>
         <div>
           <p className={styles.eyebrow}><UiText text={"COMPANY RELATIONSHIPS"} /></p>
           <h1><UiText text={"Explore company connections."} /></h1>
           <p><UiText text={"Research the businesses behind a stock. Check the filing evidence, form your view, and track your bullish or bearish calls."} /></p>
         </div>
         <span className={styles.pill}><UiText text={"Early access · Sources linked"} /></span>
-      </header>
+      </header>}
 
-      <section className={styles.getStarted} aria-label={ui("Start your research")}>
+      {!embedded && <section className={styles.getStarted} aria-label={ui("Start your research")}>
         <div><strong><UiText text={"Start with a stock you know."} /></strong><p><UiText text={"Explore its customers, suppliers and competitors before deciding what you think."} /></p></div>
         <Link href="/companies" onClick={() => trackEvent("graph_discovery_open", { entry_point: "homepage", action: "company_search" })}><UiText text={"Find a company →"} /></Link>
         <Link href="/how-it-works"><UiText text={"How tracking works"} /></Link>
-      </section>
+      </section>}
 
       <section className={styles.workspace} aria-label={ui("AI industry explorer")}>
         <div className={styles.toolbar}>
@@ -300,6 +304,6 @@ export function IndustryGraphHome({ initialTicker = "" }: { initialTicker?: stri
         </div>
         <div className={styles.bottom}><span>{graph.updatedAt ? <UiText text={`Extraction updated ${graph.updatedAt.slice(0, 10)} · evidence dates vary`} /> : <UiText text={"Coverage is being built"} />}{graph.omittedEdges > 0 ? <UiText text={` · ${graph.omittedEdges} connections outside this bounded preview`} /> : ""}{(graph.withheldEdges ?? 0) > 0 ? <UiText text={` · ${graph.withheldEdges} claims withheld after evidence review`} /> : ""}</span><Link href="/companies"><UiText text={"Search all companies →"} /></Link></div>
       </section>
-    </main>
+    </Container>
   );
 }
