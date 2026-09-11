@@ -1,4 +1,5 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { companyFields, COMPANY_COLLECTION } from "../market-companies/model";
 
 const DEFAULT_COUNTRY = "United States";
 const DEFAULT_CURRENCY = "USD";
@@ -325,6 +326,13 @@ export async function runTickerCatalogSync(input: TickerCatalogSyncInput = {}): 
 
   if (!dryRun && documents.length > 0) {
     const db = getAdminFirestore();
+    const companies = new Map<string, TickerCatalogDocument>();
+    for (const ticker of documents) if (!companies.has(ticker.symbol) || ticker.exchangePriority > companies.get(ticker.symbol)!.exchangePriority) companies.set(ticker.symbol, ticker);
+    for (const group of chunk([...companies.values()], 200)) {
+      const batch = db.batch();
+      for (const ticker of group) { const id = `US:${ticker.symbol}`; batch.set(db.collection(COMPANY_COLLECTION).doc(id), {...ticker,...companyFields(id,ticker)}, {merge:true}); }
+      await batch.commit();
+    }
 
     for (const documentChunk of chunk(documents, TICKER_WRITE_BATCH_SIZE)) {
       const batch = db.batch();

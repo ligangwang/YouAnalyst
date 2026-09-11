@@ -676,7 +676,11 @@ jobs:
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
         run: npx tsx scripts/events/bootstrap.ts
 
-      - name: Deploy production
+      - name: Initialize company master collection
+        # Populate the master before switching readers; the migration is replay-safe.
+        run: npx tsx scripts/sync-market-companies.ts --write
+
+      - name: Deploy production application
         env:
           GOOGLE_CLOUD_PROJECT: ${{ env.GCP_PROJECT_ID }}
           GOOGLE_CLOUD_REGION: ${{ env.GCP_REGION }}

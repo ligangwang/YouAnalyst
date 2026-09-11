@@ -2,6 +2,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { record, text } from "./model";
 import { validChinaId, MARKET_COMPANIES } from "./china";
 import { CANDIDATES } from "./candidates";
+import { companyFields } from "../market-companies/model";
 
 export async function importCniDirectory(db: Firestore, input: unknown) {
   const payload = record(input), rows = Array.isArray(payload.companies) ? payload.companies.map(record) : [];
@@ -23,8 +24,14 @@ export async function importCniDirectory(db: Firestore, input: unknown) {
       group.forEach((r, i) => {
         const classification = (r.classification as unknown[]).map(record);
         tx.set(db.collection("company_directory").doc(text(r.id)), { ...r, market: "CN_A", taxonomy: "CNI", snapshot: payload.snapshot, source: payload.source, updatedAt: now }, { merge: true });
+        const profile = profiles[i].data() ?? {};
+        tx.set(db.collection(MARKET_COMPANIES).doc(text(r.id)), {
+          ...companyFields(text(r.id), {...r, ...profile}), classification, taxonomy:"CNI",
+          status:profile.status ?? "DIRECTORY",
+          ...(!profile.source ? {source:payload.source,sourceLabel:`国证行业分类 ${payload.snapshot}`} : {}), updatedAt:now,
+        }, {merge:true});
         tx.set(refs[i], {
-          ...(!existing[i].exists ? { id: r.id, name: r.name, industry: `国证行业：${classification.map(c => c.name).join(" / ")}`, status: profiles[i].exists ? "PUBLISHED" : "PENDING", attempts: 0, createdAt: now } : {}),
+          ...(!existing[i].exists ? { id: r.id, name: r.name, industry: `国证行业：${classification.map(c => c.name).join(" / ")}`, status: profiles[i].data()?.status === "PUBLISHED" ? "PUBLISHED" : "PENDING", attempts: 0, createdAt: now } : {}),
           classification, taxonomy: "CNI", snapshot: payload.snapshot, source: payload.source, sourceLabel: `国证行业分类 ${payload.snapshot}`, updatedAt: now,
         }, { merge: true });
       });

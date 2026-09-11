@@ -6,6 +6,7 @@ import { normalizeResearch, record, text, RESEARCH_VERSION, type ResearchResult,
 import { openAiResearch, readResearchResponse, researchRequest, candidateResearchRequest } from "./openai";
 import { resolveResearchTopic, researchTopicLabel } from "./taxonomy";
 import { MARKET_COMPANIES, normalizeChinaCompany, normalizeChinaResearch, chinaResearchDiagnostics } from "./china";
+import { companyFields } from "../market-companies/model";
 
 import { chinaConnectionsRequest, normalizeChinaConnections } from "./china-connections";
 import { CANDIDATES, type Candidate } from "./candidates";
@@ -130,7 +131,7 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
       selected.forEach((company, i) => {
         // Existing editorial profiles and newer reports are never replaced by discovery.
         tx.set(refs[i], {
-          ...(!existing[i].exists ? { ...company, market: "CN_A", status: "PUBLISHED", createdAt: now, reviewedAt: now, reviewedBy: uid } : {}),
+          ...(existing[i].data()?.status !== "PUBLISHED" ? { ...company, ...companyFields(company.id, company), market: "CN_A", status: "PUBLISHED", createdAt: existing[i].data()?.createdAt ?? now, reviewedAt: now, reviewedBy: uid } : {}),
           researchTopics: FieldValue.arrayUnion(run.industry), runIds: FieldValue.arrayUnion(id),
           ...(run.topic?.industryCode ? { researchIndustryCodes: FieldValue.arrayUnion(run.topic.industryCode), researchSectorCodes: FieldValue.arrayUnion(run.topic.sectorCode) } : {}),
         }, { merge: true });

@@ -9,6 +9,7 @@ type TickerSearchItem = {
   exchange: string | null;
   micCode: string | null;
   type: string | null;
+  market?: string;
 };
 
 type InstitutionSearchItem = {
@@ -36,6 +37,9 @@ type TickerDocument = {
   micCode?: unknown;
   type?: unknown;
   exchangePriority?: unknown;
+  market?: unknown;
+  active?: unknown;
+  predictionSupported?: unknown;
 };
 
 type InstitutionalManagerDocument = {
@@ -47,7 +51,7 @@ type InstitutionalManagerDocument = {
 };
 
 function normalizeQuery(raw: string | null): string {
-  return (raw ?? "").trim().replace(/^\$/, "").toLowerCase();
+  return (raw ?? "").normalize("NFKC").trim().replace(/^\$/, "").toLowerCase();
 }
 
 function readString(value: unknown): string | null {
@@ -127,6 +131,7 @@ function toSearchItem(id: string, data: TickerDocument) {
     micCode: readString(data.micCode),
     type: readString(data.type),
     exchangePriority,
+    market: readString(data.market) ?? "US",
   };
 }
 
@@ -157,20 +162,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ items: [] });
   }
 
-  if (query.length > 32 || !/^[a-z0-9.\-\s]+$/.test(query)) {
+  if (query.length > 32 || !/^[\p{L}\p{N}.:\-\s]+$/u.test(query)) {
     return NextResponse.json({ items: [] });
   }
 
   try {
     const db = getAdminFirestore();
-    const prefixField = query.length === 1 ? "symbolPrefixes" : "searchPrefixes";
+    const prefixField = query.length === 1 && request.nextUrl.searchParams.get("scope") !== "all" ? "symbolPrefixes" : "searchPrefixes";
     const normalizedCik = normalizeCikQuery(query);
     const legacyNamePrefix = query.toUpperCase();
     const [tickerSnapshot, indexedInstitutionSnapshot, legacyInstitutionSnapshot, directInstitutionSnapshot] = await Promise.all([
       db
-        .collection("tickers")
-        .where("active", "==", true)
-        .where("predictionSupported", "==", true)
+        .collection("market_companies")
         .where(prefixField, "array-contains", query)
         .limit(50)
         .get(),
@@ -186,6 +189,8 @@ export async function GET(request: NextRequest) {
     ]);
 
     const tickerItems: ScoredSearchItem[] = tickerSnapshot.docs
+      .filter(doc => !doc.data().status || ["PUBLISHED", "DIRECTORY"].includes(doc.data().status))
+      .filter(doc => request.nextUrl.searchParams.get("scope") === "all" || (doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true))
       .map((doc) => toSearchItem(doc.id, doc.data()))
       .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
       .sort((left, right) => {
@@ -205,6 +210,7 @@ export async function GET(request: NextRequest) {
           exchange: item.exchange,
           micCode: item.micCode,
           type: item.type,
+          market: item.market,
         },
         score: scoreTicker(item, query),
       }));

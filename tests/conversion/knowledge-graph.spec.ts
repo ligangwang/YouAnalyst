@@ -57,5 +57,3 @@ test("failed loads retry and English controls remain usable", async ({ page }) =
   await page.getByRole("button", {name:"Zoom in",exact:true}).click();
   await expect(page.getByText("90%",{exact:true})).toBeVisible();
 });
-
-
