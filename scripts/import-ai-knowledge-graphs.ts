@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import assert from "node:assert/strict";
+import { companyFields } from "../src/lib/market-companies/model";
 
 type Source = { id: string; url: string; title: string; retrievedAt: string; sourceDate: string | null };
 type Node = { id: string; kind: "STAGE" | "COMPANY"; market?: string; symbol?: string; name?: string; stageIds?: string[]; sourceIds?: string[] };
@@ -61,6 +62,14 @@ export async function importGraphs(db: Firestore, graphs: Graph[]) {
   for (const g of graphs) {
     const identity = graphVersion(g), root = db.collection("knowledge_graphs").doc(g.id), version = root.collection("versions").doc(identity.versionId);
     const companies = g.nodes.filter(n => n.kind === "COMPANY");
+    const masterDocs = await db.getAll(...companies.map(n => db.collection("market_companies").doc(n.id)));
+    const masterBatch = db.batch();
+    companies.forEach((n,i) => {
+      const current = masterDocs[i].data() ?? {}, source = g.sources.find(s => n.sourceIds?.includes(s.id));
+      const profile = {...n,description:(n as Node & {summary?:string}).summary ?? "",source:source?.url ?? "",sourceLabel:source?.title ?? "",...current};
+      masterBatch.set(db.collection("market_companies").doc(n.id), {...profile,status:current.status ?? "DIRECTORY",...companyFields(n.id,profile)}, {merge:true});
+    });
+    await masterBatch.commit();
     // The June directory checks identity only; it is not a real-time listing-status assertion.
     if (g.market === "CN_A") {
       const listed = await db.getAll(...companies.map(n => db.collection("company_directory").doc(n.id)));

@@ -20,6 +20,15 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
       return { id, language: id === "ai-us" ? "en" : "zh-CN", asOf: String(metadata.asOf), nodes: nodes.docs.map(d => d.data() as GraphNode), relationships: edges.docs.map(d => d.data() as GraphEdge), sources: sources.docs.map(d => d.data() as GraphSource) };
     }));
     const graph = combineGraphs(graphs);
+    const companyNodes = graph.nodes.filter(n => n.kind === "COMPANY");
+    const profiles = await db.getAll(...companyNodes.map(n => db.collection("market_companies").doc(n.id)));
+    const master = new Map(profiles.map(d => [d.id, d.data()]));
+    graph.nodes = graph.nodes.map(n => {
+      if (n.kind !== "COMPANY") return n;
+      const company = master.get(n.id);
+      if (!company?.name) throw new Error("Company master record missing");
+      return {...n, name: company.name, symbol: company.symbol ?? n.symbol, summary: company.description ?? n.summary};
+    });
     cached = { graph, expires: Date.now() + 300_000 };
     return graph;
   })();

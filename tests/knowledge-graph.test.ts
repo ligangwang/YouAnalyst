@@ -48,6 +48,8 @@ test("interrupted import cannot publish partial pointers; replay completes both 
   f.resume();
   const result = await importGraphs(f.db, graphs);
   assert.equal(result.length, 2);
+  assert.equal([...f.records.keys()].filter(k=>k.startsWith("market_companies/")).length,129);
+  assert.equal(f.records.get("market_companies/XSHG:688041")?.name,"海光信息");
   assert.equal(f.records.get("knowledge_graphs/ai-us")?.status, "READY");
   assert.equal(f.records.get("knowledge_graphs/ai-cn-a")?.status, "READY");
   const count = f.records.size;

@@ -42,7 +42,7 @@ return async function loadIndustryGraph({ ticker = "", after = "" } = {}): Promi
       }
     }
     if (ticker && !companies.has(ticker)) {
-      const listings = await db.collection("tickers").where("symbol", "==", ticker).limit(20).get();
+      const listings = await db.collection("market_companies").where("symbol", "==", ticker).limit(20).get();
       const listing = listings.docs.map((doc) => doc.data()).filter((item) => item.active === true && item.predictionSupported === true)
         .sort((a, b) => (Number(b.exchangePriority) || 0) - (Number(a.exchangePriority) || 0))[0];
       const company = listing && readMapCompany(ticker, listing);

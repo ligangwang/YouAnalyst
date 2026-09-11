@@ -6,7 +6,7 @@ import { chinaSupplyChain } from "../../src/lib/industry-graph/china";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import { combineGraphs, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
-import { graphChinaCompanies } from "../../src/lib/knowledge-graph/china-companies";
+import { graphChinaCompanies } from "../fixtures/china-graph-companies";
 
 let html: string;
 test("directory displays the full graph A-share set and searches normalized codes", async ({ page }) => {

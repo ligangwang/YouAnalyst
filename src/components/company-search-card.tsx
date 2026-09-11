@@ -39,7 +39,7 @@ export function CompanySearchCard() {
     if (selectedTicker?.symbol) {
       setError(null);
       startTransition(() => {
-        router.push(`/ticker/${encodeURIComponent(selectedTicker.symbol)}`);
+        router.push(selectedTicker.market === "CN_A" ? `/companies?market=CN_A&q=${encodeURIComponent(selectedTicker.symbol)}` : `/ticker/${encodeURIComponent(selectedTicker.symbol)}`);
       });
       return;
     }
@@ -52,7 +52,7 @@ export function CompanySearchCard() {
     if (/^\d{1,10}$/.test(normalizedTicker)) {
       setError(null);
       startTransition(() => {
-        router.push(`/institutions/${encodeURIComponent(normalizedTicker.padStart(10, "0"))}`);
+        router.push(/^[036]\d{5}$/.test(normalizedTicker) ? `/companies?market=CN_A&q=${normalizedTicker}` : `/institutions/${encodeURIComponent(normalizedTicker.padStart(10, "0"))}`);
       });
       return;
     }
@@ -75,6 +75,7 @@ export function CompanySearchCard() {
     >
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
         <TickerSearchInput
+          companySearch
           value={query}
           onChange={(value) => {
             setQuery(value);

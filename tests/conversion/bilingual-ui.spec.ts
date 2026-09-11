@@ -9,7 +9,7 @@ test.beforeAll(async () => {
     builder.onResolve({ filter: /^next\/image$/ }, () => ({ path: "image", namespace: "image-fixture" }));
     builder.onLoad({ filter: /.*/, namespace: "image-fixture" }, () => ({ contents: "import React from 'react'; export default function Image(props){return <img {...props}/>} ", loader: "jsx", resolveDir: process.cwd() }));
     builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
-    builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "export function usePathname(){return location.pathname}", loader: "js" }));
+    builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "export function usePathname(){return location.pathname} export function useSearchParams(){return new URLSearchParams(location.search)}", loader: "js" }));
   } }], alias: { "next/link": path.resolve("tests/industry/link.tsx") }, define: { "process.env.NODE_ENV": '"test"' } });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script>${result.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });

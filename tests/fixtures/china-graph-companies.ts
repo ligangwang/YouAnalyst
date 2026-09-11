@@ -1,5 +1,5 @@
-import type { ChinaCompany } from "../industry-research/china";
-import { companySearchText, type KnowledgeGraph } from "./model";
+import type { ChinaCompany } from "../../src/lib/industry-research/china";
+import { companySearchText, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 
 // The directory is a list view of the same published companies as the graph.
 export function graphChinaCompanies(graph: KnowledgeGraph): ChinaCompany[] {
@@ -13,3 +13,4 @@ export function graphChinaCompanies(graph: KnowledgeGraph): ChinaCompany[] {
       description: n.summary ?? "", source: source.url, sourceLabel: source.title, searchText: companySearchText(graph, n) };
   }).sort((a, b) => a.id.localeCompare(b.id));
 }
+
