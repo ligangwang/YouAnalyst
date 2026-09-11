@@ -16,14 +16,17 @@ function failure(status: number, message: string) {
   return Response.json({ error: { message } }, { status, headers: privateHeaders });
 }
 
-export async function proxyAuthRequest(request: Request, path: string[], apiKey: string | undefined) {
+export async function proxyAuthRequest(request: Request, path: string[], apiKey: string | undefined, siteUrl = process.env.NEXT_PUBLIC_SITE_URL) {
   const endpoint = endpoints[path.join("/")];
   if (!endpoint) return failure(404, "NOT_FOUND");
   if (request.method !== endpoint.method) return failure(405, "METHOD_NOT_ALLOWED");
   if (!apiKey) return failure(503, "INTERNAL_ERROR");
   const incoming = new URL(request.url);
+  // Cloud Run/Next standalone can expose an internal request URL. Use the
+  // configured public origin as well; never trust arbitrary forwarded headers.
+  const publicOrigin = siteUrl ? new URL(siteUrl).origin : incoming.origin;
   const origin = request.headers.get("origin");
-  if ((origin && origin !== incoming.origin) || request.headers.get("sec-fetch-site") === "cross-site") {
+  if ((origin && origin !== incoming.origin && origin !== publicOrigin) || request.headers.get("sec-fetch-site") === "cross-site") {
     return failure(403, "INVALID_ORIGIN");
   }
   const upstream = new URL(`https://${endpoint.host}/${path.slice(1).join("/")}`);
@@ -38,7 +41,7 @@ export async function proxyAuthRequest(request: Request, path: string[], apiKey:
     if (value) headers.set(name, value);
   }
   // Preserve referrer-based restrictions on the existing Firebase web API key.
-  headers.set("referer", `${incoming.origin}/`);
+  headers.set("referer", `${publicOrigin}/`);
   let body: string | undefined;
   if (request.method === "POST") {
     // Bound even chunked request bodies without buffering arbitrary amounts.
