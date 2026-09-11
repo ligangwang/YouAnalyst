@@ -278,3 +278,11 @@ test("saved response diagnostics distinguish empty output, bad fields and unsear
  const result=await f.service.diagnoseResearch(runId); assert.equal(f.calls(),1); assert.equal(f.usageEvents(),0); assert.equal(result?.status,"PROCESSING");
  assert.equal((result?.diagnostics as {returnedCompanies:number}).returnedCompanies,1);
 });
+
+test("A-share source schema rejects publisher names and requires a full HTTPS URL", () => {
+ const r=researchRequest("Semiconductors",[],undefined,"CN_A");
+ const schema=r.text.format.schema.properties.companies as {items:{properties:{source:{pattern:string}}}};
+ const pattern=new RegExp(schema.items.properties.source.pattern);
+ assert.equal(pattern.test("巨潮资讯"),false); assert.equal(pattern.test("turn0search0"),false); assert.equal(pattern.test("http://example.com/report"),false); assert.equal(pattern.test("https://example.com/bad url"),false);
+ assert.equal(pattern.test(chinaSupplyChain[0].source),true);
+});
