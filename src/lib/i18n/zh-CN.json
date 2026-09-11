@@ -1330,5 +1330,6 @@
   "A-share AI supply chain | YouAnalyst": "A 股 AI 产业链 | YouAnalyst",
   "Explore A-share companies behind AI chips, connections, servers and cooling through original disclosures.": "从芯片、互连到服务器与散热，发现算力背后的 A 股公司，查看原始披露。",
   "A-share industries | YouAnalyst": "A 股产业 | YouAnalyst",
-  "Explore reviewed A-share companies by business and industry, with links to original disclosures.": "按业务与行业探索已审核的 A 股公司，查看原始披露。"
+  "Explore reviewed A-share companies by business and industry, with links to original disclosures.": "按业务与行业探索已审核的 A 股公司，查看原始披露。",
+  "No sourced candidates passed validation. Existing published data was preserved.": "没有公司候选项通过资料与来源验证。现有已发布数据不受影响。请检查已保存的结果以查看原因。"
 }

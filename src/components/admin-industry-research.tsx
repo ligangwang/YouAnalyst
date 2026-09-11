@@ -10,7 +10,7 @@ import { RESEARCH_SECTORS, TAXONOMY_SOURCE, type ResearchTopic } from "@/lib/ind
 import { INDUSTRY_SEGMENTS } from "@/lib/industry-graph/catalog";
 import { useLocale } from "./providers/locale-provider";
 
-type Run = { id: string; market?: "US" | "CN_A"; industry: string; topic?: ResearchTopic; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
+type Run = { diagnostics?: Record<string, unknown>; id: string; market?: "US" | "CN_A"; industry: string; topic?: ResearchTopic; status: string; model?: string; responseId?: string; createdAt: string; result?: ResearchResult; error?: string; searchCalls?: number; publishedIds?: string[] };
 const control = "rounded-md border border-white/20 px-3 py-2 text-sm disabled:opacity-50";
 export function AdminIndustryResearch() {
   const ui = useUiText();
@@ -62,7 +62,7 @@ export function AdminIndustryResearch() {
     }, 10000);
     return () => { stopped = true; clearTimeout(timer); };
   }, [run, api]);
-  async function act(action: "start" | "refresh" | "publish") {
+  async function act(action: "start" | "refresh" | "publish" | "diagnose") {
     setBusy(true); setError("");
     try {
       const topicKey = JSON.stringify([market, sectorCode, industryCode, industry.trim()]);
@@ -130,6 +130,7 @@ export function AdminIndustryResearch() {
         <button className={control} disabled={busy || !run.responseId || run.status !== "PROCESSING"} onClick={() => void act("refresh")}><UiText text={"Check status"} /></button>
       </div>
       {run.error && <p className="my-4 text-rose-300">{run.error.includes("max_output_tokens") ? text("This batch reached its output limit and cannot resume. Start a new research batch above; existing companies are unchanged. New A-share batches produce up to five Chinese profiles.", "本批研究达到输出上限，无法继续。请在上方重新发起研究；现有公司不受影响。新的 A 股研究每批最多生成 5 家公司的中文资料。") : <UiText text={run.error} />}</p>}
+      {run.market === "CN_A" && run.responseId && <div className="my-4"><button className={control} disabled={busy} onClick={() => void act("diagnose")}>{text("Inspect saved response (no new research)", "检查已保存的结果（不发起新研究）")}</button>{run.diagnostics && <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-white/5 p-4 text-xs">{JSON.stringify(run.diagnostics, null, 2)}</pre>}</div>}
       {run.result && run.market === "CN_A" && <>
         <p className="my-4 text-sm">{text(`${run.result.chinaCompanies?.length ?? 0} companies ready for review; ${run.result.withheld} withheld.`, `${run.result.chinaCompanies?.length ?? 0} 家公司待审核；${run.result.withheld} 家未通过验证。`)}</p>
         <div className="grid gap-4 md:grid-cols-2">{run.result.chinaCompanies?.map(c => <article key={c.id} className="rounded-xl border border-white/15 p-4">
