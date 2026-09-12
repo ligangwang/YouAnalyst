@@ -10,8 +10,6 @@
 .controls button[aria-pressed=true] { background: #1b3041; border-color: #537487; color: #f1f7fb; }
 .controls button:disabled { opacity: .3; cursor: default; }
 .controls input { flex: 1; min-width: 160px; border: 1px solid #304057; border-radius: 24px; background: #080f1e; padding: 11px 16px; color: #e2ecf3; font-size: 14px; }
-.markets i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; }
-.us { background: #69d8ed; }.china { background: #bba0ff; }
 .zoom output { width: 42px; text-align: center; color: #b5c7db; font-size: 12px; font-variant-numeric: tabular-nums; }
 .zoom { flex-wrap: wrap; max-width: 100%; justify-content: flex-end; }
 .legend { flex-wrap: wrap; justify-content: space-between; margin: 14px 4px; color: #9bb0c7; font-size: 12px; }
@@ -22,7 +20,6 @@
 .stars, .edges { position: absolute; inset: 0; pointer-events: none; }
 .stars i { position: absolute; background: #c4ddf6; border-radius: 50%; }
 .node { position: absolute; width: 40px; height: 40px; transform: translate(-50%, -50%); background: transparent; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; color: #e5f0fa; z-index: 1; --starlight: #69d8ed; }
-.chinaNode { --starlight: #bba0ff; }.usNode { --starlight: #69d8ed; }
 .star { position: relative; width: calc(var(--radius) * 2); height: calc(var(--radius) * 2); display: block; border-radius: 50%; background: #f4fcff; box-shadow: 0 0 3px 1px var(--starlight), 0 0 10px 2px color-mix(in srgb, var(--starlight) 55%, transparent), 0 0 22px color-mix(in srgb, var(--starlight) 20%, transparent); }
 .star::before, .star::after { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; opacity: .5; background: linear-gradient(transparent, var(--starlight) 35%, #fff 50%, var(--starlight) 65%, transparent); }
 .star::before { width: 1px; height: calc(var(--radius) * 5); }
@@ -49,3 +46,8 @@
 .filingLink { color: #acbed4; font-size: 12px; padding: 8px; white-space: nowrap; }
 @media(max-width: 800px) { .page { padding: 24px 16px; }.withDetail { grid-template-columns: 1fr; }.canvas { height: 62vh; min-height: 460px; }.detail { max-height: none; min-height: 0; border-left: 0; border-top: 1px solid #26334a; }.date { display: none; }.controls input { order: 3; flex-basis: 100%; font-size: 16px; }.zoom { margin-left: auto; gap: 6px; }.controls button { padding: 10px 12px; }.filingLink { order: 4; }.node { width: 44px; height: 44px; } }
 
+
+.sectorLegend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin: 0 4px 16px; color: #afc1d2; font-size: 11px; line-height: 1.5; }
+.sectorLegend span, .sectorBadge { display: inline-flex; align-items: center; gap: 7px; }
+.sectorLegend > span:first-child { color: #d5e0eb; }
+.sectorLegend i, .sectorBadge i { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
