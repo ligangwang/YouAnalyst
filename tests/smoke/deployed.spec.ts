@@ -2,6 +2,24 @@ import { expect, test } from "@playwright/test";
 import { isMapTicker } from "../../src/lib/industry-graph/directory";
 import { publicEventFromDocument } from "../../src/lib/events/model";
 
+test("sitemap index exposes bounded bilingual company sitemaps", async ({ request }) => {
+  test.setTimeout(60_000);
+  const index = await request.get("/sitemap.xml");
+  expect(index.status()).toBe(200);
+  const body = await index.text();
+  expect(body).toContain("<sitemapindex");
+  expect(body).toContain("/sitemaps/companies/US-N.xml");
+  expect(body).toContain("/sitemaps/companies/XSHG-6.xml");
+  for (const [bucket, company] of [["US-N", "NVDA"], ["XSHG-6", "XSHG%3A688041"]]) {
+    const response = await request.get(`/sitemaps/companies/${bucket}.xml`);
+    expect(response.status()).toBe(200);
+    const xml = await response.text();
+    expect(xml).toContain(`/en/ticker/${company}`);
+    expect(xml).toContain(`/zh-cn/ticker/${company}`);
+    expect(xml).toContain('hreflang="zh-CN"');
+  }
+});
+
 test("English and Chinese map URLs expose localized SEO and crawlable companies", async ({ request }) => {
   for (const [prefix, language, heading] of [["en", "en", "AI Industry Map"], ["zh-cn", "zh-CN", "AI 产业图谱"]]) {
     const response = await request.get(`/${prefix}`);
@@ -17,7 +35,7 @@ test("English and Chinese map URLs expose localized SEO and crawlable companies"
   }
   const legacy = await request.get("/map?lang=zh-CN&market=CN_A&company=XSHG%3A688041", { maxRedirects: 0 });
   expect([307, 308]).toContain(legacy.status());
-  const target = new URL(legacy.headers().location);
+  const target = new URL(legacy.headers().location, legacy.url());
   expect(target.pathname).toBe("/zh-cn");
   expect(target.searchParams.get("company")).toBe("XSHG:688041");
   expect(target.searchParams.get("market")).toBe("CN_A");
@@ -133,7 +151,7 @@ test("filing company map remains accessible under Explore", async ({ page }) => 
   await page.goto("/map?view=filings");
   const companySearch = page.getByRole("link", { name: "Search companies", exact: true });
   await expect(companySearch).toBeVisible();
-  await expect(companySearch).toHaveAttribute("href", "/companies");
+  await expect(companySearch).toHaveAttribute("href", "/en/companies");
   
   await expect(page.getByRole("heading", { name: "Explore company connections.", exact: true })).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "Find a company in the map" })).toBeVisible();
