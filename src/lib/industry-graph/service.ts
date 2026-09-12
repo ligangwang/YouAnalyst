@@ -15,13 +15,13 @@ return async function loadIndustryGraph({ ticker = "", after = "" } = {}): Promi
   if (pending.has(key)) return pending.get(key)!;
   const work = (async () => {
     const db = getDb();
-    let query = db.collection("company_graph_runs").where("status", "==", "COMPLETED").orderBy(FieldPath.documentId()).limit(MAP_PAGE_SIZE + 1);
+    let query = db.collection("company_research_runs").where("status", "==", "COMPLETED").orderBy(FieldPath.documentId()).limit(MAP_PAGE_SIZE + 1);
     if (after) query = query.startAfter(after);
     const page = await query.get();
     const docs = page.docs.slice(0, MAP_PAGE_SIZE);
     const runs: Record<string, unknown> = {};
     if (ticker) {
-      const requested = await db.collection("company_graph_runs").doc(`${ticker}_latest_10k`).get();
+      const requested = await db.collection("company_research_runs").doc(`${ticker}_latest_10k`).get();
       if (requested.exists) runs[ticker] = requested.data();
     }
     for (const doc of docs) {

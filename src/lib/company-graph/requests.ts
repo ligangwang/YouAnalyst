@@ -70,7 +70,7 @@ export async function hasCurrentCompanyGraph(ticker: string): Promise<boolean> {
     return false;
   }
 
-  const runSnapshot = await getAdminFirestore().collection("company_graph_runs").doc(`${normalizedTicker}_latest_10k`).get();
+  const runSnapshot = await getAdminFirestore().collection("company_research_runs").doc(`${normalizedTicker}_latest_10k`).get();
   const runData = runSnapshot.data() as Record<string, unknown> | undefined;
 
   return runData?.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION &&
@@ -93,7 +93,7 @@ export async function enqueueCompanyGraphRequest(rawTicker: string): Promise<Com
   }
 
   const db = getAdminFirestore();
-  const requestRef = db.collection("company_graph_requests").doc(ticker);
+  const requestRef = db.collection("company_research_requests").doc(ticker);
   const nowIso = new Date().toISOString();
 
   return db.runTransaction(async (transaction) => {
@@ -127,7 +127,7 @@ export async function enqueueCompanyGraphRequest(rawTicker: string): Promise<Com
 }
 
 export async function listCompanyGraphRequests(): Promise<CompanyGraphRequestListItem[]> {
-  const snapshot = await getAdminFirestore().collection("company_graph_requests").limit(100).get();
+  const snapshot = await getAdminFirestore().collection("company_research_requests").limit(100).get();
   return snapshot.docs
     .map((doc) => {
       const data = doc.data() as Record<string, unknown>;
@@ -167,7 +167,7 @@ export async function listCompanyGraphRequests(): Promise<CompanyGraphRequestLis
 
 export async function listQueuedCompanyGraphRequests(limit: number): Promise<CompanyGraphRequestListItem[]> {
   const snapshot = await getAdminFirestore()
-    .collection("company_graph_requests")
+    .collection("company_research_requests")
     .where("status", "==", "QUEUED")
     .orderBy("firstRequestedAt", "asc")
     .limit(Math.max(1, Math.min(25, Math.trunc(limit))))
@@ -205,7 +205,7 @@ export async function claimCompanyGraphRequest(
   }
 
   const db = getAdminFirestore();
-  const requestRef = db.collection("company_graph_requests").doc(normalizedTicker);
+  const requestRef = db.collection("company_research_requests").doc(normalizedTicker);
   const nowIso = new Date().toISOString();
 
   return db.runTransaction(async (transaction) => {
@@ -255,7 +255,7 @@ export async function markCompanyGraphRequestProcessing(ticker: string): Promise
   }
 
   const db = getAdminFirestore();
-  const requestRef = db.collection("company_graph_requests").doc(normalizedTicker);
+  const requestRef = db.collection("company_research_requests").doc(normalizedTicker);
   const nowIso = new Date().toISOString();
 
   await db.runTransaction(async (transaction) => {
@@ -283,7 +283,7 @@ export async function markCompanyGraphRequestCompleted(ticker: string, edgeCount
   }
 
   const nowIso = new Date().toISOString();
-  await getAdminFirestore().collection("company_graph_requests").doc(normalizedTicker).set({
+  await getAdminFirestore().collection("company_research_requests").doc(normalizedTicker).set({
     ticker: normalizedTicker,
     status: "COMPLETED",
     edgeCount,
@@ -301,7 +301,7 @@ export async function markCompanyGraphRequestFailed(ticker: string, error: strin
   }
 
   const nowIso = new Date().toISOString();
-  await getAdminFirestore().collection("company_graph_requests").doc(normalizedTicker).set({
+  await getAdminFirestore().collection("company_research_requests").doc(normalizedTicker).set({
     ticker: normalizedTicker,
     status: "FAILED",
     failedAt: nowIso,

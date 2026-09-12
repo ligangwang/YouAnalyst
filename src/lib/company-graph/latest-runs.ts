@@ -17,7 +17,7 @@ function readNumber(value: unknown): number {
 export async function listLatestCompanyGraphRuns(limit = 4): Promise<LatestCompanyGraphRun[]> {
   try {
     const snapshot = await getAdminFirestore()
-      .collection("company_graph_runs")
+      .collection("company_research_runs")
       .orderBy("updatedAt", "desc")
       .limit(25)
       .get();

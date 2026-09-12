@@ -98,7 +98,7 @@ function toCompanyGraphEdge(id: string, data: Record<string, unknown>): CompanyG
 }
 
 function toCurrentCompanyGraphEdge(doc: FirebaseFirestore.QueryDocumentSnapshot): CompanyGraphEdge | null {
-  return toCompanyGraphEdge(doc.id, doc.data() as Record<string, unknown>);
+  return toCompanyGraphEdge(doc.id.replace(/^filing:/, ""), doc.data() as Record<string, unknown>);
 }
 
 function readRunResultEdges(value: unknown): CompanyGraphEdge[] | null {
@@ -136,19 +136,19 @@ export async function GET(
 
   try {
     const db = getAdminFirestore();
-    const runSnapshot = await db.collection("company_graph_runs").doc(`${ticker}_latest_10k`).get();
+    const runSnapshot = await db.collection("company_research_runs").doc(`${ticker}_latest_10k`).get();
     const runData = runSnapshot.data() as CompanyGraphRunDocument | undefined;
     const runResult = readRunResult(runData?.result);
     const extractionVersion = readString(runData?.extractionVersion);
     const isCurrentExtractionVersion = extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION;
     const latestAccessionNumber = readString(runData?.accessionNumber) ?? runResult?.filing?.accessionNumber ?? null;
     const edgePrefix = isCurrentExtractionVersion && latestAccessionNumber
-      ? edgeDocIdPrefix(ticker, latestAccessionNumber)
+      ? `filing:${edgeDocIdPrefix(ticker, latestAccessionNumber)}`
       : null;
     const resultEdges = isCurrentExtractionVersion ? readRunResultEdges(runData?.result) : null;
     const edgesSnapshot = resultEdges === null && edgePrefix
       ? await db
-          .collection("company_graph_edges")
+          .collection("market_company_relationships")
           .where(FieldPath.documentId(), ">=", edgePrefix)
           .where(FieldPath.documentId(), "<", `${edgePrefix}\uf8ff`)
           .orderBy(FieldPath.documentId())
@@ -178,7 +178,7 @@ export async function GET(
       filing: runResult?.filing ?? null,
       edges: currentEdges,
       withheldEdges: reviewed.withheldCount,
-    });
+    }, { headers: { "X-Research-Storage": "company_research_runs" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch company graph";
     return NextResponse.json({ error: message }, { status: 500 });

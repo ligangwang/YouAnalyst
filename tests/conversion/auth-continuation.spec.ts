@@ -275,11 +275,14 @@ test("publication analytics fires only after a successful response, without send
   await page.getByText("Add reasoning or a time horizon (optional)", { exact: true }).click();
   await page.getByLabel("Thesis", { exact: true }).fill("Private research must never enter analytics.");
   // Local response only; this handler intercepts the mutation and never reaches a server.
-  await page.route(`${origin}/api/predictions`, (route) => route.fulfill({ status: 400, json: { error: "Test rejection" } }));
+  let rejectPublication = true;
+  await page.route(`${origin}/api/predictions`, (route) => route.fulfill(rejectPublication
+    ? { status: 400, json: { error: "Test rejection" } }
+    : { json: { id: "test-prediction" } }));
   await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
   await expect(page.getByText("Test rejection")).toBeVisible();
   expect(await page.evaluate(() => (window.dataLayer ?? []).filter((item) => (item as ArrayLike<unknown>)[1] === "prediction_publish").length)).toBe(0);
-  await page.route(`${origin}/api/predictions`, (route) => route.fulfill({ json: { id: "test-prediction" } }));
+  rejectPublication = false;
   await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
   await expect(page).toHaveURL(`${origin}/predictions/test-prediction`);
   const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));

@@ -2,6 +2,15 @@ import { expect, test } from "@playwright/test";
 import { isMapTicker } from "../../src/lib/industry-graph/directory";
 import { publicEventFromDocument } from "../../src/lib/events/model";
 
+test("filing research uses the consolidated research store", async ({ request }) => {
+  const response = await request.get("/api/company-graph/NVDA");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["x-research-storage"]).toBe("company_research_runs");
+  const body = await response.json();
+  expect(body.ticker).toBe("NVDA");
+  expect(Array.isArray(body.edges)).toBe(true);
+});
+
 test("AI map reads shared company relationships with preserved evidence", async ({ request }) => {
   const response = await request.get("/api/knowledge-graph");
   expect(response.status()).toBe(200);
