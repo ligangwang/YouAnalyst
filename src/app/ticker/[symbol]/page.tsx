@@ -26,6 +26,11 @@ const loadChinaCompany = cache(async (id: string) => {
 
 export const dynamic = "force-dynamic";
 
+// Page and metadata parameters can differ in URL encoding.
+function decodeRouteSymbol(symbol: string) {
+  try { return decodeURIComponent(symbol); } catch { notFound(); }
+}
+
 function resolveTicker(symbol: string) {
   const ticker = normalizeTicker(symbol.replace(/^\$/, ""));
   if (!/^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker)) notFound();
@@ -37,7 +42,8 @@ export async function generateMetadata({
 }: {
   params: Promise<{ symbol: string }>;
 }): Promise<Metadata> {
-  const { symbol } = await params;
+  const { symbol: rawSymbol } = await params;
+  const symbol = decodeRouteSymbol(rawSymbol);
   const chinaId = chinaCompanyId(symbol);
   if (chinaId) {
     const company = await loadChinaCompany(chinaId);
@@ -68,7 +74,8 @@ export async function generateMetadata({
 }
 
 export default async function TickerRoutePage({ params }: { params: Promise<{ symbol: string }> }) {
-  const { symbol } = await params;
+  const { symbol: rawSymbol } = await params;
+  const symbol = decodeRouteSymbol(rawSymbol);
   const chinaId = chinaCompanyId(symbol);
   if (chinaId) {
     if (symbol !== chinaId) permanentRedirect(companyPageUrl(chinaId, "CN_A"));
