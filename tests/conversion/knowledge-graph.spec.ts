@@ -82,3 +82,28 @@ test("failed loads retry and English controls remain usable", async ({ page }) =
   await page.getByRole("button", {name:"Zoom in",exact:true}).click();
   await expect(page.getByText("120%",{exact:true})).toBeVisible();
 });
+test("rotation moves companies and edges together and Fit restores the view", async ({ page }) => {
+  await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: graph }) : route.fulfill({ contentType: "text/html", body: html }));
+  await page.goto("http://graph.test/map?lang=en");
+  const node = page.locator('[data-company-node="US:ASML"]');
+  await expect(node).toBeAttached();
+  const before = await node.boundingBox();
+  const edge = page.locator('[data-company-edge]').first();
+  const path = await edge.getAttribute("d");
+  await page.getByRole("button", { name: "Rotate right", exact: true }).click();
+  await expect(page.getByLabel("Rotation", { exact: true })).toHaveText("15°");
+  const after = await node.boundingBox();
+  expect(Math.hypot(after!.x - before!.x, after!.y - before!.y)).toBeGreaterThan(1);
+  expect(await edge.getAttribute("d")).not.toBe(path);
+  await page.getByRole("button", { name: "Rotate left", exact: true }).click();
+  await expect(page.getByLabel("Rotation", { exact: true })).toHaveText("0°");
+  expect((await node.boundingBox())!.x).toBeCloseTo(before!.x, 0);
+  const canvas = page.getByRole("region", { name: /Company graph/ });
+  await canvas.focus(); await page.keyboard.press("Shift+ArrowLeft");
+  await expect(page.getByLabel("Rotation", { exact: true })).toHaveText("345°");
+  await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await page.getByRole("button", { name: "Fit", exact: true }).click();
+  await expect(page.getByLabel("Rotation", { exact: true })).toHaveText("0°");
+  await expect(page.getByText("100%", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
