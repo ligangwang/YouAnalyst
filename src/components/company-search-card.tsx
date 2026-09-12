@@ -5,6 +5,7 @@ import { UiText } from "@/components/ui-text";
 import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SearchSuggestion, TickerSearchInput } from "@/components/ticker-search-input";
+import { chinaCompanyId, companyPageUrl } from "@/lib/market-companies/routes";
 
 function normalizeTicker(value: string): string {
   return value.trim().replace(/^\$/, "").toUpperCase();
@@ -39,7 +40,7 @@ export function CompanySearchCard() {
     if (selectedTicker?.symbol) {
       setError(null);
       startTransition(() => {
-        router.push(selectedTicker.market === "CN_A" ? `/companies?market=CN_A&q=${encodeURIComponent(selectedTicker.symbol)}` : `/ticker/${encodeURIComponent(selectedTicker.symbol)}`);
+        router.push(companyPageUrl(selectedTicker.symbol, selectedTicker.market));
       });
       return;
     }
@@ -49,10 +50,10 @@ export function CompanySearchCard() {
       return;
     }
 
-    if (/^\d{1,10}$/.test(normalizedTicker)) {
+    if (chinaCompanyId(normalizedTicker) || /^\d{1,10}$/.test(normalizedTicker)) {
       setError(null);
       startTransition(() => {
-        router.push(/^[036]\d{5}$/.test(normalizedTicker) ? `/companies?market=CN_A&q=${normalizedTicker}` : `/institutions/${encodeURIComponent(normalizedTicker.padStart(10, "0"))}`);
+        router.push(chinaCompanyId(normalizedTicker) ? companyPageUrl(normalizedTicker, "CN_A") : `/institutions/${encodeURIComponent(normalizedTicker.padStart(10, "0"))}`);
       });
       return;
     }

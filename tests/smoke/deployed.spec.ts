@@ -116,6 +116,13 @@ test("filing company map remains accessible under Explore", async ({ page }) => 
   await expect(page.getByRole("button", { name: "List", exact: true })).toBeVisible();
 });
 
+test("A-share company has its own research page", async ({ page }) => {
+  await page.goto("/ticker/XSHG:688041?lang=zh-CN");
+  await expect(page.getByRole("heading", { name: "海光信息", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "公司概览", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "资料来源", exact: true })).toBeVisible();
+});
+
 test("map save registration opens account creation with company context", async ({ page }) => {
   await page.goto("/auth?next=%2F%3Fcompany%3DNVDA&mode=register");
   await expect(page.getByRole("heading", { name: "Keep NVDA on your map", exact: true })).toBeVisible();

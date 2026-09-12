@@ -10,6 +10,19 @@ import { loadCompanyResearch } from "@/lib/company-research-service";
 import { companyResearchDescription } from "@/lib/company-research";
 import { CompanyResearchOverview } from "@/components/company-research-overview";
 import { absoluteUrl } from "@/lib/seo";
+import { cache } from "react";
+import { chinaCompanyId, companyPageUrl } from "@/lib/market-companies/routes";
+import { getAdminFirestore } from "@/lib/firebase/admin";
+import { COMPANY_COLLECTION } from "@/lib/market-companies/model";
+import { publicChinaCompany } from "@/lib/industry-research/china-directory";
+import { ChinaCompanyPage } from "@/components/china-company-page";
+
+const loadChinaCompany = cache(async (id: string) => {
+  const doc = await getAdminFirestore().collection(COMPANY_COLLECTION).doc(id).get();
+  const company = doc.exists ? publicChinaCompany(doc.id, doc.data()!) : null;
+  if (!company) notFound();
+  return company;
+});
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +38,12 @@ export async function generateMetadata({
   params: Promise<{ symbol: string }>;
 }): Promise<Metadata> {
   const { symbol } = await params;
+  const chinaId = chinaCompanyId(symbol);
+  if (chinaId) {
+    const company = await loadChinaCompany(chinaId);
+    return { title: `${company.name} (${chinaId.split(":")[1]}) | YouAnalyst`, description: company.description,
+      alternates: { canonical: companyPageUrl(chinaId, "CN_A") } };
+  }
   const ticker = resolveTicker(symbol);
   const company = await loadCompanyResearch(ticker);
   const title = `${company.name} (${ticker}) holdings & company research | YouAnalyst`;
@@ -50,6 +69,11 @@ export async function generateMetadata({
 
 export default async function TickerRoutePage({ params }: { params: Promise<{ symbol: string }> }) {
   const { symbol } = await params;
+  const chinaId = chinaCompanyId(symbol);
+  if (chinaId) {
+    if (symbol !== chinaId) permanentRedirect(companyPageUrl(chinaId, "CN_A"));
+    return <ChinaCompanyPage company={await loadChinaCompany(chinaId)} />;
+  }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(`/ticker/${encodeURIComponent(ticker)}`);
   const company = await loadCompanyResearch(ticker);
