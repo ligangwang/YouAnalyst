@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run lint && npm run typecheck && npm run test:analytics && npm run test:securities && npm run test:watchlists && npm run build",
+    "verify": "npm run verify:checks && npm run build",
     "test:analytics": "tsx --test tests/analytics/*.test.ts",
     "test:auth": "tsx --test tests/auth/*.test.ts",
     "test:watchlists": "tsx --test tests/watchlists/*.test.ts",
@@ -23,7 +23,8 @@
     "test:industry": "tsx --test tests/industry/model.test.ts tests/industry/quality.test.ts tests/industry/saved-companies.test.ts tests/industry/discovery.test.ts tests/industry/company-research.test.tsx tests/industry/directory.test.ts tests/industry/research.test.ts",
     "smoke:install": "playwright install chromium",
     "deploy:staging": "./scripts/deploy-cloud-run.sh staging",
-    "deploy:production": "./scripts/deploy-cloud-run.sh production"
+    "deploy:production": "./scripts/deploy-cloud-run.sh production",
+    "verify:checks": "npm run lint && npm run typecheck && npm run test:analytics && npm run test:securities && npm run test:watchlists"
   },
   "dependencies": {
     "cytoscape": "^3.33.3",

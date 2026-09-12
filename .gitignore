@@ -41,3 +41,5 @@ firebase-debug.log
 
 # Isolated conversion browser test artifacts
 /test-results/conversion/
+
+/.release/

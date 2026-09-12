@@ -41,12 +41,32 @@ fi
 echo "[3/5] Deploying $service_name to Cloud Run via Cloud Build"
 build_started=$SECONDS
 image_tag="${region}-docker.pkg.dev/${project_id}/ifindata/ifindata-web:${GIT_SHA:-local}"
+dockerfile="Dockerfile"
+source_dir="."
+if [[ "${PREBUILT_RELEASE:-0}" == "1" ]]; then
+  # Fail closed instead of silently deploying an old or untested build.
+  [[ "${GITHUB_ACTIONS:-}" == "true" && "${VERIFIED_COMMIT:-}" == "${GIT_SHA:-}" && "$(git rev-parse HEAD)" == "$GIT_SHA" ]]
+  RELEASE_TARGET="$app_environment" node --input-type=module -e '
+    import assert from "node:assert/strict";
+    import fs from "node:fs";
+    const manifest = JSON.parse(fs.readFileSync(".release/manifest.json", "utf8"));
+    assert.equal(manifest.commit, process.env.GIT_SHA);
+    assert.equal(manifest.environment, process.env.RELEASE_TARGET);
+    assert.equal(manifest.checked, true);
+    assert.ok(fs.existsSync(".release/app/server.js"));
+  '
+  dockerfile="Dockerfile.release"
+  source_dir=".release"
+fi
 
 build_submit_args=(
   --project "$project_id"
   --config cloudbuild.yaml
   --substitutions "_SERVICE_NAME=$service_name,_REGION=$region,_APP_ENVIRONMENT=$app_environment,_NEXT_PUBLIC_APP_ENVIRONMENT=$app_environment,_GIT_SHA=${GIT_SHA:-local},_IMAGE=${image_tag},_NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-},_NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY:-},_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:-},_NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID:-},_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:-},_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-},_NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID:-},_TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY:-},_TWELVE_DATA_API_URL=${TWELVE_DATA_API_URL:-},_EODHD_API_TOKEN=${EODHD_API_TOKEN:-},_EODHD_API_URL=${EODHD_API_URL:-},_EODHD_BULK_EOD_BUCKET=${EODHD_BULK_EOD_BUCKET:-},_OPENFIGI_API_KEY=${OPENFIGI_API_KEY:-},_INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-},_AI_ANALYST_USER_ID=${AI_ANALYST_USER_ID:-},_OPENAI_API_KEY=${OPENAI_API_KEY:-},_OPENAI_MODEL=${OPENAI_MODEL:-gpt-5.4},_SEC_USER_AGENT=${SEC_USER_AGENT:-},_COMPANY_GRAPH_QUEUE_BATCH_SIZE=${COMPANY_GRAPH_QUEUE_BATCH_SIZE:-1},_ENABLE_PRO_FEATURES=${ENABLE_PRO_FEATURES:-},_ENABLE_BILLING=${ENABLE_BILLING:-},_PRO_BILLING_BYPASS=${PRO_BILLING_BYPASS:-},_GOOGLE_ANALYTICS_ID=${GOOGLE_ANALYTICS_ID:-}"
 )
+
+# Keep the existing source-build path for manual deployments.
+build_submit_args[5]+=",_DOCKERFILE=$dockerfile"
 
 if [[ -n "${CLOUD_BUILD_DEFAULT_BUCKETS_BEHAVIOR:-}" ]]; then
   build_submit_args+=(--default-buckets-behavior "$CLOUD_BUILD_DEFAULT_BUCKETS_BEHAVIOR")
@@ -79,7 +99,7 @@ fi
 
 submit_stderr_file="$(mktemp)"
 
-if build_id="$(gcloud builds submit "${build_submit_args[@]}" --async --format='value(id)' . 2>"$submit_stderr_file")"; then
+if build_id="$(gcloud builds submit "${build_submit_args[@]}" --async --format='value(id)' "$source_dir" 2>"$submit_stderr_file")"; then
   :
 else
   cat "$submit_stderr_file" >&2
@@ -87,7 +107,7 @@ else
   if [[ "${CLOUD_BUILD_USE_CUSTOM_SOURCE_STAGING:-0}" != "1" ]] && [[ -n "${CLOUD_BUILD_SOURCE_STAGING_DIR:-}" ]] && grep -E -q "forbidden from accessing the bucket \[${project_id}_cloudbuild\]" "$submit_stderr_file"; then
     echo "Retrying Cloud Build submit with custom source staging dir: $CLOUD_BUILD_SOURCE_STAGING_DIR"
     retry_build_submit_args=("${build_submit_args[@]}" --gcs-source-staging-dir "$CLOUD_BUILD_SOURCE_STAGING_DIR")
-    build_id="$(gcloud builds submit "${retry_build_submit_args[@]}" --async --format='value(id)' .)"
+    build_id="$(gcloud builds submit "${retry_build_submit_args[@]}" --async --format='value(id)' "$source_dir")"
   else
     rm -f "$submit_stderr_file"
     exit 1
@@ -113,9 +133,6 @@ while true; do
       gcloud builds describe "$build_id" \
         --project "$project_id" \
         --format='table[box](steps.name,steps.status,steps.timing.startTime,steps.timing.endTime)' || true
-      gcloud builds describe "$build_id" \
-        --project "$project_id" \
-        --format='value(steps[].status,steps[].args)' || true
       exit 1
       ;;
     *)
@@ -180,6 +197,19 @@ else
   exit 1
 fi
 
+if [[ -n "${GIT_SHA:-}" && "${GIT_SHA}" != "local" ]]; then
+  HEALTH_FILE="$health_tmp_file" node --input-type=module -e '
+    import assert from "node:assert/strict";
+    import fs from "node:fs";
+    const health = JSON.parse(fs.readFileSync(process.env.HEALTH_FILE, "utf8"));
+    assert.equal(health.commitSha, process.env.GIT_SHA, "Live service is not serving the release commit");
+  '
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    commit_time="$(git show -s --format=%ct "$GIT_SHA")"
+    printf 'Website live at %s UTC; commit to verified live: %s seconds (%s).\n' \
+      "$(date -u +%FT%T)" "$(( $(date +%s) - commit_time ))" "$GIT_SHA" >> "$GITHUB_STEP_SUMMARY"
+  fi
+fi
 rm -f "$health_tmp_file"
 
 if [[ "${PLAYWRIGHT_RUN_SMOKE:-0}" == "1" ]]; then
