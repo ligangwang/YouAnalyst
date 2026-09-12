@@ -3,6 +3,12 @@ import { chinaSupplyChain } from "../industry-graph/china";
 import { MARKET_COMPANIES, normalizeChinaCompany, validChinaId } from "./china";
 import { companyFields } from "../market-companies/model";
 
+export function publicChinaCompany(id: string, data: FirebaseFirestore.DocumentData) {
+  return data.market === "CN_A" && ["PUBLISHED", "DIRECTORY"].includes(data.status) ? normalizeChinaCompany({ ...data, id,
+    stage: data.stage || data.classification?.[2]?.name || "A 股公司",
+    description: data.description || data.classification?.map((c: {name:string}) => c.name).join(" / ") || data.name }) : null;
+}
+
 // Explicit migration only: public reads must never create or restore records.
 export async function seedChinaCompanies(db: Firestore, uid: string) {
   return db.runTransaction(async tx => {
@@ -27,9 +33,7 @@ export async function listChinaCompanies(db: Firestore, cursor = "") {
   const snapshot = await query.get();
   const items = snapshot.docs.flatMap(doc => {
     const data = doc.data();
-    const company = data.market === "CN_A" && ["PUBLISHED", "DIRECTORY"].includes(data.status) ? normalizeChinaCompany({ ...data, id: doc.id,
-      stage: data.stage || data.classification?.[2]?.name || "A 股公司",
-      description: data.description || data.classification?.map((c: {name:string}) => c.name).join(" / ") || data.name }) : null;
+    const company = publicChinaCompany(doc.id, data);
     return company ? [company] : [];
   });
   return { items, nextCursor: snapshot.size === 100 ? snapshot.docs.at(-1)!.id : null };

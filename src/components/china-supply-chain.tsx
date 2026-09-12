@@ -5,6 +5,8 @@ import { useLocale } from "./providers/locale-provider";
 import type { ChinaCompany } from "@/lib/industry-research/china";
 import overview from "./all-markets-overview.module.css";
 import { matchesCompanySearch } from "@/lib/knowledge-graph/model";
+import Link from "next/link";
+import { companyPageUrl } from "@/lib/market-companies/routes";
 
 export function ChinaSupplyChain({ embedded = false, initialQuery = "" }: { embedded?: boolean; initialQuery?: string }) {
   const Container = embedded ? "section" : "main";
@@ -52,7 +54,7 @@ export function ChinaSupplyChain({ embedded = false, initialQuery = "" }: { embe
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {companies.slice(0, visibleCount).map(company => <article key={company.id} className="flex flex-col rounded-2xl border border-white/10 bg-white/[0.025] p-6 transition-colors hover:border-white/25">
         <p className="text-xs text-cyan-200">{company.stage}</p>
-        <h2 className="mt-4 text-2xl font-medium">{company.name}</h2>
+        <h2 className="mt-4 text-2xl font-medium"><Link className="hover:text-cyan-200" href={companyPageUrl(company.id, "CN_A")}>{company.name}</Link></h2>
         <p className="mt-2 text-xs tabular-nums text-slate-400">{company.id.split(":")[1]} · {company.id.startsWith("XSHG") ? text("Shanghai", "上交所") : text("Shenzhen", "深交所")}</p>
         <p className="mb-6 mt-5 flex-1 text-sm leading-7 text-slate-300">{company.description}</p>
         <a href={company.source} target="_blank" rel="noopener noreferrer" className="border-t border-white/10 pt-4 text-xs leading-6 text-slate-400 hover:text-cyan-200">{company.sourceLabel} <span aria-hidden="true">↗</span><span className="sr-only">{text(" (opens in a new tab)", "（新窗口打开）")}</span></a>
