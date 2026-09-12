@@ -7,7 +7,7 @@ import { localizedMetadata } from "@/lib/i18n/server";
 export const dynamic = "force-dynamic";
 type MapSearchParams = { company?: string | string[]; market?: string | string[]; view?: string | string[] };
 export async function generateMetadata(): Promise<Metadata> {
-  return localizedMetadata({ title: "AI knowledge graph | YouAnalyst", description: "Explore US-listed and A-share companies together across the AI supply chain, with documented relationships and original sources.", alternates: { canonical: "/map" } });
+  return localizedMetadata({ title: "Company graph | YouAnalyst", description: "Explore US-listed and A-share companies together across the AI supply chain, with documented relationships and original sources.", alternates: { canonical: "/map" } });
 }
 export default async function Home({ searchParams }: { searchParams: Promise<MapSearchParams> }) {
   const { company, market, view } = await searchParams;

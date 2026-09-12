@@ -95,10 +95,10 @@ test("event filters navigate between live categories", async ({ page, request })
 
 test("AI knowledge graph supports both markets", async ({ page }) => {
   await page.goto("/map?market=ALL&lang=en");
-  await expect(page.getByRole("heading", { name: "The AI landscape", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Company graph", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "A-shares", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByLabel("AI supply chain companies", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Company relationships", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "US stocks", exact: true }).click();
   await expect(page).toHaveURL(/market=CN_A/);
   await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "false");

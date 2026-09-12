@@ -3,6 +3,7 @@ import { build } from "esbuild";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
+import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
 let html: string;
@@ -22,12 +23,21 @@ test("combination retains every company and isolates evidence IDs", () => {
     expect(visible.relationships.every(e => positions.has(e.source) && positions.has(e.target))).toBe(true);
   }
 });
+test("star layout retains isolated companies and only draws recorded company edges", () => {
+  const layout = layoutCompanies(graph);
+  expect(layout.nodes).toHaveLength(129);
+  expect(layout.edges).toEqual(graph.relationships.filter(e => e.type !== "PARTICIPATES_IN"));
+  expect(layout.nodes.every(n => Number.isFinite(n.x) && Number.isFinite(n.y) && n.x >= 0 && n.x <= layout.width && n.y >= 0 && n.y <= layout.height)).toBe(true);
+  expect(layoutCompanies(graph)).toEqual(layout);
+});
 test("market toggles, search and sources work on the shared canvas", async ({ page }) => {
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: graph }) : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("http://graph.test/map?lang=zh-CN");
-  await expect(page.getByRole("heading", { name: "AI 产业知识图谱" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "公司图谱" })).toBeVisible();
   await expect(page.locator('span[role="status"]')).toContainText("129");
-  await page.screenshot({path: `output/knowledge-${test.info().project.name}.png`});
+  await expect(page.locator('[data-company-node]')).toHaveCount(129);
+  await expect(page.locator('[data-company-edge]')).toHaveCount(graph.relationships.filter(e => e.type !== "PARTICIPATES_IN").length);
+  await page.screenshot({fullPage: true, path: `output/knowledge-${test.info().project.name}.png`});
   await page.getByRole("button", { name: "美股", exact: true }).click();
   await expect(page.locator('span[role="status"]')).toContainText("62");
   await expect(page.getByRole("button", { name: /NVIDIA/ })).toHaveCount(0);
@@ -41,10 +51,25 @@ test("market toggles, search and sources work on the shared canvas", async ({ pa
   await expect(page.locator('span[role="status"]')).toContainText("1 家公司");
   await page.getByRole("button", { name: /NVIDIA/ }).click();
   await expect(page.getByRole("heading", { name: "NVIDIA", exact: true })).toBeVisible();
-  const links = page.getByRole("complementary").getByRole("link");
+  const links = page.getByRole("complementary").locator('a[href^="https://"]');
   expect(await links.count()).toBeGreaterThan(0);
   await expect(links.first()).toHaveAttribute("href", /^https:\/\//);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+test("A-share profile links and keyboard camera controls work", async ({ page }) => {
+  await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: graph }) : route.fulfill({ contentType: "text/html", body: html }));
+  await page.goto("http://graph.test/map?lang=zh-CN");
+  await page.getByRole("textbox", { name: "搜索公司" }).fill("688041");
+  const node = page.locator('[data-company-node="XSHG:688041"]');
+  const canvas = page.getByRole("region", { name: /公司图谱/ });
+  const before = await node.boundingBox();
+  await canvas.focus(); await page.keyboard.press("ArrowRight");
+  expect((await node.boundingBox())!.x).toBeLessThan(before!.x);
+  await page.getByRole("button", { name: "全图", exact: true }).click();
+  expect((await node.boundingBox())!.x).toBeCloseTo(before!.x, 0);
+  await node.click();
+  await expect(page.getByRole("complementary").getByRole("link", { name: "公司详情 →" })).toHaveAttribute("href", "/ticker/XSHG:688041");
+  await expect(page.getByRole("heading", { name: "海光信息", exact: true })).toBeVisible();
 });
 test("failed loads retry and English controls remain usable", async ({ page }) => {
   let fail = true;
@@ -55,5 +80,5 @@ test("failed loads retry and English controls remain usable", async ({ page }) =
   await page.getByRole("button", {name:"Try again"}).click();
   await expect(page.locator('span[role="status"]')).toContainText("129");
   await page.getByRole("button", {name:"Zoom in",exact:true}).click();
-  await expect(page.getByText("90%",{exact:true})).toBeVisible();
+  await expect(page.getByText("120%",{exact:true})).toBeVisible();
 });
