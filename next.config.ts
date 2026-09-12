@@ -15,6 +15,8 @@ const allowedDevOrigins = [
 const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: "standalone",
+  // Preserve the original origin for internal locale rewrites, including loopback hosts.
+  skipProxyUrlNormalize: true,
   turbopack: {
     root: process.cwd(),
   },

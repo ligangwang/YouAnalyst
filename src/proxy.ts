@@ -23,7 +23,7 @@ export function proxy(request: NextRequest) {
     const locale = explicit ?? prefix ?? parseLocale(request.cookies.get("ya-language")?.value) ?? "en";
     const plain = unlocalizedPath(request.nextUrl.pathname);
     const localizable = isLocalizedPage(plain);
-    const target = request.nextUrl.clone();
+    const target = new URL(request.url);
     const filingAlias = plain === "/" && target.searchParams.get("view") === "filings";
     const graphAlias = plain === "/map" && target.searchParams.get("view") !== "filings";
     if (localizable) {
@@ -45,7 +45,7 @@ export function proxy(request: NextRequest) {
     const explicitMarket = parseMarket(request.nextUrl.searchParams.get("market"));
     const market = explicitMarket ?? parseMarket(request.cookies.get("ya-market")?.value) ?? "US";
     headers.set("x-ya-market", market);
-    const rewrite = request.nextUrl.clone();
+    const rewrite = new URL(request.url);
     rewrite.pathname = plain;
     const response = prefix && localizable ? NextResponse.rewrite(rewrite, { request: { headers } }) : NextResponse.next({ request: { headers } });
     if ((explicit || prefix) && !request.nextUrl.pathname.startsWith("/api/") && !request.nextUrl.pathname.startsWith("/_next/")) {
@@ -55,7 +55,7 @@ export function proxy(request: NextRequest) {
     return response;
   }
 
-  const url = request.nextUrl.clone();
+  const url = new URL(request.url);
   url.protocol = "https";
   url.hostname = CANONICAL_HOST;
   url.port = "";

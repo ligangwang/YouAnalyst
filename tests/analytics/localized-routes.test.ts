@@ -40,3 +40,18 @@ test("language changes preserve market, selected company and search", () => {
   assert.equal(url.searchParams.get("market"), "CN_A");
   assert.equal(url.searchParams.get("q"), "chip");
 });
+
+test("standalone redirects and rewrites retain the original loopback origin", () => {
+  const previous = process.env.__NEXT_NO_MIDDLEWARE_URL_NORMALIZE;
+  process.env.__NEXT_NO_MIDDLEWARE_URL_NORMALIZE = "true";
+  try {
+    const origin = "http://127.0.0.1:3187";
+    const redirect = proxy(new NextRequest(`${origin}/ticker/688041?lang=zh-CN`));
+    assert.equal(new URL(redirect.headers.get("location")!).origin, origin);
+    const rewrite = proxy(new NextRequest(`${origin}/zh-cn/ticker/XSHG:688041`));
+    assert.equal(new URL(rewrite.headers.get("x-middleware-rewrite")!).origin, origin);
+  } finally {
+    if (previous === undefined) delete process.env.__NEXT_NO_MIDDLEWARE_URL_NORMALIZE;
+    else process.env.__NEXT_NO_MIDDLEWARE_URL_NORMALIZE = previous;
+  }
+});
