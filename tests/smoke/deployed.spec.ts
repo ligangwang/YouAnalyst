@@ -100,6 +100,8 @@ test("homepage AI knowledge graph supports both markets", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Company graph", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "A-shares", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "3D", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "2D", exact: true }).click();
   await expect(page.getByLabel("Company relationships", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Rotate right", exact: true }).click();
   await expect(page.getByLabel("Rotation", { exact: true })).toHaveText("15°");
