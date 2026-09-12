@@ -19,6 +19,14 @@ live security rules to retain server-only access. It saves the previous rules
 and refuses unfamiliar rules instead of replacing the entire deployed ruleset
 with a local file.
 
+If the deployment identity cannot read security rules, an owner may inspect the
+deployed rules in the Firebase console and record a `rulesReview` JSON string in
+`directory_syncs/company_collection_names_v1`. It contains `project`, `reviewedAt`
+(UTC ISO timestamp), and the complete `source`. The migration accepts this review
+only for the same project, within one hour, and only for an exact deny-all ruleset.
+It archives the review and leaves live rules and IAM permissions unchanged. A
+missing, stale, or permissive review does not bypass the normal rules check.
+
 The existing `directory_syncs/company_collection_names_v1` document records
 verification. It is a document in an existing collection, not a new collection.
 After production smoke tests, `--verify-source` checks that the old data did not

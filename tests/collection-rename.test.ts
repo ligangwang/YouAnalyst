@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Firestore, Timestamp, GeoPoint, FieldValue } from "@google-cloud/firestore";
-import { assertIdentical, encode, fingerprint, protectCompanies } from "../scripts/firestore/exact-copy";
+import { assertIdentical, encode, fingerprint, protectCompanies, reviewedDefaultDeny } from "../scripts/firestore/exact-copy";
 import { Root } from "protobufjs";
 import schema from "@google-cloud/firestore/build/protos/v1.json";
 
@@ -51,4 +51,17 @@ test("rule patch is narrow, replay-safe, and rejects unfamiliar permissions", ()
   assert.equal(protectCompanies(patched), patched);
   assert.throws(() => protectCompanies(original.replace("isSignedIn()", "true")), /differs from expected/);
   assert.throws(() => protectCompanies(original + original), /differs from expected/);
+});
+
+test("console rule review must be recent, project-specific and strictly deny all", () => {
+  const source = "rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if false; } } }";
+  const now = Date.parse("2026-09-12T23:00:00Z");
+  const review = { project: "test-project", reviewedAt: "2026-09-12T22:59:00Z", source };
+  assert.equal(protectCompanies(source), source);
+  assert.equal(reviewedDefaultDeny(JSON.stringify(review), "test-project", now), source);
+  assert.equal(reviewedDefaultDeny(JSON.stringify(review), "other-project", now), null);
+  assert.equal(reviewedDefaultDeny(JSON.stringify(review), "test-project", now + 3600000), null);
+  assert.equal(reviewedDefaultDeny(JSON.stringify(review), "test-project", now - 120000), null);
+  assert.equal(reviewedDefaultDeny(JSON.stringify({ ...review, source: source.replace("false", "true") }), "test-project", now), null);
+  assert.equal(reviewedDefaultDeny("invalid", "test-project", now), null);
 });
