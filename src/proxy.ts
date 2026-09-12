@@ -24,9 +24,10 @@ export function proxy(request: NextRequest) {
     const plain = unlocalizedPath(request.nextUrl.pathname);
     const localizable = isLocalizedPage(plain);
     const target = request.nextUrl.clone();
+    const filingAlias = plain === "/" && target.searchParams.get("view") === "filings";
     const graphAlias = plain === "/map" && target.searchParams.get("view") !== "filings";
     if (localizable) {
-      target.pathname = localizedPath(graphAlias ? "/" : plain, locale);
+      target.pathname = localizedPath(graphAlias ? "/" : filingAlias ? "/map" : plain, locale);
       target.searchParams.delete("lang");
       if ((plain === "/" || graphAlias) && target.searchParams.get("market") === "ALL") target.searchParams.delete("market");
       if (target.pathname !== request.nextUrl.pathname || target.search !== request.nextUrl.search) {
@@ -38,7 +39,7 @@ export function proxy(request: NextRequest) {
     }
     const headers = new Headers(request.headers);
     headers.set("x-ya-language", locale);
-    headers.set("x-ya-pathname", localizable ? plain : "");
+    headers.set("x-ya-pathname", localizable ? plain + (plain === "/map" ? "?view=filings" : "") : "");
     const explicitMarket = parseMarket(request.nextUrl.searchParams.get("market"));
     const market = explicitMarket ?? parseMarket(request.cookies.get("ya-market")?.value) ?? "US";
     headers.set("x-ya-market", market);

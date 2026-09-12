@@ -23,6 +23,8 @@ test("explicit language path overrides visitor cookie and forwards locale", () =
 test("default graph removes redundant ALL and keeps filing explorer", () => {
   assert.equal(new URL(proxy(request("/en?market=ALL")).headers.get("location")!).pathname, "/en");
   assert.equal(new URL(proxy(request("/en/map?view=filings&company=AMD")).headers.get("x-middleware-rewrite")!).pathname, "/map");
+  assert.equal(new URL(proxy(request("/en?view=filings&company=AMD")).headers.get("location")!).pathname, "/en/map");
+  assert.equal(proxy(request("/en/map?view=filings&company=AMD")).headers.get("x-middleware-request-x-ya-pathname"), "/map?view=filings");
 });
 test("auth, API, admin and assets keep their existing routes", () => {
   for (const path of ["/auth?next=%2Fpredictions", "/api/firebase-auth/identity/accounts:signUp", "/api/firebase-auth/token/token", "/admin", "/_next/static/chunk.js", "/sitemap.xml", "/robots.txt"]) {
