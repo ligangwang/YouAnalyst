@@ -1,3 +1,4 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { institutionalMoveFromShareParams } from "@/lib/daily-scores/institutional-share-snapshot";
@@ -15,7 +16,7 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+async function buildPageMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { date, kind, ticker } = await params;
   if (!isDailyScoreDate(date) || !isDailyInstitutionalMoveShareKind(kind)) {
     notFound();
@@ -33,4 +34,8 @@ export default async function DailyInstitutionalMoveSharePage({ params, searchPa
 
   const snapshot = institutionalMoveFromShareParams(await searchParams, ticker);
   return <DailyInstitutionalMoveShareView date={date} kind={kind} snapshot={snapshot} ticker={ticker} />;
+}
+
+export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
+  return localizedMetadata(await buildPageMetadata(...args));
 }

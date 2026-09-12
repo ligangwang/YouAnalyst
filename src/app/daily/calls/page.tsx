@@ -1,3 +1,4 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { DailyScoresPage } from "@/components/daily-scores-page";
 import { dailyScoresMetadata } from "@/lib/daily-scores/page-metadata";
@@ -8,7 +9,7 @@ function dateSearchParam(value: string | string[] | undefined): string | null {
   return isDailyScoreDate(candidate ?? null) ? candidate ?? null : null;
 }
 
-export async function generateMetadata({
+async function buildPageMetadata({
   searchParams,
 }: {
   searchParams: Promise<{ date?: string | string[] }>;
@@ -19,4 +20,8 @@ export async function generateMetadata({
 
 export default function DailyCallsRoutePage() {
   return <DailyScoresPage section="calls" />;
+}
+
+export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
+  return localizedMetadata(await buildPageMetadata(...args));
 }

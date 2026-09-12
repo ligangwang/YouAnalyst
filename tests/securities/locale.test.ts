@@ -8,9 +8,14 @@ import { translateUi } from "../../src/lib/i18n/translate";
 test("explicit language overrides cookie without changing market or company", () => {
   const request = new NextRequest("https://youanalyst.com/map?market=CN_A&company=688041&lang=zh-CN", { headers: { cookie: "ya-language=en", "x-ya-language": "fake" } });
   const response = proxy(request);
-  assert.equal(response.headers.get("x-middleware-request-x-ya-language"), "zh-CN");
+  const destination = new URL(response.headers.get("location")!);
+  assert.equal(destination.pathname, "/zh-cn");
+  assert.equal(destination.searchParams.get("company"), "688041");
+  assert.equal(destination.searchParams.get("market"), "CN_A");
+  const rendered = proxy(new NextRequest(destination, { headers: request.headers }));
+  assert.equal(rendered.headers.get("x-middleware-request-x-ya-language"), "zh-CN");
   assert.equal(response.cookies.get("ya-language")?.value, "zh-CN");
-  assert.equal(response.headers.get("location"), null);
+  assert.equal(rendered.headers.get("location"), null);
 });
 test("market and language preferences remain independent and reject unsupported markets", () => {
   assert.deepEqual(parsePreferences({ language: "en", market: "CN_A" }), { language: "en", market: "CN_A" });
@@ -18,10 +23,12 @@ test("market and language preferences remain independent and reject unsupported 
   assert.equal(parsePreferences({ language: "zh-CN", market: "HK" }), null);
   assert.deepEqual(parsePreferences({ language: "en", market: "US", uid: "someone-else", isAdmin: true }), { language: "en", market: "US" });
   const response = proxy(new NextRequest("https://youanalyst.com/?market=ALL", { headers: { cookie: "ya-language=zh-CN; ya-market=US", "x-ya-market": "CN_A" } }));
-  assert.equal(response.headers.get("x-middleware-request-x-ya-market"), "ALL");
-  assert.equal(response.headers.get("x-middleware-request-x-ya-language"), "zh-CN");
+  assert.equal(new URL(response.headers.get("location")!).pathname, "/zh-cn");
+  const rendered = proxy(new NextRequest(response.headers.get("location")!, { headers: { cookie: "ya-market=ALL", "x-ya-language": "en", "x-ya-market": "CN_A" } }));
+  assert.equal(rendered.headers.get("x-middleware-request-x-ya-market"), "ALL");
+  assert.equal(rendered.headers.get("x-middleware-request-x-ya-language"), "zh-CN");
   assert.equal(response.cookies.get("ya-market")?.value, "ALL");
-  const invalid = proxy(new NextRequest("https://youanalyst.com/?market=HK", { headers: { cookie: "ya-market=CN_A", "x-ya-market": "ALL" } }));
+  const invalid = proxy(new NextRequest("https://youanalyst.com/en?market=HK", { headers: { cookie: "ya-market=CN_A", "x-ya-market": "ALL" } }));
   assert.equal(invalid.headers.get("x-middleware-request-x-ya-market"), "CN_A");
 });
 test("authored UI translations retain English, entities, numbers and company identifiers", () => {
@@ -37,9 +44,9 @@ test("authored UI translations retain English, entities, numbers and company ide
 });
 test("saved language persists and invalid query or injected header cannot set a locale", () => {
   const saved = proxy(new NextRequest("https://youanalyst.com/map?lang=invalid", { headers: { cookie: "ya-language=zh-CN" } }));
-  assert.equal(saved.headers.get("x-middleware-request-x-ya-language"), "zh-CN");
+  assert.equal(new URL(saved.headers.get("location")!).pathname, "/zh-cn");
   const fallback = proxy(new NextRequest("https://youanalyst.com/", { headers: { "x-ya-language": "zh-CN" } }));
-  assert.equal(fallback.headers.get("x-middleware-request-x-ya-language"), "en");
+  assert.equal(new URL(fallback.headers.get("location")!).pathname, "/en");
 });
 test("canonical host redirect preserves language and market", () => {
   const response = proxy(new NextRequest("https://www.youanalyst.com/map?market=CN_A&lang=zh-CN", { headers: { host: "www.youanalyst.com" } }));

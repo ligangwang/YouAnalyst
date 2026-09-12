@@ -2,6 +2,27 @@ import { expect, test } from "@playwright/test";
 import { isMapTicker } from "../../src/lib/industry-graph/directory";
 import { publicEventFromDocument } from "../../src/lib/events/model";
 
+test("English and Chinese map URLs expose localized SEO and crawlable companies", async ({ request }) => {
+  for (const [prefix, language, heading] of [["en", "en", "AI Industry Map"], ["zh-cn", "zh-CN", "AI 产业图谱"]]) {
+    const response = await request.get(`/${prefix}`);
+    expect(response.status()).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(`lang="${language}"`);
+    expect(html).toContain(heading);
+    expect(html).toMatch(new RegExp(`<link[^>]+rel="canonical"[^>]+href="[^"]+/${prefix}"`));
+    expect(html).toContain('hrefLang="en"');
+    expect(html).toContain('hrefLang="zh-CN"');
+    expect(html).toContain(`href="/${prefix}/ticker/NVDA"`);
+    expect(html).toContain(`href="/${prefix}/ticker/XSHG:688041"`);
+  }
+  const legacy = await request.get("/map?lang=zh-CN&market=CN_A&company=XSHG%3A688041", { maxRedirects: 0 });
+  expect([307, 308]).toContain(legacy.status());
+  const target = new URL(legacy.headers().location);
+  expect(target.pathname).toBe("/zh-cn");
+  expect(target.searchParams.get("company")).toBe("XSHG:688041");
+  expect(target.searchParams.get("market")).toBe("CN_A");
+});
+
 test("public event API returns a bounded page of approved public facts", async ({ request }) => {
   const response = await request.get("/api/events?limit=2");
   expect(response.status()).toBe(200);
@@ -97,7 +118,7 @@ test("event filters navigate between live categories", async ({ page, request })
 
 test("homepage AI knowledge graph supports both markets", async ({ page }) => {
   await page.goto("/?market=ALL&lang=en");
-  await expect(page.getByRole("heading", { name: "Company graph", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AI Industry Map", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "A-shares", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: /^(2D|3D|Fit|Rotate right|Zoom in)$/ })).toHaveCount(0);

@@ -1,9 +1,10 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { AnalystProfilePage } from "@/components/analyst-profile-page";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { noIndexRobots } from "@/lib/seo";
 
-export async function generateMetadata({
+async function buildPageMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -77,4 +78,8 @@ export default async function AnalystRoutePage({
   const onboardingValue = Array.isArray(onboarding) ? onboarding[0] : onboarding;
 
   return <AnalystProfilePage userId={id} promptForNickname={onboardingValue === "nickname"} />;
+}
+
+export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
+  return localizedMetadata(await buildPageMetadata(...args));
 }
