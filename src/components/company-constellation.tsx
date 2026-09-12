@@ -7,8 +7,8 @@ import { useLocale } from "./providers/locale-provider";
 import styles from "./ai-knowledge-graph.module.css";
 
 const stars = Array.from({ length: 110 }, (_, i) => ({ x: (i * 73.137 + 9) % 100, y: (i * 37.731 + 3) % 100, opacity: .12 + i % 5 * .09 }));
-export function CompanyConstellation({ graph, selected, onSelect, zoom }: {
-  graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; zoom: number;
+export function CompanyConstellation({ graph, selected, onSelect, zoom, rotation, onRotate }: {
+  graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; zoom: number; rotation: number; onRotate: (degrees: number) => void;
 }) {
   const { text } = useLocale();
   const host = useRef<HTMLDivElement>(null);
@@ -26,7 +26,14 @@ export function CompanyConstellation({ graph, selected, onSelect, zoom }: {
   }, []);
   const scaleX = (size.width - 110) / layout.width * zoom / 100;
   const scaleY = (size.height - 100) / layout.height * zoom / 100;
-  const nodes = layout.nodes.map(n => ({ ...n, x: (n.x - layout.width / 2) * scaleX + size.width / 2 + pan.x, y: (n.y - layout.height / 2) * scaleY + size.height / 2 + pan.y, radius: Math.min(19, 3.5 + Math.sqrt(n.degree) * 3.5) }));
+  const radians = rotation * Math.PI / 180, cos = Math.cos(radians), sin = Math.sin(radians);
+  const width = size.width - 110, height = size.height - 100;
+  const fit = Math.min(width / (Math.abs(width * cos) + Math.abs(height * sin)), height / (Math.abs(width * sin) + Math.abs(height * cos)));
+  // Rotate positions, not DOM elements: labels stay upright and edges stay attached.
+  const nodes = layout.nodes.map(n => {
+    const x = (n.x - layout.width / 2) * scaleX, y = (n.y - layout.height / 2) * scaleY;
+    return { ...n, x: (x * cos - y * sin) * fit + size.width / 2 + pan.x, y: (x * sin + y * cos) * fit + size.height / 2 + pan.y, radius: Math.min(19, 3.5 + Math.sqrt(n.degree) * 3.5) };
+  });
   const positions = new Map(nodes.map(n => [n.id, n]));
   const connected = new Set(layout.edges.filter(e => e.source === selected || e.target === selected).flatMap(e => [e.source, e.target]));
   // Keep labels at a readable screen size; suppress collisions instead of shrinking text.
@@ -38,7 +45,7 @@ export function CompanyConstellation({ graph, selected, onSelect, zoom }: {
     boxes.push(n); labels.add(n.id);
   });
   return <div ref={host} className={styles.canvas} tabIndex={0} role="region" aria-label={text("Company graph; drag to pan, arrow keys to move, Home to center", "公司图谱；拖动或方向键移动，Home 键居中")}
-    onKeyDown={e => { if (e.target !== e.currentTarget) return; const moves: Record<string, [number, number]> = { ArrowLeft: [45, 0], ArrowRight: [-45, 0], ArrowUp: [0, 45], ArrowDown: [0, -45] }; if (moves[e.key]) { e.preventDefault(); const [x, y] = moves[e.key]; setPan(p => ({ x: p.x + x, y: p.y + y })); } else if (e.key === "Home") { e.preventDefault(); setPan({ x: 0, y: 0 }); } }}
+    onKeyDown={e => { if (e.target !== e.currentTarget) return; const moves: Record<string, [number, number]> = { ArrowLeft: [45, 0], ArrowRight: [-45, 0], ArrowUp: [0, 45], ArrowDown: [0, -45] }; if (e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { e.preventDefault(); onRotate(e.key === "ArrowLeft" ? -15 : 15); } else if (moves[e.key]) { e.preventDefault(); const [x, y] = moves[e.key]; setPan(p => ({ x: p.x + x, y: p.y + y })); } else if (e.key === "Home") { e.preventDefault(); setPan({ x: 0, y: 0 }); onRotate(-rotation); } }}
     onClickCapture={e => { if (!e.detail) return; if (moved.current) { e.stopPropagation(); return; } const bounds = e.currentTarget.getBoundingClientRect(); const nearest = nodes.map(n => ({ n, distance: Math.hypot(n.x - (e.clientX - bounds.left), n.y - (e.clientY - bounds.top)) })).sort((a, b) => a.distance - b.distance)[0]; if (nearest && nearest.distance < 28) { e.stopPropagation(); onSelect(nearest.n.id); } }}
     onPointerDown={e => { moved.current = false; if ((e.target as HTMLElement).closest("button") || e.button !== 0) return; drag.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y }; e.currentTarget.setPointerCapture(e.pointerId); }}
     onPointerMove={e => { if (drag.current) { if (Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) > 5) moved.current = true; setPan({ x: drag.current.panX + e.clientX - drag.current.x, y: drag.current.panY + e.clientY - drag.current.y }); } }}

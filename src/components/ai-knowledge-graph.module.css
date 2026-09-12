@@ -13,6 +13,7 @@
 .markets i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; }
 .us { background: #69d8ed; }.china { background: #bba0ff; }
 .zoom output { width: 42px; text-align: center; color: #b5c7db; font-size: 12px; font-variant-numeric: tabular-nums; }
+.zoom { flex-wrap: wrap; max-width: 100%; justify-content: flex-end; }
 .legend { flex-wrap: wrap; justify-content: space-between; margin: 14px 4px; color: #9bb0c7; font-size: 12px; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid #26334a; border-radius: 20px; overflow: hidden; }
 .withDetail { grid-template-columns: minmax(0, 1fr) 310px; }
