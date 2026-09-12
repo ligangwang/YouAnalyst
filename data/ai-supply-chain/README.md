@@ -165,3 +165,9 @@ US security IDs use the `US:` market namespace, not an exchange MIC. A-share IDs
 | 寒武纪 | 688256 | 面向人工智能训练与推理的芯片及加速卡。 | [Source](https://cambricon.com/index.php?a=lists&c=index&catid=360&m=content) |
 | 澜起科技 | 688008 | 内存接口、PCIe Retimer 及 CXL 内存扩展芯片。 | [Source](https://www.montage-tech.com/Solution/AI_Server) |
 | 中际旭创 | 300308 | 通过旭创科技提供 AI 与数据中心高速光模块。 | [Source](https://www.innolight.com/en/goods/solution/cid/) |
+
+## Filing research consolidation
+
+Filing observations are stored in `market_company_relationships` under `filing:` document IDs. Their original direction, company/category names, extraction details, and filing evidence are retained. Unresolved observations have `NEEDS_REVIEW` status and are excluded from the public 3D graph. Reviewed published and withdrawn records survive extraction retries.
+
+Research run history and request state live in `company_research_runs` and `company_research_requests`. The filing API, directory, sitemap, queue, and extraction service use these stores. `scripts/migrate-filing-research.ts` exports and verifies the legacy data before deployment, retains a 90-day recovery artifact, then removes the legacy collections only after successful smoke tests and a live-reader check.

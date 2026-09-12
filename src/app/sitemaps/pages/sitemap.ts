@@ -75,7 +75,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const db = getAdminFirestore();
     const metadata = await db.collection("industry_map_companies").limit(500).get();
-    const runs = await db.collection("company_graph_runs").where("status", "==", "COMPLETED")
+    const runs = await db.collection("company_research_runs").where("status", "==", "COMPLETED")
       .select("extractionVersion", "result.ticker", "result.dryRun", "result.extractionVersion").limit(500).get();
     for (const ticker of [
       ...metadata.docs.map((doc) => doc.id),

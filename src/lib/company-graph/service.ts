@@ -1,3 +1,4 @@
+import { filingRelationship, filingRelationshipId } from "./market-storage";
 import { createHash } from "node:crypto";
 import { FieldPath } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -168,15 +169,18 @@ function isCachedResultForFiling(
     result.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION;
 }
 
-async function persistEdges(db: FirebaseFirestore.Firestore, edges: CompanyGraphEdge[]): Promise<number> {
+async function persistEdges(db: FirebaseFirestore.Firestore, edges: CompanyGraphEdge[], filingUrl: string): Promise<number> {
   let written = 0;
 
   for (let index = 0; index < edges.length; index += EDGE_BATCH_SIZE) {
     const batch = db.batch();
     const chunk = edges.slice(index, index + EDGE_BATCH_SIZE);
+    const refs = chunk.map(edge => db.collection("market_company_relationships").doc(filingRelationshipId(edge.id)));
+    const previous = await db.getAll(...refs);
 
-    for (const edge of chunk) {
-      batch.set(db.collection("company_graph_edges").doc(edge.id), edge, { merge: true });
+    for (const [i, edge] of chunk.entries()) {
+      if (["PUBLISHED", "WITHDRAWN"].includes(previous[i].data()?.status)) continue;
+      batch.set(refs[i], filingRelationship(edge, filingUrl), { merge: true });
     }
 
     await batch.commit();
@@ -194,14 +198,14 @@ async function deleteStaleEdgesForFiling(
     currentEdgeIds: Set<string>;
   },
 ): Promise<number> {
-  const edgePrefix = edgeDocIdPrefix(input.sourceTicker, input.accessionNumber);
+  const edgePrefix = filingRelationshipId(edgeDocIdPrefix(input.sourceTicker, input.accessionNumber));
   const snapshot = await db
-    .collection("company_graph_edges")
+    .collection("market_company_relationships")
     .where(FieldPath.documentId(), ">=", edgePrefix)
     .where(FieldPath.documentId(), "<", `${edgePrefix}\uf8ff`)
     .orderBy(FieldPath.documentId())
     .get();
-  const staleDocs = snapshot.docs.filter((doc) => !input.currentEdgeIds.has(doc.id));
+  const staleDocs = snapshot.docs.filter((doc) => doc.data().status === "NEEDS_REVIEW" && !input.currentEdgeIds.has(doc.id.slice("filing:".length)));
   let deleted = 0;
 
   for (let index = 0; index < staleDocs.length; index += EDGE_BATCH_SIZE) {
@@ -254,7 +258,7 @@ export async function runLatest10KCompanyGraphExtraction(
   const dryRun = input.dryRun !== false;
   const force = input.force === true;
   const db = getAdminFirestore();
-  const runRef = db.collection("company_graph_runs").doc(runDocId(ticker));
+  const runRef = db.collection("company_research_runs").doc(runDocId(ticker));
   const company = await resolveSecCompanyByTicker(ticker);
   const filing = await fetchLatest10K(company.cik);
 
@@ -433,7 +437,7 @@ export async function runLatest10KCompanyGraphExtraction(
     accessionNumber: filing.accessionNumber,
     currentEdgeIds: new Set(edges.map((edge) => edge.id)),
   });
-  await persistEdges(db, edges);
+  await persistEdges(db, edges, filing.filingUrl);
   await runRef.set({
     ticker,
     cik: company.cik,

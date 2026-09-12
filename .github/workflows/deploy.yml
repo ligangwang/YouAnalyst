@@ -725,14 +725,14 @@ jobs:
         # Populate the master before switching readers; the migration is replay-safe.
         run: npx tsx scripts/sync-market-companies.ts --write
 
-      - name: Migrate AI map to shared company collections
-        run: npx tsx scripts/migrate-market-graph.ts --write
+      - name: Consolidate filing research collections
+        run: npx tsx scripts/migrate-filing-research.ts --write
 
-      - name: Preserve legacy graph recovery export
+      - name: Preserve filing research recovery export
         uses: actions/upload-artifact@v4
         with:
-          name: legacy-graph-recovery-${{ github.run_id }}
-          path: output/legacy-knowledge-graphs.json
+          name: filing-research-recovery-${{ github.run_id }}
+          path: output/company-graph-recovery.json
           if-no-files-found: ignore
           retention-days: 90
 
@@ -1114,5 +1114,5 @@ jobs:
           PLAYWRIGHT_AUTH_BEARER_TOKEN: ${{ steps.production-smoke-token.outputs.token }}
         run: npm run smoke:test
 
-      - name: Remove verified legacy graph collection
-        run: npx tsx scripts/migrate-market-graph.ts --write --delete-legacy
+      - name: Remove verified legacy company graph collections
+        run: npx tsx scripts/migrate-filing-research.ts --write --delete-legacy

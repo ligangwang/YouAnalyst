@@ -40,14 +40,14 @@ function databaseFixture() {
   const reads: number[] = [];
   let requests = 0;
   const records: Record<string, Record<string, Record<string, unknown>>> = {
-    company_graph_runs: Object.fromEntries(Array.from({ length: 25 }, (_, i) => {
+    company_research_runs: Object.fromEntries(Array.from({ length: 25 }, (_, i) => {
       const ticker = `A${String(i).padStart(2, "0")}`;
       return [`${ticker}_latest_10k`, runFixture(ticker, String(i + 1).padStart(10, "0"), `Issuer ${i}`)];
     })),
     industry_map_companies: { TSM: { name: "TSMC", segment: "manufacturing", featured: true, filingForm: "20-F" } },
     tickers: {},
   };
-  records.company_graph_runs.CRM_latest_10k = runFixture("CRM", "0001108524", "Salesforce", [{ targetName: "Example Supplier" }]);
+  records.company_research_runs.CRM_latest_10k = runFixture("CRM", "0001108524", "Salesforce", [{ targetName: "Example Supplier" }]);
   function collection(name: string) {
     let items = Object.entries(records[name] ?? {}).sort(([a], [b]) => a.localeCompare(b));
     let limit = Infinity;
