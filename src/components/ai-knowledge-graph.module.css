@@ -21,17 +21,23 @@
 .canvas:active { cursor: grabbing; }
 .stars, .edges { position: absolute; inset: 0; pointer-events: none; }
 .stars i { position: absolute; background: #c4ddf6; border-radius: 50%; }
-.node { position: absolute; width: 40px; height: 40px; transform: translate(-50%, -50%); background: transparent; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; color: #e5f0fa; z-index: 1; --planet: #69d8ed; }
-.chinaNode { --planet: #bba0ff; }.usNode { --planet: #69d8ed; }
-.planet { width: calc(var(--radius) * 2); height: calc(var(--radius) * 2); display: block; border-radius: 50%; background: radial-gradient(circle at 30% 24%, #e9faff, var(--planet) 26%, #193048 83%); box-shadow: 0 0 19px color-mix(in srgb, var(--planet) 35%, transparent), inset -3px -3px 6px #0006; }
-.nodeLabel { position: absolute; top: calc(22px + var(--radius)); left: 50%; transform: translateX(-50%); width: 110px; text-align: center; opacity: 0; pointer-events: none; text-shadow: 0 1px 5px #050a16, 0 0 5px #050a16; }
+.node { position: absolute; width: 40px; height: 40px; transform: translate(-50%, -50%); background: transparent; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; color: #e5f0fa; z-index: 1; --starlight: #69d8ed; }
+.chinaNode { --starlight: #bba0ff; }.usNode { --starlight: #69d8ed; }
+.star { position: relative; width: calc(var(--radius) * 2); height: calc(var(--radius) * 2); display: block; border-radius: 50%; background: #f4fcff; box-shadow: 0 0 3px 1px var(--starlight), 0 0 10px 2px color-mix(in srgb, var(--starlight) 55%, transparent), 0 0 22px color-mix(in srgb, var(--starlight) 20%, transparent); }
+.star::before, .star::after { content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; opacity: .5; background: linear-gradient(transparent, var(--starlight) 35%, #fff 50%, var(--starlight) 65%, transparent); }
+.star::before { width: 1px; height: calc(var(--radius) * 5); }
+.star::after { width: calc(var(--radius) * 5); height: 1px; background: linear-gradient(90deg, transparent, var(--starlight) 35%, #fff 50%, var(--starlight) 65%, transparent); }
+.activeEdge { filter: drop-shadow(0 0 3px #78d7ed55); }
+.nodeLabel { position: absolute; top: calc(20px + var(--radius)); left: 50%; transform: translateX(-50%); width: 110px; text-align: center; opacity: 0; pointer-events: none; text-shadow: 0 1px 5px #050a16, 0 0 5px #050a16; }
 .nodeLabel strong { display: block; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nodeLabel > span { display: block; color: #a6bcd1; margin-top: 3px; font-size: 11px; white-space: nowrap; }
 .labeled .nodeLabel, .node:hover .nodeLabel, .node:focus-visible .nodeLabel, .node[aria-pressed=true] .nodeLabel { opacity: 1; }
 .dim { opacity: .35; }
 .node:hover, .node:focus-visible, .node[aria-pressed=true] { opacity: 1; z-index: 3; }
 .node:hover .nodeLabel, .node:focus-visible .nodeLabel, .node[aria-pressed=true] .nodeLabel { background: #080f1ee8; border-radius: 6px; }
-.node[aria-pressed=true] .planet { outline: 1px solid var(--planet); outline-offset: 6px; }
+.node[aria-pressed=true] .star, .node:hover .star, .node:focus-visible .star { box-shadow: 0 0 4px 2px #fff, 0 0 14px 4px var(--starlight), 0 0 36px 8px color-mix(in srgb, var(--starlight) 28%, transparent); }
+.node[aria-pressed=true] .star::before { height: 38px; width: 2px; opacity: .95; }
+.node[aria-pressed=true] .star::after { width: 38px; height: 2px; opacity: .95; }
 .page button:focus-visible, .page input:focus-visible, .canvas:focus-visible, .page a:focus-visible { outline: 2px solid #89e6de; outline-offset: 3px; }
 .canvasHint { position: absolute; bottom: 14px; left: 20px; margin: 0; color: #90a9c4; font-size: 11px; pointer-events: none; }
 .detail { padding: 24px; background: #0d1728; border-left: 1px solid #26334a; overflow: auto; max-height: min(72vh, 800px); min-height: 520px; }
@@ -43,4 +49,4 @@
 .clear { font-size: 11px; margin-bottom: 16px; }.empty { text-align: center; padding: 80px 20px; color: #a5b7cc; }
 .filingLink { color: #acbed4; font-size: 12px; padding: 8px; white-space: nowrap; }
 @media(max-width: 800px) { .page { padding: 24px 16px; }.withDetail { grid-template-columns: 1fr; }.canvas { height: 62vh; min-height: 460px; }.detail { max-height: none; min-height: 0; border-left: 0; border-top: 1px solid #26334a; }.date { display: none; }.controls input { order: 3; flex-basis: 100%; font-size: 16px; }.zoom { margin-left: auto; gap: 6px; }.controls button { padding: 10px 12px; }.filingLink { order: 4; }.node { width: 44px; height: 44px; } }
-@media(prefers-reduced-motion: reduce) { .planet { box-shadow: none; } }
+

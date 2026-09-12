@@ -6,7 +6,7 @@ import { layoutCompanies } from "@/lib/knowledge-graph/constellation";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./ai-knowledge-graph.module.css";
 
-const stars = Array.from({ length: 110 }, (_, i) => ({ x: (i * 73.137 + 9) % 100, y: (i * 37.731 + 3) % 100, opacity: .12 + i % 5 * .09 }));
+const stars = Array.from({ length: 65 }, (_, i) => ({ x: (i * 73.137 + 9) % 100, y: (i * 37.731 + 3) % 100, opacity: .07 + i % 5 * .035 }));
 export function CompanyConstellation({ graph, selected, onSelect, zoom, rotation, onRotate }: {
   graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; zoom: number; rotation: number; onRotate: (degrees: number) => void;
 }) {
@@ -32,7 +32,7 @@ export function CompanyConstellation({ graph, selected, onSelect, zoom, rotation
   // Rotate positions, not DOM elements: labels stay upright and edges stay attached.
   const nodes = layout.nodes.map(n => {
     const x = (n.x - layout.width / 2) * scaleX, y = (n.y - layout.height / 2) * scaleY;
-    return { ...n, x: (x * cos - y * sin) * fit + size.width / 2 + pan.x, y: (x * sin + y * cos) * fit + size.height / 2 + pan.y, radius: Math.min(19, 3.5 + Math.sqrt(n.degree) * 3.5) };
+    return { ...n, x: (x * cos - y * sin) * fit + size.width / 2 + pan.x, y: (x * sin + y * cos) * fit + size.height / 2 + pan.y, radius: Math.min(4.5, 2 + Math.sqrt(n.degree) * .5) };
   });
   const positions = new Map(nodes.map(n => [n.id, n]));
   const connected = new Set(layout.edges.filter(e => e.source === selected || e.target === selected).flatMap(e => [e.source, e.target]));
@@ -58,11 +58,11 @@ export function CompanyConstellation({ graph, selected, onSelect, zoom, rotation
         const dx = b.x - a.x, dy = b.y - a.y, length = Math.max(1, Math.hypot(dx, dy)), ux = dx / length, uy = dy / length;
         const ax = a.x + ux * (a.radius + 3), ay = a.y + uy * (a.radius + 3), bx = b.x - ux * (b.radius + 7), by = b.y - uy * (b.radius + 7);
         const active = e.source === selected || e.target === selected;
-        return <path key={e.id} data-company-edge={e.id} data-source={e.source} data-target={e.target} d={`M${ax},${ay} Q${(ax + bx) / 2 - uy * 18},${(ay + by) / 2 + ux * 18} ${bx},${by}`} fill="none" stroke="#89c9da" strokeWidth={active ? 1.6 : 1} opacity={active ? .9 : selected ? .09 : .32} strokeDasharray={e.commercialStatus === "ANNOUNCED" ? "4 5" : undefined} markerEnd={active ? `url(#${marker})` : undefined} />;
+        return <path key={e.id} data-company-edge={e.id} data-source={e.source} data-target={e.target} d={`M${ax},${ay} Q${(ax + bx) / 2 - uy * 18},${(ay + by) / 2 + ux * 18} ${bx},${by}`} fill="none" className={active ? styles.activeEdge : undefined} stroke={active ? "#b1efff" : "#73a7bd"} strokeWidth={active ? 1.3 : .7} opacity={active ? .85 : selected ? .07 : .22} strokeDasharray={e.commercialStatus === "ANNOUNCED" ? "4 5" : undefined} markerEnd={active ? `url(#${marker})` : undefined} />;
       })}
     </svg>
     {nodes.map(n => <button key={n.id} type="button" data-company-node={n.id} className={`${styles.node} ${n.market === "US" ? styles.usNode : styles.chinaNode} ${labels.has(n.id) ? styles.labeled : ""} ${selected && n.id !== selected && !connected.has(n.id) ? styles.dim : ""}`} style={{ left: n.x, top: n.y, "--radius": `${n.radius}px` } as CSSProperties} aria-label={`${n.name} · ${n.symbol} · ${n.market === "US" ? text("US", "美股") : text("A-share", "A 股")}`} aria-pressed={selected === n.id} onClick={() => onSelect(n.id)} onFocus={() => { if (n.x < 55 || n.x > size.width - 55 || n.y < 35 || n.y > size.height - 65) setPan(p => ({ x: p.x + size.width / 2 - n.x, y: p.y + size.height / 2 - n.y })); }}>
-      <i className={styles.planet} aria-hidden="true" /><span className={styles.nodeLabel}><strong>{n.name}</strong><span>{n.symbol} · {n.market === "US" ? text("US", "美股") : text("A-share", "A 股")}</span></span>
+      <i className={styles.star} aria-hidden="true" /><span className={styles.nodeLabel}><strong>{n.name}</strong><span>{n.symbol} · {n.market === "US" ? text("US", "美股") : text("A-share", "A 股")}</span></span>
     </button>)}
     <p className={styles.canvasHint}>{text("Select a company · Drag to explore", "点选公司 · 拖动探索")}</p>
   </div>;
