@@ -22,7 +22,6 @@ const fragment = `varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis);if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
 function Scene({ graph, selected, onSelect, zoom, rotation, reset }: Props) {
-  const { text } = useLocale();
   const layout = useMemo(() => layout3D(graph), [graph]);
   const controls = useRef<CameraControls>(null);
   const { size, camera, invalidate } = useThree();
@@ -94,7 +93,6 @@ function Scene({ graph, selected, onSelect, zoom, rotation, reset }: Props) {
     </points>
     <lineSegments geometry={lines}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
     {labels.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) labelElements.current.set(n.id,element); else labelElements.current.delete(n.id); }} className={styles.label3d} style={{pointerEvents:"auto"}} onClick={() => onSelect(n.id)} aria-label={`${n.name} · ${n.symbol}`}><strong>{n.symbol}</strong><span>{n.name}</span></button></Html>)}
-    <Html fullscreen style={{pointerEvents:"none"}}><span className={styles.mode3d}>{text("3D · Drag to orbit", "3D · 拖动旋转视角")}</span></Html>
   </>;
 }
 
@@ -119,6 +117,7 @@ export default function CompanyGraph3D(props: Props) {
   if (!supported) return fallback;
   return <div className={styles.canvas3d}>
     <RenderBoundary fallback={fallback}><Canvas frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:1},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", props.onFallback, {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
+    <span className={styles.mode3d}>{text("3D · Drag to orbit", "3D · 拖动旋转视角")}</span>
     <label className={styles.companyPicker}>{text("Focus company", "聚焦公司")}<select aria-label={text("Focus company", "聚焦公司")} value={props.selected} onChange={e=>props.onSelect(e.target.value)}><option value="">{text("All companies", "全部公司")}</option>{props.graph.nodes.filter(n=>n.kind==="COMPANY").map(n=><option key={n.id} value={n.id}>{n.name} · {n.symbol}</option>)}</select></label>
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
   </div>;
