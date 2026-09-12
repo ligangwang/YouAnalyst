@@ -27,12 +27,16 @@
     "verify:checks": "npm run lint && npm run typecheck && npm run test:analytics && npm run test:securities && npm run test:watchlists"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.7.0",
     "cytoscape": "^3.33.3",
+    "d3-force-3d": "^3.0.6",
     "firebase": "^12.11.0",
     "firebase-admin": "^13.7.0",
     "next": "16.2.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
@@ -40,6 +44,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.186.0",
     "esbuild": "^0.27.7",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
