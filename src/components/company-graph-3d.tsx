@@ -10,7 +10,7 @@ import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./ai-knowledge-graph.module.css";
 
-type Props = { graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; zoom: number; rotation: number; reset: number; onFallback: () => void };
+type Props = { graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -21,7 +21,7 @@ void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,
 const fragment = `varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis);if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
-function Scene({ graph, selected, onSelect, zoom, rotation, reset }: Props) {
+function Scene({ graph, selected, onSelect, reset }: Props) {
   const layout = useMemo(() => layout3D(graph), [graph]);
   const controls = useRef<CameraControls>(null);
   const { size, camera, invalidate } = useThree();
@@ -62,14 +62,6 @@ function Scene({ graph, selected, onSelect, zoom, rotation, reset }: Props) {
     void c.setLookAt(x + d*.2, y + d*.12, z + d, x, y, z, !reduced);
     invalidate();
   }, [layout, selected, fitDistance, reset, invalidate]);
-  const previous = useRef({ zoom: 100, rotation: 0, reset });
-  useEffect(() => {
-    const c = controls.current; if (!c) return;
-    if (reset !== previous.current.reset) { previous.current = { zoom, rotation, reset }; return; }
-    if (zoom !== previous.current.zoom) void c.dollyTo(c.distance * previous.current.zoom / zoom, true);
-    if (rotation !== previous.current.rotation) void c.rotate((rotation - previous.current.rotation) * Math.PI / 180, 0, true);
-    previous.current = { zoom, rotation, reset }; invalidate();
-  }, [zoom, rotation, reset, invalidate]);
   const labels = useMemo(() => {
     const degree = new Map<string, number>(); layout.edges.forEach(e => { degree.set(e.source, (degree.get(e.source) ?? 0)+1); degree.set(e.target,(degree.get(e.target) ?? 0)+1); });
     return [...layout.nodes].sort((a,b) => Number(b.id === selected || b.id === hovered)-Number(a.id === selected || a.id === hovered) || Number(connected.has(b.id))-Number(connected.has(a.id)) || (degree.get(b.id) ?? 0)-(degree.get(a.id) ?? 0)).slice(0, size.width < 600 ? 12 : 28);
@@ -112,13 +104,12 @@ export default function CompanyGraph3D(props: Props) {
     });
     return () => { active = false; };
   }, []);
-  const fallback = <div role="alert" className={styles.empty}>{text("3D is unavailable on this device.", "此设备暂时无法显示 3D。")} <button onClick={props.onFallback}>{text("Open 2D map", "打开 2D 图谱")}</button></div>;
-  if (supported === null) return <p role="status" className={styles.empty}>{text("Loading 3D…", "正在加载 3D…")}</p>;
+  const fallback = <div role="alert" className={styles.empty}>{text("This browser cannot display the graph. Try enabling graphics acceleration or using another browser.", "此浏览器暂时无法显示图谱。请尝试开启图形加速或使用其他浏览器。")}</div>;
+  if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
   if (!supported) return fallback;
   return <div className={styles.canvas3d}>
-    <RenderBoundary fallback={fallback}><Canvas frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:1},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", props.onFallback, {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
-    <span className={styles.mode3d}>{text("3D · Drag to orbit", "3D · 拖动旋转视角")}</span>
-    <label className={styles.companyPicker}>{text("Focus company", "聚焦公司")}<select aria-label={text("Focus company", "聚焦公司")} value={props.selected} onChange={e=>props.onSelect(e.target.value)}><option value="">{text("All companies", "全部公司")}</option>{props.graph.nodes.filter(n=>n.kind==="COMPANY").map(n=><option key={n.id} value={n.id}>{n.name} · {n.symbol}</option>)}</select></label>
+    <RenderBoundary fallback={fallback}><Canvas frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:1},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
+    <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
   </div>;
 }
