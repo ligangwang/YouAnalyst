@@ -1,5 +1,4 @@
 import { createRoot } from "react-dom/client";
-import Home from "../../src/app/map/page";
+import { IndustryGraphHome } from "../../src/components/industry-graph-home";
 
-void Home({ searchParams: Promise.resolve({ view: "filings", company: new URLSearchParams(window.location.search).get("company") ?? undefined }) })
-  .then((element) => createRoot(document.getElementById("root")!).render(element));
+createRoot(document.getElementById("root")!).render(<IndustryGraphHome initialTicker={new URLSearchParams(window.location.search).get("company") ?? ""} />);

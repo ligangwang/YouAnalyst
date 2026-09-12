@@ -1,8 +1,9 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { WatchlistDetailPage } from "@/components/watchlist-detail-page";
 import { generatePublicWatchlistMetadata } from "@/lib/watchlists/public-page";
 
-export async function generateMetadata({
+async function buildPageMetadata({
   params,
   searchParams,
 }: {
@@ -21,4 +22,8 @@ export default async function WatchlistDetailRoutePage({
 }) {
   const { id } = await params;
   return <WatchlistDetailPage watchlistId={id} />;
+}
+
+export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
+  return localizedMetadata(await buildPageMetadata(...args));
 }

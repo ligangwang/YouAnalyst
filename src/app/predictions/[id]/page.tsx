@@ -1,3 +1,4 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { PredictionDetailPage } from "@/components/prediction-detail-page";
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -31,7 +32,7 @@ function predictionShareVersion(id: string, prediction: Record<string, unknown>)
   return `${PREDICTION_SHARE_CARD_VERSION}-${compactVersion || id}`;
 }
 
-export async function generateMetadata({
+async function buildPageMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -122,4 +123,8 @@ export default async function PredictionDetailRoutePage({
 }) {
   const { id } = await params;
   return <PredictionDetailPage predictionId={id} />;
+}
+
+export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
+  return localizedMetadata(await buildPageMetadata(...args));
 }

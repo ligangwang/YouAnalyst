@@ -1,3 +1,4 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 
 import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
@@ -27,7 +28,7 @@ function filingUrl(managerCik: string, accessionNumber: string): string {
   return `https://www.sec.gov/Archives/edgar/data/${normalizedCik}/${accessionPath}/${accessionNumber}-index.html`;
 }
 
-export async function generateMetadata({
+async function buildPageMetadata({
   params,
 }: {
   params: Promise<{ cik: string }>;
@@ -165,4 +166,8 @@ export default async function InstitutionPage({ params }: { params: Promise<{ ci
       <InstitutionDetailHoldings holdings={summary.holdings} />
     </main>
   );
+}
+
+export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
+  return localizedMetadata(await buildPageMetadata(...args));
 }

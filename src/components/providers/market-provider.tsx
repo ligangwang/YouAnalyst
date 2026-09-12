@@ -1,4 +1,6 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { pathLocale } from "@/lib/i18n/urls";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "./auth-provider";
 import { useLocale } from "./locale-provider";
@@ -6,6 +8,7 @@ import { parsePreferences, type DisplayPreferences, type MarketSelection } from 
 import { MarketContext, applyPreferences } from "./preferences-context";
 export { useMarket } from "./preferences-context";
 export function MarketProvider({ market, children }: { market: MarketSelection; children: ReactNode }) {
+  const router = useRouter();
   const { user, getIdToken } = useAuth();
   const { locale } = useLocale();
   const [saving, setSaving] = useState(false);
@@ -13,7 +16,7 @@ export function MarketProvider({ market, children }: { market: MarketSelection; 
   useEffect(() => {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.has("lang") || params.has("market")) return;
+    if (pathLocale(window.location.pathname) || params.has("lang") || params.has("market")) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -37,7 +40,8 @@ export function MarketProvider({ market, children }: { market: MarketSelection; 
         const response = await fetch("/api/preferences", { method: "PATCH", headers: { authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(preferences) });
         if (!response.ok) throw new Error("Save failed");
       }
-      applyPreferences(preferences);
+      applyPreferences(preferences, url => router.replace(url, { scroll: false }));
+      setSaving(false);
     } catch { setError(true); setSaving(false); }
   }
   return <MarketContext.Provider value={{ active: true, market, saving, error, change }}>{children}</MarketContext.Provider>;

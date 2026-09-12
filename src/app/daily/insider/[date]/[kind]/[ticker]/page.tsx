@@ -1,3 +1,4 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DailyInsiderMoveShareView } from "@/lib/daily-scores/insider-share-page";
@@ -13,7 +14,7 @@ type Props = {
   }>;
 };
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+async function buildPageMetadata({ params }: Props): Promise<Metadata> {
   const { date, kind, ticker } = await params;
   if (!isDailyScoreDate(date) || !isDailyInsiderMoveShareKind(kind)) {
     notFound();
@@ -29,4 +30,8 @@ export default async function DailyInsiderMoveSharePage({ params }: Props) {
   }
 
   return <DailyInsiderMoveShareView date={date} kind={kind} snapshot={null} ticker={ticker} />;
+}
+
+export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
+  return localizedMetadata(await buildPageMetadata(...args));
 }

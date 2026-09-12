@@ -1,3 +1,4 @@
+import { localizedMetadata } from "@/lib/i18n/server";
 
 import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
@@ -37,7 +38,7 @@ function resolveTicker(symbol: string) {
   return ticker;
 }
 
-export async function generateMetadata({
+async function buildPageMetadata({
   params,
 }: {
   params: Promise<{ symbol: string }>;
@@ -103,4 +104,8 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
       </Suspense>
     } />} />
   </>;
+}
+
+export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
+  return localizedMetadata(await buildPageMetadata(...args));
 }

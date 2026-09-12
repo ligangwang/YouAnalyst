@@ -5,7 +5,8 @@ import { UiText, useUiText } from "@/components/ui-text";
 import { LanguageSwitch, useLocale } from "@/components/providers/locale-provider";
 import Image from "next/image";
 import { MarketSwitch, PreferenceError } from "./display-preferences";
-import Link from "next/link";
+import { LocalizedLink as Link } from "./localized-link";
+import { unlocalizedPath } from "@/lib/i18n/urls";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -160,7 +161,7 @@ function DailyNavMenu() {
 export function SiteNav() {
   const ui = useUiText();
   const t = useNavText();
-  const pathname = usePathname();
+  const pathname = unlocalizedPath(usePathname());
   const { user, loading, signOut, getIdToken } = useAuth();
   const [adminStatus, setAdminStatus] = useState<{ userId: string; isAdmin: boolean } | null>(null);
   const [institutionDigestStatus, setInstitutionDigestStatus] = useState<{ userId: string; unread: number } | null>(null);

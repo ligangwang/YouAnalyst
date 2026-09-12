@@ -3,7 +3,7 @@ import { localizedMetadata } from "@/lib/i18n/server";
 import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
 import { IBM_Plex_Sans, Sora } from "next/font/google";
-import Link from "next/link";
+import { LocalizedLink as Link } from "@/components/localized-link";
 import Script from "next/script";
 import { analyticsBootstrap } from "@/lib/analytics-bootstrap";
 import { AppProviders } from "@/components/providers/app-providers";
