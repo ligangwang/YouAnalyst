@@ -66,7 +66,7 @@ test("A-share profile links and keyboard camera controls work", async ({ page })
   await canvas.focus(); await page.keyboard.press("ArrowRight");
   expect((await node.boundingBox())!.x).toBeLessThan(before!.x);
   await page.getByRole("button", { name: "全图", exact: true }).click();
-  expect((await node.boundingBox())!.x).toBeCloseTo(before!.x, 0);
+  await expect.poll(async () => (await node.boundingBox())!.x).toBeCloseTo(before!.x, 0);
   await node.click();
   await expect(page.getByRole("complementary").getByRole("link", { name: "公司详情 →" })).toHaveAttribute("href", "/ticker/XSHG:688041");
   await expect(page.getByRole("heading", { name: "海光信息", exact: true })).toBeVisible();
