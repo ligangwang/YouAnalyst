@@ -18,7 +18,10 @@ export function AiKnowledgeGraph({ initialMarket = "ALL", initialCompany = "", i
   const [status, setStatus] = useState("loading");
   const [retry, setRetry] = useState(0);
   const [markets, setMarkets] = useState<Market[]>(initialMarket === "ALL" ? ["US", "CN_A"] : initialMarket === "NONE" ? [] : [initialMarket]);
-  useEffect(() => { queueMicrotask(() => setMarkets(initialMarket === "ALL" ? ["US", "CN_A"] : initialMarket === "NONE" ? [] : [initialMarket])); }, [initialMarket]);
+  useEffect(() => {
+    const next: Market[] = initialMarket === "ALL" ? ["US", "CN_A"] : initialMarket === "NONE" ? [] : [initialMarket];
+    queueMicrotask(() => setMarkets(current => current.length === next.length && current.every(m => next.includes(m)) ? current : next));
+  }, [initialMarket]);
   const [query, setQuery] = useState(initialQuery);
   const [selected, setSelected] = useState(initialCompany ? (initialCompany.includes(":") ? initialCompany.toUpperCase() : `US:${initialCompany.toUpperCase()}`) : "");
   useEffect(() => {
