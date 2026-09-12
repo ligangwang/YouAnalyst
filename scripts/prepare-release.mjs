@@ -33,7 +33,19 @@ const port = "3187";
 // the build's node_modules or follow aliases back into the build directory.
 const isolated = await mkdtemp(`${tmpdir()}/youanalyst-release-`);
 await cp(`${root}/app`, isolated, { recursive: true, verbatimSymlinks: true });
-const server = spawn(process.execPath, ["server.js"], {
+// A read-only fixture exists only in the temporary test copy, never the artifact.
+// Exercise the compiled page: Next may encode page params differently from metadata.
+const fixture = `${isolated}/company-fixture.cjs`;
+await writeFile(fixture, `
+const company = { market: 'CN_A', status: 'PUBLISHED', name: '海光信息',
+  stage: '算力芯片', description: 'Fixture company overview',
+  source: 'https://example.com/report', sourceLabel: 'Fixture report' };
+globalThis.__adminApp = { firestore: () => ({ collection: name => {
+  if (name !== 'market_companies') throw new Error('Unexpected fixture collection');
+  return { doc: id => ({ get: async () => ({ id, exists: id === 'XSHG:688041', data: () => company }) }) };
+} }) };
+`);
+const server = spawn(process.execPath, ["--require", fixture, "server.js"], {
   cwd: isolated,
   env: { ...process.env, NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: port },
   stdio: "ignore",
@@ -60,6 +72,19 @@ try {
   assert.ok((await assetResponse.text()).length > 0);
   const privateResponse = await fetch(`${base}/api/watchlists/default`, { method: "POST" });
   assert.equal(privateResponse.status, 401, "Private API must still require authentication");
+  for (const symbol of ["XSHG:688041", "XSHG%3A688041", "688041"]) {
+    // Node fetch does not retain the language cookie across the numeric redirect.
+    const response = await fetch(`${base}/ticker/${symbol}?lang=zh-CN`, {
+      headers: { cookie: "ya-language=zh-CN" },
+    });
+    assert.equal(response.status, 200, `A-share company route failed: ${symbol}`);
+    const html = await response.text();
+    assert.match(html, /<h1[^>]*>海光信息<\/h1>/);
+    assert.match(html, /公司概览/);
+    assert.match(html, /Fixture report/);
+  }
+  const missing = await fetch(`${base}/ticker/XSHG:688042`);
+  assert.equal(missing.status, 404, "Unknown company must remain a 404");
 } finally {
   server.kill("SIGTERM");
 }
@@ -69,4 +94,4 @@ await writeFile(`${root}/manifest.json`, JSON.stringify({
   node: process.versions.node,
   checked: true,
 }));
-console.log("Standalone release passed health, static asset, and authentication checks.");
+console.log("Standalone release passed health, assets, authentication and A-share route checks.");
