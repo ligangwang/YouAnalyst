@@ -34,6 +34,8 @@ export function proxy(request: NextRequest) {
         const response = NextResponse.redirect(target, prefix || explicit ? 308 : 307);
         response.headers.set("Cache-Control", "private, no-store");
         response.cookies.set("ya-language", locale, { path: "/", maxAge: 31536000, sameSite: "lax", secure: target.protocol === "https:" });
+        const selectedMarket = parseMarket(request.nextUrl.searchParams.get("market"));
+        if (selectedMarket) response.cookies.set("ya-market", selectedMarket, { path: "/", maxAge: 31536000, sameSite: "lax", secure: target.protocol === "https:" });
         return response;
       }
     }
