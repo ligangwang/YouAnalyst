@@ -285,8 +285,8 @@ export function SiteNav() {
               />
             </Link>
             <nav className="hidden items-center gap-4 text-[15px] text-slate-200 lg:flex">
-              <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className="hover:text-cyan-200">{t("Feed")}</Link>
-              <Link href="/map" aria-current={pathname === "/map" ? "page" : undefined} className="hover:text-cyan-200">{t("Explore")}</Link>
+              <Link href="/" aria-current={pathname === "/" || pathname === "/map" ? "page" : undefined} className="hover:text-cyan-200">{t("Explore")}</Link>
+              <Link href="/feed" aria-current={pathname === "/feed" ? "page" : undefined} className="hover:text-cyan-200">{t("Feed")}</Link>
               <Link href="/predictions" aria-current={pathname.startsWith("/predictions") ? "page" : undefined} className="hover:text-cyan-200">{t("Calls")}</Link>
               <Link href="/watchlists" className="hover:text-cyan-200">{t("Watchlists")}</Link>
               <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
@@ -316,7 +316,7 @@ export function SiteNav() {
         </div>
 
         <nav aria-label={ui("Mobile navigation")} className="mt-2 flex items-center gap-1 text-sm text-slate-200 lg:hidden">
-          {[{ href: "/", label: "Feed" }, { href: "/companies", label: "Search" }, { href: "/watchlists", label: "Watchlists" }].map(item =>
+          {[{ href: "/", label: "Explore" }, { href: "/feed", label: "Feed" }, { href: "/companies", label: "Search" }, { href: "/watchlists", label: "Watchlists" }].map(item =>
             <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3">{t(item.label)}</Link>)}
           <details className="relative ml-auto" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
             <summary className="cursor-pointer rounded-lg px-3 py-3">{t("More")}</summary>

@@ -95,13 +95,14 @@ test("compact timestamps advance locally and reveal the exact time on tap", asyn
 });
 
 test("category links are shareable and pagination uses the selected live category", async ({ page }) => {
-  await page.goto(origin + "/?type=SEC_FORM4");
+  await page.goto(origin + "/feed?type=SEC_FORM4");
   const filters = page.getByRole("navigation", { name: "Event types" });
   await expect(filters.getByRole("link", { name: "Insider activity" })).toHaveAttribute("aria-current", "page");
-  await expect(filters.getByRole("link", { name: "Institutional holdings" })).toHaveAttribute("href", "/?type=SEC_13F");
+  await expect(filters.getByRole("link", { name: "Institutional holdings" })).toHaveAttribute("href", "/feed?type=SEC_13F");
   expect(await page.evaluate(() => (window as unknown as {lastFeedUrl:string}).lastFeedUrl)).toBe("/api/events/stream?type=SEC_FORM4");
   await page.route("**/api/events?cursor=*&type=SEC_FORM4", route => route.fulfill({ json: {items: [], nextCursor: null} }));
   await page.getByRole("button", { name: "Earlier events" }).click();
   await expect(page.getByRole("button", { name: "Earlier events" })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+

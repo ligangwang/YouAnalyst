@@ -66,8 +66,10 @@ test("Cloud Run service identity does not grant access to saved companies", asyn
   expect(response.status()).toBe(401);
 });
 
-test("homepage renders the live feed", async ({ page }) => {
+test("feed remains accessible from homepage navigation", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("link", { name: "Feed", exact: true }).filter({ visible: true }).click();
+  await expect(page).toHaveURL(/\/feed$/);
   await expect(page.getByRole("heading", { name: "Latest", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Explore company connections.", exact: true })).toHaveCount(0);
   await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
@@ -79,7 +81,7 @@ test("homepage renders the live feed", async ({ page }) => {
 });
 
 test("event filters navigate between live categories", async ({ page, request }) => {
-  await page.goto("/");
+  await page.goto("/feed");
   for (const [label, type] of [["Insider activity", "SEC_FORM4"], ["Institutional holdings", "SEC_13F"]]) {
     await page.getByRole("navigation", { name: "Event types" }).getByRole("link", { name: label }).click();
     await expect(page).toHaveURL(new RegExp(`type=${type}`));
@@ -93,8 +95,8 @@ test("event filters navigate between live categories", async ({ page, request })
   await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
 });
 
-test("AI knowledge graph supports both markets", async ({ page }) => {
-  await page.goto("/map?market=ALL&lang=en");
+test("homepage AI knowledge graph supports both markets", async ({ page }) => {
+  await page.goto("/?market=ALL&lang=en");
   await expect(page.getByRole("heading", { name: "Company graph", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "A-shares", exact: true })).toHaveAttribute("aria-pressed", "true");
