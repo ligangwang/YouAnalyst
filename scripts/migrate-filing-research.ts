@@ -6,7 +6,7 @@ import { getFirestore, type DocumentReference } from "firebase-admin/firestore";
 import { filingRelationship, filingRelationshipId } from "../src/lib/company-graph/market-storage";
 import type { CompanyGraphEdge } from "../src/lib/company-graph/types";
 
-const mapping = { company_graph_edges:"market_company_relationships", company_graph_runs:"company_research_runs", company_graph_requests:"company_research_requests" } as const;
+const mapping = { company_graph_edges:"company_relationships", company_graph_runs:"company_research_runs", company_graph_requests:"company_research_requests" } as const;
 type Saved = {path:string; data:FirebaseFirestore.DocumentData};
 function target(path:string) {
   const [collection,id,...rest]=path.split("/");

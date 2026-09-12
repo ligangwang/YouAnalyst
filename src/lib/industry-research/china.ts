@@ -1,6 +1,6 @@
 import { record, sourceUrl, text, MAX_COMPANIES } from "./model";
 
-export const MARKET_COMPANIES = "market_companies";
+export const MARKET_COMPANIES = "companies";
 export type ChinaCompany = {
   id: string; name: string; en?: string; stage: string; stageEn?: string;
   description: string; descriptionEn?: string; source: string; sourceLabel: string; sourceLabelEn?: string;

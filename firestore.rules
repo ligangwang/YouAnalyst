@@ -87,7 +87,7 @@ service cloud.firestore {
     }
 
     match /companies/{companyId} {
-      allow read: if isSignedIn();
+      allow read: if false;
       allow write: if false;
     }
 

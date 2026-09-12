@@ -4,7 +4,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { companyBucketPrefix, companySitemapPath, companySitemapXml } from "@/lib/i18n/company-sitemaps";
 
 const loadPaths = unstable_cache(async (prefix: string) => {
-  const snapshot = await getAdminFirestore().collection("market_companies")
+  const snapshot = await getAdminFirestore().collection("companies")
     .orderBy(FieldPath.documentId()).startAt(prefix).endBefore(prefix + "\uf8ff")
     .select("name", "market", "status", "description", "classification", "stage", "source", "sourceLabel").get();
   return snapshot.docs.flatMap(doc => {

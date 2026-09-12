@@ -41,7 +41,7 @@ const company = { market: 'CN_A', status: 'PUBLISHED', name: '海光信息',
   stage: '算力芯片', description: 'Fixture company overview',
   source: 'https://example.com/report', sourceLabel: 'Fixture report' };
 globalThis.__adminApp = { firestore: () => ({ collection: name => {
-  if (name !== 'market_companies') throw new Error('Unexpected fixture collection');
+  if (name !== 'companies') throw new Error('Unexpected fixture collection');
   return { doc: id => ({ get: async () => ({ id, exists: id === 'XSHG:688041', data: () => company }) }) };
 } }) };
 `);

@@ -248,12 +248,12 @@ test("refresh stores a private draft once; publishing requires listed companies 
   const published = f.data.get(`industry_research_relationships/${id}`)!;
   assert.equal(published.status, "PUBLISHED");
   assert.equal((published.evidence as unknown[]).length, 1);
-  const shared = f.data.get("market_company_relationships/US:TSM__SUPPLIER_OF__US:AMD")!;
+  const shared = f.data.get("company_relationships/US:TSM__SUPPLIER_OF__US:AMD")!;
   assert.equal(shared.status, "PUBLISHED");
   assert.equal(shared.source, "US:TSM");
   assert.equal(shared.target, "US:AMD");
   assert.equal((shared.evidence as unknown[]).length, 1);
-  assert.equal(f.data.get("market_companies/US:AMD")?.market, "US");
+  assert.equal(f.data.get("companies/US:AMD")?.market, "US");
 });
 test("incomplete provider output does not publish or remove existing data", async () => {
   const f = serviceFixture();
@@ -303,12 +303,12 @@ test("CNI import queues every company, preserves research and profiles, and repl
   const companies = Array.from({ length: 4001 }, (_, i) => ({ id: `XSHG:${600000+i}`, name: `公司${i}`, legalName: `公司${i}`, classification: [1,2,3,4].map(n => ({code:`C${n}`,name:`行业${n}`})) }));
   const payload = { source: "https://www.cnindex.com.cn/zh_information/data_resource/fljg/202605/test.xlsx", snapshot: "2026-6", sha256: "a".repeat(64), companies };
   f.data.set(`${CANDIDATES}/XSHG:600000`, { id: "XSHG:600000", status: "DRAFT", attempts: 2, name: "Editorial" });
-  f.data.set("market_companies/XSHG:600001", { name: "Published", status: "PUBLISHED" });
+  f.data.set("companies/XSHG:600001", { name: "Published", status: "PUBLISHED" });
   assert.equal((await importCniDirectory(f.db, payload)).count,4001);
   assert.equal(f.data.get(`${CANDIDATES}/XSHG:600000`)?.status,"DRAFT");
   assert.equal(f.data.get(`${CANDIDATES}/XSHG:600001`)?.status,"PUBLISHED");
   assert.equal(f.data.get(`${CANDIDATES}/XSHG:604000`)?.status,"PENDING");
-  assert.equal(f.data.get("market_companies/XSHG:600001")?.name,"Published");
+  assert.equal(f.data.get("companies/XSHG:600001")?.name,"Published");
   assert.equal((await importCniDirectory(f.db,payload)).unchanged,true);
   await assert.rejects(importCniDirectory(f.db,{...payload,snapshot:"2025-6",sha256:"b".repeat(64)}),/older/);
   await assert.rejects(importCniDirectory(f.db,{...payload,companies:companies.slice(0,5)}),/Invalid directory/);
@@ -326,7 +326,7 @@ test("company batch requests are idempotent and isolate failed candidates from c
   await assert.rejects(f.service.publishCandidate(failed.id,"admin"),/reviewed draft/);
   await f.service.publishCandidate(c.id,"admin");
   assert.equal(f.data.get(`${CANDIDATES}/${c.id}`)?.status,"PUBLISHED");
-  assert.equal(f.data.get(`market_companies/${c.id}`)?.name,c.name);
+  assert.equal(f.data.get(`companies/${c.id}`)?.name,c.name);
   await f.service.processCandidates(runId.replace(/1$/,"2"),"admin",failed.id);
   assert.equal(f.calls(),6);
   assert.equal(f.data.get(`${CANDIDATES}/${c.id}`)?.status,"PUBLISHED");

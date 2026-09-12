@@ -1,5 +1,5 @@
 import type { GraphEdge, GraphNode, GraphSource, KnowledgeGraph } from "./model";
-export const RELATIONSHIP_COLLECTION = "market_company_relationships";
+export const RELATIONSHIP_COLLECTION = "company_relationships";
 export type AiMembership = { status: "PUBLISHED"; stageIds: string[]; stages: GraphNode[]; memberships: GraphEdge[]; sources: GraphSource[]; order: number; asOf: string };
 export type MarketCompany = Record<string, unknown> & { id: string; aiGraph?: AiMembership };
 export type MarketRelationship = Record<string, unknown> & { id: string; source: string; target: string; type: string; status: string; evidence?: (GraphSource & { summary?: string })[] };

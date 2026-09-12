@@ -9,7 +9,7 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
   pending = (async () => {
     const db = getAdminFirestore();
     const [companies, edges] = await Promise.all([
-      db.collection("market_companies").where("aiGraph.status", "==", "PUBLISHED").get(),
+      db.collection("companies").where("aiGraph.status", "==", "PUBLISHED").get(),
       db.collection(RELATIONSHIP_COLLECTION).where("status", "==", "PUBLISHED").get(),
     ]);
     const rows = companies.docs.map(d => ({ ...d.data(), id: d.id }) as MarketCompany);
@@ -17,7 +17,7 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
     const relationships = edges.docs.map(d => ({ ...d.data(), id: d.id }) as MarketRelationship);
     const neighbors = [...new Set(relationships.filter(r => ids.has(r.source) || ids.has(r.target)).flatMap(r => [r.source, r.target]))].filter(id => !ids.has(id) && /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(id));
     for (let i = 0; i < neighbors.length; i += 200) {
-      const profiles = await db.getAll(...neighbors.slice(i, i + 200).map(id => db.collection("market_companies").doc(id)));
+      const profiles = await db.getAll(...neighbors.slice(i, i + 200).map(id => db.collection("companies").doc(id)));
       rows.push(...profiles.filter(d => d.exists).map(d => ({ ...d.data(), id: d.id }) as MarketCompany));
     }
     const graph = graphFromMarket(rows, relationships);

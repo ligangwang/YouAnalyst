@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
     const legacyNamePrefix = query.toUpperCase();
     const [tickerSnapshot, indexedInstitutionSnapshot, legacyInstitutionSnapshot, directInstitutionSnapshot] = await Promise.all([
       db
-        .collection("market_companies")
+        .collection("companies")
         .where(prefixField, "array-contains", query)
         .limit(50)
         .get(),

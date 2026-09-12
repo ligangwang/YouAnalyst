@@ -1,4 +1,4 @@
-export const COMPANY_COLLECTION = "market_companies";
+export const COMPANY_COLLECTION = "companies";
 export function companyFields(id: string, data: Record<string, unknown>) {
   const symbol = String(data.symbol ?? id.split(":").at(-1) ?? "");
   const name = String(data.name ?? symbol);

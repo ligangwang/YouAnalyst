@@ -64,7 +64,7 @@ export async function importGraphs(db: Firestore, graphs: Graph[]) {
   const combined = combineGraphs(graphs as unknown as (KnowledgeGraph & { id: string; language: string })[]);
   const companies = combined.nodes.filter(n => n.kind === "COMPANY");
   const edges = combined.relationships.filter(e => e.type !== "PARTICIPATES_IN");
-  const companyRefs = companies.map(n => db.collection("market_companies").doc(n.id));
+  const companyRefs = companies.map(n => db.collection("companies").doc(n.id));
   const edgeRefs = edges.map(e => db.collection(RELATIONSHIP_COLLECTION).doc(relationshipId(e.source,e.target,e.type)));
   // Publish both markets atomically. Existing reviewed profiles and relationship edits win on replay.
   await db.runTransaction(async tx => {

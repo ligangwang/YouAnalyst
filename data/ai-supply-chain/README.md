@@ -1,8 +1,8 @@
 # AI industry map storage
 
 The live map reads only:
-- `market_companies/{companyId}`: company identity, description, market, and `aiGraph` sector membership.
-- `market_company_relationships/{relationshipId}`: published company-to-company connections with embedded evidence.
+- `companies/{companyId}`: company identity, description, market, and `aiGraph` sector membership.
+- `company_relationships/{relationshipId}`: published company-to-company connections with embedded evidence.
 
 Company IDs are `US:NVDA`, `XSHG:688041`, etc. Relationship IDs are canonical source/type/target keys. Symmetric relationships sort their endpoints.
 
@@ -168,6 +168,6 @@ US security IDs use the `US:` market namespace, not an exchange MIC. A-share IDs
 
 ## Filing research consolidation
 
-Filing observations are stored in `market_company_relationships` under `filing:` document IDs. Their original direction, company/category names, extraction details, and filing evidence are retained. Unresolved observations have `NEEDS_REVIEW` status and are excluded from the public 3D graph. Reviewed published and withdrawn records survive extraction retries.
+Filing observations are stored in `company_relationships` under `filing:` document IDs. Their original direction, company/category names, extraction details, and filing evidence are retained. Unresolved observations have `NEEDS_REVIEW` status and are excluded from the public 3D graph. Reviewed published and withdrawn records survive extraction retries.
 
 Research run history and request state live in `company_research_runs` and `company_research_requests`. The filing API, directory, sitemap, queue, and extraction service use these stores. `scripts/migrate-filing-research.ts` exports and verifies the legacy data before deployment, retains a 90-day recovery artifact, then removes the legacy collections only after successful smoke tests and a live-reader check.

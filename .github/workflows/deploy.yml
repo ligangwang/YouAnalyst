@@ -679,8 +679,17 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
-      - name: Seed A-share company directory
-        run: npx tsx scripts/seed-china-companies.ts
+      - name: Copy company collections without changing data
+        run: npx tsx scripts/rename-company-collections.ts --write
+
+      - name: Preserve collection rename recovery export
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: company-collection-rename-${{ github.run_id }}
+          path: output/company-collection-rename/
+          if-no-files-found: ignore
+          retention-days: 90
 
       - name: Initialize company map directory
         if: github.event_name == 'workflow_dispatch' && inputs.maintenance
@@ -720,21 +729,6 @@ jobs:
         env:
           NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
         run: npx tsx scripts/events/bootstrap.ts
-
-      - name: Initialize company master collection
-        # Populate the master before switching readers; the migration is replay-safe.
-        run: npx tsx scripts/sync-market-companies.ts --write
-
-      - name: Consolidate filing research collections
-        run: npx tsx scripts/migrate-filing-research.ts --write
-
-      - name: Preserve filing research recovery export
-        uses: actions/upload-artifact@v4
-        with:
-          name: filing-research-recovery-${{ github.run_id }}
-          path: output/company-graph-recovery.json
-          if-no-files-found: ignore
-          retention-days: 90
 
       - name: Deploy production application
         env:
@@ -1114,5 +1108,5 @@ jobs:
           PLAYWRIGHT_AUTH_BEARER_TOKEN: ${{ steps.production-smoke-token.outputs.token }}
         run: npm run smoke:test
 
-      - name: Remove verified legacy company graph collections
-        run: npx tsx scripts/migrate-filing-research.ts --write --delete-legacy
+      - name: Verify collection rename after cutover
+        run: npx tsx scripts/rename-company-collections.ts --write --verify-source

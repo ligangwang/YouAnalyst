@@ -8,7 +8,7 @@ export const loadCompanyResearch = cache(async (ticker: string) => {
   const [listings, graph] = await Promise.all([
     (async () => {
       try {
-        const result = await getAdminFirestore().collection("market_companies").where("symbol", "==", ticker).limit(20).get();
+        const result = await getAdminFirestore().collection("companies").where("symbol", "==", ticker).limit(20).get();
         return result.docs.map((doc) => doc.data());
       } catch { return []; }
     })(),
