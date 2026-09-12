@@ -141,6 +141,11 @@ while true; do
   esac
 done
 
+# A rollback pins traffic to an older revision. Explicitly promote the newly
+# deployed revision on a successful release instead of leaving that pin active.
+gcloud run services update-traffic "$service_name" --project "$project_id" \
+  --region "$region" --to-latest --quiet
+
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf 'Cloud Build and rollout: %s seconds\n' "$((SECONDS - build_started))" >> "$GITHUB_STEP_SUMMARY"
   gcloud builds describe "$build_id" --project "$project_id" \
