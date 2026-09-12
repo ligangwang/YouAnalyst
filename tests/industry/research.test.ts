@@ -248,6 +248,12 @@ test("refresh stores a private draft once; publishing requires listed companies 
   const published = f.data.get(`industry_research_relationships/${id}`)!;
   assert.equal(published.status, "PUBLISHED");
   assert.equal((published.evidence as unknown[]).length, 1);
+  const shared = f.data.get("market_company_relationships/US:TSM__SUPPLIER_OF__US:AMD")!;
+  assert.equal(shared.status, "PUBLISHED");
+  assert.equal(shared.source, "US:TSM");
+  assert.equal(shared.target, "US:AMD");
+  assert.equal((shared.evidence as unknown[]).length, 1);
+  assert.equal(f.data.get("market_companies/US:AMD")?.market, "US");
 });
 test("incomplete provider output does not publish or remove existing data", async () => {
   const f = serviceFixture();

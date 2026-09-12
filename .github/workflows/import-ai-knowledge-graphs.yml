@@ -1,4 +1,4 @@
-name: Import AI knowledge graphs
+name: Import AI companies and relationships
 on:
   workflow_dispatch:
 concurrency:
@@ -23,5 +23,5 @@ jobs:
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-      - name: Save and verify both market graphs
+      - name: Save AI data to shared company collections
         run: npx tsx scripts/import-ai-knowledge-graphs.ts --write

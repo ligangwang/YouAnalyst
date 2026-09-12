@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import type { Firestore } from "firebase-admin/firestore";
 import { validateGraph, graphVersion, importGraphs, type Graph } from "../scripts/import-ai-knowledge-graphs";
 
+import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../src/lib/knowledge-graph/market-store";
+
 const graphs: Graph[] = ["ai-us", "ai-cn-a"].map(id => JSON.parse(readFileSync(new URL(`../data/ai-supply-chain/${id}.json`, import.meta.url), "utf8")));
 test("both datasets have unique sourced companies, valid topology and honest coverage counts", () => {
   graphs.forEach(validateGraph);
@@ -29,30 +31,52 @@ test("version hash is reproducible and changes with research content", () => {
   assert.notEqual(graphVersion(copy).versionId, graphVersion(graphs[0]).versionId);
 });
 
+
 function fakeDb() {
-  const records = new Map<string, Record<string, unknown>>(); let failChina = true;
-  type Ref = ReturnType<typeof doc>;
-  function snapshot(path: string) { return { exists: records.has(path), data: () => records.get(path) }; }
-  function collection(path: string) { return { doc: (id: string) => doc(`${path}/${id}`), count: () => ({ get: async () => ({ data: () => ({ count: [...records.keys()].filter(k => k.startsWith(path + "/") && k.split("/").length === path.split("/").length + 1).length }) }) }) }; }
-  function doc(path: string) { return { path, get: async () => snapshot(path), set: async (data: Record<string, unknown>) => { records.set(path, data); }, collection: (name: string) => collection(`${path}/${name}`) }; }
-  function batch() { const writes: [Ref, Record<string, unknown>][] = []; return { set(ref: Ref, data: Record<string, unknown>) { writes.push([ref, data]); }, async commit() { if (failChina && writes.some(([r]) => r.path.startsWith("knowledge_graphs/ai-cn-a/"))) throw Error("Simulated connection interruption"); writes.forEach(([r, d]) => records.set(r.path, d)); } }; }
-  for (const n of graphs[1].nodes.filter(n => n.kind === "COMPANY")) records.set(`company_directory/${n.id}`, { market: "CN_A" });
-  const db = { collection, getAll: async (...refs: Ref[]) => refs.map(r => snapshot(r.path)), batch, runTransaction: async (callback: (tx: unknown) => Promise<void>) => { const b = batch(); await callback({ getAll: async (...refs: Ref[]) => refs.map(r => snapshot(r.path)), set: b.set }); await b.commit(); } } as unknown as Firestore;
-  return { db, records, resume: () => { failChina = false; } };
+  const records = new Map<string, Record<string, unknown>>(); let fail = true;
+  type Ref = { id:string; path:string };
+  const snapshot=(ref:Ref)=>({exists:records.has(ref.path),data:()=>records.get(ref.path)});
+  const db = {
+    collection:(name:string)=>({doc:(id:string)=>({id,path:name+"/"+id})}),
+    runTransaction:async(callback:(tx:unknown)=>Promise<void>)=>{
+      const writes:{ref:Ref;data:Record<string,unknown>}[]=[];
+      await callback({getAll:async(...refs:Ref[])=>refs.map(snapshot),set:(ref:Ref,data:Record<string,unknown>)=>writes.push({ref,data})});
+      if(fail)throw Error("Simulated transaction interruption");
+      for(const {ref,data} of writes) records.set(ref.path,{...records.get(ref.path),...data});
+    },
+  } as unknown as Firestore;
+  return {db,records,resume:()=>{fail=false;}};
 }
-test("interrupted import cannot publish partial pointers; replay completes both and stays idempotent", async () => {
-  const f = fakeDb();
-  await assert.rejects(importGraphs(f.db, graphs), /Simulated/);
-  assert(!f.records.has("knowledge_graphs/ai-us"));
-  assert(!f.records.has("knowledge_graphs/ai-cn-a"));
+test("atomic master import preserves both markets, evidence, publication state and reviewed edits on replay",async()=>{
+  const f=fakeDb();
+  await assert.rejects(importGraphs(f.db,graphs),/Simulated/);
+  assert.equal(f.records.size,0);
   f.resume();
-  const result = await importGraphs(f.db, graphs);
-  assert.equal(result.length, 2);
-  assert.equal([...f.records.keys()].filter(k=>k.startsWith("market_companies/")).length,129);
-  assert.equal(f.records.get("market_companies/XSHG:688041")?.name,"海光信息");
-  assert.equal(f.records.get("knowledge_graphs/ai-us")?.status, "READY");
-  assert.equal(f.records.get("knowledge_graphs/ai-cn-a")?.status, "READY");
-  const count = f.records.size;
-  assert.deepEqual(await importGraphs(f.db, graphs), result);
-  assert.equal(f.records.size, count);
+  await importGraphs(f.db,graphs);
+  const companies=[...f.records].filter(([p])=>p.startsWith("market_companies/")).map(([p,d])=>({...d,id:p.split("/")[1]}) as MarketCompany);
+  const edges=[...f.records].filter(([p])=>p.startsWith("market_company_relationships/")).map(([p,d])=>({...d,id:p.split("/")[1]}) as MarketRelationship);
+  const map=graphFromMarket(companies,edges);
+  assert.equal(map.nodes.filter(n=>n.kind==="COMPANY").length,129);
+  assert.equal(map.relationships.filter(e=>e.type!=="PARTICIPATES_IN").length,31);
+  for(const g of graphs)for(const source of g.sources)assert(map.sources.some(s=>s.url===source.url&&s.title===source.title),source.id);
+  assert(map.nodes.find(n=>n.id==="stage:compute")?.labels?.["zh-CN"]);
+  const companyPath="market_companies/US:NVDA", old=f.records.get(companyPath)!;
+  f.records.set(companyPath,{...old,name:"Reviewed NVIDIA",description:"Reviewed description"});
+  const edgePath=[...f.records.keys()].find(p=>p.startsWith("market_company_relationships/"))!;
+  f.records.set(edgePath,{...f.records.get(edgePath),status:"WITHDRAWN"});
+  const count=f.records.size;
+  await importGraphs(f.db,graphs);
+  assert.equal(f.records.size,count);
+  assert.equal(f.records.get(companyPath)?.name,"Reviewed NVIDIA");
+  assert.equal(f.records.get(edgePath)?.status,"WITHDRAWN");
+});
+test("new published master relationships bring in public neighbors; drafts, missing endpoints and unrelated companies stay out",()=>{
+  const seed={id:"US:NVDA",name:"NVIDIA",status:"PUBLISHED",aiGraph:{status:"PUBLISHED",stageIds:["compute"],stages:[{id:"stage:compute",kind:"STAGE",order:1}],sources:[],memberships:[],order:1,asOf:"2026-09-11"}} as MarketCompany;
+  const evidence=[{id:"report",url:"https://example.com/report",title:"Report",sourceDate:null,summary:"Supplies hardware"}];
+  const edge={id:"r",source:"US:NVDA",target:"US:NEW",type:"SUPPLIER_OF",status:"PUBLISHED",evidence};
+  const companies=[seed,{id:"US:NEW",name:"New company",status:"DIRECTORY"},{id:"US:PRIVATE",name:"Private",status:"DRAFT"},{id:"US:OTHER",name:"Unrelated",status:"PUBLISHED"}];
+  const map=graphFromMarket(companies,[edge,{...edge,id:"private",target:"US:PRIVATE"},{...edge,id:"draft",status:"DRAFT",target:"US:OTHER"}]);
+  assert.deepEqual(map.nodes.filter(n=>n.kind==="COMPANY").map(n=>n.id),["US:NVDA","US:NEW"]);
+  assert.equal(map.relationships.length,1);
+  assert.equal(map.sources[0].url,evidence[0].url);
 });

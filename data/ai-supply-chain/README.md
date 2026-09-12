@@ -1,16 +1,18 @@
-# AI supply-chain graph snapshots
+# AI industry map storage
 
-Research date: 2026-09-11. Broad curated coverage, **not an exhaustive universe**. English US-listed version includes foreign issuers and ADRs; Chinese version covers Shanghai/Shenzhen A-shares. Company domicile and listing market are different concepts.
+The live map reads only:
+- `market_companies/{companyId}`: company identity, description, market, and `aiGraph` sector membership.
+- `market_company_relationships/{relationshipId}`: published company-to-company connections with embedded evidence.
 
-## Firestore locations
+Company IDs are `US:NVDA`, `XSHG:688041`, etc. Relationship IDs are canonical source/type/target keys. Symmetric relationships sort their endpoints.
 
-- `knowledge_graphs/ai-us` — English graph metadata and `activeVersion`.
-- `knowledge_graphs/ai-cn-a` — Chinese graph metadata and `activeVersion`.
-- `knowledge_graphs/{graphId}/versions/{activeVersion}/nodes` — company and supply-chain stage nodes.
-- **`knowledge_graphs/{graphId}/versions/{activeVersion}/relationships`** — graph relationships.
-- `knowledge_graphs/{graphId}/versions/{activeVersion}/sources` — deduplicated evidence URLs, titles and dates.
+`aiGraph` contains publication status, sector IDs, bilingual sector labels, membership evidence, display order, and the research date. Sector membership is editorial classification, not a commercial relationship. Business edges preserve documented versus announced status. The API includes public AI members and their directly connected public companies; unclassified neighbors appear under Related companies. Drafts and withdrawn relationships are excluded.
 
-Existing collections `industry_research_relationships` (US), `market_company_relationships` (A-shares), and the legacy `relationships` collection are unchanged. Saving this dataset does not automatically alter the public website or mark admin research drafts as approved. The new collections retain Firestore's default client deny; a server-side reader is needed for future public rendering.
+The JSON files are reviewed seed inputs. `scripts/import-ai-knowledge-graphs.ts --write` imports them into the shared collections atomically and preserves existing editorial changes on replay. It does not create a separate graph collection.
+
+`scripts/migrate-market-graph.ts --write` is the only legacy reader. It exports all legacy documents and subcollections, copies the active data into the shared collections, and checks nodes, relationships, and evidence. Deployment retains the export as a GitHub Actions artifact for 90 days. After successful production smoke tests, `--delete-legacy` verifies the live API uses the new store, checks that the source still matches the export, and removes the legacy tree. The migration is a no-op after deletion.
+
+The map keeps a five-minute server cache. A fresh page/API request after cache expiry reflects approved shared-store updates.
 
 ## Semantics and coverage
 
@@ -20,15 +22,6 @@ AI exposure is categorized as `DIRECT`, `ENABLER`, or `ADJACENT`; none is an est
 
 US security IDs use the `US:` market namespace, not an exchange MIC. A-share IDs match the imported CNI directory. All 62 A-share identities were checked against the 2026-6 snapshot. Listing status is not real-time verified. Everpure is stored as `US:P`, with the issuer's ticker/name-change announcement; the old `PSTG` identity is not reused. No paid model calls are required for this import.
 
-## Import and verification
-
-```
-npx tsx scripts/import-ai-knowledge-graphs.ts --dry-run
-npx tsx --test tests/knowledge-graph.test.ts
-GCP_PROJECT_ID=<project> npx tsx scripts/import-ai-knowledge-graphs.ts --write
-```
-
-Use the **Import AI knowledge graphs** GitHub workflow with the existing production environment approval. The importer validates all references and identity namespaces, checks A-share identities against Firestore, writes content-hashed version subcollections, verifies counts, then atomically switches both graph pointers. Partial writes cannot replace the active datasets. Rerunning the same content is idempotent. Existing graph versions are retained, and older research dates cannot replace newer ones. The workflow is manual and independent of application deployment.
 
 ## AI supply chain · US-listed companies
 

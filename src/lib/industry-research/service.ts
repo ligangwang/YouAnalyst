@@ -7,6 +7,7 @@ import { openAiResearch, readResearchResponse, researchRequest, candidateResearc
 import { resolveResearchTopic, researchTopicLabel } from "./taxonomy";
 import { MARKET_COMPANIES, normalizeChinaCompany, normalizeChinaResearch, chinaResearchDiagnostics } from "./china";
 import { companyFields } from "../market-companies/model";
+import { RELATIONSHIP_COLLECTION, relationshipId } from "../knowledge-graph/market-store";
 
 import { chinaConnectionsRequest, normalizeChinaConnections } from "./china-connections";
 import { CANDIDATES, type Candidate } from "./candidates";
@@ -116,7 +117,7 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
     if (run.mode === "connections") {
       const selected = result.relationships.filter(r => selectedIds.includes(r.id));
       if (selected.length !== new Set(selectedIds).size) throw new Error("Unknown connection selected.");
-      const refs = selected.map(r => db.collection("market_company_relationships").doc(r.id));
+      const refs = selected.map(r => db.collection(RELATIONSHIP_COLLECTION).doc(relationshipId(r.source, r.target, r.type)));
       const previous = refs.length ? await tx.getAll(...refs) : [];
       selected.forEach((r, i) => tx.set(refs[i], { ...r, market: "CN_A", status: "PUBLISHED", evidence: [...(previous[i].data()?.evidence ?? []), ...r.evidence].filter((e, n, all) => all.findIndex(x => x.url === e.url) === n).slice(-10), reviewedBy: uid, updatedAt: new Date().toISOString(), industries: FieldValue.arrayUnion(run.industry), runIds: FieldValue.arrayUnion(id) }, { merge: true }));
       tx.update(ref, { status: "PUBLISHED", publishedIds: FieldValue.arrayUnion(...selectedIds) });
@@ -152,9 +153,15 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
     const existing = await tx.getAll(...refs);
     const companyRefs = companies.map(c => db.collection("industry_research_companies").doc(c.ticker));
     const companyDocs = await tx.getAll(...companyRefs);
+    const masterRefs = companies.map(c => db.collection(MARKET_COMPANIES).doc(`US:${c.ticker}`));
+    const masterDocs = await tx.getAll(...masterRefs);
+    const marketRefs = selected.map(r => db.collection(RELATIONSHIP_COLLECTION).doc(relationshipId(`US:${r.source}`, `US:${r.target}`, r.type)));
+    const marketDocs = await tx.getAll(...marketRefs);
     const now = new Date().toISOString();
     companies.forEach((c, i) => {
       if (!companyDocs[i].exists) tx.set(companyRefs[i], { ...c, createdAt: now, reviewedBy: uid });
+      const prior = masterDocs[i].data() ?? {};
+      tx.set(masterRefs[i], { ...prior, ...companyFields(`US:${c.ticker}`, { name: c.name, ...prior }), status: prior.status ?? "PUBLISHED" }, { merge: true });
     });
     selected.forEach((r, i) => {
       const prior = existing[i].data();
@@ -162,6 +169,10 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
       tx.set(refs[i], { ...r, evidence: evidence.filter((e, n) => evidence.findIndex(x => x.url === e.url) === n).slice(-10),
         status: "PUBLISHED", updatedAt: now, reviewedBy: uid, industries: FieldValue.arrayUnion(run.industryKey), runIds: FieldValue.arrayUnion(id),
         ...(run.topic?.industryCode ? { researchIndustryCodes: FieldValue.arrayUnion(run.topic.industryCode), researchSectorCodes: FieldValue.arrayUnion(run.topic.sectorCode) } : {}) }, { merge: true });
+      const marketEvidence = [...(marketDocs[i].data()?.evidence ?? []), ...r.evidence];
+      tx.set(marketRefs[i], { id: marketRefs[i].id, source: `US:${r.source}`, target: `US:${r.target}`, type: r.type,
+        evidence: marketEvidence.filter((e, n) => marketEvidence.findIndex(x => x.url === e.url) === n),
+        status: "PUBLISHED", updatedAt: now, reviewedBy: uid }, { merge: true });
     });
     tx.update(ref, { status: "PUBLISHED", publishedAt: now, publishedBy: uid, publishedIds: FieldValue.arrayUnion(...selectedIds) });
   });
