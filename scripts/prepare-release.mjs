@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -15,14 +16,25 @@ await cp("Dockerfile.release", `${root}/Dockerfile.release`);
 // A dedicated context retains traced node_modules and .next files, which the
 // source-build ignore file intentionally excludes.
 await writeFile(`${root}/.gcloudignore`, ".gcloudignore\n.env*\ngha-creds-*.json\n");
-await cp(".next/standalone", `${root}/app`, { recursive: true });
+await cp(".next/standalone", `${root}/app`, { recursive: true, dereference: true });
 await cp(".next/static", `${root}/app/.next/static`, { recursive: true });
 await cp("public", `${root}/app/public`, { recursive: true });
 await readFile(`${root}/app/server.js`); // Fail if tracing emitted an unexpected layout.
+async function assertPortable(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    assert.equal(entry.isSymbolicLink(), false, `Non-portable release link: ${directory}/${entry.name}`);
+    if (entry.isDirectory()) await assertPortable(`${directory}/${entry.name}`);
+  }
+}
+await assertPortable(`${root}/app`);
 
 const port = "3187";
+// Test outside the checkout: Node must not resolve missing dependencies from
+// the build's node_modules or follow aliases back into the build directory.
+const isolated = await mkdtemp(`${tmpdir()}/youanalyst-release-`);
+await cp(`${root}/app`, isolated, { recursive: true, verbatimSymlinks: true });
 const server = spawn(process.execPath, ["server.js"], {
-  cwd: `${root}/app`,
+  cwd: isolated,
   env: { ...process.env, NODE_ENV: "production", HOSTNAME: "127.0.0.1", PORT: port },
   stdio: "ignore",
 });
