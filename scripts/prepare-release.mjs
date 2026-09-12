@@ -73,7 +73,10 @@ try {
   const privateResponse = await fetch(`${base}/api/watchlists/default`, { method: "POST" });
   assert.equal(privateResponse.status, 401, "Private API must still require authentication");
   for (const symbol of ["XSHG:688041", "XSHG%3A688041", "688041"]) {
-    const response = await fetch(`${base}/ticker/${symbol}?lang=zh-CN`);
+    // Node fetch does not retain the language cookie across the numeric redirect.
+    const response = await fetch(`${base}/ticker/${symbol}?lang=zh-CN`, {
+      headers: { cookie: "ya-language=zh-CN" },
+    });
     assert.equal(response.status, 200, `A-share company route failed: ${symbol}`);
     const html = await response.text();
     assert.match(html, /<h1[^>]*>海光信息<\/h1>/);
