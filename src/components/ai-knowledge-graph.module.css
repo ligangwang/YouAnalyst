@@ -61,3 +61,5 @@
 .mode3d { position: absolute; left: 16px; top: 16px; font-size: 11px; color: #8abace; }
 .canvas3d .canvasHint { z-index: 30; }
 @media(max-width:800px) { .canvas3d { height:62vh; min-height:460px; }.companyPicker { left:12px; right:12px; top:42px; }.companyPicker select { flex:1; max-width:210px; }.label3d { width:90px; } }
+
+.resetView { position: absolute; z-index: 30; right: 14px; top: 14px; border: 1px solid #31465a; border-radius: 18px; background: #0b1726bb; color: #bed2e2; padding: 8px 12px; min-height: 36px; font-size: 11px; }

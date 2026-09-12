@@ -100,13 +100,9 @@ test("homepage AI knowledge graph supports both markets", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Company graph", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "A-shares", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "3D", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "2D", exact: true }).click();
-  await expect(page.getByLabel("Company relationships", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Rotate right", exact: true }).click();
-  await expect(page.getByLabel("Rotation", { exact: true })).toHaveText("15°");
-  await page.getByRole("button", { name: "Fit", exact: true }).click();
-  await expect(page.getByLabel("Rotation", { exact: true })).toHaveText("0°");
+  await expect(page.getByRole("button", { name: /^(2D|3D|Fit|Rotate right|Zoom in)$/ })).toHaveCount(0);
+  await expect(page.locator("canvas")).toBeVisible();
+  await page.getByRole("button", {name:"Reset view",exact:true}).click();
   await page.getByRole("button", { name: "US stocks", exact: true }).click();
   await expect(page).toHaveURL(/market=CN_A/);
   await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "false");
