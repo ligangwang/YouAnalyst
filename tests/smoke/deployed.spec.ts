@@ -14,7 +14,7 @@ test("filing research uses the consolidated research store", async ({ request })
 test("AI map reads shared company relationships with preserved evidence", async ({ request }) => {
   const response = await request.get("/api/knowledge-graph");
   expect(response.status()).toBe(200);
-  expect(response.headers()["x-graph-storage"]).toBe("market_company_relationships");
+  expect(response.headers()["x-graph-storage"]).toBe("company_relationships");
   const graph = await response.json();
   const companies = graph.nodes.filter((n: { kind: string }) => n.kind === "COMPANY");
   expect(companies.length).toBeGreaterThanOrEqual(129);

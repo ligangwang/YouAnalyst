@@ -148,7 +148,7 @@ export async function GET(
     const resultEdges = isCurrentExtractionVersion ? readRunResultEdges(runData?.result) : null;
     const edgesSnapshot = resultEdges === null && edgePrefix
       ? await db
-          .collection("market_company_relationships")
+          .collection("company_relationships")
           .where(FieldPath.documentId(), ">=", edgePrefix)
           .where(FieldPath.documentId(), "<", `${edgePrefix}\uf8ff`)
           .orderBy(FieldPath.documentId())

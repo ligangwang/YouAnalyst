@@ -175,7 +175,7 @@ async function persistEdges(db: FirebaseFirestore.Firestore, edges: CompanyGraph
   for (let index = 0; index < edges.length; index += EDGE_BATCH_SIZE) {
     const batch = db.batch();
     const chunk = edges.slice(index, index + EDGE_BATCH_SIZE);
-    const refs = chunk.map(edge => db.collection("market_company_relationships").doc(filingRelationshipId(edge.id)));
+    const refs = chunk.map(edge => db.collection("company_relationships").doc(filingRelationshipId(edge.id)));
     const previous = await db.getAll(...refs);
 
     for (const [i, edge] of chunk.entries()) {
@@ -200,7 +200,7 @@ async function deleteStaleEdgesForFiling(
 ): Promise<number> {
   const edgePrefix = filingRelationshipId(edgeDocIdPrefix(input.sourceTicker, input.accessionNumber));
   const snapshot = await db
-    .collection("market_company_relationships")
+    .collection("company_relationships")
     .where(FieldPath.documentId(), ">=", edgePrefix)
     .where(FieldPath.documentId(), "<", `${edgePrefix}\uf8ff`)
     .orderBy(FieldPath.documentId())

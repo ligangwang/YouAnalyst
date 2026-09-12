@@ -28,7 +28,7 @@ async function main() {
     const archived=JSON.parse(bytes.toString()) as {records:typeof records;graphs:Graph[]};
     await verify(archived.graphs);
     const response=await fetch("https://youanalyst.com/api/knowledge-graph?migration="+Date.now(),{signal:AbortSignal.timeout(30000)});
-    assert(response.ok && response.headers.get("x-graph-storage")==="market_company_relationships","Production must use the new store before deletion");
+    assert(response.ok && response.headers.get("x-graph-storage")==="company_relationships","Production must use the new store before deletion");
     assertGraph(archived.graphs,await response.json() as KnowledgeGraph);
     for(const ref of roots) await exportDoc(ref);
     assert(JSON.stringify(records)===JSON.stringify(archived.records),"Legacy data changed after export; migrate again before deletion");
@@ -57,7 +57,7 @@ async function main() {
   console.log(JSON.stringify({migrated:true,archivedDocuments:records.length,companies:graphs.reduce((n,g)=>n+g.coverage.companyCount,0)}));
 
   async function verify(graphs:Graph[]) {
-    const [companies,edges]=await Promise.all([db.collection("market_companies").where("aiGraph.status","==","PUBLISHED").get(),db.collection("market_company_relationships").where("status","==","PUBLISHED").get()]);
+    const [companies,edges]=await Promise.all([db.collection("companies").where("aiGraph.status","==","PUBLISHED").get(),db.collection("company_relationships").where("status","==","PUBLISHED").get()]);
     const graph=graphFromMarket(companies.docs.map(d=>({...d.data(),id:d.id}) as MarketCompany),edges.docs.map(d=>({...d.data(),id:d.id}) as MarketRelationship));
     assertGraph(graphs,graph);
   }
