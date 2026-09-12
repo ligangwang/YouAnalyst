@@ -5,6 +5,14 @@ checks, and browser journeys. Branch releases repeat the source and browser
 checks, then build once inside the approved deployment job using that
 environment's public Firebase and site settings.
 
+Domain-only email authentication is a required release invariant. The required
+`verify-browser` job runs `test:auth` for every pull request and release. These
+tests cover signup, login, session restoration, and token refresh through the
+website origin, rejecting external browser requests. The server-side Firebase
+proxy checks run in the same gate. Both deployment jobs depend on this job;
+do not remove or bypass these checks when changing authentication or packaging.
+Google's optional sign-in popup is separate from the email authentication flow.
+
 The Linux x64 Node 20 runner creates `.release/app` from Next.js standalone
 output, public assets, and static chunks. Before publishing, it starts that
 server and checks its commit/environment, a browser JavaScript asset, and an
