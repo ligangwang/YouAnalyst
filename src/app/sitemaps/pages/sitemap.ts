@@ -5,9 +5,6 @@ import { absoluteUrl } from "@/lib/seo";
 import { isMapTicker } from "@/lib/industry-graph/directory";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "@/lib/company-graph/types";
 import { localizedPath } from "@/lib/i18n/urls";
-import { FieldPath } from "firebase-admin/firestore";
-import { publicChinaCompany } from "@/lib/industry-research/china-directory";
-import { chinaCompanyId } from "@/lib/market-companies/routes";
 
 function bilingual(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
   return entries.filter(entry => new URL(entry.url).pathname !== "/map").flatMap(entry => {
@@ -77,20 +74,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const companyRoutes = new Map<string, MetadataRoute.Sitemap[number]>();
   try {
     const db = getAdminFirestore();
-    // Read the shared company directory in pages, including A-shares, without a discovery cap.
-    let after = "";
-    for (;;) {
-      const query = db.collection("market_companies").orderBy(FieldPath.documentId()).select("name", "symbol", "updatedAt", "market", "status", "description", "classification", "stage", "source", "sourceLabel").limit(1000);
-      const batch = await (after ? query.startAfter(after) : query).get();
-      for (const doc of batch.docs) {
-        const data = doc.data();
-        const ticker = doc.id.startsWith("US:") ? doc.id.slice(3) : chinaCompanyId(doc.id);
-        if ((!doc.id.startsWith("US:") && !publicChinaCompany(doc.id, data)) || !data.name || !ticker || (doc.id.startsWith("US:") && !isMapTicker(ticker))) continue;
-        companyRoutes.set(ticker, { url: absoluteUrl(`/ticker/${encodeURIComponent(ticker)}`), lastModified: toIsoDate(data.updatedAt), changeFrequency: "weekly", priority: 0.7 });
-      }
-      if (batch.size < 1000) break;
-      after = batch.docs[batch.docs.length - 1].id;
-    }
     const metadata = await db.collection("industry_map_companies").limit(500).get();
     const runs = await db.collection("company_graph_runs").where("status", "==", "COMPLETED")
       .select("extractionVersion", "result.ticker", "result.dryRun", "result.extractionVersion").limit(500).get();
