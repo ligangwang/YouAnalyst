@@ -11,3 +11,6 @@ playwright-report
 docs
 .codex
 .agents
+
+.worktrees
+output
