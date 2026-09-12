@@ -8,7 +8,8 @@ Ask the owner before introducing any additional Firestore collection.
 
 `scripts/rename-company-collections.ts --write` copies the former
 `market_companies` and `market_company_relationships` collections before production
-deployment. It retains document IDs, native Firestore values and subcollections.
+deployment in both staging and production. It copies raw Firestore protobuf
+fields, retaining int64 precision, integer/double distinctions, document IDs and subcollections.
 It does not normalize profiles, refresh research, rewrite embedded references,
 or delete the originals. Existing target documents must match exactly;
 unrelated records or conflicting values stop the release.
@@ -28,9 +29,11 @@ they are not active application stores and must not receive further writes.
 ## Recovery
 
 The deployment retains `company-collection-rename-<run ID>` for 90 days. Its
-`documents.jsonl` contains the original paths and recursively tagged values:
-`map`, `array`, `timestamp` (seconds/nanoseconds), `reference` (fully qualified,
-including database), `geopoint`, `bytes` (base64), `vector`, and primitive types.
+`documents.jsonl` contains original paths and recursively tagged raw protobuf
+fields. Integer values remain decimal strings, doubles retain their field type,
+timestamps retain seconds/nanoseconds, references retain qualified paths, and
+bytes are base64 encoded. Maps, arrays and primitive values use tagged tuples
+to preserve special numeric values such as negative zero.
 The manifest contains collection mappings, count and a canonical SHA-256 digest.
 The original collections are also retained. Do not blindly replay a recovery
 copy after cutover: new production records may have changed legitimately.

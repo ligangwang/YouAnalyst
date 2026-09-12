@@ -189,8 +189,17 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
-      - name: Seed A-share company directory
-        run: npx tsx scripts/seed-china-companies.ts
+      - name: Copy company collections without changing data
+        run: npx tsx scripts/rename-company-collections.ts --write
+
+      - name: Preserve collection rename recovery export
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: company-collection-rename-staging-${{ github.run_id }}
+          path: output/company-collection-rename/
+          if-no-files-found: ignore
+          retention-days: 90
 
       - name: Initialize company map directory
         if: github.event_name == 'workflow_dispatch' && inputs.maintenance
@@ -602,6 +611,11 @@ jobs:
           PLAYWRIGHT_EXPECT_STAGING_BANNER: "1"
           PLAYWRIGHT_AUTH_BEARER_TOKEN: ${{ steps.staging-smoke-token.outputs.token }}
         run: npm run smoke:test
+
+      - name: Verify staging collection rename after cutover
+        env:
+          RENAME_BASE_URL: ${{ steps.staging-url.outputs.url }}
+        run: npx tsx scripts/rename-company-collections.ts --write --verify-source
 
   deploy-production:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
@@ -1109,4 +1123,6 @@ jobs:
         run: npm run smoke:test
 
       - name: Verify collection rename after cutover
+        env:
+          RENAME_BASE_URL: ${{ steps.production-url.outputs.url }}
         run: npx tsx scripts/rename-company-collections.ts --write --verify-source

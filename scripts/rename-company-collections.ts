@@ -3,16 +3,49 @@ import { mkdir, open, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore, type CollectionReference, type DocumentReference } from "firebase-admin/firestore";
+import { v1 } from "@google-cloud/firestore";
+import type { google } from "@google-cloud/firestore/types/protos/firestore_v1_proto_api";
 import { getSecurityRules } from "firebase-admin/security-rules";
 import { assertIdentical, encode, fingerprint, protectCompanies } from "./firestore/exact-copy";
 
 const collections = { market_companies: "companies", market_company_relationships: "company_relationships" } as const;
+type Fields = NonNullable<google.firestore.v1.IDocument["fields"]>;
 const backup = "output/company-collection-rename";
 
 async function main() {
   assert(process.env.GCP_PROJECT_ID && process.argv.includes("--write"), "Use --write with GCP_PROJECT_ID");
   initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
   const db = getFirestore();
+  const raw = new v1.FirestoreClient();
+  const database = `projects/${process.env.GCP_PROJECT_ID}/databases/${db.databaseId}`;
+  async function readRaw(refs: DocumentReference[]): Promise<Map<string, Fields>> {
+    const result = new Map<string, Fields>();
+    const seen = new Set<string>();
+    const stream = raw.batchGetDocuments({ database, documents: refs.map(ref => `${database}/documents/${ref.path}`) });
+    for await (const response of stream as AsyncIterable<google.firestore.v1.IBatchGetDocumentsResponse>) {
+      const name = response.found?.name ?? response.missing;
+      if (!name) continue;
+      const path = name.slice((database + "/documents/").length);
+      seen.add(path);
+      if (response.found) result.set(path, response.found.fields ?? {});
+    }
+    assert(refs.every(ref => seen.has(ref.path)), "Incomplete raw Firestore read");
+    return result;
+  }
+  async function createRaw(records: [string, Fields][]) {
+    let writes: google.firestore.v1.IWrite[] = [], bytes = 0;
+    async function flush() {
+      if (writes.length) await raw.commit({ database, writes });
+      writes = []; bytes = 0;
+    }
+    for (const [path, fields] of records) {
+      const write = { update: { name: `${database}/documents/${target(path)}`, fields }, currentDocument: { exists: false } };
+      const size = Buffer.byteLength(JSON.stringify(write));
+      if (bytes + size > 5_000_000) await flush();
+      writes.push(write); bytes += size;
+    }
+    await flush();
+  }
   const marker = db.collection("directory_syncs").doc("company_collection_names_v1");
   const saved = (await marker.get()).data();
   if (saved?.completedAt) {
@@ -42,26 +75,17 @@ async function main() {
     try {
       for (const source of Object.keys(collections)) {
         await visit(db.collection(source), async refs => {
-          const snapshots = await db.getAll(...refs);
-          const existing = snapshots.filter(doc => doc.exists);
-          const copies = verifyDestination && existing.length ? await db.getAll(...existing.map(doc => db.doc(target(doc.ref.path)))) : [];
-          for (const [index, doc] of existing.entries()) {
-            const data = doc.data()!;
-            hashes.set(doc.ref.path, fingerprint(data));
-            if (file) await file.writeFile(JSON.stringify({ path: doc.ref.path, data: encode(data) }) + "\n");
+          const existing = await readRaw(refs);
+          const copies = verifyDestination && existing.size ? await readRaw([...existing.keys()].map(path => db.doc(target(path)))) : new Map<string, Fields>();
+          for (const [path, fields] of existing) {
+            hashes.set(path, fingerprint(fields));
+            if (file) await file.writeFile(JSON.stringify({ path, fields: encode(fields) }) + "\n");
             if (verifyDestination) {
-              if (copies[index].exists) assertIdentical(data, copies[index].data(), copies[index].ref.path);
-              else if (!copy && !allowMissing) throw new Error(`Missing destination: ${copies[index].ref.path}`);
+              if (copies.has(target(path))) assertIdentical(fields, copies.get(target(path)), target(path));
+              else if (!copy && !allowMissing) throw new Error(`Missing destination: ${target(path)}`);
             }
           }
-          if (copy) {
-            const batch = db.batch();
-            let count = 0;
-            existing.forEach((doc, index) => {
-              if (!copies[index].exists) { batch.create(db.doc(target(doc.ref.path)), doc.data()!); count++; }
-            });
-            if (count) await batch.commit();
-          }
+          if (copy) await createRaw([...existing].filter(([path]) => !copies.has(target(path))));
         });
         console.log(`Scanned ${source}: ${hashes.size} documents so far`);
       }
@@ -73,7 +97,8 @@ async function main() {
     assert(saved?.sourceHash, "Verified copy required before cutover verification");
     const current = await scan(false, false);
     assert.equal(current.hash, saved.sourceHash, "Source changed during release; retain both collections and investigate before cleanup");
-    const live = await fetch("https://youanalyst.com/api/knowledge-graph?rename=" + Date.now(), { signal: AbortSignal.timeout(30000) });
+    assert(process.env.RENAME_BASE_URL, "RENAME_BASE_URL required for cutover verification");
+    const live = await fetch(new URL("/api/knowledge-graph?rename=" + Date.now(), process.env.RENAME_BASE_URL), { signal: AbortSignal.timeout(30000) });
     assert(live.ok && live.headers.get("x-graph-storage") === "company_relationships", "New production reader must be live");
     await marker.set({ completedAt: new Date().toISOString() }, { merge: true });
     console.log(`Verified unchanged source: ${current.count} documents. Original collections retained for recovery.`);
@@ -86,13 +111,14 @@ async function main() {
   for (const [source, destination] of Object.entries(collections)) {
     console.log(`${destination} existing documents: ${(await db.collection(destination).count().get()).data().count}`);
     await visit(db.collection(destination), async refs => {
-      const destinations = (await db.getAll(...refs)).filter(doc => doc.exists);
-      if (!destinations.length) return;
-      const originals = await db.getAll(...destinations.map(doc => db.doc([source, ...doc.ref.path.split("/").slice(1)].join("/"))));
-      destinations.forEach((doc, index) => {
-        assert(originals[index].exists, `Destination contains unrelated data: ${doc.ref.path}; inspect before renaming`);
-        assertIdentical(originals[index].data(), doc.data(), doc.ref.path);
-      });
+      const destinations = await readRaw(refs);
+      if (!destinations.size) return;
+      const originalPath = (path: string) => [source, ...path.split("/").slice(1)].join("/");
+      const originals = await readRaw([...destinations.keys()].map(path => db.doc(originalPath(path))));
+      for (const [path, fields] of destinations) {
+        assert(originals.has(originalPath(path)), `Destination contains unrelated data: ${path}; inspect before renaming`);
+        assertIdentical(originals.get(originalPath(path)), fields, path);
+      }
     });
   }
   const before = await scan(false, true, true, true);

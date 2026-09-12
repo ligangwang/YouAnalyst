@@ -2,6 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Firestore, Timestamp, GeoPoint, FieldValue } from "@google-cloud/firestore";
 import { assertIdentical, encode, fingerprint, protectCompanies } from "../scripts/firestore/exact-copy";
+import { Root } from "protobufjs";
+import schema from "@google-cloud/firestore/build/protos/v1.json";
+
+test("raw protobuf copies preserve int64 extremes and whole-valued doubles", () => {
+  const fields = {
+    big: { integerValue: "9223372036854775807" },
+    small: { integerValue: "-9223372036854775808" },
+    wholeDouble: { doubleValue: 42 },
+    negativeZero: { doubleValue: -0 },
+    at: { timestampValue: { seconds: "123", nanos: 456 } },
+  };
+  const Document = Root.fromJSON(schema).lookupType("google.firestore.v1.Document");
+  const bytes = Document.encode(Document.fromObject({ fields })).finish();
+  const copy = Document.toObject(Document.decode(bytes), { longs: String }).fields;
+  assertIdentical(fields, copy, "companies/US:TEST");
+  assert.equal(copy.big.integerValue, "9223372036854775807");
+  assert.equal(copy.wholeDouble.doubleValue, 42);
+  assert.equal(copy.wholeDouble.integerValue, undefined);
+  assert(Object.is(copy.negativeZero.doubleValue, -0));
+  assert.throws(() => assertIdentical(fields, { ...fields, wholeDouble: { integerValue: "42" } }, "changed type"));
+});
 
 test("exact-copy checks nested fields, nanosecond timestamps, and array order", () => {
   const data = { at: new Timestamp(123, 456), nested: { n: 1 }, array: [1, 2] };
