@@ -33,7 +33,8 @@ test("Chinese landscape searches tickers, filters stages and links to primary ev
   await page.getByRole("textbox", { name: "搜索 A 股公司" }).fill("002837");
   await expect(page.getByRole("article")).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "英维克" })).toBeVisible();
-  await expect(page.getByRole("article").getByRole("link")).toHaveAttribute("href", "https://money.finance.sina.com.cn/corp/view/vCB_AllBulletinDetail.php?id=12525843&stockid=002837");
+  await expect(page.getByRole("article").getByRole("link", { name: "英维克", exact: true })).toHaveAttribute("href", "/ticker/XSHE:002837");
+  await expect(page.getByRole("article").getByRole("link", { name: /2026 年半年度报告/ })).toHaveAttribute("href", "https://money.finance.sina.com.cn/corp/view/vCB_AllBulletinDetail.php?id=12525843&stockid=002837");
   await page.getByRole("textbox").fill("");
   await page.getByRole("button", { name: "算力芯片", exact: true }).click();
   await expect(page.getByRole("heading", { name: "海光信息" })).toBeVisible();
