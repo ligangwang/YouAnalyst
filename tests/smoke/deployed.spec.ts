@@ -2,6 +2,23 @@ import { expect, test } from "@playwright/test";
 import { isMapTicker } from "../../src/lib/industry-graph/directory";
 import { publicEventFromDocument } from "../../src/lib/events/model";
 
+test("AI map reads shared company relationships with preserved evidence", async ({ request }) => {
+  const response = await request.get("/api/knowledge-graph");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["x-graph-storage"]).toBe("market_company_relationships");
+  const graph = await response.json();
+  const companies = graph.nodes.filter((n: { kind: string }) => n.kind === "COMPANY");
+  expect(companies.length).toBeGreaterThanOrEqual(129);
+  expect(companies.some((n: { id: string }) => n.id === "US:NVDA")).toBe(true);
+  expect(companies.some((n: { id: string }) => n.id === "XSHG:688041")).toBe(true);
+  const edges = graph.relationships.filter((e: { type: string }) => e.type !== "PARTICIPATES_IN");
+  expect(edges.length).toBeGreaterThanOrEqual(31);
+  for (const edge of edges) {
+    expect(edge.sourceIds.length).toBeGreaterThan(0);
+    for (const id of edge.sourceIds) expect(graph.sources.some((s: { id: string; url: string }) => s.id === id && s.url.startsWith("https://"))).toBe(true);
+  }
+});
+
 test("sitemap index exposes bounded bilingual company sitemaps", async ({ request }) => {
   test.setTimeout(60_000);
   const index = await request.get("/sitemap.xml");

@@ -24,19 +24,6 @@ for (const doc of directory.docs) {
   if (r.market !== "CN_A") continue;
   rows.set(doc.id, { ...r, sourceLabel:`国证行业分类 ${r.snapshot ?? ""}`, ...rows.get(doc.id), symbol:doc.id.split(":")[1] });
 }
-// Import graph company descriptions as enrichment, without overwriting reviewed profiles.
-for (const id of ["ai-us", "ai-cn-a"]) {
-  const root = db.collection("knowledge_graphs").doc(id), pointer = (await root.get()).data();
-  if (pointer?.status !== "READY") throw new Error(`Missing published graph ${id}`);
-  const version = root.collection("versions").doc(pointer.activeVersion);
-  const [nodes, sources] = await Promise.all([version.collection("nodes").get(),version.collection("sources").get()]);
-  const nodeMap = new Map(nodes.docs.map(d=>[d.id,d.data()])), sourceMap = new Map(sources.docs.map(d=>[d.id,d.data()]));
-  for (const n of nodeMap.values()) {
-    if(n.kind !== "COMPANY") continue;
-    const old = rows.get(n.id) ?? {}, stage = nodeMap.get(`stage:${n.stageIds?.[0]}`), source = sourceMap.get(n.sourceIds?.[0]);
-    rows.set(n.id, { name:n.name,symbol:n.symbol,market:n.market,description:n.summary ?? "",stage:stage?.label ?? "",source:source?.url ?? "",sourceLabel:source?.title ?? "",...old });
-  }
-}
 let count = 0;
 const entries = [...rows.entries()];
 for (let offset=0; offset<entries.length; offset+=200) {

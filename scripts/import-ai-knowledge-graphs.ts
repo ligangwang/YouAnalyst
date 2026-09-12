@@ -4,6 +4,8 @@ import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import assert from "node:assert/strict";
+import { combineGraphs, type KnowledgeGraph } from "../src/lib/knowledge-graph/model";
+import { RELATIONSHIP_COLLECTION, relationshipId, type AiMembership } from "../src/lib/knowledge-graph/market-store";
 import { companyFields } from "../src/lib/market-companies/model";
 
 type Source = { id: string; url: string; title: string; retrievedAt: string; sourceDate: string | null };
@@ -55,59 +57,36 @@ export function graphVersion(g: Graph) {
   return { versionId: `${g.asOf}-${sha256.slice(0, 16)}`, sha256 };
 }
 
-export async function importGraphs(db: Firestore, graphs: Graph[]) {
-  assert(graphs.length === 2 && new Set(graphs.map(g => g.id)).size === 2, "Both market versions are required");
-  graphs.forEach(validateGraph);
-  const reports: { id: string; versionId: string; sha256: string; companyCount: number; relationshipCount: number; sourceCount: number }[] = [];
-  for (const g of graphs) {
-    const identity = graphVersion(g), root = db.collection("knowledge_graphs").doc(g.id), version = root.collection("versions").doc(identity.versionId);
-    const companies = g.nodes.filter(n => n.kind === "COMPANY");
-    const masterDocs = await db.getAll(...companies.map(n => db.collection("market_companies").doc(n.id)));
-    const masterBatch = db.batch();
-    companies.forEach((n,i) => {
-      const current = masterDocs[i].data() ?? {}, source = g.sources.find(s => n.sourceIds?.includes(s.id));
-      const profile = {...n,description:(n as Node & {summary?:string}).summary ?? "",source:source?.url ?? "",sourceLabel:source?.title ?? "",...current};
-      masterBatch.set(db.collection("market_companies").doc(n.id), {...profile,status:current.status ?? "DIRECTORY",...companyFields(n.id,profile)}, {merge:true});
-    });
-    await masterBatch.commit();
-    // The June directory checks identity only; it is not a real-time listing-status assertion.
-    if (g.market === "CN_A") {
-      const listed = await db.getAll(...companies.map(n => db.collection("company_directory").doc(n.id)));
-      assert(listed.every(d => d.exists && d.data()?.market === "CN_A"), "A-share identity missing from imported company directory");
-    }
-    const existing = await version.get();
-    assert(!existing.exists || existing.data()?.sha256 === identity.sha256, "Version hash collision");
-    const writes = [
-      ...g.nodes.map(n => ({ ref: version.collection("nodes").doc(n.id), data: n })),
-      ...g.relationships.map(e => ({ ref: version.collection("relationships").doc(e.id), data: e })),
-      ...g.sources.map(s => ({ ref: version.collection("sources").doc(s.id), data: s })),
-    ];
-    if (existing.data()?.status !== "READY") {
-      await version.set({ ...identity, status: "WRITING", asOf: g.asOf });
-      for (let i = 0; i < writes.length; i += 200) {
-        const batch = db.batch();
-        for (const w of writes.slice(i, i + 200)) batch.set(w.ref, w.data);
-        await batch.commit();
-      }
-    }
-    for (const [collection, expected] of [["nodes", g.nodes.length], ["relationships", g.relationships.length], ["sources", g.sources.length]] as const) {
-      assert((await version.collection(collection).count().get()).data().count === expected, `Incomplete ${g.id}/${collection}`);
-    }
-    const { nodes: _nodes, relationships: _edges, sources: _sources, ...metadata } = g;
-    void _nodes; void _edges; void _sources;
-    await version.set({ ...metadata, ...identity, status: "READY", sourceCount: g.sources.length, nodeCount: g.nodes.length, relationshipCount: g.relationships.length });
-    reports.push({ id: g.id, ...identity, companyCount: companies.length, relationshipCount: g.relationships.length, sourceCount: g.sources.length });
-  }
-  // Switch both pointers only when both complete immutable datasets have been verified.
-  await db.runTransaction(async tx => {
-    const refs = graphs.map(g => db.collection("knowledge_graphs").doc(g.id));
-    const previous = await tx.getAll(...refs);
-    previous.forEach((p, i) => assert(!p.data()?.asOf || p.data()!.asOf <= graphs[i].asOf, "Refusing to replace a newer graph"));
-    graphs.forEach((g, i) => tx.set(refs[i], { title: g.title, market: g.market, language: g.language, asOf: g.asOf, activeVersion: reports[i].versionId, sha256: reports[i].sha256, coverage: g.coverage, status: "READY", access: "SERVER_ONLY", updatedAt: new Date().toISOString() }));
-  });
-  return reports;
-}
 
+export async function importGraphs(db: Firestore, graphs: Graph[]) {
+  assert(graphs.length === 2 && new Set(graphs.map(g => g.id)).size === 2, "Both markets are required");
+  graphs.forEach(validateGraph);
+  const combined = combineGraphs(graphs as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+  const companies = combined.nodes.filter(n => n.kind === "COMPANY");
+  const edges = combined.relationships.filter(e => e.type !== "PARTICIPATES_IN");
+  const companyRefs = companies.map(n => db.collection("market_companies").doc(n.id));
+  const edgeRefs = edges.map(e => db.collection(RELATIONSHIP_COLLECTION).doc(relationshipId(e.source,e.target,e.type)));
+  // Publish both markets atomically. Existing reviewed profiles and relationship edits win on replay.
+  await db.runTransaction(async tx => {
+    const previous = await tx.getAll(...companyRefs, ...edgeRefs);
+    companies.forEach((n,i) => {
+      const current = previous[i].data() ?? {};
+      const memberships = combined.relationships.filter(e => e.type === "PARTICIPATES_IN" && e.source === n.id);
+      const sourceIds = new Set([...(n.sourceIds ?? []), ...memberships.flatMap(e => e.sourceIds)]);
+      const sources = combined.sources.filter(s => sourceIds.has(s.id));
+      const profile = { name:n.name, symbol:n.symbol, description:n.summary ?? "", source:sources[0]?.url ?? "", sourceLabel:sources[0]?.title ?? "", ...current };
+      const aiGraph: AiMembership = { status:"PUBLISHED", stageIds:n.stageIds ?? [], stages:combined.nodes.filter(s => s.kind === "STAGE" && n.stageIds?.includes(s.id.slice(6))), memberships, sources, order:n.order, asOf:combined.asOf };
+      tx.set(companyRefs[i], {...profile, status:current.status ?? "DIRECTORY", ...companyFields(n.id,profile), aiGraph:current.aiGraph ?? aiGraph}, {merge:true});
+    });
+    edges.forEach((e,i) => {
+      const current = previous[companies.length+i].data();
+      const evidence = [...(current?.evidence ?? []), ...combined.sources.filter(s => e.sourceIds.includes(s.id)).map(s => ({...s,summary:e.summary}))];
+      tx.set(edgeRefs[i], { ...e, status:"PUBLISHED", topic:"AI", asOf:combined.asOf, ...current, id:edgeRefs[i].id,
+        evidence:evidence.filter((s,i) => evidence.findIndex(other => other.url === s.url && other.title === s.title) === i) });
+    });
+  });
+  return graphs.map(g => ({ id:g.id, ...graphVersion(g), companyCount:g.coverage.companyCount, relationshipCount:g.coverage.businessRelationshipCount, sourceCount:g.sources.length }));
+}
 async function main() {
   const graphs = await Promise.all(["ai-us", "ai-cn-a"].map(async id => JSON.parse(await readFile(new URL(`../data/ai-supply-chain/${id}.json`, import.meta.url), "utf8"))));
   graphs.forEach(validateGraph);

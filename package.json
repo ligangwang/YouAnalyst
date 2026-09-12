@@ -18,7 +18,7 @@
     "firestore:indexes:apply": "tsx scripts/firestore/apply-indexes.ts",
     "smoke:test": "playwright test",
     "test:conversion": "playwright test --config=playwright.conversion.config.ts",
-    "test:graph": "tsx --test tests/graph/repository.test.ts",
+    "test:graph": "tsx --test tests/graph/repository.test.ts tests/knowledge-graph.test.ts",
     "test:securities": "tsx --test tests/securities/*.test.ts",
     "test:industry": "tsx --test tests/industry/model.test.ts tests/industry/quality.test.ts tests/industry/saved-companies.test.ts tests/industry/discovery.test.ts tests/industry/company-research.test.tsx tests/industry/directory.test.ts tests/industry/research.test.ts",
     "smoke:install": "playwright install chromium",
