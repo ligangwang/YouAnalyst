@@ -6,7 +6,7 @@ import { getFirestore, type CollectionReference, type DocumentReference } from "
 import { v1 } from "@google-cloud/firestore";
 import type { google } from "@google-cloud/firestore/types/protos/firestore_v1_proto_api";
 import { getSecurityRules } from "firebase-admin/security-rules";
-import { assertIdentical, encode, fingerprint, protectCompanies } from "./firestore/exact-copy";
+import { assertIdentical, encode, fingerprint, protectCompanies, reviewedDefaultDeny } from "./firestore/exact-copy";
 
 const collections = { market_companies: "companies", market_company_relationships: "company_relationships" } as const;
 type Fields = NonNullable<google.firestore.v1.IDocument["fields"]>;
@@ -126,19 +126,26 @@ async function main() {
   await writeFile(`${backup}/manifest.json`, JSON.stringify({ collections, ...before, exportedAt: new Date().toISOString() }, null, 2));
 
   // Patch the current release, not an entire potentially stale local rules file.
-  const security = getSecurityRules();
-  const live = await security.getFirestoreRuleset();
-  assert.equal(live.source.length, 1, "Inspect multi-file security rules before migration");
-  const source = live.source[0].content;
-  await writeFile(`${backup}/firestore.rules.before`, source);
-  const protectedSource = protectCompanies(source);
-  if (protectedSource !== source) await security.releaseFirestoreRulesetFromSource(protectedSource);
+  const reviewed = reviewedDefaultDeny(saved?.rulesReview, process.env.GCP_PROJECT_ID);
+  if (reviewed) {
+    await writeFile(`${backup}/firestore.rules.before`, reviewed);
+    await writeFile(`${backup}/rules-review.json`, saved!.rulesReview);
+    console.log("Using recent owner console review of default-deny rules; no rule or IAM changes.");
+  } else {
+    const security = getSecurityRules();
+    const live = await security.getFirestoreRuleset();
+    assert.equal(live.source.length, 1, "Inspect multi-file security rules before migration");
+    const source = live.source[0].content;
+    await writeFile(`${backup}/firestore.rules.before`, source);
+    const protectedSource = protectCompanies(source);
+    if (protectedSource !== source) await security.releaseFirestoreRulesetFromSource(protectedSource);
+  }
 
   const copied = await scan(true, true);
   assert.equal(copied.hash, before.hash, "Source changed during copy; existing production reader remains active");
   const verified = await scan(false, true);
   assert.equal(verified.hash, before.hash, "Source changed during verification; retry after writes finish");
-  await marker.set({ sourceHash: before.hash, count: before.count, copiedAt: new Date().toISOString() });
+  await marker.set({ sourceHash: before.hash, count: before.count, copiedAt: new Date().toISOString() }, { merge: true });
   console.log(`Exact copy verified: ${before.count} documents; IDs, fields and subcollections preserved.`);
 }
 

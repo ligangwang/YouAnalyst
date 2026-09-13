@@ -31,10 +31,23 @@ export function assertIdentical(source: unknown, destination: unknown, path: str
   assert.equal(fingerprint(source), fingerprint(destination), `Conflicting destination: ${path}; no overwrite allowed`);
 }
 
+const DEFAULT_DENY = "rules_version='2';servicecloud.firestore{match/databases/{database}/documents{match/{document=**}{allowread,write:iffalse;}}}";
+
 export function protectCompanies(source: string): string {
+  if (source.replace(/\s/g, "") === DEFAULT_DENY) return source;
   if (/match \/companies\/\{companyId\} \{\s*allow read, write: if false;\s*\}/.test(source)) return source;
   const rule = /match \/companies\/\{companyId\} \{\s*allow read: if (?:isSignedIn\(\)|false);\s*allow write: if false;\s*\}/g;
   const matches = [...source.matchAll(rule)];
   assert.equal(matches.length, 1, "Live companies rule differs from expected; inspect before copying data");
   return source.replace(rule, "match /companies/{companyId} {\n      allow read, write: if false;\n    }");
+}
+
+export function reviewedDefaultDeny(value: unknown, project: string, now = Date.now()): string | null {
+  if (typeof value !== "string") return null;
+  let review: { project?: string; reviewedAt?: string; source?: string };
+  try { review = JSON.parse(value); } catch { return null; }
+  if (!review || review.project !== project || typeof review.source !== "string") return null;
+  const age = now - Date.parse(review.reviewedAt ?? "");
+  if (!Number.isFinite(age) || age < 0 || age > 60 * 60 * 1000) return null;
+  return review.source.replace(/\s/g, "") === DEFAULT_DENY ? review.source : null;
 }
