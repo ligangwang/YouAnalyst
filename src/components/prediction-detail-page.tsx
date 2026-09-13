@@ -821,7 +821,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         {!isOwner ? <PredictionAuthorSummary author={prediction} className="mt-5" /> : null}
 
         {prediction.result ? (
-          <div className="mt-4 rounded-xl border border-emerald-400/35 bg-emerald-900/20 p-3 text-sm text-emerald-50"><UiText text={"Closed at "} />{prediction.result.exitPrice.toFixed(2)}<UiText text={" with return "} />{formatResultReturn(prediction.result)}.
+          <div className="mt-4 rounded-xl border border-emerald-400/35 bg-emerald-900/20 p-3 text-sm text-emerald-50"><UiText text={"Closed at "} />{formatDetailCurrency(prediction.result.exitPrice, prediction.ticker)}<UiText text={" with return "} />{formatResultReturn(prediction.result)}.
             {prediction.closeReason ? (
               <p className="mt-2 text-sm text-emerald-100">
                 <span className="text-emerald-200/80"><UiText text={"Close reason: "} /></span>
