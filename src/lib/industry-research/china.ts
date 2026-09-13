@@ -19,7 +19,8 @@ export function normalizeChinaCompany(value: unknown): ChinaCompany | null {
     stage: text(raw.stage).slice(0, 80),
     description: text(raw.description).slice(0, 1200),
     source: sourceUrl(raw.source), sourceLabel: text(raw.sourceLabel).slice(0, 200) };
-  return Object.values(company).every(Boolean) ? { ...company, profile: normalizeCompanyProfile(raw.profile) } : null;
+  const profile = normalizeCompanyProfile(raw.profile);
+  return Object.values(company).every(Boolean) ? { ...company, ...(profile ? { profile } : {}) } : null;
 }
 export function normalizeChinaResearch(value: unknown, sources: string[]) {
   const raw = record(value), allowed = new Set(sources.map(sourceUrl).filter(Boolean));
