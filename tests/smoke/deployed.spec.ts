@@ -46,7 +46,8 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
   }
 });
 
-test("English and Chinese map URLs expose localized SEO and crawlable companies", async ({ request }) => {
+test("English and Chinese map URLs retain SEO and load company links on expansion", async ({ request, page }) => {
+  test.setTimeout(90_000);
   for (const [prefix, language, heading] of [["en", "en", "AI Industry Map"], ["zh-cn", "zh-CN", "AI 产业图谱"]]) {
     const response = await request.get(`/${prefix}`);
     expect(response.status()).toBe(200);
@@ -56,8 +57,16 @@ test("English and Chinese map URLs expose localized SEO and crawlable companies"
     expect(html).toMatch(new RegExp(`<link[^>]+rel="canonical"[^>]+href="[^"]+/${prefix}"`));
     expect(html).toContain('hrefLang="en"');
     expect(html).toContain('hrefLang="zh-CN"');
-    expect(html).toContain(`href="/${prefix}/ticker/NVDA"`);
-    expect(html).toContain(`href="/${prefix}/ticker/XSHG:688041"`);
+    expect(html).not.toContain(`href="/${prefix}/ticker/NVDA"`);
+    expect(html).not.toContain(`href="/${prefix}/ticker/XSHG:688041"`);
+    await page.goto(`/${prefix}`);
+    const directory = page.getByRole("region", { name: prefix === "en" ? "AI companies and supply chain" : "AI 公司与产业链", exact: true });
+    await expect(directory.locator("li")).toHaveCount(0);
+    await directory.locator("summary").click();
+    await expect(directory.locator(`a[href="/${prefix}/ticker/NVDA"]`).first()).toBeVisible({ timeout: 20_000 });
+    await expect(directory.locator(`a[href="/${prefix}/ticker/XSHG:688041"]`).first()).toBeVisible();
+    await directory.locator("summary").click();
+    await expect(directory.locator("li")).toHaveCount(0);
   }
   const legacy = await request.get("/map?lang=zh-CN&market=CN_A&company=XSHG%3A688041", { maxRedirects: 0 });
   expect([307, 308]).toContain(legacy.status());
