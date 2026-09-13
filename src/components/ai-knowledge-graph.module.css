@@ -4,15 +4,17 @@
 .header h1 { font-size: clamp(28px, 3vw, 40px); font-weight: 500; letter-spacing: -.04em; margin: 8px 0; }
 .header p:not(.eyebrow), .date { color: #9aaec5; font-size: 14px; }
 .controls, .zoom, .legend { display: flex; align-items: center; gap: 10px; }
-.controls { flex-wrap: wrap; padding: 12px; background: #0d1727; border: 1px solid #26334a; border-radius: 18px; }
+.controls { position: relative; width: 100%; max-width: 400px; }
+.searchIcon { position: absolute; left: 15px; width: 17px; height: 17px; color: #8ca5ba; pointer-events: none; }
 .page button { cursor: pointer; }
 .controls button, .clear, .empty button { border: 1px solid #304057; border-radius: 24px; padding: 10px 14px; background: #111e30; color: #bacbdd; white-space: nowrap; min-height: 40px; }
-.controls input { flex: 1; min-width: 160px; border: 1px solid #304057; border-radius: 24px; background: #080f1e; padding: 11px 16px; color: #e2ecf3; font-size: 14px; }
+.controls input { width: 100%; min-width: 0; border: 1px solid #304057; border-radius: 24px; background: #0b1520; padding: 12px 16px 12px 42px; color: #e2ecf3; font-size: 14px; }
+.page .controls input:focus-visible { outline: 2px solid #79b8c680; outline-offset: 1px; border-color: #79b8c6; }
 .zoom output { width: 42px; text-align: center; color: #b5c7db; font-size: 12px; font-variant-numeric: tabular-nums; }
 .zoom { flex-wrap: wrap; max-width: 100%; justify-content: flex-end; }
 .legend { flex-wrap: wrap; justify-content: space-between; margin: 14px 4px; color: #9bb0c7; font-size: 12px; }
 .workspace { display: grid; grid-template-columns: minmax(0, 1fr); border: 1px solid #26334a; border-radius: 20px; overflow: hidden; }
-.withDetail { grid-template-columns: minmax(0, 1fr) 310px; }
+.withDetail { grid-template-columns: minmax(0, 1fr) 340px; }
 .canvas { position: relative; overflow: hidden; height: min(72vh, 800px); min-height: 520px; background: radial-gradient(ellipse at 40% 45%, #12354870, transparent 52%), radial-gradient(ellipse at 80% 68%, #38205950, transparent 46%), #060c19; touch-action: none; cursor: grab; isolation: isolate; }
 .canvas:active { cursor: grabbing; }
 .stars, .edges { position: absolute; inset: 0; pointer-events: none; }
@@ -34,7 +36,14 @@
 .node[aria-pressed=true] .star::after { width: 38px; height: 2px; opacity: .95; }
 .page button:focus-visible, .page input:focus-visible, .canvas:focus-visible, .page a:focus-visible { outline: 2px solid #89e6de; outline-offset: 3px; }
 .canvasHint { position: absolute; bottom: 14px; left: 20px; margin: 0; color: #90a9c4; font-size: 11px; pointer-events: none; }
-.detail { padding: 24px; background: #0d1728; border-left: 1px solid #26334a; overflow: auto; max-height: min(72vh, 800px); min-height: 520px; }
+.detail { padding: 24px; background: #0b1520; border-left: 1px solid #26334a; overflow: auto; max-height: min(72vh, 800px); min-height: 520px; overflow-wrap: anywhere; }
+.detailHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.detailHeader .clear { border: 0; background: transparent; padding: 8px; margin: 0; min-height: 36px; }
+.detailSection { margin-top: 24px; border-top: 1px solid #26334a; padding-top: 18px; }
+.detailSection > summary { cursor: pointer; font-size: 13px; color: #d9e5ef; padding: 4px 0; }
+.detailSection > summary:focus-visible { outline: 2px solid #79b8c6; outline-offset: 4px; }
+.detailSection > summary span { color: #8ca5ba; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.detail .detailSection article:first-of-type { border-top: 0; }
 .detail h2 { font-size: 23px; line-height: 1.4; margin: 16px 0; }.detail h3 { font-size: 15px; margin-top: 24px; }
 .detail p { color: #a8bad0; font-size: 13px; line-height: 1.8; margin: 12px 0; }
 .detail article { border-top: 1px solid #27364d; padding: 16px 0; }.detail article span { color: #85cfdf; font-size: 11px; }.detail article strong { display: block; font-size: 13px; margin-top: 8px; }
@@ -61,3 +70,7 @@
 @media(max-width:800px) { .canvas3d { height:62vh; min-height:460px; }.companyPicker { left:12px; right:12px; top:42px; }.companyPicker select { flex:1; max-width:210px; }.label3d { width:90px; } }
 
 .resetView { position: absolute; z-index: 30; right: 14px; top: 14px; border: 1px solid #31465a; border-radius: 18px; background: #0b1726bb; color: #bed2e2; padding: 8px 12px; min-height: 36px; font-size: 11px; }
+
+.sourceDate { display: block; color: #8196aa; font-size: 11px; margin-top: 3px; }
+.detailHeader .sectorBadge { color: #afc1d2; font-size: 11px; line-height: 1.5; }
+@media(max-width:800px) { .controls { max-width: none; } }

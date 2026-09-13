@@ -104,6 +104,7 @@ test("global search and company research links work in Chinese", async ({page}) 
   await page.getByRole("textbox",{name:"搜索公司"}).fill("NVDA");
   await page.getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
   await expect(page.getByRole("heading",{name:"NVIDIA",exact:true})).toBeVisible();
+  await page.getByText("研究来源", { exact: true }).click();
   await expect(page.getByRole("link",{name:"财报关系探索 →",exact:true})).toHaveAttribute("href","/map?view=filings&company=NVDA");
   expect(await page.getByRole("complementary").locator('a[href^="https://"]').count()).toBeGreaterThan(0);
   await page.getByRole("button",{name:"重置视图",exact:true}).click();
