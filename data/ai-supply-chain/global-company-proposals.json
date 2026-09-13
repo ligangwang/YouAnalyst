@@ -1,0 +1,5 @@
+[
+  { "id": "ORG:OPENAI", "name": "OpenAI", "legalName": "OpenAI Group PBC", "website": "https://openai.com" },
+  { "id": "ORG:ANTHROPIC", "name": "Anthropic", "website": "https://www.anthropic.com" },
+  { "id": "ORG:MISTRAL-AI", "name": "Mistral AI", "website": "https://mistral.ai", "country": "FR", "identifiers": [{ "scheme": "FR:SIREN", "value": "952418325" }] }
+]

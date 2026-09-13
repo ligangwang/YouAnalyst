@@ -1,3 +1,4 @@
+import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { headers } from "next/headers";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
@@ -19,7 +20,7 @@ export async function AiMapDirectory() {
         {[...GRAPH_SECTORS, OTHER_SECTOR].map(sector => {
           const members = companies.filter(n => companySector(n).id === sector.id);
           if (!members.length) return null;
-          return <section key={sector.id} className="mt-6"><h2 className="text-base font-semibold text-slate-200">{zh ? sector.zh : sector.en}</h2><ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{members.map(n => <li key={n.id}><a className="text-cyan-200 hover:underline" href={profile(n.id, n.symbol, n.market)}>{n.name} · {n.symbol}</a><p className="mt-1 leading-6">{n.summary}</p></li>)}</ul></section>;
+          return <section key={sector.id} className="mt-6"><h2 className="text-base font-semibold text-slate-200">{zh ? sector.zh : sector.en}</h2><ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{members.map(n => <li key={n.id}><a className="text-cyan-200 hover:underline" href={profile(n.id, n.symbol, n.market)}>{n.name} · {n.symbol}</a><p className="mt-1">{companyGeographyLabel(n, locale)}</p><p className="mt-1 leading-6">{n.summary}</p></li>)}</ul></section>;
         })}
         <h2 className="mt-7 text-base font-semibold text-slate-200">{zh ? "已收录公司关系" : "Documented company relationships"}</h2>
         <ul className="mt-3 space-y-3">{graph.relationships.filter(e => e.type !== "PARTICIPATES_IN").map(e => {

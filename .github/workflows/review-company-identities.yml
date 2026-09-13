@@ -1,0 +1,30 @@
+name: Review global company identities
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test tests/company-identity.test.ts
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Check proposals against current company directory
+        run: npx tsx scripts/review-company-identities.ts data/ai-supply-chain/global-company-proposals.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: company-identity-review
+          path: output/company-identity-review/
+          retention-days: 30

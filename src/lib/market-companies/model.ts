@@ -1,8 +1,8 @@
 export const COMPANY_COLLECTION = "companies";
 export function companyFields(id: string, data: Record<string, unknown>) {
-  const symbol = String(data.symbol ?? id.split(":").at(-1) ?? "");
+  const symbol = String(data.symbol ?? (id.startsWith("ORG:") ? "" : id.split(":").at(-1)) ?? "");
   const name = String(data.name ?? symbol);
-  const market = id.startsWith("US:") ? "US" : "CN_A";
+  const market = id.startsWith("US:") ? "US" : /^(XSHG|XSHE):/.test(id) ? "CN_A" : "GLOBAL";
   const normalized = (s: string) => s.normalize("NFKC").toLowerCase();
   const prefixes = new Set<string>();
   for (const word of [id, symbol, name, ...name.split(/[\s.,&-]+/)]) {

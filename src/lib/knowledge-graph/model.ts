@@ -1,5 +1,6 @@
-export type Market = "US" | "CN_A";
-export type GraphNode = { id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; symbol?: string; market?: Market; order: number; stageIds?: string[]; summary?: string; sourceIds?: string[] };
+import type { CompanyListing } from "../market-companies/identity";
+export type Market = "US" | "CN_A" | "GLOBAL";
+export type GraphNode = { id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; sourceIds?: string[] };
 export type GraphEdge = { id: string; source: string; target: string; type: string; summary: string; sourceIds: string[]; commercialStatus: string };
 export type GraphSource = { id: string; title: string; url: string; sourceDate: string | null };
 export type KnowledgeGraph = { nodes: GraphNode[]; relationships: GraphEdge[]; sources: GraphSource[]; asOf: string };

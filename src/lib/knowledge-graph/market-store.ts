@@ -1,3 +1,4 @@
+import { companyGeography } from "../market-companies/identity";
 import type { GraphEdge, GraphNode, GraphSource, KnowledgeGraph } from "./model";
 export const RELATIONSHIP_COLLECTION = "company_relationships";
 export type AiMembership = { status: "PUBLISHED"; stageIds: string[]; stages: GraphNode[]; memberships: GraphEdge[]; sources: GraphSource[]; order: number; asOf: string };
@@ -22,7 +23,7 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
       nodes.set(s.id, { ...s, labels: { ...old?.labels, ...s.labels } });
     }
     for (const s of ai?.sources ?? []) sources.set(s.id, s);
-    nodes.set(c.id, { id: c.id, kind: "COMPANY", name: String(c.name), symbol: String(c.symbol ?? c.id.split(":")[1]), market: c.id.startsWith("US:") ? "US" : "CN_A", summary: String(c.description ?? ""), order: ai?.order ?? 1000, stageIds, sourceIds: ai?.sources.map(s => s.id) ?? [] });
+    nodes.set(c.id, { id: c.id, kind: "COMPANY", name: String(c.name), symbol: String(c.symbol ?? (c.id.startsWith("ORG:") ? "" : c.id.split(":")[1])), market: c.id.startsWith("US:") ? "US" : /^(XSHG|XSHE):/.test(c.id) ? "CN_A" : "GLOBAL", ...companyGeography(c), summary: String(c.description ?? ""), order: ai?.order ?? 1000, stageIds, sourceIds: ai?.sources.map(s => s.id) ?? [] });
     for (const e of ai?.memberships ?? []) relationships.set(e.id, e);
     if (ai?.asOf) dates.push(ai.asOf);
   }
