@@ -47,4 +47,10 @@ test("identity changes, missing companies and stale reports abort all writes", a
   const other = database(batch), report = batch.companies.find(c => c.profile.financialReport)!;
   other.records.get(report.id)!.profile = { checkedAt: "2099-01-01" };
   await assert.rejects(publishProfiles(other.db, batch, true), /newer profile/);
+  const corrected = database(batch), earlier = structuredClone(batch), candidate = earlier.companies.find(c => c.id === report.id)!;
+  corrected.records.get(report.id)!.profile = report.profile;
+  candidate.profile.financialReport!.publishedAt = candidate.profile.financialReport!.periodEnd;
+  const unchanged = structuredClone(corrected.records);
+  await assert.rejects(publishProfiles(corrected.db, earlier, true), /older corrected report/);
+  assert.deepEqual(corrected.records, unchanged);
 });

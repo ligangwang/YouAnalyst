@@ -32,6 +32,9 @@ export async function publishProfiles(db: Firestore, batch: ProfileBatch, write 
       assert(!old.profile?.checkedAt || old.profile.checkedAt <= batch.asOf, `${proposal.id}: newer profile already exists`);
       assert(!old.profile?.financialReport || proposal.profile.financialReport, `${proposal.id}: refusing to remove an existing report`);
       assert(!old.profile?.financialReport?.periodEnd || !proposal.profile.financialReport || old.profile.financialReport.periodEnd <= proposal.profile.financialReport.periodEnd, `${proposal.id}: refusing older financial report`);
+      if (old.profile?.financialReport?.periodEnd === proposal.profile.financialReport?.periodEnd && proposal.profile.financialReport) {
+        assert(old.profile.financialReport.publishedAt <= proposal.profile.financialReport.publishedAt, `${proposal.id}: refusing older corrected report`);
+      }
     });
     if (write) batch.companies.forEach((c, i) => tx.update(refs[i], { profile: { ...docs[i].data()?.profile, ...normalizeCompanyProfile(c.profile) } }));
     return { write, companies: refs.length, reports: batch.companies.filter(c => c.profile.financialReport).length, collection: "companies" };
