@@ -24,4 +24,8 @@ test("English and Chinese render crawlable report links and distinguish reportin
 test("both listing and A-share projections preserve reviewed profile metadata", () => {
   assert(buildCompanyResearch("AMD", [{ symbol: "AMD", active: true, predictionSupported: true, profile }], null).profile?.financialReport);
   assert(normalizeChinaCompany({ id: "XSHG:600584", name: "长电科技", stage: "封装", description: "公司介绍", source: "https://example.com", sourceLabel: "来源", profile })?.profile?.financialReport);
+  const research = normalizeChinaCompany({ id: "XSHG:600584", name: "长电科技", stage: "封装", description: "Updated description", source: "https://example.com", sourceLabel: "来源" });
+  assert(research);
+  assert.equal(Object.hasOwn(research, "profile"), false);
+  assert.deepEqual({ profile, ...research }.profile, profile);
 });
