@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import type { CompanyCall } from "@/lib/predictions/company-calls";
+import { formatCallPrice } from "@/lib/predictions/instrument";
 import { CompanyDirectionActions } from "./company-direction-actions";
 
 type CompanyCallActionsProps = { ticker: string; compact?: boolean; entryPoint?: "company" | "evidence" };
@@ -84,7 +85,7 @@ function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
           <h3 className="font-semibold text-white">{call.watchlistName} · {<UiText text={label} />}</h3>
           <p className="mt-1 text-xs text-slate-400">{call.isDefault ? <UiText text={"Default watchlist · "} /> : ""}{<UiText text={call.visibility} />}</p>
           <p className="mt-2 text-slate-300">{call.createdAt ? <RelativeTime value={call.createdAt} prefix="Set" /> : <UiText text={"Date unavailable"} />}</p>
-          <p className="mt-1 text-slate-300">{call.entryPrice !== null ? <><UiText text="Entry " />{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(call.entryPrice)}{call.entryDate ? <UiText text={` · recorded ${call.entryDate}`} /> : null}</> : <UiText text="Entry price pending the next end-of-day update." />}</p>
+          <p className="mt-1 text-slate-300">{call.entryPrice !== null ? <><UiText text="Entry " />{formatCallPrice(call.entryPrice, ticker)}{call.entryDate ? <UiText text={` · recorded ${call.entryDate}`} /> : null}</> : <UiText text="Entry price pending the next end-of-day update." />}</p>
           {call.status === "CLOSING" ? <p className="mt-3 text-amber-200"><UiText text={"Closing — awaiting end-of-day settlement."} /></p>
             : call.status === "CREATED" ? canCancel ? <button type="button" disabled={!!pending} onClick={() => void act(call, "cancel")} className="mt-3 min-h-11 rounded-lg border border-white/25 px-4 text-slate-100 disabled:opacity-50">{pending === call.id ? <UiText text={"Canceling…"} /> : <UiText text={`Cancel ${label}`} />}</button>
               : <p className="mt-3 text-xs text-slate-400"><UiText text={"The five-minute cancellation window has ended. Awaiting entry price."} /></p>

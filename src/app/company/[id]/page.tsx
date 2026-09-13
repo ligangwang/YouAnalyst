@@ -1,3 +1,5 @@
+import { CompanyCallActions } from "@/components/company-call-actions";
+import { predictionInstrument } from "@/lib/predictions/instrument";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -31,6 +33,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   const data = await load(id);
   const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
   const zh = locale === "zh-CN";
+  const identity = companyGeography(data);
+  const callTicker = identity.listingStatus === "PRIVATE" ? undefined : identity.listings.map(listing =>
+    listing.market === "US" ? listing.symbol : `${listing.exchange}:${listing.symbol}`
+  ).find(ticker => predictionInstrument(ticker));
   const sources: { url: string; title: string }[] = Array.isArray(data.aiGraph?.sources) ? data.aiGraph.sources.filter((s: { url?: unknown; title?: unknown }) => typeof s.url === "string" && s.url.startsWith("https://") && typeof s.title === "string") : [];
   return <main className="mx-auto max-w-5xl px-6 py-12 text-slate-200">
     <a className="text-cyan-200" href={`${localizedPath("/", locale)}?company=${encodeURIComponent(id)}&market=ALL`}>{zh ? "AI 产业图谱" : "AI Industry Map"} →</a>
@@ -39,6 +45,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     <section className="mt-10 rounded-2xl border border-white/10 p-6"><h2 className="text-xl font-semibold">{zh ? "公司概览" : "Company overview"}</h2><p className="mt-4 leading-8">{String(data.description ?? "")}</p>
       <h2 className="mt-8 text-xl font-semibold">{zh ? "资料来源" : "Sources"}</h2><ul className="mt-4 space-y-3">{sources.map((s, i) => <li key={`${s.url}:${i}`}><a className="text-cyan-200" href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a></li>)}</ul>
     </section>
+    {callTicker && <CompanyCallActions ticker={callTicker} />}
     <CompanyProfileDetails profile={normalizeCompanyProfile(data.profile)} />
   </main>;
 }

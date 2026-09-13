@@ -10,8 +10,27 @@ let html = "";
 const bullish: CompanyCall = { id: "bull", watchlistId: "main", watchlistName: "My Watchlist", isDefault: true, visibility: "Public", direction: "UP", status: "OPEN", createdAt: "2026-09-07T18:00:00Z", entryDate: "2026-09-08", entryPrice: 150.25, cancelUntil: null };
 const bearish: CompanyCall = { ...bullish, id: "bear", watchlistId: "hedges", watchlistName: "Hedges", isDefault: false, visibility: "Private", direction: "DOWN" };
 
+test("A-share company page reuses direction links, CNY entry and close controls; private companies have none", async ({ page }) => {
+  await page.route("**/api/ticker/*/my-calls", route => route.fulfill({ json: { items: [] } }));
+  await page.goto(`${origin}?china`);
+  const link = page.getByRole("link", { name: "Bullish", exact: true });
+  await expect(link).toBeVisible();
+  expect(new URL((await link.getAttribute("href"))!, origin).searchParams.get("ticker")).toBe("XSHG:600584");
+  await page.route("**/api/ticker/*/my-calls", route => route.fulfill({ json: { items: [bullish] } }));
+  await page.reload();
+  await expect(page.getByText("Entry CN¥150.25 · recorded 2026-09-08")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close Bullish", exact: true })).toBeVisible();
+  await expect(link).toHaveCount(0);
+  await page.goto(`${origin}?china&private`);
+  await expect(page.getByRole("heading", { name: "JCET" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Bullish|Bearish/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Bullish|Bearish/ })).toHaveCount(0);
+});
+
 test.beforeAll(async () => {
-  const bundled = await build({ stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import {CompanyCallActions} from "./src/components/company-call-actions"; createRoot(document.getElementById("root")).render(<CompanyCallActions ticker="AMD"/>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") } });
+  const bundled = await build({ stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import {CompanyCallActions} from "./src/components/company-call-actions"; import {ChinaCompanyPage} from "./src/components/china-company-page";
+const query = new URLSearchParams(location.search);
+createRoot(document.getElementById("root")).render(query.has("china") ? <ChinaCompanyPage company={{id:"XSHG:600584",name:"JCET",stage:"Packaging",description:"Advanced packaging",source:"https://example.com/report",sourceLabel:"Report",listingStatus:query.has("private")?"PRIVATE":"PUBLIC"}}/> : <CompanyCallActions ticker="AMD"/>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") } });
   const css = await postcss([tailwind()]).process('@import "tailwindcss";', { from: path.resolve("calls-test.css") });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${bundled.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}${css.css}body{background:#07111d;color:white;padding:16px;font-family:Arial}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });

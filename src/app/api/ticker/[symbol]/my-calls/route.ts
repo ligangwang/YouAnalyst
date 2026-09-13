@@ -3,12 +3,14 @@ import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { companyCallsForViewer } from "@/lib/predictions/company-calls";
 
+import { predictionInstrument } from "@/lib/predictions/instrument";
+
 export async function GET(request: NextRequest, context: { params: Promise<{ symbol: string }> }) {
   const headers = { "Cache-Control": "private, no-store", Vary: "Authorization" };
   const user = await getDecodedUserFromRequest(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
   const ticker = (await context.params).symbol.trim().toUpperCase();
-  if (!/^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker)) return NextResponse.json({ error: "Invalid ticker" }, { status: 400, headers });
+  if (!predictionInstrument(ticker)) return NextResponse.json({ error: "Invalid ticker" }, { status: 400, headers });
   try {
     const db = getAdminFirestore();
     const [predictions, watchlists] = await Promise.all([

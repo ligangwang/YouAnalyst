@@ -7,6 +7,7 @@ export type ChinaCompany = {
   description: string; descriptionEn?: string; source: string; sourceLabel: string; sourceLabelEn?: string;
   searchText?: string;
   profile?: CompanyProfile | null;
+  listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN";
 };
 export function validChinaId(id: string) {
   return /^(XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(id);
@@ -20,7 +21,7 @@ export function normalizeChinaCompany(value: unknown): ChinaCompany | null {
     description: text(raw.description).slice(0, 1200),
     source: sourceUrl(raw.source), sourceLabel: text(raw.sourceLabel).slice(0, 200) };
   const profile = normalizeCompanyProfile(raw.profile);
-  return Object.values(company).every(Boolean) ? { ...company, ...(profile ? { profile } : {}) } : null;
+  return Object.values(company).every(Boolean) ? { ...company, listingStatus: raw.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC", ...(profile ? { profile } : {}) } : null;
 }
 export function normalizeChinaResearch(value: unknown, sources: string[]) {
   const raw = record(value), allowed = new Set(sources.map(sourceUrl).filter(Boolean));

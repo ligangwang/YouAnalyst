@@ -24,7 +24,7 @@ export function CompanyResearchOverview({ company, fundamentals }: { company: Co
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
         <Link href={`/map?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4"><UiText text={"Explore "} />{company.ticker}<UiText text={" on the company map"} /></Link>
       </div>}
-      <CompanyCallActions ticker={company.ticker} />
+      {company.listingStatus !== "PRIVATE" && <CompanyCallActions ticker={company.ticker} />}
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
         {fundamentals && <a href="#company-fundamentals"><UiText text={"Business and financials"} /></a>}
         {company.inMap && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}

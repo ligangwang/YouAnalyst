@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCallPrice } from "@/lib/predictions/instrument";
 import { UiText, useUiText } from "@/components/ui-text";
 
 import { formatReturnPercent, markToneClass } from "@/components/prediction-ui";
@@ -28,16 +29,6 @@ const CHART_PADDING = {
   left: 54,
 };
 
-const CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
-
-function formatCurrency(value: number): string {
-  return CURRENCY_FORMATTER.format(value);
-}
-
 function formatDateLabel(value: string): string {
   const [year, month, day] = value.split("-").map(Number);
   const date = Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)
@@ -58,10 +49,10 @@ function pointReturnText(point: PredictionPricePoint): string {
   return typeof point.returnValue === "number" ? formatReturnPercent(point.returnValue) : "Pending";
 }
 
-function pointTitle(point: PredictionPricePoint): string {
+function pointTitle(point: PredictionPricePoint, ticker: string): string {
   const pieces = [
     point.date,
-    `Close ${formatCurrency(point.close)}`,
+    `Close ${formatCallPrice(point.close, ticker, 2)}`,
     `Return ${pointReturnText(point)}`,
   ];
 
@@ -129,14 +120,17 @@ function downsample(points: PredictionPricePoint[], maxPoints: number): Predicti
 
 export function PredictionPriceChart({
   history,
+  ticker = "",
   loading,
   error,
 }: {
   history: PredictionPriceHistory | null;
+  ticker?: string;
   loading: boolean;
   error: string | null;
 }) {
   const ui = useUiText();
+  const formatCurrency = (value: number) => formatCallPrice(value, ticker, 2);
   if (loading) {
     return (
       <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
@@ -252,7 +246,7 @@ export function PredictionPriceChart({
             const y = priceY(point.close, yMin, yMax);
             return (
               <circle key={`${point.date}-${index}`} cx={x} cy={y} r={index === visiblePoints.length - 1 ? 5 : 3} fill="#67e8f9">
-                <title>{pointTitle(point)}</title>
+                <title>{pointTitle(point, ticker)}</title>
               </circle>
             );
           })}

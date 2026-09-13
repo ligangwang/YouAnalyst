@@ -1,3 +1,4 @@
+import { predictionInstrument, chinaTargetDate } from "./instrument";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { canUseProFeaturesForUserData } from "@/lib/features";
@@ -188,7 +189,9 @@ function targetDateFromRunStatus(today: string, status: unknown): string {
 async function resolveEodTargetDateInTransaction(
   tx: FirebaseFirestore.Transaction,
   db: FirebaseFirestore.Firestore,
+  ticker: string,
 ): Promise<string> {
+  if (predictionInstrument(ticker)?.market === "CN_A") return chinaTargetDate();
   const today = getCurrentEasternDate();
   const snapshot = await tx.get(db.collection("eod_runs").doc(eodRunDocId(today)));
   return targetDateFromRunStatus(today, snapshot.exists ? snapshot.get("status") : null);
@@ -322,8 +325,8 @@ export function validateCreatePredictionInput(raw: unknown): CreatePredictionInp
   const thesis = typeof input.thesis === "string" ? sanitizePredictionThesis(input.thesis) : "";
   const visibility = input.visibility;
 
-  if (!ticker || ticker.length > 12) {
-    throw new Error("ticker is required and must be <= 12 chars");
+  if (!predictionInstrument(ticker)) {
+    throw new Error("Invalid ticker: use a US symbol or an exchange-qualified A-share code");
   }
 
   if (!isPredictionDirection(direction)) {
@@ -344,7 +347,7 @@ export function validateCreatePredictionInput(raw: unknown): CreatePredictionInp
     watchlistId,
     thesisTitle,
     thesis,
-    timeHorizon: validateTimeHorizonInput(input.timeHorizon, getCurrentEasternDate()),
+    timeHorizon: validateTimeHorizonInput(input.timeHorizon, predictionInstrument(ticker)?.market === "CN_A" ? chinaTargetDate() : getCurrentEasternDate()),
     visibility: resolvedVisibility,
   };
 }
@@ -508,14 +511,20 @@ export async function createPredictionForUser(
 ) {
   const db = getAdminFirestore();
   const nowIso = new Date().toISOString();
+  const instrument = predictionInstrument(input.ticker);
+  if (!instrument) throw new Error("Invalid ticker");
+  input = { ...input, ticker: instrument.ticker };
   const predictionRef = db.collection("predictions").doc();
   const userRef = db.collection("users").doc(user.uid);
   const watchlistRef = db.collection("watchlists").doc(input.watchlistId);
 
   await db.runTransaction(async (tx) => {
+    const company = await tx.get(db.collection("companies").doc(instrument.companyId));
+    if (company.get("listingStatus") === "PRIVATE") throw new Error("Invalid ticker: private companies cannot receive stock calls");
+    if (instrument.market === "CN_A" && (!company.exists || !["PUBLISHED", "DIRECTORY"].includes(company.get("status")))) throw new Error("Invalid A-share company");
     const [userSnapshot, entryTargetDate, watchlist] = await Promise.all([
       tx.get(userRef),
-      resolveEodTargetDateInTransaction(tx, db),
+      resolveEodTargetDateInTransaction(tx, db, input.ticker),
       assertWatchlistCanReceivePrediction(tx, watchlistRef, user.uid),
     ]);
     if (!userSnapshot.exists) {
@@ -632,10 +641,9 @@ export async function closePredictionWithReason(predictionId: string, reason: st
   }
 
   await db.runTransaction(async (tx) => {
-    const [predictionSnapshot, userSnapshot, closeTargetDate] = await Promise.all([
+    const [predictionSnapshot, userSnapshot] = await Promise.all([
       tx.get(predictionRef),
       tx.get(userRef),
-      resolveEodTargetDateInTransaction(tx, db),
     ]);
 
     if (!predictionSnapshot.exists) {
@@ -646,6 +654,7 @@ export async function closePredictionWithReason(predictionId: string, reason: st
     }
 
     const prediction = predictionSnapshot.data() as Prediction;
+    const closeTargetDate = await resolveEodTargetDateInTransaction(tx, db, prediction.ticker);
     if (prediction.userId !== user.uid) {
       throw new Error("Forbidden");
     }

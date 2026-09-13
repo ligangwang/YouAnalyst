@@ -9,6 +9,22 @@ const watchlistId = "owned & research+1";
 const composer = `/predictions/new?${new URLSearchParams({ ticker: "AMD", watchlistId })}`;
 let html: string;
 
+test("A-share direction survives registration and publishes the qualified code to the default watchlist", async ({ page }) => {
+  const ticker = "XSHG:600584";
+  const destination = `/predictions/new?${new URLSearchParams({ ticker, direction: "DOWN" })}`;
+  await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination, mode: "register" })}`);
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page).toHaveURL(`${origin}${destination}`);
+  await expect(page.getByRole("button", { name: "Bearish", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#watchlist")).toHaveValue("default");
+  await page.route(`${origin}/api/predictions`, route => {
+    expect(route.request().postDataJSON()).toMatchObject({ ticker, direction: "DOWN", watchlistId: "default" });
+    return route.fulfill({ json: { id: "china-call" } });
+  });
+  await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/predictions/china-call`);
+});
+
 for (const direction of ["UP", "DOWN"] as const) {
   test(`${direction} survives registration and is submitted to the selected watchlist`, async ({ page }) => {
     const destination = `/predictions/new?${new URLSearchParams({ ticker: "AMD", direction })}`;

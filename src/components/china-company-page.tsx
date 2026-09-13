@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CompanyCallActions } from "./company-call-actions";
 import { useLocale } from "./providers/locale-provider";
 import type { ChinaCompany } from "@/lib/industry-research/china";
 import { CompanyProfileDetails } from "./company-profile-details";
@@ -13,6 +14,7 @@ export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
       <p className="text-sm text-cyan-200">{company.stage}</p>
       <h1 className="mt-3 text-4xl font-semibold tracking-tight">{company.name}</h1>
       <p className="mt-3 text-sm tabular-nums text-slate-400">{company.id.split(":")[1]} · {company.id.startsWith("XSHG:") ? text("Shanghai", "上交所") : text("Shenzhen", "深交所")}</p>
+      {company.listingStatus !== "PRIVATE" && <CompanyCallActions ticker={company.id} />}
     </header>
     <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-6 sm:p-8">
       <h2 className="text-lg font-semibold">{text("Company overview", "公司概览")}</h2>
@@ -21,6 +23,5 @@ export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
       <a href={company.source} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm leading-7 text-cyan-200 hover:underline">{company.sourceLabel} ↗</a>
     </section>
     <CompanyProfileDetails profile={company.profile} />
-    <p className="mt-6 text-sm text-slate-400">{text("A-share live prices and call tracking are not yet available.", "A 股实时行情与观点收益跟踪尚未接入。")}</p>
   </main>;
 }
