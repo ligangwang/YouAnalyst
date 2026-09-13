@@ -1,33 +1,23 @@
-import { companyGeographyLabel } from "@/lib/market-companies/identity";
-import { headers } from "next/headers";
-import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
-import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
-import { companyPageUrl } from "@/lib/market-companies/routes";
-import { localizedPath } from "@/lib/i18n/urls";
+"use client";
 
-// Stream useful HTML independently so Firestore never delays the interactive map shell.
-export async function AiMapDirectory() {
-  const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
-  const zh = locale === "zh-CN";
-  const graph = await loadKnowledgeGraph().catch(() => null);
-  if (!graph) return null;
-    const companies = graph.nodes.filter(n => n.kind === "COMPANY");
-    const profile = (id: string, symbol?: string, market?: string) => localizedPath(companyPageUrl(id.startsWith("US:") ? symbol ?? id.slice(3) : id, market), locale);
-    return <section className="mx-auto w-full max-w-6xl px-4 pb-8 text-sm text-slate-400" aria-label={zh ? "AI 公司与产业链" : "AI companies and supply chain"}>
-      <details className="rounded-2xl border border-white/10 p-5">
-        <summary className="cursor-pointer text-cyan-200">{zh ? "探索 AI 公司与产业链" : "Explore AI stocks, companies and the supply chain"}</summary>
-        <p className="my-5 leading-7">{zh ? "探索美股与 A 股 AI 公司，从芯片、内存与通信，到数据中心、云平台与 AI 应用。查看公司资料与原始来源，了解人工智能产业链。产业归属不代表公司之间存在供应关系。" : "Explore US-listed and China A-share AI companies, from chips, memory and networking to data centers, cloud platforms and AI applications. Read company profiles and original sources to understand the AI supply chain. Shared sectors do not imply supplier relationships."}</p>
-        {[...GRAPH_SECTORS, OTHER_SECTOR].map(sector => {
-          const members = companies.filter(n => companySector(n).id === sector.id);
-          if (!members.length) return null;
-          return <section key={sector.id} className="mt-6"><h2 className="text-base font-semibold text-slate-200">{zh ? sector.zh : sector.en}</h2><ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{members.map(n => <li key={n.id}><a className="text-cyan-200 hover:underline" href={profile(n.id, n.symbol, n.market)}>{n.name} · {n.symbol}</a><p className="mt-1">{companyGeographyLabel(n, locale)}</p><p className="mt-1 leading-6">{n.summary}</p></li>)}</ul></section>;
-        })}
-        <h2 className="mt-7 text-base font-semibold text-slate-200">{zh ? "已收录公司关系" : "Documented company relationships"}</h2>
-        <ul className="mt-3 space-y-3">{graph.relationships.filter(e => e.type !== "PARTICIPATES_IN").map(e => {
-          const source = companies.find(n => n.id === e.source), target = companies.find(n => n.id === e.target);
-          if (!source || !target) return null;
-          return <li key={e.id}><a className="text-cyan-200" href={profile(source.id, source.symbol, source.market)}>{source.name}</a> → <a className="text-cyan-200" href={profile(target.id, target.symbol, target.market)}>{target.name}</a><p>{e.summary}</p>{graph.sources.filter(s => e.sourceIds.includes(s.id) && s.url.startsWith("https://")).map(s => <a key={s.id} className="mr-3 underline" href={s.url} rel="noopener noreferrer" target="_blank">{s.title} ↗</a>)}</li>;
-        })}</ul>
-      </details>
-    </section>;
+import { lazy, Suspense, useState } from "react";
+import type { KnowledgeGraph } from "@/lib/knowledge-graph/model";
+import { useLocale } from "./providers/locale-provider";
+
+const DirectoryContent = lazy(() => import("./ai-map-directory-content"));
+
+export function AiMapDirectory({ graph, status, onRetry }: {
+  graph: KnowledgeGraph;
+  status: string;
+  onRetry: () => void;
+}) {
+  const { text } = useLocale();
+  const [expanded, setExpanded] = useState(false);
+  const loading = <p className="my-5" role="status">{text("Loading company directory…", "正在加载公司目录…")}</p>;
+  return <section className="mx-auto w-full max-w-6xl px-4 pb-8 text-sm text-slate-400" aria-label={text("AI companies and supply chain", "AI 公司与产业链")}>
+    <details className="rounded-2xl border border-white/10 p-5" onToggle={event => setExpanded(event.currentTarget.open)}>
+      <summary className="cursor-pointer text-cyan-200">{text("Explore AI stocks, companies and the supply chain", "探索 AI 公司与产业链")}</summary>
+      {expanded && (status === "error" ? <p className="my-5" role="alert">{text("The company directory could not be loaded.", "暂时无法加载公司目录。")} <button className="text-cyan-200 underline" onClick={onRetry}>{text("Try again", "重试")}</button></p> : status !== "ready" ? loading : <Suspense fallback={loading}><DirectoryContent graph={graph} /></Suspense>)}
+    </details>
+  </section>;
 }

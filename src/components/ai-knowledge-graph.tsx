@@ -6,6 +6,7 @@ import { filterGraph, type KnowledgeGraph, type Market } from "@/lib/knowledge-g
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
+import { AiMapDirectory } from "./ai-map-directory";
 import styles from "./ai-knowledge-graph.module.css";
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
@@ -54,7 +55,7 @@ export function AiKnowledgeGraph({ initialMarket = "ALL", initialCompany = "", i
     window.history.replaceState(null, "", url);
   }
   const sourceLinks = (ids: string[]) => graph.sources.filter(s => ids.includes(s.id) && /^https:\/\//.test(s.url)).map(s => <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a>);
-  return <main className={styles.page}>
+  return <><main className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>{text("EXPLORE", "探索")}</p><h1>{text("AI Industry Map", "AI 产业图谱")}</h1><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></div><span className={styles.date}>{graph.asOf}</span></header>
     <div className={styles.controls}>
       <div className={styles.markets} aria-label={text("Markets", "市场")}><button aria-pressed={markets.includes("US")} onClick={() => toggle("US")}>{text("US stocks", "美股")}</button><button aria-pressed={markets.includes("CN_A")} onClick={() => toggle("CN_A")}>{text("A-shares", "A 股")}</button><button aria-pressed={markets.includes("GLOBAL")} onClick={() => toggle("GLOBAL")}>{text("Global & private", "全球及非上市")}</button></div>
@@ -68,6 +69,6 @@ export function AiKnowledgeGraph({ initialMarket = "ALL", initialCompany = "", i
         <><button className={styles.clear} onClick={() => selectCompany("")}>{text("Clear selection", "取消选择")} ×</button><p className={styles.eyebrow}>{company.symbol}</p><h2>{company.name}</h2><p>{companyGeographyLabel(company, locale)}</p><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a><p className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</p><p>{company.summary}</p>{company.market === "US" && <a className={styles.profileLink} href={`/map?view=filings&company=${encodeURIComponent(company.symbol ?? "")}`}>{text("Filing explorer", "财报关系探索")} →</a>}<div className={styles.sources}>{sourceLinks(company.sourceIds ?? [])}</div><h3>{text("Connections & roles", "关系与产业归属")}</h3>{relations.map(e => <article key={e.id}><span>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}{e.commercialStatus === "ANNOUNCED" ? text(" · Announced", " · 已宣布") : ""}</span><strong>{label(e.source)} → {label(e.target)}</strong><p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div></article>)}</>
       </aside>}
     </div>}
-  </main>;
+  </main><AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} /></>;
 }
 
