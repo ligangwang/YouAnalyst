@@ -12,6 +12,7 @@ export type CompanyIdentity = {
 };
 const normalized = (s: string) => s.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
 const identifierValue = (scheme: string, value: string) => normalized(scheme) === "cik" && /^\d+$/.test(value.trim()) ? value.trim().replace(/^0+(?=\d)/, "") : normalized(value);
+const namesOf = (c: CompanyIdentity) => [c.name, c.legalName, ...(c.aliases ?? [])].filter((s): s is string => !!s).map(normalized);
 const domain = (s?: string) => {
   try { const url = new URL(s ?? ""); return url.protocol === "https:" ? url.hostname.toLowerCase().replace(/^www\./, "") : ""; } catch { return ""; }
 };
@@ -30,10 +31,14 @@ export function matchCompany(proposal: CompanyIdentity, existing: CompanyIdentit
   if (matches.length === 1) {
     const c = matches[0];
     const conflict = (proposal.identifiers ?? []).some(p => (c.identifiers ?? []).some(i => normalized(i.scheme) === normalized(p.scheme) && identifierValue(i.scheme, i.value) !== identifierValue(p.scheme, p.value)));
-    if (conflict || (c.country && proposal.country && c.country !== proposal.country)) return { status: "REVIEW", ids: [c.id], reason: "Identity fields conflict; verify issuer or domicile change" };
+    const proposalNames = namesOf(proposal), currentNames = namesOf(c);
+    const nameConflict = proposalNames.length && currentNames.length && !proposalNames.some(n => currentNames.includes(n));
+    const proposalDomain = domain(proposal.website), currentDomain = domain(c.website);
+    const domainConflict = proposalDomain && currentDomain && proposalDomain !== currentDomain;
+    if (conflict || nameConflict || domainConflict || (c.country && proposal.country && c.country !== proposal.country)) return { status: "REVIEW", ids: [c.id], reason: "Identity fields conflict; verify issuer, name, domain or domicile change" };
     return { status: "EXISTING", ids: [c.id], reason: "Existing ID or official identifier" };
   }
-  const names = new Set([proposal.name, proposal.legalName, ...(proposal.aliases ?? [])].filter((s): s is string => !!s).map(normalized));
+  const names = new Set(namesOf(proposal));
   const host = domain(proposal.website);
   const possible = existing.filter(c => [c.name, c.legalName, ...(c.aliases ?? [])].some(n => n && names.has(normalized(n))) || (host && domain(c.website) === host));
   return possible.length ? { status: "REVIEW", ids: possible.map(c => c.id), reason: "Name or domain overlap requires review" } : { status: "NEW", ids: [], reason: "No matching identity in the checked directory" };

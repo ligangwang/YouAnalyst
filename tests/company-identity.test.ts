@@ -9,6 +9,9 @@ test("reuses issuer across proposal IDs and blocks conflicting identities", () =
   assert.deepEqual(matchCompany({ ...nvidia, id: "ORG:NVIDIA" }, [nvidia]).ids, ["US:NVDA"]);
   assert.equal(matchCompany({ id: "ORG:NVIDIA", name: "NVIDIA", identifiers: [{ scheme: "CIK", value: "0001045810" }] }, [nvidia]).status, "EXISTING");
   assert.equal(matchCompany({ ...nvidia, country: "CN" }, [nvidia]).status, "REVIEW");
+  assert.equal(matchCompany({ ...nvidia, name: "Unrelated company" }, [nvidia]).status, "REVIEW");
+  assert.equal(matchCompany({ ...nvidia, website: "https://unrelated.example" }, [{ ...nvidia, website: "https://nvidia.com" }]).status, "REVIEW");
+  assert.equal(matchCompany({ ...nvidia, name: "Old name" }, [{ ...nvidia, aliases: ["Old name"] }]).status, "EXISTING");
   assert.equal(matchCompany({ ...nvidia, identifiers: [{ scheme: "CIK", value: "999" }] }, [nvidia]).status, "REVIEW");
   assert.equal(matchCompany(nvidia, [nvidia, { ...nvidia, id: "OTHER:NVDA" }]).status, "REVIEW");
 });
