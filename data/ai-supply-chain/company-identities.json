@@ -1,0 +1,3101 @@
+{
+  "asOf": "2026-09-13",
+  "companies": [
+    {
+      "id": "US:AAPL",
+      "expectedName": "Apple Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "AAPL"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000320193.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "ONE APPLE PARK WAY, CUPERTINO, CA, 95014"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 320193; Apple Inc.; AAPL; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:ALAB",
+      "expectedName": "ASTERA LABS INC COMMON STOCK (Ticker: 1ALAB)",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "ALAB"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001736297.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2345 NORTH FIRST STREET, SAN JOSE, CA, 95131"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1736297; Astera Labs, Inc.; ALAB; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:AMAT",
+      "expectedName": "Applied Materials, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "AMAT"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000006951.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "3050 BOWERS AVE, SANTA CLARA, CA, 95054-3299"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 6951; APPLIED MATERIALS INC /DE; AMAT; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:AMD",
+      "expectedName": "Advanced Micro Devices, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "AMD"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000002488.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2485 AUGUSTINE DRIVE, SANTA CLARA, CA, 95054"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 2488; ADVANCED MICRO DEVICES INC; AMD; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:AMKR",
+      "expectedName": "Amkor Technology Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "AMKR"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001047127.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2045 EAST INNOVATION CIRCLE, TEMPE, AZ, 85284"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1047127; AMKOR TECHNOLOGY, INC.; AMKR; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:AMZN",
+      "expectedName": "Amazon.com, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "AMZN"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001018724.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "410 TERRY AVENUE NORTH, SEATTLE, WA, 98109"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1018724; AMAZON COM INC; AMZN; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:ANET",
+      "expectedName": "Arista Networks, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "ANET"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001596532.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "5453 GREAT AMERICA PARKWAY, SANTA CLARA, CA, 95054"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1596532; Arista Networks, Inc.; ANET; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:APH",
+      "expectedName": "Amphenol Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "APH"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000820313.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "358 HALL AVE, WALLINGFORD, CT, 06492"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 820313; AMPHENOL CORP /DE/; APH; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:ARM",
+      "expectedName": "Arm Holdings plc ADR",
+      "country": "GB",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "ARM"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001973239.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "110 FULBOURN ROAD, CAMBRIDGE, United Kingdom, CB1 9NJ"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1973239; ARM HOLDINGS PLC /UK; ARM; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:ASML",
+      "expectedName": "ASML Holding N.V. NY Registered Shares",
+      "country": "NL",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "ASML"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000937966.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "DE RUN 6501, DR VELDHOVEN, Netherlands, 5504"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 937966; ASML HOLDING NV; ASML; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:AVGO",
+      "expectedName": "Broadcom Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "AVGO"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001730168.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "3421 HILLVIEW AVENUE, PALO ALTO, CA, 94304"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1730168; Broadcom Inc.; AVGO; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:BABA",
+      "expectedName": "Alibaba Group Holding Ltd. ADR",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "BABA"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://www.alibabagroup.com/en-US/faqs-corporate-information",
+          "basis": "CORPORATE_CAMPUS",
+          "excerpt": "Alibaba Group corporate campus is located in Yuhang District, Hangzhou, China."
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1577552; Alibaba Group Holding Ltd; BABA; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:BIDU",
+      "expectedName": "Baidu Inc. ADR",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "BIDU"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001329099.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "BAIDU CAMPUS, NO. 10 SHANGDI 10TH STREET, HAIDIAN DISTRICT, BEIJING, China, 100085"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1329099; Baidu, Inc.; BIDU; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:CDNS",
+      "expectedName": "Cadence Design Systems, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "CDNS"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000813672.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2655 SEELY AVENUE BLDG 5, SAN JOSE, CA, 95134"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 813672; CADENCE DESIGN SYSTEMS INC; CDNS; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:CEG",
+      "expectedName": "Constellation Energy Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "CEG"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001868275.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "1310 POINT STREET, BALTIMORE, MD, 21231"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1868275; Constellation Energy Corp; CEG; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:CLS",
+      "expectedName": "Celestica Inc.",
+      "country": "CA",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "CLS"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001030894.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "5140 YONGE STREET, SUITE 1900, TORONTO, Ontario, Canada, M2N 6L7"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1030894; CELESTICA INC; CLS; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:COHR",
+      "expectedName": "Coherent Corp.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "COHR"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000820318.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "375 SAXONBURG BLVD, SAXONBURG, PA, 16056"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 820318; COHERENT CORP.; COHR; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:CRDO",
+      "expectedName": "Credo Technology Group Holding Ltd.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "CRDO"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://credosemi.com/contact-us/",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "110 Rio Robles, San Jose, CA 95134"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1807794; Credo Technology Group Holding Ltd; CRDO; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:CRM",
+      "expectedName": "Salesforce Inc",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "CRM"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001108524.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "SALESFORCE TOWER, 415 MISSION STREET 3RD FL, SAN FRANCISCO, CA, 94105"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1108524; Salesforce, Inc.; CRM; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:CRWV",
+      "expectedName": "CoreWeave, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "CRWV"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001769628.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "290 W. MT. PLEASANT AVENUE, SUITE 4100, LIVINGSTON, NJ, 07039"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1769628; CoreWeave, Inc.; CRWV; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:CSCO",
+      "expectedName": "Cisco Systems, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "CSCO"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000858877.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "170 WEST TASMAN DR, SAN JOSE, CA, 95134-1706"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 858877; CISCO SYSTEMS, INC.; CSCO; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:DDOG",
+      "expectedName": "Datadog, Inc. Class A Common Stock",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "DDOG"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001561550.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "620 EIGHTH AVENUE, 45TH FLOOR, NEW YORK, NY, 10018"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1561550; Datadog, Inc.; DDOG; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:DELL",
+      "expectedName": "Dell Technologies Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "DELL"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001571996.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "ONE DELL WAY, ROUND ROCK, TX, 78682"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1571996; Dell Technologies Inc.; DELL; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:DLR",
+      "expectedName": "Digital Realty",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "DLR"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001297996.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "601 W. 2ND STREET, FLOOR 32, AUSTIN, TX, 78701"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1297996; DIGITAL REALTY TRUST, INC.; DLR; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:DOV",
+      "expectedName": "Dover Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "DOV"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000029905.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "3005 HIGHLAND PARKWAY, SUITE 200, DOWNERS GROVE, IL, 60515"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 29905; DOVER Corp; DOV; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:ENTG",
+      "expectedName": "Entegris, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "ENTG"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001101302.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "129 CONCORD ROAD, BILLERICA, MA, 01821"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1101302; ENTEGRIS INC; ENTG; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:EQIX",
+      "expectedName": "Equinix",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "EQIX"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001101239.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "ONE LAGOON DRIVE, REDWOOD CITY, CA, 94065"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1101239; EQUINIX INC; EQIX; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:ETN",
+      "expectedName": "Eaton Corporation plc",
+      "country": "IE",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "ETN"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001551182.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "30 PEMBROKE ROAD, EATON HOUSE, DUBLIN, Ireland, DUBLIN 4"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1551182; Eaton Corp plc; ETN; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:FLEX",
+      "expectedName": "Flex Ltd.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "FLEX"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000866374.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "12515-8 RESEARCH BLVD, SUITE 300, AUSTIN, TX, 78759"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 866374; FLEX LTD.; FLEX; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:GDS",
+      "expectedName": "GDS Holdings Limited ADR",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "GDS"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001526125.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "F4/F5, BUILDING C, SUNLAND INTERNATIONAL, NO. 999 ZHOUHAI ROAD, PUDONG,, SHANGHAI, China, 200137"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1526125; GDS Holdings Ltd; GDS; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:GEV",
+      "expectedName": "GE Vernova Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "GEV"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001996810.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "58 CHARLES STREET, CAMBRIDGE, MA, 02141"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1996810; GE Vernova Inc.; GEV; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:GFS",
+      "expectedName": "GlobalFoundries Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "GFS"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001709048.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "400 STONEBREAK ROAD EXTENSION, MALTA, NY, 12020"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1709048; GLOBALFOUNDRIES Inc.; GFS; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:GLW",
+      "expectedName": "Corning Incorporated",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "GLW"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000024741.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "ONE RIVERFRONT PLAZA, CORNING, NY, 14831"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 24741; CORNING INC /NY; GLW; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:GOOGL",
+      "expectedName": "Alphabet Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "GOOGL"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001652044.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "1600 AMPHITHEATRE PARKWAY, MOUNTAIN VIEW, CA, 94043"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1652044; Alphabet Inc.; GOOGL; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:HPE",
+      "expectedName": "Hewlett Packard Enterprise Company",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "HPE"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001645590.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "1701 E MOSSY OAKS ROAD, SPRING, TX, 77389"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1645590; Hewlett Packard Enterprise Co; HPE; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:INTC",
+      "expectedName": "Intel Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "INTC"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000050863.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2200 MISSION COLLEGE BLVD, RNB-4-151, SANTA CLARA, CA, 95054"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 50863; INTEL CORP; INTC; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:JBL",
+      "expectedName": "Jabil Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "JBL"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000898293.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "10800 ROOSEVELT BOULEVARD NORTH, ST PETERSBURG, FL, 33716"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 898293; JABIL INC; JBL; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:KLAC",
+      "expectedName": "KLA Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "KLAC"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000319201.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "ONE TECHNOLOGY DRIVE, MILPITAS, CA, 95035"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 319201; KLA CORP; KLAC; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:LIN",
+      "expectedName": "Linde plc",
+      "country": "GB",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "LIN"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001707925.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "FORGE, 43 CHURCH STREET WEST, WOKING SURREY, United Kingdom, GU216HT"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1707925; LINDE PLC; LIN; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:LITE",
+      "expectedName": "Lumentum Holdings Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "LITE"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001633978.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "1001 RIDDER PARK DRIVE, SAN JOSE, CA, 95131"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1633978; Lumentum Holdings Inc.; LITE; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:LRCX",
+      "expectedName": "Lam Research Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "LRCX"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000707549.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "4650 CUSHING BLVD, FREMONT, CA, 94538"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 707549; LAM RESEARCH CORP; LRCX; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:META",
+      "expectedName": "Meta Platforms Inc Class A",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "META"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001326801.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "1 META WAY, MENLO PARK, CA, 94025"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1326801; Meta Platforms, Inc.; META; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:MOD",
+      "expectedName": "Modine Manufacturing Company",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "MOD"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000067347.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "1500 DEKOVEN AVE, RACINE, WI, 53403"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 67347; MODINE MANUFACTURING CO; MOD; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:MRVL",
+      "expectedName": "Marvell Technology, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "MRVL"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001835632.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "1000 N. WEST STREET, SUITE 1200, WILMINGTON, DE, 19801"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1835632; Marvell Technology, Inc.; MRVL; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:MSFT",
+      "expectedName": "Microsoft Corp.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "MSFT"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000789019.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "ONE MICROSOFT WAY, REDMOND, WA, 98052-6399"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 789019; MICROSOFT CORP; MSFT; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:MU",
+      "expectedName": "Micron Technology, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "MU"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000723125.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "8000 S FEDERAL WAY, PO BOX 6, BOISE, ID, 83716-9632"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 723125; MICRON TECHNOLOGY INC; MU; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:NBIS",
+      "expectedName": "Nebius Group N.V.",
+      "country": "NL",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "NBIS"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001513845.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "SCHIPHOL BOULEVARD 165, SCHIPHOL, Netherlands"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1513845; Nebius Group N.V.; NBIS; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:NOW",
+      "expectedName": "ServiceNow, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "NOW"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001373715.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2225 LAWSON LANE, SANTA CLARA, CA, 95054"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1373715; ServiceNow, Inc.; NOW; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:NTAP",
+      "expectedName": "NetApp, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "NTAP"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001002047.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "3060 OLSEN DRIVE, SAN JOSE, CA, 95128"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1002047; NetApp, Inc.; NTAP; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:NVDA",
+      "expectedName": "NVIDIA Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "NVDA"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001045810.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2788 SAN TOMAS EXPRESSWAY, SANTA CLARA, CA, 95051"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1045810; NVIDIA CORP; NVDA; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:NXPI",
+      "expectedName": "NXP Semiconductors N.V.",
+      "country": "NL",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "NXPI"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://www.nxp.com/company/about-nxp/investor-relations/investor-faqs:INVESTORS-FAQS",
+          "basis": "HEADQUARTERS",
+          "excerpt": "NXP is headquartered in Eindhoven, Netherlands."
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1413447; NXP Semiconductors N.V.; NXPI; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:ORCL",
+      "expectedName": "Oracle Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "ORCL"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001341439.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2300 ORACLE WAY, AUSTIN, TX, 78741"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1341439; ORACLE CORP; ORCL; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:P",
+      "expectedName": "Everpure",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "P"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001474432.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "2555 AUGUSTINE DRIVE, SANTA CLARA, CA, 95054"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1474432; Everpure, Inc.; P; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:PLTR",
+      "expectedName": "Palantir Technologies Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "PLTR"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001321655.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "19505 BISCAYNE BOULEVARD, SUITE 2350, AVENTURA, FL, 33180"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1321655; Palantir Technologies Inc.; PLTR; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:QCOM",
+      "expectedName": "QUALCOMM Incorporated",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "QCOM"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000804328.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "5775 MOREHOUSE DR, SAN DIEGO, CA, 92121"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 804328; QUALCOMM INC/DE; QCOM; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:SMCI",
+      "expectedName": "Super Micro Computer Inc",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "SMCI"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001375365.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "980 ROCK AVENUE, SAN JOSE, CA, 95131"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1375365; Super Micro Computer, Inc.; SMCI; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:SNDK",
+      "expectedName": "Sandisk Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "SNDK"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0002023554.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "951 SANDISK DRIVE, MILPITAS, CA, 95035"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 2023554; Sandisk Corp; SNDK; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:SNOW",
+      "expectedName": "Snowflake Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "SNOW"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001640147.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "135 CONSTITUTION DRIVE, MENLO PARK, CA, 94025"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1640147; Snowflake Inc.; SNOW; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:SNPS",
+      "expectedName": "Synopsys, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "SNPS"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000883241.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "675 ALMANOR AVE, SUNNYVALE, CA, 94085"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 883241; SYNOPSYS INC; SNPS; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:STX",
+      "expectedName": "Seagate Technology Holdings plc",
+      "country": "SG",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "STX"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001137789.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "121 WOODLANDS AVENUE 5, SINGAPORE, Singapore, 739009"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1137789; Seagate Technology Holdings plc; STX; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:TSM",
+      "expectedName": "Taiwan Semiconductor Manufacturing Company Ltd. ADR",
+      "country": "TW",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "TSM"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001046179.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "NO. 8, LI-HSIN ROAD 6, HSINCHU SCIENCE PARK, HSINCHU, Taiwan"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1046179; TAIWAN SEMICONDUCTOR MANUFACTURING CO LTD; TSM; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:TT",
+      "expectedName": "Trane Technologies plc",
+      "country": "IE",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "TT"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001466258.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "170/175 LAKEVIEW DRIVE, AIRSIDE BUSINESS PARK, SWORDS,, CO. DUBLIN, Ireland, 00000"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1466258; Trane Technologies plc; TT; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:TTMI",
+      "expectedName": "TTM Technologies, Inc.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "TTMI"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001116942.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "200 EAST SANDPOINTE, SUITE 400, SANTA ANA, CA, 92707"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1116942; TTM TECHNOLOGIES INC; TTMI; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:VNET",
+      "expectedName": "VNET Group, Inc. ADR",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "VNET"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001508475.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "GUANJIE BUILDING, SOUTHEAST 1ST FLOOR, 10# JIUXIANQIAO EAST ROAD, Beijing, China, 100016"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1508475; VNET Group, Inc.; VNET; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "US:VRT",
+      "expectedName": "Vertiv Holdings Co.",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "VRT"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001674101.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "505 N. CLEVELAND AVE., WESTERVILLE, OH, 43082"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1674101; Vertiv Holdings Co; VRT; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:VST",
+      "expectedName": "Vistra Corp",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNYS",
+          "symbol": "VST"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0001692819.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "6555 SIERRA DRIVE, IRVING, TX, 75039"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 1692819; Vistra Corp.; VST; NYSE"
+        }
+      }
+    },
+    {
+      "id": "US:WDC",
+      "expectedName": "Western Digital Corporation",
+      "country": "US",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "US",
+          "exchange": "XNAS",
+          "symbol": "WDC"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://data.sec.gov/submissions/CIK0000106040.json",
+          "basis": "BUSINESS_ADDRESS",
+          "excerpt": "5601 GREAT OAKS PARKWAY, SAN JOSE, CA, 95119"
+        },
+        "listing": {
+          "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+          "excerpt": "CIK 106040; WESTERN DIGITAL CORP; WDC; Nasdaq"
+        }
+      }
+    },
+    {
+      "id": "XSHE:000063",
+      "expectedName": "中兴通讯",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "000063"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://www.zte.com.cn/global/about/corporate_information.html",
+          "basis": "OFFICE",
+          "excerpt": "中国广东省深圳市南山区科技南路中兴通讯大厦"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000063&orgId=gssz0000063",
+          "excerpt": "中兴通讯; 000063; A股; orgId=gssz0000063"
+        }
+      }
+    },
+    {
+      "id": "XSHE:000938",
+      "expectedName": "紫光股份",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "000938"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-15/1225101866.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区清华大学紫光大楼"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000938&orgId=gssz0000938",
+          "excerpt": "紫光股份; 000938; A股; orgId=gssz0000938"
+        }
+      }
+    },
+    {
+      "id": "XSHE:000977",
+      "expectedName": "浪潮信息",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "000977"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-11/1225096638.PDF",
+          "basis": "OFFICE",
+          "excerpt": "山东省济南市高新区草山岭南路 801 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000977&orgId=gssz0000977",
+          "excerpt": "浪潮信息; 000977; A股; orgId=gssz0000977"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002138",
+      "expectedName": "顺络电子",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002138"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-02-28/1224988769.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市龙华区观澜街道大富苑工业区顺络观澜工业园"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002138&orgId=9900003163",
+          "excerpt": "顺络电子; 002138; A股; orgId=9900003163"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002156",
+      "expectedName": "通富微电",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002156"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-17/1225112762.PDF",
+          "basis": "OFFICE",
+          "excerpt": "江苏省南通市崇川路 288 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002156&orgId=9900003427",
+          "excerpt": "通富微电; 002156; A股; orgId=9900003427"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002185",
+      "expectedName": "华天科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002185"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225059982.PDF",
+          "basis": "OFFICE",
+          "excerpt": "甘肃省天水市秦州区天水郡街道秦州大道 360 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002185&orgId=9900003862",
+          "excerpt": "华天科技; 002185; A股; orgId=9900003862"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002230",
+      "expectedName": "科大讯飞",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002230"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-29/1225233581.PDF",
+          "basis": "OFFICE",
+          "excerpt": "合肥市高新开发区望江西路 666 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002230&orgId=9900004565",
+          "excerpt": "科大讯飞; 002230; A股; orgId=9900004565"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002281",
+      "expectedName": "光迅科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002281"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-23/1225148212.PDF",
+          "basis": "OFFICE",
+          "excerpt": "湖北省武汉市江夏区藏龙岛开发区潭湖路 1 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002281&orgId=9900007888",
+          "excerpt": "光迅科技; 002281; A股; orgId=9900007888"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002335",
+      "expectedName": "科华数据",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002335"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225194937.PDF",
+          "basis": "OFFICE",
+          "excerpt": "福建省厦门火炬高新区火炬园马垄路 457 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002335&orgId=9900010032",
+          "excerpt": "科华数据; 002335; A股; orgId=9900010032"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002371",
+      "expectedName": "北方华创",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002371"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-18/1225122918.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市北京经济技术开发区文昌大道 8 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002371&orgId=9900006137",
+          "excerpt": "北方华创; 002371; A股; orgId=9900006137"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002463",
+      "expectedName": "沪电股份",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002463"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-03-25/1225027832.PDF",
+          "basis": "OFFICE",
+          "excerpt": "江苏省昆山市玉山镇东龙路 1 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002463&orgId=9900013929",
+          "excerpt": "沪电股份; 002463; A股; orgId=9900013929"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002518",
+      "expectedName": "科士达",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002518"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225189515.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市南山区高新北区科技中二路软件园 1 栋4 楼401、402 室"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002518&orgId=9900016209",
+          "excerpt": "科士达; 002518; A股; orgId=9900016209"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002837",
+      "expectedName": "英维克",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002837"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-21/1225131813.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市龙华区观澜街道观光路 1303 号鸿信工业园 9 号厂房 1-3 楼"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002837&orgId=9900029666",
+          "excerpt": "英维克; 002837; A股; orgId=9900029666"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002916",
+      "expectedName": "深南电路",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002916"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-03-13/1225006760.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市龙岗区坪地街道盐龙大道 1639 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002916&orgId=9900022488",
+          "excerpt": "深南电路; 002916; A股; orgId=9900022488"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002938",
+      "expectedName": "鹏鼎控股",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "002938"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225062281.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市宝安区新安街道海滨社区海秀路2038号鹏鼎时代大厦A座27层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002938&orgId=9900036236",
+          "excerpt": "鹏鼎控股; 002938; A股; orgId=9900036236"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300308",
+      "expectedName": "中际旭创",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300308"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225056459.PDF",
+          "basis": "OFFICE",
+          "excerpt": "山东省龙口市诸由观镇驻地"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300308&orgId=9900022016",
+          "excerpt": "中际旭创; 300308; A股; orgId=9900022016"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300346",
+      "expectedName": "南大光电",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300346"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-10/1225087469.PDF",
+          "basis": "OFFICE",
+          "excerpt": "苏州工业园区胜浦平胜路 67 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300346&orgId=9900022326",
+          "excerpt": "南大光电; 300346; A股; orgId=9900022326"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300383",
+      "expectedName": "光环新网",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300383"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-29/1225233869.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市东城区东中街 9 号东环广场 A 座三层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300383&orgId=9900022357",
+          "excerpt": "光环新网; 300383; A股; orgId=9900022357"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300394",
+      "expectedName": "天孚通信",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300394"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-08/1225082705.PDF",
+          "basis": "OFFICE",
+          "excerpt": "苏州高新区长江路 695 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300394&orgId=9900023911",
+          "excerpt": "天孚通信; 300394; A股; orgId=9900023911"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300442",
+      "expectedName": "润泽科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300442"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-10/1225090821.PDF",
+          "basis": "OFFICE",
+          "excerpt": "河北省廊坊经济技术开发区楼庄路 9 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300442&orgId=9900023826",
+          "excerpt": "润泽科技; 300442; A股; orgId=9900023826"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300474",
+      "expectedName": "景嘉微",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300474"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225166816.PDF",
+          "basis": "OFFICE",
+          "excerpt": "长沙市岳麓区梅溪湖路 1 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300474&orgId=9900026649",
+          "excerpt": "景嘉微; 300474; A股; orgId=9900026649"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300476",
+      "expectedName": "胜宏科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300476"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-03-13/1225007455.PDF",
+          "basis": "OFFICE",
+          "excerpt": "惠州市惠阳区淡水镇新桥村行诚科技园"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300476&orgId=9900024582",
+          "excerpt": "胜宏科技; 300476; A股; orgId=9900024582"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300499",
+      "expectedName": "高澜股份",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300499"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225160679.PDF",
+          "basis": "OFFICE",
+          "excerpt": "广州市高新技术产业开发区科学城南云五路 3 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300499&orgId=9900023095",
+          "excerpt": "高澜股份; 300499; A股; orgId=9900023095"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300502",
+      "expectedName": "新易盛",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300502"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225172598.PDF",
+          "basis": "OFFICE",
+          "excerpt": "中国(四川)自由贸易试验区成都市双流区黄甲街道物联大道 510 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300502&orgId=9900026455",
+          "excerpt": "新易盛; 300502; A股; orgId=9900026455"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300666",
+      "expectedName": "江丰电子",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "300666"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225500171.PDF",
+          "basis": "OFFICE",
+          "excerpt": "浙江省余姚市经济开发区名邦科技工业园区安山路"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300666&orgId=9900031914",
+          "excerpt": "江丰电子; 300666; A股; orgId=9900031914"
+        }
+      }
+    },
+    {
+      "id": "XSHE:301018",
+      "expectedName": "申菱环境",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "301018"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225181199.PDF",
+          "basis": "OFFICE",
+          "excerpt": "佛山市顺德区杏坛镇高新区顺业东路 29 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301018&orgId=9900035574",
+          "excerpt": "申菱环境; 301018; A股; orgId=9900035574"
+        }
+      }
+    },
+    {
+      "id": "XSHE:301165",
+      "expectedName": "锐捷网络",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "301165"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-03-28/1225040067.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区复兴路 29 号东塔 A 座 11 层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301165&orgId=nssc1000760",
+          "excerpt": "锐捷网络; 301165; A股; orgId=nssc1000760"
+        }
+      }
+    },
+    {
+      "id": "XSHE:301269",
+      "expectedName": "华大九天",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "301269"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225217315.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市朝阳区利泽中二路 2 号A 座二层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301269&orgId=9900048778",
+          "excerpt": "华大九天; 301269; A股; orgId=9900048778"
+        }
+      }
+    },
+    {
+      "id": "XSHE:301308",
+      "expectedName": "江波龙",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHE",
+          "symbol": "301308"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225214128.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市前海深港合作区南山街道听海大道 5059 号鸿荣源前海金融中心二期 B 座 2001、 2201、2301"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301308&orgId=9900048787",
+          "excerpt": "江波龙; 301308; A股; orgId=9900048787"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600050",
+      "expectedName": "中国联通",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "600050"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480058.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市西城区金融大街 21 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600050&orgId=gssh0600050",
+          "excerpt": "中国联通; 600050; A股; orgId=gssh0600050"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600183",
+      "expectedName": "生益科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "600183"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-15/1225475783.PDF",
+          "basis": "OFFICE",
+          "excerpt": "广东省东莞市松山湖园区工业西路 5 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600183&orgId=gssh0600183",
+          "excerpt": "生益科技; 600183; A股; orgId=gssh0600183"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600584",
+      "expectedName": "长电科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "600584"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225487900.PDF",
+          "basis": "OFFICE",
+          "excerpt": "江苏省江阴市滨江中路275号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600584&orgId=gssh0600584",
+          "excerpt": "长电科技; 600584; A股; orgId=gssh0600584"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600588",
+      "expectedName": "用友网络",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "600588"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225490345.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区北清路 68 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600588&orgId=gssh0600588",
+          "excerpt": "用友网络; 600588; A股; orgId=gssh0600588"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600941",
+      "expectedName": "中国移动",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "600941"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-14/1225472195.PDF",
+          "basis": "OFFICE",
+          "excerpt": "中国北京市西城区金融大街29号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600941&orgId=gshk0000941",
+          "excerpt": "中国移动; 600941; A股; orgId=gshk0000941"
+        }
+      }
+    },
+    {
+      "id": "XSHG:601138",
+      "expectedName": "工业富联",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "601138"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-12/1225468066.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市龙华区龙华街道东环二路二号富士康科技园 C1 栋二层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=601138&orgId=9900036731",
+          "excerpt": "工业富联; 601138; A股; orgId=9900036731"
+        }
+      }
+    },
+    {
+      "id": "XSHG:601728",
+      "expectedName": "中国电信",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "601728"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484689.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市西城区金融大街31号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=601728&orgId=gshk0000728",
+          "excerpt": "中国电信; 601728; A股; orgId=gshk0000728"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603019",
+      "expectedName": "中科曙光",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "603019"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225507613.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区东北旺西路8号院36号楼"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603019&orgId=9900023134",
+          "excerpt": "中科曙光; 603019; A股; orgId=9900023134"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603160",
+      "expectedName": "汇顶科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "603160"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484729.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市福田区梅康路1号汇顶科技总部大厦26楼"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603160&orgId=9900027319",
+          "excerpt": "汇顶科技; 603160; A股; orgId=9900027319"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603296",
+      "expectedName": "华勤技术",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "603296"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225502465.PDF",
+          "basis": "OFFICE",
+          "excerpt": "上海市浦东新区绿科路699号华勤全球研发中心"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603296&orgId=9900047877",
+          "excerpt": "华勤技术; 603296; A股; orgId=9900047877"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603501",
+      "expectedName": "豪威集团",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "603501"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225498523.PDF",
+          "basis": "OFFICE",
+          "excerpt": "上海市浦东新区上科路88号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603501&orgId=9900030772",
+          "excerpt": "豪威集团; 603501; A股; orgId=9900030772"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603881",
+      "expectedName": "数据港",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "603881"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491195.PDF",
+          "basis": "OFFICE",
+          "excerpt": "上海市静安区江场路1401弄14号1601室"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603881&orgId=9900029913",
+          "excerpt": "数据港; 603881; A股; orgId=9900029913"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603986",
+      "expectedName": "兆易创新",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "603986"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480384.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区丰豪东路9号院中关村集成电路设计园8 号楼"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603986&orgId=9900026561",
+          "excerpt": "兆易创新; 603986; A股; orgId=9900026561"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688008",
+      "expectedName": "澜起科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688008"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225530486.PDF",
+          "basis": "OFFICE",
+          "excerpt": "上海市徐汇区漕宝路 181 号和光天地 16 层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688008&orgId=9900039002",
+          "excerpt": "澜起科技; 688008; A股; orgId=9900039002"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688012",
+      "expectedName": "中微公司",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688012"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482884.PDF",
+          "basis": "OFFICE",
+          "excerpt": "上海市浦东新区金桥综合保税区泰华路 188 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688012&orgId=9900038991",
+          "excerpt": "中微公司; 688012; A股; orgId=9900038991"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688018",
+      "expectedName": "乐鑫科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688018"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-07-31/1225448878.PDF",
+          "basis": "OFFICE",
+          "excerpt": "上海市浦东新区御北路 235 弄 3 号楼 1-7 层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688018&orgId=9900039017",
+          "excerpt": "乐鑫科技; 688018; A股; orgId=9900039017"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688036",
+      "expectedName": "传音控股",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688036"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-03-28/1225047544.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市南山区西丽街道西丽社区仙元路 8 号传音大厦"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688036&orgId=9900038988",
+          "excerpt": "传音控股; 688036; A股; orgId=9900038988"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688041",
+      "expectedName": "海光信息",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688041"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-14/1225472510.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区东北旺西路8号中关村软件园27号楼C座4-5层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688041&orgId=9900048365",
+          "excerpt": "海光信息; 688041; A股; orgId=9900048365"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688047",
+      "expectedName": "龙芯中科",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688047"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225524354.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区中关村环保科技示范园区龙芯产业园 2 号楼"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688047&orgId=9900048052",
+          "excerpt": "龙芯中科; 688047; A股; orgId=9900048052"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688072",
+      "expectedName": "拓荆科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688072"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225222226.PDF",
+          "basis": "OFFICE",
+          "excerpt": "辽宁省沈阳市浑南区水家 900 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688072&orgId=9900048695",
+          "excerpt": "拓荆科技; 688072; A股; orgId=9900048695"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688111",
+      "expectedName": "金山办公",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688111"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482678.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区小营西路33号金山软件大厦"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688111&orgId=9900035303",
+          "excerpt": "金山办公; 688111; A股; orgId=9900035303"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688120",
+      "expectedName": "华海清科",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688120"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491095.PDF",
+          "basis": "OFFICE",
+          "excerpt": "天津市津南区咸水沽镇聚兴道 11 号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688120&orgId=9900044315",
+          "excerpt": "华海清科; 688120; A股; orgId=9900044315"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688126",
+      "expectedName": "沪硅产业",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688126"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225483472.PDF",
+          "basis": "OFFICE",
+          "excerpt": "中国（上海）自由贸易试验区临港新片区云水路1000号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688126&orgId=9900039304",
+          "excerpt": "沪硅产业; 688126; A股; orgId=9900039304"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688206",
+      "expectedName": "概伦电子",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688206"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225514208.PDF",
+          "basis": "OFFICE",
+          "excerpt": "上海市浦东新区银冬路20弄集鼎天地3号楼17层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688206&orgId=9900048370",
+          "excerpt": "概伦电子; 688206; A股; orgId=9900048370"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688256",
+      "expectedName": "寒武纪",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688256"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-08/1225464969.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市海淀区知春路7号致真大厦D座5层、11-13层、 15-16层、21层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688256&orgId=nssc1000595",
+          "excerpt": "寒武纪; 688256; A股; orgId=nssc1000595"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688347",
+      "expectedName": "华虹公司",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688347"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225514149.PDF",
+          "basis": "OFFICE",
+          "excerpt": "中国上海市浦东新区哈雷路288号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688347&orgId=9900029531",
+          "excerpt": "华虹宏力; 688347; A股; orgId=9900029531"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688498",
+      "expectedName": "源杰科技",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688498"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225527905.PDF",
+          "basis": "OFFICE",
+          "excerpt": "陕西省西咸新区沣西新城开元路1265号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688498&orgId=9900052124",
+          "excerpt": "源杰科技; 688498; A股; orgId=9900052124"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688521",
+      "expectedName": "芯原股份",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688521"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-18/1225478749.PDF",
+          "basis": "OFFICE",
+          "excerpt": "中国（上海）自由贸易试验区春晓路289号张江大厦20A"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688521&orgId=9900040648",
+          "excerpt": "芯原股份; 688521; A股; orgId=9900040648"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688525",
+      "expectedName": "佰维存储",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688525"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225497235.PDF",
+          "basis": "OFFICE",
+          "excerpt": "深圳市南山区桃源街道平山社区留仙大道1213号众冠红花岭工 业南区2区4、8栋1层-3层及4栋4层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688525&orgId=9900047412",
+          "excerpt": "佰维存储; 688525; A股; orgId=9900047412"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688766",
+      "expectedName": "普冉股份",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688766"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480536.PDF",
+          "basis": "OFFICE",
+          "excerpt": "中国（上海）自由贸易试验区银冬路20弄8号楼"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688766&orgId=nssc1000720",
+          "excerpt": "普冉股份; 688766; A股; orgId=nssc1000720"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688795",
+      "expectedName": "摩尔线程",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688795"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-10/1225465335.PDF",
+          "basis": "OFFICE",
+          "excerpt": "北京市朝阳区望京东路6号望京国际研发园I座3层"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688795&orgId=9900063221",
+          "excerpt": "摩尔线程; 688795; A股; orgId=9900063221"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688802",
+      "expectedName": "沐曦股份",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688802"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-31/1225535168.PDF",
+          "basis": "OFFICE",
+          "excerpt": "上海市浦东新区海科路999弄C8栋"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688802&orgId=9900063219",
+          "excerpt": "沐曦股份; 688802; A股; orgId=9900063219"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688981",
+      "expectedName": "中芯国际",
+      "country": "CN",
+      "listingStatus": "PUBLIC",
+      "listings": [
+        {
+          "market": "CN_A",
+          "exchange": "XSHG",
+          "symbol": "688981"
+        }
+      ],
+      "evidence": {
+        "country": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225520297.PDF",
+          "basis": "OFFICE",
+          "excerpt": "中国上海市浦东新区张江路18号"
+        },
+        "listing": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688981&orgId=gshk0000981",
+          "excerpt": "中芯国际; 688981; A股; orgId=gshk0000981"
+        }
+      }
+    }
+  ]
+}
