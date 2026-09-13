@@ -301,8 +301,8 @@ export function SiteNav() {
             <LanguageSwitch />
             <Link
               href="/companies"
-              className="hidden rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 lg:inline-flex"
-            >{t("Search companies")}</Link>
+              className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-400/35 px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-cyan-100 hover:bg-cyan-500/15 lg:inline-flex"
+            ><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>{t("Search")}</Link>
             {loading ? (
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-700" />
             ) : user ? (
