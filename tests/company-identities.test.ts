@@ -34,6 +34,7 @@ test("identity preview is read-only; write preserves profiles, graph data and ex
   const batch = await fixture(), { db, records, modes } = database(batch);
   const extra = { market: "HK", exchange: "XHKG", symbol: "9988" };
   records.get("US:BABA")!.listings = [extra];
+  for (const c of batch.companies) if (c.expectedCountry) records.get(c.id)!.country = c.expectedCountry;
   const before = structuredClone(records);
   await publishIdentities(db, batch); assert.deepEqual(records, before); assert.deepEqual(modes, [true]);
   await publishIdentities(db, batch, true);
