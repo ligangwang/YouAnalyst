@@ -96,16 +96,11 @@ test("devices without WebGL show an honest message without a mode switch", async
   await expect(page.getByRole("button", {name:/2D|3D/})).toHaveCount(0);
 });
 
-test("market filters, search and company research links work in Chinese", async ({page}) => {
+test("global search and company research links work in Chinese", async ({page}) => {
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({json:graph}) : route.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=zh-CN");
   await expect(page.locator('span[role="status"]')).toContainText("129");
-  await page.getByRole("button",{name:"美股",exact:true}).click();
-  await expect(page.locator('span[role="status"]')).toContainText("62");
-  await page.getByRole("button",{name:"A 股",exact:true}).click();
-  await page.getByRole("button",{name:"全球及非上市",exact:true}).click();
-  await expect(page.getByText("开启一个市场以查看公司。")).toBeVisible();
-  await page.getByRole("button",{name:"美股",exact:true}).click();
+  await expect(page.getByRole("button", { name: /^(美股|A 股|全球及非上市)$/ })).toHaveCount(0);
   await page.getByRole("textbox",{name:"搜索公司"}).fill("NVDA");
   await page.getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
   await expect(page.getByRole("heading",{name:"NVIDIA",exact:true})).toBeVisible();
@@ -127,16 +122,16 @@ test("failed graph loads can retry", async ({page}) => {
   await expect(page.locator("canvas")).toBeVisible();
 });
 
-test("global company details distinguish country from listings and filters survive reload", async ({ page }) => {
+test("global company details remain available with legacy market filters", async ({ page }) => {
   const globalGraph: KnowledgeGraph = { ...graph, nodes: [...graph.nodes, { id: "ORG:LAB", kind: "COMPANY", name: "Independent Lab", symbol: "", market: "GLOBAL", country: "FR", listingStatus: "PRIVATE", listings: [], stageIds: ["cloud"], order: 150, sourceIds: [] }] };
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: globalGraph }) : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("http://graph.test/map?lang=en&graphMarkets=GLOBAL");
-  await expect(page.locator('span[role="status"]')).toContainText("1 companies");
+  await expect(page.locator('span[role="status"]')).toContainText("130 companies");
+  await page.getByRole("textbox", { name: "Search companies" }).fill("Independent Lab");
   await page.getByRole("button", { name: /Independent Lab/ }).click();
   await expect(page.getByRole("complementary")).toContainText("France · Private");
   await expect(page.getByRole("link", { name: "Company profile →" })).toHaveAttribute("href", "/company/ORG%3ALAB");
-  await page.getByRole("button", { name: "US stocks", exact: true }).click();
   await page.reload();
-  await expect(page.locator('span[role="status"]')).toContainText("68 companies");
-  await expect(page.getByRole("button", { name: "A-shares", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator('span[role="status"]')).toContainText("130 companies");
+  await expect(page.getByRole("button", { name: /^(US stocks|A-shares|Global & private)$/ })).toHaveCount(0);
 });

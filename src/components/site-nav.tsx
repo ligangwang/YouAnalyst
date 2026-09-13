@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
-const navigationChinese: Record<string, string> = {"Feed":"动态","Explore":"探索","Calls":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
+const navigationChinese: Record<string, string> = {"Feed":"动态","Explore":"探索","Calls":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
 function useNavText() { const { chinese } = useLocale(); return (value: string) => chinese ? navigationChinese[value] ?? value : value; }
 
 function initials(name: string | null | undefined, email: string | null | undefined): string {
@@ -301,8 +301,8 @@ export function SiteNav() {
             <LanguageSwitch />
             <Link
               href="/companies"
-              className="hidden rounded-lg bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-cyan-400 lg:inline-flex"
-            >{t("Search companies")}</Link>
+              className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-400/35 px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-cyan-100 hover:bg-cyan-500/15 lg:inline-flex"
+            ><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>{t("Search")}</Link>
             {loading ? (
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-700" />
             ) : user ? (
@@ -323,7 +323,7 @@ export function SiteNav() {
             <summary className="cursor-pointer rounded-lg px-3 py-3">{t("More")}</summary>
             <div className="absolute right-0 z-50 mt-2 grid w-56 rounded-xl border border-white/15 bg-slate-950 p-2 shadow-xl"
               onClick={event => { if ((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
-              {[{ href: "/map", label: "Explore company map" }, { href: "/map?market=CN_A", label: "AI supply chain" }, { href: "/predictions", label: "Calls" }, { href: "/predictions/new", label: "Make a prediction" },
+              {[{ href: "/map", label: "AI Industry Map" }, { href: "/predictions", label: "Calls" }, { href: "/predictions/new", label: "Make a prediction" },
                 { href: "/institutions", label: "Institutions" }, ...dailyNavItems, { href: "/how-it-works", label: "How it works" },
                 ...(showAdminLink ? [{ href: "/admin", label: "Admin" }] : [])].map(item =>
                 <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3 hover:bg-white/10">{t(item.label)}</Link>)}

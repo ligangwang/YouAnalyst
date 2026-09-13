@@ -3,13 +3,10 @@
 .eyebrow { color: #82cddd; letter-spacing: .12em; font-size: 11px; font-weight: 500; }
 .header h1 { font-size: clamp(28px, 3vw, 40px); font-weight: 500; letter-spacing: -.04em; margin: 8px 0; }
 .header p:not(.eyebrow), .date { color: #9aaec5; font-size: 14px; }
-.controls, .markets, .zoom, .legend { display: flex; align-items: center; gap: 10px; }
-.markets { flex-wrap: wrap; max-width: 100%; }
+.controls, .zoom, .legend { display: flex; align-items: center; gap: 10px; }
 .controls { flex-wrap: wrap; padding: 12px; background: #0d1727; border: 1px solid #26334a; border-radius: 18px; }
 .page button { cursor: pointer; }
 .controls button, .clear, .empty button { border: 1px solid #304057; border-radius: 24px; padding: 10px 14px; background: #111e30; color: #bacbdd; white-space: nowrap; min-height: 40px; }
-.controls button[aria-pressed=true] { background: #1b3041; border-color: #537487; color: #f1f7fb; }
-.controls button:disabled { opacity: .3; cursor: default; }
 .controls input { flex: 1; min-width: 160px; border: 1px solid #304057; border-radius: 24px; background: #080f1e; padding: 11px 16px; color: #e2ecf3; font-size: 14px; }
 .zoom output { width: 42px; text-align: center; color: #b5c7db; font-size: 12px; font-variant-numeric: tabular-nums; }
 .zoom { flex-wrap: wrap; max-width: 100%; justify-content: flex-end; }
