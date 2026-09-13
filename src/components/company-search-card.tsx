@@ -40,7 +40,7 @@ export function CompanySearchCard() {
     if (selectedTicker?.symbol) {
       setError(null);
       startTransition(() => {
-        router.push(companyPageUrl(selectedTicker.symbol, selectedTicker.market));
+        router.push(companyPageUrl(selectedTicker.market === "GLOBAL" ? selectedTicker.id : selectedTicker.symbol, selectedTicker.market));
       });
       return;
     }

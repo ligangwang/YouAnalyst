@@ -15,7 +15,7 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
     const rows = companies.docs.map(d => ({ ...d.data(), id: d.id }) as MarketCompany);
     const ids = new Set(rows.map(c => c.id));
     const relationships = edges.docs.map(d => ({ ...d.data(), id: d.id }) as MarketRelationship);
-    const neighbors = [...new Set(relationships.filter(r => ids.has(r.source) || ids.has(r.target)).flatMap(r => [r.source, r.target]))].filter(id => !ids.has(id) && /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(id));
+    const neighbors = [...new Set(relationships.filter(r => ids.has(r.source) || ids.has(r.target)).flatMap(r => [r.source, r.target]))].filter(id => !ids.has(id) && /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id));
     for (let i = 0; i < neighbors.length; i += 200) {
       const profiles = await db.getAll(...neighbors.slice(i, i + 200).map(id => db.collection("companies").doc(id)));
       rows.push(...profiles.filter(d => d.exists).map(d => ({ ...d.data(), id: d.id }) as MarketCompany));

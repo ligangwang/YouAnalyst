@@ -5,6 +5,7 @@ import { useLocale } from "./providers/locale-provider";
 import { filterGraph, type KnowledgeGraph, type Market } from "@/lib/knowledge-graph/model";
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
+import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import styles from "./ai-knowledge-graph.module.css";
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
@@ -13,13 +14,15 @@ const relationLabels: Record<string, [string, string]> = {
   COMPETES_WITH: ["Competitor", "竞争对手"], CUSTOMER_OF: ["Customer", "客户"], PARTICIPATES_IN: ["Industry role", "产业归属"], SUPPLIER_OF: ["Supplies", "供应"], PARTNER_OF: ["Partner", "合作伙伴"], ECOSYSTEM_PARTNER_OF: ["Ecosystem partner", "生态伙伴"], INTEGRATES_TECHNOLOGY_FROM: ["Integrates technology from", "集成其技术"], PLANNED_ADOPTER_OF: ["Planned adoption", "计划采用"], ENERGY_AGREEMENT_WITH: ["Energy agreement", "能源协议"],
 };
 export function AiKnowledgeGraph({ initialMarket = "ALL", initialCompany = "", initialQuery = "" }: { initialMarket?: "ALL" | "NONE" | Market; initialCompany?: string; initialQuery?: string }) {
-  const { text } = useLocale();
+  const { text, locale } = useLocale();
   const [graph, setGraph] = useState(EMPTY);
   const [status, setStatus] = useState("loading");
   const [retry, setRetry] = useState(0);
-  const [markets, setMarkets] = useState<Market[]>(initialMarket === "ALL" ? ["US", "CN_A"] : initialMarket === "NONE" ? [] : [initialMarket]);
+  const [markets, setMarkets] = useState<Market[]>(initialMarket === "ALL" ? ["US", "CN_A", "GLOBAL"] : initialMarket === "NONE" ? [] : [initialMarket]);
   useEffect(() => {
-    const next: Market[] = initialMarket === "ALL" ? ["US", "CN_A"] : initialMarket === "NONE" ? [] : [initialMarket];
+    let next: Market[] = initialMarket === "ALL" ? ["US", "CN_A", "GLOBAL"] : initialMarket === "NONE" ? [] : [initialMarket];
+    const explicit = new URL(window.location.href).searchParams.get("graphMarkets");
+    if (explicit !== null) next = explicit.split(",").filter((m): m is Market => ["US", "CN_A", "GLOBAL"].includes(m));
     queueMicrotask(() => setMarkets(current => current.length === next.length && current.every(m => next.includes(m)) ? current : next));
   }, [initialMarket]);
   const [query, setQuery] = useState(initialQuery);
@@ -39,8 +42,9 @@ export function AiKnowledgeGraph({ initialMarket = "ALL", initialCompany = "", i
     const next = markets.includes(market) ? markets.filter(m => m !== market) : [...markets, market];
     setMarkets(next);
     const url = new URL(window.location.href);
-    if (next.length === 2) url.searchParams.delete("market");
-    else url.searchParams.set("market", next[0] ?? "NONE");
+    url.searchParams.set("graphMarkets", next.join(","));
+    if (next.length === 3) url.searchParams.delete("market");
+    else url.searchParams.set("market", next.length > 1 ? "ALL" : next[0] ?? "NONE");
     window.history.replaceState(null, "", url);
   }
   function selectCompany(id: string) {
@@ -61,7 +65,7 @@ export function AiKnowledgeGraph({ initialMarket = "ALL", initialCompany = "", i
     {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !visible.nodes.length ? <p className={styles.empty}>{!markets.length ? text("Turn on a market to explore its companies.", "开启一个市场以查看公司。") : text("No matching companies.", "没有匹配的公司。")}</p> : <div className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
       <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D graph={visible} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setReset(n => n + 1); }}/></Suspense>
       {company && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>
-        <><button className={styles.clear} onClick={() => selectCompany("")}>{text("Clear selection", "取消选择")} ×</button><p className={styles.eyebrow}>{company.symbol}</p><h2>{company.name}</h2><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a><p className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</p><p>{company.summary}</p>{company.market === "US" && <a className={styles.profileLink} href={`/map?view=filings&company=${encodeURIComponent(company.symbol ?? "")}`}>{text("Filing explorer", "财报关系探索")} →</a>}<div className={styles.sources}>{sourceLinks(company.sourceIds ?? [])}</div><h3>{text("Connections & roles", "关系与产业归属")}</h3>{relations.map(e => <article key={e.id}><span>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}{e.commercialStatus === "ANNOUNCED" ? text(" · Announced", " · 已宣布") : ""}</span><strong>{label(e.source)} → {label(e.target)}</strong><p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div></article>)}</>
+        <><button className={styles.clear} onClick={() => selectCompany("")}>{text("Clear selection", "取消选择")} ×</button><p className={styles.eyebrow}>{company.symbol}</p><h2>{company.name}</h2><p>{companyGeographyLabel(company, locale)}</p><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a><p className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</p><p>{company.summary}</p>{company.market === "US" && <a className={styles.profileLink} href={`/map?view=filings&company=${encodeURIComponent(company.symbol ?? "")}`}>{text("Filing explorer", "财报关系探索")} →</a>}<div className={styles.sources}>{sourceLinks(company.sourceIds ?? [])}</div><h3>{text("Connections & roles", "关系与产业归属")}</h3>{relations.map(e => <article key={e.id}><span>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}{e.commercialStatus === "ANNOUNCED" ? text(" · Announced", " · 已宣布") : ""}</span><strong>{label(e.source)} → {label(e.target)}</strong><p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div></article>)}</>
       </aside>}
     </div>}
   </main>;

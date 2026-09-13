@@ -109,7 +109,7 @@ function scoreInstitution(item: InstitutionSearchItem, query: string): number {
 }
 
 function toSearchItem(id: string, data: TickerDocument) {
-  const symbol = readString(data.symbol);
+  const symbol = readString(data.symbol) ?? (data.market === "GLOBAL" ? id : null);
   const name = readString(data.name);
 
   if (!symbol || !name) {
