@@ -48,8 +48,9 @@ publishing a relationship claim.
 
 The current 129-company seed is not a complete global inventory. Global
 expansion needs both identity resolution and fresh source review. The first
-three proposals are identity probes, not published additions or confirmed
-listing-status claims:
+three proposals were checked against 23,997 live company records on September
+13, 2026: no existing or ambiguous matches were found. The sourced first batch
+is in `data/ai-supply-chain/global-research.json`:
 
 - OpenAI Group PBC: [official structure](https://openai.com/our-structure/).
 - Anthropic: [company information](https://www.anthropic.com/company).
@@ -58,3 +59,28 @@ listing-status claims:
 Company identity, publication eligibility, and relationship evidence are three
 separate checks. Existing sources do not prove every relationship is still
 active; retain announcement/source dates and review changes explicitly.
+
+## Publish a reviewed batch
+
+The manual **Publish reviewed global AI research** workflow runs only from
+main, using the production environment. First choose `preview` to inspect
+resolved company IDs and canonical relationship IDs. Choose `write` after
+reviewing the data PR. Both operations recheck current identities; all writes
+are atomic and use only `companies` and `company_relationships`.
+
+The publisher preserves existing profile values and editorial decisions,
+including withdrawn relationships, and deduplicates appended evidence.
+It is an additive publisher, not an automatic correction tool. Existing
+profile corrections require explicit review. Graph caches can take five
+minutes to refresh after publication.
+
+The first batch has three companies and five relationships. Company
+announcements support every relationship. Forge corroborates private listing
+status; its generic IPO-filing FAQ text is stale and is not used. Issuer S-1
+announcements take precedence for filing dates. OpenAI's home jurisdiction
+also uses Harvard Business Services' incorporation report.
+
+The existing seed's structural audit found 33 of 129 companies with business
+connections and 96 with sector membership only. This does not freshly verify
+the 31 older connections or make the global map exhaustive. Continue reviewing
+those sources and global public/private participants by industry stage.

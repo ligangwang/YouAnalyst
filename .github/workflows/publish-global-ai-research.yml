@@ -1,0 +1,40 @@
+name: Publish reviewed global AI research
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Preview identity resolution or publish the reviewed batch
+        type: choice
+        options: [preview, write]
+        default: preview
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: global-ai-research-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test tests/company-identity.test.ts tests/global-research.test.ts
+      - run: npx tsx scripts/publish-global-ai-research.ts --validate
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Resolve identities and process reviewed research
+        run: |
+          case "$OPERATION" in preview|write) ;; *) exit 1 ;; esac
+          npx tsx scripts/publish-global-ai-research.ts "--$OPERATION"
