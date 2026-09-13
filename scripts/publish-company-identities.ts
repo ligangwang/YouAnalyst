@@ -8,7 +8,7 @@ import type { CompanyListing } from "../src/lib/market-companies/identity";
 
 type Evidence = { url: string; excerpt: string; basis?: string };
 export type IdentityBatch = { asOf: string; companies: {
-  id: string; expectedName: string; country: string; listingStatus: "PUBLIC";
+  id: string; expectedName: string; expectedCountry?: string; country: string; listingStatus: "PUBLIC";
   listings: CompanyListing[]; evidence: { country: Evidence; listing: Evidence };
 }[] };
 export function validateIdentities(batch: IdentityBatch) {
@@ -18,6 +18,7 @@ export function validateIdentities(batch: IdentityBatch) {
   for (const c of batch.companies) {
     assert(/^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(c.id) && c.expectedName.trim(), "Invalid identity");
     assert(/^[A-Z]{2}$/.test(c.country) && c.listingStatus === "PUBLIC", `${c.id}: invalid geography/status`);
+    assert(c.expectedCountry === undefined || c.id.startsWith("US:") && c.expectedCountry === "United States", `${c.id}: invalid expected country`);
     assert(c.listings.length > 0 && c.listings.every(l => l.market === (c.id.startsWith("US:") ? "US" : "CN_A") && l.symbol === c.id.split(":")[1] && (c.id.startsWith("US:") ? ["XNAS", "XNYS"].includes(l.exchange) : l.exchange === c.id.split(":")[0])), `${c.id}: listing does not match company`);
     for (const e of [c.evidence.country, c.evidence.listing]) assert(profileUrl(e.url)?.startsWith("https://") && e.excerpt.trim(), `${c.id}: invalid evidence`);
     assert(["BUSINESS_ADDRESS", "OFFICE", "HEADQUARTERS", "CORPORATE_CAMPUS"].includes(c.evidence.country.basis ?? ""), `${c.id}: missing country basis`);
@@ -32,7 +33,7 @@ export async function publishIdentities(db: Firestore, batch: IdentityBatch, wri
       const old = docs[i].data();
       assert(old && old.name === c.expectedName, `${c.id}: missing company or identity changed`);
       assert(["DIRECTORY", "PUBLISHED"].includes(old.status), `${c.id}: company is not public`);
-      assert(!old.country || old.country === c.country, `${c.id}: country conflict`);
+      assert(!old.country || old.country === c.country || old.country === c.expectedCountry, `${c.id}: country conflict`);
       assert(!old.listingStatus || ["UNKNOWN", "PUBLIC"].includes(old.listingStatus), `${c.id}: listing status conflict`);
       assert(!old.identityReviewedAt || old.identityReviewedAt <= batch.asOf, `${c.id}: newer identity exists`);
       assert(!old.listings || Array.isArray(old.listings), `${c.id}: malformed existing listings`);
@@ -41,7 +42,7 @@ export async function publishIdentities(db: Firestore, batch: IdentityBatch, wri
         assert(!listings.some(existing => existing.exchange === l.exchange && existing.symbol === l.symbol && existing.market !== l.market), `${c.id}: listing market conflict`);
         if (!listings.some(existing => existing.exchange === l.exchange && existing.symbol === l.symbol)) listings.push(l);
       }
-      return { country: c.country, listingStatus: c.listingStatus, listings, identityReviewedAt: batch.asOf, identityEvidence: { ...(old.identityEvidence ?? {}), ...c.evidence, checkedAt: batch.asOf } };
+      return { country: c.country, listingStatus: c.listingStatus, listings, identityReviewedAt: batch.asOf, identityEvidence: { ...(old.identityEvidence ?? {}), ...c.evidence, ...(c.expectedCountry ? { previousCountry: c.expectedCountry } : {}), checkedAt: batch.asOf } };
     });
     if (write) updates.forEach((update, i) => tx.update(refs[i], update));
     return { write, companies: refs.length, collection: "companies", countries: [...new Set(updates.map(c => c.country))].sort() };

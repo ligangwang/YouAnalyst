@@ -29,11 +29,16 @@ test("all listed map companies have sourced identity metadata independent of tra
   for (const c of batch.companies) for (const locale of ["en", "zh-CN"]) assert.doesNotMatch(companyGeographyLabel(companyGeography(c), locale), /unverified|待核实/);
   const bad = structuredClone(batch); bad.companies[0].listings[0].symbol = "WRONG";
   assert.throws(() => validateIdentities(bad), /listing does not match/);
+  const arbitrary = structuredClone(batch); arbitrary.companies[0].expectedCountry = "CN";
+  assert.throws(() => validateIdentities(arbitrary), /invalid expected country/);
+  const wrongMarket = structuredClone(batch); wrongMarket.companies.find(c => c.id.startsWith("XSHG:"))!.expectedCountry = "United States";
+  assert.throws(() => validateIdentities(wrongMarket), /invalid expected country/);
 });
 test("identity preview is read-only; write preserves profiles, graph data and extra listings and is idempotent", async () => {
   const batch = await fixture(), { db, records, modes } = database(batch);
   const extra = { market: "HK", exchange: "XHKG", symbol: "9988" };
   records.get("US:BABA")!.listings = [extra];
+  for (const c of batch.companies) if (c.expectedCountry) records.get(c.id)!.country = c.expectedCountry;
   const before = structuredClone(records);
   await publishIdentities(db, batch); assert.deepEqual(records, before); assert.deepEqual(modes, [true]);
   await publishIdentities(db, batch, true);

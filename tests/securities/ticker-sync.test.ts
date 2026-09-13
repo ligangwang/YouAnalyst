@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runTickerCatalogSync } from "../../src/lib/tickers/sync-tickers";
+import { companyListingFields, runTickerCatalogSync } from "../../src/lib/tickers/sync-tickers";
+
+test("ticker sync preserves reviewed company country while updating trading-market metadata", () => {
+  const patch = companyListingFields({ symbol: "ASML", name: "ASML", country: "United States", exchange: "NASDAQ" });
+  assert.equal(Object.hasOwn(patch, "country"), false);
+  assert.equal({ country: "NL", ...patch }.country, "NL");
+  assert.equal(patch.listingCountry, "United States");
+  assert.equal(patch.exchange, "NASDAQ");
+});
 
 test("default ticker sync includes US depositary receipts and preserves market restrictions", async (t) => {
   const listing = (symbol: string, type: string, overrides = {}) => ({

@@ -95,6 +95,12 @@ export type TickerCatalogSyncResult = {
   sample: Array<Pick<TickerCatalogDocument, "id" | "symbol" | "name" | "exchange" | "micCode" | "type">>;
 };
 
+// The provider's country filters the trading market, not the issuer's business location.
+export function companyListingFields<T extends Pick<TickerCatalogDocument, "symbol" | "name" | "country">>(ticker: T) {
+  const { country, ...listing } = ticker;
+  return { ...listing, listingCountry: country, ...companyFields(`US:${ticker.symbol}`, ticker) };
+}
+
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -330,7 +336,7 @@ export async function runTickerCatalogSync(input: TickerCatalogSyncInput = {}): 
     for (const ticker of documents) if (!companies.has(ticker.symbol) || ticker.exchangePriority > companies.get(ticker.symbol)!.exchangePriority) companies.set(ticker.symbol, ticker);
     for (const group of chunk([...companies.values()], 200)) {
       const batch = db.batch();
-      for (const ticker of group) { const id = `US:${ticker.symbol}`; batch.set(db.collection(COMPANY_COLLECTION).doc(id), {...ticker,...companyFields(id,ticker)}, {merge:true}); }
+      for (const ticker of group) { const id = `US:${ticker.symbol}`; batch.set(db.collection(COMPANY_COLLECTION).doc(id), companyListingFields(ticker), {merge:true}); }
       await batch.commit();
     }
 
