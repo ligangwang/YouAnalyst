@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCallPrice } from "@/lib/predictions/instrument";
 import { UiText, useUiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -70,19 +71,14 @@ type PredictionComment = {
   createdAt: string;
 };
 
-const DETAIL_CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
-
 const DETAIL_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
 });
 
-function formatDetailCurrency(value: number | null | undefined): string {
-  return typeof value === "number" ? DETAIL_CURRENCY_FORMATTER.format(value) : "Pending";
+function formatDetailCurrency(value: number | null | undefined, ticker: string): string {
+  return typeof value === "number" ? formatCallPrice(value, ticker, 2) : "Pending";
 }
 
 function formatDetailDate(value: string | null | undefined): string {
@@ -758,11 +754,11 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Entry Price:"} /></dt>
-              <dd className="text-slate-100">{formatDetailCurrency(prediction.entryPrice)}</dd>
+              <dd className="text-slate-100">{formatDetailCurrency(prediction.entryPrice, prediction.ticker)}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Last Price:"} /></dt>
-              <dd className="text-slate-100">{formatDetailCurrency(prediction.markPrice)}</dd>
+              <dd className="text-slate-100">{formatDetailCurrency(prediction.markPrice, prediction.ticker)}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Return:"} /></dt>
@@ -825,7 +821,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         {!isOwner ? <PredictionAuthorSummary author={prediction} className="mt-5" /> : null}
 
         {prediction.result ? (
-          <div className="mt-4 rounded-xl border border-emerald-400/35 bg-emerald-900/20 p-3 text-sm text-emerald-50"><UiText text={"Closed at "} />{prediction.result.exitPrice.toFixed(2)}<UiText text={" with return "} />{formatResultReturn(prediction.result)}.
+          <div className="mt-4 rounded-xl border border-emerald-400/35 bg-emerald-900/20 p-3 text-sm text-emerald-50"><UiText text={"Closed at "} />{formatDetailCurrency(prediction.result.exitPrice, prediction.ticker)}<UiText text={" with return "} />{formatResultReturn(prediction.result)}.
             {prediction.closeReason ? (
               <p className="mt-2 text-sm text-emerald-100">
                 <span className="text-emerald-200/80"><UiText text={"Close reason: "} /></span>
@@ -836,7 +832,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         ) : null}
       </section>
 
-      <PredictionPriceChart history={priceHistory} loading={priceHistoryLoading} error={priceHistoryError} />
+      <PredictionPriceChart ticker={prediction.ticker} history={priceHistory} loading={priceHistoryLoading} error={priceHistoryError} />
 
       <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <h2 className="mb-3 font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Discussion"} /></h2>

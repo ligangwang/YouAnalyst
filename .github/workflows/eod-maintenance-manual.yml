@@ -15,6 +15,14 @@ on:
         description: Optional YYYY-MM-DD run date
         required: false
         type: string
+      market:
+        description: Trading market
+        required: true
+        default: US
+        type: choice
+        options:
+          - US
+          - CN_A
       limit:
         description: Max actionable predictions to process
         required: true
@@ -113,6 +121,7 @@ jobs:
         env:
           CLOUD_RUN_URL: ${{ steps.cloud-run.outputs.url }}
           RUN_DATE: ${{ inputs.run_date }}
+          MARKET: ${{ inputs.market }}
           LIMIT: ${{ inputs.limit }}
           TICKERS: ${{ inputs.tickers }}
           LOAD_PRICES: ${{ inputs.load_prices }}
@@ -134,6 +143,7 @@ jobs:
             batch_number=$((batch_number + 1))
             body="$(jq -n \
               --arg runDate "$current_run_date" \
+              --arg market "$MARKET" \
               --arg tickers "$TICKERS" \
               --argjson limit "$LIMIT" \
               --argjson loadPrices "$LOAD_PRICES" \
@@ -143,6 +153,7 @@ jobs:
               --argjson dryRun "$DRY_RUN" \
               '{
                 limit: $limit,
+                market: $market,
                 loadPrices: $loadPrices,
                 markPredictions: $markPredictions,
                 rollForward: $rollForward,

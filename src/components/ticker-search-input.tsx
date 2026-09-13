@@ -37,6 +37,7 @@ type TickerSearchInputProps = {
   label?: string;
   showHelperText?: boolean;
   companySearch?: boolean;
+  predictionSearch?: boolean;
 };
 
 type SearchResponse = {
@@ -69,6 +70,7 @@ export function TickerSearchInput({
   label = "Ticker",
   showHelperText = true,
   companySearch = false,
+  predictionSearch = false,
 }: TickerSearchInputProps) {
   const ui = useUiText();
   const listboxId = useId();
@@ -90,7 +92,7 @@ export function TickerSearchInput({
       setLoading(true);
       setSearchError(null);
 
-      void fetch(`/api/tickers/search?q=${encodeURIComponent(query)}&limit=8${companySearch ? "&scope=all" : ""}`, {
+      void fetch(`/api/tickers/search?q=${encodeURIComponent(query)}&limit=8${companySearch ? "&scope=all" : predictionSearch ? "&scope=calls" : ""}`, {
         signal: controller.signal,
       })
         .then(async (response) => {
@@ -122,7 +124,7 @@ export function TickerSearchInput({
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [query, companySearch]);
+  }, [query, companySearch, predictionSearch]);
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
@@ -137,7 +139,7 @@ export function TickerSearchInput({
   }, []);
 
   function selectSuggestion(item: SearchSuggestion) {
-    onChange(item.kind === "institution" ? item.name : item.symbol);
+    onChange(item.kind === "institution" ? item.name : item.market === "CN_A" ? item.id : item.symbol);
     onSelectSuggestion?.(item);
     setOpen(false);
     setActiveIndex(-1);

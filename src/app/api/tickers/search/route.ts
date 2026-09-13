@@ -1,3 +1,4 @@
+import { predictionInstrument } from "@/lib/predictions/instrument";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -190,7 +191,7 @@ export async function GET(request: NextRequest) {
 
     const tickerItems: ScoredSearchItem[] = tickerSnapshot.docs
       .filter(doc => !doc.data().status || ["PUBLISHED", "DIRECTORY"].includes(doc.data().status))
-      .filter(doc => request.nextUrl.searchParams.get("scope") === "all" || (doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true))
+      .filter(doc => request.nextUrl.searchParams.get("scope") === "all" || (doc.data().listingStatus !== "PRIVATE" && ((doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true) || (request.nextUrl.searchParams.get("scope") === "calls" && predictionInstrument(doc.id)?.market === "CN_A"))))
       .map((doc) => toSearchItem(doc.id, doc.data()))
       .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
       .sort((left, right) => {

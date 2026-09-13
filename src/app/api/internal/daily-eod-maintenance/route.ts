@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 type DailyEodMaintenanceRequest = {
   runDate?: unknown;
+  market?: unknown;
   limit?: unknown;
   dryRun?: unknown;
   tickers?: unknown;
@@ -38,7 +39,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const payload = (await request.json().catch(() => ({}))) as DailyEodMaintenanceRequest;
+    if (payload.market !== undefined && payload.market !== "US" && payload.market !== "CN_A") return NextResponse.json({ error: "Invalid market" }, { status: 400 });
     const result = await runDailyEodMaintenance({
+      market: payload.market as "US" | "CN_A" | undefined,
       runDate: readString(payload.runDate),
       limit: Number.isFinite(payload.limit) ? Number(payload.limit) : undefined,
       dryRun: readBoolean(payload.dryRun),

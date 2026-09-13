@@ -335,6 +335,21 @@ jobs:
               --message-body "$body"
           fi
 
+          # A-share EOD prices use the same maintenance endpoint after China's close.
+          china_job="${job_name}-cn-a"
+          china_body="$(jq -nc --argjson limit "$limit" --argjson dryRun "$dry_run" '{market: "CN_A", limit: $limit, dryRun: $dryRun}')"
+          if gcloud scheduler jobs describe "$china_job" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$china_job" \
+              --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
+              --schedule "0 20,23 * * 1-5" --time-zone "Asia/Shanghai" \
+              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$china_body"
+          else
+            gcloud scheduler jobs create http "$china_job" \
+              --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
+              --schedule "0 20,23 * * 1-5" --time-zone "Asia/Shanghai" \
+              --uri "$uri" --http-method POST --headers "$headers" --message-body "$china_body"
+          fi
+
       - name: Upsert staging 13F discovery scheduler
         env:
           CLOUD_RUN_URL: ${{ steps.staging-url.outputs.url }}
@@ -822,6 +837,21 @@ jobs:
               --http-method POST \
               --headers "$headers" \
               --message-body "$body"
+          fi
+
+          # A-share EOD prices use the same maintenance endpoint after China's close.
+          china_job="${job_name}-cn-a"
+          china_body="$(jq -nc --argjson limit "$limit" --argjson dryRun "$dry_run" '{market: "CN_A", limit: $limit, dryRun: $dryRun}')"
+          if gcloud scheduler jobs describe "$china_job" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "$china_job" \
+              --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
+              --schedule "0 20,23 * * 1-5" --time-zone "Asia/Shanghai" \
+              --uri "$uri" --http-method POST --update-headers "$headers" --message-body "$china_body"
+          else
+            gcloud scheduler jobs create http "$china_job" \
+              --project "$GCP_PROJECT_ID" --location "$GCP_REGION" \
+              --schedule "0 20,23 * * 1-5" --time-zone "Asia/Shanghai" \
+              --uri "$uri" --http-method POST --headers "$headers" --message-body "$china_body"
           fi
 
       - name: Upsert production 13F discovery scheduler

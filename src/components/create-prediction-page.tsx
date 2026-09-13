@@ -11,11 +11,10 @@ import { TickerSearchInput } from "@/components/ticker-search-input";
 import { predictionSignInHref } from "@/lib/auth-continuation";
 import { MAX_PREDICTION_THESIS_LENGTH, MAX_PREDICTION_THESIS_TITLE_LENGTH, type PredictionTimeHorizonUnit } from "@/lib/predictions/types";
 
+import { predictionInstrument } from "@/lib/predictions/instrument";
+
 function isValidTickerFormat(ticker: string): boolean {
-  if (!ticker || ticker.length === 0 || ticker.length > 12) {
-    return false;
-  }
-  return /^[A-Z0-9.\-]+$/.test(ticker);
+  return predictionInstrument(ticker) !== null;
 }
 
 type WatchlistOption = {
@@ -278,6 +277,7 @@ export function CreatePredictionPage({
         <div className="grid gap-4">
           <div className="grid gap-2">
             <TickerSearchInput
+              predictionSearch
               value={ticker}
               onChange={setTicker}
               error={tickerErrorMessage}

@@ -1,3 +1,4 @@
+import { predictionInstrument, marketDate, type PredictionMarket } from "./instrument";
 import { getAdminFirestore, getAdminStorageBucket } from "@/lib/firebase/admin";
 import {
   computePredictionOutcome,
@@ -27,6 +28,7 @@ const DEFAULT_ROLL_FORWARD_BATCH_SIZE = 5;
 const MAX_ROLL_FORWARD_BATCH_SIZE = 20;
 
 export type DailyEodMaintenanceInput = {
+  market?: PredictionMarket;
   runDate?: string;
   limit?: number;
   dryRun?: boolean;
@@ -251,8 +253,8 @@ function eodRunDocId(runDate: string, market = DEFAULT_MARKET): string {
   return [market, runDate].join("_");
 }
 
-function resolveRunDate(value: string | undefined): string {
-  const runDate = value?.trim() || getCurrentEasternDate();
+function resolveRunDate(value: string | undefined, market: PredictionMarket): string {
+  const runDate = value?.trim() || (market === "US" ? getCurrentEasternDate() : marketDate(market));
   if (!isIsoDate(runDate)) {
     throw new Error("runDate must be a YYYY-MM-DD date.");
   }
@@ -276,7 +278,7 @@ function uniqueTickers(tickers: string[]): string[] {
   return Array.from(new Set(tickers.map(normalizeTicker).filter(Boolean))).sort();
 }
 
-function eodPriceDocId(ticker: string, tradingDate: string, market = DEFAULT_MARKET): string {
+function eodPriceDocId(ticker: string, tradingDate: string, market: string = predictionInstrument(ticker)?.market ?? DEFAULT_MARKET): string {
   return [market, ticker, tradingDate].join("_");
 }
 
@@ -693,6 +695,38 @@ async function fetchEodhdBulkEodPrices(
     rawGcsPath: bulk.rawGcsPath,
     rawCacheHit: bulk.rawCacheHit,
   };
+}
+
+export async function fetchChinaEodPrices(tickers: string[], requestedDate: string, loadedAt: string): Promise<EodPriceFetchResult> {
+  const result: EodPriceFetchResult = { provider: "eodhd-eod", prices: [], failures: [], rawGcsPath: null, rawCacheHit: false };
+  const apiToken = process.env.EODHD_API_TOKEN?.trim();
+  for (const group of chunk(tickers, 8)) {
+    await Promise.all(group.map(async ticker => {
+      const instrument = predictionInstrument(ticker);
+      if (!apiToken || instrument?.market !== "CN_A") {
+        result.failures.push({ ticker, reason: !apiToken ? "eodhd_not_configured" : "invalid_a_share_symbol" });
+        return;
+      }
+      try {
+        const url = new URL(`/api/eod/${instrument.providerSymbol}`, process.env.EODHD_API_URL?.trim() || "https://eodhd.com");
+        url.search = new URLSearchParams({ api_token: apiToken, fmt: "json", period: "d", from: requestedDate, to: requestedDate }).toString();
+        const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(20_000) });
+        if (!response.ok) {
+          result.failures.push({ ticker, reason: `eodhd_http_${response.status}` });
+          return;
+        }
+        const rows: unknown = await response.json();
+        const row = Array.isArray(rows) ? rows.find(r => r && r.date === requestedDate) : undefined;
+        const parsed = parseEodhdBulkPrice(ticker, requestedDate, loadedAt, row);
+        if ("reason" in parsed) result.failures.push(parsed);
+        else result.prices.push({ ...parsed, market: "CN_A", source: "eodhd-eod", providerSymbol: instrument.providerSymbol, exchange: instrument.exchange, micCode: instrument.exchange, exchangeTimezone: instrument.timeZone });
+      } catch {
+        // Do not leak an authenticated provider URL, or send an A-share symbol to a US fallback.
+        result.failures.push({ ticker, reason: "eodhd_request_failed" });
+      }
+    }));
+  }
+  return result;
 }
 
 async function fetchEodPrices(
@@ -1205,11 +1239,12 @@ function isDailySnapshotCandidate(prediction: EodPredictionRecord, runDate: stri
   return prediction.status === "OPEN" || prediction.storedStatus === "CLOSING";
 }
 
-async function scanEodPredictions(
+export async function scanEodPredictions(
   db: FirebaseFirestore.Firestore,
   runDate: string,
   limit: PredictionScanLimit,
   manualTickers: string[],
+  market: PredictionMarket,
 ): Promise<EodPredictionScanResult> {
   const candidatePredictions: EodPredictionRecord[] = [];
   const predictionsNeedingWork: EodPredictionRecord[] = [];
@@ -1240,7 +1275,7 @@ async function scanEodPredictions(
 
     for (const doc of snapshot.docs) {
       const prediction = toEodPredictionRecord(doc);
-      if (!prediction) {
+      if (!prediction || predictionInstrument(prediction.ticker)?.market !== market) {
         continue;
       }
 
@@ -1287,10 +1322,13 @@ export async function runDailyEodMaintenance(
   const recompute = input.recompute === true;
   const loadPrices = input.loadPrices !== false;
   const markPredictions = input.markPredictions !== false;
-  const runDate = resolveRunDate(input.runDate);
+  const market = input.market ?? "US";
+  if (market !== "US" && market !== "CN_A") throw new Error("Invalid EOD market");
+  const runDate = resolveRunDate(input.runDate, market);
   const limit = readPredictionScanLimit(input.limit);
   const nowIso = new Date().toISOString();
   const manualTickers = input.tickers?.length ? uniqueTickers(input.tickers) : [];
+  if (manualTickers.some(ticker => predictionInstrument(ticker)?.market !== market)) throw new Error("Ticker does not match EOD market");
 
   if (input.rollForward === true) {
     const rollForwardBatchSize = readRollForwardBatchSize(input.rollForwardBatchSize);
@@ -1324,7 +1362,7 @@ export async function runDailyEodMaintenance(
     };
   }
 
-  const runRef = db.collection("eod_runs").doc(eodRunDocId(runDate));
+  const runRef = db.collection("eod_runs").doc(eodRunDocId(runDate, market));
 
   console.info("[daily-eod-maintenance] Starting run", {
     runDate,
@@ -1338,7 +1376,7 @@ export async function runDailyEodMaintenance(
 
   if (!dryRun) {
     await runRef.set({
-      market: DEFAULT_MARKET,
+      market,
       runDate,
       status: "STARTED",
       startedAt: nowIso,
@@ -1356,7 +1394,7 @@ export async function runDailyEodMaintenance(
       predictionsToProcess,
       scannedCandidatePredictions,
       hasMoreCandidatePredictions,
-    } = await scanEodPredictions(db, runDate, limit, manualTickers);
+    } = await scanEodPredictions(db, runDate, limit, manualTickers, market);
     const requestedTickers = manualTickers.length > 0
       ? manualTickers
       : uniqueTickers(predictionsToProcess.map((item) => item.ticker));
@@ -1399,7 +1437,7 @@ export async function runDailyEodMaintenance(
       priceLoad.cacheHits = cachedPrices.size;
 
       const tickersToFetch = requestedTickers.filter((ticker) => !cachedPrices.has(ticker));
-      const fetched = await fetchEodPrices(tickersToFetch, runDate, nowIso);
+      const fetched = await (market === "CN_A" ? fetchChinaEodPrices(tickersToFetch, runDate, nowIso) : fetchEodPrices(tickersToFetch, runDate, nowIso));
       const loadedPrices = await withTickerDailyReturns(db, [...cachedPrices.values(), ...fetched.prices]);
       priceLoad.provider = fetched.provider;
       priceLoad.rawGcsPath = fetched.rawGcsPath;
@@ -1822,7 +1860,7 @@ export async function runDailyEodMaintenance(
     };
     if (!dryRun) {
       await runRef.set({
-        market: DEFAULT_MARKET,
+        market,
         runDate,
         status: "COMPLETED",
         completedAt: new Date().toISOString(),
@@ -1835,7 +1873,7 @@ export async function runDailyEodMaintenance(
   } catch (error) {
     if (!dryRun) {
       await runRef.set({
-        market: DEFAULT_MARKET,
+        market,
         runDate,
         status: "FAILED",
         failedAt: new Date().toISOString(),

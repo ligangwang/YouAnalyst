@@ -3,6 +3,7 @@
 import { UiText } from "@/components/ui-text";
 
 import Link from "next/link";
+import { formatCallPrice } from "@/lib/predictions/instrument";
 import Image from "next/image";
 export { RelativeTime } from "./relative-time";
 export { formatRelativeDateTime, formatAbsoluteDateTime } from "@/lib/time";
@@ -10,6 +11,7 @@ import type { AiAnalystTheme } from "@/lib/ai-analyst/config";
 import type { PredictionDirection, PredictionStatus, PredictionTimeHorizon } from "@/lib/predictions/types";
 
 export type PredictionMarkFields = {
+  ticker?: string;
   direction: PredictionDirection;
   entryPrice?: number | null;
   entryDate?: string | null;
@@ -179,7 +181,7 @@ export function PredictionReturnSummary({
       {isAwaitingEntry ? <span className="text-slate-400"><UiText text={"Awaiting entry price"} /></span> : null}
       {isAwaitingFirstMark ? (
         <>
-          <span className="text-slate-400"><UiText text={"Entry: $"} />{entryPrice.toFixed(2)}</span>
+          <span className="text-slate-400"><UiText text={"Entry "} />{formatCallPrice(entryPrice, prediction.ticker ?? "", 2)}</span>
           <span className="text-slate-500"><UiText text={" &middot; "} /></span>
           <span className="text-slate-400"><UiText text={"awaiting first mark"} /></span>
         </>

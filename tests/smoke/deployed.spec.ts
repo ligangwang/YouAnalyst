@@ -2,6 +2,17 @@ import { expect, test } from "@playwright/test";
 import { isMapTicker } from "../../src/lib/industry-graph/directory";
 import { publicEventFromDocument } from "../../src/lib/events/model";
 
+test("listed A-share pages offer calls in both languages while private companies do not", async ({ page }) => {
+  for (const [locale, bullish, bearish] of [["en", "Bullish", "Bearish"], ["zh-cn", "看多", "看空"]]) {
+    await page.goto(`/${locale}/ticker/XSHG:600584`);
+    await expect(page.getByRole("link", { name: bullish, exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: bearish, exact: true })).toBeVisible();
+  }
+  await page.goto("/en/company/ORG:OPENAI");
+  await expect(page.getByRole("heading", { name: "OpenAI", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^(Bullish|Bearish)$/ })).toHaveCount(0);
+});
+
 test("filing research uses the consolidated research store", async ({ request }) => {
   const response = await request.get("/api/company-graph/NVDA");
   expect(response.status()).toBe(200);

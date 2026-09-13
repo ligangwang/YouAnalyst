@@ -20,6 +20,7 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
     }) : [];
   return {
     ticker,
+    listingStatus: listing?.listingStatus,
     profile: normalizeCompanyProfile(listing?.profile),
     name: text(listing?.name) ?? node?.aliases?.[0] ?? node?.name ?? ticker,
     known: Boolean(listing || node),
