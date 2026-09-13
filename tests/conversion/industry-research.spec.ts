@@ -60,7 +60,7 @@ test("A-share connections use imported CNI classifications and require review", 
   await expect(page.getByRole("button", { name: "Publish 0 reviewed connections" })).toBeDisabled();
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Publish 1 reviewed connections" }).click();
-  expect(requests[1]).toMatchObject({ action: "publish", selectedIds: [relation.id] });
+  await expect.poll(() => requests[1]).toMatchObject({ action: "publish", selectedIds: [relation.id] });
 });
 
 test("sector changes reset industry and scope; custom topics remain available", async ({ page }) => {
