@@ -180,21 +180,19 @@ test("event filters navigate between live categories", async ({ page, request })
   await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
 });
 
-test("homepage AI knowledge graph supports all market groups", async ({ page }) => {
-  await page.goto("/?market=ALL&lang=en");
+test("homepage AI knowledge graph shows all companies without market controls", async ({ page, request }) => {
+  const response = await request.get("/api/knowledge-graph");
+  expect(response.ok()).toBeTruthy();
+  const graph = await response.json();
+  const count = graph.nodes.filter((node: { kind: string }) => node.kind === "COMPANY").length;
+  await page.goto("/?market=US&graphMarkets=US&lang=en");
   await expect(page.getByRole("heading", { name: "AI Industry Map", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "A-shares", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "Global & private", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: /^(2D|3D|Fit|Rotate right|Zoom in)$/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^(US stocks|A-shares|Global & private|2D|3D|Fit|Rotate right|Zoom in)$/ })).toHaveCount(0);
+  await expect(page.locator('span[role="status"]')).toContainText(`${count} companies`);
   await expect(page.locator("canvas")).toBeVisible();
-  await page.getByRole("button", {name:"Reset view",exact:true}).click();
-  await page.getByRole("button", { name: "US stocks", exact: true }).click();
-  await expect(page).toHaveURL(url => url.searchParams.get("graphMarkets") === "CN_A,GLOBAL");
+  await page.getByRole("button", { name: "Reset view", exact: true }).click();
   await page.reload();
-  await expect(page.getByRole("button", { name: "US stocks", exact: true })).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByRole("button", { name: "A-shares", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "Global & private", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('span[role="status"]')).toContainText(`${count} companies`);
 });
 
 test("global map companies open localized profiles", async ({ page, request }) => {
@@ -213,7 +211,7 @@ test("global map companies open localized profiles", async ({ page, request }) =
 
 test("filing company map remains accessible under Explore", async ({ page }) => {
   await page.goto("/map?view=filings");
-  const companySearch = page.getByRole("link", { name: "Search companies", exact: true });
+  const companySearch = page.getByRole("link", { name: "Search", exact: true });
   await expect(companySearch).toBeVisible();
   await expect(companySearch).toHaveAttribute("href", "/en/companies");
   
