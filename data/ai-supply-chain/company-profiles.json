@@ -1,0 +1,4081 @@
+{
+  "asOf": "2026-09-13",
+  "companies": [
+    {
+      "id": "ORG:ANTHROPIC",
+      "expectedName": "Anthropic",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "NOT_FOUND",
+        "website": {
+          "url": "https://www.anthropic.com/",
+          "sourceUrl": "https://www.anthropic.com/"
+        },
+        "location": {
+          "label": "San Francisco, California, United States",
+          "kind": "HEADQUARTERS",
+          "sourceUrl": "https://www.anthropic.com/careers?hsLang=en"
+        },
+        "financialReportCheckedSources": [
+          "https://www.anthropic.com"
+        ]
+      }
+    },
+    {
+      "id": "ORG:MISTRAL-AI",
+      "expectedName": "Mistral AI",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "NOT_FOUND",
+        "website": {
+          "url": "https://mistral.ai/",
+          "sourceUrl": "https://mistral.ai/"
+        },
+        "location": {
+          "label": "France",
+          "kind": "HEADQUARTERS",
+          "sourceUrl": "https://europe.mistral.ai/"
+        },
+        "financialReportCheckedSources": [
+          "https://mistral.ai"
+        ]
+      }
+    },
+    {
+      "id": "ORG:OPENAI",
+      "expectedName": "OpenAI",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "NOT_FOUND",
+        "website": {
+          "url": "https://openai.com/",
+          "sourceUrl": "https://openai.com/"
+        },
+        "location": {
+          "label": "San Francisco, California, United States",
+          "kind": "HEADQUARTERS",
+          "sourceUrl": "https://openai.com/careers/technical-threat-investigator-threat-intel-engineering-san-francisco/"
+        },
+        "financialReportCheckedSources": [
+          "https://openai.com"
+        ]
+      }
+    },
+    {
+      "id": "US:AAPL",
+      "expectedName": "Apple Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000320193/000032019326000020/aapl-20260627.htm",
+          "title": "10-Q · 2026-06-27",
+          "periodEnd": "2026-06-27",
+          "publishedAt": "2026-07-31",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "ONE APPLE PARK WAY, CUPERTINO, CA, 95014",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000320193.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000320193&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000320193.json"
+        },
+        "website": {
+          "url": "https://www.apple.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000320193/000032019325000079/aapl-20250927.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.apple.com/",
+          "sourceUrl": "https://www.apple.com/"
+        }
+      }
+    },
+    {
+      "id": "US:ALAB",
+      "expectedName": "ASTERA LABS INC COMMON STOCK (Ticker: 1ALAB)",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001736297/000173629726000035/alab-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-05",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2345 NORTH FIRST STREET, SAN JOSE, CA, 95131",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001736297.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001736297&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001736297.json"
+        },
+        "website": {
+          "url": "https://www.asteralabs.com/",
+          "sourceUrl": "https://www.asteralabs.com/"
+        },
+        "investorRelations": {
+          "url": "https://ir.asteralabs.com/",
+          "sourceUrl": "https://www.asteralabs.com/"
+        }
+      }
+    },
+    {
+      "id": "US:AMAT",
+      "expectedName": "Applied Materials, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000006951/000162828026058235/amat-20260726.htm",
+          "title": "10-Q · 2026-07-26",
+          "periodEnd": "2026-07-26",
+          "publishedAt": "2026-08-20",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "3050 BOWERS AVE, SANTA CLARA, CA, 95054-3299",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000006951.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000006951&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000006951.json"
+        },
+        "website": {
+          "url": "https://www.appliedmaterials.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000006951/000162828025056742/amat-20251026.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.appliedmaterials.com/",
+          "sourceUrl": "https://investor.appliedmaterials.com/"
+        }
+      }
+    },
+    {
+      "id": "US:AMD",
+      "expectedName": "Advanced Micro Devices, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000002488/000000248826000123/amd-20260627.htm",
+          "title": "10-Q · 2026-06-27",
+          "periodEnd": "2026-06-27",
+          "publishedAt": "2026-08-05",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2485 AUGUSTINE DRIVE, SANTA CLARA, CA, 95054",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000002488.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000002488&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000002488.json"
+        },
+        "website": {
+          "url": "https://www.amd.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000002488/000000248826000018/amd-20251227.htm"
+        },
+        "investorRelations": {
+          "url": "http://ir.amd.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000002488/000000248826000018/amd-20251227.htm"
+        }
+      }
+    },
+    {
+      "id": "US:AMKR",
+      "expectedName": "Amkor Technology Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001047127/000104712726000046/amkr-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-28",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2045 EAST INNOVATION CIRCLE, TEMPE, AZ, 85284",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001047127.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001047127&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001047127.json"
+        },
+        "website": {
+          "url": "https://www.amkor.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001047127/000104712726000014/amkr-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "http://ir.amkor.com/",
+          "sourceUrl": "https://amkor.com/"
+        }
+      }
+    },
+    {
+      "id": "US:AMZN",
+      "expectedName": "Amazon.com, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001018724/000101872426000026/amzn-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-31",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "410 TERRY AVENUE NORTH, SEATTLE, WA, 98109",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001018724.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001018724&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001018724.json"
+        },
+        "website": {
+          "url": "https://www.amazon.com/",
+          "sourceUrl": "https://www.amazon.com/"
+        },
+        "investorRelations": {
+          "url": "https://ir.aboutamazon.com/overview/default.aspx",
+          "sourceUrl": "https://ir.aboutamazon.com/overview/default.aspx"
+        }
+      }
+    },
+    {
+      "id": "US:ANET",
+      "expectedName": "Arista Networks, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001596532/000159653226000175/anet-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-05",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "5453 GREAT AMERICA PARKWAY, SANTA CLARA, CA, 95054",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001596532.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001596532&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001596532.json"
+        },
+        "website": {
+          "url": "https://www.arista.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001596532/000159653226000013/anet-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.arista.com/Home/default.aspx",
+          "sourceUrl": "https://investors.arista.com/Home/default.aspx"
+        }
+      }
+    },
+    {
+      "id": "US:APH",
+      "expectedName": "Amphenol Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000820313/000110465926089194/aph-20260630x10q.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-31",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "358 HALL AVE, WALLINGFORD, CT, 06492",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000820313.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000820313&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000820313.json"
+        },
+        "website": {
+          "url": "https://amphenol.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000820313/000110465926013549/aph-20251231x10k.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.amphenol.com/",
+          "sourceUrl": "https://investor.amphenol.com/"
+        }
+      }
+    },
+    {
+      "id": "US:ARM",
+      "expectedName": "Arm Holdings plc ADR",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001973239/000197323926000114/arm-20260630.htm",
+          "title": "Interim financial report · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-29",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "110 FULBOURN ROAD, CAMBRIDGE, United Kingdom, CB1 9NJ",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001973239.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001973239&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001973239.json"
+        },
+        "website": {
+          "url": "https://www.arm.com/",
+          "sourceUrl": "https://www.arm.com/"
+        },
+        "investorRelations": {
+          "url": "https://investors.arm.com/",
+          "sourceUrl": "https://investors.arm.com/"
+        }
+      }
+    },
+    {
+      "id": "US:ASML",
+      "expectedName": "ASML Holding N.V. NY Registered Shares",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000937966/000162828026048235/statutoryinterimreport20.htm",
+          "title": "Interim financial report · 2026-06-28",
+          "periodEnd": "2026-06-28",
+          "publishedAt": "2026-07-15",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "DE RUN 6501, DR VELDHOVEN, Netherlands, 5504",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000937966.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000937966&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000937966.json"
+        },
+        "website": {
+          "url": "https://www.asml.com/",
+          "sourceUrl": "https://www.asml.com/"
+        },
+        "investorRelations": {
+          "url": "https://www.asml.com/en/investors",
+          "sourceUrl": "https://www.asml.com/en"
+        }
+      }
+    },
+    {
+      "id": "US:AVGO",
+      "expectedName": "Broadcom Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016826000080/avgo-20260802.htm",
+          "title": "10-Q · 2026-08-02",
+          "periodEnd": "2026-08-02",
+          "publishedAt": "2026-09-10",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "3421 HILLVIEW AVENUE, PALO ALTO, CA, 94304",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001730168.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001730168&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001730168.json"
+        },
+        "website": {
+          "url": "https://www.broadcom.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001730168/000173016825000121/avgo-20251102.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.broadcom.com/",
+          "sourceUrl": "https://investors.broadcom.com/"
+        }
+      }
+    },
+    {
+      "id": "US:BABA",
+      "expectedName": "Alibaba Group Holding Ltd. ADR",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001577552/000110465926099220/tm2623667d1_ex99-1.htm",
+          "title": "Interim financial report · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-20",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "26/F TOWER ONE, TIMES SQUARE, 1 MATHESON STREET, CAUSEWAY BAY, 00000",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001577552.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001577552&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001577552.json"
+        },
+        "website": {
+          "url": "https://www.alibabagroup.com/",
+          "sourceUrl": "https://www.alibabagroup.com/"
+        },
+        "investorRelations": {
+          "url": "https://www.alibabagroup.com/en-US/ir-home",
+          "sourceUrl": "https://www.alibabagroup.com/en-US/ir-home"
+        }
+      }
+    },
+    {
+      "id": "US:BIDU",
+      "expectedName": "Baidu Inc. ADR",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001329099/000119312526355431/d112854dex991.htm",
+          "title": "Interim financial report · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-18",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "BAIDU CAMPUS, NO. 10 SHANGDI 10TH STREET, HAIDIAN DISTRICT, BEIJING, 100085",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001329099.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001329099&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001329099.json"
+        },
+        "website": {
+          "url": "https://ir.baidu.com/",
+          "sourceUrl": "https://ir.baidu.com/shareholder-services/investor-faqs/"
+        },
+        "investorRelations": {
+          "url": "https://ir.baidu.com/",
+          "sourceUrl": "https://ir.baidu.com/"
+        }
+      }
+    },
+    {
+      "id": "US:CDNS",
+      "expectedName": "Cadence Design Systems, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000813672/000081367226000092/cdns-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-29",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2655 SEELY AVENUE BLDG 5, SAN JOSE, CA, 95134",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000813672.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000813672&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000813672.json"
+        },
+        "website": {
+          "url": "https://www.cadence.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000813672/000081367226000016/cdns-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.cadence.com/en_US/home/company/investors.html",
+          "sourceUrl": "https://www.cadence.com/en_US/home/company/investors.html"
+        }
+      }
+    },
+    {
+      "id": "US:CEG",
+      "expectedName": "Constellation Energy Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001868275/000186827526000104/ceg-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-06",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "1310 POINT STREET, BALTIMORE, MD, 21231",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001868275.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001868275&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001868275.json"
+        },
+        "website": {
+          "url": "https://www.constellationenergy.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001868275/000186827526000032/ceg-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.constellationenergy.com/",
+          "sourceUrl": "https://www.constellationenergy.com/"
+        }
+      }
+    },
+    {
+      "id": "US:CLS",
+      "expectedName": "Celestica Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001030894/000103089426000044/cls-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-27",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "5140 YONGE STREET, SUITE 1900, TORONTO, Ontario, Canada, M2N 6L7",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001030894.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001030894&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001030894.json"
+        },
+        "website": {
+          "url": "https://www.celestica.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001030894/000103089426000011/cls-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://corporate.celestica.com/",
+          "sourceUrl": "https://corporate.celestica.com/"
+        }
+      }
+    },
+    {
+      "id": "US:COHR",
+      "expectedName": "Coherent Corp.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000820318/000082031826000020/iivi-20260630.htm",
+          "title": "10-K · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-14",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "375 SAXONBURG BLVD, SAXONBURG, PA, 16056",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000820318.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000820318&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000820318.json"
+        },
+        "website": {
+          "url": "https://www.coherent.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000820318/000082031826000020/iivi-20260630.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.coherent.com/company/investor-relations",
+          "sourceUrl": "https://www.coherent.com/"
+        }
+      }
+    },
+    {
+      "id": "US:CRDO",
+      "expectedName": "Credo Technology Group Holding Ltd.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001807794/000162828026060111/crdo-20260801.htm",
+          "title": "10-Q · 2026-08-01",
+          "periodEnd": "2026-08-01",
+          "publishedAt": "2026-09-02",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "C/O MAPLES CORPORATE SERVICES, LIMITED, PO BOX 309, UGLAND HOUSE, GRAND CAYMAN, Cayman Islands, KY1-1104",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001807794.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001807794&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001807794.json"
+        },
+        "website": {
+          "url": "https://www.credosemi.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001807794/000162828026043303/crdo-20260502.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.credosemi.com/",
+          "sourceUrl": "https://credosemi.com/"
+        }
+      }
+    },
+    {
+      "id": "US:CRM",
+      "expectedName": "Salesforce Inc",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001108524/000110852426000190/crm-20260731.htm",
+          "title": "10-Q · 2026-07-31",
+          "periodEnd": "2026-07-31",
+          "publishedAt": "2026-08-27",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "SALESFORCE TOWER, 415 MISSION STREET 3RD FL, SAN FRANCISCO, CA, 94105",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001108524.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001108524&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001108524.json"
+        },
+        "website": {
+          "url": "https://www.salesforce.com/",
+          "sourceUrl": "https://www.salesforce.com/"
+        },
+        "investorRelations": {
+          "url": "https://investor.salesforce.com/overview/default.aspx",
+          "sourceUrl": "https://www.salesforce.com/?bc=DB"
+        }
+      }
+    },
+    {
+      "id": "US:CRWV",
+      "expectedName": "CoreWeave, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001769628/000176962826000366/crwv-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-12",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "290 W. MT. PLEASANT AVENUE, SUITE 4100, LIVINGSTON, NJ, 07039",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001769628.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001769628&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001769628.json"
+        },
+        "website": {
+          "url": "https://www.coreweave.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001769628/000176962826000104/crwv-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.coreweave.com/",
+          "sourceUrl": "https://www.coreweave.com/"
+        }
+      }
+    },
+    {
+      "id": "US:CSCO",
+      "expectedName": "Cisco Systems, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000858877/000085887726000132/csco-20260725.htm",
+          "title": "10-K · 2026-07-25",
+          "periodEnd": "2026-07-25",
+          "publishedAt": "2026-09-02",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "170 WEST TASMAN DR, SAN JOSE, CA, 95134-1706",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000858877.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000858877&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000858877.json"
+        },
+        "website": {
+          "url": "https://www.cisco.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000858877/000085887726000132/csco-20260725.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.cisco.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000858877/000085887726000132/csco-20260725.htm"
+        }
+      }
+    },
+    {
+      "id": "US:DDOG",
+      "expectedName": "Datadog, Inc. Class A Common Stock",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001561550/000162828026054458/ddog-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-06",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "620 EIGHTH AVENUE, 45TH FLOOR, NEW YORK, NY, 10018",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001561550.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001561550&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001561550.json"
+        },
+        "website": {
+          "url": "https://www.datadoghq.com/",
+          "sourceUrl": "https://www.datadoghq.com/"
+        },
+        "investorRelations": {
+          "url": "https://www.investors.datadoghq.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001561550/000162828026008819/ddog-20251231.htm"
+        }
+      }
+    },
+    {
+      "id": "US:DELL",
+      "expectedName": "Dell Technologies Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001571996/000157199626000046/dell-20260731.htm",
+          "title": "10-Q · 2026-07-31",
+          "periodEnd": "2026-07-31",
+          "publishedAt": "2026-09-08",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "ONE DELL WAY, ROUND ROCK, TX, 78682",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001571996.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001571996&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001571996.json"
+        },
+        "website": {
+          "url": "https://www.dell.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001571996/000157199626000008/dell-20260130.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.delltechnologies.com/",
+          "sourceUrl": "https://www.dell.com/en-us"
+        }
+      }
+    },
+    {
+      "id": "US:DLR",
+      "expectedName": "Digital Realty",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001297996/000110465926089296/dlr-20260630x10q.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-31",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "601 W. 2ND STREET, FLOOR 32, AUSTIN, TX, 78701",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001297996.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001297996&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001297996.json"
+        },
+        "website": {
+          "url": "https://www.digitalrealty.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001297996/000110465926015365/dlr-20251231x10k.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.digitalrealty.com/overview/default.aspx",
+          "sourceUrl": "https://www.digitalrealty.com/"
+        }
+      }
+    },
+    {
+      "id": "US:DOV",
+      "expectedName": "Dover Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000029905/000002990526000027/dov-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-23",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "3005 HIGHLAND PARKWAY, SUITE 200, DOWNERS GROVE, IL, 60515",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000029905.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000029905&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000029905.json"
+        },
+        "website": {
+          "url": "https://www.dovercorporation.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000029905/000002990526000009/dov-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.dovercorporation.com/investors/overview",
+          "sourceUrl": "https://www.dovercorporation.com/investors/overview"
+        }
+      }
+    },
+    {
+      "id": "US:ENTG",
+      "expectedName": "Entegris, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001101302/000110130226000150/entg-20260627.htm",
+          "title": "10-Q · 2026-06-27",
+          "periodEnd": "2026-06-27",
+          "publishedAt": "2026-08-04",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "129 CONCORD ROAD, BILLERICA, MA, 01821",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001101302.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001101302&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001101302.json"
+        },
+        "website": {
+          "url": "http://www.entegris.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001101302/000110130226000012/entg-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.entegris.com/",
+          "sourceUrl": "https://www.entegris.com/"
+        }
+      }
+    },
+    {
+      "id": "US:EQIX",
+      "expectedName": "Equinix",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001101239/000110123926000147/eqix-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-29",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "ONE LAGOON DRIVE, REDWOOD CITY, CA, 94065",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001101239.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001101239&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001101239.json"
+        },
+        "website": {
+          "url": "https://www.equinix.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001101239/000110123926000032/eqix-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.equinix.com/",
+          "sourceUrl": "https://investor.equinix.com/"
+        }
+      }
+    },
+    {
+      "id": "US:ETN",
+      "expectedName": "Eaton Corporation plc",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001551182/000155118226000030/etn-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-31",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "30 PEMBROKE ROAD, EATON HOUSE, DUBLIN, Ireland, DUBLIN 4",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001551182.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001551182&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001551182.json"
+        },
+        "website": {
+          "url": "https://www.eaton.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001551182/000155118226000007/etn-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.eaton.com/us/en-us/company/investor-relations.html",
+          "sourceUrl": "https://www.eaton.com/us/en-us/company/investor-relations.html"
+        }
+      }
+    },
+    {
+      "id": "US:FLEX",
+      "expectedName": "Flex Ltd.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000866374/000086637426000030/flex-20260626.htm",
+          "title": "10-Q · 2026-06-26",
+          "periodEnd": "2026-06-26",
+          "publishedAt": "2026-07-31",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "12515-8 RESEARCH BLVD, SUITE 300, AUSTIN, TX, 78759",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000866374.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000866374&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000866374.json"
+        },
+        "website": {
+          "url": "https://flex.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000866374/000086637426000012/flex-20260331.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.flex.com/overview/default.aspx",
+          "sourceUrl": "https://investors.flex.com/overview/default.aspx"
+        }
+      }
+    },
+    {
+      "id": "US:GDS",
+      "expectedName": "GDS Holdings Limited ADR",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001526125/000110465926095498/tm2621440d1_ex99-1.htm",
+          "title": "Interim financial report · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-13",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "F4/F5, BUILDING C, SUNLAND INTERNATIONAL, NO. 999 ZHOUHAI ROAD, PUDONG,, SHANGHAI, 200137",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001526125.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001526125&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001526125.json"
+        },
+        "website": {
+          "url": "https://www.gds-services.com/",
+          "sourceUrl": "https://www.gds-services.com/"
+        },
+        "investorRelations": {
+          "url": "http://investors.gds-services.com/",
+          "sourceUrl": "https://www.gds-services.com/zh_cn/"
+        }
+      }
+    },
+    {
+      "id": "US:GEV",
+      "expectedName": "GE Vernova Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001996810/000199681026000148/gev-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-22",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "58 CHARLES STREET, CAMBRIDGE, MA, 02141",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001996810.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001996810&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001996810.json"
+        },
+        "website": {
+          "url": "https://www.gevernova.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001996810/000199681026000015/gev-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.gevernova.com/investors",
+          "sourceUrl": "https://www.gevernova.com/"
+        }
+      }
+    },
+    {
+      "id": "US:GFS",
+      "expectedName": "GlobalFoundries Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001709048/000170904826000219/gfs-20260630.htm",
+          "title": "Interim financial report · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-05",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "400 STONEBREAK ROAD EXTENSION, MALTA, NY, 12020",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001709048.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001709048&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001709048.json"
+        },
+        "website": {
+          "url": "https://gf.com/",
+          "sourceUrl": "https://gf.com/"
+        },
+        "investorRelations": {
+          "url": "https://investors.gf.com/",
+          "sourceUrl": "https://gf.com/"
+        }
+      }
+    },
+    {
+      "id": "US:GLW",
+      "expectedName": "Corning Incorporated",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000024741/000002474126000255/glw-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-29",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "ONE RIVERFRONT PLAZA, CORNING, NY, 14831",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000024741.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000024741&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000024741.json"
+        },
+        "website": {
+          "url": "https://www.corning.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000024741/000002474126000124/glw-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.corning.com/investor-relations/default.aspx",
+          "sourceUrl": "https://investor.corning.com/investor-relations/default.aspx"
+        }
+      }
+    },
+    {
+      "id": "US:GOOGL",
+      "expectedName": "Alphabet Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001652044/000165204426000071/goog-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-23",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "1600 AMPHITHEATRE PARKWAY, MOUNTAIN VIEW, CA, 94043",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001652044.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001652044&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001652044.json"
+        },
+        "website": {
+          "url": "https://www.abc.xyz/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001652044/000165204426000018/goog-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://abc.xyz/investor/default.aspx",
+          "sourceUrl": "https://www.abc.xyz/"
+        }
+      }
+    },
+    {
+      "id": "US:HPE",
+      "expectedName": "Hewlett Packard Enterprise Company",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001645590/000164559026000080/hpe-20260731.htm",
+          "title": "10-Q · 2026-07-31",
+          "periodEnd": "2026-07-31",
+          "publishedAt": "2026-09-03",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "1701 E MOSSY OAKS ROAD, SPRING, TX, 77389",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001645590.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001645590&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001645590.json"
+        },
+        "website": {
+          "url": "https://www.hpe.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001645590/000164559025000130/hpe-20251031.htm"
+        },
+        "investorRelations": {
+          "url": "http://investors.hpe.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001645590/000164559025000130/hpe-20251031.htm"
+        }
+      }
+    },
+    {
+      "id": "US:INTC",
+      "expectedName": "Intel Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000050863/000005086326000157/intc-20260627.htm",
+          "title": "10-Q · 2026-06-27",
+          "periodEnd": "2026-06-27",
+          "publishedAt": "2026-07-24",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2200 MISSION COLLEGE BLVD, RNB-4-151, SANTA CLARA, CA, 95054",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000050863.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000050863&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000050863.json"
+        },
+        "website": {
+          "url": "https://www.intel.com/",
+          "sourceUrl": "https://www.intel.com/"
+        },
+        "investorRelations": {
+          "url": "https://www.intc.com/",
+          "sourceUrl": "https://www.intc.com/"
+        }
+      }
+    },
+    {
+      "id": "US:JBL",
+      "expectedName": "Jabil Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000898293/000162828026046138/jbl-20260531.htm",
+          "title": "10-Q · 2026-05-31",
+          "periodEnd": "2026-05-31",
+          "publishedAt": "2026-06-30",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "10800 ROOSEVELT BOULEVARD NORTH, ST PETERSBURG, FL, 33716",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000898293.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000898293&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000898293.json"
+        },
+        "website": {
+          "url": "http://www.jabil.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000898293/000162828025045293/jbl-20250831.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.jabil.com/financials/quarterly-results/default.aspx",
+          "sourceUrl": "https://investors.jabil.com/financials/quarterly-results/default.aspx"
+        }
+      }
+    },
+    {
+      "id": "US:KLAC",
+      "expectedName": "KLA Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000319201/000031920126000027/klac-20260630.htm",
+          "title": "10-K · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-06",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "ONE TECHNOLOGY DRIVE, MILPITAS, CA, 95035",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000319201.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000319201&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000319201.json"
+        },
+        "website": {
+          "url": "https://www.kla.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000319201/000031920126000027/klac-20260630.htm"
+        },
+        "investorRelations": {
+          "url": "https://ir.kla.com/",
+          "sourceUrl": "https://www.kla.com/"
+        }
+      }
+    },
+    {
+      "id": "US:LIN",
+      "expectedName": "Linde plc",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001707925/000162828026051289/lin-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-31",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "FORGE, 43 CHURCH STREET WEST, WOKING SURREY, United Kingdom, GU216HT",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001707925.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001707925&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001707925.json"
+        },
+        "website": {
+          "url": "https://www.linde.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001707925/000162828026011430/lin-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.linde.com/investors",
+          "sourceUrl": "https://www.linde.com/"
+        }
+      }
+    },
+    {
+      "id": "US:LITE",
+      "expectedName": "Lumentum Holdings Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001633978/000162828026057358/lite-20260627.htm",
+          "title": "10-K · 2026-06-27",
+          "periodEnd": "2026-06-27",
+          "publishedAt": "2026-08-17",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "1001 RIDDER PARK DRIVE, SAN JOSE, CA, 95131",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001633978.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001633978&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001633978.json"
+        },
+        "website": {
+          "url": "https://www.lumentum.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001633978/000162828026057358/lite-20260627.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.lumentum.com/overview/default.aspx",
+          "sourceUrl": "https://www.lumentum.com/"
+        }
+      }
+    },
+    {
+      "id": "US:LRCX",
+      "expectedName": "Lam Research Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000707549/000070754926000037/lrcx-20260628.htm",
+          "title": "10-K · 2026-06-28",
+          "periodEnd": "2026-06-28",
+          "publishedAt": "2026-08-07",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "4650 CUSHING BLVD, FREMONT, CA, 94538",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000707549.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000707549&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000707549.json"
+        },
+        "website": {
+          "url": "https://www.lamresearch.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000707549/000070754926000037/lrcx-20260628.htm"
+        }
+      }
+    },
+    {
+      "id": "US:META",
+      "expectedName": "Meta Platforms Inc Class A",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001326801/000162828026050705/meta-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-30",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "1 META WAY, MENLO PARK, CA, 94025",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001326801.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001326801&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001326801.json"
+        },
+        "website": {
+          "url": "https://about.meta.com/",
+          "sourceUrl": "https://about.meta.com/"
+        },
+        "investorRelations": {
+          "url": "https://investor.atmeta.com/home/default.aspx",
+          "sourceUrl": "https://investor.atmeta.com/home/default.aspx"
+        }
+      }
+    },
+    {
+      "id": "US:MOD",
+      "expectedName": "Modine Manufacturing Company",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000067347/000110465926088569/mod-20260630x10q.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-30",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "1500 DEKOVEN AVE, RACINE, WI, 53403",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000067347.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000067347&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000067347.json"
+        },
+        "website": {
+          "url": "https://www.modine.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000067347/000110465926066795/mod-20260331x10k.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.modine.com/overview/default.aspx",
+          "sourceUrl": "https://www.modine.com/"
+        }
+      }
+    },
+    {
+      "id": "US:MRVL",
+      "expectedName": "Marvell Technology, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001835632/000183563226000025/mrvl-20260801.htm",
+          "title": "10-Q · 2026-08-01",
+          "periodEnd": "2026-08-01",
+          "publishedAt": "2026-08-28",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "1000 N. WEST STREET, SUITE 1200, WILMINGTON, DE, 19801",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001835632.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001835632&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001835632.json"
+        },
+        "website": {
+          "url": "https://www.marvell.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001835632/000183563226000011/mrvl-20260131.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.marvell.com/",
+          "sourceUrl": "https://investor.marvell.com/"
+        }
+      }
+    },
+    {
+      "id": "US:MSFT",
+      "expectedName": "Microsoft Corp.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000789019/000119312526323660/msft-20260630.htm",
+          "title": "10-K · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-29",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "ONE MICROSOFT WAY, REDMOND, WA, 98052-6399",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000789019.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000789019&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000789019.json"
+        },
+        "website": {
+          "url": "https://www.microsoft.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000789019/000119312526323660/msft-20260630.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.microsoft.com/investor/default.aspx",
+          "sourceUrl": "https://www.microsoft.com/en-us"
+        }
+      }
+    },
+    {
+      "id": "US:MU",
+      "expectedName": "Micron Technology, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000723125/000072312526000015/mu-20260528.htm",
+          "title": "10-Q · 2026-05-28",
+          "periodEnd": "2026-05-28",
+          "publishedAt": "2026-06-25",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "8000 S FEDERAL WAY, PO BOX 6, BOISE, ID, 83716-9632",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000723125.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000723125&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000723125.json"
+        },
+        "website": {
+          "url": "https://www.micron.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000723125/000072312525000028/mu-20250828.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.micron.com/",
+          "sourceUrl": "https://www.micron.com/"
+        }
+      }
+    },
+    {
+      "id": "US:NBIS",
+      "expectedName": "Nebius Group N.V.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001513845/000110465926094844/nbis-20260812xex99d2.htm",
+          "title": "Interim financial report · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-12",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "SCHIPHOL BOULEVARD 165, SCHIPHOL",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001513845.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001513845&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001513845.json"
+        },
+        "website": {
+          "url": "https://nebius.com/",
+          "sourceUrl": "https://nebius.com/"
+        },
+        "investorRelations": {
+          "url": "https://nebius.com/investor-hub",
+          "sourceUrl": "https://nebius.com/"
+        }
+      }
+    },
+    {
+      "id": "US:NOW",
+      "expectedName": "ServiceNow, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001373715/000137371526000076/now-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-23",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2225 LAWSON LANE, SANTA CLARA, CA, 95054",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001373715.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001373715&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001373715.json"
+        },
+        "website": {
+          "url": "https://www.servicenow.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001373715/000137371526000007/now-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.servicenow.com/company/investor-relations/sec-filings.html",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001373715/000137371526000007/now-20251231.htm"
+        }
+      }
+    },
+    {
+      "id": "US:NTAP",
+      "expectedName": "NetApp, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001002047/000119312526380207/ntap-20260731.htm",
+          "title": "10-Q · 2026-07-31",
+          "periodEnd": "2026-07-31",
+          "publishedAt": "2026-09-02",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "3060 OLSEN DRIVE, SAN JOSE, CA, 95128",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001002047.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001002047&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001002047.json"
+        },
+        "website": {
+          "url": "https://www.netapp.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001002047/000119312526259683/ntap-20260424.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.netapp.com/overview/default.aspx",
+          "sourceUrl": "https://investors.netapp.com/overview/default.aspx"
+        }
+      }
+    },
+    {
+      "id": "US:NVDA",
+      "expectedName": "NVIDIA Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001045810/000104581026000075/nvda-20260726.htm",
+          "title": "10-Q · 2026-07-26",
+          "periodEnd": "2026-07-26",
+          "publishedAt": "2026-08-26",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2788 SAN TOMAS EXPRESSWAY, SANTA CLARA, CA, 95051",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001045810.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001045810&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001045810.json"
+        },
+        "website": {
+          "url": "http://www.nvidia.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001045810/000104581026000021/nvda-20260125.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.nvidia.com/home/default.aspx",
+          "sourceUrl": "https://www.nvidia.com/en-us/"
+        }
+      }
+    },
+    {
+      "id": "US:NXPI",
+      "expectedName": "NXP Semiconductors N.V.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001413447/000141344726000045/nxpi-20260628.htm",
+          "title": "10-Q · 2026-06-28",
+          "periodEnd": "2026-06-28",
+          "publishedAt": "2026-07-28",
+          "form": "10-Q"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001413447&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001413447.json"
+        },
+        "website": {
+          "url": "https://www.nxp.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001413447/000141344726000008/nxpi-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.nxp.com/",
+          "sourceUrl": "https://www.nxp.com/"
+        },
+        "location": {
+          "label": "High Tech Campus 60, 5656 AG Eindhoven, Netherlands",
+          "kind": "HEADQUARTERS",
+          "sourceUrl": "https://investors.nxp.com/news-releases/news-release-details/nxp-announces-availability-proxy-materials-annual-general-0"
+        }
+      }
+    },
+    {
+      "id": "US:ORCL",
+      "expectedName": "Oracle Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001341439/000119312526389274/orcl-20260831.htm",
+          "title": "10-Q · 2026-08-31",
+          "periodEnd": "2026-08-31",
+          "publishedAt": "2026-09-11",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2300 ORACLE WAY, AUSTIN, TX, 78741",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001341439.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001341439&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001341439.json"
+        },
+        "website": {
+          "url": "https://www.oracle.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001341439/000119312526277521/orcl-20260531.htm"
+        },
+        "investorRelations": {
+          "url": "https://www.oracle.com/investor",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001341439/000119312526277521/orcl-20260531.htm"
+        }
+      }
+    },
+    {
+      "id": "US:P",
+      "expectedName": "Everpure",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001474432/000147443226000088/pstg-20260802.htm",
+          "title": "10-Q · 2026-08-02",
+          "periodEnd": "2026-08-02",
+          "publishedAt": "2026-09-04",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "2555 AUGUSTINE DRIVE, SANTA CLARA, CA, 95054",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001474432.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001474432&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001474432.json"
+        },
+        "website": {
+          "url": "https://www.everpuredata.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001474432/000147443226000027/pstg-20260201.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.everpuredata.com/investor-home/default.aspx",
+          "sourceUrl": "https://www.everpuredata.com/"
+        }
+      }
+    },
+    {
+      "id": "US:PLTR",
+      "expectedName": "Palantir Technologies Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001321655/000132165526000041/pltr-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-04",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "19505 BISCAYNE BOULEVARD, SUITE 2350, AVENTURA, FL, 33180",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001321655.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001321655&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001321655.json"
+        },
+        "website": {
+          "url": "https://www.palantir.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001321655/000132165526000011/pltr-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.palantir.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001321655/000132165526000011/pltr-20251231.htm"
+        }
+      }
+    },
+    {
+      "id": "US:QCOM",
+      "expectedName": "QUALCOMM Incorporated",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000804328/000080432826000086/qcom-20260628.htm",
+          "title": "10-Q · 2026-06-28",
+          "periodEnd": "2026-06-28",
+          "publishedAt": "2026-07-29",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "5775 MOREHOUSE DR, SAN DIEGO, CA, 92121",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000804328.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000804328&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000804328.json"
+        },
+        "website": {
+          "url": "https://www.qualcomm.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000804328/000080432825000085/qcom-20250928.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.qualcomm.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000804328/000080432825000085/qcom-20250928.htm"
+        }
+      }
+    },
+    {
+      "id": "US:SMCI",
+      "expectedName": "Super Micro Computer Inc",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001375365/000137536526000022/smci-20260630.htm",
+          "title": "10-K · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-31",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "980 ROCK AVENUE, SAN JOSE, CA, 95131",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001375365.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001375365&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001375365.json"
+        },
+        "website": {
+          "url": "https://www.supermicro.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001375365/000137536526000022/smci-20260630.htm"
+        },
+        "investorRelations": {
+          "url": "https://ir.supermicro.com/",
+          "sourceUrl": "https://www.supermicro.com/en/"
+        }
+      }
+    },
+    {
+      "id": "US:SNDK",
+      "expectedName": "Sandisk Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0002023554/000162828026057406/sndk-20260703.htm",
+          "title": "10-K · 2026-07-03",
+          "periodEnd": "2026-07-03",
+          "publishedAt": "2026-08-17",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "951 SANDISK DRIVE, MILPITAS, CA, 95035",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0002023554.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0002023554&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0002023554.json"
+        },
+        "website": {
+          "url": "https://www.sandisk.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0002023554/000162828026057406/sndk-20260703.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.sandisk.com/",
+          "sourceUrl": "https://investor.sandisk.com/"
+        }
+      }
+    },
+    {
+      "id": "US:SNOW",
+      "expectedName": "Snowflake Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001640147/000164014726000037/snow-20260731.htm",
+          "title": "10-Q · 2026-07-31",
+          "periodEnd": "2026-07-31",
+          "publishedAt": "2026-09-04",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "135 CONSTITUTION DRIVE, MENLO PARK, CA, 94025",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001640147.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001640147&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001640147.json"
+        },
+        "website": {
+          "url": "https://www.snowflake.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001640147/000164014726000008/snow-20260131.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.snowflake.com/overview/default.aspx",
+          "sourceUrl": "https://www.snowflake.com/en/"
+        }
+      }
+    },
+    {
+      "id": "US:SNPS",
+      "expectedName": "Synopsys, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000883241/000088324126000025/snps-20260731.htm",
+          "title": "10-Q · 2026-07-31",
+          "periodEnd": "2026-07-31",
+          "publishedAt": "2026-08-26",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "675 ALMANOR AVE, SUNNYVALE, CA, 94085",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000883241.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000883241&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000883241.json"
+        },
+        "website": {
+          "url": "https://www.synopsys.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000883241/000088324125000028/snps-20251031.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.synopsys.com/overview/default.aspx",
+          "sourceUrl": "https://www.synopsys.com/"
+        }
+      }
+    },
+    {
+      "id": "US:STX",
+      "expectedName": "Seagate Technology Holdings plc",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001137789/000113778926000159/stx-20260703.htm",
+          "title": "10-K · 2026-07-03",
+          "periodEnd": "2026-07-03",
+          "publishedAt": "2026-08-04",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "121 WOODLANDS AVENUE 5, SINGAPORE, Singapore, 739009",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001137789.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001137789&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001137789.json"
+        },
+        "website": {
+          "url": "https://www.seagate.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001137789/000113778926000159/stx-20260703.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.seagate.com/overview/default.aspx",
+          "sourceUrl": "https://www.seagate.com/"
+        }
+      }
+    },
+    {
+      "id": "US:TSM",
+      "expectedName": "Taiwan Semiconductor Manufacturing Company Ltd. ADR",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001046179/000104617926000541/a2026q2consolidatedreport-.htm",
+          "title": "Interim financial report · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-14",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "NO. 8, LI-HSIN ROAD 6, HSINCHU SCIENCE PARK, HSINCHU",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001046179.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001046179&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001046179.json"
+        },
+        "website": {
+          "url": "https://www.tsmc.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001046179/000162828026025362/tsm-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.tsmc.com/english",
+          "sourceUrl": "https://www.tsmc.com/english"
+        }
+      }
+    },
+    {
+      "id": "US:TT",
+      "expectedName": "Trane Technologies plc",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001466258/000162828026051117/tt-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-30",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "170/175 LAKEVIEW DRIVE, AIRSIDE BUSINESS PARK, SWORDS,, CO. DUBLIN, Ireland, 00000",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001466258.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001466258&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001466258.json"
+        },
+        "website": {
+          "url": "https://www.tranetechnologies.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001466258/000162828026005731/tt-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.tranetechnologies.com/home/default.aspx",
+          "sourceUrl": "https://www.tranetechnologies.com/en/index.html"
+        }
+      }
+    },
+    {
+      "id": "US:TTMI",
+      "expectedName": "TTM Technologies, Inc.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001116942/000119312526335107/ttmi-20260629.htm",
+          "title": "10-Q · 2026-06-29",
+          "periodEnd": "2026-06-29",
+          "publishedAt": "2026-08-05",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "200 EAST SANDPOINTE, SUITE 400, SANTA ANA, CA, 92707",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001116942.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001116942&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001116942.json"
+        },
+        "website": {
+          "url": "https://www.ttm.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001116942/000119312526051976/ttmi-20251229.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.ttm.com/",
+          "sourceUrl": "https://www.ttm.com/"
+        }
+      }
+    },
+    {
+      "id": "US:VNET",
+      "expectedName": "VNET Group, Inc. ADR",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001508475/000110465926098054/tm2623481d1_ex99-1.htm",
+          "title": "Interim financial report · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-18",
+          "form": "6-K"
+        },
+        "location": {
+          "label": "GUANJIE BUILDING, SOUTHEAST 1ST FLOOR, 10# JIUXIANQIAO EAST ROAD, Beijing, China, 100016",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001508475.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001508475&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001508475.json"
+        },
+        "website": {
+          "url": "https://www.vnet.com/",
+          "sourceUrl": "https://www.vnet.com/"
+        },
+        "investorRelations": {
+          "url": "https://ir.vnet.com/",
+          "sourceUrl": "https://ir.vnet.com/"
+        }
+      }
+    },
+    {
+      "id": "US:VRT",
+      "expectedName": "Vertiv Holdings Co.",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001674101/000162828026050609/vrt-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-29",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "505 N. CLEVELAND AVE., WESTERVILLE, OH, 43082",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001674101.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001674101&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001674101.json"
+        },
+        "website": {
+          "url": "https://www.vertiv.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001674101/000167410126000008/vrt-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investors.vertiv.com/",
+          "sourceUrl": "https://www.vertiv.com/en-us/"
+        }
+      }
+    },
+    {
+      "id": "US:VST",
+      "expectedName": "Vistra Corp",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0001692819/000169281926000019/vistra-20260630.htm",
+          "title": "10-Q · 2026-06-30",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-10",
+          "form": "10-Q"
+        },
+        "location": {
+          "label": "6555 SIERRA DRIVE, IRVING, TX, 75039",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001692819.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0001692819&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0001692819.json"
+        },
+        "website": {
+          "url": "https://www.vistracorp.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0001692819/000169281926000006/vistra-20251231.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.vistracorp.com/",
+          "sourceUrl": "https://vistracorp.com/"
+        }
+      }
+    },
+    {
+      "id": "US:WDC",
+      "expectedName": "Western Digital Corporation",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://www.sec.gov/Archives/edgar/data/0000106040/000162828026057139/wdc-20260703.htm",
+          "title": "10-K · 2026-07-03",
+          "periodEnd": "2026-07-03",
+          "publishedAt": "2026-08-14",
+          "form": "10-K"
+        },
+        "location": {
+          "label": "5601 GREAT OAKS PARKWAY, SAN JOSE, CA, 95119",
+          "kind": "BUSINESS_ADDRESS",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000106040.json"
+        },
+        "disclosures": {
+          "url": "https://www.sec.gov/edgar/browse/?CIK=0000106040&owner=exclude",
+          "sourceUrl": "https://data.sec.gov/submissions/CIK0000106040.json"
+        },
+        "website": {
+          "url": "https://www.westerndigital.com/",
+          "sourceUrl": "https://www.sec.gov/Archives/edgar/data/0000106040/000162828026057139/wdc-20260703.htm"
+        },
+        "investorRelations": {
+          "url": "https://investor.wdc.com/",
+          "sourceUrl": "https://investor.wdc.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:000063",
+      "expectedName": "中兴通讯",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225490139.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-22",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000063&orgId=gssz0000063",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000063&orgId=gssz0000063"
+        },
+        "website": {
+          "url": "http://www.zte.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225490139.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.zte.com.cn/global/about/investorrelations.html",
+          "sourceUrl": "https://www.zte.com.cn/global/"
+        },
+        "location": {
+          "label": "中国广东省深圳市南山区科技南路中兴通讯大厦",
+          "kind": "OFFICE",
+          "sourceUrl": "https://www.zte.com.cn/global/about/corporate_information.html"
+        }
+      }
+    },
+    {
+      "id": "XSHE:000938",
+      "expectedName": "紫光股份",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225524307.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-29",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000938&orgId=gssz0000938",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000938&orgId=gssz0000938"
+        },
+        "website": {
+          "url": "http://www.thunis.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-15/1225101866.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区清华大学紫光大楼",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-15/1225101866.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:000977",
+      "expectedName": "浪潮信息",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225530925.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-29",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000977&orgId=gssz0000977",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=000977&orgId=gssz0000977"
+        },
+        "website": {
+          "url": "https://www.ieisystem.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-11/1225096638.PDF"
+        },
+        "location": {
+          "label": "山东省济南市高新区草山岭南路 801 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-11/1225096638.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.ieisystem.com/investor-relations/temporary-announcement/",
+          "sourceUrl": "https://www.ieisystem.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002138",
+      "expectedName": "顺络电子",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-07-31/1225448686.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-31",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002138&orgId=9900003163",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002138&orgId=9900003163"
+        },
+        "website": {
+          "url": "https://www.sunlordinc.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-02-28/1224988769.PDF"
+        },
+        "location": {
+          "label": "深圳市龙华区观澜街道大富苑工业区顺络观澜工业园",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-02-28/1224988769.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002156",
+      "expectedName": "通富微电",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225527099.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-29",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002156&orgId=9900003427",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002156&orgId=9900003427"
+        },
+        "website": {
+          "url": "https://www.tfme.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-17/1225112762.PDF"
+        },
+        "location": {
+          "label": "江苏省南通市崇川路 288 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-17/1225112762.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.tfme.com/news/7/",
+          "sourceUrl": "https://www.tfme.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002185",
+      "expectedName": "华天科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225488275.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-22",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002185&orgId=9900003862",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002185&orgId=9900003862"
+        },
+        "website": {
+          "url": "https://www.ht-tech.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225059982.PDF"
+        },
+        "location": {
+          "label": "甘肃省天水市秦州区天水郡街道秦州大道 360 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225059982.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002230",
+      "expectedName": "科大讯飞",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225485550.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-21",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002230&orgId=9900004565",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002230&orgId=9900004565"
+        },
+        "website": {
+          "url": "http://www.iflytek.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-29/1225233581.PDF"
+        },
+        "location": {
+          "label": "合肥市高新开发区望江西路 666 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-29/1225233581.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002281",
+      "expectedName": "光迅科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482609.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-20",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002281&orgId=9900007888",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002281&orgId=9900007888"
+        },
+        "website": {
+          "url": "https://www.accelink.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-23/1225148212.PDF"
+        },
+        "location": {
+          "label": "湖北省武汉市江夏区藏龙岛开发区潭湖路 1 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-23/1225148212.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.accelink.com/lighting_your_dreams/touzizheguanxi.html",
+          "sourceUrl": "https://www.accelink.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002335",
+      "expectedName": "科华数据",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225522569.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-28",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002335&orgId=9900010032",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002335&orgId=9900010032"
+        },
+        "website": {
+          "url": "https://www.kehua.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225194937.PDF"
+        },
+        "location": {
+          "label": "福建省厦门火炬高新区火炬园马垄路 457 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225194937.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002371",
+      "expectedName": "北方华创",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225501903.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-26",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002371&orgId=9900006137",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002371&orgId=9900006137"
+        },
+        "website": {
+          "url": "http://www.naura.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-18/1225122918.PDF"
+        },
+        "location": {
+          "label": "北京市北京经济技术开发区文昌大道 8 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-18/1225122918.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.naura.com/investor/index.html",
+          "sourceUrl": "https://www.naura.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002463",
+      "expectedName": "沪电股份",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225502252.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-26",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002463&orgId=9900013929",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002463&orgId=9900013929"
+        },
+        "website": {
+          "url": "http://www.wustec.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-25/1225027832.PDF"
+        },
+        "location": {
+          "label": "江苏省昆山市玉山镇东龙路 1 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-25/1225027832.PDF"
+        },
+        "investorRelations": {
+          "url": "https://irm.cninfo.com.cn/ircs/company/companyDetail?stockcode=002463&orgId=9900013929",
+          "sourceUrl": "http://www.wustec.com/wus_en/index.php"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002518",
+      "expectedName": "科士达",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225518833.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-28",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002518&orgId=9900016209",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002518&orgId=9900016209"
+        },
+        "website": {
+          "url": "https://www.kstar.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225189515.PDF"
+        },
+        "location": {
+          "label": "深圳市南山区高新北区科技中二路软件园 1 栋4 楼401、402 室",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225189515.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002837",
+      "expectedName": "英维克",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225495981.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-25",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002837&orgId=9900029666",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002837&orgId=9900029666"
+        },
+        "website": {
+          "url": "https://www.envicool.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-21/1225131813.PDF"
+        },
+        "location": {
+          "label": "深圳市龙华区观澜街道观光路 1303 号鸿信工业园 9 号厂房 1-3 楼",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-21/1225131813.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002916",
+      "expectedName": "深南电路",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225512708.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-27",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002916&orgId=9900022488",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002916&orgId=9900022488"
+        },
+        "website": {
+          "url": "http://www.scc.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-13/1225006760.PDF"
+        },
+        "location": {
+          "label": "深圳市龙岗区坪地街道盐龙大道 1639 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-13/1225006760.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:002938",
+      "expectedName": "鹏鼎控股",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-12/1225468757.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-12",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002938&orgId=9900036236",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=002938&orgId=9900036236"
+        },
+        "website": {
+          "url": "http://www.avaryholding.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225062281.PDF"
+        },
+        "location": {
+          "label": "深圳市宝安区新安街道海滨社区海秀路2038号鹏鼎时代大厦A座27层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225062281.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300308",
+      "expectedName": "中际旭创",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491753.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-22",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300308&orgId=9900022016",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300308&orgId=9900022016"
+        },
+        "website": {
+          "url": "http://www.zj-innolight.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225056459.PDF"
+        },
+        "location": {
+          "label": "山东省龙口市诸由观镇驻地",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-31/1225056459.PDF"
+        },
+        "investorRelations": {
+          "url": "https://ir.zj-innolight.com/?lang=en",
+          "sourceUrl": "http://www.zj-innolight.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300346",
+      "expectedName": "南大光电",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225517020.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-28",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300346&orgId=9900022326",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300346&orgId=9900022326"
+        },
+        "website": {
+          "url": "http://www.natachem.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-10/1225087469.PDF"
+        },
+        "location": {
+          "label": "苏州工业园区胜浦平胜路 67 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-10/1225087469.PDF"
+        },
+        "investorRelations": {
+          "url": "http://www.natachem.com/rexian",
+          "sourceUrl": "http://www.natachem.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300383",
+      "expectedName": "光环新网",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225510324.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-27",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300383&orgId=9900022357",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300383&orgId=9900022357"
+        },
+        "website": {
+          "url": "https://www.sinnet.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-29/1225233869.PDF"
+        },
+        "location": {
+          "label": "北京市东城区东中街 9 号东环广场 A 座三层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-29/1225233869.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300394",
+      "expectedName": "天孚通信",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480328.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-19",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300394&orgId=9900023911",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300394&orgId=9900023911"
+        },
+        "website": {
+          "url": "https://www.tfcsz.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-08/1225082705.PDF"
+        },
+        "location": {
+          "label": "苏州高新区长江路 695 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-08/1225082705.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.tfcsz.com/finace_report.html?st=2",
+          "sourceUrl": "https://www.tfcsz.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300442",
+      "expectedName": "润泽科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225521959.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-28",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300442&orgId=9900023826",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300442&orgId=9900023826"
+        },
+        "website": {
+          "url": "http://www.rangeidc.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-10/1225090821.PDF"
+        },
+        "location": {
+          "label": "河北省廊坊经济技术开发区楼庄路 9 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-10/1225090821.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.rangeidc.com/stock/",
+          "sourceUrl": "https://www.rangeidc.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300474",
+      "expectedName": "景嘉微",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484966.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-21",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300474&orgId=9900026649",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300474&orgId=9900026649"
+        },
+        "website": {
+          "url": "https://www.jingjiamicro.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225166816.PDF"
+        },
+        "location": {
+          "label": "长沙市岳麓区梅溪湖路 1 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225166816.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.jingjiamicro.com/tzzgx.html",
+          "sourceUrl": "https://www.jingjiamicro.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300476",
+      "expectedName": "胜宏科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225522515.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-28",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300476&orgId=9900024582",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300476&orgId=9900024582"
+        },
+        "website": {
+          "url": "https://www.shpcb.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-13/1225007455.PDF"
+        },
+        "location": {
+          "label": "惠州市惠阳区淡水镇新桥村行诚科技园",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-13/1225007455.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.shpcb.com/invprospectus.html",
+          "sourceUrl": "https://www.shpcb.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300499",
+      "expectedName": "高澜股份",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225489302.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-22",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300499&orgId=9900023095",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300499&orgId=9900023095"
+        },
+        "website": {
+          "url": "http://www.goaland.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225160679.PDF"
+        },
+        "location": {
+          "label": "广州市高新技术产业开发区科学城南云五路 3 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225160679.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300502",
+      "expectedName": "新易盛",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225499406.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-25",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300502&orgId=9900026455",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300502&orgId=9900026455"
+        },
+        "website": {
+          "url": "https://www.eoptolink.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225172598.PDF"
+        },
+        "location": {
+          "label": "中国(四川)自由贸易试验区成都市双流区黄甲街道物联大道 510 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-24/1225172598.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.eoptolink.com/about-us/investors",
+          "sourceUrl": "https://www.eoptolink.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:300666",
+      "expectedName": "江丰电子",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225500171.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-25",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300666&orgId=9900031914",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=300666&orgId=9900031914"
+        },
+        "website": {
+          "url": "http://www.kfmic.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225500171.PDF"
+        },
+        "location": {
+          "label": "浙江省余姚市经济开发区名邦科技工业园区安山路",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225500171.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:301018",
+      "expectedName": "申菱环境",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225529031.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-29",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301018&orgId=9900035574",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301018&orgId=9900035574"
+        },
+        "website": {
+          "url": "https://www.shenling.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225181199.PDF"
+        },
+        "location": {
+          "label": "佛山市顺德区杏坛镇高新区顺业东路 29 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-27/1225181199.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHE:301165",
+      "expectedName": "锐捷网络",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-15/1225473451.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-15",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301165&orgId=nssc1000760",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301165&orgId=nssc1000760"
+        },
+        "website": {
+          "url": "http://www.ruijie.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-28/1225040067.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区复兴路 29 号东塔 A 座 11 层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-28/1225040067.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.ruijie.com.cn/ir/",
+          "sourceUrl": "https://www.ruijie.com.cn/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:301269",
+      "expectedName": "华大九天",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225525615.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-29",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301269&orgId=9900048778",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301269&orgId=9900048778"
+        },
+        "website": {
+          "url": "https://www.empyrean.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225217315.PDF"
+        },
+        "location": {
+          "label": "北京市朝阳区利泽中二路 2 号A 座二层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225217315.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.empyrean.com.cn/investor/service.html",
+          "sourceUrl": "https://www.empyrean.com.cn/"
+        }
+      }
+    },
+    {
+      "id": "XSHE:301308",
+      "expectedName": "江波龙",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-11/1225467150.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-11",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301308&orgId=9900048787",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=301308&orgId=9900048787"
+        },
+        "website": {
+          "url": "https://www.longsys.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225214128.PDF"
+        },
+        "location": {
+          "label": "深圳市前海深港合作区南山街道听海大道 5059 号鸿荣源前海金融中心二期 B 座 2001、 2201、2301",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225214128.PDF"
+        },
+        "investorRelations": {
+          "url": "https://301308.ir-online.com.cn/en",
+          "sourceUrl": "https://www.longsys.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600050",
+      "expectedName": "中国联通",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480058.PDF",
+          "title": "中国联合网络通信股份有限公司2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-19",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600050&orgId=gssh0600050",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600050&orgId=gssh0600050"
+        },
+        "website": {
+          "url": "https://www.chinaunicom-a.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480058.PDF"
+        },
+        "location": {
+          "label": "北京市西城区金融大街 21 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480058.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600183",
+      "expectedName": "生益科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-15/1225475783.PDF",
+          "title": "生益科技2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-15",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600183&orgId=gssh0600183",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600183&orgId=gssh0600183"
+        },
+        "website": {
+          "url": "https://www.syst.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-15/1225475783.PDF"
+        },
+        "location": {
+          "label": "广东省东莞市松山湖园区工业西路 5 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-15/1225475783.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.syst.com.cn/cn/gszl/list_44.aspx?lcid=16",
+          "sourceUrl": "https://www.syst.com.cn/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600584",
+      "expectedName": "长电科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225487900.PDF",
+          "title": "江苏长电科技股份有限公司2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-21",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600584&orgId=gssh0600584",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600584&orgId=gssh0600584"
+        },
+        "website": {
+          "url": "https://www.jcetglobal.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225487900.PDF"
+        },
+        "location": {
+          "label": "江苏省江阴市滨江中路275号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225487900.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600588",
+      "expectedName": "用友网络",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225490345.PDF",
+          "title": "用友网络2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-22",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600588&orgId=gssh0600588",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600588&orgId=gssh0600588"
+        },
+        "website": {
+          "url": "http://www.yonyou.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225490345.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区北清路 68 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225490345.PDF"
+        },
+        "investorRelations": {
+          "url": "http://www.yonyou.com/investor/",
+          "sourceUrl": "http://www.yonyou.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:600941",
+      "expectedName": "中国移动",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-14/1225472195.PDF",
+          "title": "中国移动：2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-14",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600941&orgId=gshk0000941",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=600941&orgId=gshk0000941"
+        },
+        "website": {
+          "url": "https://www.chinamobileltd.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-14/1225472195.PDF"
+        },
+        "location": {
+          "label": "中国北京市西城区金融大街29号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-14/1225472195.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:601138",
+      "expectedName": "工业富联",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-12/1225468066.PDF",
+          "title": "富士康工业互联网股份有限公司2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-12",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=601138&orgId=9900036731",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=601138&orgId=9900036731"
+        },
+        "website": {
+          "url": "http://www.fii-foxconn.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-12/1225468066.PDF"
+        },
+        "location": {
+          "label": "深圳市龙华区龙华街道东环二路二号富士康科技园 C1 栋二层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-12/1225468066.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:601728",
+      "expectedName": "中国电信",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484689.PDF",
+          "title": "中国电信股份有限公司2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-21",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=601728&orgId=gshk0000728",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=601728&orgId=gshk0000728"
+        },
+        "website": {
+          "url": "https://www.chinatelecom-h.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484689.PDF"
+        },
+        "location": {
+          "label": "北京市西城区金融大街31号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484689.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603019",
+      "expectedName": "中科曙光",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225507613.PDF",
+          "title": "中科曙光2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-26",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603019&orgId=9900023134",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603019&orgId=9900023134"
+        },
+        "website": {
+          "url": "http://www.sugon.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225507613.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区东北旺西路8号院36号楼",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225507613.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.sugon.com/investor/profile",
+          "sourceUrl": "https://www.sugon.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603160",
+      "expectedName": "汇顶科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484729.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-21",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603160&orgId=9900027319",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603160&orgId=9900027319"
+        },
+        "website": {
+          "url": "https://www.goodix.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484729.PDF"
+        },
+        "location": {
+          "label": "深圳市福田区梅康路1号汇顶科技总部大厦26楼",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225484729.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.goodix.com/en/about_goodix/investor/announcements",
+          "sourceUrl": "https://www.goodix.com/en"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603296",
+      "expectedName": "华勤技术",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225502465.PDF",
+          "title": "华勤技术2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-26",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603296&orgId=9900047877",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603296&orgId=9900047877"
+        },
+        "website": {
+          "url": "https://www.huaqin.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225502465.PDF"
+        },
+        "location": {
+          "label": "上海市浦东新区绿科路699号华勤全球研发中心",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-26/1225502465.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603501",
+      "expectedName": "豪威集团",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225498523.PDF",
+          "title": "2026年半年度报告全文",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-25",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603501&orgId=9900030772",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603501&orgId=9900030772"
+        },
+        "website": {
+          "url": "https://www.omnivision-group.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225498523.PDF"
+        },
+        "location": {
+          "label": "上海市浦东新区上科路88号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225498523.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603881",
+      "expectedName": "数据港",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491195.PDF",
+          "title": "上海数据港股份有限公司2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-22",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603881&orgId=9900029913",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603881&orgId=9900029913"
+        },
+        "website": {
+          "url": "https://www.athub.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491195.PDF"
+        },
+        "location": {
+          "label": "上海市静安区江场路1401弄14号1601室",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491195.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:603986",
+      "expectedName": "兆易创新",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480384.PDF",
+          "title": "兆易创新2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-19",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603986&orgId=9900026561",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=603986&orgId=9900026561"
+        },
+        "website": {
+          "url": "https://www.gigadevice.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480384.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区丰豪东路9号院中关村集成电路设计园8 号楼",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480384.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.gigadevice.com/about/investor-relation",
+          "sourceUrl": "https://www.gigadevice.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688008",
+      "expectedName": "澜起科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225530486.PDF",
+          "title": "澜起科技2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-29",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688008&orgId=9900039002",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688008&orgId=9900039002"
+        },
+        "website": {
+          "url": "https://www.montage-tech.com/cn",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225530486.PDF"
+        },
+        "location": {
+          "label": "上海市徐汇区漕宝路 181 号和光天地 16 层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225530486.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.montage-tech.com/cn/Investor_Relations",
+          "sourceUrl": "https://www.montage-tech.com/cn/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688012",
+      "expectedName": "中微公司",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482884.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-20",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688012&orgId=9900038991",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688012&orgId=9900038991"
+        },
+        "website": {
+          "url": "http://www.amec-inc.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482884.PDF"
+        },
+        "location": {
+          "label": "上海市浦东新区金桥综合保税区泰华路 188 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482884.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.amec-inc.com/index.php/index/Lists/index/catid/34.html",
+          "sourceUrl": "https://www.amec-inc.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688018",
+      "expectedName": "乐鑫科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-07-31/1225448878.PDF",
+          "title": "乐鑫科技2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-07-31",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688018&orgId=9900039017",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688018&orgId=9900039017"
+        },
+        "website": {
+          "url": "http://www.espressif.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-07-31/1225448878.PDF"
+        },
+        "location": {
+          "label": "上海市浦东新区御北路 235 弄 3 号楼 1-7 层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-07-31/1225448878.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.espressif.com/en/company/investor-relations/investor-inquiries",
+          "sourceUrl": "https://www.espressif.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688036",
+      "expectedName": "传音控股",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-18/1225476410.PDF",
+          "title": "传音控股2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-18",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688036&orgId=9900038988",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688036&orgId=9900038988"
+        },
+        "website": {
+          "url": "http://www.transsion.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-18/1225476410.PDF"
+        },
+        "location": {
+          "label": "深圳市南山区西丽街道西丽社区仙元路 8 号传音大厦",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-03-28/1225047544.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688041",
+      "expectedName": "海光信息",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-14/1225472510.PDF",
+          "title": "海光信息技术股份有限公司2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-14",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688041&orgId=9900048365",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688041&orgId=9900048365"
+        },
+        "website": {
+          "url": "https://www.hygon.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-14/1225472510.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区东北旺西路8号中关村软件园27号楼C座4-5层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-14/1225472510.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688047",
+      "expectedName": "龙芯中科",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225524354.PDF",
+          "title": "龙芯中科2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-29",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688047&orgId=9900048052",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688047&orgId=9900048052"
+        },
+        "website": {
+          "url": "https://www.loongson.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225524354.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区中关村环保科技示范园区龙芯产业园 2 号楼",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225524354.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.loongson.cn/system/tzz",
+          "sourceUrl": "https://www.loongson.cn/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688072",
+      "expectedName": "拓荆科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-21/1225486631.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-21",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688072&orgId=9900048695",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688072&orgId=9900048695"
+        },
+        "website": {
+          "url": "https://www.piotech.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225222226.PDF"
+        },
+        "location": {
+          "label": "辽宁省沈阳市浑南区水家 900 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225222226.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.piotech.cn/index.php/Touzi",
+          "sourceUrl": "https://www.piotech.cn/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688111",
+      "expectedName": "金山办公",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482678.PDF",
+          "title": "金山办公2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-20",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688111&orgId=9900035303",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688111&orgId=9900035303"
+        },
+        "website": {
+          "url": "https://www.wps.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482678.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区小营西路33号金山软件大厦",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225482678.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688120",
+      "expectedName": "华海清科",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491095.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-22",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688120&orgId=9900044315",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688120&orgId=9900044315"
+        },
+        "website": {
+          "url": "https://www.hwatsing.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491095.PDF"
+        },
+        "location": {
+          "label": "天津市津南区咸水沽镇聚兴道 11 号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491095.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.hwatsing.com/relation_finance.html",
+          "sourceUrl": "https://www.hwatsing.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688126",
+      "expectedName": "沪硅产业",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225483472.PDF",
+          "title": "沪硅产业2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-20",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688126&orgId=9900039304",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688126&orgId=9900039304"
+        },
+        "website": {
+          "url": "https://www.nsig.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225483472.PDF"
+        },
+        "location": {
+          "label": "中国（上海）自由贸易试验区临港新片区云水路1000号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-20/1225483472.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688206",
+      "expectedName": "概伦电子",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225514208.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-27",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688206&orgId=9900048370",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688206&orgId=9900048370"
+        },
+        "website": {
+          "url": "http://www.primarius-tech.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225514208.PDF"
+        },
+        "location": {
+          "label": "上海市浦东新区银冬路20弄集鼎天地3号楼17层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225514208.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.primarius-tech.com/investor/",
+          "sourceUrl": "https://www.primarius-tech.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688256",
+      "expectedName": "寒武纪",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-08/1225464969.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-08",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688256&orgId=nssc1000595",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688256&orgId=nssc1000595"
+        },
+        "website": {
+          "url": "https://www.cambricon.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-08/1225464969.PDF"
+        },
+        "location": {
+          "label": "北京市海淀区知春路7号致真大厦D座5层、11-13层、 15-16层、21层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-08/1225464969.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.cambricon.com/index.php?m=content&c=index&a=lists&catid=326",
+          "sourceUrl": "https://www.cambricon.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688347",
+      "expectedName": "华虹公司",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225514149.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-27",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688347&orgId=9900029531",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688347&orgId=9900029531"
+        },
+        "website": {
+          "url": "https://www.huahonggrace.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225514149.PDF"
+        },
+        "location": {
+          "label": "中国上海市浦东新区哈雷路288号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-27/1225514149.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688498",
+      "expectedName": "源杰科技",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225527905.PDF",
+          "title": "陕西源杰半导体科技股份有限公司2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-29",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688498&orgId=9900052124",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688498&orgId=9900052124"
+        },
+        "website": {
+          "url": "http://www.yj-semitech.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225527905.PDF"
+        },
+        "location": {
+          "label": "陕西省西咸新区沣西新城开元路1265号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-29/1225527905.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.yj-semitech.com/html/tzrgx/index.html",
+          "sourceUrl": "https://www.yj-semitech.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688521",
+      "expectedName": "芯原股份",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-18/1225478749.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-18",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688521&orgId=9900040648",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688521&orgId=9900040648"
+        },
+        "website": {
+          "url": "http://www.verisilicon.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-18/1225478749.PDF"
+        },
+        "location": {
+          "label": "中国（上海）自由贸易试验区春晓路289号张江大厦20A",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-18/1225478749.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.verisilicon.com/cn/InvestorRelations",
+          "sourceUrl": "https://www.verisilicon.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688525",
+      "expectedName": "佰维存储",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225497235.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-25",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688525&orgId=9900047412",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688525&orgId=9900047412"
+        },
+        "website": {
+          "url": "https://www.biwin.com.cn/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225497235.PDF"
+        },
+        "location": {
+          "label": "深圳市南山区桃源街道平山社区留仙大道1213号众冠红花岭工 业南区2区4、8栋1层-3层及4栋4层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-25/1225497235.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.biwin.com.cn/gushi.html",
+          "sourceUrl": "https://www.biwin.com.cn/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688766",
+      "expectedName": "普冉股份",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480536.PDF",
+          "title": "普冉半导体（上海）股份有限公司2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-19",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688766&orgId=nssc1000720",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688766&orgId=nssc1000720"
+        },
+        "website": {
+          "url": "https://www.puyasemi.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480536.PDF"
+        },
+        "location": {
+          "label": "中国（上海）自由贸易试验区银冬路20弄8号楼",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-19/1225480536.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.puyasemi.com/gujiaxinxi.html",
+          "sourceUrl": "https://www.puyasemi.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688795",
+      "expectedName": "摩尔线程",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-10/1225465335.PDF",
+          "title": "摩尔线程2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-10",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688795&orgId=9900063221",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688795&orgId=9900063221"
+        },
+        "website": {
+          "url": "https://www.mthreads.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-10/1225465335.PDF"
+        },
+        "location": {
+          "label": "北京市朝阳区望京东路6号望京国际研发园I座3层",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-10/1225465335.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.mthreads.com/investor",
+          "sourceUrl": "https://www.mthreads.com/"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688802",
+      "expectedName": "沐曦股份",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-31/1225535168.PDF",
+          "title": "2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-31",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688802&orgId=9900063219",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688802&orgId=9900063219"
+        },
+        "website": {
+          "url": "https://www.metax-tech.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-31/1225535168.PDF"
+        },
+        "location": {
+          "label": "上海市浦东新区海科路999弄C8栋",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-31/1225535168.PDF"
+        }
+      }
+    },
+    {
+      "id": "XSHG:688981",
+      "expectedName": "中芯国际",
+      "profile": {
+        "checkedAt": "2026-09-13",
+        "financialReportStatus": "AVAILABLE",
+        "financialReport": {
+          "url": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225520297.PDF",
+          "title": "中芯国际2026年半年度报告",
+          "periodEnd": "2026-06-30",
+          "publishedAt": "2026-08-28",
+          "form": "INTERIM"
+        },
+        "disclosures": {
+          "url": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688981&orgId=gshk0000981",
+          "sourceUrl": "https://www.cninfo.com.cn/new/disclosure/stock?stockCode=688981&orgId=gshk0000981"
+        },
+        "website": {
+          "url": "https://www.smics.com/",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225520297.PDF"
+        },
+        "location": {
+          "label": "中国上海市浦东新区张江路18号",
+          "kind": "OFFICE",
+          "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225520297.PDF"
+        },
+        "investorRelations": {
+          "url": "https://www.smics.com/site/investor",
+          "sourceUrl": "https://www.smics.com/"
+        }
+      }
+    }
+  ]
+}

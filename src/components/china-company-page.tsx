@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLocale } from "./providers/locale-provider";
 import type { ChinaCompany } from "@/lib/industry-research/china";
+import { CompanyProfileDetails } from "./company-profile-details";
 
 export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
   const { text } = useLocale();
@@ -19,6 +20,7 @@ export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
       <h2 className="mt-8 text-lg font-semibold">{text("Sources", "资料来源")}</h2>
       <a href={company.source} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-sm leading-7 text-cyan-200 hover:underline">{company.sourceLabel} ↗</a>
     </section>
+    <CompanyProfileDetails profile={company.profile} />
     <p className="mt-6 text-sm text-slate-400">{text("A-share live prices and call tracking are not yet available.", "A 股实时行情与观点收益跟踪尚未接入。")}</p>
   </main>;
 }

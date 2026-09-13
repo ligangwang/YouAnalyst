@@ -1,4 +1,5 @@
 import { INDUSTRY_SEGMENTS } from "./industry-graph/catalog";
+import { normalizeCompanyProfile } from "./company-profile";
 import { RELATIONSHIP_LABELS, type IndustryGraph } from "./industry-graph/model";
 
 function text(value: unknown): string | null {
@@ -19,6 +20,7 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
     }) : [];
   return {
     ticker,
+    profile: normalizeCompanyProfile(listing?.profile),
     name: text(listing?.name) ?? node?.aliases?.[0] ?? node?.name ?? ticker,
     known: Boolean(listing || node),
     exchange: text(listing?.exchange),

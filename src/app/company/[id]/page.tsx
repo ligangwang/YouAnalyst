@@ -5,6 +5,8 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { companyGeography, companyGeographyLabel } from "@/lib/market-companies/identity";
 import { localizedMetadata } from "@/lib/i18n/server";
 import { localizedPath } from "@/lib/i18n/urls";
+import { normalizeCompanyProfile } from "@/lib/company-profile";
+import { CompanyProfileDetails } from "@/components/company-profile-details";
 
 export const dynamic = "force-dynamic";
 function routeId(raw: string) {
@@ -37,5 +39,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     <section className="mt-10 rounded-2xl border border-white/10 p-6"><h2 className="text-xl font-semibold">{zh ? "公司概览" : "Company overview"}</h2><p className="mt-4 leading-8">{String(data.description ?? "")}</p>
       <h2 className="mt-8 text-xl font-semibold">{zh ? "资料来源" : "Sources"}</h2><ul className="mt-4 space-y-3">{sources.map((s, i) => <li key={`${s.url}:${i}`}><a className="text-cyan-200" href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a></li>)}</ul>
     </section>
+    <CompanyProfileDetails profile={normalizeCompanyProfile(data.profile)} />
   </main>;
 }
