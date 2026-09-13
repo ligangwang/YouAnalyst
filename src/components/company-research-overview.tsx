@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { CompanyResearch } from "@/lib/company-research";
 import { CompanyCallActions } from "./company-call-actions";
+import { CompanyProfileDetails } from "./company-profile-details";
 
 export function CompanyResearchOverview({ company, fundamentals }: { company: CompanyResearch; fundamentals?: ReactNode }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
@@ -31,6 +32,7 @@ export function CompanyResearchOverview({ company, fundamentals }: { company: Co
         <a href="#institutional-holdings"><UiText text={"Institutional holdings"} /></a>
       </nav>
     </header>
+    <CompanyProfileDetails profile={company.profile} />
     {fundamentals}
     {company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker}<UiText text={" suppliers, customers and competitors"} /></h2>

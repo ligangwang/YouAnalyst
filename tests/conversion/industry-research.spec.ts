@@ -80,7 +80,7 @@ test("sector changes reset industry and scope; custom topics remain available", 
   await expect(page.getByLabel("Research scope (optional)")).toHaveValue("");
   await page.getByRole("combobox", { name: "Industry", exact: true }).selectOption("352020");
   await page.getByRole("button", { name: "Research industry connections", exact: true }).click();
-  expect(requests[0]).toMatchObject({ category: { sectorCode: "35", industryCode: "352020" }, industry: "" });
+  await expect.poll(() => requests[0]).toMatchObject({ category: { sectorCode: "35", industryCode: "352020" }, industry: "" });
   await page.getByRole("combobox", { name: "Sector", exact: true }).selectOption("custom");
   await expect(page.getByRole("combobox", { name: "Industry", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Research industry connections", exact: true })).toBeDisabled();
