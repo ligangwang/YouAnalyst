@@ -89,7 +89,7 @@ export async function publishResearch(db: Firestore, batch: ResearchBatch, write
       tx.set(edgeRefs[i], { ...e, id: edgeRefs[i].id, status: "PUBLISHED", topic: "AI", asOf: batch.asOf, ...old, evidence: combined.filter((s, j) => combined.findIndex(other => other.url === s.url && other.title === s.title) === j) });
     });
     return { write: true, companies: [...resolved], relationships: edgeRefs.map(r => r.id) };
-  });
+  }, write ? { readOnly: false } : { readOnly: true });
 }
 async function main() {
   const batch = JSON.parse(await readFile(new URL("../data/ai-supply-chain/global-research.json", import.meta.url), "utf8"));

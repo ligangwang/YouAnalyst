@@ -8,11 +8,13 @@ import { graphFromMarket, type MarketCompany, type MarketRelationship } from "..
 const fixture = async () => JSON.parse(await readFile(new URL("../data/ai-supply-chain/global-research.json", import.meta.url), "utf8")) as ResearchBatch;
 function database(batch: ResearchBatch) {
   const records = new Map<string, Record<string, unknown>>();
+  const transactionModes: boolean[] = [];
   for (const id of new Set(batch.relationships.map(e => e.target))) records.set("companies/" + id, { id, name: id, status: "DIRECTORY" });
   const ref = (path: string) => ({ path, id: path.split("/")[1] });
   const db = {
     collection: (name: string) => ({ select: () => name, doc: (id: string) => ref(name + "/" + id) }),
-    runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+    runTransaction: async (fn: (tx: unknown) => Promise<unknown>, options: { readOnly: boolean }) => {
+      transactionModes.push(options.readOnly);
       const pending: [string, Record<string, unknown>][] = [];
       const tx = {
         get: async () => ({ docs: [...records].filter(([key]) => key.startsWith("companies/")).map(([key, v]) => ({ id: ref(key).id, data: () => structuredClone(v) })) }),
@@ -24,13 +26,15 @@ function database(batch: ResearchBatch) {
       return result;
     },
   } as unknown as Firestore;
-  return { db, records };
+  return { db, records, transactionModes };
 }
 test("preview writes nothing; publication renders global nodes and evidence; replay preserves edits", async () => {
-  const batch = await fixture(), { db, records } = database(batch), before = structuredClone(records);
+  const batch = await fixture(), { db, records, transactionModes } = database(batch), before = structuredClone(records);
   await publishResearch(db, batch);
   assert.deepEqual(records, before);
+  assert.deepEqual(transactionModes, [true]);
   await publishResearch(db, batch, true);
+  assert.deepEqual(transactionModes, [true, false]);
   const companies = [...records].filter(([k]) => k.startsWith("companies/")).map(([, v]) => v) as MarketCompany[];
   const edges = [...records].filter(([k]) => k.startsWith("company_relationships/")).map(([, v]) => v) as MarketRelationship[];
   const graph = graphFromMarket(companies, edges);
