@@ -38,7 +38,7 @@ Client request IDs prevent duplicate starts on retries. A per-industry lock prev
 - Unknown segment values render under `other`; the application does not guess industry membership. Segment IDs are the existing layout taxonomy in `catalog.ts`.
 - Aliases are provisional display joins, not persistent identity merges. Preserve `expectedCik` when a ticker has been reused by a different issuer.
 
-Deployments run `scripts/migrate-map-directory.ts` with the deployment service identity. It creates missing initial metadata documents in a transaction, never overwrites existing records, and never deletes data. To retire a featured entry, set `featured` to false rather than deleting its bootstrap document. Subsequent editorial changes can be made in Firestore without deploying code.
+Initial company metadata and role corrections have been applied; their one-time migration scripts have been removed. Deployments do not seed or reclassify these records. To retire a featured entry, set `featured` to false. Subsequent editorial changes can be made in Firestore without deploying code.
 
 ## Paging And Coverage
 
