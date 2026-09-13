@@ -169,7 +169,10 @@ test.beforeAll(async () => {
       "next/link": mock,
     },
   });
-  html = `<html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="youanalyst-analytics" content="enabled" /><style>${result.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}</style></head><body><div id="root"></div><script>${result.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  // esbuild does not compile Tailwind. Preserve the search overlay's positioning:
+  // otherwise closing it on pointerdown moves the clicked control before mouseup.
+  const positioning = ".relative{position:relative}.absolute{position:absolute}.top-full{top:100%}.left-0{left:0}.right-0{right:0}";
+  html = `<html><head><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="youanalyst-analytics" content="enabled" /><style>${positioning}${result.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}</style></head><body><div id="root"></div><script>${result.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
 test.beforeEach(async ({ page }) => {
