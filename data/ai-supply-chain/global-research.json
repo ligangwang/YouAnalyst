@@ -1,0 +1,227 @@
+{
+  "asOf": "2026-09-13",
+  "companies": [
+    {
+      "id": "ORG:OPENAI",
+      "name": "OpenAI",
+      "legalName": "OpenAI Group PBC",
+      "website": "https://openai.com",
+      "country": "US",
+      "listingStatus": "PRIVATE",
+      "listingStatusAsOf": "2026-09-13",
+      "listings": [],
+      "description": "Develops frontier AI models and ChatGPT. Its for-profit business is OpenAI Group PBC, controlled by the OpenAI Foundation. Its June 2026 confidential S-1 announcement described it as private; an IPO filing is not a completed stock-market listing.",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "global:openai-structure",
+        "global:openai-country",
+        "global:openai-status",
+        "global:openai-private-review"
+      ]
+    },
+    {
+      "id": "ORG:ANTHROPIC",
+      "name": "Anthropic",
+      "legalName": "Anthropic, PBC",
+      "website": "https://www.anthropic.com",
+      "country": "US",
+      "listingStatus": "PRIVATE",
+      "listingStatusAsOf": "2026-09-13",
+      "listings": [],
+      "description": "Develops the Claude family of AI models and enterprise AI services. A Delaware public benefit corporation. Its June 2026 filing proposed a future IPO; it did not announce completed public trading.",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "global:anthropic-country",
+        "global:anthropic-status",
+        "global:anthropic-private-review",
+        "global:anthropic-amazon"
+      ]
+    },
+    {
+      "id": "ORG:MISTRAL-AI",
+      "name": "Mistral AI",
+      "website": "https://mistral.ai",
+      "country": "FR",
+      "listingStatus": "PRIVATE",
+      "listingStatusAsOf": "2026-09-13",
+      "listings": [],
+      "identifiers": [
+        {
+          "scheme": "FR:SIREN",
+          "value": "952418325"
+        }
+      ],
+      "description": "French AI company developing frontier models and customizable AI solutions for enterprises and industrial applications. Its legal notice identifies Paris registration 952418325. Private-market status is corroborated by Forge.",
+      "stageIds": [
+        "applications"
+      ],
+      "sourceIds": [
+        "global:mistral-country",
+        "global:mistral-status",
+        "global:mistral-asml"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "source": "ORG:OPENAI",
+      "target": "US:MSFT",
+      "type": "PARTNER_OF",
+      "summary": "Microsoft remains OpenAI’s primary cloud partner under the April 2026 amended agreement. OpenAI can also serve products through other cloud providers; the partnership is not exclusive.",
+      "commercialStatus": "DOCUMENTED",
+      "sourceIds": [
+        "global:openai-msft"
+      ]
+    },
+    {
+      "source": "ORG:ANTHROPIC",
+      "target": "US:AMZN",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "summary": "Anthropic uses Amazon's AWS Trainium chips for Claude workloads. The April 2026 announcement describes existing Trainium2 use, alongside commitments for additional future capacity.",
+      "commercialStatus": "DOCUMENTED",
+      "sourceIds": [
+        "global:anthropic-amazon"
+      ]
+    },
+    {
+      "source": "ORG:ANTHROPIC",
+      "target": "US:GOOGL",
+      "type": "PARTNER_OF",
+      "summary": "Anthropic announced expanded TPU capacity with Alphabet through Google, alongside Broadcom. The additional capacity is expected to start coming online in 2027, not already delivered.",
+      "commercialStatus": "ANNOUNCED",
+      "sourceIds": [
+        "global:anthropic-tpu"
+      ]
+    },
+    {
+      "source": "ORG:ANTHROPIC",
+      "target": "US:AVGO",
+      "type": "PARTNER_OF",
+      "summary": "Anthropic announced a compute agreement with Broadcom and Google for additional TPU capacity expected from 2027. This records the agreement, not completed delivery.",
+      "commercialStatus": "ANNOUNCED",
+      "sourceIds": [
+        "global:anthropic-tpu"
+      ]
+    },
+    {
+      "source": "ORG:MISTRAL-AI",
+      "target": "US:ASML",
+      "type": "PARTNER_OF",
+      "summary": "Mistral AI and ASML announced a strategic partnership to explore AI-enabled products and engineering solutions for ASML's customers. The source also records ASML's investment; it does not establish a chip-supply contract.",
+      "commercialStatus": "ANNOUNCED",
+      "sourceIds": [
+        "global:mistral-asml"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "global:openai-private-review",
+      "url": "https://forgeglobal.com/openai_ipo/",
+      "title": "OpenAI private listing status (Forge)",
+      "sourceDate": null,
+      "retrievedAt": "2026-09-13",
+      "excerpt": "OpenAI is a private company and not publicly traded."
+    },
+    {
+      "id": "global:anthropic-private-review",
+      "url": "https://forgeglobal.com/anthropic_ipo/",
+      "title": "Anthropic private listing status (Forge)",
+      "sourceDate": "2026-09-04",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "Anthropic is a private company and not publicly traded."
+    },
+    {
+      "id": "global:openai-structure",
+      "url": "https://openai.com/our-structure/",
+      "title": "OpenAI corporate structure",
+      "sourceDate": "2025-10-28",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "OpenAI Group PBC"
+    },
+    {
+      "id": "global:openai-country",
+      "url": "https://www.delawareinc.com/blog/openai-launches-delaware-public-benefit-corporation/",
+      "title": "OpenAI Delaware incorporation (Harvard Business Services)",
+      "sourceDate": "2025-10-31",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "OpenAI has officially formed its Delaware Public Benefit Corporation"
+    },
+    {
+      "id": "global:openai-status",
+      "url": "https://openai.com/index/openai-submits-confidential-s-1/",
+      "title": "OpenAI confidential S-1 announcement",
+      "sourceDate": "2026-06-08",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "likely easier as a private company"
+    },
+    {
+      "id": "global:openai-msft",
+      "url": "https://openai.com/index/next-phase-of-microsoft-partnership/",
+      "title": "Updated Microsoft–OpenAI partnership",
+      "sourceDate": "2026-04-27",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "Microsoft remains OpenAI’s primary cloud partner"
+    },
+    {
+      "id": "global:anthropic-country",
+      "url": "https://www.anthropic.com/news/the-long-term-benefit-trust",
+      "title": "Anthropic governance",
+      "sourceDate": "2023-09-19",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "Anthropic is incorporated in Delaware"
+    },
+    {
+      "id": "global:anthropic-status",
+      "url": "https://www.anthropic.com/news/confidential-draft-s1-sec",
+      "title": "Anthropic confidential S-1 announcement",
+      "sourceDate": "2026-06-01",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "a proposed initial public offering"
+    },
+    {
+      "id": "global:anthropic-amazon",
+      "url": "https://www.anthropic.com/news/anthropic-amazon-compute",
+      "title": "Anthropic expands Amazon compute agreement",
+      "sourceDate": "2026-04-20",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "currently use over one million Trainium2 chips"
+    },
+    {
+      "id": "global:anthropic-tpu",
+      "url": "https://www.anthropic.com/news/google-broadcom-partnership-compute",
+      "title": "Anthropic Google and Broadcom compute agreement",
+      "sourceDate": "2026-04-06",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "capacity that we expect to come online starting in 2027"
+    },
+    {
+      "id": "global:mistral-country",
+      "url": "https://legal.mistral.ai/terms/privacy-policy/",
+      "title": "Mistral AI privacy policy and legal identity",
+      "sourceDate": null,
+      "retrievedAt": "2026-09-13",
+      "excerpt": "Mistral AI is a French company"
+    },
+    {
+      "id": "global:mistral-status",
+      "url": "https://forgeglobal.com/mistral-ai_ipo/",
+      "title": "Mistral AI private listing status (Forge)",
+      "sourceDate": null,
+      "retrievedAt": "2026-09-13",
+      "excerpt": "Mistral AI is a private company and not publicly traded."
+    },
+    {
+      "id": "global:mistral-asml",
+      "url": "https://mistral.ai/news/mistral-ai-raises-1-7-b-to-accelerate-technological-progress-with-ai/",
+      "title": "Mistral AI ASML strategic partnership",
+      "sourceDate": "2025-09-09",
+      "retrievedAt": "2026-09-13",
+      "excerpt": "ASML is proud to enter a strategic partnership with Mistral AI"
+    }
+  ]
+}
