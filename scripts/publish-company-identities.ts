@@ -18,7 +18,7 @@ export function validateIdentities(batch: IdentityBatch) {
   for (const c of batch.companies) {
     assert(/^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(c.id) && c.expectedName.trim(), "Invalid identity");
     assert(/^[A-Z]{2}$/.test(c.country) && c.listingStatus === "PUBLIC", `${c.id}: invalid geography/status`);
-    assert(c.expectedCountry === undefined || typeof c.expectedCountry === "string" && c.expectedCountry.trim(), `${c.id}: invalid expected country`);
+    assert(c.expectedCountry === undefined || c.id.startsWith("US:") && c.expectedCountry === "United States", `${c.id}: invalid expected country`);
     assert(c.listings.length > 0 && c.listings.every(l => l.market === (c.id.startsWith("US:") ? "US" : "CN_A") && l.symbol === c.id.split(":")[1] && (c.id.startsWith("US:") ? ["XNAS", "XNYS"].includes(l.exchange) : l.exchange === c.id.split(":")[0])), `${c.id}: listing does not match company`);
     for (const e of [c.evidence.country, c.evidence.listing]) assert(profileUrl(e.url)?.startsWith("https://") && e.excerpt.trim(), `${c.id}: invalid evidence`);
     assert(["BUSINESS_ADDRESS", "OFFICE", "HEADQUARTERS", "CORPORATE_CAMPUS"].includes(c.evidence.country.basis ?? ""), `${c.id}: missing country basis`);
