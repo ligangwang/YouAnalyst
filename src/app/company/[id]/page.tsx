@@ -7,8 +7,14 @@ import { localizedMetadata } from "@/lib/i18n/server";
 import { localizedPath } from "@/lib/i18n/urls";
 
 export const dynamic = "force-dynamic";
-const load = cache(async (id: string) => {
+function routeId(raw: string) {
+  let id: string;
+  try { id = decodeURIComponent(raw); } catch { notFound(); }
   if (!/^ORG:[A-Z0-9][A-Z0-9.-]{0,79}$/.test(id)) notFound();
+  return id;
+}
+const load = cache(async (id: string) => {
+  id = routeId(id);
   const doc = await getAdminFirestore().collection("companies").doc(id).get();
   const data = doc.data();
   if (!data || !["PUBLISHED", "DIRECTORY"].includes(data.status) || typeof data.name !== "string") notFound();
@@ -19,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return localizedMetadata({ title: `${data.name} | YouAnalyst`, description: String(data.description ?? "") });
 }
 export default async function CompanyPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const id = routeId((await params).id);
   const data = await load(id);
   const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
   const zh = locale === "zh-CN";
