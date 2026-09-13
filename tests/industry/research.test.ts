@@ -6,7 +6,6 @@ import { buildIndustryGraph, selectNeighborhood } from "../../src/lib/industry-g
 import { createIndustryResearchService } from "../../src/lib/industry-research/service";
 import type { Firestore } from "firebase-admin/firestore";
 import { RESEARCH_SECTORS, resolveResearchTopic, researchTopicLabel } from "../../src/lib/industry-research/taxonomy";
-import { MAP_ROLE_CORRECTIONS, roleCorrectionPatch } from "../../scripts/data/map-role-corrections";
 import { chinaResearchDiagnostics, normalizeChinaCompany, normalizeChinaResearch, validChinaId, MARKET_COMPANIES } from "../../src/lib/industry-research/china";
 import { seedChinaCompanies, listChinaCompanies } from "../../src/lib/industry-research/china-directory";
 import { chinaSupplyChain } from "../../src/lib/industry-graph/china";
@@ -27,16 +26,6 @@ test("reference taxonomy has 11 sectors, 74 unique industries, and validated par
   assert.throws(() => resolveResearchTopic("", null));
   assert.throws(() => resolveResearchTopic("x".repeat(121)));
   assert.equal(researchTopicLabel(resolveResearchTopic("Cross-industry AI")), "Cross-industry AI");
-});
-
-test("role migration is idempotent and preserves explicitly classified metadata", () => {
-  for (const company of MAP_ROLE_CORRECTIONS) {
-    const patch = roleCorrectionPatch(undefined, company)!;
-    assert.equal(patch.segment, company.segment);
-    assert.equal(roleCorrectionPatch(patch, company), null);
-    assert.equal(roleCorrectionPatch({ segment: "cloud" }, company), null);
-    assert.equal(roleCorrectionPatch({ name: "Editorial name", segment: "other" }, company)?.name, undefined);
-  }
 });
 
 const url = "https://www.amd.com/en/newsroom/example.html";

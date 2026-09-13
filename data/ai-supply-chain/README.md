@@ -10,7 +10,7 @@ Company IDs are `US:NVDA`, `XSHG:688041`, etc. Relationship IDs are canonical so
 
 The JSON files are reviewed seed inputs. `scripts/import-ai-knowledge-graphs.ts --write` imports them into the shared collections atomically and preserves existing editorial changes on replay. It does not create a separate graph collection.
 
-`scripts/migrate-market-graph.ts --write` is the only legacy reader. It exports all legacy documents and subcollections, copies the active data into the shared collections, and checks nodes, relationships, and evidence. Deployment retains the export as a GitHub Actions artifact for 90 days. After successful production smoke tests, `--delete-legacy` verifies the live API uses the new store, checks that the source still matches the export, and removes the legacy tree. The migration is a no-op after deletion.
+The legacy graph migration is complete and its script has been removed. Deployments now read the shared stores directly. Historical migration code is retained in Git at commit `df65762`; see the [completed migration and recovery record](../../docs/company-collection-rename.md) before planning any restore.
 
 The map keeps a five-minute server cache. A fresh page/API request after cache expiry reflects approved shared-store updates.
 
@@ -170,4 +170,4 @@ US security IDs use the `US:` market namespace, not an exchange MIC. A-share IDs
 
 Filing observations are stored in `company_relationships` under `filing:` document IDs. Their original direction, company/category names, extraction details, and filing evidence are retained. Unresolved observations have `NEEDS_REVIEW` status and are excluded from the public 3D graph. Reviewed published and withdrawn records survive extraction retries.
 
-Research run history and request state live in `company_research_runs` and `company_research_requests`. The filing API, directory, sitemap, queue, and extraction service use these stores. `scripts/migrate-filing-research.ts` exports and verifies the legacy data before deployment, retains a 90-day recovery artifact, then removes the legacy collections only after successful smoke tests and a live-reader check.
+Research run history and request state live in `company_research_runs` and `company_research_requests`. The filing API, directory, sitemap, queue, and extraction service use these stores. The filing consolidation is complete and its migration script has been removed. Deployment no longer copies or deletes legacy filing collections. Historical code remains in Git at commit `df65762`; any recovery must preserve subsequent production updates.

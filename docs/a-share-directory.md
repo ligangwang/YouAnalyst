@@ -10,6 +10,6 @@ The downloader reads the latest file link from https://www.cnindex.com.cn/zh_inf
 
 `company_directory/{exchange}:{code}` stores company identity, four CNI classification levels, source and snapshot. `industry_research_candidates/{exchange}:{code}` holds private queue state. Repeated imports preserve research status, attempts and editorial names. `directory_syncs/CN_A_CNI` records the completed snapshot, checksum, count and industries. Partial imports can be replayed; the completion marker advances only after every chunk succeeds. Unchanged files are skipped; older snapshots are rejected.
 
-Published profiles stay in `companies`. Imported identities are never exposed as researched profiles. Admin approval creates missing profiles while preserving editorial content. The original five-company seed is retained as an explicit initialization tool and does not run during the collection rename. CNI classifications are never represented as GICS.
+Published profiles stay in `companies`. Imported identities are never exposed as researched profiles. Admin approval creates missing profiles while preserving editorial content. The completed five-company deployment seed script has been removed. CNI classifications are never represented as GICS.
 
 Firestore default deny protects source/queue collections. APIs verify administrator role server-side; the admin layout hides tools until verification. Existing US ticker sync is unchanged.

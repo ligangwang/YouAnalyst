@@ -189,22 +189,6 @@ jobs:
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
 
-      - name: Copy company collections without changing data
-        run: npx tsx scripts/rename-company-collections.ts --write
-
-      - name: Preserve collection rename recovery export
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: company-collection-rename-staging-${{ github.run_id }}
-          path: output/company-collection-rename/
-          if-no-files-found: ignore
-          retention-days: 90
-
-      - name: Initialize company map directory
-        if: github.event_name == 'workflow_dispatch' && inputs.maintenance
-        run: npx tsx scripts/migrate-map-directory.ts
-
       - name: Debug staging deploy context
         env:
           GOOGLE_CLOUD_PROJECT: ${{ env.GCP_PROJECT_ID }}
@@ -612,11 +596,6 @@ jobs:
           PLAYWRIGHT_AUTH_BEARER_TOKEN: ${{ steps.staging-smoke-token.outputs.token }}
         run: npm run smoke:test
 
-      - name: Verify staging collection rename after cutover
-        env:
-          RENAME_BASE_URL: ${{ steps.staging-url.outputs.url }}
-        run: npx tsx scripts/rename-company-collections.ts --write --verify-source
-
   deploy-production:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
     needs: [verify, verify-browser]
@@ -692,22 +671,6 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ env.GCP_PROJECT_ID }}
-
-      - name: Copy company collections without changing data
-        run: npx tsx scripts/rename-company-collections.ts --write
-
-      - name: Preserve collection rename recovery export
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: company-collection-rename-${{ github.run_id }}
-          path: output/company-collection-rename/
-          if-no-files-found: ignore
-          retention-days: 90
-
-      - name: Initialize company map directory
-        if: github.event_name == 'workflow_dispatch' && inputs.maintenance
-        run: npx tsx scripts/migrate-map-directory.ts
 
       - name: Debug production deploy context
         env:
@@ -1121,8 +1084,3 @@ jobs:
           PLAYWRIGHT_EXPECT_STAGING_BANNER: "0"
           PLAYWRIGHT_AUTH_BEARER_TOKEN: ${{ steps.production-smoke-token.outputs.token }}
         run: npm run smoke:test
-
-      - name: Verify collection rename after cutover
-        env:
-          RENAME_BASE_URL: ${{ steps.production-url.outputs.url }}
-        run: npx tsx scripts/rename-company-collections.ts --write --verify-source
