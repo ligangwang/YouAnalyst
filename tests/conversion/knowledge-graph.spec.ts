@@ -23,6 +23,29 @@ test("combination retains every company and isolates evidence IDs", () => {
     expect(visible.relationships.every(e => positions.has(e.source) && positions.has(e.target))).toBe(true);
   }
 });
+
+for (const language of ["en", "zh-CN"]) test(`directory renders only on expansion and reuses graph data (${language})`, async ({ page }) => {
+  let requests = 0;
+  await page.route("**/*", route => {
+    if (route.request().url().includes("/api/knowledge-graph")) {
+      requests++;
+      return route.fulfill({ json: graph });
+    }
+    return route.fulfill({ contentType: "text/html", body: html });
+  });
+  await page.goto(`http://graph.test/map?lang=${language}`);
+  await expect(page.locator('span[role="status"]')).toContainText("129");
+  const directory = page.getByRole("region", { name: language === "en" ? "AI companies and supply chain" : "AI 公司与产业链", exact: true });
+  await expect(directory.locator("li")).toHaveCount(0);
+  await directory.locator("summary").click();
+  await expect(directory.getByRole("heading", { name: language === "en" ? "Documented company relationships" : "已收录公司关系", exact: true })).toBeVisible();
+  expect(await directory.getByRole("link").count()).toBeGreaterThan(129);
+  await directory.locator("summary").click();
+  await expect(directory.locator("li")).toHaveCount(0);
+  await directory.locator("summary").click();
+  await expect(directory.locator("li").first()).toBeVisible();
+  expect(requests).toBe(1);
+});
 test("star layout retains isolated companies and only draws recorded company edges", () => {
   const layout = layoutCompanies(graph);
   expect(layout.nodes).toHaveLength(129);
