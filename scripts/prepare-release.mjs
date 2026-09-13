@@ -42,7 +42,10 @@ const company = { market: 'CN_A', status: 'PUBLISHED', name: '海光信息',
   source: 'https://example.com/report', sourceLabel: 'Fixture report' };
 globalThis.__adminApp = { firestore: () => ({ collection: name => {
   if (name !== 'companies') throw new Error('Unexpected fixture collection');
-  return { doc: id => ({ get: async () => ({ id, exists: id === 'XSHG:688041', data: () => company }) }) };
+  return { doc: id => ({ get: async () => ({ id, exists: ['XSHG:688041', 'ORG:GLOBAL-LAB'].includes(id),
+    data: () => id === 'ORG:GLOBAL-LAB'
+      ? { name: 'Global Lab', status: 'DIRECTORY', country: 'FR', listingStatus: 'PRIVATE', description: 'Global profile fixture' }
+      : id === 'XSHG:688041' ? company : undefined }) }) };
 } }) };
 `);
 const server = spawn(process.execPath, ["--require", fixture, "server.js"], {
@@ -85,6 +88,19 @@ try {
   }
   const missing = await fetch(`${base}/ticker/XSHG:688042`);
   assert.equal(missing.status, 404, "Unknown company must remain a 404");
+  for (const locale of ["en", "zh-cn"]) {
+    for (const id of ["ORG:GLOBAL-LAB", "ORG%3AGLOBAL-LAB"]) {
+      const response = await fetch(`${base}/${locale}/company/${id}`);
+      assert.equal(response.status, 200, `Global profile failed: ${locale}/${id}`);
+      const html = await response.text();
+      assert.match(html, /<h1[^>]*>Global Lab<\/h1>/);
+      assert.match(html, /Global profile fixture/);
+      assert.match(html, locale === "en" ? /France · Private/ : /法国 · 非上市公司/);
+    }
+  }
+  for (const id of ["ORG:UNKNOWN", "ORG%2FBAD"]) {
+    assert.equal((await fetch(`${base}/en/company/${id}`)).status, 404);
+  }
 } finally {
   server.kill("SIGTERM");
 }

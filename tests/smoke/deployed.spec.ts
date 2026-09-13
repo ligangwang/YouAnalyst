@@ -177,6 +177,20 @@ test("homepage AI knowledge graph supports all market groups", async ({ page }) 
   await expect(page.getByRole("button", { name: "Global & private", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
 
+test("global map companies open localized profiles", async ({ page, request }) => {
+  const response = await request.get("/api/knowledge-graph");
+  expect(response.ok()).toBeTruthy();
+  const graph = await response.json();
+  const company = graph.nodes.find((n: { kind: string; market?: string; id: string }) => n.kind === "COMPANY" && n.market === "GLOBAL" && n.id.startsWith("ORG:"));
+  test.skip(!company, "No global company has been published in this environment");
+  for (const locale of ["en", "zh-cn"]) {
+    const profile = await page.goto(`/${locale}/company/${encodeURIComponent(company.id)}`);
+    expect(profile?.status()).toBe(200);
+    await expect(page.getByRole("heading", { name: company.name, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: locale === "en" ? "Company overview" : "公司概览", exact: true })).toBeVisible();
+  }
+});
+
 test("filing company map remains accessible under Explore", async ({ page }) => {
   await page.goto("/map?view=filings");
   const companySearch = page.getByRole("link", { name: "Search companies", exact: true });
