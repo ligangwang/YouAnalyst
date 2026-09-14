@@ -92,22 +92,6 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
       <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
     </div>
-    <div className={styles.discovery}>
-      <details><summary>{text("Guided journeys", "探索路线")}</summary><p>{text("Follow documented connections, one company at a time.", "沿已收录关系，逐步探索公司。")}</p>
-        {[["US:NVDA", "AI computing", "AI 算力"], ["US:TSM", "Chip manufacturing", "芯片制造"], ["US:VRT", "Data centre infrastructure", "数据中心基础设施"]].filter(([id]) => connectionJourney(graph, id).length).map(([id, en, zh]) => <button key={id} onClick={() => startJourney(id)}>{text(en, zh)} →</button>)}
-      </details>
-      <button onClick={() => setUpdatesOpen(!updatesOpen)} aria-expanded={updatesOpen}>{text("What’s new", "最新关系")} {recent.length > 0 ? `· ${recent.length}` : ""}</button>
-      {auth?.user && <details><summary>{text("Following", "已关注")} · {followed.length}</summary>
-        {!followed.length && <p>{text("Follow a company from its map panel to find it here.", "在公司面板关注公司，即可在这里查看。")}</p>}
-        {followed.map(id => graph.nodes.some(n => n.id === id && n.kind === "COMPANY") ? <button key={id} onClick={() => selectCompany(id)}>{label(id)}</button> : <span key={id}>{id} <button disabled={followBusy || !followReady} onClick={() => void toggleFollow(id)}>{text("Unfollow", "取消关注")}</button></span>)}
-      </details>}
-    </div>
-    {updatesOpen && <section className={styles.updatePanel} aria-label={text("New connections", "最新关系")}><p>{text("Documented in the last 7 days. Highlights indicate when a connection was published here, not when the business relationship began.", "最近七天收录的关系。高亮表示本站收录时间，并非业务关系开始时间。")}</p>
-      {!recent.length && <p>{text("No newly dated connections yet.", "暂无带收录日期的新关系。")}</p>}
-      {recent.map(e => <button key={e.id} onClick={() => openConnection(e.id)}>{label(e.source)} → {label(e.target)}{followed.includes(e.source) || followed.includes(e.target) ? text(" · Following", " · 已关注") : ""}</button>)}
-    </section>}
-    {journey.length > 0 && <section className={styles.journey} aria-label={text("Guided journey", "探索路线")}><span>{text("Connection", "关系")} {journeyStep + 1} / {journey.length}</span><button disabled={journeyStep === 0} onClick={() => { const step = journeyStep - 1; setJourneyStep(step); openConnection(journey[step].edgeId, journey[step].companyId); }}>{text("Previous", "上一步")}</button><button disabled={journeyStep === journey.length - 1} onClick={() => { const step = journeyStep + 1; setJourneyStep(step); openConnection(journey[step].edgeId, journey[step].companyId); }}>{text("Next", "下一步")}</button><button onClick={() => { setJourney([]); setActiveEdge(""); }}>{text("End journey", "结束探索")}</button></section>}
-    <div className={styles.legend}><span role="status">{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</span></div>
     {status === "ready" && sectorIds.size > 0 && <div className={styles.sectorLegend} role="group" aria-label={text("Colors by primary AI sector", "按主要 AI 产业环节着色")}><span>{text("Sector", "产业环节")}</span>{[...GRAPH_SECTORS, OTHER_SECTOR].filter(s => sectorIds.has(s.id)).map(s => <span key={s.id}><i aria-hidden="true" style={{ background: s.color }}/>{text(s.en, s.zh)}</span>)}</div>}
     {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !visible.nodes.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
       <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D graph={visible} highlightedEdges={highlighted} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setJourney([]); setReset(n => n + 1); }}/></Suspense>
@@ -143,6 +127,22 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
         </details>
       </aside>}
     </div>}
+    <div className={styles.discovery}>
+      <details><summary>{text("Guided journeys", "探索路线")}</summary><p>{text("Follow documented connections, one company at a time.", "沿已收录关系，逐步探索公司。")}</p>
+        {[["US:NVDA", "AI computing", "AI 算力"], ["US:TSM", "Chip manufacturing", "芯片制造"], ["US:VRT", "Data centre infrastructure", "数据中心基础设施"]].filter(([id]) => connectionJourney(graph, id).length).map(([id, en, zh]) => <button key={id} onClick={() => startJourney(id)}>{text(en, zh)} →</button>)}
+      </details>
+      <button onClick={() => setUpdatesOpen(!updatesOpen)} aria-expanded={updatesOpen}>{text("What’s new", "最新关系")} {recent.length > 0 ? `· ${recent.length}` : ""}</button>
+      {auth?.user && <details><summary>{text("Following", "已关注")} · {followed.length}</summary>
+        {!followed.length && <p>{text("Follow a company from its map panel to find it here.", "在公司面板关注公司，即可在这里查看。")}</p>}
+        {followed.map(id => graph.nodes.some(n => n.id === id && n.kind === "COMPANY") ? <button key={id} onClick={() => selectCompany(id)}>{label(id)}</button> : <span key={id}>{id} <button disabled={followBusy || !followReady} onClick={() => void toggleFollow(id)}>{text("Unfollow", "取消关注")}</button></span>)}
+      </details>}
+    </div>
+    {updatesOpen && <section className={styles.updatePanel} aria-label={text("New connections", "最新关系")}><p>{text("Documented in the last 7 days. Highlights indicate when a connection was published here, not when the business relationship began.", "最近七天收录的关系。高亮表示本站收录时间，并非业务关系开始时间。")}</p>
+      {!recent.length && <p>{text("No newly dated connections yet.", "暂无带收录日期的新关系。")}</p>}
+      {recent.map(e => <button key={e.id} onClick={() => openConnection(e.id)}>{label(e.source)} → {label(e.target)}{followed.includes(e.source) || followed.includes(e.target) ? text(" · Following", " · 已关注") : ""}</button>)}
+    </section>}
+    {journey.length > 0 && <section className={styles.journey} aria-label={text("Guided journey", "探索路线")}><span>{text("Connection", "关系")} {journeyStep + 1} / {journey.length}</span><button disabled={journeyStep === 0} onClick={() => { const step = journeyStep - 1; setJourneyStep(step); openConnection(journey[step].edgeId, journey[step].companyId); }}>{text("Previous", "上一步")}</button><button disabled={journeyStep === journey.length - 1} onClick={() => { const step = journeyStep + 1; setJourneyStep(step); openConnection(journey[step].edgeId, journey[step].companyId); }}>{text("Next", "下一步")}</button><button onClick={() => { setJourney([]); setActiveEdge(""); }}>{text("End journey", "结束探索")}</button></section>}
+    <div className={styles.legend}><span role="status">{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</span></div>
   </main><AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} /></>;
 }
 
