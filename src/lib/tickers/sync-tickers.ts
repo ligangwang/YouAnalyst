@@ -1,3 +1,4 @@
+import type { Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { companyFields, COMPANY_COLLECTION } from "../market-companies/model";
 
@@ -96,9 +97,18 @@ export type TickerCatalogSyncResult = {
 };
 
 // The provider's country filters the trading market, not the issuer's business location.
-export function companyListingFields<T extends Pick<TickerCatalogDocument, "symbol" | "name" | "country">>(ticker: T) {
+export function companyListingFields<T extends Pick<TickerCatalogDocument, "symbol" | "name" | "country">>(ticker: T, existing: Record<string, unknown> = {}) {
   const { country, ...listing } = ticker;
-  return { ...listing, listingCountry: country, ...companyFields(`US:${ticker.symbol}`, ticker) };
+  return { ...listing, listingCountry: country, ...companyFields(`US:${ticker.symbol}`, {names:existing.names,aliases:existing.aliases,...ticker}) };
+}
+
+export async function syncCompanyListings(db: Firestore, group: TickerCatalogDocument[]) {
+  // Read and write together so a concurrent translation publication cannot be lost.
+  await db.runTransaction(async tx => {
+    const refs=group.map(ticker=>db.collection(COMPANY_COLLECTION).doc(`US:${ticker.symbol}`));
+    const existing=await tx.getAll(...refs,{fieldMask:["names","aliases"]});
+    group.forEach((ticker,i)=>tx.set(refs[i],companyListingFields(ticker,existing[i].data()),{merge:true}));
+  });
 }
 
 function readString(value: unknown): string | null {
@@ -335,9 +345,7 @@ export async function runTickerCatalogSync(input: TickerCatalogSyncInput = {}): 
     const companies = new Map<string, TickerCatalogDocument>();
     for (const ticker of documents) if (!companies.has(ticker.symbol) || ticker.exchangePriority > companies.get(ticker.symbol)!.exchangePriority) companies.set(ticker.symbol, ticker);
     for (const group of chunk([...companies.values()], 200)) {
-      const batch = db.batch();
-      for (const ticker of group) { const id = `US:${ticker.symbol}`; batch.set(db.collection(COMPANY_COLLECTION).doc(id), companyListingFields(ticker), {merge:true}); }
-      await batch.commit();
+      await syncCompanyListings(db, group);
     }
 
     for (const documentChunk of chunk(documents, TICKER_WRITE_BATCH_SIZE)) {
