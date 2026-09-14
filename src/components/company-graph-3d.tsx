@@ -144,7 +144,14 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
       const distance=Math.hypot(camera.position.x-sector.x,camera.position.y-sector.y,camera.position.z-sector.z);
       const scale=Math.max(.7,Math.min(1.15,fitDistance*.8/Math.max(1,distance)));
       element.style.setProperty("--label-scale",String(scale));
-      place(element,sector.x,sector.y,sector.z,true,150*scale,26*scale);
+    }
+    // Batch layout-affecting scale writes before measuring any marker.
+    const measurements=sectors.map(sector=>{
+      const element=sectorElements.current.get(sector.id);
+      return element ? {sector,element,width:element.offsetWidth,height:element.offsetHeight} : null;
+    });
+    for(const marker of measurements){
+      if(marker)place(marker.element,marker.sector.x,marker.sector.y,marker.sector.z,true,marker.width,marker.height);
     }
     };
     let sectorsPlaced=false;
@@ -169,7 +176,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
       <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
     <lineSegments geometry={lines} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation(); onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
-    {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><button aria-label={`${text("Focus sector", "聚焦产业")}: ${text(sector.en,sector.zh)}`} onClick={()=>{onSelect("");setSectorSelection({id:sector.id,reset});}} ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden",pointerEvents:"auto"}}>{text(sector.en,sector.zh)}</button></Html>)}
+    {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><button aria-label={`${text("Focus sector", "聚焦产业")}: ${text(sector.en,sector.zh)}`} onClick={()=>{onSelect("");setSectorSelection({id:sector.id,reset});}} ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden",pointerEvents:"auto"}}><span className={styles.sectorKicker}>{text("SECTOR", "产业环节")}</span><span className={styles.sectorName}>{text(sector.en,sector.zh)}</span></button></Html>)}
     {edgeLabels.map(edge=><group key={edge.id}>
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[3,10,8]}/><meshBasicMaterial color="#a8e8ef"/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===activeEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===activeEdge?()=>{}:undefined} center zIndexRange={edge.id===activeEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:"auto"}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))} {edge.directional?"→":"↔"}</button></Html>
