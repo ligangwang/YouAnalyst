@@ -151,8 +151,9 @@ test("Cloud Run service identity does not grant access to saved companies", asyn
   expect(response.status()).toBe(401);
 });
 
-test("feed remains accessible from homepage navigation", async ({ page }) => {
+test("feed remains accessible through More navigation", async ({ page }) => {
   await page.goto("/");
+  await page.locator("header summary").filter({ hasText: /^More$/, visible: true }).click();
   await page.getByRole("link", { name: "Feed", exact: true }).filter({ visible: true }).click();
   await expect(page).toHaveURL(/\/feed$/);
   await expect(page.getByRole("heading", { name: "Latest", exact: true })).toBeVisible();
