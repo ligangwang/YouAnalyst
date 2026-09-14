@@ -127,3 +127,7 @@
 @media (pointer:coarse) {
   .sector3d::before { content:""; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:max(100%, 44px); height:max(100%, 44px); }
 }
+
+/* Company names echo their sector; tickers retain their secondary muted color. */
+.label3d strong { color:color-mix(in srgb, currentColor 78%, white); }
+.label3d:hover strong, .label3d:focus-visible strong, .label3d[data-highlighted="true"] strong { color:#fff; }
