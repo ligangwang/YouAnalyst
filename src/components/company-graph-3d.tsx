@@ -144,7 +144,14 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
       const distance=Math.hypot(camera.position.x-sector.x,camera.position.y-sector.y,camera.position.z-sector.z);
       const scale=Math.max(.7,Math.min(1.15,fitDistance*.8/Math.max(1,distance)));
       element.style.setProperty("--label-scale",String(scale));
-      place(element,sector.x,sector.y,sector.z,true,element.offsetWidth,element.offsetHeight);
+    }
+    // Batch layout-affecting scale writes before measuring any marker.
+    const measurements=sectors.map(sector=>{
+      const element=sectorElements.current.get(sector.id);
+      return element ? {sector,element,width:element.offsetWidth,height:element.offsetHeight} : null;
+    });
+    for(const marker of measurements){
+      if(marker)place(marker.element,marker.sector.x,marker.sector.y,marker.sector.z,true,marker.width,marker.height);
     }
     };
     let sectorsPlaced=false;
