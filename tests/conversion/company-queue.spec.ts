@@ -24,5 +24,5 @@ test("company queue processes pending identities, shows sources and requires rev
   await expect(page.getByRole("button", { name: "Publish company", exact: true })).toBeDisabled();
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Publish company", exact: true }).click();
-  expect(calls.at(-1)).toMatchObject({ action: "publish", id: "XSHG:688041" });
+  await expect.poll(()=>calls.at(-1)).toMatchObject({ action: "publish", id: "XSHG:688041" });
 });
