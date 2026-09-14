@@ -258,7 +258,7 @@ test("zoom reveals relationship types without selecting a company", async ({page
   await page.goto("http://graph.test/map?lang=en");
   const canvas=page.locator("canvas");
   await expect(canvas).toBeVisible();
-  await canvas.hover();
+  await canvas.hover({position:{x:20,y:100}});
   await page.mouse.wheel(0,-1200);
   await expect.poll(()=>page.locator('button[class*="edgeLabel3d"]:visible').count()).toBeGreaterThan(0);
 });
