@@ -10,7 +10,7 @@ import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./ai-knowledge-graph.module.css";
 
-type Props = { graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -21,7 +21,7 @@ void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,
 const fragment = `varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis);if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
-function Scene({ graph, selected, onSelect, reset }: Props) {
+function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge }: Props) {
   const layout = useMemo(() => layout3D(graph), [graph]);
   const controls = useRef<CameraControls>(null);
   const { size, camera, invalidate } = useThree();
@@ -38,18 +38,19 @@ function Scene({ graph, selected, onSelect, reset }: Props) {
   }, [layout, selected, hovered, connected]);
   const lines = useMemo(() => {
     const positions = new Map(layout.nodes.map(n => [n.id, n]));
-    const g = new BufferGeometry(), p: number[] = [], c: number[] = [];
+    const g = new BufferGeometry(), p: number[] = [], c: number[] = [], edgeIds: string[] = [];
     layout.edges.forEach(e => {
       const a = positions.get(e.source)!, b = positions.get(e.target)!;
-      const color = new Color(e.source === selected || e.target === selected ? "#9ee9ff" : selected ? "#14232e" : "#294557");
+      const color = new Color(e.id === activeEdge ? "#ffffff" : highlightedEdges?.includes(e.id) ? "#7ef4cb" : e.source === selected || e.target === selected ? "#9ee9ff" : selected ? "#14232e" : "#294557");
       const parts = e.commercialStatus === "ANNOUNCED" ? 16 : 1;
       for (let i = 0; i < parts; i++) {
         if (parts > 1 && i % 2) continue;
+        edgeIds.push(e.id);
         for (const t of [i / parts, (i + 1) / parts]) { p.push(a.x + (b.x-a.x)*t, a.y+(b.y-a.y)*t, a.z+(b.z-a.z)*t); c.push(...color.toArray()); }
       }
     });
-    g.setAttribute("position", new Float32BufferAttribute(p, 3)); g.setAttribute("color", new Float32BufferAttribute(c, 3)); return g;
-  }, [layout, selected]);
+    g.setAttribute("position", new Float32BufferAttribute(p, 3)); g.setAttribute("color", new Float32BufferAttribute(c, 3)); g.userData.edgeIds = edgeIds; return g;
+  }, [layout, selected, activeEdge, highlightedEdges]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => lines.dispose(), [lines]);
   const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
@@ -83,7 +84,7 @@ function Scene({ graph, selected, onSelect, reset }: Props) {
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
-    <lineSegments geometry={lines}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
+    <lineSegments geometry={lines} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation(); onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
     {labels.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) labelElements.current.set(n.id,element); else labelElements.current.delete(n.id); }} className={styles.label3d} style={{pointerEvents:"auto"}} onClick={() => onSelect(n.id)} aria-label={`${n.name} · ${n.symbol}`}><strong>{n.symbol}</strong><span>{n.name}</span></button></Html>)}
   </>;
 }

@@ -37,7 +37,7 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
       return id;
     });
     const id = relationshipId(r.source, r.target, r.type), previous = relationships.get(id);
-    relationships.set(id, { id, source: r.source, target: r.target, type: r.type, summary: String(r.summary ?? evidence[0].summary ?? ""), commercialStatus: String(r.commercialStatus ?? "DOCUMENTED"), sourceIds: [...new Set([...(previous?.sourceIds ?? []), ...sourceIds])] });
+    relationships.set(id, { id, ...(typeof r.publishedAt === "string" ? { publishedAt: r.publishedAt } : {}), source: r.source, target: r.target, type: r.type, summary: String(r.summary ?? evidence[0].summary ?? ""), commercialStatus: String(r.commercialStatus ?? "DOCUMENTED"), sourceIds: [...new Set([...(previous?.sourceIds ?? []), ...sourceIds])] });
   }
   return { nodes: [...nodes.values()], relationships: [...relationships.values()], sources: [...sources.values()], asOf: dates.sort()[0] ?? "" };
 }

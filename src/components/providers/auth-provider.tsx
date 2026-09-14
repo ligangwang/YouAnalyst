@@ -309,3 +309,5 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
+
+export function useOptionalAuth() { return useContext(AuthContext); }
