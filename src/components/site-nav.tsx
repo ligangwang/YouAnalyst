@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
-const navigationChinese: Record<string, string> = {"Feed":"动态","Explore":"探索","Calls":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
+const navigationChinese: Record<string, string> = {"AI Map":"AI 图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Calls":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
 function useNavText() { const { chinese } = useLocale(); return (value: string) => chinese ? navigationChinese[value] ?? value : value; }
 
 function initials(name: string | null | undefined, email: string | null | undefined): string {
@@ -96,66 +96,30 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
   );
 }
 
-function InstitutionNavLabel({ unreadCount }: { unreadCount: number }) {
-  const t = useNavText();
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      {t("Institutions")}
-      {unreadCount > 0 ? (
-        <span className="rounded-full bg-cyan-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-slate-950">
-          {unreadCount > 9 ? "9+" : unreadCount}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-const dailyNavItems = [
+const primaryNavItems = [
+  { href: "/", label: "AI Map" },
+  { href: "/companies", label: "Companies" },
+  { href: "/map?view=filings", label: "Research" },
+];
+const secondaryNavItems = [
+  { href: "/feed", label: "Feed" },
+  { href: "/watchlists", label: "Watchlists" },
+  { href: "/predictions", label: "Calls" },
+  { href: "/leaderboard", label: "Rankings" },
+  { href: "/institutions", label: "Institutions" },
   { href: "/daily/calls", label: "Top Calls" },
   { href: "/daily/institutional", label: "Institutional Moves" },
   { href: "/daily/insiders", label: "Insider Transactions" },
+  { href: "/how-it-works", label: "How it works" },
 ];
-
-function DailyNavMenu() {
+function MoreMenu({ admin = false }: { admin?: boolean }) {
   const t = useNavText();
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div ref={menuRef} className="relative" onKeyDown={event => { if (event.key === "Escape") { setOpen(false); menuRef.current?.querySelector("button")?.focus(); } }}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="daily-navigation-links"
-        onClick={() => setOpen((prev) => !prev)}
-        className="hover:text-cyan-200"
-      >{t("Daily")}</button>
-      {open ? (
-        <div id="daily-navigation-links" className="absolute left-0 z-50 mt-2 w-56 rounded-xl border border-white/10 bg-slate-950 py-1 shadow-xl">
-          {dailyNavItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2 text-sm text-slate-200 hover:bg-white/5 hover:text-cyan-100"
-            >
-              {t(item.label)}
-            </Link>
-          ))}
-        </div>
-      ) : null}
+  return <details className="relative" onKeyDown={event => { if(event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
+    <summary className="cursor-pointer rounded-lg px-3 py-3 text-sm">{t("More")}</summary>
+    <div className="absolute right-0 z-50 mt-2 grid max-h-[70vh] w-56 overflow-y-auto rounded-xl border border-white/15 bg-slate-950 p-2 shadow-xl" onClick={event => { if((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
+      {[...secondaryNavItems, ...(admin ? [{href:"/admin",label:"Admin"}] : [])].map(item => <Link key={item.href} href={item.href} className="rounded-lg px-3 py-3 text-sm text-slate-200 hover:bg-white/10">{t(item.label)}</Link>)}
     </div>
-  );
+  </details>;
 }
 
 export function SiteNav() {
@@ -164,10 +128,8 @@ export function SiteNav() {
   const pathname = unlocalizedPath(usePathname());
   const { user, loading, signOut, getIdToken } = useAuth();
   const [adminStatus, setAdminStatus] = useState<{ userId: string; isAdmin: boolean } | null>(null);
-  const [institutionDigestStatus, setInstitutionDigestStatus] = useState<{ userId: string; unread: number } | null>(null);
   const profileHref = useMemo(() => (user ? `/analysts/${user.uid}` : "/auth"), [user]);
   const showAdminLink = Boolean(user && adminStatus?.userId === user.uid && adminStatus.isAdmin);
-  const unreadDigestCount = user && institutionDigestStatus?.userId === user.uid ? institutionDigestStatus.unread : 0;
 
   useEffect(() => {
     if (loading || !user) {
@@ -213,55 +175,6 @@ export function SiteNav() {
     };
   }, [getIdToken, loading, user]);
 
-  useEffect(() => {
-    if (loading || !user) {
-      return;
-    }
-
-    let cancelled = false;
-    const userId = user.uid;
-
-    async function loadDigestStatus() {
-      try {
-        const token = await getIdToken();
-
-        if (!token) {
-          if (!cancelled) {
-            setInstitutionDigestStatus({ userId, unread: 0 });
-          }
-          return;
-        }
-
-        const response = await fetch("/api/institutions/follows/digest/runs?limit=10", {
-          headers: {
-            authorization: `Bearer ${token}`,
-          },
-        });
-        const payload = (await response.json().catch(() => ({}))) as {
-          items?: Array<{ dryRun?: boolean; readAt?: string | null }>;
-          unreadCount?: number;
-        };
-        const unread = response.ok
-          ? Number(payload.unreadCount ?? 0)
-          : 0;
-
-        if (!cancelled) {
-          setInstitutionDigestStatus({ userId, unread });
-        }
-      } catch {
-        if (!cancelled) {
-          setInstitutionDigestStatus({ userId, unread: 0 });
-        }
-      }
-    }
-
-    void loadDigestStatus();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getIdToken, loading, user]);
-
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/85 backdrop-blur">
       <div className="mx-auto w-full max-w-6xl px-4 py-3">
@@ -286,17 +199,12 @@ export function SiteNav() {
               />
             </Link>
             <nav className="hidden items-center gap-4 text-[15px] text-slate-200 lg:flex">
-              <Link href="/" aria-current={pathname === "/" || pathname === "/map" ? "page" : undefined} className="hover:text-cyan-200">{t("Explore")}</Link>
-              <Link href="/feed" aria-current={pathname === "/feed" ? "page" : undefined} className="hover:text-cyan-200">{t("Feed")}</Link>
-              <Link href="/predictions" aria-current={pathname.startsWith("/predictions") ? "page" : undefined} className="hover:text-cyan-200">{t("Calls")}</Link>
-              <Link href="/watchlists" className="hover:text-cyan-200">{t("Watchlists")}</Link>
-              <Link href="/institutions" className="hover:text-cyan-200"><InstitutionNavLabel unreadCount={unreadDigestCount} /></Link>
-              <DailyNavMenu />
-              {showAdminLink ? <Link href="/admin" className="hover:text-cyan-200">{t("Admin")}</Link> : null}
+              {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="hover:text-cyan-200">{t(item.label)}</Link>)}
             </nav>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-3">
+            <div className="hidden lg:block"><MoreMenu admin={showAdminLink} /></div>
             <LanguageSwitch />
             <Link
               href="/companies"
@@ -316,18 +224,8 @@ export function SiteNav() {
         </div>
 
         <nav aria-label={ui("Mobile navigation")} className="mt-2 flex items-center gap-1 text-sm text-slate-200 lg:hidden">
-          {[{ href: "/", label: "Explore" }, { href: "/feed", label: "Feed" }, { href: "/companies", label: "Search" }, { href: "/watchlists", label: "Watchlists" }].map(item =>
-            <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3">{t(item.label)}</Link>)}
-          <details className="relative ml-auto" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
-            <summary className="cursor-pointer rounded-lg px-3 py-3">{t("More")}</summary>
-            <div className="absolute right-0 z-50 mt-2 grid w-56 rounded-xl border border-white/15 bg-slate-950 p-2 shadow-xl"
-              onClick={event => { if ((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
-              {[{ href: "/map", label: "AI Industry Map" }, { href: "/predictions", label: "Calls" }, { href: "/predictions/new", label: "Make a prediction" },
-                { href: "/institutions", label: "Institutions" }, ...dailyNavItems, { href: "/how-it-works", label: "How it works" },
-                ...(showAdminLink ? [{ href: "/admin", label: "Admin" }] : [])].map(item =>
-                <Link key={item.href} href={item.href} aria-current={pathname === item.href ? "page" : undefined} className="rounded-lg px-3 py-3 hover:bg-white/10">{t(item.label)}</Link>)}
-            </div>
-          </details>
+          {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="rounded-lg px-3 py-3">{t(item.label)}</Link>)}
+          <div className="ml-auto"><MoreMenu admin={showAdminLink} /></div>
         </nav>
       </div>
       <PreferenceError />

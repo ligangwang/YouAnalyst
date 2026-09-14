@@ -70,3 +70,17 @@ test("signing in restores account language without restoring market filters when
   await expect(page.getByRole("combobox", { name: "界面语言" })).toHaveValue("zh-CN");
   await expect(page.getByRole("combobox")).toHaveCount(1);
 });
+
+for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tools accessible (${language})`, async ({page}) => {
+ await page.goto(`http://bilingual.test/?lang=${language}`);
+ const nav=page.locator("header nav").first();
+ await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["AI Map","Companies","Research"] : ["AI 图谱","公司","研究"]);
+ await expect(nav.getByRole("link").nth(2)).toHaveAttribute("href",/map\?view=filings$/);
+ const menu=page.locator("header details").first();
+ await expect(menu.getByRole("link")).toHaveCount(0);
+ await menu.locator("summary").click();
+ await expect(menu.getByRole("link",{name:language === "en" ? "Institutions" : "机构",exact:true})).toHaveAttribute("href",/institutions$/);
+ await expect(menu.getByRole("link",{name:language === "en" ? "Admin" : "管理",exact:true})).toHaveCount(0);
+ await menu.locator("summary").press("Escape");
+ await expect(menu).not.toHaveAttribute("open","");
+});
