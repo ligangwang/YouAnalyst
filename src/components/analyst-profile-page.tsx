@@ -13,6 +13,9 @@ import { analystLevelName } from "@/lib/predictions/analytics";
 import { type PredictionStatus } from "@/lib/predictions/types";
 
 type ProfileStatusFilter = "ALL" | "LIVE" | "SETTLED";
+// Keep digest controls off the simplified profile without changing saved preferences.
+const SHOW_INSTITUTION_DIGEST = false;
+
 type InstitutionDigestCadence = "daily" | "weekly";
 
 type WatchlistPrediction = {
@@ -771,7 +774,7 @@ export function AnalystProfilePage({
         ) : null}
       </section>
 
-      {isOwner ? (
+      {SHOW_INSTITUTION_DIGEST && isOwner ? (
         <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
