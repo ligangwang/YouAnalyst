@@ -204,3 +204,14 @@ test("missing followed companies can be removed from the list",async({page})=>{
  await page.getByRole("button",{name:"Unfollow",exact:true}).click();
  await expect(page.getByText("Following · 0",{exact:true})).toBeVisible();
 });
+
+test("opening relationship evidence preserves the current company",async({page})=>{
+ await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+ await page.goto("http://graph.test/map?lang=en");
+ await page.getByRole("textbox",{name:"Search companies"}).fill("NVDA");
+ await page.getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+ await page.getByRole("button",{name:"TSMC → NVIDIA",exact:true}).click();
+ await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("NVIDIA");
+ await page.getByRole("region",{name:"Selected connection"}).getByRole("button",{name:"Explore TSMC →"}).click();
+ await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("TSMC");
+});

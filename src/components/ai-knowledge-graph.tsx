@@ -132,7 +132,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
           {relations.length === 0 && <p>{text("No documented connections yet.", "暂无已收录关系。")}</p>}
           {relations.map(e => <article key={e.id}>
             <span>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}{e.commercialStatus === "ANNOUNCED" ? text(" · Announced", " · 已宣布") : ""}</span>
-            {e.type === "PARTICIPATES_IN" ? <strong>{label(e.source)} → {label(e.target)}</strong> : <button className={styles.connectionLink} onClick={() => openConnection(e.id)}>{label(e.source)} → {label(e.target)}</button>}
+            {e.type === "PARTICIPATES_IN" ? <strong>{label(e.source)} → {label(e.target)}</strong> : <button className={styles.connectionLink} onClick={() => openConnection(e.id, company.id)}>{label(e.source)} → {label(e.target)}</button>}
             <p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div>
           </article>)}
         </details>
