@@ -295,3 +295,31 @@ test("unclassified companies have their own spatial anchor",()=>{
  const semiconductor=layout.nodes.find(n=>n.stageIds?.[0]==="materials")!;
  expect([related.ax,related.ay,related.az]).not.toEqual([semiconductor.ax,semiconductor.ay,semiconductor.az]);
 });
+
+test("sector names scale with zoom and focus a 3D cluster",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});
+ await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+ await page.goto("http://graph.test/map?lang=en");
+ const sectors=page.getByRole("button",{name:/^Focus sector:/});
+ await expect.poll(()=>sectors.count()).toBeGreaterThan(0);
+ const firstName=await sectors.first().getAttribute("aria-label");
+ const sector=page.getByRole("button",{name:firstName!,exact:true});
+ const initial=await sector.evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+ await sector.click();
+ await expect.poll(()=>page.locator(`button[aria-label="${firstName}"]`).evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(initial);
+ await expect(page.getByRole("button",{name:"Reset view",exact:true})).toBeVisible();
+});
+
+test("selected relationship label has priority and company fonts stay compact",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});
+ await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+ await page.goto("http://graph.test/map?lang=en");
+ await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
+ await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+ await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
+ await expect(page.getByRole("button",{name:"DELL Integrates technology from NVDA",exact:true})).toBeVisible();
+ const largest=await page.locator('button[class*="label3d"] strong').evaluateAll(els=>Math.max(...els.map(el=>parseFloat(getComputedStyle(el).fontSize))));
+ expect(largest).toBeLessThanOrEqual(14);
+ await page.locator("canvas").scrollIntoViewIfNeeded();
+ await page.screenshot({path:`output/cluster-labels-${test.info().project.name}.png`});
+});
