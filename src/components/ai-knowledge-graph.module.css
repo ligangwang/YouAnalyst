@@ -115,8 +115,7 @@
 .label3d strong { font-size:calc(12px * var(--label-scale, 1)); }
 .label3d span { font-size:max(8px, calc(9.5px * var(--label-scale, 1))); }
 /* Sector markers use a framed heading; companies remain unframed name/ticker labels. */
-.sector3d { font-size:calc(13px * var(--label-scale, 1)); display:flex; flex-direction:column; align-items:center; gap:4px; width:max-content; max-width:calc(174px * var(--label-scale, 1)); padding:6px 10px; border:1px solid currentColor; border-radius:4px; background:rgba(8,20,32,.82); cursor:pointer; text-align:center; }
-.sectorKicker { font-family:Arial,"Microsoft YaHei",sans-serif; font-size:max(8px, calc(8px * var(--label-scale, 1))); font-weight:600; letter-spacing:.18em; line-height:1.2; opacity:.8; }
+.sector3d { font-size:calc(11px * var(--label-scale, 1)); display:flex; align-items:center; width:max-content; max-width:calc(174px * var(--label-scale, 1)); padding:4px 8px; border:1px solid currentColor; border-radius:4px; background:rgba(8,20,32,.82); cursor:pointer; text-align:center; }
 .sectorName { font-family:Georgia,"Noto Serif SC","Songti SC",SimSun,serif; font-weight:400; font-size:inherit; letter-spacing:.06em; line-height:1.4; }
 .sector3d:hover { background:rgba(22,42,58,.95); }
 .sector3d:focus-visible { outline:2px solid currentColor; outline-offset:3px; }
