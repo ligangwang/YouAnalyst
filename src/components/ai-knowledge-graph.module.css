@@ -131,3 +131,8 @@
 /* Company names echo their sector; tickers retain their secondary muted color. */
 .label3d strong { color:color-mix(in srgb, currentColor 78%, white); }
 .label3d:hover strong, .label3d:focus-visible strong, .label3d[data-highlighted="true"] strong { color:#fff; }
+
+.sectorLegend button { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 5px 9px; border: 1px solid transparent; border-radius: 20px; background: transparent; font: inherit; cursor: pointer; }
+.sectorLegend button:hover, .sectorLegend button[aria-pressed="true"] { background: #ffffff0d; border-color: currentColor; }
+.sectorLegend button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.sector3d[aria-pressed="true"] { border-color: currentColor; }

@@ -3,7 +3,6 @@ import { build } from "esbuild";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
-import { connectionJourney } from "../../src/lib/knowledge-graph/discovery";
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
@@ -139,71 +138,27 @@ test("global company details remain available with legacy market filters", async
   await expect(page.getByRole("button", { name: /^(US stocks|A-shares|Global & private)$/ })).toHaveCount(0);
 });
 
-for (const language of ["en", "zh-CN"]) test(`journeys and relationship exploration (${language})`, async ({ page }) => {
- await page.route("**/*", r => r.request().url().includes("/api/knowledge-graph") ? r.fulfill({json:graph}) : r.fulfill({contentType:"text/html",body:html}));
- await page.goto(`http://graph.test/map?lang=${language}`);
- await expect(page.locator('span[role="status"]')).toContainText("129");
- await page.getByText(language === "en" ? "Guided journeys" : "探索路线", {exact:true}).click();
- await page.getByRole("button",{name:language === "en" ? "AI computing →" : "AI 算力 →",exact:true}).click();
- const focus = page.getByRole("region",{name:language === "en" ? "Selected connection" : "选中关系"});
- await expect(focus).toBeVisible();
- expect(await focus.locator('a[href^="https://"]').count()).toBeGreaterThan(0);
- await page.getByRole("button",{name:language === "en" ? "Next" : "下一步",exact:true}).click();
- await expect(page.getByRole("region",{name:language === "en" ? "Guided journey" : "探索路线"})).toContainText("2 /");
- let reached="US:NVDA"; for(const edge of connectionJourney(graph,reached).slice(0,2)) reached=edge.source===reached?edge.target:edge.source;
- await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText(graph.nodes.find(n=>n.id===reached)!.name!);
-
- await focus.getByRole("button").click();
- await expect(page.getByRole("complementary")).toBeVisible();
- await expect(page.getByRole("link", {name:language === "en" ? "Sign in to follow" : "登录后关注"})).toHaveAttribute("href",/auth\?next=/);
-});
-test("follow is persisted and can be removed; failed saves do not claim success", async ({page})=>{
- let followed:string[]=[]; let fail=false;
- await page.route("**/*", async r=>{
-  if(r.request().url().includes("/api/map-follows")){
-   if(r.request().method()==="PATCH") {if(fail)return r.fulfill({status:503,json:{}});const body=r.request().postDataJSON(); followed=body.follow?[body.companyId]:[];}
-   return r.fulfill({json:{companyIds:followed}});
-  }
-  return r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html});
+for (const language of ["en", "zh-CN"]) test(`sector legend replaces discovery controls (${language})`, async ({page}) => {
+ let followRequests = 0;
+ await page.emulateMedia({reducedMotion:"reduce"});
+ await page.route("**/*", r => {
+  if(r.request().url().includes("/api/map-follows")) followRequests++;
+  return r.request().url().includes("/api/knowledge-graph") ? r.fulfill({json:graph}) : r.fulfill({contentType:"text/html",body:html});
  });
- await page.goto("http://graph.test/map?lang=en&account=1");
- await page.getByRole("textbox",{name:"Search companies"}).fill("NVDA");
- await page.getByRole("region", {name:/Search results|搜索结果/}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
- await page.getByRole("button",{name:"Follow company",exact:true}).click();
- await expect(page.getByRole("button",{name:"Unfollow",exact:true})).toBeVisible();
- expect(followed).toEqual(["US:NVDA"]);
- await page.reload();
- await page.getByText("Following · 1",{exact:true}).click();
- await page.getByRole("button",{name:"NVIDIA",exact:true}).click();
- await page.getByRole("button",{name:"Unfollow",exact:true}).click();
- expect(followed).toEqual([]);
- fail=true;await page.getByRole("button",{name:"Follow company",exact:true}).click();
- await expect(page.getByRole("alert")).toContainText("Could not");
- await expect(page.getByRole("button",{name:"Follow company",exact:true})).toBeVisible();
-});
-
-test("new connections use publication dates and open their evidence", async ({page})=>{
- const edge=graph.relationships.find(e=>e.type!=="PARTICIPATES_IN")!;
- const fresh={...graph,relationships:graph.relationships.map(e=>e.id===edge.id?{...e,publishedAt:new Date().toISOString()}:e)};
- await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:fresh}):r.fulfill({contentType:"text/html",body:html}));
- await page.goto("http://graph.test/map?lang=en");
- await page.getByRole("button",{name:"What’s new · 1",exact:true}).click();
- const updates=page.getByRole("region",{name:"New connections"});
- await expect(updates.getByRole("button")).toHaveCount(1);
- await updates.getByRole("button").click();
- await expect(page.getByRole("region",{name:"Selected connection"})).toBeVisible();
-});
-
-test("missing followed companies can be removed from the list",async({page})=>{
- let ids=["ORG:REMOVED"];
- await page.route("**/*",r=>{
-  if(r.request().url().includes("/api/map-follows")){if(r.request().method()==="PATCH")ids=[];return r.fulfill({json:{companyIds:ids}});}
-  return r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html});
- });
- await page.goto("http://graph.test/map?lang=en&account=1");
- await page.getByText("Following · 1",{exact:true}).click();
- await page.getByRole("button",{name:"Unfollow",exact:true}).click();
- await expect(page.getByText("Following · 0",{exact:true})).toBeVisible();
+ await page.goto(`http://graph.test/map?lang=${language}&account=1`);
+ await expect(page.locator("canvas")).toBeVisible();
+ await expect(page.getByText(/Guided journeys|探索路线|What’s new|Following ·/)).toHaveCount(0);
+ const sector = page.getByRole("button",{name:language === "en" ? "AI compute" : "AI 算力",exact:true});
+ await sector.click();
+ await expect(sector).toHaveAttribute("aria-pressed","true");
+ await expect.poll(()=>page.locator('[data-sector-emphasis="member"]').count()).toBeGreaterThan(0);
+ await sector.click();
+ await expect(sector).toHaveAttribute("aria-pressed","false");
+ await expect(page.locator('[data-sector-emphasis]')).toHaveCount(0);
+ await sector.click();
+ await page.getByRole("button",{name:language === "en" ? "Reset view" : "重置视图",exact:true}).click();
+ await expect(sector).toHaveAttribute("aria-pressed","false");
+ expect(followRequests).toBe(0);
 });
 
 test("opening relationship evidence preserves the current company",async({page})=>{

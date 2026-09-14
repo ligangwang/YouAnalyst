@@ -7,7 +7,7 @@ export const GRAPH_SECTORS = [
   { id: "memory", color: "#ffc57a", en: "Memory & storage", zh: "内存与存储", stages: ["memory"] },
   { id: "connectivity", color: "#67e6bc", en: "Connectivity", zh: "通信与互连", stages: ["interconnect", "optics", "boards", "networking"] },
   { id: "systems", color: "#8faaff", en: "Systems & devices", zh: "系统与终端", stages: ["servers", "edge"] },
-  { id: "infrastructure", color: "#f4eb87", en: "Power & infrastructure", zh: "能源与基础设施", stages: ["power", "cooling", "energy", "datacenters"] },
+  { id: "infrastructure", color: "#f4eb87", en: "Energy & infrastructure", zh: "能源与基础设施", stages: ["power", "cooling", "energy", "datacenters"] },
   { id: "platforms", color: "#ff9eae", en: "Cloud & platforms", zh: "云与平台", stages: ["cloud"] },
   { id: "applications", color: "#e3a2ef", en: "AI applications", zh: "AI 应用", stages: ["applications"] },
 ];
