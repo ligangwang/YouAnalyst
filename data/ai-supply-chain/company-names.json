@@ -2,13 +2,58 @@
   "asOf": "2026-09-14",
   "companies": [
     {
-      "id": "US:NVDA",
-      "expectedName": "NVIDIA Corporation",
+      "id": "ORG:ANTHROPIC",
+      "expectedName": "Anthropic",
       "names": {
-        "en": "NVIDIA",
-        "zh-CN": "英伟达"
+        "en": "Anthropic",
+        "zh-CN": "Anthropic"
       },
-      "sourceUrl": "https://www.nvidia.cn/newsroom/"
+      "sourceUrl": "https://www.anthropic.com/"
+    },
+    {
+      "id": "ORG:MISTRAL-AI",
+      "expectedName": "Mistral AI",
+      "names": {
+        "en": "Mistral AI",
+        "zh-CN": "Mistral AI"
+      },
+      "sourceUrl": "https://mistral.ai/"
+    },
+    {
+      "id": "ORG:OPENAI",
+      "expectedName": "OpenAI",
+      "names": {
+        "en": "OpenAI",
+        "zh-CN": "OpenAI"
+      },
+      "sourceUrl": "https://openai.com/"
+    },
+    {
+      "id": "US:AAPL",
+      "expectedName": "Apple Inc.",
+      "names": {
+        "en": "Apple",
+        "zh-CN": "苹果"
+      },
+      "sourceUrl": "https://www.apple.com/"
+    },
+    {
+      "id": "US:ALAB",
+      "expectedName": "ASTERA LABS INC COMMON STOCK (Ticker: 1ALAB)",
+      "names": {
+        "en": "Astera Labs",
+        "zh-CN": "Astera Labs"
+      },
+      "sourceUrl": "https://www.asteralabs.com/"
+    },
+    {
+      "id": "US:AMAT",
+      "expectedName": "Applied Materials, Inc.",
+      "names": {
+        "en": "Applied Materials",
+        "zh-CN": "应用材料"
+      },
+      "sourceUrl": "https://www.appliedmaterials.com/"
     },
     {
       "id": "US:AMD",
@@ -20,13 +65,166 @@
       "sourceUrl": "https://www.amd.com/zh-cn/newsroom/press-releases/2024-2-6-amd-unveils-embedded-architecture-combines-embed.html"
     },
     {
-      "id": "US:MU",
-      "expectedName": "Micron Technology, Inc.",
+      "id": "US:AMKR",
+      "expectedName": "Amkor Technology Inc.",
       "names": {
-        "en": "Micron Technology",
-        "zh-CN": "美光科技"
+        "en": "Amkor Technology",
+        "zh-CN": "安靠科技"
       },
-      "sourceUrl": "https://www.micron.cn/"
+      "sourceUrl": "https://www.amkor.com/"
+    },
+    {
+      "id": "US:AMZN",
+      "expectedName": "Amazon.com, Inc.",
+      "names": {
+        "en": "Amazon",
+        "zh-CN": "亚马逊"
+      },
+      "sourceUrl": "https://www.amazon.com/"
+    },
+    {
+      "id": "US:ANET",
+      "expectedName": "Arista Networks, Inc.",
+      "names": {
+        "en": "Arista Networks",
+        "zh-CN": "Arista Networks"
+      },
+      "sourceUrl": "https://www.arista.com/"
+    },
+    {
+      "id": "US:APH",
+      "expectedName": "Amphenol Corporation",
+      "names": {
+        "en": "Amphenol",
+        "zh-CN": "安费诺"
+      },
+      "sourceUrl": "https://amphenol.com/"
+    },
+    {
+      "id": "US:ARM",
+      "expectedName": "Arm Holdings plc ADR",
+      "names": {
+        "en": "Arm",
+        "zh-CN": "Arm"
+      },
+      "sourceUrl": "https://www.arm.com/"
+    },
+    {
+      "id": "US:ASML",
+      "expectedName": "ASML Holding N.V. NY Registered Shares",
+      "names": {
+        "en": "ASML",
+        "zh-CN": "阿斯麦"
+      },
+      "sourceUrl": "https://www.asml.com/"
+    },
+    {
+      "id": "US:AVGO",
+      "expectedName": "Broadcom Inc.",
+      "names": {
+        "en": "Broadcom",
+        "zh-CN": "博通"
+      },
+      "sourceUrl": "https://www.broadcom.com/"
+    },
+    {
+      "id": "US:BABA",
+      "expectedName": "Alibaba Group Holding Ltd. ADR",
+      "names": {
+        "en": "Alibaba Group",
+        "zh-CN": "阿里巴巴"
+      },
+      "sourceUrl": "https://www.alibabagroup.com/"
+    },
+    {
+      "id": "US:BIDU",
+      "expectedName": "Baidu Inc. ADR",
+      "names": {
+        "en": "Baidu",
+        "zh-CN": "百度"
+      },
+      "sourceUrl": "https://ir.baidu.com/"
+    },
+    {
+      "id": "US:CDNS",
+      "expectedName": "Cadence Design Systems, Inc.",
+      "names": {
+        "en": "Cadence",
+        "zh-CN": "楷登电子"
+      },
+      "sourceUrl": "https://www.cadence.com/content/dam/cadence-www/global/zh_CN/documents/company/cadence-fact-sheet.pdf"
+    },
+    {
+      "id": "US:CEG",
+      "expectedName": "Constellation Energy Corporation",
+      "names": {
+        "en": "Constellation Energy",
+        "zh-CN": "Constellation Energy"
+      },
+      "sourceUrl": "https://www.constellationenergy.com/"
+    },
+    {
+      "id": "US:CLS",
+      "expectedName": "Celestica Inc.",
+      "names": {
+        "en": "Celestica",
+        "zh-CN": "天弘科技"
+      },
+      "sourceUrl": "https://cn.linkedin.com/company/celestica"
+    },
+    {
+      "id": "US:COHR",
+      "expectedName": "Coherent Corp.",
+      "names": {
+        "en": "Coherent",
+        "zh-CN": "高意"
+      },
+      "sourceUrl": "https://www.coherent.com/zh/company/about-us"
+    },
+    {
+      "id": "US:CRDO",
+      "expectedName": "Credo Technology Group Holding Ltd.",
+      "names": {
+        "en": "Credo",
+        "zh-CN": "Credo"
+      },
+      "sourceUrl": "https://www.credosemi.com/"
+    },
+    {
+      "id": "US:CRM",
+      "expectedName": "Salesforce Inc",
+      "names": {
+        "en": "Salesforce",
+        "zh-CN": "Salesforce"
+      },
+      "sourceUrl": "https://www.salesforce.com/"
+    },
+    {
+      "id": "US:CRWV",
+      "expectedName": "CoreWeave, Inc.",
+      "names": {
+        "en": "CoreWeave",
+        "zh-CN": "CoreWeave"
+      },
+      "sourceUrl": "https://www.coreweave.com/"
+    },
+    {
+      "id": "US:CSCO",
+      "expectedName": "Cisco Systems, Inc.",
+      "names": {
+        "en": "Cisco",
+        "zh-CN": "思科"
+      },
+      "sourceUrl": "https://www.cisco.com/"
+    },
+    {
+      "id": "US:DDOG",
+      "expectedName": "Datadog, Inc. Class A Common Stock",
+      "names": {
+        "en": "Datadog",
+        "zh-CN": "Datadog"
+      },
+      "sourceUrl": "https://www.datadoghq.com/"
     },
     {
       "id": "US:DELL",
@@ -38,6 +236,114 @@
       "sourceUrl": "https://www.dell.com/zh-cn"
     },
     {
+      "id": "US:DLR",
+      "expectedName": "Digital Realty",
+      "names": {
+        "en": "Digital Realty",
+        "zh-CN": "Digital Realty"
+      },
+      "sourceUrl": "https://www.digitalrealty.com/"
+    },
+    {
+      "id": "US:DOV",
+      "expectedName": "Dover Corporation",
+      "names": {
+        "en": "Dover",
+        "zh-CN": "都福"
+      },
+      "sourceUrl": "https://www.dovercorporation.com/"
+    },
+    {
+      "id": "US:ENTG",
+      "expectedName": "Entegris, Inc.",
+      "names": {
+        "en": "Entegris",
+        "zh-CN": "英特格"
+      },
+      "sourceUrl": "https://supplier.entegris.com/ent031122_supplier-whistle-blowing-letter-simplified-chinese_china-20220419.pdf"
+    },
+    {
+      "id": "US:EQIX",
+      "expectedName": "Equinix",
+      "names": {
+        "en": "Equinix",
+        "zh-CN": "Equinix"
+      },
+      "sourceUrl": "https://www.equinix.com/"
+    },
+    {
+      "id": "US:ETN",
+      "expectedName": "Eaton Corporation plc",
+      "names": {
+        "en": "Eaton",
+        "zh-CN": "伊顿"
+      },
+      "sourceUrl": "https://www.eaton.com/"
+    },
+    {
+      "id": "US:FLEX",
+      "expectedName": "Flex Ltd.",
+      "names": {
+        "en": "Flex",
+        "zh-CN": "伟创力"
+      },
+      "sourceUrl": "https://flex.com/"
+    },
+    {
+      "id": "US:GDS",
+      "expectedName": "GDS Holdings Limited ADR",
+      "names": {
+        "en": "GDS",
+        "zh-CN": "万国数据"
+      },
+      "sourceUrl": "https://www.gds-services.com/"
+    },
+    {
+      "id": "US:GEV",
+      "expectedName": "GE Vernova Inc.",
+      "names": {
+        "en": "GE Vernova",
+        "zh-CN": "GE Vernova"
+      },
+      "sourceUrl": "https://www.gevernova.com/"
+    },
+    {
+      "id": "US:GFS",
+      "expectedName": "GlobalFoundries Inc.",
+      "names": {
+        "en": "GlobalFoundries",
+        "zh-CN": "格芯"
+      },
+      "sourceUrl": "https://gf.com/"
+    },
+    {
+      "id": "US:GLW",
+      "expectedName": "Corning Incorporated",
+      "names": {
+        "en": "Corning",
+        "zh-CN": "康宁"
+      },
+      "sourceUrl": "https://www.corning.com/"
+    },
+    {
+      "id": "US:GOOGL",
+      "expectedName": "Alphabet Inc.",
+      "names": {
+        "en": "Alphabet",
+        "zh-CN": "Alphabet"
+      },
+      "sourceUrl": "https://www.abc.xyz/"
+    },
+    {
+      "id": "US:HPE",
+      "expectedName": "Hewlett Packard Enterprise Company",
+      "names": {
+        "en": "Hewlett Packard Enterprise",
+        "zh-CN": "慧与"
+      },
+      "sourceUrl": "https://www.hpe.com/"
+    },
+    {
       "id": "US:INTC",
       "expectedName": "Intel Corporation",
       "names": {
@@ -45,6 +351,222 @@
         "zh-CN": "英特尔"
       },
       "sourceUrl": "https://www.intel.cn/content/www/cn/zh/homepage.html"
+    },
+    {
+      "id": "US:JBL",
+      "expectedName": "Jabil Inc.",
+      "names": {
+        "en": "Jabil",
+        "zh-CN": "捷普"
+      },
+      "sourceUrl": "https://www.jabil.com/"
+    },
+    {
+      "id": "US:KLAC",
+      "expectedName": "KLA Corporation",
+      "names": {
+        "en": "KLA",
+        "zh-CN": "科磊"
+      },
+      "sourceUrl": "https://www.kla.com/"
+    },
+    {
+      "id": "US:LIN",
+      "expectedName": "Linde plc",
+      "names": {
+        "en": "Linde",
+        "zh-CN": "林德"
+      },
+      "sourceUrl": "https://www.linde.com/"
+    },
+    {
+      "id": "US:LITE",
+      "expectedName": "Lumentum Holdings Inc.",
+      "names": {
+        "en": "Lumentum",
+        "zh-CN": "Lumentum"
+      },
+      "sourceUrl": "https://www.lumentum.com/"
+    },
+    {
+      "id": "US:LRCX",
+      "expectedName": "Lam Research Corporation",
+      "names": {
+        "en": "Lam Research",
+        "zh-CN": "泛林集团"
+      },
+      "sourceUrl": "https://www.lamresearch.com/zh-hans/company/company-overview/"
+    },
+    {
+      "id": "US:META",
+      "expectedName": "Meta Platforms Inc Class A",
+      "names": {
+        "en": "Meta",
+        "zh-CN": "Meta"
+      },
+      "sourceUrl": "https://about.meta.com/"
+    },
+    {
+      "id": "US:MOD",
+      "expectedName": "Modine Manufacturing Company",
+      "names": {
+        "en": "Modine",
+        "zh-CN": "摩丁"
+      },
+      "sourceUrl": "https://www.modine.com/"
+    },
+    {
+      "id": "US:MRVL",
+      "expectedName": "Marvell Technology, Inc.",
+      "names": {
+        "en": "Marvell",
+        "zh-CN": "美满电子"
+      },
+      "sourceUrl": "https://www.marvell.com/company/newsroom/marvell-introduces-new-chinese-name-for-company-mei-man-meaning-beautiful-harmony-reflecting-the-companys-business-philosophy.html"
+    },
+    {
+      "id": "US:MSFT",
+      "expectedName": "Microsoft Corp.",
+      "names": {
+        "en": "Microsoft",
+        "zh-CN": "微软"
+      },
+      "sourceUrl": "https://www.microsoft.com/"
+    },
+    {
+      "id": "US:MU",
+      "expectedName": "Micron Technology, Inc.",
+      "names": {
+        "en": "Micron Technology",
+        "zh-CN": "美光科技"
+      },
+      "sourceUrl": "https://www.micron.cn/"
+    },
+    {
+      "id": "US:NBIS",
+      "expectedName": "Nebius Group N.V.",
+      "names": {
+        "en": "Nebius",
+        "zh-CN": "Nebius"
+      },
+      "sourceUrl": "https://nebius.com/"
+    },
+    {
+      "id": "US:NOW",
+      "expectedName": "ServiceNow, Inc.",
+      "names": {
+        "en": "ServiceNow",
+        "zh-CN": "ServiceNow"
+      },
+      "sourceUrl": "https://www.servicenow.com/"
+    },
+    {
+      "id": "US:NTAP",
+      "expectedName": "NetApp, Inc.",
+      "names": {
+        "en": "NetApp",
+        "zh-CN": "NetApp"
+      },
+      "sourceUrl": "https://www.netapp.com/"
+    },
+    {
+      "id": "US:NVDA",
+      "expectedName": "NVIDIA Corporation",
+      "names": {
+        "en": "NVIDIA",
+        "zh-CN": "英伟达"
+      },
+      "sourceUrl": "https://www.nvidia.cn/newsroom/"
+    },
+    {
+      "id": "US:NXPI",
+      "expectedName": "NXP Semiconductors N.V.",
+      "names": {
+        "en": "NXP Semiconductors",
+        "zh-CN": "恩智浦"
+      },
+      "sourceUrl": "https://www.nxp.com/"
+    },
+    {
+      "id": "US:ORCL",
+      "expectedName": "Oracle Corporation",
+      "names": {
+        "en": "Oracle",
+        "zh-CN": "甲骨文"
+      },
+      "sourceUrl": "https://www.oracle.com/"
+    },
+    {
+      "id": "US:P",
+      "expectedName": "Everpure",
+      "names": {
+        "en": "Everpure",
+        "zh-CN": "Everpure"
+      },
+      "sourceUrl": "https://www.everpuredata.com/tw/customers.html"
+    },
+    {
+      "id": "US:PLTR",
+      "expectedName": "Palantir Technologies Inc.",
+      "names": {
+        "en": "Palantir",
+        "zh-CN": "Palantir"
+      },
+      "sourceUrl": "https://www.palantir.com/"
+    },
+    {
+      "id": "US:QCOM",
+      "expectedName": "QUALCOMM Incorporated",
+      "names": {
+        "en": "Qualcomm",
+        "zh-CN": "高通"
+      },
+      "sourceUrl": "https://www.qualcomm.com/"
+    },
+    {
+      "id": "US:SMCI",
+      "expectedName": "Super Micro Computer Inc",
+      "names": {
+        "en": "Supermicro",
+        "zh-CN": "超微电脑"
+      },
+      "sourceUrl": "https://www.supermicro.com/"
+    },
+    {
+      "id": "US:SNDK",
+      "expectedName": "Sandisk Corporation",
+      "names": {
+        "en": "Sandisk",
+        "zh-CN": "闪迪"
+      },
+      "sourceUrl": "https://www.sandisk.com/"
+    },
+    {
+      "id": "US:SNOW",
+      "expectedName": "Snowflake Inc.",
+      "names": {
+        "en": "Snowflake",
+        "zh-CN": "Snowflake"
+      },
+      "sourceUrl": "https://www.snowflake.com/"
+    },
+    {
+      "id": "US:SNPS",
+      "expectedName": "Synopsys, Inc.",
+      "names": {
+        "en": "Synopsys",
+        "zh-CN": "新思科技"
+      },
+      "sourceUrl": "https://www.synopsys.com/"
+    },
+    {
+      "id": "US:STX",
+      "expectedName": "Seagate Technology Holdings plc",
+      "names": {
+        "en": "Seagate",
+        "zh-CN": "希捷"
+      },
+      "sourceUrl": "https://www.seagate.com/"
     },
     {
       "id": "US:TSM",
@@ -56,6 +578,339 @@
       "sourceUrl": "https://www.tsmc.com/schinese/aboutTSMC"
     },
     {
+      "id": "US:TT",
+      "expectedName": "Trane Technologies plc",
+      "names": {
+        "en": "Trane Technologies",
+        "zh-CN": "特灵科技"
+      },
+      "sourceUrl": "https://www.tranetechnologies.com/"
+    },
+    {
+      "id": "US:TTMI",
+      "expectedName": "TTM Technologies, Inc.",
+      "names": {
+        "en": "TTM Technologies",
+        "zh-CN": "迅达科技"
+      },
+      "sourceUrl": "https://www.ttm.com/zh/solutions"
+    },
+    {
+      "id": "US:VNET",
+      "expectedName": "VNET Group, Inc. ADR",
+      "names": {
+        "en": "VNET",
+        "zh-CN": "世纪互联"
+      },
+      "sourceUrl": "https://www.vnet.com/"
+    },
+    {
+      "id": "US:VRT",
+      "expectedName": "Vertiv Holdings Co.",
+      "names": {
+        "en": "Vertiv",
+        "zh-CN": "维谛技术"
+      },
+      "sourceUrl": "https://www.vertiv.com/"
+    },
+    {
+      "id": "US:VST",
+      "expectedName": "Vistra Corp",
+      "names": {
+        "en": "Vistra",
+        "zh-CN": "Vistra"
+      },
+      "sourceUrl": "https://www.vistracorp.com/"
+    },
+    {
+      "id": "US:WDC",
+      "expectedName": "Western Digital Corporation",
+      "names": {
+        "en": "Western Digital",
+        "zh-CN": "西部数据"
+      },
+      "sourceUrl": "https://www.westerndigital.com/"
+    },
+    {
+      "id": "XSHE:000063",
+      "expectedName": "中兴通讯",
+      "names": {
+        "en": "ZTE",
+        "zh-CN": "中兴通讯"
+      },
+      "sourceUrl": "https://www.zte.com.cn/"
+    },
+    {
+      "id": "XSHE:000938",
+      "expectedName": "紫光股份",
+      "names": {
+        "en": "Unisplendour",
+        "zh-CN": "紫光股份"
+      },
+      "sourceUrl": "https://www.unis.cn/about.htm"
+    },
+    {
+      "id": "XSHE:000977",
+      "expectedName": "浪潮信息",
+      "names": {
+        "en": "IEIT Systems",
+        "zh-CN": "浪潮信息"
+      },
+      "sourceUrl": "https://en.ieisystem.com/about/index.html"
+    },
+    {
+      "id": "XSHE:002138",
+      "expectedName": "顺络电子",
+      "names": {
+        "en": "Sunlord Electronics",
+        "zh-CN": "顺络电子"
+      },
+      "sourceUrl": "https://www.sunlordinc.com/"
+    },
+    {
+      "id": "XSHE:002156",
+      "expectedName": "通富微电",
+      "names": {
+        "en": "Tongfu Microelectronics",
+        "zh-CN": "通富微电"
+      },
+      "sourceUrl": "https://www.tfme.com/"
+    },
+    {
+      "id": "XSHE:002185",
+      "expectedName": "华天科技",
+      "names": {
+        "en": "Huatian Technology",
+        "zh-CN": "华天科技"
+      },
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/enpage/002185_2.pdf"
+    },
+    {
+      "id": "XSHE:002230",
+      "expectedName": "科大讯飞",
+      "names": {
+        "en": "iFLYTEK",
+        "zh-CN": "科大讯飞"
+      },
+      "sourceUrl": "https://www.iflytek.com/en/"
+    },
+    {
+      "id": "XSHE:002281",
+      "expectedName": "光迅科技",
+      "names": {
+        "en": "Accelink",
+        "zh-CN": "光迅科技"
+      },
+      "sourceUrl": "https://www.accelink.com/lighting_your_dreams/guanyuguangxun.html"
+    },
+    {
+      "id": "XSHE:002335",
+      "expectedName": "科华数据",
+      "names": {
+        "en": "Kehua Data",
+        "zh-CN": "科华数据"
+      },
+      "sourceUrl": "https://www.kehua.com.cn/"
+    },
+    {
+      "id": "XSHE:002371",
+      "expectedName": "北方华创",
+      "names": {
+        "en": "NAURA",
+        "zh-CN": "北方华创"
+      },
+      "sourceUrl": "https://www.naura.com/"
+    },
+    {
+      "id": "XSHE:002463",
+      "expectedName": "沪电股份",
+      "names": {
+        "en": "WUS Printed Circuit",
+        "zh-CN": "沪电股份"
+      },
+      "sourceUrl": "https://wusgroup.com/"
+    },
+    {
+      "id": "XSHE:002518",
+      "expectedName": "科士达",
+      "names": {
+        "en": "KSTAR",
+        "zh-CN": "科士达"
+      },
+      "sourceUrl": "https://www.kstar.com.cn/"
+    },
+    {
+      "id": "XSHE:002837",
+      "expectedName": "英维克",
+      "names": {
+        "en": "Envicool",
+        "zh-CN": "英维克"
+      },
+      "sourceUrl": "https://www.envicool.com/"
+    },
+    {
+      "id": "XSHE:002916",
+      "expectedName": "深南电路",
+      "names": {
+        "en": "Shennan Circuits",
+        "zh-CN": "深南电路"
+      },
+      "sourceUrl": "https://www.scc.com.cn/"
+    },
+    {
+      "id": "XSHE:002938",
+      "expectedName": "鹏鼎控股",
+      "names": {
+        "en": "Avary Holding",
+        "zh-CN": "鹏鼎控股"
+      },
+      "sourceUrl": "https://www.avaryholding.com/"
+    },
+    {
+      "id": "XSHE:300308",
+      "expectedName": "中际旭创",
+      "names": {
+        "en": "Zhongji Innolight",
+        "zh-CN": "中际旭创"
+      },
+      "sourceUrl": "https://www.zj-innolight.com/"
+    },
+    {
+      "id": "XSHE:300346",
+      "expectedName": "南大光电",
+      "names": {
+        "en": "Nata Opto-electronic Material",
+        "zh-CN": "南大光电"
+      },
+      "sourceUrl": "https://www.semi.org/en/resources/ecs-directory/jiangsu-nata-opto-electronic-material-co-ltd"
+    },
+    {
+      "id": "XSHE:300383",
+      "expectedName": "光环新网",
+      "names": {
+        "en": "Sinnet",
+        "zh-CN": "光环新网"
+      },
+      "sourceUrl": "https://www.sinnet.com.cn/"
+    },
+    {
+      "id": "XSHE:300394",
+      "expectedName": "天孚通信",
+      "names": {
+        "en": "TFC Communication",
+        "zh-CN": "天孚通信"
+      },
+      "sourceUrl": "https://www.tfcsz.com/en"
+    },
+    {
+      "id": "XSHE:300442",
+      "expectedName": "润泽科技",
+      "names": {
+        "en": "Range Intelligent Computing Technology",
+        "zh-CN": "润泽科技"
+      },
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-10/1225090821.PDF"
+    },
+    {
+      "id": "XSHE:300474",
+      "expectedName": "景嘉微",
+      "names": {
+        "en": "Jingjia Micro",
+        "zh-CN": "景嘉微"
+      },
+      "sourceUrl": "https://www.jingjiamicro.com/"
+    },
+    {
+      "id": "XSHE:300476",
+      "expectedName": "胜宏科技",
+      "names": {
+        "en": "Victory Giant Technology",
+        "zh-CN": "胜宏科技"
+      },
+      "sourceUrl": "https://www.shpcb.com/"
+    },
+    {
+      "id": "XSHE:300499",
+      "expectedName": "高澜股份",
+      "names": {
+        "en": "Goaland",
+        "zh-CN": "高澜股份"
+      },
+      "sourceUrl": "https://www.goaland.com.cn/"
+    },
+    {
+      "id": "XSHE:300502",
+      "expectedName": "新易盛",
+      "names": {
+        "en": "Eoptolink",
+        "zh-CN": "新易盛"
+      },
+      "sourceUrl": "https://www.eoptolink.com/"
+    },
+    {
+      "id": "XSHE:300666",
+      "expectedName": "江丰电子",
+      "names": {
+        "en": "Konfoong Materials",
+        "zh-CN": "江丰电子"
+      },
+      "sourceUrl": "https://www.kfmic.com/"
+    },
+    {
+      "id": "XSHE:301018",
+      "expectedName": "申菱环境",
+      "names": {
+        "en": "Shenling",
+        "zh-CN": "申菱环境"
+      },
+      "sourceUrl": "https://www.shenling.com/"
+    },
+    {
+      "id": "XSHE:301165",
+      "expectedName": "锐捷网络",
+      "names": {
+        "en": "Ruijie Networks",
+        "zh-CN": "锐捷网络"
+      },
+      "sourceUrl": "https://www.ruijie.com.cn/"
+    },
+    {
+      "id": "XSHE:301269",
+      "expectedName": "华大九天",
+      "names": {
+        "en": "Empyrean Technology",
+        "zh-CN": "华大九天"
+      },
+      "sourceUrl": "https://www.empyrean.com.cn/"
+    },
+    {
+      "id": "XSHE:301308",
+      "expectedName": "江波龙",
+      "names": {
+        "en": "Longsys",
+        "zh-CN": "江波龙"
+      },
+      "sourceUrl": "https://www.longsys.com/"
+    },
+    {
+      "id": "XSHG:600050",
+      "expectedName": "中国联通",
+      "names": {
+        "en": "China Unicom",
+        "zh-CN": "中国联通"
+      },
+      "sourceUrl": "https://www.chinaunicom-a.com/"
+    },
+    {
+      "id": "XSHG:600183",
+      "expectedName": "生益科技",
+      "names": {
+        "en": "Shengyi Technology",
+        "zh-CN": "生益科技"
+      },
+      "sourceUrl": "https://www.syst.com.cn/"
+    },
+    {
       "id": "XSHG:600584",
       "expectedName": "长电科技",
       "names": {
@@ -63,6 +918,267 @@
         "zh-CN": "长电科技"
       },
       "sourceUrl": "https://www.jcetglobal.com/en"
+    },
+    {
+      "id": "XSHG:600588",
+      "expectedName": "用友网络",
+      "names": {
+        "en": "Yonyou",
+        "zh-CN": "用友网络"
+      },
+      "sourceUrl": "https://www.yonyou.com/"
+    },
+    {
+      "id": "XSHG:600941",
+      "expectedName": "中国移动",
+      "names": {
+        "en": "China Mobile",
+        "zh-CN": "中国移动"
+      },
+      "sourceUrl": "https://www.chinamobileltd.com/"
+    },
+    {
+      "id": "XSHG:601138",
+      "expectedName": "工业富联",
+      "names": {
+        "en": "Foxconn Industrial Internet",
+        "zh-CN": "工业富联"
+      },
+      "sourceUrl": "https://www.fii-foxconn.com/"
+    },
+    {
+      "id": "XSHG:601728",
+      "expectedName": "中国电信",
+      "names": {
+        "en": "China Telecom",
+        "zh-CN": "中国电信"
+      },
+      "sourceUrl": "https://www.chinatelecom-h.com/"
+    },
+    {
+      "id": "XSHG:603019",
+      "expectedName": "中科曙光",
+      "names": {
+        "en": "Sugon",
+        "zh-CN": "中科曙光"
+      },
+      "sourceUrl": "https://www.sugon.com/"
+    },
+    {
+      "id": "XSHG:603160",
+      "expectedName": "汇顶科技",
+      "names": {
+        "en": "Goodix",
+        "zh-CN": "汇顶科技"
+      },
+      "sourceUrl": "https://www.goodix.com/"
+    },
+    {
+      "id": "XSHG:603296",
+      "expectedName": "华勤技术",
+      "names": {
+        "en": "Huaqin Technology",
+        "zh-CN": "华勤技术"
+      },
+      "sourceUrl": "https://www.huaqin.com/"
+    },
+    {
+      "id": "XSHG:603501",
+      "expectedName": "豪威集团",
+      "names": {
+        "en": "OmniVision Group",
+        "zh-CN": "豪威集团"
+      },
+      "sourceUrl": "https://www.omnivision-group.com/"
+    },
+    {
+      "id": "XSHG:603881",
+      "expectedName": "数据港",
+      "names": {
+        "en": "AtHub",
+        "zh-CN": "数据港"
+      },
+      "sourceUrl": "https://www.athub.com/"
+    },
+    {
+      "id": "XSHG:603986",
+      "expectedName": "兆易创新",
+      "names": {
+        "en": "GigaDevice",
+        "zh-CN": "兆易创新"
+      },
+      "sourceUrl": "https://www.gigadevice.com/"
+    },
+    {
+      "id": "XSHG:688008",
+      "expectedName": "澜起科技",
+      "names": {
+        "en": "Montage Technology",
+        "zh-CN": "澜起科技"
+      },
+      "sourceUrl": "https://www.montage-tech.com/cn"
+    },
+    {
+      "id": "XSHG:688012",
+      "expectedName": "中微公司",
+      "names": {
+        "en": "AMEC",
+        "zh-CN": "中微公司"
+      },
+      "sourceUrl": "https://www.amec-inc.com/"
+    },
+    {
+      "id": "XSHG:688018",
+      "expectedName": "乐鑫科技",
+      "names": {
+        "en": "Espressif Systems",
+        "zh-CN": "乐鑫科技"
+      },
+      "sourceUrl": "https://www.espressif.com/"
+    },
+    {
+      "id": "XSHG:688036",
+      "expectedName": "传音控股",
+      "names": {
+        "en": "Transsion",
+        "zh-CN": "传音控股"
+      },
+      "sourceUrl": "https://www.transsion.com/"
+    },
+    {
+      "id": "XSHG:688041",
+      "expectedName": "海光信息",
+      "names": {
+        "en": "Hygon Information",
+        "zh-CN": "海光信息"
+      },
+      "sourceUrl": "https://www.hygon.cn/"
+    },
+    {
+      "id": "XSHG:688047",
+      "expectedName": "龙芯中科",
+      "names": {
+        "en": "Loongson Technology",
+        "zh-CN": "龙芯中科"
+      },
+      "sourceUrl": "https://www.loongson.cn/"
+    },
+    {
+      "id": "XSHG:688072",
+      "expectedName": "拓荆科技",
+      "names": {
+        "en": "Piotech",
+        "zh-CN": "拓荆科技"
+      },
+      "sourceUrl": "https://www.piotech.cn/"
+    },
+    {
+      "id": "XSHG:688111",
+      "expectedName": "金山办公",
+      "names": {
+        "en": "Kingsoft Office",
+        "zh-CN": "金山办公"
+      },
+      "sourceUrl": "https://www.wps.cn/"
+    },
+    {
+      "id": "XSHG:688120",
+      "expectedName": "华海清科",
+      "names": {
+        "en": "Hwatsing Technology",
+        "zh-CN": "华海清科"
+      },
+      "sourceUrl": "https://www.hwatsing.com/"
+    },
+    {
+      "id": "XSHG:688126",
+      "expectedName": "沪硅产业",
+      "names": {
+        "en": "National Silicon Industry Group",
+        "zh-CN": "沪硅产业"
+      },
+      "sourceUrl": "https://nsig.com/en/about"
+    },
+    {
+      "id": "XSHG:688206",
+      "expectedName": "概伦电子",
+      "names": {
+        "en": "Primarius Technologies",
+        "zh-CN": "概伦电子"
+      },
+      "sourceUrl": "https://www.primarius-tech.com/"
+    },
+    {
+      "id": "XSHG:688256",
+      "expectedName": "寒武纪",
+      "names": {
+        "en": "Cambricon",
+        "zh-CN": "寒武纪"
+      },
+      "sourceUrl": "https://www.cambricon.com/"
+    },
+    {
+      "id": "XSHG:688347",
+      "expectedName": "华虹公司",
+      "names": {
+        "en": "Hua Hong Semiconductor",
+        "zh-CN": "华虹公司"
+      },
+      "sourceUrl": "https://www.huahonggrace.com/"
+    },
+    {
+      "id": "XSHG:688498",
+      "expectedName": "源杰科技",
+      "names": {
+        "en": "Yuanjie Semiconductor",
+        "zh-CN": "源杰科技"
+      },
+      "sourceUrl": "https://en.yj-semitech.com/html/more/index.html"
+    },
+    {
+      "id": "XSHG:688521",
+      "expectedName": "芯原股份",
+      "names": {
+        "en": "VeriSilicon",
+        "zh-CN": "芯原股份"
+      },
+      "sourceUrl": "https://www.verisilicon.com/"
+    },
+    {
+      "id": "XSHG:688525",
+      "expectedName": "佰维存储",
+      "names": {
+        "en": "Biwin",
+        "zh-CN": "佰维存储"
+      },
+      "sourceUrl": "https://www.biwin.com.cn/"
+    },
+    {
+      "id": "XSHG:688766",
+      "expectedName": "普冉股份",
+      "names": {
+        "en": "Puya Semiconductor",
+        "zh-CN": "普冉股份"
+      },
+      "sourceUrl": "https://www.puyasemi.com/"
+    },
+    {
+      "id": "XSHG:688795",
+      "expectedName": "摩尔线程",
+      "names": {
+        "en": "Moore Threads",
+        "zh-CN": "摩尔线程"
+      },
+      "sourceUrl": "https://www.mthreads.com/"
+    },
+    {
+      "id": "XSHG:688802",
+      "expectedName": "沐曦股份",
+      "names": {
+        "en": "MetaX",
+        "zh-CN": "沐曦股份"
+      },
+      "sourceUrl": "https://www.metax-tech.com/"
     },
     {
       "id": "XSHG:688981",
