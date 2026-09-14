@@ -4,6 +4,7 @@ import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 import { connectionJourney } from "../../src/lib/knowledge-graph/discovery";
+import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
@@ -262,3 +263,35 @@ test("zoom reveals relationship types without selecting a company", async ({page
   await expect.poll(()=>page.locator('button[class*="edgeLabel3d"]:visible').count()).toBeGreaterThan(0);
 });
 
+
+test("company layout retains real depth",()=>{
+  const layout=layout3D(graph);
+  expect(layout.nodes).toHaveLength(129);
+  for(const axis of ["x","y","z"] as const){
+    const positions=layout.nodes.map(n=>n[axis]);
+    expect(Math.max(...positions)-Math.min(...positions)).toBeGreaterThan(150);
+  }
+});
+
+test("company text grows on zoom in and shrinks on zoom out",async({page})=>{
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+  await page.goto("http://graph.test/map?lang=en");
+  const label=page.locator('button[class*="label3d"]').filter({hasText:"NVIDIA"}).locator("strong");
+  await expect(label).toBeVisible();
+  const fontSize=()=>label.evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+  const initial=await fontSize();
+  await page.locator("canvas").hover({position:{x:20,y:100}});
+  await page.mouse.wheel(0,-400);
+  await expect.poll(fontSize).toBeGreaterThan(initial+.5);
+  const enlarged=await fontSize();
+  await page.mouse.wheel(0,400);
+  await expect.poll(fontSize).toBeLessThan(enlarged-.5);
+});
+
+test("unclassified companies have their own spatial anchor",()=>{
+ const layout=layout3D({...graph,nodes:[...graph.nodes,{id:"ORG:RELATED",kind:"COMPANY",name:"Related company",stageIds:["related"],market:"GLOBAL",order:999}]});
+ const related=layout.nodes.find(n=>n.id==="ORG:RELATED")!;
+ const semiconductor=layout.nodes.find(n=>n.stageIds?.[0]==="materials")!;
+ expect([related.ax,related.ay,related.az]).not.toEqual([semiconductor.ax,semiconductor.ay,semiconductor.az]);
+});
