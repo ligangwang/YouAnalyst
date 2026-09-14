@@ -100,7 +100,13 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
   },[layout,selected,activeEdge]);
   const activeLabelPosition=(edge:{x:number;y:number;z:number}):[number,number]=>{
     const p=new Vector3(edge.x,edge.y,edge.z).project(camera);
-    return [Math.max(118,Math.min(size.width-118,(p.x+1)*size.width/2)),Math.max(30,Math.min(size.height-70,(1-p.y)*size.height/2))];
+    const x=Math.max(118,Math.min(size.width-118,(p.x+1)*size.width/2));
+    let y=Math.max(30,Math.min(size.height-70,(1-p.y)*size.height/2));
+    const company=layout.nodes.find(n=>n.id===selected);
+    if(company){const point=new Vector3(company.x,company.y,company.z).project(camera);const cx=(point.x+1)*size.width/2,cy=(1-point.y)*size.height/2;
+      if(Math.abs(x-cx)<210 && Math.abs(y-cy)<60)y=cy>100?cy-75:cy+75;
+    }
+    return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame(() => {
     const occupied: {x:number;y:number;w:number;h:number}[]=[];

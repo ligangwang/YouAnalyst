@@ -318,6 +318,7 @@ test("selected relationship label has priority and company fonts stay compact",a
  await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
  await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
  await expect(page.getByRole("button",{name:"DELL Integrates technology from NVDA",exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"NVIDIA · NVDA",exact:true})).toBeVisible();
  const largest=await page.locator('button[class*="label3d"] strong').evaluateAll(els=>Math.max(...els.map(el=>parseFloat(getComputedStyle(el).fontSize))));
  expect(largest).toBeLessThanOrEqual(14);
  await page.locator("canvas").scrollIntoViewIfNeeded();
