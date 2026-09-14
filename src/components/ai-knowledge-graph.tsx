@@ -27,7 +27,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
   const [followBusy, setFollowBusy] = useState(false);
   const [followError, setFollowError] = useState(false);
   const [activeEdge, setActiveEdge] = useState("");
-  const [journey, setJourney] = useState<string[]>([]);
+  const [journey, setJourney] = useState<{ edgeId: string; companyId: string }[]>([]);
   const [journeyStep, setJourneyStep] = useState(0);
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const [graph, setGraph] = useState(EMPTY);
@@ -76,13 +76,14 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
     if (id) url.searchParams.set("company", id); else url.searchParams.delete("company");
     window.history.replaceState(null, "", url);
   }
-  function openConnection(id: string) {
-    const edge = graph.relationships.find(e => e.id === id); if (!edge) return;
-    selectCompany(edge.source); setActiveEdge(id);
+  function openConnection(id: string, reached?: string) {
+    const edge = graph.relationships.find(e => e.id === id); if (!edge || edge.type === "PARTICIPATES_IN") return;
+    selectCompany(reached ?? edge.source); setActiveEdge(id);
   }
   function startJourney(id: string) {
-    const path = connectionJourney(graph, id).map(e => e.id);
-    setJourney(path); setJourneyStep(0); if (path.length) openConnection(path[0]);
+    let current = id;
+    const path = connectionJourney(graph, id).map(e => { current = e.source === current ? e.target : e.source; return { edgeId: e.id, companyId: current }; });
+    setJourney(path); setJourneyStep(0); if (path.length) openConnection(path[0].edgeId, path[0].companyId);
   }
   const sourceLinks = (ids: string[]) => graph.sources.filter(s => ids.includes(s.id) && /^https:\/\//.test(s.url)).map(s => <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗{s.sourceDate && <time className={styles.sourceDate} dateTime={s.sourceDate}>{s.sourceDate}</time>}</a>);
   return <><main className={styles.page}>
@@ -98,14 +99,14 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
       <button onClick={() => setUpdatesOpen(!updatesOpen)} aria-expanded={updatesOpen}>{text("What’s new", "最新关系")} {recent.length > 0 ? `· ${recent.length}` : ""}</button>
       {auth?.user && <details><summary>{text("Following", "已关注")} · {followed.length}</summary>
         {!followed.length && <p>{text("Follow a company from its map panel to find it here.", "在公司面板关注公司，即可在这里查看。")}</p>}
-        {followed.map(id => <button key={id} onClick={() => selectCompany(id)}>{label(id)}</button>)}
+        {followed.map(id => graph.nodes.some(n => n.id === id && n.kind === "COMPANY") ? <button key={id} onClick={() => selectCompany(id)}>{label(id)}</button> : <span key={id}>{id} <button disabled={followBusy || !followReady} onClick={() => void toggleFollow(id)}>{text("Unfollow", "取消关注")}</button></span>)}
       </details>}
     </div>
     {updatesOpen && <section className={styles.updatePanel} aria-label={text("New connections", "最新关系")}><p>{text("Documented in the last 7 days. Highlights indicate when a connection was published here, not when the business relationship began.", "最近七天收录的关系。高亮表示本站收录时间，并非业务关系开始时间。")}</p>
       {!recent.length && <p>{text("No newly dated connections yet.", "暂无带收录日期的新关系。")}</p>}
       {recent.map(e => <button key={e.id} onClick={() => openConnection(e.id)}>{label(e.source)} → {label(e.target)}{followed.includes(e.source) || followed.includes(e.target) ? text(" · Following", " · 已关注") : ""}</button>)}
     </section>}
-    {journey.length > 0 && <section className={styles.journey} aria-label={text("Guided journey", "探索路线")}><span>{text("Connection", "关系")} {journeyStep + 1} / {journey.length}</span><button disabled={journeyStep === 0} onClick={() => { const step = journeyStep - 1; setJourneyStep(step); openConnection(journey[step]); }}>{text("Previous", "上一步")}</button><button disabled={journeyStep === journey.length - 1} onClick={() => { const step = journeyStep + 1; setJourneyStep(step); openConnection(journey[step]); }}>{text("Next", "下一步")}</button><button onClick={() => { setJourney([]); setActiveEdge(""); }}>{text("End journey", "结束探索")}</button></section>}
+    {journey.length > 0 && <section className={styles.journey} aria-label={text("Guided journey", "探索路线")}><span>{text("Connection", "关系")} {journeyStep + 1} / {journey.length}</span><button disabled={journeyStep === 0} onClick={() => { const step = journeyStep - 1; setJourneyStep(step); openConnection(journey[step].edgeId, journey[step].companyId); }}>{text("Previous", "上一步")}</button><button disabled={journeyStep === journey.length - 1} onClick={() => { const step = journeyStep + 1; setJourneyStep(step); openConnection(journey[step].edgeId, journey[step].companyId); }}>{text("Next", "下一步")}</button><button onClick={() => { setJourney([]); setActiveEdge(""); }}>{text("End journey", "结束探索")}</button></section>}
     <div className={styles.legend}><span role="status">{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</span></div>
     {status === "ready" && sectorIds.size > 0 && <div className={styles.sectorLegend} role="group" aria-label={text("Colors by primary AI sector", "按主要 AI 产业环节着色")}><span>{text("Sector", "产业环节")}</span>{[...GRAPH_SECTORS, OTHER_SECTOR].filter(s => sectorIds.has(s.id)).map(s => <span key={s.id}><i aria-hidden="true" style={{ background: s.color }}/>{text(s.en, s.zh)}</span>)}</div>}
     {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !visible.nodes.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
@@ -131,7 +132,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
           {relations.length === 0 && <p>{text("No documented connections yet.", "暂无已收录关系。")}</p>}
           {relations.map(e => <article key={e.id}>
             <span>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}{e.commercialStatus === "ANNOUNCED" ? text(" · Announced", " · 已宣布") : ""}</span>
-            <button className={styles.connectionLink} onClick={() => openConnection(e.id)}>{label(e.source)} → {label(e.target)}</button>
+            {e.type === "PARTICIPATES_IN" ? <strong>{label(e.source)} → {label(e.target)}</strong> : <button className={styles.connectionLink} onClick={() => openConnection(e.id)}>{label(e.source)} → {label(e.target)}</button>}
             <p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div>
           </article>)}
         </details>

@@ -3,6 +3,7 @@ import { build } from "esbuild";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
+import { connectionJourney } from "../../src/lib/knowledge-graph/discovery";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
@@ -148,6 +149,9 @@ for (const language of ["en", "zh-CN"]) test(`journeys and relationship explorat
  expect(await focus.locator('a[href^="https://"]').count()).toBeGreaterThan(0);
  await page.getByRole("button",{name:language === "en" ? "Next" : "下一步",exact:true}).click();
  await expect(page.getByRole("region",{name:language === "en" ? "Guided journey" : "探索路线"})).toContainText("2 /");
+ let reached="US:NVDA"; for(const edge of connectionJourney(graph,reached).slice(0,2)) reached=edge.source===reached?edge.target:edge.source;
+ await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText(graph.nodes.find(n=>n.id===reached)!.name!);
+
  await focus.getByRole("button").click();
  await expect(page.getByRole("complementary")).toBeVisible();
  await expect(page.getByRole("link", {name:language === "en" ? "Sign in to follow" : "登录后关注"})).toHaveAttribute("href",/auth\?next=/);
@@ -187,4 +191,16 @@ test("new connections use publication dates and open their evidence", async ({pa
  await expect(updates.getByRole("button")).toHaveCount(1);
  await updates.getByRole("button").click();
  await expect(page.getByRole("region",{name:"Selected connection"})).toBeVisible();
+});
+
+test("missing followed companies can be removed from the list",async({page})=>{
+ let ids=["ORG:REMOVED"];
+ await page.route("**/*",r=>{
+  if(r.request().url().includes("/api/map-follows")){if(r.request().method()==="PATCH")ids=[];return r.fulfill({json:{companyIds:ids}});}
+  return r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html});
+ });
+ await page.goto("http://graph.test/map?lang=en&account=1");
+ await page.getByText("Following · 1",{exact:true}).click();
+ await page.getByRole("button",{name:"Unfollow",exact:true}).click();
+ await expect(page.getByText("Following · 0",{exact:true})).toBeVisible();
 });
