@@ -252,15 +252,19 @@ test("selected relationships stay readable and evidence remains actionable", asy
 });
 
 
-test("zoom reveals relationship types without selecting a company", async ({page})=>{
+test("unselected zoom never shows context-free relationship labels", async ({page})=>{
   await page.emulateMedia({reducedMotion:"reduce"});
   await page.route("**/*",route=>route.request().url().includes("/api/knowledge-graph")?route.fulfill({json:graph}):route.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en");
   const canvas=page.locator("canvas");
   await expect(canvas).toBeVisible();
+  await expect.poll(()=>page.locator('[data-company-id]:visible').count()).toBeGreaterThan(0);
   await canvas.hover({position:{x:20,y:100}});
   await page.mouse.wheel(0,-1200);
-  await expect.poll(()=>page.locator('button[class*="edgeLabel3d"]:visible').count()).toBeGreaterThan(0);
+  await expect.poll(()=>page.locator('[data-source]').evaluateAll(els=>{
+    const nodes=[...document.querySelectorAll('[data-company-id]')].filter(el=>el.checkVisibility({visibilityProperty:true})).map(el=>el.getAttribute('data-company-id'));
+    return els.filter(el=>el.checkVisibility({visibilityProperty:true})).filter(el=>!nodes.includes(el.getAttribute('data-source'))&&!nodes.includes(el.getAttribute('data-target'))).length;
+  })).toBe(0);
 });
 
 
@@ -323,4 +327,44 @@ test("selected relationship label has priority and company fonts stay compact",a
  expect(largest).toBeLessThanOrEqual(14);
  await page.locator("canvas").scrollIntoViewIfNeeded();
  await page.screenshot({path:`output/cluster-labels-${test.info().project.name}.png`});
+});
+
+for(const language of ["en","zh-CN"]) test(`company names and cross-language search follow locale (${language})`,async({page})=>{
+ const localized=structuredClone(graph);
+ const nvda=localized.nodes.find(n=>n.id==="US:NVDA")!;
+ nvda.names={en:"NVIDIA", "zh-CN":"英伟达"};nvda.aliases=["辉达"];
+ const display=language==="en"?"NVIDIA":"英伟达";
+ await page.emulateMedia({reducedMotion:"reduce"});
+ await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:localized}):r.fulfill({contentType:"text/html",body:html}));
+ await page.goto(`http://graph.test/map?lang=${language}`);
+ const search=page.getByRole("textbox",{name:language==="en"?"Search companies":"搜索公司",exact:true});
+ for(const query of ["NVIDIA","英伟达","辉达"]){
+  await search.fill(query);
+  await expect(page.getByRole("region",{name:language==="en"?"Search results":"搜索结果"}).getByRole("button",{name:`${display} · NVDA`,exact:true})).toBeVisible();
+ }
+ await page.getByRole("region",{name:language==="en"?"Search results":"搜索结果"}).getByRole("button").click();
+ await expect(page.getByRole("heading",{name:display,exact:true})).toBeVisible();
+ await expect(page.locator('[data-company-id="US:NVDA"]')).toHaveText(`${display}NVDA`);
+ await expect(page.locator('[data-company-id="US:NVDA"]')).toBeVisible();
+});
+
+test("relationship labels always have a visible company endpoint",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});
+ await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+ await page.goto("http://graph.test/map?lang=en");
+ await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
+ await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+ await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
+ await expect(page.locator('[data-active="true"]')).toBeVisible();
+ const orphanLabels=()=>page.locator('[data-source]').evaluateAll(els=>{
+  const visible=(el:Element)=>el.checkVisibility({visibilityProperty:true});
+  const nodes=[...document.querySelectorAll('[data-company-id]')].filter(visible).map(el=>el.getAttribute('data-company-id'));
+  return els.filter(visible).filter(el=>!nodes.includes(el.getAttribute('data-source'))&&!nodes.includes(el.getAttribute('data-target'))).length;
+ });
+ await expect.poll(orphanLabels).toBe(0);
+ const canvas=page.locator("canvas");await canvas.hover({position:{x:20,y:100}});
+ await page.mouse.wheel(0,-2500);
+ await expect.poll(orphanLabels).toBe(0);
+ await canvas.hover({position:{x:20,y:100}});await page.mouse.wheel(0,2500);
+ await expect.poll(orphanLabels).toBe(0);
 });
