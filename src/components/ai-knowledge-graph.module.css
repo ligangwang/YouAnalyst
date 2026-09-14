@@ -103,3 +103,11 @@
 .companyList button { display:flex; flex-direction:column; gap:5px; }
 .companyList small { color:#93adc1; }
 @media(max-width:600px) { .label3d {width:118px;} .label3d strong {font-size:12px;} }
+
+.label3d { width:calc(148px * var(--label-scale, 1)); }
+.label3d strong { font-size:calc(13px * var(--label-scale, 1)); }
+.label3d span { font-size:calc(11px * var(--label-scale, 1)); }
+@media(max-width:600px) {
+  .label3d { width:calc(118px * var(--label-scale, 1)); }
+  .label3d strong { font-size:calc(12px * var(--label-scale, 1)); }
+}

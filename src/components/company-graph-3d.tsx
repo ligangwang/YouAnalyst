@@ -58,15 +58,14 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
   }, [layout, selected, activeEdge, highlightedEdges]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => lines.dispose(), [lines]);
-  const bounds = useMemo(() => ({width:Math.max(120,...layout.nodes.map(n=>n.x))-Math.min(-120,...layout.nodes.map(n=>n.x)),height:Math.max(100,...layout.nodes.map(n=>n.y))-Math.min(-100,...layout.nodes.map(n=>n.y))}),[layout]);
-  const fitDistance = Math.max(bounds.width / (2*Math.tan(Math.PI/8)*(size.width/size.height)), bounds.height / (2*Math.tan(Math.PI/8))) * 1.2 + 60;
+  const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
   useEffect(() => {
     const c = controls.current; if (!c) return;
     const n = layout.nodes.find(n => n.id === selected);
-    const d = n ? Math.min(fitDistance, 620) : fitDistance;
+    const d = n ? Math.max(150, layout.radius * .8) : fitDistance;
     const x = n?.x ?? 0, y = n?.y ?? 0, z = n?.z ?? 0;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    void c.setLookAt(x, y, z + d, x, y, z, !reduced);
+    void c.setLookAt(x + d*.2, y + d*.12, z + d, x, y, z, !reduced);
     invalidate();
   }, [layout, selected, fitDistance, reset, invalidate]);
   const degree = useMemo(() => {
@@ -76,7 +75,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
   },[layout]);
   const sectors = useMemo(() => [...new Set(layout.nodes.map(n=>companySector(n).id))].map(id=>{
     const members=layout.nodes.filter(n=>companySector(n).id===id);
-    return { ...companySector(members[0]), x:members.reduce((v,n)=>v+n.x,0)/members.length, y:Math.max(...members.map(n=>n.y))+80, z:0 };
+    return { ...companySector(members[0]), x:members.reduce((v,n)=>v+n.x,0)/members.length, y:Math.max(...members.map(n=>n.y))+80, z:members.reduce((v,n)=>v+n.z,0)/members.length };
   }),[layout]);
   const edgeLabels = useMemo(() => {
     const positions=new Map(layout.nodes.map(n=>[n.id,n]));
@@ -121,7 +120,10 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     for(const n of candidates){
       const element=labelElements.current.get(n.id);if(!element)continue;
       const relevant=!selected || connected.has(n.id) || n.id===selected || n.id===hovered;
-      if(place(element,n.x,n.y-12,n.z,relevant && shown<(size.width<600?20:60),size.width<600?118:148,44))shown++;
+      const distance=Math.hypot(camera.position.x-n.x,camera.position.y-n.y,camera.position.z-n.z);
+      const scale=Math.max(.7,Math.min(1.45,fitDistance*.8/Math.max(1,distance)));
+      element.style.setProperty("--label-scale",String(scale));
+      if(place(element,n.x,n.y-12,n.z,relevant && shown<(size.width<600?20:60),(size.width<600?118:148)*scale,44*scale))shown++;
     }
     for(const sector of sectors){const element=sectorElements.current.get(sector.id);if(element)place(element,sector.x,sector.y,sector.z,!selected&&!close,130,22);}
     if(!close || selected) placeEdges();
