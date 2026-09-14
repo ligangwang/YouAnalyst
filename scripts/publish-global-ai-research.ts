@@ -86,7 +86,7 @@ export async function publishResearch(db: Firestore, batch: ResearchBatch, write
       const evidence = batch.sources.filter(s => e.sourceIds.includes(s.id));
       // Existing editorial decisions (including WITHDRAWN) win; append only new evidence.
       const combined = [...(old?.evidence ?? []), ...evidence];
-      tx.set(edgeRefs[i], { ...e, id: edgeRefs[i].id, status: "PUBLISHED", topic: "AI", asOf: batch.asOf, ...old, evidence: combined.filter((s, j) => combined.findIndex(other => other.url === s.url && other.title === s.title) === j) });
+      tx.set(edgeRefs[i], { ...e, id: edgeRefs[i].id, status: "PUBLISHED", ...(!old ? { publishedAt: new Date().toISOString() } : {}), topic: "AI", asOf: batch.asOf, ...old, evidence: combined.filter((s, j) => combined.findIndex(other => other.url === s.url && other.title === s.title) === j) });
     });
     return { write: true, companies: [...resolved], relationships: edgeRefs.map(r => r.id) };
   }, write ? { readOnly: false } : { readOnly: true });

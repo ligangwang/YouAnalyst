@@ -119,7 +119,7 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
       if (selected.length !== new Set(selectedIds).size) throw new Error("Unknown connection selected.");
       const refs = selected.map(r => db.collection(RELATIONSHIP_COLLECTION).doc(relationshipId(r.source, r.target, r.type)));
       const previous = refs.length ? await tx.getAll(...refs) : [];
-      selected.forEach((r, i) => tx.set(refs[i], { ...r, market: "CN_A", status: "PUBLISHED", evidence: [...(previous[i].data()?.evidence ?? []), ...r.evidence].filter((e, n, all) => all.findIndex(x => x.url === e.url) === n).slice(-10), reviewedBy: uid, updatedAt: new Date().toISOString(), industries: FieldValue.arrayUnion(run.industry), runIds: FieldValue.arrayUnion(id) }, { merge: true }));
+      selected.forEach((r, i) => tx.set(refs[i], { ...r, market: "CN_A", status: "PUBLISHED", ...(!previous[i].exists ? { publishedAt: new Date().toISOString() } : {}), evidence: [...(previous[i].data()?.evidence ?? []), ...r.evidence].filter((e, n, all) => all.findIndex(x => x.url === e.url) === n).slice(-10), reviewedBy: uid, updatedAt: new Date().toISOString(), industries: FieldValue.arrayUnion(run.industry), runIds: FieldValue.arrayUnion(id) }, { merge: true }));
       tx.update(ref, { status: "PUBLISHED", publishedIds: FieldValue.arrayUnion(...selectedIds) });
       return;
     }
@@ -172,7 +172,7 @@ async function publishResearch(id: string, selectedIds: string[], uid: string) {
       const marketEvidence = [...(marketDocs[i].data()?.evidence ?? []), ...r.evidence];
       tx.set(marketRefs[i], { id: marketRefs[i].id, source: `US:${r.source}`, target: `US:${r.target}`, type: r.type,
         evidence: marketEvidence.filter((e, n) => marketEvidence.findIndex(x => x.url === e.url) === n),
-        status: "PUBLISHED", updatedAt: now, reviewedBy: uid }, { merge: true });
+        status: "PUBLISHED", ...(!marketDocs[i].exists ? { publishedAt: now } : {}), updatedAt: now, reviewedBy: uid }, { merge: true });
     });
     tx.update(ref, { status: "PUBLISHED", publishedAt: now, publishedBy: uid, publishedIds: FieldValue.arrayUnion(...selectedIds) });
   });

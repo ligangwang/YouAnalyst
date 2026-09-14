@@ -74,3 +74,16 @@
 .sourceDate { display: block; color: #8196aa; font-size: 11px; margin-top: 3px; }
 .detailHeader .sectorBadge { color: #afc1d2; font-size: 11px; line-height: 1.5; }
 @media(max-width:800px) { .controls { max-width: none; } }
+
+.discovery, .journey { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0; font-size: 12px; }
+.discovery details { position: relative; }
+.discovery summary { cursor: pointer; color: #a9c4d5; padding: 8px 0; }
+.discovery p, .updatePanel p { color: #9aaec5; font-size: 12px; line-height: 1.7; }
+.discovery button, .journey button, .updatePanel button, .followAction button, .connectionFocus button { border: 1px solid #304057; border-radius: 18px; background: transparent; color: #bddae8; padding: 8px 12px; margin: 3px; font-size: 12px; }
+.journey button:disabled, .followAction button:disabled { opacity: .45; cursor: default; }
+.updatePanel { padding: 16px; border-left: 2px solid #7ef4cb; margin: 16px 0; }
+.followAction { margin-top: 16px; }
+.followAction a { color: #91d9e7; font-size: 13px; }
+.followAction small { display: block; color: #8299ac; font-size: 11px; line-height: 1.6; margin-top: 8px; }
+.connectionFocus { border-left: 2px solid #9ee9ff; margin-top: 20px; padding-left: 14px; }
+.connectionLink { display: block; padding: 8px 0; border: 0; background: transparent; color: #d1e8f5; text-align: left; font-size: 13px; line-height: 1.6; }

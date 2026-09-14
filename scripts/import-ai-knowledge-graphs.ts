@@ -81,7 +81,7 @@ export async function importGraphs(db: Firestore, graphs: Graph[]) {
     edges.forEach((e,i) => {
       const current = previous[companies.length+i].data();
       const evidence = [...(current?.evidence ?? []), ...combined.sources.filter(s => e.sourceIds.includes(s.id)).map(s => ({...s,summary:e.summary}))];
-      tx.set(edgeRefs[i], { ...e, status:"PUBLISHED", topic:"AI", asOf:combined.asOf, ...current, id:edgeRefs[i].id,
+      tx.set(edgeRefs[i], { ...e, status:"PUBLISHED", ...(!current ? { publishedAt: new Date().toISOString() } : {}), topic:"AI", asOf:combined.asOf, ...current, id:edgeRefs[i].id,
         evidence:evidence.filter((s,i) => evidence.findIndex(other => other.url === s.url && other.title === s.title) === i) });
     });
   });
