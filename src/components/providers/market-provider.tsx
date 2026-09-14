@@ -4,10 +4,10 @@ import { pathLocale } from "@/lib/i18n/urls";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "./auth-provider";
 import { useLocale } from "./locale-provider";
-import { parsePreferences, type DisplayPreferences, type MarketSelection } from "@/lib/preferences";
+import { parsePreferences, type DisplayPreferences } from "@/lib/preferences";
 import { MarketContext, applyPreferences } from "./preferences-context";
 export { useMarket } from "./preferences-context";
-export function MarketProvider({ market, children }: { market: MarketSelection; children: ReactNode }) {
+export function MarketProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, getIdToken } = useAuth();
   const { locale } = useLocale();
@@ -16,7 +16,7 @@ export function MarketProvider({ market, children }: { market: MarketSelection; 
   useEffect(() => {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
-    if (pathLocale(window.location.pathname) || params.has("lang") || params.has("market")) return;
+    if (pathLocale(window.location.pathname) || params.has("lang")) return;
     const controller = new AbortController();
     void (async () => {
       try {
@@ -25,11 +25,11 @@ export function MarketProvider({ market, children }: { market: MarketSelection; 
         const response = await fetch("/api/preferences", { headers: { authorization: `Bearer ${token}` }, cache: "no-store", signal: controller.signal });
         if (!response.ok) return;
         const preferences = parsePreferences((await response.json()).preferences);
-        if (!controller.signal.aborted && preferences && (preferences.language !== locale || preferences.market !== market)) applyPreferences(preferences);
+        if (!controller.signal.aborted && preferences && preferences.language !== locale) applyPreferences({ ...preferences, market: "ALL" });
       } catch { /* Keep the current visitor preference if the account is unavailable. */ }
     })();
     return () => controller.abort();
-  }, [user, getIdToken, locale, market]);
+  }, [user, getIdToken, locale]);
   async function change(preferences: DisplayPreferences) {
     if (saving) return;
     setSaving(true); setError(false);
@@ -44,5 +44,5 @@ export function MarketProvider({ market, children }: { market: MarketSelection; 
       setSaving(false);
     } catch { setError(true); setSaving(false); }
   }
-  return <MarketContext.Provider value={{ active: true, market, saving, error, change }}>{children}</MarketContext.Provider>;
+  return <MarketContext.Provider value={{ active: true, market: "ALL", saving, error, change }}>{children}</MarketContext.Provider>;
 }

@@ -13,8 +13,6 @@ import { absoluteUrl, getSiteUrl, isProductionAppEnvironment, noIndexRobots } fr
 import "./globals.css";
 import { headers } from "next/headers";
 import { parseLocale } from "@/lib/locale";
-import { parseMarket } from "@/lib/preferences";
-import { MarketContent } from "@/components/market-content";
 
 const GOOGLE_ANALYTICS_ID = process.env.GOOGLE_ANALYTICS_ID;
 
@@ -64,7 +62,6 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = parseLocale((await headers()).get("x-ya-language")) ?? "en";
-  const market = parseMarket((await headers()).get("x-ya-market")) ?? "US";
   const zh = locale === "zh-CN";
   const websiteJsonLd = {
     "@context": "https://schema.org",
@@ -91,11 +88,11 @@ export default async function RootLayout({
         <Script id="website-jsonld" type="application/ld+json" strategy="beforeInteractive">
           {JSON.stringify(websiteJsonLd)}
         </Script>
-        <AppProviders locale={locale} market={market}>
+        <AppProviders locale={locale}>
           <EnvironmentBanner />
           <a href="#page-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyan-200 focus:p-3 focus:text-slate-950"><UiText text={"Skip to content"} /></a>
           <SiteNav />
-          <div id="page-content" tabIndex={-1} className="flex-1"><MarketContent>{children}</MarketContent></div>
+          <div id="page-content" tabIndex={-1} className="flex-1">{children}</div>
           <footer className="border-t border-white/10 bg-slate-950/80">
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs leading-6 text-slate-400">
               {zh ? "YouAnalyst 的观点、排名与评论仅供参考，不构成投资、法律或税务建议。投资决策前，请独立研究。" : <UiText text={"Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."} />}
