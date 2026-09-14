@@ -5,7 +5,9 @@ export function companyFields(id: string, data: Record<string, unknown>) {
   const market = id.startsWith("US:") ? "US" : /^(XSHG|XSHE):/.test(id) ? "CN_A" : "GLOBAL";
   const normalized = (s: string) => s.normalize("NFKC").toLowerCase();
   const prefixes = new Set<string>();
-  for (const word of [id, symbol, name, ...name.split(/[\s.,&-]+/)]) {
+  const names = Object.values(data.names && typeof data.names === "object" ? data.names : {}).filter((v): v is string => typeof v === "string");
+  const aliases = Array.isArray(data.aliases) ? data.aliases.filter((v): v is string => typeof v === "string") : [];
+  for (const word of [id, symbol, name, ...names, ...aliases, ...[name,...names,...aliases].flatMap(n => n.split(/[\s.,&-]+/))]) {
     const value = normalized(word);
     for (let start = 0; start < value.length; start++) {
       for (let size = 1; size <= Math.min(32, value.length - start); size++) prefixes.add(value.slice(start, start + size));

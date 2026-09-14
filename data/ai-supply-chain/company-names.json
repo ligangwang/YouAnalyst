@@ -1,0 +1,77 @@
+{
+  "asOf": "2026-09-14",
+  "companies": [
+    {
+      "id": "US:NVDA",
+      "expectedName": "NVIDIA Corporation",
+      "names": {
+        "en": "NVIDIA",
+        "zh-CN": "英伟达"
+      },
+      "sourceUrl": "https://www.nvidia.cn/newsroom/"
+    },
+    {
+      "id": "US:AMD",
+      "expectedName": "Advanced Micro Devices, Inc.",
+      "names": {
+        "en": "AMD",
+        "zh-CN": "超威半导体"
+      },
+      "sourceUrl": "https://www.amd.com/zh-cn/newsroom/press-releases/2024-2-6-amd-unveils-embedded-architecture-combines-embed.html"
+    },
+    {
+      "id": "US:MU",
+      "expectedName": "Micron Technology, Inc.",
+      "names": {
+        "en": "Micron Technology",
+        "zh-CN": "美光科技"
+      },
+      "sourceUrl": "https://www.micron.cn/"
+    },
+    {
+      "id": "US:DELL",
+      "expectedName": "Dell Technologies Inc.",
+      "names": {
+        "en": "Dell Technologies",
+        "zh-CN": "戴尔"
+      },
+      "sourceUrl": "https://www.dell.com/zh-cn"
+    },
+    {
+      "id": "US:INTC",
+      "expectedName": "Intel Corporation",
+      "names": {
+        "en": "Intel",
+        "zh-CN": "英特尔"
+      },
+      "sourceUrl": "https://www.intel.cn/content/www/cn/zh/homepage.html"
+    },
+    {
+      "id": "US:TSM",
+      "expectedName": "Taiwan Semiconductor Manufacturing Company Ltd. ADR",
+      "names": {
+        "en": "TSMC",
+        "zh-CN": "台积公司"
+      },
+      "sourceUrl": "https://www.tsmc.com/schinese/aboutTSMC"
+    },
+    {
+      "id": "XSHG:600584",
+      "expectedName": "长电科技",
+      "names": {
+        "en": "JCET",
+        "zh-CN": "长电科技"
+      },
+      "sourceUrl": "https://www.jcetglobal.com/en"
+    },
+    {
+      "id": "XSHG:688981",
+      "expectedName": "中芯国际",
+      "names": {
+        "en": "SMIC",
+        "zh-CN": "中芯国际"
+      },
+      "sourceUrl": "https://www.smics.com/en/site/care_environment"
+    }
+  ]
+}

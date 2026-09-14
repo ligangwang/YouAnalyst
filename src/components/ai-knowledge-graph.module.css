@@ -115,7 +115,7 @@
 /* Both names scale with distance, with restrained close-up typography. */
 .label3d strong { font-size:calc(12px * var(--label-scale, 1)); }
 .label3d span { font-size:max(8px, calc(9.5px * var(--label-scale, 1))); }
-.sector3d { font-size:calc(12px * var(--label-scale, 1)); border:0; padding:3px; background:transparent; cursor:pointer; }
+.sector3d { font-family:Georgia,"Noto Serif SC","Songti SC",SimSun,serif; font-weight:400; font-size:calc(13px * var(--label-scale, 1)); letter-spacing:.09em; border:0; padding:3px; background:transparent; cursor:pointer; }
 .sector3d:hover, .sector3d:focus-visible { text-decoration:underline; }
 
 .edgeLabel3d[data-active="true"] { width:max-content; max-width:224px; white-space:normal; overflow:visible; border-color:#8ac4d4; }

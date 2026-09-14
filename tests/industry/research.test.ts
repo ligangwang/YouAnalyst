@@ -176,8 +176,12 @@ test("A-share publication needs explicit review, works without US tickers, and p
   assert.equal(draft?.status, "DRAFT");
   assert.equal([...f.data.keys()].filter(k => k.startsWith(`${MARKET_COMPANIES}/`)).length, 0);
   await assert.rejects(f.service.publishResearch(runId, ["AMD"], "admin"), /Unknown or invalid/);
-  await f.service.publishResearch(runId, [company.id], "admin");
   const path = `${MARKET_COMPANIES}/${company.id}`;
+  f.data.set(path, { name:company.name,status:"DIRECTORY",names:{en:"Reviewed English Name","zh-CN":company.name},aliases:["Reviewed Alias"] });
+  await f.service.publishResearch(runId, [company.id], "admin");
+  assert.ok((f.data.get(path)?.searchPrefixes as string[]).includes("reviewed english name"));
+  assert.ok((f.data.get(path)?.searchPrefixes as string[]).includes("reviewed alias"));
+  assert.equal((f.data.get(path)?.names as Record<string,string>).en,"Reviewed English Name");
   assert.equal(f.data.get(path)?.market, "CN_A");
   assert.equal(f.data.get(path)?.status, "PUBLISHED");
   f.data.set(path, { ...f.data.get(path), sourceLabel: "Newer report" });

@@ -1,6 +1,6 @@
 import type { CompanyListing } from "../market-companies/identity";
 export type Market = "US" | "CN_A" | "GLOBAL";
-export type GraphNode = { id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; sourceIds?: string[] };
+export type GraphNode = { id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; names?: Partial<Record<"en" | "zh-CN", string>>; aliases?: string[]; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; sourceIds?: string[] };
 export type GraphEdge = { publishedAt?: string; id: string; source: string; target: string; type: string; summary: string; sourceIds: string[]; commercialStatus: string };
 export type GraphSource = { id: string; title: string; url: string; sourceDate: string | null };
 export type KnowledgeGraph = { nodes: GraphNode[]; relationships: GraphEdge[]; sources: GraphSource[]; asOf: string };
@@ -23,9 +23,13 @@ export function combineGraphs(graphs: (KnowledgeGraph & { id: string; language: 
   return { nodes: [...nodes.values()], relationships, sources, asOf: graphs.map(g => g.asOf).sort()[0] ?? "" };
 }
 
+export function companyName(company: Pick<GraphNode, "id" | "name" | "names">, locale: string): string {
+  return company.names?.[locale === "zh-CN" ? "zh-CN" : "en"]?.trim() || company.name || company.id;
+}
+
 export function companySearchText(graph: KnowledgeGraph, company: GraphNode): string {
   const stages = graph.nodes.filter(n => n.kind === "STAGE" && company.stageIds?.includes(n.id.slice(6)));
-  return [company.id, company.name, company.symbol, company.summary, ...stages.flatMap(n => [n.label, ...Object.values(n.labels ?? {})])].filter(Boolean).join(" ");
+  return [company.id, company.name, ...Object.values(company.names ?? {}), ...(company.aliases ?? []), company.symbol, company.summary, ...stages.flatMap(n => [n.label, ...Object.values(n.labels ?? {})])].filter(Boolean).join(" ");
 }
 
 export function matchesCompanySearch(searchText: string, query: string): boolean {

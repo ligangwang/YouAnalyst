@@ -1,5 +1,5 @@
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
-import type { KnowledgeGraph } from "@/lib/knowledge-graph/model";
+import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { useLocale } from "./providers/locale-provider";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyPageUrl } from "@/lib/market-companies/routes";
@@ -15,13 +15,13 @@ export default function AiMapDirectoryContent({ graph }: { graph: KnowledgeGraph
         {[...GRAPH_SECTORS, OTHER_SECTOR].map(sector => {
           const members = companies.filter(n => companySector(n).id === sector.id);
           if (!members.length) return null;
-          return <section key={sector.id} className="mt-6"><h2 className="text-base font-semibold text-slate-200">{zh ? sector.zh : sector.en}</h2><ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{members.map(n => <li key={n.id}><a className="text-cyan-200 hover:underline" href={profile(n.id, n.symbol, n.market)}>{n.name} · {n.symbol}</a><p className="mt-1">{companyGeographyLabel(n, locale)}</p><p className="mt-1 leading-6">{n.summary}</p></li>)}</ul></section>;
+          return <section key={sector.id} className="mt-6"><h2 className="text-base font-semibold text-slate-200">{zh ? sector.zh : sector.en}</h2><ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{members.map(n => <li key={n.id}><a className="text-cyan-200 hover:underline" href={profile(n.id, n.symbol, n.market)}>{companyName(n,locale)} · {n.symbol}</a><p className="mt-1">{companyGeographyLabel(n, locale)}</p><p className="mt-1 leading-6">{n.summary}</p></li>)}</ul></section>;
         })}
         <h2 className="mt-7 text-base font-semibold text-slate-200">{zh ? "已收录公司关系" : "Documented company relationships"}</h2>
         <ul className="mt-3 space-y-3">{graph.relationships.filter(e => e.type !== "PARTICIPATES_IN").map(e => {
           const source = companies.find(n => n.id === e.source), target = companies.find(n => n.id === e.target);
           if (!source || !target) return null;
-          return <li key={e.id}><a className="text-cyan-200" href={profile(source.id, source.symbol, source.market)}>{source.name}</a> → <a className="text-cyan-200" href={profile(target.id, target.symbol, target.market)}>{target.name}</a><p>{e.summary}</p>{graph.sources.filter(s => e.sourceIds.includes(s.id) && s.url.startsWith("https://")).map(s => <a key={s.id} className="mr-3 underline" href={s.url} rel="noopener noreferrer" target="_blank">{s.title} ↗</a>)}</li>;
+          return <li key={e.id}><a className="text-cyan-200" href={profile(source.id, source.symbol, source.market)}>{companyName(source,locale)}</a> → <a className="text-cyan-200" href={profile(target.id, target.symbol, target.market)}>{companyName(target,locale)}</a><p>{e.summary}</p>{graph.sources.filter(s => e.sourceIds.includes(s.id) && s.url.startsWith("https://")).map(s => <a key={s.id} className="mr-3 underline" href={s.url} rel="noopener noreferrer" target="_blank">{s.title} ↗</a>)}</li>;
         })}</ul>
     </>;
 }

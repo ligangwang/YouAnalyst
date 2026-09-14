@@ -15,3 +15,11 @@ The 3D overview uses the original volumetric force layout and angled camera. Com
 Search results and the collapsible company browser focus a company without filtering away its neighbors. Both use the already loaded graph, with no extra data requests. Rendering remains demand-driven, including an explicit invalidation when asynchronous HTML labels mount.
 
 Company names are capped near 14px and tickers near 11px. Sector labels share the same bounded distance scaling. The selected relationship gets first placement priority, full type text, and a viewport-clamped label at extreme zoom/pan. Other edge labels still use collision culling.
+
+### Map label identity and visibility
+
+Sector labels use a light serif face, wider spacing, and sector color to distinguish them from company labels. Both retain bounded distance scaling in the 3D scene. Relationship labels and arrows require at least one endpoint company label to be placed in the current frame, including the selected edge. The first company label gets priority, then its relationship labels, sector labels, and remaining companies/relationships.
+
+Company records may contain `names.en` and `names.zh-CN`. The map API includes these fields and string aliases. Graph labels, search results, the company panel, relationship endpoints, following, and the expandable directory use the selected locale, falling back to the canonical `name` if a localized name is missing. Search matches both names and aliases in either locale.
+
+`data/ai-supply-chain/company-names.json` is the initial eight-company, source-checked display-name batch, not a complete translation of the directory. Names are display brands/short names, not replacements for legal names. `Publish reviewed company names` previews or atomically writes names, name evidence and the search index to existing `companies` documents. It refuses missing/changed identities and conflicting translations; no collection, company, canonical name or relationship is created or replaced.
