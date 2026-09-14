@@ -9,13 +9,11 @@ import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { useOptionalAuth } from "./providers/auth-provider";
 import { connectionJourney, recentConnections } from "@/lib/knowledge-graph/discovery";
 import { AiMapDirectory } from "./ai-map-directory";
+import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import styles from "./ai-knowledge-graph.module.css";
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
-const relationLabels: Record<string, [string, string]> = {
-  COMPETES_WITH: ["Competitor", "竞争对手"], CUSTOMER_OF: ["Customer", "客户"], PARTICIPATES_IN: ["Industry role", "产业归属"], SUPPLIER_OF: ["Supplies", "供应"], PARTNER_OF: ["Partner", "合作伙伴"], ECOSYSTEM_PARTNER_OF: ["Ecosystem partner", "生态伙伴"], INTEGRATES_TECHNOLOGY_FROM: ["Integrates technology from", "集成其技术"], PLANNED_ADOPTER_OF: ["Planned adoption", "计划采用"], ENERGY_AGREEMENT_WITH: ["Energy agreement", "能源协议"],
-};
 export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { initialCompany?: string; initialQuery?: string }) {
   const { text, locale } = useLocale();
   const auth = useOptionalAuth();
@@ -61,7 +59,11 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
   }
   const recent = useMemo(() => recentConnections(graph), [graph]);
   const highlighted = useMemo(() => recent.map(e => e.id), [recent]);
-  const visible = useMemo(() => filterGraph(graph, ["US", "CN_A", "GLOBAL"], query), [graph, query]);
+  const visible = graph;
+  const matches = useMemo(() => filterGraph(graph, ["US", "CN_A", "GLOBAL"], query).nodes.filter(n => n.kind === "COMPANY"), [graph, query]);
+  const [browseQuery, setBrowseQuery] = useState("");
+  const browseMatches = useMemo(() => filterGraph(graph, ["US", "CN_A", "GLOBAL"], browseQuery).nodes.filter(n => n.kind === "COMPANY").sort((a,b)=>(a.name ?? a.id).localeCompare(b.name ?? b.id)), [graph,browseQuery]);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const sectorIds = new Set(visible.nodes.filter(n => n.kind === "COMPANY").map(n => companySector(n).id));
   const [reset, setReset] = useState(0);
   const company = visible.nodes.find(n => n.id === selected && n.kind === "COMPANY");
@@ -69,6 +71,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
   const label = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n?.kind === "STAGE" ? text(n.labels?.en ?? n.label ?? id, n.labels?.["zh-CN"] ?? n.label ?? id) : n?.name ?? id; };
   function selectCompany(id: string) {
     setSelected(id);
+    workspaceRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
     setQuery("");
     setActiveEdge("");
     const url = new URL(window.location.href);
@@ -92,8 +95,11 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
       <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
     </div>
+    {query.trim() && <section className={styles.searchResults} aria-label={text("Search results", "搜索结果")}>
+      {matches.length ? matches.map(n => <button key={n.id} onClick={() => selectCompany(n.id)}>{n.name} · {n.symbol}</button>) : <p>{text("No matching companies.", "没有匹配的公司。")}</p>}
+    </section>}
     {status === "ready" && sectorIds.size > 0 && <div className={styles.sectorLegend} role="group" aria-label={text("Colors by primary AI sector", "按主要 AI 产业环节着色")}><span>{text("Sector", "产业环节")}</span>{[...GRAPH_SECTORS, OTHER_SECTOR].filter(s => sectorIds.has(s.id)).map(s => <span key={s.id}><i aria-hidden="true" style={{ background: s.color }}/>{text(s.en, s.zh)}</span>)}</div>}
-    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !visible.nodes.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
+    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !visible.nodes.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
       <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D graph={visible} highlightedEdges={highlighted} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setJourney([]); setReset(n => n + 1); }}/></Suspense>
       {company && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>
         <div className={styles.detailHeader}>
@@ -143,6 +149,10 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
     </section>}
     {journey.length > 0 && <section className={styles.journey} aria-label={text("Guided journey", "探索路线")}><span>{text("Connection", "关系")} {journeyStep + 1} / {journey.length}</span><button disabled={journeyStep === 0} onClick={() => { const step = journeyStep - 1; setJourneyStep(step); openConnection(journey[step].edgeId, journey[step].companyId); }}>{text("Previous", "上一步")}</button><button disabled={journeyStep === journey.length - 1} onClick={() => { const step = journeyStep + 1; setJourneyStep(step); openConnection(journey[step].edgeId, journey[step].companyId); }}>{text("Next", "下一步")}</button><button onClick={() => { setJourney([]); setActiveEdge(""); }}>{text("End journey", "结束探索")}</button></section>}
     <div className={styles.legend}><span role="status">{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</span></div>
+    {status === "ready" && <details className={styles.companyBrowser}><summary>{text("Browse companies", "浏览公司")} · {graph.nodes.filter(n=>n.kind==="COMPANY").length}</summary>
+      <input aria-label={text("Find a company in the list", "在列表中查找公司")} placeholder={text("Name, ticker or business…", "名称、代码或业务…")} value={browseQuery} onChange={e=>setBrowseQuery(e.target.value)}/>
+      <div className={styles.companyList}>{browseMatches.map(n=><button key={n.id} onClick={()=>selectCompany(n.id)}><span style={{color:companySector(n).color}}>{n.name}</span><small>{n.symbol} · {text(companySector(n).en,companySector(n).zh)}</small></button>)}{!browseMatches.length && <p>{text("No matching companies.", "没有匹配的公司。")}</p>}</div>
+    </details>}
   </main><AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} /></>;
 }
 

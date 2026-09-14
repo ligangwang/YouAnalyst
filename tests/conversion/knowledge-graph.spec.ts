@@ -74,7 +74,7 @@ test("graph renders, orbits and resets without extra controls", async ({ page })
   await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width*.7,bounds.y + bounds.height*.8,{steps:12}); await page.mouse.up();
   await expect.poll(async () => Math.abs((await label.boundingBox())!.x - before!.x)).toBeGreaterThan(2);
   await page.getByRole("textbox", {name:"Search companies"}).fill("688041");
-  await page.getByRole("button", {name:"海光信息 · 688041",exact:true}).click();
+  await page.getByRole("region", {name:"Search results"}).getByRole("button", {name:"海光信息 · 688041",exact:true}).click();
   await expect(page.getByRole("heading", { name: "海光信息",exact:true })).toBeVisible();
   await page.getByRole("button", { name:"Reset view",exact:true }).click();
   await expect(page.getByRole("complementary")).toHaveCount(0);
@@ -103,7 +103,7 @@ test("global search and company research links work in Chinese", async ({page}) 
   await expect(page.locator('span[role="status"]')).toContainText("129");
   await expect(page.getByRole("button", { name: /^(美股|A 股|全球及非上市)$/ })).toHaveCount(0);
   await page.getByRole("textbox",{name:"搜索公司"}).fill("NVDA");
-  await page.getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+  await page.getByRole("region", {name:/Search results|搜索结果/}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
   await expect(page.getByRole("heading",{name:"NVIDIA",exact:true})).toBeVisible();
   await page.getByText("研究来源", { exact: true }).click();
   await expect(page.getByRole("link",{name:"财报关系探索 →",exact:true})).toHaveAttribute("href","/map?view=filings&company=NVDA");
@@ -130,7 +130,7 @@ test("global company details remain available with legacy market filters", async
   await page.goto("http://graph.test/map?lang=en&graphMarkets=GLOBAL");
   await expect(page.locator('span[role="status"]')).toContainText("130 companies");
   await page.getByRole("textbox", { name: "Search companies" }).fill("Independent Lab");
-  await page.getByRole("button", { name: /Independent Lab/ }).click();
+  await page.getByRole("region", {name:"Search results"}).getByRole("button", { name: /Independent Lab/ }).click();
   await expect(page.getByRole("complementary")).toContainText("France · Private");
   await expect(page.getByRole("link", { name: "Company profile →" })).toHaveAttribute("href", "/company/ORG%3ALAB");
   await page.reload();
@@ -167,7 +167,7 @@ test("follow is persisted and can be removed; failed saves do not claim success"
  });
  await page.goto("http://graph.test/map?lang=en&account=1");
  await page.getByRole("textbox",{name:"Search companies"}).fill("NVDA");
- await page.getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+ await page.getByRole("region", {name:/Search results|搜索结果/}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
  await page.getByRole("button",{name:"Follow company",exact:true}).click();
  await expect(page.getByRole("button",{name:"Unfollow",exact:true})).toBeVisible();
  expect(followed).toEqual(["US:NVDA"]);
@@ -209,9 +209,56 @@ test("opening relationship evidence preserves the current company",async({page})
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
  await page.getByRole("textbox",{name:"Search companies"}).fill("NVDA");
- await page.getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+ await page.getByRole("region", {name:/Search results|搜索结果/}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
  await page.getByRole("button",{name:"TSMC → NVIDIA",exact:true}).click();
  await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("NVIDIA");
  await page.getByRole("region",{name:"Selected connection"}).getByRole("button",{name:"Explore TSMC →"}).click();
  await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("TSMC");
 });
+
+for (const language of ["en", "zh-CN"]) test(`company browser focuses graph and search preserves connections (${language})`, async ({page})=>{
+  await page.route("**/*",route=>route.request().url().includes("/api/knowledge-graph")?route.fulfill({json:graph}):route.fulfill({contentType:"text/html",body:html}));
+  await page.goto(`http://graph.test/map?lang=${language}`);
+  await expect(page.locator("canvas")).toBeVisible();
+  const search=page.getByRole("textbox",{name:language==="en"?"Search companies":"搜索公司",exact:true});
+  await search.fill("NVDA");
+  await expect(page.locator('span[role="status"]')).toContainText("129");
+  await page.getByRole("region",{name:language==="en"?"Search results":"搜索结果"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+  await expect(page.getByRole("complementary")).toContainText("NVIDIA");
+  await expect(search).toHaveValue("");
+  await page.locator("summary").filter({hasText:language==="en"?"Browse companies":"浏览公司"}).click();
+  await page.getByRole("textbox",{name:language==="en"?"Find a company in the list":"在列表中查找公司"}).fill("NVDA");
+  const browser=page.locator("details").filter({has:page.getByRole("textbox",{name:language==="en"?"Find a company in the list":"在列表中查找公司"})});
+  await expect(browser.getByRole("button")).toHaveCount(1);
+  await browser.getByRole("button").click();
+  await expect(page).toHaveURL(/company=US%3ANVDA/);
+});
+
+test("selected relationships stay readable and evidence remains actionable", async ({page},testInfo)=>{
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.route("**/*",route=>route.request().url().includes("/api/knowledge-graph")?route.fulfill({json:graph}):route.fulfill({contentType:"text/html",body:html}));
+  await page.goto("http://graph.test/map?lang=en");
+  await expect(page.locator("canvas")).toBeVisible();
+  await expect.poll(()=>page.locator('button[class*="label3d"]:visible').count()).toBeGreaterThan(2);
+  await page.screenshot({path:`output/map-readable-${testInfo.project.name}.png`});
+  await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
+  await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+  await expect(page.getByRole("complementary")).toBeVisible();
+  const labels=page.locator('button[class*="edgeLabel3d"]:visible');
+  await expect.poll(()=>labels.count()).toBeGreaterThan(0);
+  await labels.first().click();
+  await expect(page.getByRole("region",{name:"Selected connection"})).toBeVisible();
+});
+
+
+test("zoom reveals relationship types without selecting a company", async ({page})=>{
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.route("**/*",route=>route.request().url().includes("/api/knowledge-graph")?route.fulfill({json:graph}):route.fulfill({contentType:"text/html",body:html}));
+  await page.goto("http://graph.test/map?lang=en");
+  const canvas=page.locator("canvas");
+  await expect(canvas).toBeVisible();
+  await canvas.hover();
+  await page.mouse.wheel(0,-1200);
+  await expect.poll(()=>page.locator('button[class*="edgeLabel3d"]:visible').count()).toBeGreaterThan(0);
+});
+

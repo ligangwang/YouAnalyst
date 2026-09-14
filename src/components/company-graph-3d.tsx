@@ -3,9 +3,10 @@
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Html } from "@react-three/drei";
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3 } from "three";
+import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, type Mesh } from "three";
 import type { KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
+import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./ai-knowledge-graph.module.css";
@@ -22,6 +23,10 @@ const fragment = `varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis);if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
 function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge }: Props) {
+  const { text } = useLocale();
+  const edgeElements = useRef(new Map<string, HTMLButtonElement>());
+  const arrowElements = useRef(new Map<string, Mesh>());
+  const sectorElements = useRef(new Map<string, HTMLSpanElement>());
   const layout = useMemo(() => layout3D(graph), [graph]);
   const controls = useRef<CameraControls>(null);
   const { size, camera, invalidate } = useThree();
@@ -53,31 +58,74 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
   }, [layout, selected, activeEdge, highlightedEdges]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => lines.dispose(), [lines]);
-  const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
+  const bounds = useMemo(() => ({width:Math.max(120,...layout.nodes.map(n=>n.x))-Math.min(-120,...layout.nodes.map(n=>n.x)),height:Math.max(100,...layout.nodes.map(n=>n.y))-Math.min(-100,...layout.nodes.map(n=>n.y))}),[layout]);
+  const fitDistance = Math.max(bounds.width / (2*Math.tan(Math.PI/8)*(size.width/size.height)), bounds.height / (2*Math.tan(Math.PI/8))) * 1.2 + 60;
   useEffect(() => {
     const c = controls.current; if (!c) return;
     const n = layout.nodes.find(n => n.id === selected);
-    const d = n ? Math.max(150, layout.radius * .8) : fitDistance;
+    const d = n ? Math.min(fitDistance, 620) : fitDistance;
     const x = n?.x ?? 0, y = n?.y ?? 0, z = n?.z ?? 0;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    void c.setLookAt(x + d*.2, y + d*.12, z + d, x, y, z, !reduced);
+    void c.setLookAt(x, y, z + d, x, y, z, !reduced);
     invalidate();
   }, [layout, selected, fitDistance, reset, invalidate]);
-  const labels = useMemo(() => {
-    const degree = new Map<string, number>(); layout.edges.forEach(e => { degree.set(e.source, (degree.get(e.source) ?? 0)+1); degree.set(e.target,(degree.get(e.target) ?? 0)+1); });
-    return [...layout.nodes].sort((a,b) => Number(b.id === selected || b.id === hovered)-Number(a.id === selected || a.id === hovered) || Number(connected.has(b.id))-Number(connected.has(a.id)) || (degree.get(b.id) ?? 0)-(degree.get(a.id) ?? 0)).slice(0, size.width < 600 ? 12 : 28);
-  }, [layout, selected, hovered, connected, size.width]);
+  const degree = useMemo(() => {
+    const counts = new Map<string,number>();
+    layout.edges.forEach(e=>{counts.set(e.source,(counts.get(e.source)??0)+1);counts.set(e.target,(counts.get(e.target)??0)+1);});
+    return counts;
+  },[layout]);
+  const sectors = useMemo(() => [...new Set(layout.nodes.map(n=>companySector(n).id))].map(id=>{
+    const members=layout.nodes.filter(n=>companySector(n).id===id);
+    return { ...companySector(members[0]), x:members.reduce((v,n)=>v+n.x,0)/members.length, y:Math.max(...members.map(n=>n.y))+80, z:0 };
+  }),[layout]);
+  const edgeLabels = useMemo(() => {
+    const positions=new Map(layout.nodes.map(n=>[n.id,n]));
+    return layout.edges.map(edge=>{
+      const a=positions.get(edge.source)!, b=positions.get(edge.target)!;
+      const direction=new Vector3(b.x-a.x,b.y-a.y,b.z-a.z).normalize();
+      const t=selected===edge.source? .22 : selected===edge.target? .78 : .5;
+      const anchor=new Vector3(a.x,a.y,a.z).lerp(new Vector3(b.x,b.y,b.z),t);
+      return {...edge, x:anchor.x,y:anchor.y,z:anchor.z,
+        from:a.symbol||a.name, to:b.symbol||b.name,
+        arrow:new Vector3(a.x,a.y,a.z).lerp(new Vector3(b.x,b.y,b.z),.72),
+        rotation:new Quaternion().setFromUnitVectors(new Vector3(0,1,0),direction),
+        directional:!["COMPETES_WITH","PARTNER_OF","ECOSYSTEM_PARTNER_OF","ENERGY_AGREEMENT_WITH"].includes(edge.type)
+      };
+    });
+  },[layout,selected]);
   useFrame(() => {
-    const occupied: {x:number;y:number}[] = [];
-    for (const n of labels) {
-      const element = labelElements.current.get(n.id); if (!element) continue;
-      projected.set(n.x,n.y,n.z).project(camera);
-      const x = (projected.x+1)*size.width/2, y = (1-projected.y)*size.height/2;
-      const important = n.id === selected || n.id === hovered;
-      const visible = projected.z < 1 && projected.z > -1 && x > 40 && x < size.width-40 && y > 60 && y < size.height-50 && (important || !occupied.some(p => Math.abs(x-p.x)<120 && Math.abs(y-p.y)<55));
-      element.style.visibility = visible ? "visible" : "hidden";
-      if (visible) occupied.push({x,y});
+    const occupied: {x:number;y:number;w:number;h:number}[]=[];
+    const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number) => {
+      projected.set(x,y,z).project(camera);
+      const px=(projected.x+1)*size.width/2,py=(1-projected.y)*size.height/2;
+      const visible=eligible && projected.z>-1 && projected.z<1 && px>width/2 && px<size.width-width/2 && py>height && py<size.height-65 && !occupied.some(p=>Math.abs(px-p.x)<(width+p.w)/2+8 && Math.abs(py-p.y)<(height+p.h)/2+6);
+      element.style.visibility=visible?"visible":"hidden";
+      if(visible) occupied.push({x:px,y:py,w:width,h:height});
+      return visible;
+    };
+    const target=controls.current?.getTarget(new Vector3()) ?? new Vector3();
+    const close=camera.position.distanceTo(target)<fitDistance*.68;
+    const candidates=[...layout.nodes].sort((a,b)=>Number(b.id===selected||b.id===hovered)-Number(a.id===selected||a.id===hovered)||Number(connected.has(b.id))-Number(connected.has(a.id))||((close?((camera.position.x-a.x)**2+(camera.position.y-a.y)**2+(camera.position.z-a.z)**2)-((camera.position.x-b.x)**2+(camera.position.y-b.y)**2+(camera.position.z-b.z)**2):0))||(degree.get(b.id)??0)-(degree.get(a.id)??0));
+
+    const placeEdges=()=>{let edgeCount=0;
+    for(const edge of [...edgeLabels].sort((a,b)=>Number(b.id===activeEdge)-Number(a.id===activeEdge))){
+      const element=edgeElements.current.get(edge.id);if(!element)continue;
+      const relevant=edge.id===activeEdge || (selected ? edge.source===selected||edge.target===selected : close);
+      const visible=place(element,edge.x,edge.y,edge.z,relevant && edgeCount < (selected?8:3),160,26);
+      if(visible)edgeCount++;
+      const arrow=arrowElements.current.get(edge.id);if(arrow)arrow.visible=visible;
     }
+    };
+    if(close && !selected)placeEdges();
+    let shown=0;
+    for(const n of candidates){
+      const element=labelElements.current.get(n.id);if(!element)continue;
+      const relevant=!selected || connected.has(n.id) || n.id===selected || n.id===hovered;
+      if(place(element,n.x,n.y-12,n.z,relevant && shown<(size.width<600?20:60),size.width<600?118:148,44))shown++;
+    }
+    for(const sector of sectors){const element=sectorElements.current.get(sector.id);if(element)place(element,sector.x,sector.y,sector.z,!selected&&!close,130,22);}
+    if(!close || selected) placeEdges();
+
   });
   return <>
     <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25}/>
@@ -85,7 +133,12 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
       <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
     <lineSegments geometry={lines} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation(); onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
-    {labels.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) labelElements.current.set(n.id,element); else labelElements.current.delete(n.id); }} className={styles.label3d} style={{pointerEvents:"auto"}} onClick={() => onSelect(n.id)} aria-label={`${n.name} · ${n.symbol}`}><strong>{n.symbol}</strong><span>{n.name}</span></button></Html>)}
+    {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><span ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden"}}>{text(sector.en,sector.zh)}</span></Html>)}
+    {edgeLabels.map(edge=><group key={edge.id}>
+      {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[3,10,8]}/><meshBasicMaterial color="#a8e8ef"/></mesh>}
+      <Html position={[edge.x,edge.y,edge.z]} center zIndexRange={[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} style={{visibility:"hidden",pointerEvents:"auto"}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))} {edge.directional?"→":"↔"}</button></Html>
+    </group>)}
+    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} style={{pointerEvents:"auto",visibility:"hidden"}} title={n.name} onClick={() => onSelect(n.id)} aria-label={`${n.name} · ${n.symbol}`}><strong>{n.name}</strong><span>{n.symbol}</span></button></Html>)}
   </>;
 }
 

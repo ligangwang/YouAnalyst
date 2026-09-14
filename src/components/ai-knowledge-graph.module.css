@@ -87,3 +87,19 @@
 .followAction small { display: block; color: #8299ac; font-size: 11px; line-height: 1.6; margin-top: 8px; }
 .connectionFocus { border-left: 2px solid #9ee9ff; margin-top: 20px; padding-left: 14px; }
 .connectionLink { display: block; padding: 8px 0; border: 0; background: transparent; color: #d1e8f5; text-align: left; font-size: 13px; line-height: 1.6; }
+
+/* Progressive map labels remain light while names take priority over tickers. */
+.label3d { width:148px; transform:translateY(16px); }
+.label3d strong { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.label3d span { font-size:11px; }
+.edgeLabel3d { max-width:160px; padding:4px 8px; border:1px solid #719aaa55; border-radius:12px; background:#0a1826e8; color:#caeef5; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+.sector3d { font-size:13px; letter-spacing:.04em; white-space:nowrap; text-shadow:0 2px 8px #020611; }
+.searchResults { display:flex; flex-wrap:wrap; gap:8px; max-height:200px; overflow:auto; margin:12px 0; }
+.searchResults button, .companyList button { border:1px solid #253b4b; border-radius:12px; background:#0b1925; color:#d9eaf5; padding:10px 14px; text-align:left; cursor:pointer; }
+.companyBrowser { margin-top:20px; border-top:1px solid #243749; padding:18px 0; color:#c2d8e7; }
+.companyBrowser summary { cursor:pointer; }
+.companyBrowser input { margin:16px 0; width:min(100%,400px); padding:12px 16px; border:1px solid #304557; border-radius:20px; background:#091321; color:#e8f4ff; }
+.companyList { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:8px; max-height:320px; overflow:auto; }
+.companyList button { display:flex; flex-direction:column; gap:5px; }
+.companyList small { color:#93adc1; }
+@media(max-width:600px) { .label3d {width:118px;} .label3d strong {font-size:12px;} }
