@@ -4,7 +4,7 @@ import { UiText, useUiText } from "@/components/ui-text";
 
 import { LanguageSwitch, useLocale } from "@/components/providers/locale-provider";
 import Image from "next/image";
-import { MarketSwitch, PreferenceError } from "./display-preferences";
+import { PreferenceError } from "./display-preferences";
 import { LocalizedLink as Link } from "./localized-link";
 import { unlocalizedPath } from "@/lib/i18n/urls";
 import { usePathname } from "next/navigation";
@@ -297,7 +297,6 @@ export function SiteNav() {
           </div>
 
           <div className="flex items-center gap-1 sm:gap-3">
-            <MarketSwitch />
             <LanguageSwitch />
             <Link
               href="/companies"

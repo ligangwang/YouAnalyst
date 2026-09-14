@@ -21,7 +21,7 @@ test("directory displays the full graph A-share set and searches normalized code
   await expect(page.getByText(/1 \/ 62/)).toBeVisible();
 });
 test.beforeAll(async () => {
-  const result = await build({ stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import {ChinaSupplyChain} from "./src/components/china-supply-chain"; import {MapMarketSwitch} from "./src/components/map-market-switch"; import {LocaleProvider,LanguageSwitch} from "./src/components/providers/locale-provider"; createRoot(document.getElementById("root")).render(<LocaleProvider locale={(location.pathname.startsWith("/en") || new URLSearchParams(location.search).get("lang") === "en") ? "en" : "zh-CN"}><LanguageSwitch/><MapMarketSwitch selected="CN_A"/><ChinaSupplyChain/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "china-fixture.js", platform: "browser", alias: { "next/link": path.resolve("tests/industry/link.tsx") } });
+  const result = await build({ stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import {ChinaSupplyChain} from "./src/components/china-supply-chain"; import {LocaleProvider,LanguageSwitch} from "./src/components/providers/locale-provider"; createRoot(document.getElementById("root")).render(<LocaleProvider locale={(location.pathname.startsWith("/en") || new URLSearchParams(location.search).get("lang") === "en") ? "en" : "zh-CN"}><LanguageSwitch/><ChinaSupplyChain/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "china-fixture.js", platform: "browser", alias: { "next/link": path.resolve("tests/industry/link.tsx") } });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script>${result.outputFiles[0].text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 test("Chinese landscape searches tickers, filters stages and links to primary evidence", async ({ page }) => {
@@ -42,11 +42,11 @@ test("Chinese landscape searches tickers, filters stages and links to primary ev
   await page.getByRole("textbox").fill("missing");
   await expect(page.getByRole("status")).toContainText("没有匹配");
 });
-test("language changes preserve A-share market selection", async ({ page }) => {
+test("language changes retain directory content without a market query", async ({ page }) => {
   await page.route("**/*", route => route.request().url().includes("/api/market-companies") ? route.fulfill({ json: { items: chinaSupplyChain, nextCursor: null } }) : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("http://china.test/map?market=CN_A&lang=zh-CN");
   await page.getByRole("button", { name: "Switch to English" }).click();
-  await expect(page).toHaveURL(/\/en\/map\?market=CN_A/);
+  await expect(page).toHaveURL(/\/en\/map$/);
   await expect(page.getByRole("heading", { name: "Explore A-share industries" })).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(5);
 });
