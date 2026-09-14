@@ -1,11 +1,12 @@
 import { forceSimulation, forceManyBody, forceLink, forceX, forceY, forceZ } from "d3-force-3d";
 import type { KnowledgeGraph } from "./model";
-import { companySector, GRAPH_SECTORS } from "./sectors";
+import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "./sectors";
 
 export function layout3D(graph: KnowledgeGraph) {
+  const sectors = [...GRAPH_SECTORS, OTHER_SECTOR];
   const nodes = graph.nodes.filter(n => n.kind === "COMPANY").sort((a, b) => a.id.localeCompare(b.id)).map((node, i) => {
-    const sector = Math.max(0, GRAPH_SECTORS.findIndex(s => s.id === companySector(node).id));
-    const angle = sector / GRAPH_SECTORS.length * Math.PI * 2;
+    const sector = Math.max(0, sectors.findIndex(s => s.id === companySector(node).id));
+    const angle = sector / sectors.length * Math.PI * 2;
     const ax = Math.cos(angle) * 140, ay = (sector % 3 - 1) * 80, az = Math.sin(angle) * 140;
     return { ...node, x: ax + Math.cos(i * 2.4) * 70, y: ay + Math.sin(i * 1.7) * 70, z: az + Math.cos(i * 1.3) * 70, ax, ay, az };
   });

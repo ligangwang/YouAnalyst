@@ -288,3 +288,10 @@ test("company text grows on zoom in and shrinks on zoom out",async({page})=>{
   await page.mouse.wheel(0,400);
   await expect.poll(fontSize).toBeLessThan(enlarged-.5);
 });
+
+test("unclassified companies have their own spatial anchor",()=>{
+ const layout=layout3D({...graph,nodes:[...graph.nodes,{id:"ORG:RELATED",kind:"COMPANY",name:"Related company",stageIds:["related"],market:"GLOBAL",order:999}]});
+ const related=layout.nodes.find(n=>n.id==="ORG:RELATED")!;
+ const semiconductor=layout.nodes.find(n=>n.stageIds?.[0]==="materials")!;
+ expect([related.ax,related.ay,related.az]).not.toEqual([semiconductor.ax,semiconductor.ay,semiconductor.az]);
+});
