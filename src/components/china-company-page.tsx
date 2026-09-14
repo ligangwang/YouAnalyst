@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LocalizedLink as Link } from "./localized-link";
 import { CompanyCallActions } from "./company-call-actions";
 import { useLocale } from "./providers/locale-provider";
 import type { ChinaCompany } from "@/lib/industry-research/china";
@@ -9,7 +9,7 @@ import { CompanyProfileDetails } from "./company-profile-details";
 export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
   const { text } = useLocale();
   return <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
-    <Link href="/companies?market=CN_A" className="text-sm text-cyan-200 hover:underline">{text("A-share companies", "A 股公司")} →</Link>
+    <Link href="/companies" className="text-sm text-cyan-200 hover:underline">{text("Search companies", "搜索公司")} →</Link>
     <header className="mt-8 border-b border-white/10 pb-8">
       <p className="text-sm text-cyan-200">{company.stage}</p>
       <h1 className="mt-3 text-4xl font-semibold tracking-tight">{company.name}</h1>

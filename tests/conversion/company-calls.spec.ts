@@ -13,6 +13,7 @@ const bearish: CompanyCall = { ...bullish, id: "bear", watchlistId: "hedges", wa
 test("A-share company page reuses direction links, CNY entry and close controls; private companies have none", async ({ page }) => {
   await page.route("**/api/ticker/*/my-calls", route => route.fulfill({ json: { items: [] } }));
   await page.goto(`${origin}?china`);
+  await expect(page.getByRole("link", { name: "Search companies" })).toHaveAttribute("href", "/en/companies");
   const link = page.getByRole("link", { name: "Bullish", exact: true });
   await expect(link).toBeVisible();
   expect(new URL((await link.getAttribute("href"))!, origin).searchParams.get("ticker")).toBe("XSHG:600584");
