@@ -50,6 +50,7 @@ type WatchlistSummary = {
 };
 
 type WatchlistDetail = {
+  viewerAccess?: "full" | "preview";
   id: string;
   userId: string;
   name: string;
@@ -60,6 +61,7 @@ type WatchlistDetail = {
 };
 
 type WatchlistRequestState = {
+  viewerUserId?: string | null;
   watchlistId: string | null;
   watchlist: WatchlistDetail | null;
   loading: boolean;
@@ -318,22 +320,30 @@ export function AnalystProfilePage({
   }, [fetchProfile]);
 
   useEffect(() => {
-    if (!selectedWatchlistId) {
+    if (!selectedWatchlistId || authLoading) {
       return;
     }
 
     let cancelled = false;
 
-    void fetch(`/api/watchlists/${selectedWatchlistId}`)
+    setWatchlistState({ watchlistId: selectedWatchlistId, watchlist: null, loading: true, error: null });
+    void (async () => {
+      const token = user ? await getIdToken() : null;
+      if (cancelled) return null;
+      if (user && !token) throw new Error("Please sign in again to load your watchlist.");
+      return fetch(`/api/watchlists/${selectedWatchlistId}`, { headers: token ? { authorization: `Bearer ${token}` } : undefined });
+    })()
       .then(async (response) => {
+        if (!response) return null;
         if (!response.ok) {
           throw new Error("Unable to load watchlist.");
         }
         return (await response.json()) as { watchlist: WatchlistDetail };
       })
       .then((response) => {
-        if (!cancelled) {
+        if (!cancelled && response) {
           setWatchlistState({
+            viewerUserId: user?.uid ?? null,
             watchlistId: selectedWatchlistId,
             watchlist: response.watchlist,
             loading: false,
@@ -355,7 +365,7 @@ export function AnalystProfilePage({
     return () => {
       cancelled = true;
     };
-  }, [selectedWatchlistId]);
+  }, [selectedWatchlistId, authLoading, getIdToken, user]);
 
   function startEditing() {
     if (!payload) {
@@ -578,7 +588,7 @@ export function AnalystProfilePage({
 
   const selectedWatchlistSummary = payload?.watchlists.find((watchlist) => watchlist.id === selectedWatchlistId) ?? null;
   const selectedWatchlist =
-    watchlistState.watchlistId === selectedWatchlistId ? watchlistState.watchlist : null;
+    watchlistState.watchlistId === selectedWatchlistId && !authLoading && (watchlistState.viewerUserId ?? null) === (user?.uid ?? null) ? watchlistState.watchlist : null;
   const selectedMetrics = selectedWatchlist?.metrics ?? selectedWatchlistSummary?.metrics ?? null;
   const selectedPredictions =
     selectedWatchlist && status === "LIVE"
@@ -943,6 +953,10 @@ export function AnalystProfilePage({
                   </div>
                 ) : null}
 
+                {selectedWatchlist?.viewerAccess === "preview" && <p className="mt-4 text-sm text-slate-300">
+                  <UiText text="Preview" /> · <UiText text="Sign in to view all public calls, full watchlist history, and performance details." />{" "}
+                  <Link className="text-cyan-300 underline" href={`/auth?next=${encodeURIComponent(profilePath)}`}><UiText text="Sign in to unlock full watchlist" /></Link>
+                </p>}
                 <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/45 p-4">
                   {watchlistState.loading && watchlistState.watchlistId === selectedWatchlistId ? (
                     <p className="text-sm text-slate-300"><UiText text={"Loading watchlist..."} /></p>
