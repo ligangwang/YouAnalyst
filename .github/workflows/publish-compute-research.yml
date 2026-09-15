@@ -1,0 +1,53 @@
+name: Publish reviewed AI compute research
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Preview or publish the reviewed compute batch
+        type: choice
+        options: [preview, write]
+        default: preview
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: global-ai-research-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test tests/compute-research.test.ts
+      - run: npx tsx scripts/publish-compute-research.ts --validate
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - run: npx tsx scripts/publish-compute-research.ts --preview
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compute-before-publication
+          path: compute-preview.json
+          if-no-files-found: error
+      - if: inputs.operation == 'write'
+        run: npx tsx scripts/publish-compute-research.ts --write
+      - if: inputs.operation == 'write'
+        run: npx tsx scripts/publish-compute-research.ts --verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compute-publication-result
+          path: |
+            compute-written.json
+            compute-verified.json
+          if-no-files-found: ignore
