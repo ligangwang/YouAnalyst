@@ -24,11 +24,12 @@ export function proxy(request: NextRequest) {
     const plain = unlocalizedPath(request.nextUrl.pathname);
     const localizable = isLocalizedPage(plain);
     const target = new URL(request.url);
-    const filingAlias = plain === "/" && target.searchParams.get("view") === "filings";
+    const retiredResearch = (plain === "/" || plain === "/map") && target.searchParams.get("view") === "filings";
     const graphAlias = plain === "/map" && target.searchParams.get("view") !== "filings";
     if (localizable) {
-      target.pathname = localizedPath(graphAlias ? "/" : filingAlias ? "/map" : plain, locale);
+      target.pathname = localizedPath(retiredResearch ? "/feed" : graphAlias ? "/" : plain, locale);
       target.searchParams.delete("lang");
+      if (retiredResearch) target.search = "";
       if ((plain === "/" || graphAlias) && target.searchParams.get("market") === "ALL") target.searchParams.delete("market");
       if (target.pathname !== request.nextUrl.pathname || target.search !== request.nextUrl.search) {
         const response = NextResponse.redirect(target, prefix || explicit ? 308 : 307);
@@ -41,7 +42,7 @@ export function proxy(request: NextRequest) {
     }
     const headers = new Headers(request.headers);
     headers.set("x-ya-language", locale);
-    headers.set("x-ya-pathname", localizable ? plain + (plain === "/map" ? "?view=filings" : "") : "");
+    headers.set("x-ya-pathname", localizable ? plain : "");
     const explicitMarket = parseMarket(request.nextUrl.searchParams.get("market"));
     const market = explicitMarket ?? parseMarket(request.cookies.get("ya-market")?.value) ?? "US";
     headers.set("x-ya-market", market);

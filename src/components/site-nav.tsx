@@ -99,10 +99,9 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
 const primaryNavItems = [
   { href: "/", label: "AI Map" },
   { href: "/companies", label: "Companies" },
-  { href: "/map?view=filings", label: "Research" },
+  { href: "/feed", label: "Feed" },
 ];
 const secondaryNavItems = [
-  { href: "/feed", label: "Feed" },
   { href: "/watchlists", label: "Watchlists" },
   { href: "/predictions", label: "Calls" },
   { href: "/leaderboard", label: "Rankings" },

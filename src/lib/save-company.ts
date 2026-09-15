@@ -6,7 +6,7 @@ export async function saveCompanyToAccount(ticker: string, getToken: () => Promi
   try {
     const token = await getToken();
     if (!token) throw new Error("Sign in again to save this company.");
-    const response = await fetch("/api/industry-graph/saved", {
+    const response = await fetch("/api/knowledge-graph/saved", {
       method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ ticker, saved }), signal: controller.signal,
     });

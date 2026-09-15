@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Firestore } from "firebase-admin/firestore";
 import { buildIndustryGraph } from "../../src/lib/industry-graph/model";
-import { createIndustryGraphLoader } from "../../src/lib/industry-graph/service";
-import { readMapCompany, readMapOptions, MAP_PAGE_SIZE } from "../../src/lib/industry-graph/directory";
+import { readMapCompany, readMapOptions } from "../../src/lib/industry-graph/directory";
 import { buildCompanyResearch } from "../../src/lib/company-research";
 import { runFixture } from "./fixtures";
 
@@ -36,60 +34,61 @@ test("map query normalizes ticker input and rejects invalid cursors", () => {
   }
 });
 
-function databaseFixture() {
-  const reads: number[] = [];
-  let requests = 0;
-  const records: Record<string, Record<string, Record<string, unknown>>> = {
-    company_research_runs: Object.fromEntries(Array.from({ length: 25 }, (_, i) => {
-      const ticker = `A${String(i).padStart(2, "0")}`;
-      return [`${ticker}_latest_10k`, runFixture(ticker, String(i + 1).padStart(10, "0"), `Issuer ${i}`)];
-    })),
-    industry_map_companies: { TSM: { name: "TSMC", segment: "manufacturing", featured: true, filingForm: "20-F" } },
-    tickers: {},
-  };
-  records.company_research_runs.CRM_latest_10k = runFixture("CRM", "0001108524", "Salesforce", [{ targetName: "Example Supplier" }]);
-  function collection(name: string) {
-    let items = Object.entries(records[name] ?? {}).sort(([a], [b]) => a.localeCompare(b));
-    let limit = Infinity;
-    const query = {
-      where(field: string, _operator: string, value: unknown) { items = items.filter(([, data]) => data[field] === value); return query; },
-      orderBy() { return query; },
-      startAfter(id: string) { items = items.filter(([key]) => key > id); return query; },
-      limit(value: number) { limit = value; return query; },
-      async get() { requests++; reads.push(limit); return { docs: items.slice(0, limit).map(([id, data]) => ({ id, data: () => data })) }; },
-      doc(id: string) { return { id, async get() { requests++; const data = records[name]?.[id]; return { id, exists: Boolean(data), data: () => data }; } }; },
-    };
-    return query;
-  }
-  const db = { collection, async getAll(...refs: Array<{ get: () => Promise<unknown> }>) { return Promise.all(refs.map((ref) => ref.get())); } } as unknown as Firestore;
-  return { db, reads, requests: () => requests };
-}
 
-test("repository pages beyond the first batch, loads direct tickers and caches by request", async () => {
-  const fixture = databaseFixture();
-  const load = createIndustryGraphLoader(() => fixture.db);
-  const first = await load();
-  assert.equal(first.coveredTickers.length, MAP_PAGE_SIZE);
-  assert.equal(first.nextCursor, "A19_latest_10k");
-  assert.ok(!first.coveredTickers.includes("CRM"));
-  const reads = fixture.requests();
-  assert.strictEqual(await load(), first);
-  assert.equal(fixture.requests(), reads);
-  const second = await load({ after: first.nextCursor! });
-  assert.ok(second.coveredTickers.includes("CRM"));
-  assert.equal(second.nextCursor, null);
-  assert.ok(!second.coveredTickers.includes("A00"));
-  const direct = await load({ ticker: "CRM" });
-  assert.ok(direct.coveredTickers.includes("CRM"));
-  assert.equal(direct.requestedTicker, "CRM");
-  assert.ok(fixture.reads.every(Number.isFinite));
+// Public company pages use exactly the same published graph as the main map.
+import { companyResearchGraph } from "../../src/lib/knowledge-graph/company-research-projection";
+import type { KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
+import { GET as retiredGraph } from "../../src/app/api/industry-graph/route";
+const publishedGraph: KnowledgeGraph = {
+  asOf: "2026-09-15", nodes: [
+    { id: "US:AMD", kind: "COMPANY", name: "AMD", symbol: "AMD", market: "US", order: 0, stageIds: ["compute"] },
+    { id: "XSHG:688041", kind: "COMPANY", name: "Hygon", symbol: "688041", market: "CN_A", order: 1 },
+    { id: "ORG:private", kind: "COMPANY", name: "Private Company", market: "GLOBAL", order: 2 },
+    { id: "stage:compute", kind: "STAGE", order: 3 },
+  ],
+  relationships: [
+    { id: "incoming", source: "XSHG:688041", target: "US:AMD", type: "SUPPLIER_OF", summary: "Published supporting summary.", sourceIds: ["source"], commercialStatus: "DOCUMENTED" },
+    { id: "planned", source: "US:AMD", target: "ORG:private", type: "PLANNED_ADOPTER_OF", summary: "Announced plans only.", sourceIds: ["source"], commercialStatus: "ANNOUNCED" },
+    { id: "stage", source: "US:AMD", target: "stage:compute", type: "PARTICIPATES_IN", summary: "", sourceIds: [], commercialStatus: "" },
+  ],
+  sources: [{ id: "source", title: "Company announcement", url: "https://example.com/announcement", sourceDate: null }],
+};
+test("company profiles retain canonical relationship directions, sources and international destinations", () => {
+  const projection = companyResearchGraph(publishedGraph);
+  assert.deepEqual(projection.nodes.map(n => n.id), ["US:AMD", "XSHG:688041", "ORG:private"]);
+  assert.deepEqual(projection.edges.map(e => e.id), ["incoming", "planned"]);
+  const company = buildCompanyResearch("AMD", [], projection);
+  assert.equal(company.connections[0].label, "Hygon supplies AMD");
+  assert.equal(company.connections[0].related.profileUrl, "/ticker/XSHG:688041");
+  assert.equal(company.connections[0].evidence[0].filingUrl, publishedGraph.sources[0].url);
+  assert.equal(company.connections[0].evidence[0].sourceKind, "web");
+  assert.equal(company.connections[1].related.profileUrl, "/company/ORG%3Aprivate");
+  assert.equal(company.connections[1].commercialStatus, "ANNOUNCED");
+  assert.equal(company.connections[1].summary, "Announced plans only.");
+  assert.equal(buildCompanyResearch("688041", [], projection).inMap, false);
+});
+test("retired API returns Gone without loading an independent dataset", async () => {
+  const response = retiredGraph();
+  assert.equal(response.status, 410);
+  assert.equal((await response.json()).replacement, "/api/knowledge-graph");
 });
 
-test("repository failures do not become a cached empty success", async () => {
-  const fixture = databaseFixture();
-  let failed = true;
-  const load = createIndustryGraphLoader(() => { if (failed) throw new Error("offline"); return fixture.db; });
-  await assert.rejects(load(), /offline/);
-  failed = false;
-  assert.ok((await load()).coveredTickers.length > 0);
+import { relationLabels } from "../../src/lib/knowledge-graph/relationship-labels";
+import { RELATIONSHIP_LABELS } from "../../src/lib/industry-graph/model";
+import { translateUi } from "../../src/lib/i18n/translate";
+test("company relationship labels cover canonical types and translate complete headings", () => {
+  for (const type of Object.keys(relationLabels).filter(type => type !== "PARTICIPATES_IN")) {
+    assert.ok(RELATIONSHIP_LABELS[type], type);
+  }
+  for (const [type, expected] of [
+    ["INTEGRATES_TECHNOLOGY_FROM", "AMD 集成 Private Company 的技术"],
+    ["PLANNED_ADOPTER_OF", "AMD 计划采用 Private Company 的技术"],
+    ["ECOSYSTEM_PARTNER_OF", "AMD 是 Private Company 的生态伙伴"],
+    ["ENERGY_AGREEMENT_WITH", "AMD 与 Private Company 签订能源协议"],
+  ]) {
+    const graph = { ...publishedGraph, relationships: [{ ...publishedGraph.relationships[1], type }] };
+    const label = buildCompanyResearch("AMD", [], companyResearchGraph(graph)).connections[0].label;
+    assert.equal(translateUi(label, "zh-CN"), expected);
+    assert.equal(translateUi(label, "en"), label);
+  }
 });

@@ -1,3 +1,6 @@
+
+> **Retired public explorer (2026-09-15):** Research has been removed from the website. Old `?view=filings` links redirect to the localized Feed, which is now in the primary navigation. `/api/industry-graph` returns HTTP 410 with `/api/knowledge-graph` as its replacement. Company profiles read the shared published knowledge graph. Saved-company requests use `/api/knowledge-graph/saved`; the old saved route redirects with HTTP 308, preserving existing account data. The independent loader and its visual preview have been removed. The ingestion and admin review tools remain. The explorer details below are historical.
+
 # AI industry homepage
 
 The homepage is now an interactive industry map. Company search remains at

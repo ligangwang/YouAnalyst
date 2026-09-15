@@ -74,8 +74,8 @@ test("signing in restores account language without restoring market filters when
 for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tools accessible (${language})`, async ({page}) => {
  await page.goto(`http://bilingual.test/?lang=${language}`);
  const nav=page.locator("header nav").first();
- await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["AI Map","Companies","Research"] : ["AI 图谱","公司","研究"]);
- await expect(nav.getByRole("link").nth(2)).toHaveAttribute("href",/map\?view=filings$/);
+ await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["AI Map","Companies","Feed"] : ["AI 图谱","公司","动态"]);
+ await expect(nav.getByRole("link").nth(2)).toHaveAttribute("href",/feed$/);
  const menu=page.locator("header details").first();
  await expect(menu.getByRole("link")).toHaveCount(0);
  await menu.locator("summary").click();
