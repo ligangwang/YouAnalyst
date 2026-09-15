@@ -5,6 +5,8 @@ import { decodeEventCursor, encodeEventCursor, publishFilingEvent } from "../../
 import type { Firestore } from "firebase-admin/firestore";
 import { NextRequest } from "next/server";
 import { GET } from "../../src/app/api/events/route";
+import { activityFromTransaction, activityLabel } from "../../src/lib/events/insider-summary";
+import { enrichFilingEvents } from "../../src/lib/events/enrich";
 
 const input: FilingEventInput = { type: "SEC_FORM4", accessionNumber: "0001234567-26-000001", filingDate: "2026-09-08", sourceUrl: "https://www.sec.gov/Archives/edgar/data/1234567/filing.txt", entityName: "Example", tickers: ["amd", "AMD", "", "../private"], amended: false };
 const now = "2026-09-10T12:00:00.000Z";
@@ -65,4 +67,27 @@ test("read API rejects invalid bounds and cursors before accessing storage", asy
     const response = await GET(new NextRequest(`https://youanalyst.com/api/events?${params}`));
     assert.equal(response.status, 400);
   }
+});
+
+test("transaction summaries retain source codes, date and quality without inventing purchase totals", async () => {
+ const row = {accessionNumber:input.accessionNumber,reportingOwnerName:"Jane Example",transactionCode:"A",transactionDate:"2026-09-03",securityTitle:"Common stock",shares:1200,valueUsd:100000,valueQuality:"needs_review",privateNote:"never expose"};
+ const activity = activityFromTransaction(row,input.accessionNumber)!;
+ assert.equal(activityLabel(activity.code,false),"Grant / award / other acquisition");
+ assert.equal(activity.date,"2026-09-03"); assert.equal(activity.valueUsd,null);
+ assert.equal("privateNote" in activity,false);
+ assert.equal(activityFromTransaction({...row,accessionNumber:"other"},input.accessionNumber),null);
+ assert.equal(activityFromTransaction({...row,transactionDate:"2026-02-30"},input.accessionNumber),null);
+ assert.equal(activityFromTransaction({...row,valueQuality:"usable"},input.accessionNumber)?.valueUsd,100000);
+ const event = filingEvent(input,now);
+ const projected = publicEventFromDocument(event.id,{...event,activity:[{...activity,privateNote:"never"}]})!;
+ assert.equal(projected.occurredAt,"2026-09-08"); assert.equal(projected.publishedAt,now);
+ assert.deepEqual(projected.activity,[activity]);
+ let reads=0;
+ const db = {collection:(name:string)=>{assert.equal(name,"insider_transactions");return {where:(field:string,operator:string,id:string)=>{assert.deepEqual([field,operator,id],["accessionNumber","==",input.accessionNumber]);return {limit:(limit:number)=>{assert.equal(limit,5);return {get:async()=>{reads++;return {docs:[{data:()=>row}]};}};}};}};}} as unknown as Firestore;
+ const first = await enrichFilingEvents([event],db);
+ assert.deepEqual(first[0].activity,[activity]);
+ await enrichFilingEvents([event],db); assert.equal(reads,1);
+ assert.equal(first[0].publishedAt,now);
+ const unavailable = {collection:()=>{throw new Error("Offline");}} as unknown as Firestore;
+ assert.deepEqual(await enrichFilingEvents([event],unavailable),[event]);
 });

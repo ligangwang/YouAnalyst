@@ -2,6 +2,7 @@ import { type EventFilter } from "./filters";
 import { FieldPath, type Firestore, type Query, type QuerySnapshot } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { EVENT_PAGE_SIZE, MAX_EVENT_PAGE_SIZE, filingEvent, isEventTimestamp, publicEventFromDocument, type FilingEventInput } from "./model";
+import { enrichFilingEvents } from "./enrich";
 
 export type EventCursor = { publishedAt: string; id: string };
 
@@ -36,15 +37,15 @@ export async function listPublicEvents(input: { limit?: number; cursor?: EventCu
   let query = publicEventsQuery(input.type ?? "all", db);
   if (input.cursor) query = query.startAfter(input.cursor.publishedAt, input.cursor.id);
   const snapshot = await query.limit(limit + 1).get();
-  return publicEventPage(snapshot, limit);
+  return publicEventPage(snapshot, limit, db);
 }
 
-function publicEventPage(snapshot: QuerySnapshot, limit: number) {
+async function publicEventPage(snapshot: QuerySnapshot, limit: number, db: Firestore) {
   const page = snapshot.docs.slice(0, limit);
   const items = page.flatMap(doc => { const event = publicEventFromDocument(doc.id, doc.data()); return event ? [event] : []; });
   const last = page.at(-1);
   const nextCursor = snapshot.size > limit && last ? encodeEventCursor({ publishedAt: last.get("publishedAt"), id: last.id }) : null;
-  return { items, nextCursor };
+  return { items: await enrichFilingEvents(items, db), nextCursor };
 }
 
 export type PublicEventPage = Awaited<ReturnType<typeof listPublicEvents>>;
@@ -68,10 +69,15 @@ export function subscribePublicEvents(next: Viewer["next"], error: Viewer["error
   currentHub.viewers.add(viewer);
   if (currentHub.latest) next(currentHub.latest);
   if (!currentHub.stop) {
+    let snapshotVersion = 0;
     try {
       currentHub.stop = publicEventsQuery(type, db).limit(EVENT_PAGE_SIZE + 1).onSnapshot(snapshot => {
-        currentHub.latest = publicEventPage(snapshot, EVENT_PAGE_SIZE);
-        for (const current of [...currentHub.viewers]) current.next(currentHub.latest);
+        const version = ++snapshotVersion;
+        void publicEventPage(snapshot, EVENT_PAGE_SIZE, db).then(page => {
+          if (snapshotVersion !== version || hubs.get(type) !== currentHub) return;
+          currentHub.latest = page;
+          for (const current of [...currentHub.viewers]) current.next(page);
+        }).catch(() => { if (hubs.get(type) === currentHub) for (const current of [...currentHub.viewers]) current.error(); });
       }, () => {
         currentHub.stop?.(); currentHub.stop = null; currentHub.latest = null;
         if (hubs.get(type) === currentHub) hubs.delete(type);

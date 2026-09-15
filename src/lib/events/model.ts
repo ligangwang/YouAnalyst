@@ -1,3 +1,4 @@
+import { publicActivity, type InsiderActivity } from "./insider-summary";
 export const EVENT_PAGE_SIZE = 30;
 export const MAX_EVENT_PAGE_SIZE = 50;
 
@@ -18,6 +19,7 @@ export type PublicEvent = {
   sourceName: "SEC EDGAR";
   sourceUrl: string;
   accessionNumber: string;
+  activity?: InsiderActivity[];
 };
 
 export type FilingEventInput = {
@@ -69,6 +71,6 @@ export function publicEventFromDocument(id: string, data: Record<string, unknown
   try {
     const checked = filingEvent({ type: data.type, accessionNumber: data.accessionNumber as string, filingDate: data.occurredAt as string, sourceUrl: data.sourceUrl as string, entityName: data.title as string, tickers: data.tickers, amended: false }, data.publishedAt as string);
     if (checked.id !== id || !isEventTimestamp(data.updatedAt as string)) return null;
-    return { ...checked, title: (data.title as string).slice(0, 240), summary: (data.summary as string).slice(0, 1000), updatedAt: data.updatedAt as string };
+    return { ...checked, title: (data.title as string).slice(0, 240), summary: (data.summary as string).slice(0, 1000), updatedAt: data.updatedAt as string, ...(data.type === "SEC_FORM4" && Array.isArray(data.activity) ? {activity:publicActivity(data.activity,checked.accessionNumber)} : {}) };
   } catch { return null; }
 }

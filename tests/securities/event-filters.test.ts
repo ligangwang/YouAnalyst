@@ -49,6 +49,7 @@ test("filtered pagination and shared live listeners query the same category and 
     assert.deepEqual(queries[1].slice(0, 3), queries[0].slice(0, 3));
     assert.deepEqual(queries[2][0], ["where", "type", "==", "SEC_13F"]);
     listeners[0].next(empty);
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(insiderUpdates, 2); assert.equal(holdingUpdates, 0);
     stopA(); assert.equal(listeners[0].stopped, false);
     stopB(); assert.equal(listeners[0].stopped, true);
