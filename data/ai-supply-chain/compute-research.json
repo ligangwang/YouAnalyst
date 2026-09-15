@@ -1,0 +1,697 @@
+{
+  "batchId": "ai-compute-2026-09-15",
+  "asOf": "2026-09-15",
+  "sources": [
+    {
+      "id": "AMD1",
+      "url": "https://ir.amd.com/financial-information/sec-filings/content/0000002488-26-000018/amd-20251227.htm",
+      "sourceDate": "2026-02-04",
+      "title": "AMD 2025 Form 10-K: manufacturing and competition",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD2",
+      "url": "https://www.micron.com/partners/partner-networks/amd",
+      "sourceDate": null,
+      "title": "Micron and AMD: HBM3E for Instinct MI350",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD4",
+      "url": "https://ir.amd.com/news-events/press-releases/detail/1279/amd-and-meta-announce-expanded-strategic-partnership-to-deploy-6-gigawatts-of-amd-gpus",
+      "sourceDate": "2026-02-24",
+      "title": "AMD and Meta expanded GPU deployment partnership",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD5",
+      "url": "https://ir.amd.com/news-events/press-releases/detail/1260/amd-and-openai-announce-strategic-partnership-to-deploy-6-gigawatts-of-amd-gpus",
+      "sourceDate": "2025-10-06",
+      "title": "AMD and OpenAI GPU deployment agreement",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD6",
+      "url": "https://www.amd.com/zh-cn/newsroom/press-releases/amd-anthropic-strategic-partnership.html",
+      "sourceDate": "2026-07-22",
+      "title": "AMD and Anthropic strategic partnership",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD7",
+      "url": "https://ir.amd.com/news-events/press-releases/detail/1291/microsoft-to-deploy-next-gen-amd-instinct-and-amd-epyc-processors-as-the-companies-expand-their-long-term-strategic-partnership",
+      "sourceDate": "2026-07-20",
+      "title": "Microsoft expands AMD Instinct, EPYC and Pensando deployment",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD8",
+      "url": "https://www.oracle.com/cn/news/announcement/ai-world-oracle-and-amd-expand-partnership-to-help-customers-achieve-next-generation-ai-scale-2025-10-14/",
+      "sourceDate": "2025-10-14",
+      "title": "Oracle and AMD expand AI infrastructure partnership",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD9",
+      "url": "https://aws.amazon.com/about-aws/whats-new/2026/02/announcing-amazon-ec2-hpc8a-instances/",
+      "sourceDate": "2026-02-16",
+      "title": "Amazon EC2 Hpc8a availability",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD10",
+      "url": "https://cloud.google.com/amd",
+      "sourceDate": null,
+      "title": "Google Cloud AMD EPYC virtual machines",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD11",
+      "url": "https://www.dell.com/en-us/shop/ipovw/poweredge-xe9785",
+      "sourceDate": null,
+      "title": "Dell PowerEdge XE9785 specifications",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD12",
+      "url": "https://ir.supermicro.com/news/news-details/2025/Supermicro-Delivers-Performance-and-Efficiency-Optimized-Liquid-Cooled-and-Air-Cooled-AI-Solutions-with-AMD-Instinct-MI350-Series-GPUs-and-Platforms/default.aspx",
+      "sourceDate": "2025-06-12",
+      "title": "Supermicro AMD Instinct MI350 systems",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD13",
+      "url": "https://www.hpe.com/us/en/newsroom/press-release/2025/12/hpe-accelerates-ai-deployments-with-first-amd-helios-ai-rack-scale-architecture-with-open-scale-up-networking-built-with-broadcom.html",
+      "sourceDate": "2025-12-02",
+      "title": "HPE AMD Helios with Broadcom networking",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AMD14",
+      "url": "https://newsroom.cisco.com/c/r/newsroom/en/us/a/y2026/m08/amd-cisco-and-humain-expand-saudi-arabia-ai-infrastructure.html",
+      "sourceDate": "2026-08-31",
+      "title": "AMD Cisco HUMAIN infrastructure expansion",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "INTELNV",
+      "url": "https://nvidianews.nvidia.com/news/nvidia-and-intel-to-develop-ai-infrastructure-and-personal-computing-products",
+      "sourceDate": "2025-09-18",
+      "title": "NVIDIA and Intel joint product development",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "INTELAWS",
+      "url": "https://www.intel.com/content/www/us/en/newsroom/news/foundry-momentum-progress-plan.html",
+      "sourceDate": "2024-09-16",
+      "title": "Intel AWS manufacturing framework",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "X86",
+      "url": "https://www.intel.com/content/www/us/en/newsroom/news/october-2024-intel-news.html",
+      "sourceDate": "2024-10-15",
+      "title": "Intel and AMD form x86 advisory group",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "DELLINTEL",
+      "url": "https://www.dell.com/en-us/blog/now-shipping-dell-ai-platform-with-intel/",
+      "sourceDate": "2025-05-19",
+      "title": "Dell Gaudi 3 platform shipping",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AVMETA",
+      "url": "https://investors.broadcom.com/news-releases/news-release-details/broadcom-announces-extended-partnership-meta-deploy-technology",
+      "sourceDate": "2026-04-14",
+      "title": "Broadcom Meta MTIA roadmap",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AVOPENAI",
+      "url": "https://investors.broadcom.com/news-releases/news-release-details/openai-and-broadcom-announce-strategic-collaboration-deploy-10",
+      "sourceDate": "2025-10-13",
+      "title": "Broadcom OpenAI accelerator collaboration",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "AVANTH",
+      "url": "https://www.anthropic.com/news/google-broadcom-partnership-compute",
+      "sourceDate": "2026-04-06",
+      "title": "Anthropic Google Broadcom future TPU capacity",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "MRVLAWS",
+      "url": "https://www.marvell.com/company/newsroom/marvell-expands-strategic-collaboration-aws-enable-accelerated-infrastructure-ai-cloud.html",
+      "sourceDate": "2024-12-02",
+      "title": "Marvell AWS five-year semiconductor agreement",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "MRVLTSM",
+      "url": "https://www.marvell.com/company/newsroom/marvell-announces-industry-first-2nm-platform-for-accelerated-infrastructure-silicon.html",
+      "sourceDate": "2024-03-07",
+      "title": "Marvell TSMC platform development",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "MRVLNV",
+      "url": "https://www.marvell.com/company/newsroom/nvidia-ai-ecosystem-expands-marvell-joins-forces-through-nvlink-fusion.html",
+      "sourceDate": "2026-03-31",
+      "title": "Marvell NVIDIA NVLink Fusion",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "METANET",
+      "url": "https://engineering.fb.com/2024/10/15/data-infrastructure/open-future-networking-hardware-ai-ocp-2024-meta/",
+      "sourceDate": "2024-10-15",
+      "title": "Meta FBNIC and switch design",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "NVANTH",
+      "url": "https://blogs.nvidia.com/blog/microsoft-nvidia-anthropic-announce-partnership/",
+      "sourceDate": "2025-11-18",
+      "title": "NVIDIA Anthropic technology partnership",
+      "retrievedAt": "2026-09-15"
+    },
+    {
+      "id": "NVMETA",
+      "url": "https://nvidianews.nvidia.com/news/meta-builds-ai-infrastructure-with-nvidia",
+      "sourceDate": "2026-02-17",
+      "title": "Meta NVIDIA infrastructure roadmap",
+      "retrievedAt": "2026-09-15"
+    }
+  ],
+  "relationships": [
+    {
+      "source": "ORG:ANTHROPIC",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "MI355X use described in partnership release",
+          "sourceIds": [
+            "AMD6"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "MI450 capacity roadmap; first 1GW expected 1H2027",
+          "sourceIds": [
+            "AMD6"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "ORG:ANTHROPIC",
+      "target": "US:AVGO",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "Google/Broadcom TPU capacity expected from 2027",
+          "sourceIds": [
+            "AVANTH"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "ORG:ANTHROPIC",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "Model/architecture optimization and Grace Blackwell/Vera Rubin compute commitment",
+          "sourceIds": [
+            "NVANTH"
+          ],
+          "limitation": "Azure-mediated capacity; not evidence of direct chip procurement or completed investment."
+        }
+      ]
+    },
+    {
+      "source": "ORG:OPENAI",
+      "target": "US:AVGO",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "Co-developed 10GW accelerator/network roadmap targeted 2H2026 to end2029",
+          "sourceIds": [
+            "AVOPENAI"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "ORG:OPENAI",
+      "target": "US:AMD",
+      "type": "PLANNED_ADOPTER_OF",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "6GW agreement, first 1GW expected 2H2026",
+          "sourceIds": [
+            "AMD5"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:AMD",
+      "target": "US:INTC",
+      "type": "ECOSYSTEM_PARTNER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Jointly founded x86 advisory group; no procurement implied",
+          "sourceIds": [
+            "X86"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:AMD",
+      "target": "US:CSCO",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Joint HUMAIN deployment combines AMD compute with Cisco networking",
+          "sourceIds": [
+            "AMD14"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:AMZN",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "AWS Hpc8a uses fifth-generation EPYC CPUs; not Instinct GPUs",
+          "sourceIds": [
+            "AMD9"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:AVGO",
+      "target": "US:META",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Existing MTIA co-design relationship",
+          "sourceIds": [
+            "AVMETA"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "Expanded MTIA and Ethernet roadmap through 2029, initial commitment exceeds 1GW",
+          "sourceIds": [
+            "AVMETA"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:DELL",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "PowerEdge XE9785 EPYC and MI355X system specifications",
+          "sourceIds": [
+            "AMD11"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:DELL",
+      "target": "US:INTC",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Shipping Gaudi 3 PowerEdge XE9680 AI platform",
+          "sourceIds": [
+            "DELLINTEL"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:GFS",
+      "target": "US:AMD",
+      "type": "SUPPLIER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "12/14nm HPC wafer manufacturing, not advanced-node GPU fabrication",
+          "sourceIds": [
+            "AMD1"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:GOOGL",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Google Cloud EPYC virtual machines; not TPU or GPU supply",
+          "sourceIds": [
+            "AMD10"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:HPE",
+      "target": "US:AMD",
+      "type": "PLANNED_ADOPTER_OF",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "Helios rack architecture planned for 2026",
+          "sourceIds": [
+            "AMD13"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:HPE",
+      "target": "US:AVGO",
+      "type": "PLANNED_ADOPTER_OF",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "Helios scale-up Ethernet built with Broadcom",
+          "sourceIds": [
+            "AMD13"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:INTC",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "Joint custom x86/NVLink data-center and PC product development",
+          "sourceIds": [
+            "INTELNV"
+          ],
+          "limitation": "No assertion of NVIDIA GPU foundry order or completed products."
+        }
+      ]
+    },
+    {
+      "source": "US:INTC",
+      "target": "US:AMZN",
+      "type": "SUPPLIER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Existing Xeon Scalable supply to AWS",
+          "sourceIds": [
+            "INTELAWS"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "Intel 18A AI fabric and Intel 3 custom Xeon 6 framework",
+          "sourceIds": [
+            "INTELAWS"
+          ],
+          "limitation": "Historical announcement; current program progress and delivery not verified."
+        }
+      ]
+    },
+    {
+      "source": "US:META",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Existing EPYC and Instinct MI300/MI350 use",
+          "sourceIds": [
+            "AMD4"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "Up to 6GW roadmap, initial deployment expected 2H2026",
+          "sourceIds": [
+            "AMD4"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:META",
+      "target": "US:AVGO",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Minipack3 design incorporates Tomahawk5; deployment was prospective in source",
+          "sourceIds": [
+            "METANET"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:META",
+      "target": "US:NVDA",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "NVIDIA Confidential Computing adoption",
+          "sourceIds": [
+            "NVMETA"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "Expanded CPU, Blackwell/Rubin and Spectrum-X deployment roadmap",
+          "sourceIds": [
+            "NVMETA"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:META",
+      "target": "US:MRVL",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Marvell designed FBNIC module; Meta designed its ASIC",
+          "sourceIds": [
+            "METANET"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:MRVL",
+      "target": "US:NVDA",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "NVLink Fusion custom XPU, networking and silicon photonics collaboration",
+          "sourceIds": [
+            "MRVLNV"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:MRVL",
+      "target": "US:TSM",
+      "type": "PARTNER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Existing 5nm/3nm platform collaboration",
+          "sourceIds": [
+            "MRVLTSM"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "2nm infrastructure silicon platform development",
+          "sourceIds": [
+            "MRVLTSM"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:MRVL",
+      "target": "US:AMZN",
+      "type": "SUPPLIER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Expanded supplier relationship for custom AI and connectivity semiconductors",
+          "sourceIds": [
+            "MRVLAWS"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "Five-year multigeneration agreement; future product volumes undisclosed",
+          "sourceIds": [
+            "MRVLAWS"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:MSFT",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Existing Azure AMD deployment",
+          "sourceIds": [
+            "AMD7"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "Helios roadmap expected 2H2026; EPYC and Pensando collaboration",
+          "sourceIds": [
+            "AMD7"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:MU",
+      "target": "US:AMD",
+      "type": "SUPPLIER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "HBM3E design integration in Instinct MI350",
+          "sourceIds": [
+            "AMD2"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:ORCL",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "OCI MI300X and MI355X services",
+          "sourceIds": [
+            "AMD8"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        },
+        {
+          "state": "ANNOUNCED",
+          "scope": "50,000 MI450 roadmap starting Q32026; delivery not verified",
+          "sourceIds": [
+            "AMD8"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:SMCI",
+      "target": "US:AMD",
+      "type": "INTEGRATES_TECHNOLOGY_FROM",
+      "facts": [
+        {
+          "state": "ANNOUNCED",
+          "scope": "MI350 system portfolio announcement; individual delivery unverified",
+          "sourceIds": [
+            "AMD12"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    },
+    {
+      "source": "US:TSM",
+      "target": "US:AMD",
+      "type": "SUPPLIER_OF",
+      "facts": [
+        {
+          "state": "DOCUMENTED",
+          "scope": "Wafer manufacturing",
+          "sourceIds": [
+            "AMD1"
+          ],
+          "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred."
+        }
+      ]
+    }
+  ]
+}
