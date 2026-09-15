@@ -4,11 +4,12 @@ import { PerspectiveCamera, Vector3 } from "three";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
+import { companySector } from "../../src/lib/knowledge-graph/sectors";
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
-test("line hover previews one relationship, click pins it, and blank space clears it",async({page})=>{
+for(const sectorFocused of [false,true]) test(`line hover previews, click pins, and blank space clears (${sectorFocused?"sector":"overview"})`,async({page})=>{
   await page.emulateMedia({reducedMotion:"reduce"});
   await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en");
@@ -16,12 +17,21 @@ test("line hover previews one relationship, click pins it, and blank space clear
   await expect(canvas).toBeVisible();
   await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
   await expect(labels).toHaveCount(0);
+  if(sectorFocused){
+    const toggle=page.getByRole("button",{name:/^Sectors/});
+    if(await toggle.isVisible())await toggle.click();
+    await page.getByRole("button",{name:"AI compute",exact:true}).click();
+    await expect.poll(()=>page.locator('[data-sector-emphasis="member"]').count()).toBeGreaterThan(0);
+  }
   await canvas.scrollIntoViewIfNeeded();
   const box=(await canvas.boundingBox())!;
   const layout=layout3D(graph);
-  const distance=layout.radius/Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,box.width/box.height)))*1.15;
+  const members=layout.nodes.filter(n=>companySector(n).id==="compute");
+  const center=sectorFocused?members.reduce((v,n)=>v.add(new Vector3(n.x,n.y,n.z)),new Vector3()).divideScalar(members.length):new Vector3();
+  const radius=sectorFocused?Math.max(80,...members.map(n=>new Vector3(n.x,n.y,n.z).distanceTo(center))):layout.radius;
+  const distance=radius/Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,box.width/box.height)))*(sectorFocused?1.1:1.15);
   const camera=new PerspectiveCamera(45,box.width/box.height,1,10000);
-  camera.position.set(distance*.2,distance*.12,distance);camera.lookAt(0,0,0);camera.updateMatrixWorld();
+  camera.position.set(center.x+distance*.2,center.y+distance*.12,center.z+distance);camera.lookAt(center);camera.updateMatrixWorld();
   let hit:{x:number;y:number}|undefined;
   for(const edge of layout.edges){
     const a=layout.nodes.find(n=>n.id===edge.source)!,b=layout.nodes.find(n=>n.id===edge.target)!;
@@ -33,6 +43,7 @@ test("line hover previews one relationship, click pins it, and blank space clear
   expect(hit).toBeDefined();
   await expect(labels).toHaveCount(1);
   await page.mouse.click(hit!.x,hit!.y);
+  await expect(page.locator("[data-sector-emphasis]")).toHaveCount(0);
   await expect(page.getByRole("region",{name:"Selected connection",exact:true})).toBeVisible();
   await page.mouse.move(5,5);
   await expect(page.locator('[data-active="true"]:visible')).toHaveCount(1);

@@ -56,6 +56,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
     const edge = graph.relationships.find(e => e.id === id); if (!edge || edge.type === "PARTICIPATES_IN") return;
     const nextCompany=reached ?? (selected===edge.source||selected===edge.target?selected:edge.source);
     setSelected(nextCompany);
+    setSectorFocus("");
     setQuery("");
     setActiveEdge(id);
     const url=new URL(window.location.href);
