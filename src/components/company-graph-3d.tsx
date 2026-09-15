@@ -109,17 +109,33 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
   };
   useFrame(() => {
     const occupied: {x:number;y:number;w:number;h:number}[]=[];
-    const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number) => {
+    const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number, company=false) => {
       projected.set(x,y,z).project(camera);
       const px=(projected.x+1)*size.width/2,py=(1-projected.y)*size.height/2;
-      const visible=eligible && projected.z>-1 && projected.z<1 && px>width/2 && px<size.width-width/2 && py>height && py<size.height-65 && !occupied.some(p=>Math.abs(px-p.x)<(width+p.w)/2+8 && Math.abs(py-p.y)<(height+p.h)/2+6);
+      const offsets=company?[[0,height/2+5],[0,-height/2-5],[width/2+7,0],[-width/2-7,0],[width/2+5,height/2+5],[-width/2-5,height/2+5],[width/2+5,-height/2-5],[-width/2-5,-height/2-5]]:[[0,0]];
+      const offset=eligible && projected.z>-1 && projected.z<1 && offsets.find(([dx,dy])=>{
+        const cx=px+dx,cy=py+dy;
+        return cx-width/2>2 && cx+width/2<size.width-2 && cy-height/2>2 && cy+height/2<size.height-32 && !occupied.some(p=>Math.abs(cx-p.x)<(width+p.w)/2+3 && Math.abs(cy-p.y)<(height+p.h)/2+2);
+      });
+      const visible=Boolean(offset);
       element.style.visibility=visible?"visible":"hidden";
-      if(visible) occupied.push({x:px,y:py,w:width,h:height});
+      if(offset){
+        if(company){element.style.setProperty("--label-offset-x",`${offset[0]}px`);element.style.setProperty("--label-offset-y",`${offset[1]}px`);}
+        occupied.push({x:px+offset[0],y:py+offset[1],w:width,h:height});
+      }
       return visible;
     };
     const target=controls.current?.getTarget(new Vector3()) ?? new Vector3();
     const close=camera.position.distanceTo(target)<fitDistance*.68;
     const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.15,fitDistance*.4/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
+    // Write all font sizes first, then measure the actual rendered labels in one batch.
+    for(const n of layout.nodes)labelElements.current.get(n.id)?.style.setProperty("--label-scale",String(n.id===selected||n.id===hovered?1.15:labelScale(n.x,n.y,n.z)));
+    for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===activeEdge?1:labelScale(edge.x,edge.y,edge.z)));
+    for(const sector of sectors){
+      const distance=Math.hypot(camera.position.x-sector.x,camera.position.y-sector.y,camera.position.z-sector.z);
+      sectorElements.current.get(sector.id)?.style.setProperty("--label-scale",String(Math.max(.7,Math.min(1.15,fitDistance*.8/Math.max(1,distance)))));
+    }
+    const measurements=new Map([...labelElements.current.values(),...edgeElements.current.values(),...sectorElements.current.values()].map(element=>[element,{width:element.offsetWidth,height:element.offsetHeight}]));
     const candidates=[...layout.nodes].sort((a,b)=>Number(b.id===selected||b.id===hovered)-Number(a.id===selected||a.id===hovered)||Number(sectorMembers.has(b.id))-Number(sectorMembers.has(a.id))||Number(connected.has(b.id))-Number(connected.has(a.id))||((close?((camera.position.x-a.x)**2+(camera.position.y-a.y)**2+(camera.position.z-a.z)**2)-((camera.position.x-b.x)**2+(camera.position.y-b.y)**2+(camera.position.z-b.z)**2):0))||(degree.get(b.id)??0)-(degree.get(a.id)??0));
 
     const visibleCompanies=new Set<string>();
@@ -128,12 +144,11 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     for(const edge of [...edgeLabels].sort((a,b)=>Number(b.id===activeEdge)-Number(a.id===activeEdge))){
       if((edge.id===activeEdge)!==onlyActive || placedEdges.has(edge.id))continue;
       const element=edgeElements.current.get(edge.id);if(!element)continue;
-      const scale=edge.id===activeEdge?1:labelScale(edge.x,edge.y,edge.z);
       const endpointVisible=visibleCompanies.has(edge.source)||visibleCompanies.has(edge.target);
-      element.style.setProperty("--label-scale",String(scale));
+      const {width,height}=measurements.get(element)!;
       let visible=false;
-      if(onlyActive && endpointVisible){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:224,h:30});visible=true;}
-      else visible=place(element,edge.x,edge.y,edge.z,endpointVisible,160*scale,22*scale);
+      if(onlyActive && endpointVisible){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:width,h:height});visible=true;}
+      else visible=place(element,edge.x,edge.y,edge.z,endpointVisible,width,height);
       if(visible)placedEdges.add(edge.id);
       const arrow=arrowElements.current.get(edge.id);
       if(arrow){
@@ -149,26 +164,16 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     const placeSectors=()=>{
     for(const sector of sectors){
       const element=sectorElements.current.get(sector.id);if(!element)continue;
-      const distance=Math.hypot(camera.position.x-sector.x,camera.position.y-sector.y,camera.position.z-sector.z);
-      const scale=Math.max(.7,Math.min(1.15,fitDistance*.8/Math.max(1,distance)));
-      element.style.setProperty("--label-scale",String(scale));
-    }
-    // Batch layout-affecting scale writes before measuring any marker.
-    const measurements=sectors.map(sector=>{
-      const element=sectorElements.current.get(sector.id);
-      return element ? {sector,element,width:element.offsetWidth,height:element.offsetHeight} : null;
-    });
-    for(const marker of measurements){
-      if(marker)place(marker.element,marker.sector.x,marker.sector.y,marker.sector.z,true,marker.width,marker.height);
+      const {width,height}=measurements.get(element)!;
+      place(element,sector.x,sector.y,sector.z,true,width,height);
     }
     };
     let sectorsPlaced=false;
     let shown=0;
     for(const n of candidates){
       const element=labelElements.current.get(n.id);if(!element)continue;
-      const scale=n.id===selected||n.id===hovered?1.15:labelScale(n.x,n.y,n.z);
-      element.style.setProperty("--label-scale",String(scale));
-      if(place(element,n.x,n.y-12,n.z,true,(size.width<600?118:148)*scale,44*scale)){shown++;visibleCompanies.add(n.id);}
+      const {width,height}=measurements.get(element)!;
+      if(place(element,n.x,n.y,n.z,true,width,height,true)){shown++;visibleCompanies.add(n.id);}
       if(shown===1&&!sectorsPlaced){placeEdges(true);placeEdges();placeSectors();sectorsPlaced=true;}
     }
     if(!sectorsPlaced)placeSectors();

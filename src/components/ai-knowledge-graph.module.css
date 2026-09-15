@@ -114,6 +114,7 @@
 /* Both names scale with distance, with restrained close-up typography. */
 .label3d strong { font-size:calc(12px * var(--label-scale, 1)); }
 .label3d span { font-size:calc(9.5px * var(--label-scale, 1)); }
+.label3d { width:max-content; max-width:calc(180px * var(--label-scale, 1)); gap:calc(3px * var(--label-scale, 1)); transform:translate(var(--label-offset-x, 0px), var(--label-offset-y, 16px)); }
 /* Sector markers use a framed heading; companies remain unframed name/ticker labels. */
 .sector3d { position:relative; font-size:calc(11px * var(--label-scale, 1)); display:flex; align-items:center; width:max-content; max-width:calc(174px * var(--label-scale, 1)); padding:4px 8px; border:1px solid currentColor; border-radius:4px; background:rgba(8,20,32,.82); cursor:pointer; text-align:center; }
 .sectorName { font-family:Georgia,"Noto Serif SC","Songti SC",SimSun,serif; font-weight:400; font-size:inherit; letter-spacing:.06em; line-height:1.4; }
