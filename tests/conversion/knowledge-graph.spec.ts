@@ -468,6 +468,23 @@ test("company labels keep their placement during rotation and after release",asy
  await page.mouse.up();
  await page.waitForTimeout(1000);
  expect(await sides()).toEqual(held);
+ const hiddenPoints=await page.locator('[data-company-id]').evaluateAll(els=>els.filter(el=>getComputedStyle(el).visibility==='hidden').map(el=>{
+   const box=el.parentElement!.getBoundingClientRect();
+   return {id:el.getAttribute('data-company-id')!,x:box.x+box.width/2,y:box.y+box.height/2};
+ }).filter(point=>document.elementFromPoint(point.x,point.y) instanceof HTMLCanvasElement));
+ let revealed=false;
+ for(const point of hiddenPoints.slice(0,20)){
+   await page.mouse.move(point.x,point.y);
+   const label=page.locator(`[data-company-id="${point.id}"]`);
+   await page.waitForTimeout(80);
+   if(await label.getAttribute('data-highlighted')!=='true')continue;
+   await expect(label).toBeVisible();
+   expect((await sides()).filter(node=>node.id!==point.id)).toEqual(held);
+   revealed=true;break;
+ }
+ expect(revealed).toBe(true);
+ await page.mouse.move(1,1);
+ await expect.poll(sides).toEqual(held);
  await page.screenshot({path:'output/stable-rotation-'+test.info().project.name+'.png'});
 });
 

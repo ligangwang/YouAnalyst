@@ -139,7 +139,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const viewChanged=view.some((value,index)=>value!==lastLabelView.current[index]);
     lastLabelView.current=view;
     const occupied: {x:number;y:number;w:number;h:number}[]=[];
-    const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number, companyGap?:number) => {
+    const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number, companyGap?:number, reveal=false) => {
       projected.set(x,y,z).project(camera);
       const px=(projected.x+1)*size.width/2,py=(1-projected.y)*size.height/2;
       const gap=companyGap??0;
@@ -166,6 +166,8 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
         visible=!viewChanged && saved!==undefined?saved:visible && fits(choice!);
       }
       if(companyGap!==undefined)labelVisibility.current.set(element,visible);
+      // An intentional hover may reveal this name without altering the saved layout.
+      if(exploring && reveal && offset)visible=true;
       element.style.visibility=visible?"visible":"hidden";
       if(offset && visible){
         if(companyGap!==undefined){element.style.setProperty("--label-offset-x",`${offset[0]}px`);element.style.setProperty("--label-offset-y",`${offset[1]}px`);}
@@ -239,7 +241,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
       // Match the point shader's physical pixel diameter, then convert to CSS pixels.
       const pointDiameter=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*(emphasis>1?1.5:1);
       const gap=pointDiameter/(2*gl.getPixelRatio())+3;
-      if(place(element,n.x,n.y,n.z,true,width,height,gap)){shown++;visibleCompanies.add(n.id);}
+      if(place(element,n.x,n.y,n.z,true,width,height,gap,n.id===hovered)){shown++;visibleCompanies.add(n.id);}
       if(shown===1&&!sectorsPlaced){placeEdges(true);placeEdges();placeSectors();sectorsPlaced=true;}
     }
     if(!sectorsPlaced)placeSectors();
