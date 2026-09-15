@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { companyFollowIntent, companyFollowSignIn } from "../../src/lib/company-follow-intent";
 import { companyUpdates } from "../../src/lib/knowledge-graph/company-updates";
-import { graphFromMarket } from "../../src/lib/knowledge-graph/market-store";
+import { graphFromMarket, type MarketRelationship } from "../../src/lib/knowledge-graph/market-store";
+import { mergeEdge, type ComputeBatch } from "../../src/lib/research/publisher";
 import type { KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 import { relationshipExplanation, relationshipGroup, relationshipBusiness, relationAnchor, researchCompanyUrl } from "../../src/lib/knowledge-graph/research-view";
 
@@ -43,8 +44,25 @@ test("relationship categories follow supply direction and explain it in Chinese"
 });
 test("public graph exposes only sourced research facts, without arbitrary private fields", () => {
   const node = { id: "US:AMD", status: "PUBLISHED", name: "AMD", aiGraph: { status: "PUBLISHED" as const, stageIds: ["compute"], stages: [], memberships: [], sources: [], order: 1, asOf: "2026-09-15" } };
-  const result = graphFromMarket([node, { id: "ORG:OPENAI", status: "DIRECTORY", name: "OpenAI" }], [{ ...graph.relationships[0], status: "PUBLISHED", evidence: graph.sources, facts: [{ ...graph.relationships[0].facts![0], privateNote: "secret" }, { scope: "unsupported", state: "DOCUMENTED", sourceIds: ["missing"] }] }]);
+  const result = graphFromMarket([node, { id: "ORG:OPENAI", status: "DIRECTORY", name: "OpenAI" }], [{ ...graph.relationships[0], status: "PUBLISHED", evidence: graph.sources, researchFacts: [{ ...graph.relationships[0].facts![0], privateNote: "secret" }, { scope: "unsupported", state: "DOCUMENTED", sourceIds: ["missing"] }] }]);
   assert.equal(result.relationships[0].facts?.length, 1);
   assert.equal(JSON.stringify(result).includes("privateNote"), false);
   assert.equal(JSON.stringify(result).includes("unsupported"), false);
+});
+
+test("published research retains each fact's status, scope, limitation and original review date", () => {
+  const batch: ComputeBatch = { batchId: "follow-test", asOf: "2026-09-14", sources: [{ ...graph.sources[0], retrievedAt: "2026-09-14" }], relationships: [{ source: "US:AMD", target: "ORG:OPENAI", type: "SUPPLIER_OF", facts: [{ state: "DOCUMENTED", scope: "Existing EPYC deployment", limitation: "CPU only", sourceIds: ["source"] }] }] };
+  const previous = mergeEdge(batch, batch.relationships[0], null);
+  const next = { ...batch, asOf: "2026-09-15", relationships: [{ ...batch.relationships[0], facts: [{ state: "ANNOUNCED" as const, scope: "Planned Instinct MI450 capacity", limitation: "No delivery confirmation", sourceIds: ["source"] }] }] };
+  const record = mergeEdge(next, next.relationships[0], previous) as MarketRelationship;
+  const projected = graphFromMarket([{ id: "US:AMD", name: "AMD", status: "PUBLISHED", aiGraph: { status: "PUBLISHED", stageIds: ["compute"], stages: [], memberships: [], sources: [], order: 1, asOf: next.asOf } }, { id: "ORG:OPENAI", name: "OpenAI", status: "DIRECTORY" }], [record]);
+  assert.equal(projected.relationships[0].facts?.length, 2);
+  assert.deepEqual(projected.relationships[0].facts?.map(f => [f.state, f.scope, f.limitation, f.reviewedAt]), [
+    ["DOCUMENTED", "Existing EPYC deployment", "CPU only", "2026-09-14"],
+    ["ANNOUNCED", "Planned Instinct MI450 capacity", "No delivery confirmation", "2026-09-15"],
+  ]);
+  const updates = companyUpdates(projected, ["US:AMD", "ORG:OPENAI"]);
+  assert.equal(updates.length, 2);
+  assert.deepEqual(updates.map(i => [i.state, i.collectedAt, i.eventDate]), [["ANNOUNCED", "2026-09-15", null], ["DOCUMENTED", "2026-09-14", null]]);
+  assert.equal(updates[0].sourceUrl, graph.sources[0].url);
 });

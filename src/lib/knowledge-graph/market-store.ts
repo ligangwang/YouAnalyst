@@ -36,7 +36,7 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
       sources.set(id, { id, url: s.url, title: s.title, sourceDate: s.sourceDate ?? null });
       return id;
     });
-    const facts: GraphFact[] = Array.isArray(r.facts) ? r.facts.flatMap((f: Record<string, unknown>) => {
+    const facts: GraphFact[] = Array.isArray(r.researchFacts) ? r.researchFacts.flatMap((f: Record<string, unknown>) => {
       if (!f || typeof f.scope !== "string" || !["DOCUMENTED", "ANNOUNCED"].includes(String(f.state)) || !Array.isArray(f.sourceIds)) return [];
       const linked = f.sourceIds.filter((id): id is string => typeof id === "string" && sourceIds.includes(id));
       if (!linked.length) return [];
