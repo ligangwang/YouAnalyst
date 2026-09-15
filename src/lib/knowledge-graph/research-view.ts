@@ -24,7 +24,9 @@ export function relationshipBusiness(edge: GraphEdge, zh: boolean) {
   const raw = edge.facts?.map(f => f.scope).join("; ") || edge.summary;
   // Extract only affirmative clauses. A limitation such as "not TPU supply"
   // must never become a product badge; the complete source scope stays visible.
-  const scope = raw.split(/[;,\n。；，]|\.(?=\s)/).filter(clause => !/\b(?:not|no|without|excluding|excluded|unconfirmed|unverified|rather than)\b|不包括|不涉及|不代表|不等于|并非|不是|未证实|未确认|不推断|而非/i.test(clause)).join(" ");
+  const scope = raw.split(/[;,\n。；，]|\.(?=\s)/)
+    .map(clause => clause.split(/\b(?:without|rather\s+than|but\s+not|excluding)\b|但不|而非|而不是/i)[0])
+    .filter(clause => !/\b(?:not|no|excluded|unconfirmed|unverified)\b|不包括|不涉及|不代表|不等于|并非|不是|未证实|未确认|不推断/i.test(clause)).join(" ");
   const products = [...new Set(scope.match(/\b(?:HBM[234]E?|SOCAMM2?|EPYC(?:\s+Turin)?|Instinct\s+MI\d+[A-Z]*|Instinct|MI\d+[A-Z]*|Helios|Blackwell(?:\s+Ultra)?|Vera\s+Rubin|CoWoS|Trainium[234]?|Graviton|TPUs?|GPUs?|CPUs?|x86|ROCm|Pensando|CXL(?:\s*[\d.]+)?|CUDA|NVLink|Claude|ChatGPT|Qianfan|YonBIP|Cortex\s+AI|Holoscan|Snapdragon(?:\s+X2)?|DRIVE(?:\s+AGX)?\s+Hyperion|Data\s+Stream|AI\s+Data\s+Engine|Xeon(?:\s+\d)?|GPUDirect|Paddle|AI\s+cloud|UPS|HBM4E)\b/gi) ?? [])];
   const business: [RegExp, string, string][] = [
     [/nuclear|power.purchase|PPA|Clinton|Crane|electricity/i, "Power supply", "电力供应"],

@@ -57,6 +57,7 @@ test("product summaries exclude negated products and business claims in source s
   assert.equal(business("EPYC, not TPU supply"), "EPYC");
   assert.equal(business("EPYC; TPU supply is not confirmed"), "EPYC");
   assert.equal(business("EPYC 虚拟机；不涉及 TPU 或 GPU 供货"), "EPYC");
+  for (const scope of ["EPYC virtual machines without TPU supply", "EPYC rather than TPU", "Supplies EPYC but not GPUs", "EPYC 而非 TPU"]) assert.equal(business(scope), "EPYC");
   assert.equal(business("Plans to deploy 6 GW of AMD GPUs"), "GPUs");
   assert.equal(business("Unconfirmed GPU supply"), "相关产品或业务详见来源说明");
 });
