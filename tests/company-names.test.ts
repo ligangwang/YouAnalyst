@@ -74,9 +74,9 @@ async function isolatedModule(entry: string, fixture: object) {
   builder.onLoad({filter:/[\\/]firebase[\\/]auth\.ts$/},()=>({contents:"export const getDecodedUserFromRequest = async () => fixture.user;",loader:"js"}));
   builder.onLoad({filter:/[\\/]firebase[\\/]admin-role\.ts$/},()=>({contents:"export const isAdminUser = async () => fixture.admin;",loader:"js"}));
  }}]});
- const module = {exports:{} as Record<string, (...args: never[]) => Promise<unknown>>};
- new Function("fixture","require","module",bundle.outputFiles[0].text)(fixture,createRequire(import.meta.url),module);
- return module.exports;
+ const testModule = {exports:{} as Record<string, (...args: never[]) => Promise<unknown>>};
+ new Function("fixture","require","module",bundle.outputFiles[0].text)(fixture,createRequire(import.meta.url),testModule);
+ return testModule.exports;
 }
 
 test("non-admin name edits fail before any database access", async () => {
