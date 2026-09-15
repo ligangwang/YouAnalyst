@@ -29,10 +29,11 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const sectorElements = useRef(new Map<string, HTMLButtonElement>());
   const layout = useMemo(() => layout3D(graph), [graph]);
   const controls = useRef<CameraControls>(null);
-  const dragging = useRef(false);
+  const preserveLabelPlacements = useRef(false);
   const cameraMoving = useRef(false);
-  const lastInteraction = useRef(-Infinity);
   const labelPlacements = useRef(new WeakMap<HTMLElement, number>());
+  const labelVisibility = useRef(new WeakMap<HTMLElement, boolean>());
+  const lastLabelView = useRef<number[]>([]);
   const companyScales = useRef(new WeakMap<HTMLElement, number>());
   const reducedMotion = useRef(false);
   useEffect(()=>{
@@ -87,6 +88,9 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const previous=lastCameraRequest.current;
     if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset)return;
     lastCameraRequest.current={layout,request:cameraRequest,reset};
+    // Only an explicit new view may rearrange labels after the user has explored it.
+    preserveLabelPlacements.current=false;
+    lastLabelView.current=[];
     const n = layout.nodes.find(n => n.id === selected);
     const sector=sectors.find(s=>s.id===sectorFocus);
     const members=sector?layout.nodes.filter(n=>companySector(n).id===sector.id):[];
@@ -128,11 +132,12 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
-    // Keep each company label on the same side of its node throughout a gesture.
-    // Continue briefly after release so collision placement resumes after damping settles.
-    const settling = performance.now() - lastInteraction.current < 180;
-    const holdLabels = dragging.current || cameraMoving.current || settling;
-    if(settling && !dragging.current)invalidate();
+    // Preserve the user's spatial context during AND after orbit, pan, or zoom.
+    // Camera rest must not move or hide a company they were tracking to avoid overlap.
+    const holdLabels = preserveLabelPlacements.current || cameraMoving.current;
+    const view=[...camera.matrixWorld.elements,...camera.projectionMatrix.elements,size.width,size.height];
+    const viewChanged=view.some((value,index)=>value!==lastLabelView.current[index]);
+    lastLabelView.current=view;
     const occupied: {x:number;y:number;w:number;h:number}[]=[];
     const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number, companyGap?:number) => {
       projected.set(x,y,z).project(camera);
@@ -142,14 +147,25 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
       const previous=companyGap!==undefined?labelPlacements.current.get(element):undefined;
       const ordered=previous!==undefined && previous>=0?[previous,...offsets.map((_,i)=>i).filter(i=>i!==previous)]:offsets.map((_,i)=>i);
       const inView=eligible && projected.z>-1 && projected.z<1;
-      const choice=holdLabels && previous!==undefined?previous:ordered.find(i=>{
+      const fits=(i:number)=>{
         const [dx,dy]=offsets[i];
         const cx=px+dx,cy=py+dy;
         return cx-width/2>2 && cx+width/2<size.width-2 && cy-height/2>2 && cy+height/2<size.height-32 && !occupied.some(p=>Math.abs(cx-p.x)<(width+p.w)/2+3 && Math.abs(cy-p.y)<(height+p.h)/2+2);
-      });
-      if(companyGap!==undefined && (!holdLabels || previous===undefined))labelPlacements.current.set(element,choice??-1);
+      };
+      const exploring=preserveLabelPlacements.current && companyGap!==undefined;
+      // Exploration changes visibility, never the label's side. Hidden labels get a
+      // stable default anchor too, so reappearing labels cannot switch sides.
+      const choice=exploring?(previous!==undefined && previous>=0?previous:0):holdLabels && previous!==undefined && previous>=0?previous:ordered.find(fits);
+      // Previously hidden companies can appear as space enters view; once placed, keep their side.
+      if(companyGap!==undefined && (!holdLabels || previous===undefined || previous<0))labelPlacements.current.set(element,choice??-1);
       const offset=inView && choice!==undefined && choice>=0?offsets[choice]:undefined;
-      const visible=Boolean(offset) && px>-width && px<size.width+width && py>-height && py<size.height+height;
+      let visible=Boolean(offset) && px>-width && px<size.width+width && py>-height && py<size.height+height;
+      if(exploring){
+        const saved=labelVisibility.current.get(element);
+        // Rest, damping notifications, hover, and font easing cannot reshuffle visibility.
+        visible=!viewChanged && saved!==undefined?saved:visible && fits(choice!);
+      }
+      if(companyGap!==undefined)labelVisibility.current.set(element,visible);
       element.style.visibility=visible?"visible":"hidden";
       if(offset && visible){
         if(companyGap!==undefined){element.style.setProperty("--label-offset-x",`${offset[0]}px`);element.style.setProperty("--label-offset-y",`${offset[1]}px`);}
@@ -232,7 +248,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
 
   });
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;invalidate();}} onControlStart={()=>{dragging.current=true;lastInteraction.current=performance.now();}} onControl={()=>{lastInteraction.current=performance.now();}} onControlEnd={()=>{dragging.current=false;lastInteraction.current=performance.now();invalidate();}}/>
+    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>

@@ -442,7 +442,7 @@ test("relationship labels always have a visible company endpoint",async({page})=
 });
 
 
-test("company labels keep their placement side during rotation",async({page})=>{
+test("company labels keep their placement during rotation and after release",async({page})=>{
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
@@ -459,8 +459,15 @@ test("company labels keep their placement side during rotation",async({page})=>{
  const retained=during.filter(n=>before.some(b=>b.id===n.id));
  expect(retained.length).toBeGreaterThan(5);
  for(const node of retained)expect(node).toEqual(before.find(b=>b.id===node.id));
+ // Let camera damping finish while held, then isolate the release from projection changes.
+ await page.waitForTimeout(1000);
+ const held=await sides();
+ expect(held.some(node=>!before.some(old=>old.id===node.id))).toBe(true);
+ expect(before.some(node=>!held.some(current=>current.id===node.id))).toBe(true);
+ for(const node of held.filter(node=>before.some(old=>old.id===node.id)))expect(node).toEqual(before.find(old=>old.id===node.id));
  await page.mouse.up();
- await page.waitForTimeout(350);
+ await page.waitForTimeout(1000);
+ expect(await sides()).toEqual(held);
  await page.screenshot({path:'output/stable-rotation-'+test.info().project.name+'.png'});
 });
 
