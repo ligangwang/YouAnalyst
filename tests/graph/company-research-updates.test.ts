@@ -50,6 +50,18 @@ test("public graph exposes only sourced research facts, without arbitrary privat
   assert.equal(JSON.stringify(result).includes("unsupported"), false);
 });
 
+test("product summaries exclude negated products and business claims in source scopes", () => {
+  const e = graph.relationships[0];
+  const business = (scope: string) => relationshipBusiness({ ...e, facts: [{ ...e.facts![0], scope }] }, true);
+  assert.equal(business("Google Cloud EPYC virtual machines; not TPU or GPU supply"), "EPYC / 云服务");
+  assert.equal(business("EPYC, not TPU supply"), "EPYC");
+  assert.equal(business("EPYC; TPU supply is not confirmed"), "EPYC");
+  assert.equal(business("EPYC 虚拟机；不涉及 TPU 或 GPU 供货"), "EPYC");
+  for (const scope of ["EPYC virtual machines without TPU supply", "EPYC rather than TPU", "Supplies EPYC but not GPUs", "EPYC 而非 TPU"]) assert.equal(business(scope), "EPYC");
+  assert.equal(business("Plans to deploy 6 GW of AMD GPUs"), "GPUs");
+  assert.equal(business("Unconfirmed GPU supply"), "相关产品或业务详见来源说明");
+});
+
 test("published research retains each fact's status, scope, limitation and original review date", () => {
   const batch: ComputeBatch = { batchId: "follow-test", asOf: "2026-09-14", sources: [{ ...graph.sources[0], retrievedAt: "2026-09-14" }], relationships: [{ source: "US:AMD", target: "ORG:OPENAI", type: "SUPPLIER_OF", facts: [{ state: "DOCUMENTED", scope: "Existing EPYC deployment", limitation: "CPU only", sourceIds: ["source"] }] }] };
   const previous = mergeEdge(batch, batch.relationships[0], null);
