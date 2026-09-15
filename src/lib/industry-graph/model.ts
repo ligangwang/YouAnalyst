@@ -45,7 +45,7 @@ export type IndustryGraph = {
   requestedTicker?: string;
 };
 export const RELATIONSHIP_LABELS: Record<string, string> = {
-  INTEGRATES_TECH_FROM: "integrates technology from", PLANS_TO_ADOPT: "plans to adopt", ECOSYSTEM_PARTNER_OF: "ecosystem partner of", ENERGY_AGREEMENT_WITH: "energy agreement with",
+  INTEGRATES_TECHNOLOGY_FROM: "integrates technology from", PLANNED_ADOPTER_OF: "plans to adopt", ECOSYSTEM_PARTNER_OF: "is an ecosystem partner of", ENERGY_AGREEMENT_WITH: "has an energy agreement with",
   SUPPLIER_OF: "supplies", CUSTOMER_OF: "buys from", COMPETES_WITH: "competes with",
   PARTNER_OF: "partners with", DISTRIBUTES_FOR: "distributes for", MANUFACTURES_FOR: "manufactures for",
 };

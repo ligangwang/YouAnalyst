@@ -48,7 +48,7 @@ const publishedGraph: KnowledgeGraph = {
   ],
   relationships: [
     { id: "incoming", source: "XSHG:688041", target: "US:AMD", type: "SUPPLIER_OF", summary: "Published supporting summary.", sourceIds: ["source"], commercialStatus: "DOCUMENTED" },
-    { id: "planned", source: "US:AMD", target: "ORG:private", type: "PLANS_TO_ADOPT", summary: "Announced plans only.", sourceIds: ["source"], commercialStatus: "ANNOUNCED" },
+    { id: "planned", source: "US:AMD", target: "ORG:private", type: "PLANNED_ADOPTER_OF", summary: "Announced plans only.", sourceIds: ["source"], commercialStatus: "ANNOUNCED" },
     { id: "stage", source: "US:AMD", target: "stage:compute", type: "PARTICIPATES_IN", summary: "", sourceIds: [], commercialStatus: "" },
   ],
   sources: [{ id: "source", title: "Company announcement", url: "https://example.com/announcement", sourceDate: null }],
@@ -71,4 +71,24 @@ test("retired API returns Gone without loading an independent dataset", async ()
   const response = retiredGraph();
   assert.equal(response.status, 410);
   assert.equal((await response.json()).replacement, "/api/knowledge-graph");
+});
+
+import { relationLabels } from "../../src/lib/knowledge-graph/relationship-labels";
+import { RELATIONSHIP_LABELS } from "../../src/lib/industry-graph/model";
+import { translateUi } from "../../src/lib/i18n/translate";
+test("company relationship labels cover canonical types and translate complete headings", () => {
+  for (const type of Object.keys(relationLabels).filter(type => type !== "PARTICIPATES_IN")) {
+    assert.ok(RELATIONSHIP_LABELS[type], type);
+  }
+  for (const [type, expected] of [
+    ["INTEGRATES_TECHNOLOGY_FROM", "AMD 集成 Private Company 的技术"],
+    ["PLANNED_ADOPTER_OF", "AMD 计划采用 Private Company 的技术"],
+    ["ECOSYSTEM_PARTNER_OF", "AMD 是 Private Company 的生态伙伴"],
+    ["ENERGY_AGREEMENT_WITH", "AMD 与 Private Company 签订能源协议"],
+  ]) {
+    const graph = { ...publishedGraph, relationships: [{ ...publishedGraph.relationships[1], type }] };
+    const label = buildCompanyResearch("AMD", [], companyResearchGraph(graph)).connections[0].label;
+    assert.equal(translateUi(label, "zh-CN"), expected);
+    assert.equal(translateUi(label, "en"), label);
+  }
 });
