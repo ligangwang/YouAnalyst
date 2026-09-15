@@ -172,7 +172,10 @@ test("devices without WebGL show an honest message without a mode switch", async
   });
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: graph }) : route.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en&view=3d");
-  await expect(page.getByRole("alert")).toContainText("This browser cannot display the graph");
+  await expect(page.getByRole("alert")).toContainText("This browser cannot display the 3D graph");
+  const directory = page.getByRole("region", {name:"AI companies and supply chain",exact:true});
+  await expect(directory.locator("details").first()).toHaveAttribute("open", "");
+  await expect(directory.locator("li").first()).toBeVisible();
   await expect(page.getByRole("button", {name:/2D|3D/})).toHaveCount(0);
 });
 

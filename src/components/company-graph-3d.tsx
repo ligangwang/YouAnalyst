@@ -11,7 +11,7 @@ import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./ai-knowledge-graph.module.css";
 
-type Props = { cameraRequest: number; sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { onUnavailable?: () => void; cameraRequest: number; sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -246,6 +246,11 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   </>;
 }
 
+function GraphUnavailable({ onUnavailable }: Pick<Props, "onUnavailable">) {
+  const { text } = useLocale();
+  useEffect(() => { onUnavailable?.(); }, [onUnavailable]);
+  return <div role="alert" className={styles.empty}>{text("This browser cannot display the 3D graph. The company list is expanded below so you can continue researching.", "此浏览器暂时无法显示 3D 图谱。下方公司列表已展开，你可以继续研究。")}</div>;
+}
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
   const [supported, setSupported] = useState<boolean | null>(null);
@@ -262,7 +267,7 @@ export default function CompanyGraph3D(props: Props) {
     });
     return () => { active = false; };
   }, []);
-  const fallback = <div role="alert" className={styles.empty}>{text("This browser cannot display the graph. Try enabling graphics acceleration or using another browser.", "此浏览器暂时无法显示图谱。请尝试开启图形加速或使用其他浏览器。")}</div>;
+  const fallback = <GraphUnavailable onUnavailable={props.onUnavailable} />;
   if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
   if (!supported) return fallback;
   return <div className={styles.canvas3d}>

@@ -20,7 +20,7 @@ export function companyRole(node: GraphNode, zh: boolean) {
   const stage = node.stageIds?.[0] ?? "";
   return roles[stage]?.[zh ? 1 : 0] ?? (zh ? `参与 AI 产业链的${companySector(node).zh}环节。` : `Participates in the ${companySector(node).en.toLowerCase()} part of the AI supply chain.`);
 }
-export function relationshipBusiness(edge: GraphEdge, zh: boolean) {
+export function relationshipBusiness(edge: GraphEdge, zh: boolean, limit = 4) {
   const raw = edge.facts?.map(f => f.scope).join("; ") || edge.summary;
   // Extract only affirmative clauses. A limitation such as "not TPU supply"
   // must never become a product badge; the complete source scope stays visible.
@@ -44,7 +44,7 @@ export function relationshipBusiness(edge: GraphEdge, zh: boolean) {
   ];
   const category = business.find(([pattern]) => pattern.test(scope));
   if (category) products.push(category[zh ? 2 : 1]);
-  return products.slice(0, 4).join(" / ") || (zh ? "相关产品或业务详见来源说明" : "See the source description for the specific product or business");
+  return products.slice(0, limit).join(" / ") || (zh ? "相关产品或业务详见来源说明" : "See the source description for the specific product or business");
 }
 export function relationshipExplanation(edge: GraphEdge, graph: KnowledgeGraph, zh: boolean) {
   const name = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n ? companyName(n, zh ? "zh-CN" : "en") : id; };

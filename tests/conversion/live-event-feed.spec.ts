@@ -6,6 +6,7 @@ import { filingEvent } from "../../src/lib/events/model";
 const origin = "http://live-feed.test";
 const initial = { items: Array.from({ length: 8 }, (_, index) => filingEvent({ type: index % 2 ? "SEC_13F" : "SEC_FORM4", accessionNumber: `0001234567-26-${String(index + 1).padStart(6, "0")}`, filingDate: "2026-09-09", sourceUrl: "https://www.sec.gov/Archives/edgar/data/1234567/filing.txt", entityName: ["Advanced Micro Devices", "Berkshire Hathaway", "NVIDIA", "Apple", "Microsoft", "Alphabet", "Tesla", "Amazon"][index], tickers: ["AMD", "NVDA"], amended: false }, `2026-09-10T12:00:0${8 - index}.000Z`)), nextCursor: "older-page" };
 const incoming = filingEvent({ type: "SEC_FORM4", accessionNumber: "0001234567-26-000020", filingDate: "2026-09-10", sourceUrl: "https://www.sec.gov/Archives/edgar/data/1234567/new.txt", entityName: "New arrival", tickers: ["AMD"], amended: false }, "2026-09-10T13:00:00.000Z");
+initial.items[0].activity = [{owner:"Jane Example",code:"A",shares:1200,valueUsd:null,date:"2026-09-02",security:"Common stock"}];
 let html: string;
 test.beforeAll(async () => {
   const result = await build({ stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import {LiveEventFeed} from "./src/components/live-event-feed"; createRoot(document.getElementById("root")).render(<LiveEventFeed type={new URLSearchParams(location.search).get("type") || "all"} initialPage={window.emptyFeed ? {items:[],nextCursor:null} : ${JSON.stringify(initial)}}/>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "feed.js", platform: "browser", alias: { "next/link": path.resolve("tests/industry/link.tsx") } });
@@ -27,6 +28,10 @@ test.beforeEach(async ({ page }) => {
 
 test("initial content appears, new events arrive without refresh, and source links are safe", async ({ page }, testInfo) => {
   await page.goto(origin);
+  await expect(page.getByText("Jane Example",{exact:true})).toBeVisible();
+  await expect(page.getByRole("article").first()).toContainText("Grant / award / other acquisition");
+  await expect(page.getByRole("article").first()).toContainText("1,200 shares / units");
+  await expect(page.getByRole("article").first()).toContainText("2026-09-02");
   await expect(page.getByRole("article")).toHaveCount(8);
   await page.evaluate(next => window.dispatchEvent(new CustomEvent("test-feed", { detail: next })), { items: [incoming, ...initial.items], nextCursor: null });
   await expect(page.getByRole("status")).toHaveText("Live");
@@ -82,7 +87,7 @@ test("compact timestamps advance locally and reveal the exact time on tap", asyn
   const card = page.getByRole("article").first();
   const timestamp = card.locator('time[datetime="2026-09-10T12:00:08.000Z"]');
   await expect(timestamp).toHaveText("now");
-  await expect(card).not.toContainText("Added");
+  await expect(card).toContainText("Added");
   await page.clock.fastForward(60_000);
   await expect(timestamp).toHaveText("1m");
   await page.clock.fastForward(60_000);

@@ -1,8 +1,9 @@
 import type { KnowledgeGraph } from "./model";
 import type { PublicEvent } from "../events/model";
+import type { InsiderActivity } from "../events/insider-summary";
 import { relationAnchor, researchCompanyUrl } from "./research-view";
 
-export type CompanyUpdate = { id: string; kind: "RESEARCH" | "FILING"; companyIds: string[]; collectedAt: string; eventDate: string | null; sourceDate: string | null; sourceUrl: string; sourceTitle: string; description: string; href: string; edgeId?: string; factId?: string; state?: string };
+export type CompanyUpdate = { id: string; kind: "RESEARCH" | "FILING"; companyIds: string[]; collectedAt: string; eventDate: string | null; sourceDate: string | null; sourceUrl: string; sourceTitle: string; description: string; href: string; edgeId?: string; factId?: string; state?: string; activity?: InsiderActivity[] };
 const date = (value: unknown): string | null => typeof value === "string" && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
 export function companyUpdates(graph: KnowledgeGraph, followedIds: string[], filings: PublicEvent[] = []): CompanyUpdate[] {
   const followed = new Set(followedIds), nodes = new Map(graph.nodes.filter(n => n.kind === "COMPANY").map(n => [n.id, n]));
@@ -24,7 +25,7 @@ export function companyUpdates(graph: KnowledgeGraph, followedIds: string[], fil
     const companyIds = filing.tickers.map(t => `US:${t}`).filter(id => followed.has(id) && nodes.has(id));
     if (!companyIds.length || !filing.sourceUrl.startsWith("https://www.sec.gov/Archives/")) continue;
     const focal = nodes.get(companyIds[0])!;
-    items.push({ id: filing.id, kind: "FILING", companyIds, collectedAt: filing.publishedAt, eventDate: filing.occurredAt, sourceDate: filing.occurredAt, sourceUrl: filing.sourceUrl, sourceTitle: filing.title, description: filing.summary, href: `${researchCompanyUrl(focal)}#${filing.type === "SEC_FORM4" ? "insider-transactions" : "institutional-holdings"}` });
+    items.push({ id: filing.id, kind: "FILING", companyIds, collectedAt: filing.publishedAt, eventDate: filing.occurredAt, sourceDate: filing.occurredAt, sourceUrl: filing.sourceUrl, sourceTitle: filing.title, description: filing.summary, ...(filing.activity ? {activity:filing.activity} : {}), href: `${researchCompanyUrl(focal)}#${filing.type === "SEC_FORM4" ? "insider-transactions" : "institutional-holdings"}` });
   }
   return [...new Map(items.map(i => [i.id,i])).values()].sort((a,b) => b.collectedAt.localeCompare(a.collectedAt) || a.id.localeCompare(b.id));
 }

@@ -11,6 +11,7 @@ import styles from "./live-event-feed.module.css";
 import { eventFilters, type EventFilter } from "@/lib/events/filters";
 import { FilterTabs } from "./filter-tabs";
 import { RelativeTime } from "./relative-time";
+import { InsiderActivitySummary } from "./insider-activity-summary";
 
 const feedChinese: Record<string, string> = {"Latest":"最新动态","Live":"实时","Paused":"已暂停","Reconnecting":"重新连接中","Connecting":"连接中","A quieter view of the market. Updated as events arrive.":"静看市场脉动，新动态自动呈现。","↑ New updates":"↑ 查看新动态","We’ll be right back.":"稍后即将恢复。","You’re here early.":"你来得很早。","Nothing here yet.":"暂无动态。","Your feed will appear when the connection is restored.":"连接恢复后，动态将自动显示。","New filings will appear here as they’re processed. Leave this page open—we’ll bring them to you.":"新披露处理完成后会自动出现在这里，无需刷新。","Loading…":"加载中…","Earlier events":"更早动态","You’ve reached the end of this view.":"已到达当前视图末尾。","INSIDER FILING":"内部人交易披露","INSTITUTIONAL HOLDINGS":"机构持仓","Read filing":"查看原文","Loading your feed":"正在加载动态","The feed is temporarily unavailable. Reconnecting automatically.":"动态暂时不可用，正在自动重连。","Couldn’t load older events. Please try again.":"无法加载更早动态，请重试。","All":"全部","Insider activity":"内部人交易","Institutional holdings":"机构持仓"};
 function useFeedText() { const { chinese } = useLocale(); return (value: string) => chinese ? feedChinese[value] ?? value : value; }
@@ -120,9 +121,9 @@ function EventCard({ event }: { event: PublicEvent }) {
   const t = useFeedText();
   return <article className={styles.card} aria-label={event.title}>
     <div className={styles.meta}><span className={styles.icon} aria-hidden="true"><FeedIcon /></span><span>{event.type === "SEC_FORM4" ? t("INSIDER FILING") : t("INSTITUTIONAL HOLDINGS")}</span><span aria-hidden="true">·</span><span>SEC EDGAR</span></div>
-    <h2>{event.title}</h2><p>{event.summary}</p>
+    <h2>{event.title}</h2>{event.activity?.length ? <InsiderActivitySummary activity={event.activity} /> : <p>{event.type === "SEC_FORM4" ? (chinese ? "尚无可核实的交易明细，请查看原始披露。" : "Verified transaction details are not available here yet. Open the filing for the reported activity.") : event.summary}</p>}
     <div className={styles.bottom}><div className={styles.tickers}>{event.tickers.slice(0, 5).map(ticker => <Link key={ticker} href={`/ticker/${encodeURIComponent(ticker)}`}>{ticker}</Link>)}{event.tickers.length > 5 && <span className={styles.status}>+{event.tickers.length - 5}</span>}</div><a className={styles.source} href={event.sourceUrl} target="_blank" rel="noopener noreferrer">{t("Read filing")} <span aria-hidden="true">↗</span></a></div>
-    <div className={styles.date}><span>{chinese ? "披露于" : <UiText text={"Filed"} />} <time dateTime={event.occurredAt}>{dateLabel(event.occurredAt, chinese)}</time></span><span aria-hidden="true"> · </span><RelativeTime value={event.publishedAt} /></div>
+    <div className={styles.date}><span>{chinese ? "披露于" : <UiText text={"Filed"} />} <time dateTime={event.occurredAt}>{dateLabel(event.occurredAt, chinese)}</time></span><span aria-hidden="true"> · </span><span>{chinese ? "收录于" : "Added"} <RelativeTime value={event.publishedAt} /></span></div>
   </article>;
 }
 

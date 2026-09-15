@@ -21,11 +21,12 @@ test.beforeAll(async () => {
     import { FollowedCompaniesPage } from "./src/components/followed-companies-page";
     import { LocaleProvider } from "./src/components/providers/locale-provider";
     const graph = ${JSON.stringify(graph)};
+    const dense = {...graph,nodes:[...graph.nodes,...Array.from({length:6},(_,i)=>({id:'ORG:PARTNER'+i,name:'Partner '+i,kind:'COMPANY',order:3+i}))],relationships:[...graph.relationships,...Array.from({length:6},(_,i)=>({id:'partner'+i,source:'US:AMD',target:'ORG:PARTNER'+i,type:'PARTNER_OF',summary:i%2?'Helios design':'EPYC deployment',sourceIds:['s'],commercialStatus:'DOCUMENTED'}))]};
     const subscribe = fn => { window.addEventListener("route-change",fn); return () => window.removeEventListener("route-change",fn); };
     function App() {
       const route = useSyncExternalStore(subscribe, () => window.location.pathname+window.location.search);
       const url = new URL(window.location.href);
-      return <LocaleProvider locale={url.pathname.startsWith("/zh-cn") ? "zh-CN" : "en"}>{url.pathname === "/auth" ? <AuthPage requestedNext={url.searchParams.get("next")} initialCreate /> : route.includes("following") ? <FollowedCompaniesPage /> : <main><h1>AMD</h1><CompanyFollowButton companyId="US:AMD"/><CompanyResearchPanel companyId="US:AMD" initialGraph={graph}/><a href="/watchlists/following">My companies</a></main>}</LocaleProvider>;
+      return <LocaleProvider locale={url.pathname.startsWith("/zh-cn") ? "zh-CN" : "en"}>{url.pathname === "/auth" ? <AuthPage requestedNext={url.searchParams.get("next")} initialCreate /> : route.includes("following") ? <FollowedCompaniesPage /> : <main><h1>AMD</h1><CompanyFollowButton companyId="US:AMD"/><CompanyResearchPanel companyId="US:AMD" initialGraph={url.searchParams.has('dense') ? dense : graph}/><a href="/watchlists/following">My companies</a></main>}</LocaleProvider>;
     }
     createRoot(document.getElementById("root")).render(<App/>);
   `, resolveDir: process.cwd(), loader: "tsx" }, bundle: true, write: false, outfile: "follows.js", platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/conversion/fixtures/mocks.tsx"), "next/navigation": path.resolve("tests/conversion/fixtures/mocks.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") } });
@@ -54,6 +55,8 @@ test("follow registration preserves original research location and synchronizes 
   await page.goto(origin + destination);
   await page.getByRole("button", { name: "＋ Follow", exact: true }).first().click();
   expect(new URL(page.url()).searchParams.get("next")).toContain("followCompany=US%3AAMD");
+  await expect(page.getByRole("heading",{name:"Follow AMD",exact:true})).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("US:AMD");
   await page.getByRole("button", { name: "Continue with Google" }).click();
   await expect(page.getByRole("alert")).toContainText("follow was not saved");
   expect(new URL(page.url()).pathname).toBe("/auth");
@@ -61,7 +64,7 @@ test("follow registration preserves original research location and synchronizes 
   await expect(page).toHaveURL(origin + destination);
   await expect(page.getByRole("button", { name: "Following", exact: true })).toHaveCount(2);
   await page.getByRole("button", { name: "Following", exact: true }).first().click();
-  await expect(page.getByRole("button", { name: "＋ Follow", exact: true })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "＋ Follow", exact: true })).toHaveCount(3);
   expect(ids).toEqual([]);
 });
 
@@ -79,6 +82,7 @@ test("private list separates historic source dates and clears when the account c
   });
   await page.goto(origin + "/zh-cn/watchlists/following");
   await expect(page.getByRole("heading", { name: "我的关注", exact: true })).toBeVisible();
+  await page.getByRole("button",{name:"更新",exact:true}).click();
   await expect(page.getByText("2024-01-02", { exact: true })).toBeVisible();
   await expect(page.getByText("2026-09-15", { exact: true })).toBeVisible();
   await expect(page.getByText("来源未明确", { exact: true })).toBeVisible();
@@ -102,6 +106,9 @@ test("company research exposes planned business, sources and localized continuat
   });
   await page.goto(origin + "/zh-cn/ticker/AMD");
   await expect(page.getByRole("heading", { name: "AI 产业链角色" })).toBeVisible();
+  await expect(page.getByText("含已宣布／计划中事项",{exact:true})).toBeVisible();
+  await expect(page.getByRole("link", { name: "Historic capacity announcement ↗" })).not.toBeVisible();
+  await page.getByText("查看证据",{exact:true}).click();
   await expect(page.getByText("已宣布／计划中，尚不代表已交付", { exact: true })).toBeVisible();
   await expect(page.getByText("超威半导体已宣布计划向OpenAI提供产品或服务。", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "OpenAI", exact: true })).toHaveAttribute("href", "/zh-cn/company/ORG%3AOPENAI");
@@ -113,4 +120,38 @@ test("company research exposes planned business, sources and localized continuat
   await expect(page.getByRole("button", { name: "已关注", exact: true })).toHaveCount(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("research-panel.png"), fullPage: true });
+});
+
+test("compact relationships filter products, expand all and honor links into hidden evidence", async ({page}) => {
+ await page.route("**/*",route => route.request().isNavigationRequest() ? route.fulfill({contentType:"text/html",body:html}) : route.fulfill({json:graph}));
+ await page.goto(origin + "/en/ticker/AMD?dense");
+ const research = page.getByRole("region",{name:"AI supply-chain research"});
+ await expect(research.getByRole("article")).toHaveCount(5);
+ await research.getByRole("button",{name:"EPYC",exact:true}).click();
+ await expect(research.getByRole("article")).toHaveCount(3);
+ await expect(research.getByText("Helios design",{exact:true})).toHaveCount(0);
+ await research.getByRole("button",{name:"All",exact:true}).click();
+ await research.getByRole("button",{name:"Show all 6",exact:true}).click();
+ await expect(research.getByRole("article")).toHaveCount(7);
+ await page.goto(origin + `/en/ticker/AMD?dense#${relationAnchor("partner5")}`);
+ const target = page.locator(`#${relationAnchor("partner5")}`);
+ await expect(target).toBeVisible();
+ await expect(target.getByRole("link",{name:"Historic capacity announcement ↗"})).toBeVisible();
+});
+
+test("signed-out following shows public examples without requesting private updates", async ({page}) => {
+ let privateRequests = 0;
+ await page.route("**/*",route => {
+   const url = new URL(route.request().url());
+   if (route.request().isNavigationRequest()) return route.fulfill({contentType:"text/html",body:html});
+   if (url.pathname === "/api/company-updates") privateRequests++;
+   return route.fulfill({json:graph});
+ });
+ await page.goto(origin + "/en/watchlists/following");
+ const preview = page.getByRole("region",{name:"Following preview"});
+ await expect(preview.getByRole("heading",{name:"AMD",exact:true})).toBeVisible();
+ await expect(preview).toContainText("not a saved list");
+ await page.getByRole("button",{name:"Updates",exact:true}).click();
+ await expect(preview).toContainText("2024-01-02");
+ expect(privateRequests).toBe(0);
 });
