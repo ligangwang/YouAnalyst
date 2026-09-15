@@ -21,8 +21,11 @@ export function companyRole(node: GraphNode, zh: boolean) {
   return roles[stage]?.[zh ? 1 : 0] ?? (zh ? `参与 AI 产业链的${companySector(node).zh}环节。` : `Participates in the ${companySector(node).en.toLowerCase()} part of the AI supply chain.`);
 }
 export function relationshipBusiness(edge: GraphEdge, zh: boolean) {
-  const scope = edge.facts?.map(f => f.scope).join(" ") || edge.summary;
-  const products = [...new Set(scope.match(/\b(?:HBM[234]E?|SOCAMM2?|EPYC(?:\s+Turin)?|Instinct\s+MI\d+[A-Z]*|MI\d+[A-Z]*|Helios|Blackwell(?:\s+Ultra)?|Vera\s+Rubin|CoWoS|Trainium[234]?|Graviton|TPUs?|CXL(?:\s*[\d.]+)?|CUDA|NVLink|Claude|ChatGPT|Qianfan|YonBIP|Cortex\s+AI|Holoscan|Snapdragon(?:\s+X2)?|DRIVE(?:\s+AGX)?\s+Hyperion|Data\s+Stream|AI\s+Data\s+Engine|Xeon(?:\s+\d)?|GPUDirect|Paddle|AI\s+cloud|UPS|HBM4E)\b/gi) ?? [])];
+  const raw = edge.facts?.map(f => f.scope).join("; ") || edge.summary;
+  // Extract only affirmative clauses. A limitation such as "not TPU supply"
+  // must never become a product badge; the complete source scope stays visible.
+  const scope = raw.split(/[;,\n。；，]|\.(?=\s)/).filter(clause => !/\b(?:not|no|without|excluding|excluded|unconfirmed|unverified|rather than)\b|不包括|不涉及|不代表|不等于|并非|不是|未证实|未确认|不推断|而非/i.test(clause)).join(" ");
+  const products = [...new Set(scope.match(/\b(?:HBM[234]E?|SOCAMM2?|EPYC(?:\s+Turin)?|Instinct\s+MI\d+[A-Z]*|Instinct|MI\d+[A-Z]*|Helios|Blackwell(?:\s+Ultra)?|Vera\s+Rubin|CoWoS|Trainium[234]?|Graviton|TPUs?|GPUs?|CPUs?|x86|ROCm|Pensando|CXL(?:\s*[\d.]+)?|CUDA|NVLink|Claude|ChatGPT|Qianfan|YonBIP|Cortex\s+AI|Holoscan|Snapdragon(?:\s+X2)?|DRIVE(?:\s+AGX)?\s+Hyperion|Data\s+Stream|AI\s+Data\s+Engine|Xeon(?:\s+\d)?|GPUDirect|Paddle|AI\s+cloud|UPS|HBM4E)\b/gi) ?? [])];
   const business: [RegExp, string, string][] = [
     [/nuclear|power.purchase|PPA|Clinton|Crane|electricity/i, "Power supply", "电力供应"],
     [/liquid.cool|cooling|thermal/i, "Cooling and thermal management", "散热与温控"],
@@ -39,7 +42,7 @@ export function relationshipBusiness(edge: GraphEdge, zh: boolean) {
   ];
   const category = business.find(([pattern]) => pattern.test(scope));
   if (category) products.push(category[zh ? 2 : 1]);
-  return products.slice(0, 4).join(" / ") || (zh ? "相关产品或业务详见下方来源说明" : "See the source description below for the specific product or business");
+  return products.slice(0, 4).join(" / ") || (zh ? "相关产品或业务详见来源说明" : "See the source description for the specific product or business");
 }
 export function relationshipExplanation(edge: GraphEdge, graph: KnowledgeGraph, zh: boolean) {
   const name = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n ? companyName(n, zh ? "zh-CN" : "en") : id; };
