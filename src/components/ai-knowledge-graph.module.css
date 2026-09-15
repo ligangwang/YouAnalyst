@@ -92,7 +92,7 @@
 .label3d { width:148px; transform:translateY(16px); }
 .label3d strong { font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .label3d span { font-size:11px; }
-.edgeLabel3d { max-width:160px; padding:4px 8px; border:1px solid #719aaa55; border-radius:12px; background:#0a1826e8; color:#caeef5; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+.edgeLabel3d { max-width:calc(160px * var(--label-scale, 1)); padding:calc(3px * var(--label-scale, 1)) calc(6px * var(--label-scale, 1)); border:1px solid #719aaa55; border-radius:12px; background:#0a1826e8; color:#caeef5; font-size:calc(9px * var(--label-scale, 1)); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
 .searchResults { display:flex; flex-wrap:wrap; gap:8px; max-height:200px; overflow:auto; margin:12px 0; }
 .searchResults button, .companyList button { border:1px solid #253b4b; border-radius:12px; background:#0b1925; color:#d9eaf5; padding:10px 14px; text-align:left; cursor:pointer; }
 .companyBrowser { margin-top:20px; border-top:1px solid #243749; padding:18px 0; color:#c2d8e7; }
@@ -113,7 +113,7 @@
 
 /* Both names scale with distance, with restrained close-up typography. */
 .label3d strong { font-size:calc(12px * var(--label-scale, 1)); }
-.label3d span { font-size:max(8px, calc(9.5px * var(--label-scale, 1))); }
+.label3d span { font-size:calc(9.5px * var(--label-scale, 1)); }
 /* Sector markers use a framed heading; companies remain unframed name/ticker labels. */
 .sector3d { position:relative; font-size:calc(11px * var(--label-scale, 1)); display:flex; align-items:center; width:max-content; max-width:calc(174px * var(--label-scale, 1)); padding:4px 8px; border:1px solid currentColor; border-radius:4px; background:rgba(8,20,32,.82); cursor:pointer; text-align:center; }
 .sectorName { font-family:Georgia,"Noto Serif SC","Songti SC",SimSun,serif; font-weight:400; font-size:inherit; letter-spacing:.06em; line-height:1.4; }
