@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { build } from "esbuild";
+import { PerspectiveCamera, Vector3 } from "three";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
@@ -7,6 +8,39 @@ import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+test("line hover previews one relationship, click pins it, and blank space clears it",async({page})=>{
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+  await page.goto("http://graph.test/map?lang=en");
+  const canvas=page.locator("canvas"), labels=page.locator('[data-source]:visible');
+  await expect(canvas).toBeVisible();
+  await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
+  await expect(labels).toHaveCount(0);
+  await canvas.scrollIntoViewIfNeeded();
+  const box=(await canvas.boundingBox())!;
+  const layout=layout3D(graph);
+  const distance=layout.radius/Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,box.width/box.height)))*1.15;
+  const camera=new PerspectiveCamera(45,box.width/box.height,1,10000);
+  camera.position.set(distance*.2,distance*.12,distance);camera.lookAt(0,0,0);camera.updateMatrixWorld();
+  let hit:{x:number;y:number}|undefined;
+  for(const edge of layout.edges){
+    const a=layout.nodes.find(n=>n.id===edge.source)!,b=layout.nodes.find(n=>n.id===edge.target)!;
+    const p=new Vector3(a.x,a.y,a.z).lerp(new Vector3(b.x,b.y,b.z),.55).project(camera);
+    const x=box.x+(p.x+1)*box.width/2,y=box.y+(1-p.y)*box.height/2;
+    await page.mouse.move(x,y);await page.waitForTimeout(60);
+    if(await labels.count()){hit={x,y};break;}
+  }
+  expect(hit).toBeDefined();
+  await expect(labels).toHaveCount(1);
+  await page.mouse.click(hit!.x,hit!.y);
+  await expect(page.getByRole("region",{name:"Selected connection",exact:true})).toBeVisible();
+  await page.mouse.move(5,5);
+  await expect(page.locator('[data-active="true"]:visible')).toHaveCount(1);
+  await canvas.scrollIntoViewIfNeeded();const current=(await canvas.boundingBox())!;
+  await page.mouse.click(current.x+5,current.y+5);
+  await expect(labels).toHaveCount(0);
+  await expect(page.getByRole("region",{name:"Selected connection",exact:true})).toHaveCount(0);
+});
 let html: string;
 test.beforeAll(async () => {
   const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", plugins: [{ name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;}` })); } }] });
@@ -200,8 +234,11 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
   await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
   await expect(page.getByRole("complementary")).toBeVisible();
+  await page.mouse.move(5,5);
   const labels=page.locator('button[class*="edgeLabel3d"]:visible');
-  await expect.poll(()=>labels.count()).toBeGreaterThan(0);
+  await expect(labels).toHaveCount(0);
+  await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
+  await expect(labels).toHaveCount(1);
   await labels.first().click();
   await expect(page.getByRole("region",{name:"Selected connection"})).toBeVisible();
 });
