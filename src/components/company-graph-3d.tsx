@@ -87,7 +87,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     return layout.edges.map(edge=>{
       const a=positions.get(edge.source)!, b=positions.get(edge.target)!;
       const direction=new Vector3(b.x-a.x,b.y-a.y,b.z-a.z).normalize();
-      const t=edge.id===activeEdge ? .5 : selected===edge.source? .22 : selected===edge.target? .78 : .5;
+      const t=edge.id===activeEdge ? .5 : selected===edge.source? .38 : selected===edge.target? .62 : .5;
       const anchor=new Vector3(a.x,a.y,a.z).lerp(new Vector3(b.x,b.y,b.z),t);
       return {...edge, x:anchor.x,y:anchor.y,z:anchor.z,
         from:a.symbol||companyName(a,locale), to:b.symbol||companyName(b,locale),
@@ -119,21 +119,30 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     };
     const target=controls.current?.getTarget(new Vector3()) ?? new Vector3();
     const close=camera.position.distanceTo(target)<fitDistance*.68;
+    const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.15,fitDistance*.4/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
     const candidates=[...layout.nodes].sort((a,b)=>Number(b.id===selected||b.id===hovered)-Number(a.id===selected||a.id===hovered)||Number(sectorMembers.has(b.id))-Number(sectorMembers.has(a.id))||Number(connected.has(b.id))-Number(connected.has(a.id))||((close?((camera.position.x-a.x)**2+(camera.position.y-a.y)**2+(camera.position.z-a.z)**2)-((camera.position.x-b.x)**2+(camera.position.y-b.y)**2+(camera.position.z-b.z)**2):0))||(degree.get(b.id)??0)-(degree.get(a.id)??0));
 
     const visibleCompanies=new Set<string>();
     const placedEdges=new Set<string>();
-    const placeEdges=(onlyActive=false)=>{let edgeCount=[...placedEdges].filter(id=>(id===activeEdge)===onlyActive).length;
+    const placeEdges=(onlyActive=false)=>{
     for(const edge of [...edgeLabels].sort((a,b)=>Number(b.id===activeEdge)-Number(a.id===activeEdge))){
       if((edge.id===activeEdge)!==onlyActive || placedEdges.has(edge.id))continue;
       const element=edgeElements.current.get(edge.id);if(!element)continue;
+      const scale=edge.id===activeEdge?1:labelScale(edge.x,edge.y,edge.z);
       const endpointVisible=visibleCompanies.has(edge.source)||visibleCompanies.has(edge.target);
-      const relevant=endpointVisible && (edge.id===activeEdge || (selected ? edge.source===selected||edge.target===selected : sectorFocus ? close && (sectorMembers.has(edge.source)||sectorMembers.has(edge.target)) : close));
+      element.style.setProperty("--label-scale",String(scale));
       let visible=false;
-      if(onlyActive && relevant){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:224,h:30});visible=true;}
-      else visible=place(element,edge.x,edge.y,edge.z,relevant && edgeCount < (selected?8:3),160,26);
-      if(visible){edgeCount++;placedEdges.add(edge.id);}
-      const arrow=arrowElements.current.get(edge.id);if(arrow)arrow.visible=visible;
+      if(onlyActive && endpointVisible){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:224,h:30});visible=true;}
+      else visible=place(element,edge.x,edge.y,edge.z,endpointVisible,160*scale,22*scale);
+      if(visible)placedEdges.add(edge.id);
+      const arrow=arrowElements.current.get(edge.id);
+      if(arrow){
+        const depth=-projected.copy(edge.arrow).applyMatrix4(camera.matrixWorldInverse).z;
+        // Keep the direction marker at most seven screen pixels tall when zooming in.
+        const worldUnitsPerPixel=2*Math.max(0,depth)/(size.height*camera.projectionMatrix.elements[5]);
+        arrow.scale.setScalar(Math.min(1,7*worldUnitsPerPixel/3.5));
+        arrow.visible=visible && depth>0;
+      }
     }
     };
 
@@ -157,11 +166,9 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     let shown=0;
     for(const n of candidates){
       const element=labelElements.current.get(n.id);if(!element)continue;
-      const relevant=n.id===hovered || (selected ? connected.has(n.id) || n.id===selected : sectorFocus ? sectorMembers.has(n.id) || sectorConnected.has(n.id) : true);
-      const distance=Math.hypot(camera.position.x-n.x,camera.position.y-n.y,camera.position.z-n.z);
-      const scale=Math.max(.7,Math.min(1.15,fitDistance*.8/Math.max(1,distance)));
+      const scale=n.id===selected||n.id===hovered?1.15:labelScale(n.x,n.y,n.z);
       element.style.setProperty("--label-scale",String(scale));
-      if(place(element,n.x,n.y-12,n.z,relevant && shown<(size.width<600?20:60),(size.width<600?118:148)*scale,44*scale)){shown++;visibleCompanies.add(n.id);}
+      if(place(element,n.x,n.y-12,n.z,true,(size.width<600?118:148)*scale,44*scale)){shown++;visibleCompanies.add(n.id);}
       if(shown===1&&!sectorsPlaced){placeEdges(true);placeEdges();placeSectors();sectorsPlaced=true;}
     }
     if(!sectorsPlaced)placeSectors();
@@ -177,7 +184,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     <lineSegments geometry={lines} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation(); onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
     {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><button aria-label={`${text("Focus sector", "聚焦产业")}: ${text(sector.en,sector.zh)}`} aria-pressed={sectorFocus===sector.id} onClick={()=>onSelectSector?.(sector.id)} ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden",pointerEvents:"auto"}}><span className={styles.sectorName}>{text(sector.en,sector.zh)}</span></button></Html>)}
     {edgeLabels.map(edge=><group key={edge.id}>
-      {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[3,10,8]}/><meshBasicMaterial color="#a8e8ef"/></mesh>}
+      {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#a8e8ef" transparent opacity={.8}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===activeEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===activeEdge?()=>{}:undefined} center zIndexRange={edge.id===activeEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:"auto"}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))} {edge.directional?"→":"↔"}</button></Html>
     </group>)}
     {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered} style={{pointerEvents:"auto",visibility:"hidden",color:companySector(n).color}} title={companyName(n,locale)} onClick={() => onSelect(n.id)} aria-label={`${companyName(n,locale)} · ${n.symbol}`}><strong>{companyName(n,locale)}</strong><span>{n.symbol}</span></button></Html>)}
