@@ -510,6 +510,7 @@ async function persistTransactions(input: {
       entityName: input.transactions[0].issuerName,
       tickers: input.transactions.flatMap(transaction => transaction.ticker ? [transaction.ticker] : []),
       amended: input.filing.form === "4/A",
+      transactionParsedAt: input.updatedAt,
     });
   }
 

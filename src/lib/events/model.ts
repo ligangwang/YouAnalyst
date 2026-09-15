@@ -20,6 +20,7 @@ export type PublicEvent = {
   sourceUrl: string;
   accessionNumber: string;
   activity?: InsiderActivity[];
+  transactionParsedAt?: string;
 };
 
 export type FilingEventInput = {
@@ -30,6 +31,7 @@ export type FilingEventInput = {
   entityName: string;
   tickers: string[];
   amended: boolean;
+  transactionParsedAt?: string;
 };
 
 export function isDate(value: string): boolean {
@@ -41,6 +43,7 @@ export function isEventTimestamp(value: string): boolean {
 }
 
 export function filingEvent(input: FilingEventInput, publishedAt: string): PublicEvent {
+  if (input.transactionParsedAt !== undefined && !isEventTimestamp(input.transactionParsedAt)) throw new Error("Invalid transaction parse timestamp");
   if (input.type !== "SEC_FORM4" && input.type !== "SEC_13F") throw new Error("Invalid filing event type");
   if (!/^\d{10}-\d{2}-\d{6}$/.test(input.accessionNumber) || !isDate(input.filingDate)) throw new Error("Invalid filing event identity or date");
   const url = new URL(input.sourceUrl);
@@ -58,6 +61,7 @@ export function filingEvent(input: FilingEventInput, publishedAt: string): Publi
       ? "An insider ownership filing was processed. The filing date may differ from the dates of the reported transactions."
       : "An institutional holdings filing was processed. Holdings describe a past reporting period, not current trades.",
     sourceName: "SEC EDGAR", sourceUrl: url.href, accessionNumber: input.accessionNumber,
+    ...(input.type === "SEC_FORM4" && input.transactionParsedAt ? {transactionParsedAt:input.transactionParsedAt} : {}),
   };
 }
 
@@ -69,7 +73,7 @@ export function publicEventFromDocument(id: string, data: Record<string, unknown
   if (strings.some(key => typeof data[key] !== "string")) return null;
   if (!Array.isArray(data.tickers) || data.tickers.some(ticker => typeof ticker !== "string")) return null;
   try {
-    const checked = filingEvent({ type: data.type, accessionNumber: data.accessionNumber as string, filingDate: data.occurredAt as string, sourceUrl: data.sourceUrl as string, entityName: data.title as string, tickers: data.tickers, amended: false }, data.publishedAt as string);
+    const checked = filingEvent({ type: data.type, accessionNumber: data.accessionNumber as string, filingDate: data.occurredAt as string, sourceUrl: data.sourceUrl as string, entityName: data.title as string, tickers: data.tickers, amended: false, ...(typeof data.transactionParsedAt === "string" ? {transactionParsedAt:data.transactionParsedAt} : {}) }, data.publishedAt as string);
     if (checked.id !== id || !isEventTimestamp(data.updatedAt as string)) return null;
     return { ...checked, title: (data.title as string).slice(0, 240), summary: (data.summary as string).slice(0, 1000), updatedAt: data.updatedAt as string, ...(data.type === "SEC_FORM4" && Array.isArray(data.activity) ? {activity:publicActivity(data.activity,checked.accessionNumber)} : {}) };
   } catch { return null; }

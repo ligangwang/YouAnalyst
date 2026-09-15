@@ -10,6 +10,8 @@ When WebGL initialization, context loss or the canvas error boundary triggers th
 
 Feed and personalized filing entries use existing `insider_transactions` records matched by accession number. At most five parsed non-derivative records appear per filing; the UI explicitly identifies this as partial coverage. No new collection or historical-data rewrite is required. The reader caches bounded lookups for five minutes and retains the original filing card if enrichment fails. Live snapshot version checks prevent slower enrichment from replacing a newer snapshot.
 
+Transactions must also match the latest successful parse timestamp before the five-row limit applies. New ingestion events carry that timestamp; legacy events use the existing filing success marker. Obsolete transaction-index documents left by a reparse are excluded. If no successful parse can be identified, the card keeps its source link without asserting transaction details.
+
 Owner, transaction code, security, shares and transaction date come from parsed fields. USD amounts require usable value quality and are withheld for known review holds. We do not infer a purchase from the acquired/disposed flag, aggregate joint-owner rows into misleading totals, or relabel collection dates as transactions. [SEC Form 4 instructions, section 8](https://www.sec.gov/files/form4.pdf) define the transaction code labels. Current ingestion primarily covers purchase/sale records; displaying other codes depends on their presence in the parsed store.
 
 Relationship updates retain their specific source scope and distinguish research collection/review, source publication and an explicit event date. No deployment milestone or newly occurring business event is inferred merely from a new research record.
