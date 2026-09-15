@@ -33,6 +33,9 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const projected = useMemo(() => new Vector3(), []);
   const [hovered, setHovered] = useState("");
+  const [hoveredEdge, setHoveredEdge] = useState("");
+  const displayedEdge=activeEdge||hoveredEdge;
+  const edgeEndpoints=useMemo(()=>new Set(layout.edges.filter(e=>e.id===displayedEdge).flatMap(e=>[e.source,e.target])),[layout,displayedEdge]);
   const sectorMembers = useMemo(() => new Set(layout.nodes.filter(n => companySector(n).id === sectorFocus).map(n => n.id)), [layout, sectorFocus]);
   const sectorConnected = useMemo(() => new Set(layout.edges.filter(e => sectorMembers.has(e.source) || sectorMembers.has(e.target)).flatMap(e => [e.source, e.target])), [layout, sectorMembers]);
   const connected = useMemo(() => new Set(layout.edges.filter(e => e.source === selected || e.target === selected).flatMap(e => [e.source, e.target])), [layout, selected]);
@@ -40,15 +43,15 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     const g = new BufferGeometry();
     g.setAttribute("position", new Float32BufferAttribute(layout.nodes.flatMap(n => [n.x, n.y, n.z]), 3));
     g.setAttribute("tint", new Float32BufferAttribute(layout.nodes.flatMap(n => new Color(companySector(n).color).toArray()), 3));
-    g.setAttribute("emphasis", new Float32BufferAttribute(layout.nodes.map(n => n.id === selected || n.id === hovered ? 2 : selected && !connected.has(n.id) ? .22 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), 1));
+    g.setAttribute("emphasis", new Float32BufferAttribute(layout.nodes.map(n => n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : selected && !connected.has(n.id) ? .22 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), 1));
     return g;
-  }, [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected]);
+  }, [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints]);
   const lines = useMemo(() => {
     const positions = new Map(layout.nodes.map(n => [n.id, n]));
     const g = new BufferGeometry(), p: number[] = [], c: number[] = [], edgeIds: string[] = [];
     layout.edges.forEach(e => {
       const a = positions.get(e.source)!, b = positions.get(e.target)!;
-      const color = new Color(e.id === activeEdge ? "#ffffff" : highlightedEdges?.includes(e.id) ? "#7ef4cb" : e.source === selected || e.target === selected ? "#9ee9ff" : selected ? "#14232e" : sectorFocus ? sectorMembers.has(e.source) || sectorMembers.has(e.target) ? "#9ee9ff" : "#101b25" : "#294557");
+      const color = new Color(e.id === displayedEdge ? "#ffffff" : highlightedEdges?.includes(e.id) ? "#7ef4cb" : e.source === selected || e.target === selected ? "#9ee9ff" : selected ? "#14232e" : sectorFocus ? sectorMembers.has(e.source) || sectorMembers.has(e.target) ? "#9ee9ff" : "#101b25" : "#294557");
       const parts = e.commercialStatus === "ANNOUNCED" ? 16 : 1;
       for (let i = 0; i < parts; i++) {
         if (parts > 1 && i % 2) continue;
@@ -57,7 +60,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
       }
     });
     g.setAttribute("position", new Float32BufferAttribute(p, 3)); g.setAttribute("color", new Float32BufferAttribute(c, 3)); g.userData.edgeIds = edgeIds; return g;
-  }, [layout, selected, activeEdge, highlightedEdges, sectorFocus, sectorMembers]);
+  }, [layout, selected, displayedEdge, highlightedEdges, sectorFocus, sectorMembers]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => lines.dispose(), [lines]);
   const sectors = useMemo(() => [...new Set(layout.nodes.map(n=>companySector(n).id))].map(id=>{
@@ -131,13 +134,13 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.15,fitDistance*.4/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
     // Write all font sizes first, then measure the actual rendered labels in one batch.
     for(const n of layout.nodes)labelElements.current.get(n.id)?.style.setProperty("--label-scale",String(n.id===selected||n.id===hovered?1.15:labelScale(n.x,n.y,n.z)));
-    for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===activeEdge?1:labelScale(edge.x,edge.y,edge.z)));
+    for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===displayedEdge?1:labelScale(edge.x,edge.y,edge.z)));
     for(const sector of sectors){
       const distance=Math.hypot(camera.position.x-sector.x,camera.position.y-sector.y,camera.position.z-sector.z);
       sectorElements.current.get(sector.id)?.style.setProperty("--label-scale",String(Math.max(.7,Math.min(1.15,fitDistance*.8/Math.max(1,distance)))));
     }
     const measurements=new Map([...labelElements.current.values(),...edgeElements.current.values(),...sectorElements.current.values()].map(element=>[element,{width:element.offsetWidth,height:element.offsetHeight}]));
-    const candidates=[...layout.nodes].sort((a,b)=>Number(b.id===selected||b.id===hovered)-Number(a.id===selected||a.id===hovered)||Number(sectorMembers.has(b.id))-Number(sectorMembers.has(a.id))||Number(connected.has(b.id))-Number(connected.has(a.id))||((close?((camera.position.x-a.x)**2+(camera.position.y-a.y)**2+(camera.position.z-a.z)**2)-((camera.position.x-b.x)**2+(camera.position.y-b.y)**2+(camera.position.z-b.z)**2):0))||(degree.get(b.id)??0)-(degree.get(a.id)??0));
+    const candidates=[...layout.nodes].sort((a,b)=>Number(b.id===selected||b.id===hovered)-Number(a.id===selected||a.id===hovered)||Number(edgeEndpoints.has(b.id))-Number(edgeEndpoints.has(a.id))||Number(sectorMembers.has(b.id))-Number(sectorMembers.has(a.id))||Number(connected.has(b.id))-Number(connected.has(a.id))||((close?((camera.position.x-a.x)**2+(camera.position.y-a.y)**2+(camera.position.z-a.z)**2)-((camera.position.x-b.x)**2+(camera.position.y-b.y)**2+(camera.position.z-b.z)**2):0))||(degree.get(b.id)??0)-(degree.get(a.id)??0));
 
     const visibleCompanies=new Set<string>();
     const placedEdges=new Set<string>();
@@ -145,10 +148,10 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     for(const edge of [...edgeLabels].sort((a,b)=>Number(b.id===activeEdge)-Number(a.id===activeEdge))){
       if((edge.id===activeEdge)!==onlyActive || placedEdges.has(edge.id))continue;
       const element=edgeElements.current.get(edge.id);if(!element)continue;
-      const endpointVisible=visibleCompanies.has(edge.source)||visibleCompanies.has(edge.target);
+      const endpointVisible=edge.id===displayedEdge && (visibleCompanies.has(edge.source)||visibleCompanies.has(edge.target));
       const {width,height}=measurements.get(element)!;
       let visible=false;
-      if(onlyActive && endpointVisible){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:width,h:height});visible=true;}
+      if(edge.id===displayedEdge && endpointVisible){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:width,h:height});visible=true;}
       else visible=place(element,edge.x,edge.y,edge.z,endpointVisible,width,height);
       if(visible)placedEdges.add(edge.id);
       const arrow=arrowElements.current.get(edge.id);
@@ -157,7 +160,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
         // Keep the direction marker at most seven screen pixels tall when zooming in.
         const worldUnitsPerPixel=2*Math.max(0,depth)/(size.height*camera.projectionMatrix.elements[5]);
         arrow.scale.setScalar(Math.min(1,7*worldUnitsPerPixel/3.5));
-        arrow.visible=visible && depth>0;
+        arrow.visible=depth>0;
       }
     }
     };
@@ -192,13 +195,13 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
-    <lineSegments geometry={lines} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation(); onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
+    <lineSegments geometry={lines} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
     {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><button aria-label={`${text("Focus sector", "聚焦产业")}: ${text(sector.en,sector.zh)}`} aria-pressed={sectorFocus===sector.id} onClick={()=>onSelectSector?.(sector.id)} ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden",pointerEvents:"auto"}}><span className={styles.sectorName}>{text(sector.en,sector.zh)}</span></button></Html>)}
     {edgeLabels.map(edge=><group key={edge.id}>
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#a8e8ef" transparent opacity={.8}/></mesh>}
-      <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===activeEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===activeEdge?()=>{}:undefined} center zIndexRange={edge.id===activeEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:"auto"}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))} {edge.directional?"→":"↔"}</button></Html>
+      <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none"}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))} {edge.directional?"→":"↔"}</button></Html>
     </group>)}
-    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered} style={{pointerEvents:"auto",visibility:"hidden",color:companySector(n).color}} title={companyName(n,locale)} onClick={() => onSelect(n.id)} aria-label={`${companyName(n,locale)} · ${n.symbol}`}><strong>{companyName(n,locale)}</strong><span>{n.symbol}</span></button></Html>)}
+    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{pointerEvents:"auto",visibility:"hidden",color:companySector(n).color}} title={companyName(n,locale)} onClick={() => onSelect(n.id)} aria-label={`${companyName(n,locale)} · ${n.symbol}`}><strong>{companyName(n,locale)}</strong><span>{n.symbol}</span></button></Html>)}
   </>;
 }
 
@@ -222,7 +225,7 @@ export default function CompanyGraph3D(props: Props) {
   if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
   if (!supported) return fallback;
   return <div className={styles.canvas3d}>
-    <RenderBoundary fallback={fallback}><Canvas frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:1},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
+    <RenderBoundary fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
     <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
   </div>;

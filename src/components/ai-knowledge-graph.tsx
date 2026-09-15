@@ -48,6 +48,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
     window.history.replaceState(null, "", url);
   }
   function openConnection(id: string, reached?: string) {
+    if(!id){setActiveEdge("");return;}
     const edge = graph.relationships.find(e => e.id === id); if (!edge || edge.type === "PARTICIPATES_IN") return;
     selectCompany(reached ?? edge.source); setActiveEdge(id);
   }
