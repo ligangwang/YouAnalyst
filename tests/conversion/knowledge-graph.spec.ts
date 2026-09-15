@@ -413,10 +413,10 @@ test("company labels keep their placement side during rotation",async({page})=>{
  await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
  await canvas.scrollIntoViewIfNeeded();
  const sides=()=>page.locator('[data-company-id]:visible').evaluateAll(els=>els.map(el=>({id:el.getAttribute('data-company-id'),x:Math.sign(parseFloat((el as HTMLElement).style.getPropertyValue('--label-offset-x'))),y:Math.sign(parseFloat((el as HTMLElement).style.getPropertyValue('--label-offset-y')))})));
- const before=await sides();
  const box=(await canvas.boundingBox())!;
  await page.mouse.move(box.x+box.width*.2,box.y+box.height*.8);
  await page.mouse.down();
+ const before=await sides();
  await page.mouse.move(box.x+box.width*.28,box.y+box.height*.82,{steps:10});
  const during=await sides();
  const retained=during.filter(n=>before.some(b=>b.id===n.id));
