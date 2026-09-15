@@ -137,3 +137,16 @@
 .sectorLegend button:hover, .sectorLegend button[aria-pressed="true"] { background: #ffffff0d; border-color: currentColor; }
 .sectorLegend button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .sector3d[aria-pressed="true"] { border-color: currentColor; }
+.sectorToggle, .touchHint { display:none; }
+.interactionHint { margin:0 4px 12px; color:#a8bed0; font-size:12px; }
+@media(max-width:800px) {
+  .sectorToggle { display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:44px; width:100%; margin:12px 0 8px; padding:8px 12px; border:1px solid #304557; border-radius:12px; background:#0b1925; color:#d9eaf5; text-align:left; cursor:pointer; }
+  .sectorLegend[data-expanded="false"] { display:none; }
+  .sectorLegend { margin:8px 0; gap:4px 8px; }
+  .pointerHint { display:none; }
+  .touchHint { display:inline; }
+}
+@media(pointer:coarse) {
+  .pointerHint { display:none; }
+  .touchHint { display:inline; }
+}

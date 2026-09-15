@@ -11,7 +11,7 @@ import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./ai-knowledge-graph.module.css";
 
-type Props = { sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { cameraRequest: number; sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -22,13 +22,17 @@ void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,
 const fragment = `varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis);if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
-function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector }: Props) {
+function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector }: Props) {
   const { text, locale } = useLocale();
   const edgeElements = useRef(new Map<string, HTMLButtonElement>());
   const arrowElements = useRef(new Map<string, Mesh>());
   const sectorElements = useRef(new Map<string, HTMLButtonElement>());
   const layout = useMemo(() => layout3D(graph), [graph]);
   const controls = useRef<CameraControls>(null);
+  const dragging = useRef(false);
+  const cameraMoving = useRef(false);
+  const lastInteraction = useRef(-Infinity);
+  const labelPlacements = useRef(new WeakMap<HTMLElement, number>());
   const { size, camera, invalidate, gl } = useThree();
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const projected = useMemo(() => new Vector3(), []);
@@ -68,8 +72,13 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     return { ...companySector(members[0]), x:members.reduce((v,n)=>v+n.x,0)/members.length, y:members.reduce((v,n)=>v+n.y,0)/members.length, z:members.reduce((v,n)=>v+n.z,0)/members.length };
   }),[layout]);
   const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
+  const lastCameraRequest=useRef<{layout:typeof layout;request:number;reset:number}|null>(null);
   useEffect(() => {
     const c = controls.current; if (!c) return;
+    // Evidence selection and panel resizing must not reset the user's orbit or zoom.
+    const previous=lastCameraRequest.current;
+    if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset)return;
+    lastCameraRequest.current={layout,request:cameraRequest,reset};
     const n = layout.nodes.find(n => n.id === selected);
     const sector=sectors.find(s=>s.id===sectorFocus);
     const members=sector?layout.nodes.filter(n=>companySector(n).id===sector.id):[];
@@ -79,7 +88,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     void c.setLookAt(x + d*.2, y + d*.12, z + d, x, y, z, !reduced);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height]);
+  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest]);
   const degree = useMemo(() => {
     const counts = new Map<string,number>();
     layout.edges.forEach(e=>{counts.set(e.source,(counts.get(e.source)??0)+1);counts.set(e.target,(counts.get(e.target)??0)+1);});
@@ -111,19 +120,30 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame(() => {
+    // Keep each company label on the same side of its node throughout a gesture.
+    // Continue briefly after release so collision placement resumes after damping settles.
+    const settling = performance.now() - lastInteraction.current < 180;
+    const holdLabels = dragging.current || cameraMoving.current || settling;
+    if(settling && !dragging.current)invalidate();
     const occupied: {x:number;y:number;w:number;h:number}[]=[];
     const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number, companyGap?:number) => {
       projected.set(x,y,z).project(camera);
       const px=(projected.x+1)*size.width/2,py=(1-projected.y)*size.height/2;
       const gap=companyGap??0;
       const offsets=companyGap!==undefined?[[0,height/2+gap],[0,-height/2-gap],[width/2+gap,0],[-width/2-gap,0],[width/2+gap,height/2+gap],[-width/2-gap,height/2+gap],[width/2+gap,-height/2-gap],[-width/2-gap,-height/2-gap]]:[[0,0]];
-      const offset=eligible && projected.z>-1 && projected.z<1 && offsets.find(([dx,dy])=>{
+      const previous=companyGap!==undefined?labelPlacements.current.get(element):undefined;
+      const ordered=previous!==undefined && previous>=0?[previous,...offsets.map((_,i)=>i).filter(i=>i!==previous)]:offsets.map((_,i)=>i);
+      const inView=eligible && projected.z>-1 && projected.z<1;
+      const choice=holdLabels && previous!==undefined?previous:ordered.find(i=>{
+        const [dx,dy]=offsets[i];
         const cx=px+dx,cy=py+dy;
         return cx-width/2>2 && cx+width/2<size.width-2 && cy-height/2>2 && cy+height/2<size.height-32 && !occupied.some(p=>Math.abs(cx-p.x)<(width+p.w)/2+3 && Math.abs(cy-p.y)<(height+p.h)/2+2);
       });
-      const visible=Boolean(offset);
+      if(companyGap!==undefined && (!holdLabels || previous===undefined))labelPlacements.current.set(element,choice??-1);
+      const offset=inView && choice!==undefined && choice>=0?offsets[choice]:undefined;
+      const visible=Boolean(offset) && px>-width && px<size.width+width && py>-height && py<size.height+height;
       element.style.visibility=visible?"visible":"hidden";
-      if(offset){
+      if(offset && visible){
         if(companyGap!==undefined){element.style.setProperty("--label-offset-x",`${offset[0]}px`);element.style.setProperty("--label-offset-y",`${offset[1]}px`);}
         occupied.push({x:px+offset[0],y:py+offset[1],w:width,h:height});
       }
@@ -191,7 +211,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
 
   });
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25}/>
+    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;invalidate();}} onControlStart={()=>{dragging.current=true;lastInteraction.current=performance.now();}} onControl={()=>{lastInteraction.current=performance.now();}} onControlEnd={()=>{dragging.current=false;lastInteraction.current=performance.now();invalidate();}}/>
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
