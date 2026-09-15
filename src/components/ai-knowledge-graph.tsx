@@ -7,6 +7,7 @@ import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { CompanyFollowButton } from "./company-follow-button";
+import { CompanyNameEditor } from "./company-name-editor";
 import { AiMapDirectory } from "./ai-map-directory";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import styles from "./ai-knowledge-graph.module.css";
@@ -90,6 +91,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
           <button className={styles.clear} onClick={() => selectCompany("")} aria-label={text("Clear selection", "取消选择")}>×</button>
         </div>
         <h2>{companyName(company,locale)}</h2>
+        <CompanyNameEditor key={`${company.id}-${locale}`} company={company} onSaved={updated => setGraph(previous => ({ ...previous, nodes: previous.nodes.map(node => node.id === updated.id ? { ...node, ...updated } : node) }))} />
         {company.symbol && <p className={styles.eyebrow}>{company.symbol}</p>}
         <p>{companyGeographyLabel(company, locale)}</p>
         <p>{company.summary}</p>
@@ -117,4 +119,3 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
     </details>}
   </main><AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} /></>;
 }
-
