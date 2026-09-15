@@ -734,6 +734,9 @@ jobs:
           VERIFIED_COMMIT: ${{ github.sha }}
           PREBUILT_RELEASE: "1"
           APPLY_FIRESTORE_INDEXES: ${{ (needs.verify.outputs.indexes == 'true' || inputs.maintenance) && '1' || '0' }}
+          RESEARCH_PUBLISHER_SUB: ${{ vars.RESEARCH_PUBLISHER_SUB }}
+          RESEARCH_PUBLISHER_EMAIL: ${{ vars.RESEARCH_PUBLISHER_EMAIL }}
+          RESEARCH_TOKEN_AUDIENCE: ${{ vars.RESEARCH_TOKEN_AUDIENCE }}
           APP_ENVIRONMENT: production
           FINNHUB_API_KEY: ${{ env.FINNHUB_API_KEY }}
           FINNHUB_API_URL: ${{ env.FINNHUB_API_URL }}
