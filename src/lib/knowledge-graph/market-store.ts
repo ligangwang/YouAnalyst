@@ -1,5 +1,5 @@
 import { companyGeography } from "../market-companies/identity";
-import type { GraphEdge, GraphNode, GraphSource, KnowledgeGraph } from "./model";
+import type { GraphFact, GraphEdge, GraphNode, GraphSource, KnowledgeGraph } from "./model";
 export const RELATIONSHIP_COLLECTION = "company_relationships";
 export type AiMembership = { status: "PUBLISHED"; stageIds: string[]; stages: GraphNode[]; memberships: GraphEdge[]; sources: GraphSource[]; order: number; asOf: string };
 export type MarketCompany = Record<string, unknown> & { id: string; aiGraph?: AiMembership };
@@ -36,8 +36,18 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
       sources.set(id, { id, url: s.url, title: s.title, sourceDate: s.sourceDate ?? null });
       return id;
     });
+    const facts: GraphFact[] = Array.isArray(r.facts) ? r.facts.flatMap((f: Record<string, unknown>) => {
+      if (!f || typeof f.scope !== "string" || !["DOCUMENTED", "ANNOUNCED"].includes(String(f.state)) || !Array.isArray(f.sourceIds)) return [];
+      const linked = f.sourceIds.filter((id): id is string => typeof id === "string" && sourceIds.includes(id));
+      if (!linked.length) return [];
+      return [{ state: String(f.state), scope: f.scope, sourceIds: linked,
+        ...(typeof f.id === "string" ? { id: f.id } : {}),
+        ...(typeof f.limitation === "string" ? { limitation: f.limitation } : {}),
+        ...(typeof f.reviewedAt === "string" ? { reviewedAt: f.reviewedAt } : {}),
+        ...(typeof f.eventDate === "string" ? { eventDate: f.eventDate } : {}) }];
+    }) : [];
     const id = relationshipId(r.source, r.target, r.type), previous = relationships.get(id);
-    relationships.set(id, { id, ...(typeof r.publishedAt === "string" ? { publishedAt: r.publishedAt } : {}), source: r.source, target: r.target, type: r.type, summary: String(r.summary ?? evidence[0].summary ?? ""), commercialStatus: String(r.commercialStatus ?? "DOCUMENTED"), sourceIds: [...new Set([...(previous?.sourceIds ?? []), ...sourceIds])] });
+    relationships.set(id, { id, facts, ...(typeof r.researchReviewedAt === "string" ? { researchReviewedAt: r.researchReviewedAt } : {}), ...(typeof r.publishedAt === "string" ? { publishedAt: r.publishedAt } : {}), source: r.source, target: r.target, type: r.type, summary: String(r.summary ?? evidence[0].summary ?? ""), commercialStatus: String(r.commercialStatus ?? "DOCUMENTED"), sourceIds: [...new Set([...(previous?.sourceIds ?? []), ...sourceIds])] });
   }
   return { nodes: [...nodes.values()], relationships: [...relationships.values()], sources: [...sources.values()], asOf: dates.sort()[0] ?? "" };
 }

@@ -516,7 +516,7 @@ export function MyWatchlistsPage({ embedded = false }: { embedded?: boolean } = 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Workspace"} /></p>
-            <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"My Watchlists"} /></h1>
+            <Link href="/watchlists/following" className="text-sm text-cyan-200 underline"><UiText text="Followed companies" /></Link><h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"My Watchlists"} /></h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
               {proFeaturesEnabled
                 ? <UiText text={"Create, edit, and review the public and private watchlists that organize your predictions."} />

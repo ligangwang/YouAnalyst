@@ -97,6 +97,7 @@ export function LiveEventFeed({ initialPage, initialError = false, type = "all" 
   return <main className={styles.feed}>
     <div className={styles.heading}><h1>{t("Latest")}</h1><span role="status" className={`${styles.status} ${status === "live" ? styles.live : ""}`}><span className={styles.dot} />{status === "live" ? t("Live") : status === "paused" ? t("Paused") : status === "reconnecting" ? t("Reconnecting") : t("Connecting")}</span></div>
     <p className={styles.intro}>{t("A quieter view of the market. Updated as events arrive.")}</p>
+    <div className="mb-4 flex gap-4 text-sm text-cyan-200"><Link href="/feed">{text("All updates", "全部动态")}</Link><Link href="/feed?scope=following">{text("Following", "我关注的")}</Link></div>
     <FilterTabs label="Event types" items={eventFilters.map(filter => ({ label: t(filter.label), href: filter.value === "all" ? "/feed" : `/feed?type=${filter.value}`, active: type === filter.value }))} />
     {pending && <div className={styles.updates}><button type="button" onClick={() => { replacePage(pending); window.scrollTo({ top: 0, behavior: "instant" }); }}>{t("↑ New updates")}</button></div>}
     {error && <p role="alert" className={styles.error}>{t(error)}</p>}

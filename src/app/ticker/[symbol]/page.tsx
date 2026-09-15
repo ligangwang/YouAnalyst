@@ -1,3 +1,4 @@
+import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
 import { localizedMetadata } from "@/lib/i18n/server";
 
 import { UiText } from "@/components/ui-text";
@@ -98,7 +99,7 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} graph={await loadKnowledgeGraph().catch(() => undefined)} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} />
       </Suspense>
