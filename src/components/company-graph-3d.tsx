@@ -33,6 +33,14 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const cameraMoving = useRef(false);
   const lastInteraction = useRef(-Infinity);
   const labelPlacements = useRef(new WeakMap<HTMLElement, number>());
+  const companyScales = useRef(new WeakMap<HTMLElement, number>());
+  const reducedMotion = useRef(false);
+  useEffect(()=>{
+    const media=window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update=()=>{reducedMotion.current=media.matches;};
+    update();media.addEventListener("change",update);
+    return ()=>media.removeEventListener("change",update);
+  },[]);
   const { size, camera, invalidate, gl } = useThree();
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const projected = useMemo(() => new Vector3(), []);
@@ -119,7 +127,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     }
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
-  useFrame(() => {
+  useFrame((_, delta) => {
     // Keep each company label on the same side of its node throughout a gesture.
     // Continue briefly after release so collision placement resumes after damping settles.
     const settling = performance.now() - lastInteraction.current < 180;
@@ -153,11 +161,24 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const close=camera.position.distanceTo(target)<fitDistance*.68;
     const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.15,fitDistance*.4/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
     // Write all font sizes first, then measure the actual rendered labels in one batch.
-    for(const n of layout.nodes)labelElements.current.get(n.id)?.style.setProperty("--label-scale",String(n.id===selected||n.id===hovered?1.15:labelScale(n.x,n.y,n.z)));
+    let scalesSettling=false;
+    // Ease the actual font dimensions, so collision measurement follows what is rendered.
+    const blend=1-Math.exp(-Math.min(delta,.05)/.12);
+    for(const n of layout.nodes){
+      const element=labelElements.current.get(n.id);if(!element)continue;
+      const targetScale=n.id===selected||n.id===hovered?1.15:labelScale(n.x,n.y,n.z);
+      const previous=companyScales.current.get(element)??targetScale;
+      const next=reducedMotion.current?targetScale:previous+(targetScale-previous)*blend;
+      const scale=Math.abs(next-targetScale)<.001?targetScale:next;
+      if(scale!==targetScale)scalesSettling=true;
+      companyScales.current.set(element,scale);
+      element.style.setProperty("--label-scale",String(scale));
+    }
+    if(scalesSettling)invalidate();
     for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===displayedEdge?1:labelScale(edge.x,edge.y,edge.z)));
     for(const sector of sectors){
       const distance=Math.hypot(camera.position.x-sector.x,camera.position.y-sector.y,camera.position.z-sector.z);
-      sectorElements.current.get(sector.id)?.style.setProperty("--label-scale",String(Math.max(.7,Math.min(1.15,fitDistance*.8/Math.max(1,distance)))));
+      sectorElements.current.get(sector.id)?.style.setProperty("--label-scale",String(Math.max(.7,Math.min(1,fitDistance*.7/Math.max(1,distance)))));
     }
     const measurements=new Map([...labelElements.current.values(),...edgeElements.current.values(),...sectorElements.current.values()].map(element=>[element,{width:element.offsetWidth,height:element.offsetHeight}]));
     const candidates=[...layout.nodes].sort((a,b)=>Number(b.id===selected||b.id===hovered)-Number(a.id===selected||a.id===hovered)||Number(edgeEndpoints.has(b.id))-Number(edgeEndpoints.has(a.id))||Number(sectorMembers.has(b.id))-Number(sectorMembers.has(a.id))||Number(connected.has(b.id))-Number(connected.has(a.id))||((close?((camera.position.x-a.x)**2+(camera.position.y-a.y)**2+(camera.position.z-a.z)**2)-((camera.position.x-b.x)**2+(camera.position.y-b.y)**2+(camera.position.z-b.z)**2):0))||(degree.get(b.id)??0)-(degree.get(a.id)??0));

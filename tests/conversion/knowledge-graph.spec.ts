@@ -426,3 +426,30 @@ test("company labels keep their placement side during rotation",async({page})=>{
  await page.waitForTimeout(350);
  await page.screenshot({path:'output/stable-rotation-'+test.info().project.name+'.png'});
 });
+
+
+test("company name emphasis scales gradually and respects reduced motion",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});
+ await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+ await page.goto("http://graph.test/map?lang=en");
+ const label=page.locator('[data-company-id="US:NVDA"]');
+ await expect(label).toBeVisible();
+ await page.locator("canvas").scrollIntoViewIfNeeded();
+ const initial=await label.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--label-scale')));
+ await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
+ await page.emulateMedia({reducedMotion:"no-preference"});
+ const samples=page.evaluate(()=>new Promise<number[]>(resolve=>{
+   const el=document.querySelector('[data-company-id="US:NVDA"]') as HTMLElement;
+   const values:number[]=[];
+   const observer=new MutationObserver(()=>values.push(parseFloat(el.style.getPropertyValue('--label-scale'))));
+   observer.observe(el,{attributes:true,attributeFilter:['style']});
+   setTimeout(()=>{observer.disconnect();resolve(values);},900);
+ }));
+ await page.getByRole("region",{name:"Search results",exact:true}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+ const values=await samples;
+ expect(new Set(values.filter(v=>v>initial+.01&&v<1.14)).size).toBeGreaterThan(2);
+ await page.emulateMedia({reducedMotion:"reduce"});
+ await page.getByRole("button",{name:"Reset view",exact:true}).click();
+ await page.mouse.move(1,1);
+ await expect.poll(()=>label.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--label-scale')))).toBeCloseTo(initial,2);
+});
