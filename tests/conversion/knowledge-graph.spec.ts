@@ -4,11 +4,12 @@ import { PerspectiveCamera, Vector3 } from "three";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
+import { companySector } from "../../src/lib/knowledge-graph/sectors";
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
-test("line hover previews one relationship, click pins it, and blank space clears it",async({page})=>{
+for(const sectorFocused of [false,true]) test(`line hover previews, click pins, and blank space clears (${sectorFocused?"sector":"overview"})`,async({page})=>{
   await page.emulateMedia({reducedMotion:"reduce"});
   await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en");
@@ -16,12 +17,21 @@ test("line hover previews one relationship, click pins it, and blank space clear
   await expect(canvas).toBeVisible();
   await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
   await expect(labels).toHaveCount(0);
+  if(sectorFocused){
+    const toggle=page.getByRole("button",{name:/^Sectors/});
+    if(await toggle.isVisible())await toggle.click();
+    await page.getByRole("button",{name:"AI compute",exact:true}).click();
+    await expect.poll(()=>page.locator('[data-sector-emphasis="member"]').count()).toBeGreaterThan(0);
+  }
   await canvas.scrollIntoViewIfNeeded();
   const box=(await canvas.boundingBox())!;
   const layout=layout3D(graph);
-  const distance=layout.radius/Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,box.width/box.height)))*1.15;
+  const members=layout.nodes.filter(n=>companySector(n).id==="compute");
+  const center=sectorFocused?members.reduce((v,n)=>v.add(new Vector3(n.x,n.y,n.z)),new Vector3()).divideScalar(members.length):new Vector3();
+  const radius=sectorFocused?Math.max(80,...members.map(n=>new Vector3(n.x,n.y,n.z).distanceTo(center))):layout.radius;
+  const distance=radius/Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,box.width/box.height)))*(sectorFocused?1.1:1.15);
   const camera=new PerspectiveCamera(45,box.width/box.height,1,10000);
-  camera.position.set(distance*.2,distance*.12,distance);camera.lookAt(0,0,0);camera.updateMatrixWorld();
+  camera.position.set(center.x+distance*.2,center.y+distance*.12,center.z+distance);camera.lookAt(center);camera.updateMatrixWorld();
   let hit:{x:number;y:number}|undefined;
   for(const edge of layout.edges){
     const a=layout.nodes.find(n=>n.id===edge.source)!,b=layout.nodes.find(n=>n.id===edge.target)!;
@@ -33,6 +43,7 @@ test("line hover previews one relationship, click pins it, and blank space clear
   expect(hit).toBeDefined();
   await expect(labels).toHaveCount(1);
   await page.mouse.click(hit!.x,hit!.y);
+  await expect(page.locator("[data-sector-emphasis]")).toHaveCount(0);
   await expect(page.getByRole("region",{name:"Selected connection",exact:true})).toBeVisible();
   await page.mouse.move(5,5);
   await expect(page.locator('[data-active="true"]:visible')).toHaveCount(1);
@@ -182,13 +193,26 @@ for (const language of ["en", "zh-CN"]) test(`sector legend replaces discovery c
  await page.goto(`http://graph.test/map?lang=${language}&account=1`);
  await expect(page.locator("canvas")).toBeVisible();
  await expect(page.getByText(/Guided journeys|探索路线|What’s new|Following ·/)).toHaveCount(0);
- const sector = page.getByRole("button",{name:language === "en" ? "AI compute" : "AI 算力",exact:true});
+ const toggle=page.getByRole("button",{name:language==="en"?/^Sectors/:/^产业环节/});
+ const compact=(page.viewportSize()?.width??1280)<=800;
+ if(compact){
+  await expect(toggle).toHaveAttribute("aria-expanded","false");
+  await expect(page.getByText(language==="en"?"Tap a line for relationship evidence":"点按连线查看关系依据",{exact:true})).toBeVisible();
+ }else{
+  await expect(toggle).toBeHidden();
+  await expect(page.getByText(language==="en"?"Hover a line to preview · Click for evidence":"悬停连线预览关系 · 点击查看依据",{exact:true})).toBeVisible();
+ }
+ async function revealSectors(){if(compact)await toggle.click();}
+ const sector = page.getByRole("button",{name:language === "en" ? "AI compute" : "AI 算力",exact:true,includeHidden:true});
+ await revealSectors();
  await sector.click();
  await expect(sector).toHaveAttribute("aria-pressed","true");
  await expect.poll(()=>page.locator('[data-sector-emphasis="member"]').count()).toBeGreaterThan(0);
+ await revealSectors();
  await sector.click();
  await expect(sector).toHaveAttribute("aria-pressed","false");
  await expect(page.locator('[data-sector-emphasis]')).toHaveCount(0);
+ await revealSectors();
  await sector.click();
  await page.getByRole("button",{name:language === "en" ? "Reset view" : "重置视图",exact:true}).click();
  await expect(sector).toHaveAttribute("aria-pressed","false");
@@ -196,11 +220,27 @@ for (const language of ["en", "zh-CN"]) test(`sector legend replaces discovery c
 });
 
 test("opening relationship evidence preserves the current company",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
  await page.getByRole("textbox",{name:"Search companies"}).fill("NVDA");
  await page.getByRole("region", {name:/Search results|搜索结果/}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+ const canvas=page.locator("canvas");
+ await canvas.scrollIntoViewIfNeeded();
+ const bounds=(await canvas.boundingBox())!;
+ const anchor=page.locator('[data-company-id="US:TSM"]');
+ const projection=()=>anchor.evaluate(el=>el.parentElement!.parentElement!.style.transform);
+ const initial=await projection();
+ await page.mouse.move(bounds.x+bounds.width*.45,bounds.y+bounds.height*.65);
+ await page.mouse.down();
+ await page.mouse.move(bounds.x+bounds.width*.6,bounds.y+bounds.height*.7,{steps:12});
+ await page.mouse.up();
+ await expect.poll(projection).not.toBe(initial);
+ await page.waitForTimeout(800);
+ const orbited=await projection();
+ expect(orbited).toContain("translate");
  await page.getByRole("button",{name:"TSMC → NVIDIA",exact:true}).click();
+ await expect.poll(projection).toBe(orbited);
  await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("NVIDIA");
  await page.getByRole("region",{name:"Selected connection"}).getByRole("button",{name:"Explore TSMC →"}).click();
  await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("TSMC");
@@ -362,4 +402,27 @@ test("relationship labels always have a visible company endpoint",async({page})=
  await expect.poll(orphanLabels).toBe(0);
  await hoverGraph();await page.mouse.wheel(0,2500);
  await expect.poll(orphanLabels).toBe(0);
+});
+
+
+test("company labels keep their placement side during rotation",async({page})=>{
+ await page.emulateMedia({reducedMotion:"reduce"});
+ await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+ await page.goto("http://graph.test/map?lang=en");
+ const canvas=page.locator("canvas");
+ await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
+ await canvas.scrollIntoViewIfNeeded();
+ const sides=()=>page.locator('[data-company-id]:visible').evaluateAll(els=>els.map(el=>({id:el.getAttribute('data-company-id'),x:Math.sign(parseFloat((el as HTMLElement).style.getPropertyValue('--label-offset-x'))),y:Math.sign(parseFloat((el as HTMLElement).style.getPropertyValue('--label-offset-y')))})));
+ const box=(await canvas.boundingBox())!;
+ await page.mouse.move(box.x+box.width*.2,box.y+box.height*.8);
+ await page.mouse.down();
+ const before=await sides();
+ await page.mouse.move(box.x+box.width*.28,box.y+box.height*.82,{steps:10});
+ const during=await sides();
+ const retained=during.filter(n=>before.some(b=>b.id===n.id));
+ expect(retained.length).toBeGreaterThan(5);
+ for(const node of retained)expect(node).toEqual(before.find(b=>b.id===node.id));
+ await page.mouse.up();
+ await page.waitForTimeout(350);
+ await page.screenshot({path:'output/stable-rotation-'+test.info().project.name+'.png'});
 });
