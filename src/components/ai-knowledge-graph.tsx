@@ -6,6 +6,7 @@ import { companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-g
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
+import { CompanyFollowButton } from "./company-follow-button";
 import { AiMapDirectory } from "./ai-map-directory";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import styles from "./ai-knowledge-graph.module.css";
@@ -92,7 +93,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
         {company.symbol && <p className={styles.eyebrow}>{company.symbol}</p>}
         <p>{companyGeographyLabel(company, locale)}</p>
         <p>{company.summary}</p>
-        <a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a>
+        <CompanyFollowButton companyId={company.id} /><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a>
         {activeEdge && graph.relationships.filter(e => e.id === activeEdge).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected connection", "选中关系")}><h3>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}</h3><p>{label(e.source)} → {label(e.target)}</p><p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div><button onClick={() => selectCompany(e.target === company.id ? e.source : e.target)}>{text("Explore", "探索")} {label(e.target === company.id ? e.source : e.target)} →</button></section>)}
         <details key={`${company.id}-connections`} className={styles.detailSection} open>
           <summary>{text("Connections & roles", "关系与产业归属")} <span>{relations.length}</span></summary>

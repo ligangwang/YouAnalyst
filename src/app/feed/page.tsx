@@ -1,3 +1,4 @@
+import { FollowedCompaniesPage } from "@/components/followed-companies-page";
 import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { Suspense } from "react";
@@ -27,8 +28,9 @@ const pageMetadata: Metadata = {
 
 export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ company?: string | string[]; type?: string | string[] }> }) {
-  const { company, type: rawType } = await searchParams;
+export default async function Home({ searchParams }: { searchParams: Promise<{ company?: string | string[]; type?: string | string[]; scope?: string | string[] }> }) {
+  const { company, type: rawType, scope } = await searchParams;
+  if (scope === "following") return <FollowedCompaniesPage feed />;
   const ticker = typeof company === "string" ? company : "";
   if (ticker) redirect(`/map?company=${encodeURIComponent(ticker)}`);
   let type: EventFilter;

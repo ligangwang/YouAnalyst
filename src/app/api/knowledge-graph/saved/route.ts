@@ -1,6 +1,6 @@
-import { FieldValue } from "firebase-admin/firestore";
+import { readCompanyFollows, updateCompanyFollow } from "@/lib/company-follows-store";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
-import { getAdminFirestore } from "@/lib/firebase/admin";
+
 import { createSavedCompanyHandlers } from "@/lib/industry-graph/saved-companies";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
 
@@ -11,13 +11,10 @@ const handlers = createSavedCompanyHandlers({
     return (await loadKnowledgeGraph()).nodes.some((node) => node.kind === "COMPANY" && node.market === "US" && node.symbol === ticker);
   },
   async read(uid) {
-    return (await getAdminFirestore().collection("industry_map_preferences").doc(uid).get()).data()?.tickers;
+    return (await readCompanyFollows(uid)).filter(id => id.startsWith("US:")).map(id => id.slice(3));
   },
   async update(uid, ticker, saved) {
-    const doc = getAdminFirestore().collection("industry_map_preferences").doc(uid);
-    // Atomic membership changes preserve saves from other tabs; repeats are idempotent.
-    await doc.set({ tickers: saved ? FieldValue.arrayUnion(ticker) : FieldValue.arrayRemove(ticker) }, { merge: true });
-    return (await doc.get()).data()?.tickers;
+    return (await updateCompanyFollow(uid, `US:${ticker}`, saved)).filter(id => id.startsWith("US:")).map(id => id.slice(3));
   },
 });
 export const GET = handlers.GET;

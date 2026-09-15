@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
-const navigationChinese: Record<string, string> = {"AI Map":"AI 图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Calls":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
+const navigationChinese: Record<string, string> = {"Following":"我的关注","AI Map":"AI 图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Calls":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
 function useNavText() { const { chinese } = useLocale(); return (value: string) => chinese ? navigationChinese[value] ?? value : value; }
 
 function initials(name: string | null | undefined, email: string | null | undefined): string {
@@ -100,6 +100,7 @@ const primaryNavItems = [
   { href: "/", label: "AI Map" },
   { href: "/companies", label: "Companies" },
   { href: "/feed", label: "Feed" },
+  { href: "/watchlists/following", label: "Following" },
 ];
 const secondaryNavItems = [
   { href: "/watchlists", label: "Watchlists" },
@@ -222,8 +223,8 @@ export function SiteNav() {
           </div>
         </div>
 
-        <nav aria-label={ui("Mobile navigation")} className="mt-2 flex items-center gap-1 text-sm text-slate-200 lg:hidden">
-          {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="rounded-lg px-3 py-3">{t(item.label)}</Link>)}
+        <nav aria-label={ui("Mobile navigation")} className="mt-2 flex flex-wrap items-center gap-1 text-sm text-slate-200 lg:hidden">
+          {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="whitespace-nowrap rounded-lg px-2 py-3">{t(item.label)}</Link>)}
           <div className="ml-auto"><MoreMenu admin={showAdminLink} /></div>
         </nav>
       </div>

@@ -1,3 +1,4 @@
+import { CompanyResearchPanel } from "@/components/company-research-panel";
 import { CompanyCallActions } from "@/components/company-call-actions";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { cache } from "react";
@@ -42,7 +43,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     <a className="text-cyan-200" href={`${localizedPath("/", locale)}?company=${encodeURIComponent(id)}&market=ALL`}>{zh ? "AI 产业图谱" : "AI Industry Map"} →</a>
     <h1 className="mt-8 text-4xl font-semibold">{data.name}</h1>
     <p className="mt-4 text-slate-400">{companyGeographyLabel(companyGeography(data), locale)}</p>
-    <section className="mt-10 rounded-2xl border border-white/10 p-6"><h2 className="text-xl font-semibold">{zh ? "公司概览" : "Company overview"}</h2><p className="mt-4 leading-8">{String(data.description ?? "")}</p>
+    <CompanyResearchPanel companyId={id} />
+    <section id="company-information" className="mt-10 rounded-2xl border border-white/10 p-6"><h2 className="text-xl font-semibold">{zh ? "公司概览" : "Company overview"}</h2><p className="mt-4 leading-8">{String(data.description ?? "")}</p>
       <h2 className="mt-8 text-xl font-semibold">{zh ? "资料来源" : "Sources"}</h2><ul className="mt-4 space-y-3">{sources.map((s, i) => <li key={`${s.url}:${i}`}><a className="text-cyan-200" href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a></li>)}</ul>
     </section>
     {callTicker && <CompanyCallActions ticker={callTicker} />}
