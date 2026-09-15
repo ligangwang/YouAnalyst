@@ -132,7 +132,7 @@ test("map registration explains saving and saves before returning to the selecte
 test("failed save stays signed in and retries before returning", async ({ page }) => {
   const destination = "/?company=TSM";
   let attempts = 0;
-  await page.route(`${origin}/api/industry-graph/saved`, (route) => {
+  await page.route(`${origin}/api/knowledge-graph/saved`, (route) => {
     attempts += 1;
     expect(route.request().postDataJSON()).toEqual({ ticker: "TSM", saved: true });
     return route.fulfill(attempts === 1 ? { status: 503, json: {} } : { json: { tickers: ["TSM"] } });
@@ -200,7 +200,7 @@ test.beforeEach(async ({ page }) => {
       expect(request.headers().authorization).toBe("Bearer isolated-test-token");
       return route.fulfill({ json: { id: "default" } });
     }
-    if (url.origin === origin && url.pathname === "/api/industry-graph/saved" && request.method() === "POST") {
+    if (url.origin === origin && url.pathname === "/api/knowledge-graph/saved" && request.method() === "POST") {
       const body = request.postDataJSON();
       expect(body.saved).toBe(true);
       return route.fulfill({ json: { tickers: [body.ticker] } });

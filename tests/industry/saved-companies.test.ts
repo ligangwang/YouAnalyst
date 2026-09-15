@@ -20,7 +20,7 @@ function fixture() {
   return { records, calls, handlers };
 }
 function request(body?: unknown, authenticated = true) {
-  return new Request("https://example.invalid/api/industry-graph/saved?userId=bob", {
+  return new Request("https://example.invalid/api/knowledge-graph/saved?userId=bob", {
     method: body === undefined ? "GET" : "POST",
     headers: authenticated ? { authorization: "Bearer test-alice" } : {},
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),

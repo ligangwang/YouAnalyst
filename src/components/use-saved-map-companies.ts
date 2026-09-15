@@ -23,7 +23,7 @@ export function useSavedMapCompanies() {
     void (async () => {
       const token = await getIdToken();
       if (!token) throw new Error("Sign in again to load saved companies.");
-      const response = await fetch("/api/industry-graph/saved", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: controller.signal });
+      const response = await fetch("/api/knowledge-graph/saved", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("Could not load your saved companies.");
       const payload = await response.json();
       if (!Array.isArray(payload.tickers)) throw new Error("Could not load your saved companies.");

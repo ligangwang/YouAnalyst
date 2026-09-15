@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AiKnowledgeGraph } from "@/components/ai-knowledge-graph";
-import { IndustryGraphHome } from "@/components/industry-graph-home";
+import { redirect } from "next/navigation";
 import { localizedMetadata } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +10,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 export default async function Home({ searchParams }: { searchParams: Promise<MapSearchParams> }) {
   const { company, view, q } = await searchParams;
-  if (view === "filings") return <IndustryGraphHome initialTicker={typeof company === "string" ? company : ""} />;
+  if (view === "filings") redirect("/feed");
   return <AiKnowledgeGraph initialCompany={typeof company === "string" ? company : ""} initialQuery={typeof q === "string" ? q : ""} />;
 }

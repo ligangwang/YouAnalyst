@@ -106,7 +106,6 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
         <details key={`${company.id}-sources`} className={styles.detailSection}>
           <summary>{text("Research sources", "研究来源")}</summary>
           <div className={styles.sources}>{sourceLinks(company.sourceIds ?? [])}</div>
-          {company.market === "US" && <a className={styles.profileLink} href={`/map?view=filings&company=${encodeURIComponent(company.symbol ?? "")}`}>{text("Filing explorer", "财报关系探索")} →</a>}
         </details>
       </aside>}
     </div>}

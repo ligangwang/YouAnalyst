@@ -7,7 +7,9 @@ export type IndustryNode = {
   name: string;
   ticker: string | null;
   segment: IndustrySegment;
-  kind: "issuer" | "mention" | "category" | "coverage" | "research";
+  kind: "issuer" | "mention" | "category" | "coverage" | "research" | "published";
+  market?: string;
+  profileUrl?: string;
   aliases?: string[];
   filingForm?: "20-F";
 };
@@ -26,7 +28,9 @@ export type IndustryEdge = {
   id: string;
   source: string;
   target: string;
-  type: CompanyGraphRelationshipType;
+  type: string;
+  summary?: string;
+  commercialStatus?: string;
   bidirectional: boolean;
   evidence: IndustryEvidence[];
 };
@@ -40,7 +44,8 @@ export type IndustryGraph = {
   nextCursor?: string | null;
   requestedTicker?: string;
 };
-export const RELATIONSHIP_LABELS: Record<CompanyGraphRelationshipType, string> = {
+export const RELATIONSHIP_LABELS: Record<string, string> = {
+  INTEGRATES_TECH_FROM: "integrates technology from", PLANS_TO_ADOPT: "plans to adopt", ECOSYSTEM_PARTNER_OF: "ecosystem partner of", ENERGY_AGREEMENT_WITH: "energy agreement with",
   SUPPLIER_OF: "supplies", CUSTOMER_OF: "buys from", COMPETES_WITH: "competes with",
   PARTNER_OF: "partners with", DISTRIBUTES_FOR: "distributes for", MANUFACTURES_FOR: "manufactures for",
 };

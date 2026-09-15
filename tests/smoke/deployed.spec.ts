@@ -117,7 +117,7 @@ test("health endpoint reports ok", async ({ request, baseURL }) => {
 });
 
 test("saved map companies require authentication and cannot be publicly cached", async ({ request }) => {
-  const response = await request.get("/api/industry-graph/saved", { headers: savedCompanyHeaders() });
+  const response = await request.get("/api/knowledge-graph/saved", { headers: savedCompanyHeaders() });
   expect(response.status()).toBe(401);
   expect(response.headers()["cache-control"].split(/,\s*/)).toEqual(expect.arrayContaining(["private", "no-store"]));
 });
@@ -136,7 +136,7 @@ test("personal company calls require a user session and cannot be publicly cache
 test("authenticated saved-company reads reach the private account store", async ({ request }) => {
   const userToken = process.env.PLAYWRIGHT_FIREBASE_ID_TOKEN;
   test.skip(!userToken, "Requires a separate Firebase user ID token, not the Cloud Run service identity token");
-  const response = await request.get("/api/industry-graph/saved", { headers: savedCompanyHeaders(userToken) });
+  const response = await request.get("/api/knowledge-graph/saved", { headers: savedCompanyHeaders(userToken) });
   expect(response.status()).toBe(200);
   expect(response.headers()["cache-control"].split(/,\s*/)).toEqual(expect.arrayContaining(["private", "no-store"]));
   const result = await response.json();
@@ -147,7 +147,7 @@ test("authenticated saved-company reads reach the private account store", async 
 test("Cloud Run service identity does not grant access to saved companies", async ({ request }) => {
   const serviceToken = process.env.PLAYWRIGHT_AUTH_BEARER_TOKEN;
   test.skip(!serviceToken, "Requires the deployment service identity");
-  const response = await request.get("/api/industry-graph/saved", { headers: savedCompanyHeaders(serviceToken) });
+  const response = await request.get("/api/knowledge-graph/saved", { headers: savedCompanyHeaders(serviceToken) });
   expect(response.status()).toBe(401);
 });
 
@@ -210,16 +210,13 @@ test("global map companies open localized profiles", async ({ page, request }) =
   }
 });
 
-test("filing company map remains accessible under Explore", async ({ page }) => {
-  await page.goto("/map?view=filings");
-  const companySearch = page.getByRole("link", { name: "Search", exact: true });
-  await expect(companySearch).toBeVisible();
-  await expect(companySearch).toHaveAttribute("href", "/en/companies");
-  
-  await expect(page.getByRole("heading", { name: "Explore company connections.", exact: true })).toBeVisible();
-  await expect(page.getByRole("searchbox", { name: "Find a company in the map" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Map", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "List", exact: true })).toBeVisible();
+test("Research bookmarks open Feed and Feed is in primary navigation", async ({ page }) => {
+  await page.goto("/en/map?view=filings&company=AMD");
+  await expect(page).toHaveURL(/\/en\/feed$/);
+  const feed = page.getByRole("navigation").getByRole("link", { name: "Feed", exact: true });
+  await expect(feed).toBeVisible();
+  await expect(feed).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Research", exact: true })).toHaveCount(0);
 });
 
 test("A-share company has its own research page", async ({ page }) => {
@@ -236,25 +233,13 @@ test("map save registration opens account creation with company context", async 
   await expect(page.getByRole("button", { name: "Have an account? Sign in", exact: true })).toBeVisible();
 });
 
-test("industry map serves bounded filing data", async ({ request, baseURL }) => {
-  const response = await request.get(`${baseURL}/api/industry-graph`);
-  expect(response.ok()).toBeTruthy();
-  const graph = await response.json();
-  expect(Array.isArray(graph.nodes)).toBeTruthy();
-  expect(Array.isArray(graph.edges)).toBeTruthy();
-  expect(Array.isArray(graph.coveredTickers)).toBeTruthy();
-  expect(graph.nodes.length).toBeGreaterThan(0);
-  expect(graph.nodes.length).toBeLessThanOrEqual(101);
-  expect(graph.edges.length).toBeLessThanOrEqual(120);
-  for (const ticker of ["MU", "SNDK", "WDC"]) {
-    expect(graph.nodes.filter((node: { ticker: string; segment: string }) => node.ticker === ticker && node.segment === "memory")).toHaveLength(1);
-  }
-  const nodeIds = new Set(graph.nodes.map((node: { id: string }) => node.id));
-  for (const edge of graph.edges) {
-    expect(nodeIds.has(edge.source)).toBeTruthy();
-    expect(nodeIds.has(edge.target)).toBeTruthy();
-    expect(edge.evidence.length).toBeGreaterThan(0);
-  }
+test("industry graph is retired and identifies the shared replacement", async ({ request }) => {
+  const response = await request.get("/api/industry-graph");
+  expect(response.status()).toBe(410);
+  expect((await response.json()).replacement).toBe("/api/knowledge-graph");
+  const saved = await request.get("/api/industry-graph/saved", { maxRedirects: 0 });
+  expect(saved.status()).toBe(308);
+  expect(new URL(saved.headers().location).pathname).toBe("/api/knowledge-graph/saved");
 });
 
 test("company and institution search remains available", async ({ page }) => {

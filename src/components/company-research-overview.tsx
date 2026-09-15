@@ -36,17 +36,19 @@ export function CompanyResearchOverview({ company, fundamentals }: { company: Co
     {fundamentals}
     {company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker}<UiText text={" suppliers, customers and competitors"} /></h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? <UiText text={`${company.connections.length} relationships in the loaded sources. `} /> : ""}<UiText text={"These are AI-assisted research and filing claims, not a complete or independently verified account of the business. Source dates do not establish whether a relationship remains active."} /></p>
-      {!company.connections.length && <p className="mt-3 text-sm text-slate-400">{company.graphAvailable ? <UiText text={"No published relationships are available for this company yet."} /> : <UiText text={"Filing relationships are temporarily unavailable."} />}</p>}
+      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? <UiText text={`${company.connections.length} relationships in the loaded sources. `} /> : ""}<UiText text={"Published relationships from the AI Map, with links to their supporting sources. Source dates do not establish whether a relationship remains active."} /></p>
+      {!company.connections.length && <p className="mt-3 text-sm text-slate-400">{company.graphAvailable ? <UiText text={"No published relationships are available for this company yet."} /> : <UiText text={"Company relationships are temporarily unavailable."} />}</p>}
       <div className="mt-4 divide-y divide-white/10">
         {company.connections.slice(0, 12).map((connection) => <article key={connection.id} className="py-4">
           <h3 className="text-sm font-semibold text-slate-100">{<UiText text={connection.label} />}</h3>
-          {connection.related.ticker && <Link href={`/ticker/${encodeURIComponent(connection.related.ticker)}`} className="mt-1 inline-block text-sm text-cyan-200 underline underline-offset-4"><UiText text={"Research "} />{connection.related.name} ({connection.related.ticker})</Link>}
+          {(connection.related.profileUrl || connection.related.ticker) && <Link href={connection.related.profileUrl ?? `/ticker/${encodeURIComponent(connection.related.ticker!)}`} className="mt-1 inline-block text-sm text-cyan-200 underline underline-offset-4"><UiText text={"Research "} />{connection.related.name}{connection.related.ticker ? ` (${connection.related.ticker})` : ""}</Link>}
+          {connection.summary && <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{connection.summary}</p>}
+          {connection.commercialStatus === "ANNOUNCED" && <p className="mt-2 text-xs text-amber-200"><UiText text="Announced" /></p>}
           <details className="mt-2 text-sm">
             <summary className="cursor-pointer text-cyan-200">{connection.evidence.some(e => e.sourceKind === "web") ? <UiText text={"Sources"} /> : <UiText text={"Filing evidence"} />} ({connection.evidence.length})</summary>
             {connection.evidence.map((evidence) => <div key={evidence.id} className="mt-3 max-w-3xl border-l-2 border-cyan-700 pl-4">
-              <p className="text-xs text-slate-400">{evidence.issuerTicker} {evidence.sourceKind === "web" ? <UiText text={"industry research summary"} /> : <UiText text={"filing"} />} · {evidence.filingDate}</p>
-              {evidence.sourceKind === "web" ? <p className="mt-2 break-words leading-6 text-slate-300">{evidence.quote}</p> : <blockquote className="mt-2 break-words leading-6 text-slate-300">{evidence.quote}</blockquote>}
+              <p className="text-xs text-slate-400">{evidence.sourceTitle ?? evidence.issuerTicker}{evidence.filingDate ? ` · ${evidence.filingDate}` : ""}</p>
+              {connection.summary ? null : evidence.sourceKind === "web" ? <p className="mt-2 break-words leading-6 text-slate-300">{evidence.quote}</p> : <blockquote className="mt-2 break-words leading-6 text-slate-300">{evidence.quote}</blockquote>}
               {evidence.nameMatched && <p className="mt-2 text-xs text-amber-200"><UiText text={"Company identity is based on a provisional name match."} /></p>}
               {evidence.qualityReview && <p className="mt-2 text-xs text-amber-200"><UiText text={"Evidence reviewed "} />{evidence.qualityReview.reviewedAt}: {evidence.qualityReview.reason}</p>}
               <a href={evidence.filingUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-cyan-200 underline underline-offset-4">{evidence.sourceKind === "web" ? evidence.sourceTitle ?? <UiText text={"Read source"} /> : <UiText text={"Read SEC filing"} />}</a>

@@ -20,11 +20,20 @@ test("explicit language path overrides visitor cookie and forwards locale", () =
   assert.equal(response.headers.get("location"), null);
   assert.equal(response.headers.get("x-middleware-request-x-ya-language"), "zh-CN");
 });
-test("default graph removes redundant ALL and keeps filing explorer", () => {
+test("retired Research links redirect to localized Feed without stale graph filters", () => {
   assert.equal(new URL(proxy(request("/en?market=ALL")).headers.get("location")!).pathname, "/en");
-  assert.equal(new URL(proxy(request("/en/map?view=filings&company=AMD")).headers.get("x-middleware-rewrite")!).pathname, "/map");
-  assert.equal(new URL(proxy(request("/en?view=filings&company=AMD")).headers.get("location")!).pathname, "/en/map");
-  assert.equal(proxy(request("/en/map?view=filings&company=AMD")).headers.get("x-middleware-request-x-ya-pathname"), "/map?view=filings");
+  for (const prefix of ["/en", "/zh-cn"]) {
+    for (const alias of ["", "/map"]) {
+      const response = proxy(request(prefix + alias + "?view=filings&company=AMD&market=US&q=chip"));
+      assert.equal(response.status, 308);
+      const url = new URL(response.headers.get("location")!);
+      assert.equal(url.pathname, prefix + "/feed");
+      assert.equal(url.search, "");
+      assert.equal(proxy(request(url.pathname)).headers.get("location"), null);
+    }
+  }
+  const legacy = proxy(request("/map?view=filings", "ya-language=zh-CN"));
+  assert.equal(new URL(legacy.headers.get("location")!).pathname, "/zh-cn/feed");
 });
 test("auth, API, admin and assets keep their existing routes", () => {
   for (const path of ["/auth?next=%2Fpredictions", "/api/firebase-auth/identity/accounts:signUp", "/api/firebase-auth/token/token", "/admin", "/_next/static/chunk.js", "/sitemap.xml", "/robots.txt"]) {

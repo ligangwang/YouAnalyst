@@ -9,20 +9,20 @@ function text(value: unknown): string | null {
 export function buildCompanyResearch(ticker: string, listings: Record<string, unknown>[], graph: IndustryGraph | null) {
   const listing = listings.filter((item) => item.symbol === ticker && item.active === true && item.predictionSupported === true)
     .sort((a, b) => (Number(b.exchangePriority) || 0) - (Number(a.exchangePriority) || 0))[0];
-  const node = graph?.nodes.find((item) => item.ticker === ticker);
+  const node = graph?.nodes.find((item) => item.ticker === ticker && (!item.market || item.market === "US"));
   const nodes = new Map(graph?.nodes.map((item) => [item.id, item]) ?? []);
   const connections = node ? (graph?.edges ?? []).filter((edge) => edge.source === node.id || edge.target === node.id)
     .map((edge) => {
       const source = nodes.get(edge.source)!;
       const target = nodes.get(edge.target)!;
       const related = edge.source === node.id ? target : source;
-      return { id: edge.id, label: `${source.name} ${RELATIONSHIP_LABELS[edge.type]} ${target.name}`, related, evidence: edge.evidence };
+      return { id: edge.id, label: `${source.name} ${RELATIONSHIP_LABELS[edge.type] ?? edge.type.toLowerCase().replaceAll("_", " ")} ${target.name}`, related, summary: edge.summary, commercialStatus: edge.commercialStatus, evidence: edge.evidence };
     }) : [];
   return {
     ticker,
     listingStatus: listing?.listingStatus,
     profile: normalizeCompanyProfile(listing?.profile),
-    name: text(listing?.name) ?? node?.aliases?.[0] ?? node?.name ?? ticker,
+    name: text(listing?.name) ?? text(node?.aliases?.[0]) ?? node?.name ?? ticker,
     known: Boolean(listing || node),
     exchange: text(listing?.exchange),
     currency: text(listing?.currency),
