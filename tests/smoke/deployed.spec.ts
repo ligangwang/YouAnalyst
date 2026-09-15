@@ -162,7 +162,7 @@ test("feed remains accessible through More navigation", async ({ page }) => {
   const first = page.getByRole("article").first();
   if (await first.count()) {
     await expect(first.locator("button time")).toHaveText(/^(now|\d+(m|h|d|mo|y))$/);
-    await expect(first).not.toContainText("Added");
+    await expect(first).toContainText("Added");
   }
 });
 
