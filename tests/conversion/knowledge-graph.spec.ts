@@ -317,9 +317,12 @@ test("relationship labels always have a visible company endpoint",async({page})=
   return els.filter(visible).filter(el=>!nodes.includes(el.getAttribute('data-source'))&&!nodes.includes(el.getAttribute('data-target'))).length;
  });
  await expect.poll(orphanLabels).toBe(0);
- const canvas=page.locator("canvas");await canvas.hover({position:{x:20,y:100}});
+ const canvas=page.locator("canvas");
+ // Labels can now occupy this point; move the real pointer without requiring bare canvas.
+ const hoverGraph=async()=>{await canvas.scrollIntoViewIfNeeded();const box=await canvas.boundingBox();expect(box).not.toBeNull();await page.mouse.move(box!.x+20,box!.y+100);};
+ await hoverGraph();
  await page.mouse.wheel(0,-2500);
  await expect.poll(orphanLabels).toBe(0);
- await canvas.hover({position:{x:20,y:100}});await page.mouse.wheel(0,2500);
+ await hoverGraph();await page.mouse.wheel(0,2500);
  await expect.poll(orphanLabels).toBe(0);
 });
