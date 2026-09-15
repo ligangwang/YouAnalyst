@@ -13,3 +13,5 @@ The server checks the existing admin role, validates the input, and updates only
 The canonical company ID, ticker, legal name, relationships and source evidence are preserved. Previous display names remain searchable aliases. The existing `companies` document records the latest edit per language (`nameEdits`) and rebuilds search prefixes. This is a latest-edit record, not a complete revision history.
 
 A revision marker in the existing `directory_syncs/company_names` document invalidates in-process graph caches across servers. Graph responses bypass browser/CDN caching, while the expensive graph build remains cached until that revision changes or its five-minute TTL expires. The active graph updates immediately on save; other already-open views receive the new name when they reload or fetch their next update. No new Firestore collection is required.
+
+If the revision lookup temporarily fails, servers can serve an unexpired graph cache. During that failure, a recent correction may remain stale until the lookup recovers; expired or missing caches still fail explicitly.

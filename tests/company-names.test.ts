@@ -86,9 +86,9 @@ test("non-admin name edits fail before any database access", async () => {
 });
 
 test("shared name revision invalidates warm graph caches in separate server instances", async () => {
- let revision = "old", name = "台积公司", companyReads = 0;
+ let revision = "old", name = "台积公司", companyReads = 0, revisionUnavailable = false;
  const db = {collection:(collection:string)=>({
-  doc:()=>({get:async()=>({data:()=>({revision})})}),
+  doc:()=>({get:async()=>{if(revisionUnavailable)throw new Error("Unavailable");return {data:()=>({revision})};}}),
   where:()=>({get:async()=>({docs:collection === "companies" ? [ {id:"US:TSM",data:()=>{companyReads++;return {name:"TSMC",names:{"zh-CN":name},status:"PUBLISHED",aiGraph:{status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[]}};}} ] : []})})
  })};
  const a = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
@@ -98,4 +98,13 @@ test("shared name revision invalidates warm graph caches in separate server inst
  name = "台积电"; revision = "new";
  for(const server of [a,b]) assert.equal(companyName((await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>).nodes[0],"zh-CN"),"台积电");
  assert.equal(companyReads,4);
+ revisionUnavailable = true;
+ assert.equal(companyName((await a.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>).nodes[0],"zh-CN"),"台积电");
+ const cold = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
+ await assert.rejects(cold.loadKnowledgeGraph(), /Unavailable/);
+ const realNow = Date.now;
+ try {
+   Date.now = () => realNow() + 301_000;
+   await assert.rejects(a.loadKnowledgeGraph(), /Unavailable/);
+ } finally { Date.now = realNow; }
 });

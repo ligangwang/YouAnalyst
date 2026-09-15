@@ -5,7 +5,13 @@ let cached: { graph: KnowledgeGraph; expires: number; revision: string } | undef
 let pending: { promise: Promise<KnowledgeGraph>; revision: string } | undefined;
 export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
   const db = getAdminFirestore();
-  const revision = String((await db.collection("directory_syncs").doc("company_names").get()).data()?.revision ?? "");
+  let revision: string;
+  try {
+    revision = String((await db.collection("directory_syncs").doc("company_names").get()).data()?.revision ?? "");
+  } catch (error) {
+    if (cached && cached.expires > Date.now()) return cached.graph;
+    throw error;
+  }
   if (cached && cached.revision === revision && cached.expires > Date.now()) return cached.graph;
   if (pending?.revision === revision) return pending.promise;
   const promise = (async () => {
