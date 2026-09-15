@@ -29,7 +29,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
   const sectorElements = useRef(new Map<string, HTMLButtonElement>());
   const layout = useMemo(() => layout3D(graph), [graph]);
   const controls = useRef<CameraControls>(null);
-  const { size, camera, invalidate } = useThree();
+  const { size, camera, invalidate, gl } = useThree();
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const projected = useMemo(() => new Vector3(), []);
   const [hovered, setHovered] = useState("");
@@ -109,10 +109,11 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
   };
   useFrame(() => {
     const occupied: {x:number;y:number;w:number;h:number}[]=[];
-    const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number, company=false) => {
+    const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number, companyGap?:number) => {
       projected.set(x,y,z).project(camera);
       const px=(projected.x+1)*size.width/2,py=(1-projected.y)*size.height/2;
-      const offsets=company?[[0,height/2+5],[0,-height/2-5],[width/2+7,0],[-width/2-7,0],[width/2+5,height/2+5],[-width/2-5,height/2+5],[width/2+5,-height/2-5],[-width/2-5,-height/2-5]]:[[0,0]];
+      const gap=companyGap??0;
+      const offsets=companyGap!==undefined?[[0,height/2+gap],[0,-height/2-gap],[width/2+gap,0],[-width/2-gap,0],[width/2+gap,height/2+gap],[-width/2-gap,height/2+gap],[width/2+gap,-height/2-gap],[-width/2-gap,-height/2-gap]]:[[0,0]];
       const offset=eligible && projected.z>-1 && projected.z<1 && offsets.find(([dx,dy])=>{
         const cx=px+dx,cy=py+dy;
         return cx-width/2>2 && cx+width/2<size.width-2 && cy-height/2>2 && cy+height/2<size.height-32 && !occupied.some(p=>Math.abs(cx-p.x)<(width+p.w)/2+3 && Math.abs(cy-p.y)<(height+p.h)/2+2);
@@ -120,7 +121,7 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
       const visible=Boolean(offset);
       element.style.visibility=visible?"visible":"hidden";
       if(offset){
-        if(company){element.style.setProperty("--label-offset-x",`${offset[0]}px`);element.style.setProperty("--label-offset-y",`${offset[1]}px`);}
+        if(companyGap!==undefined){element.style.setProperty("--label-offset-x",`${offset[0]}px`);element.style.setProperty("--label-offset-y",`${offset[1]}px`);}
         occupied.push({x:px+offset[0],y:py+offset[1],w:width,h:height});
       }
       return visible;
@@ -173,7 +174,12 @@ function Scene({ graph, selected, onSelect, reset, activeEdge, highlightedEdges,
     for(const n of candidates){
       const element=labelElements.current.get(n.id);if(!element)continue;
       const {width,height}=measurements.get(element)!;
-      if(place(element,n.x,n.y,n.z,true,width,height,true)){shown++;visibleCompanies.add(n.id);}
+      const depth=-projected.set(n.x,n.y,n.z).applyMatrix4(camera.matrixWorldInverse).z;
+      const emphasis=geometry.getAttribute("emphasis").getX(layout.nodes.indexOf(n));
+      // Match the point shader's physical pixel diameter, then convert to CSS pixels.
+      const pointDiameter=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*(emphasis>1?1.5:1);
+      const gap=pointDiameter/(2*gl.getPixelRatio())+3;
+      if(place(element,n.x,n.y,n.z,true,width,height,gap)){shown++;visibleCompanies.add(n.id);}
       if(shown===1&&!sectorsPlaced){placeEdges(true);placeEdges();placeSectors();sectorsPlaced=true;}
     }
     if(!sectorsPlaced)placeSectors();
