@@ -10,7 +10,7 @@ export function parseNameEdit(value: unknown) {
   if (!body || typeof body !== "object" || Array.isArray(body) ||
       Object.keys(body).some(key => !["companyId", "locale", "name", "expectedName"].includes(key)) ||
       typeof body.companyId !== "string" || !/^(US:[A-Z0-9.-]{1,30}|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(body.companyId) ||
-      !["en", "zh-CN"].includes(String(body.locale)) ||
+      typeof body.locale !== "string" || !["en", "zh-CN"].includes(body.locale) ||
       typeof body.name !== "string" || !body.name.trim() || body.name.length > 120 || /[\p{Cc}\p{Cf}<>]/u.test(body.name) ||
       typeof body.expectedName !== "string" || body.expectedName.length > 200) {
     throw new CompanyNameError(400, "Invalid company display name edit");
