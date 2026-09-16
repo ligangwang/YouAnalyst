@@ -63,7 +63,6 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const locale = parseLocale((await headers()).get("x-ya-language")) ?? "en";
-  const zh = locale === "zh-CN";
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -97,14 +96,14 @@ export default async function RootLayout({
           <div id="page-content" tabIndex={-1} className="flex-1">{children}</div>
           <footer className="border-t border-white/10 bg-slate-950/80">
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs leading-6 text-slate-400">
-              {zh ? "YouAnalyst 的观点、排名与评论仅供参考，不构成投资、法律或税务建议。投资决策前，请独立研究。" : <UiText text={"Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."} />}
+              <UiText text={"Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."} />
               <div className="mt-3">
-                <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline">{zh ? "使用指南" : <UiText text={"How it works"} />}</Link>
+                <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline"><UiText text={"How it works"} /></Link>
                 <Link href="/feedback" className="font-medium text-cyan-200 underline-offset-2 hover:underline">
-                  {zh ? "意见反馈" : <UiText text={"Share thoughts"} />}
+                  <UiText text={"Share thoughts"} />
                 </Link>
               </div>
-              <p className="mt-2 text-slate-500">© {new Date().getFullYear()}<UiText text={" YouAnalyst. "} />{zh ? "保留所有权利。" : <UiText text={"All rights reserved."} />}</p>
+              <p className="mt-2 text-slate-500">© {new Date().getFullYear()}<UiText text={" YouAnalyst. "} /><UiText text={"All rights reserved."} /></p>
             </div>
           </footer>
         </AppProviders>
