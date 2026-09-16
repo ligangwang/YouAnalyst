@@ -187,8 +187,8 @@ export function PredictionReturnSummary({
           <span className="text-slate-400"><UiText text={"awaiting first mark"} /></span>
         </>
       ) : null}
-      {(hasReturn || isAwaitingEntry) && statusLabel ? <span className="text-slate-500"><UiText text={" &middot; "} /></span> : null}
-      {!isAwaitingFirstMark && statusLabel ? <span className="text-slate-400">{<UiText text={statusLabel} />}</span> : null}
+      {hasReturn && statusLabel ? <span className="text-slate-500"><UiText text={" &middot; "} /></span> : null}
+      {!isAwaitingFirstMark && !isAwaitingEntry && statusLabel ? <span className="text-slate-400">{<UiText text={statusLabel} />}</span> : null}
     </>
   );
 
