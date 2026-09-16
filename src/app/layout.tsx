@@ -1,3 +1,4 @@
+import { FollowingReturnTracker } from "@/components/following-return-tracker";
 import { localizedMetadata } from "@/lib/i18n/server";
 
 import { UiText } from "@/components/ui-text";
@@ -90,6 +91,7 @@ export default async function RootLayout({
         </Script>
         <AppProviders locale={locale}>
           <EnvironmentBanner />
+          <FollowingReturnTracker />
           <a href="#page-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyan-200 focus:p-3 focus:text-slate-950"><UiText text={"Skip to content"} /></a>
           <SiteNav />
           <div id="page-content" tabIndex={-1} className="flex-1">{children}</div>

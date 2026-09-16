@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { Firestore, Transaction } from "firebase-admin/firestore";
 
 type Source = { id: string; url: string; title: string; sourceDate: string | null; retrievedAt: string };
-type Fact = { state: "DOCUMENTED" | "ANNOUNCED"; scope: string; sourceIds: string[]; limitation: string };
+type Fact = { verificationStatus?: "CONFIRMED" | "PENDING" | "TERMINATED"; eventDate?: string; state: "DOCUMENTED" | "ANNOUNCED"; scope: string; sourceIds: string[]; limitation: string };
 type Edge = { source: string; target: string; type: string; facts: Fact[] };
 export type ComputeBatch = { batchId: string; asOf: string; sources: Source[]; relationships: Edge[] };
 type StoredFact = Fact & { id: string; reviewedAt: string };
@@ -38,6 +38,8 @@ export function validateBatch(b: ComputeBatch) {
     assert(e.facts.length > 0 && e.facts.length <= 20);
     for (const f of e.facts) {
       assert(["DOCUMENTED", "ANNOUNCED"].includes(f.state) && f.scope.trim() && f.limitation.trim());
+      assert(f.verificationStatus === undefined || ["CONFIRMED", "PENDING", "TERMINATED"].includes(f.verificationStatus));
+      assert(f.eventDate === undefined || date(f.eventDate) && f.eventDate <= b.asOf);
       assert(f.sourceIds.length > 0 && f.sourceIds.every(id => sources.has(id)), "Missing fact evidence");
       assert(n.type !== "PLANNED_ADOPTER_OF" || f.state === "ANNOUNCED", "Planned adoption cannot imply delivery");
     }
@@ -49,6 +51,7 @@ export function mergeEdge(b: ComputeBatch, edge: Edge, old: Row | null): Row {
   const evidence = (old?.evidence ?? []).map(s => ({ ...s, id: s.id || `research:${hash(s.url).slice(0, 24)}` }));
   const facts = [...(old?.researchFacts ?? [])];
   const added: StoredFact[] = [];
+  let refreshed = false;
   for (const f of edge.facts) {
     const resolved = f.sourceIds.map(id => {
       const s = b.sources.find(s => s.id === id)!;
@@ -58,13 +61,17 @@ export function mergeEdge(b: ComputeBatch, edge: Edge, old: Row | null): Row {
       evidence.push(item); return item.id;
     });
     // Identity uses source URLs, not batch-local aliases or changing retrieval dates.
-    const id = hash([f.state, f.scope.trim(), f.limitation.trim(), f.sourceIds.map(id => b.sources.find(s => s.id === id)!.url).sort()]);
-    if (!facts.some(f => f.id === id)) {
+    const id = hash([...(f.verificationStatus || f.eventDate ? [f.verificationStatus ?? null, f.eventDate ?? null] : []), f.state, f.scope.trim(), f.limitation.trim(), f.sourceIds.map(id => b.sources.find(s => s.id === id)!.url).sort()]);
+    const existingIndex = facts.findIndex(f => f.id === id);
+    if (existingIndex < 0) {
       const fact = { ...f, sourceIds: [...new Set(resolved)], id, reviewedAt: b.asOf };
       facts.push(fact); added.push(fact);
+    } else if (f.verificationStatus && facts[existingIndex].reviewedAt < b.asOf) {
+      facts[existingIndex] = { ...facts[existingIndex], reviewedAt: b.asOf };
+      refreshed = true;
     }
   }
-  if (old && !added.length && evidence.length === (old.evidence ?? []).length) return old;
+  if (old && !added.length && !refreshed && evidence.length === (old.evidence ?? []).length) return old;
   const summary = [String(old?.summary ?? "").trim(), ...added.map(f => {
     const dates = [...new Set(f.sourceIds.map(id => evidence.find(s => s.id === id)?.sourceDate).filter(Boolean))];
     return `${f.state === "ANNOUNCED" ? "Announced/planned" : "Documented"}${dates.length ? ` (${dates.join(", ")})` : " (undated source)"}: ${f.scope}.`;

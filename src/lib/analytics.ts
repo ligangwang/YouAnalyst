@@ -1,4 +1,4 @@
-type AnalyticsEvent = "industry_graph_view" | "industry_graph_load" | "industry_graph_error" |
+type AnalyticsEvent = "company_follow" | "company_unfollow" | "company_event_open" | "company_evidence_view" | "company_event_map" | "following_return_7d" | "industry_graph_view" | "industry_graph_load" | "industry_graph_error" |
   "graph_search" | "graph_company_select" | "graph_expand" | "graph_filter" | "graph_evidence_open" |
   "graph_source_open" | "graph_view_change" | "graph_company_open" | "graph_predict_click" |
   "graph_feedback_click" | "graph_save_view" | "graph_discovery_open" | "graph_save_intent" | "graph_save_complete" | "graph_save_error" | "graph_saved_company_open" | "auth_view" | "auth_start" | "auth_cancel" | "auth_error" | "sign_up" | "login" | "prediction_publish";
@@ -42,4 +42,17 @@ export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) 
       enqueue("event", event, payload);
     }
   } catch { /* Analytics must never interrupt product actions. */ }
+}
+
+// Same-browser, different-day return within seven days. No account or follow list is stored.
+export function trackFollowingVisit(now = Date.now(), start = false) {
+  try {
+    if (typeof window === "undefined" || document.querySelector('meta[name="youanalyst-analytics"]')?.getAttribute("content") !== "enabled" || document.cookie.split(";").some(v => v.trim() === "youanalyst_analytics_opt_out=1")) return;
+    const key = "youanalyst:following-visit";
+    const previous = Number(localStorage.getItem(key));
+    if (!previous && !start) return;
+    const today = Math.floor(now / 86400000), last = Math.floor(previous / 86400000);
+    if (previous > 0 && today > last && now - previous <= 7 * 86400000) trackEvent("following_return_7d");
+    if (!previous || today !== last) localStorage.setItem(key, String(now));
+  } catch { /* Analytics is optional. */ }
 }

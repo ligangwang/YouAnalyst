@@ -1,11 +1,12 @@
+import { updateReasons, eventMapUrl, type UpdateReason, type BusinessEvent } from "./business-events";
 import type { KnowledgeGraph } from "./model";
 import type { PublicEvent } from "../events/model";
 import type { InsiderActivity } from "../events/insider-summary";
 import { relationAnchor, researchCompanyUrl } from "./research-view";
 
-export type CompanyUpdate = { id: string; kind: "RESEARCH" | "FILING"; companyIds: string[]; collectedAt: string; eventDate: string | null; sourceDate: string | null; sourceUrl: string; sourceTitle: string; description: string; href: string; edgeId?: string; factId?: string; state?: string; activity?: InsiderActivity[] };
+export type CompanyUpdate = { id: string; kind: "RESEARCH" | "FILING" | "BUSINESS"; reasons?: UpdateReason[]; business?: BusinessEvent; mapHref?: string; companyIds: string[]; collectedAt: string; eventDate: string | null; sourceDate: string | null; sourceUrl: string; sourceTitle: string; description: string; href: string; edgeId?: string; factId?: string; state?: string; activity?: InsiderActivity[] };
 const date = (value: unknown): string | null => typeof value === "string" && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
-export function companyUpdates(graph: KnowledgeGraph, followedIds: string[], filings: PublicEvent[] = []): CompanyUpdate[] {
+export function companyUpdates(graph: KnowledgeGraph, followedIds: string[], filings: PublicEvent[] = [], events: BusinessEvent[] = []): CompanyUpdate[] {
   const followed = new Set(followedIds), nodes = new Map(graph.nodes.filter(n => n.kind === "COMPANY").map(n => [n.id, n]));
   const items: CompanyUpdate[] = [];
   for (const edge of graph.relationships) {
@@ -26,6 +27,20 @@ export function companyUpdates(graph: KnowledgeGraph, followedIds: string[], fil
     if (!companyIds.length || !filing.sourceUrl.startsWith("https://www.sec.gov/Archives/")) continue;
     const focal = nodes.get(companyIds[0])!;
     items.push({ id: filing.id, kind: "FILING", companyIds, collectedAt: filing.publishedAt, eventDate: filing.occurredAt, sourceDate: filing.occurredAt, sourceUrl: filing.sourceUrl, sourceTitle: filing.title, description: filing.summary, ...(filing.activity ? {activity:filing.activity} : {}), href: `${researchCompanyUrl(focal)}#${filing.type === "SEC_FORM4" ? "insider-transactions" : "institutional-holdings"}` });
+  }
+  for (const event of events) {
+    const companyIds = event.companyIds.filter(id => nodes.has(id));
+    const reasons = updateReasons(graph, followedIds, companyIds);
+    if (!reasons.length) continue;
+    const focal = companyIds.find(id => followed.has(id)) ?? reasons[0].companyId;
+    const edge = graph.relationships.find(e => e.id === event.relationshipId && companyIds.includes(e.source) && companyIds.includes(e.target));
+    items.push({ id: event.id, kind: "BUSINESS", business: event, reasons, companyIds, collectedAt: event.collectedAt,
+      eventDate: event.eventDate, sourceDate: event.sourceDate, sourceUrl: event.sourceUrl, sourceTitle: event.sourceTitle,
+      description: event.summary, href: eventMapUrl(focal, event.id, edge?.id), mapHref: eventMapUrl(focal, event.id, edge?.id), edgeId: edge?.id });
+  }
+  for (const item of items) {
+    item.reasons ??= updateReasons(graph, followedIds, item.companyIds).filter(r => !r.edgeId);
+    item.mapHref ??= eventMapUrl(item.reasons[0]?.companyId ?? item.companyIds[0], undefined, item.edgeId);
   }
   return [...new Map(items.map(i => [i.id,i])).values()].sort((a,b) => b.collectedAt.localeCompare(a.collectedAt) || a.id.localeCompare(b.id));
 }

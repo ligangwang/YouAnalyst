@@ -10,13 +10,19 @@ import { CompanyFollowButton } from "./company-follow-button";
 import { CompanyNameEditor } from "./company-name-editor";
 import { AiMapDirectory } from "./ai-map-directory";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
+import { RelationshipEvidence } from "./company-research-panel";
+import { BusinessEventEvidence } from "./company-change-card";
+import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
+import { relationshipVerification, verificationLabel } from "@/lib/knowledge-graph/relationship-status";
+import { trackEvent } from "@/lib/analytics";
 import styles from "./ai-knowledge-graph.module.css";
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
-export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { initialCompany?: string; initialQuery?: string }) {
+export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "" }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string }) {
   const { text, locale } = useLocale();
-  const [activeEdge, setActiveEdge] = useState("");
+  const [activeEdge, setActiveEdge] = useState(initialEdge);
+  const [eventId, setEventId] = useState(initialEvent);
   const [sectorFocus, setSectorFocus] = useState("");
   const [sectorsExpanded, setSectorsExpanded] = useState(false);
   const sectorControlsId = useId();
@@ -50,8 +56,11 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
     workspaceRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
     setQuery("");
     setActiveEdge("");
+    setEventId("");
     const url = new URL(window.location.href);
     url.searchParams.delete("q");
+    url.searchParams.delete("event");
+    url.searchParams.delete("relationship");
     if (id) url.searchParams.set("company", id); else url.searchParams.delete("company");
     window.history.replaceState(null, "", url);
   }
@@ -63,9 +72,14 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
     setSectorFocus("");
     setQuery("");
     setActiveEdge(id);
+    setEventId("");
+    trackEvent("company_evidence_view", {entry_point:"map_connection"});
     const url=new URL(window.location.href);
     url.searchParams.delete("q");
+    url.searchParams.delete("event");
+    url.searchParams.delete("relationship");
     url.searchParams.set("company",nextCompany);
+    url.searchParams.set("relationship", id);
     window.history.replaceState(null,"",url);
   }
   function toggleSector(id: string) {
@@ -79,7 +93,9 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
     <header className={styles.header}><div><p className={styles.eyebrow}>{text("EXPLORE", "探索")}</p><h1>{text("AI Industry Map", "AI 产业图谱")}</h1><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></div></header>
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
-      <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
+      <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q");
+    url.searchParams.delete("event");
+    url.searchParams.delete("relationship"); window.history.replaceState(null, "", url); }}/>
     </div>
     {query.trim() && <section className={styles.searchResults} aria-label={text("Search results", "搜索结果")}>
       {matches.length ? matches.map(n => <button key={n.id} onClick={() => selectCompany(n.id)}>{companyName(n,locale)} · {n.symbol}</button>) : <p>{text("No matching companies.", "没有匹配的公司。")}</p>}
@@ -98,14 +114,15 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "" }: { i
         <p>{companyGeographyLabel(company, locale)}</p>
         <p>{company.summary}</p>
         <CompanyFollowButton companyId={company.id} /><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a>
-        {activeEdge && graph.relationships.filter(e => e.id === activeEdge).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected connection", "选中关系")}><h3>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}</h3><p>{label(e.source)} → {label(e.target)}</p><p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div><button onClick={() => selectCompany(e.target === company.id ? e.source : e.target)}>{text("Explore", "探索")} {label(e.target === company.id ? e.source : e.target)} →</button></section>)}
+        {eventId && curatedEvents.filter(e => e.id === eventId && e.companyIds.includes(company.id)).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected event evidence", "选中事件证据")}><BusinessEventEvidence event={e} /></section>)}
+        {activeEdge && graph.relationships.filter(e => e.id === activeEdge && (e.source === company.id || e.target === company.id)).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected connection", "选中关系")}><h3>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}</h3><p>{label(e.source)} → {label(e.target)}</p><RelationshipEvidence edge={e} graph={graph} /><button onClick={() => selectCompany(e.target === company.id ? e.source : e.target)}>{text("Explore", "探索")} {label(e.target === company.id ? e.source : e.target)} →</button></section>)}
         <details key={`${company.id}-connections`} className={styles.detailSection} open>
           <summary>{text("Connections & roles", "关系与产业归属")} <span>{relations.length}</span></summary>
           {relations.length === 0 && <p>{text("No documented connections yet.", "暂无已收录关系。")}</p>}
           {relations.map(e => <article key={e.id}>
             <span>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}{e.commercialStatus === "ANNOUNCED" ? text(" · Announced", " · 已宣布") : ""}</span>
             {e.type === "PARTICIPATES_IN" ? <strong>{label(e.source)} → {label(e.target)}</strong> : <button className={styles.connectionLink} onClick={() => openConnection(e.id, company.id)}>{label(e.source)} → {label(e.target)}</button>}
-            <p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div>
+            <p>{e.type !== "PARTICIPATES_IN" && <small>{verificationLabel(relationshipVerification(e), locale === "zh-CN")} · {text("Last reviewed", "最近复核")}: {e.researchReviewedAt ?? text("Not recorded", "未记录")}</small>}</p><p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div>
           </article>)}
         </details>
         <details key={`${company.id}-sources`} className={styles.detailSection}>
