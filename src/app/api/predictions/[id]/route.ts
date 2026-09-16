@@ -4,6 +4,7 @@ import { getAiAnalystPublicProfileForUser } from "@/lib/ai-analyst/config";
 import { canonicalPredictionStatus, sanitizePredictionThesis, sanitizePredictionThesisTitle } from "@/lib/predictions/types";
 import { updatePredictionDetails, validateUpdatePredictionInput } from "@/lib/predictions/service";
 import { NextRequest, NextResponse } from "next/server";
+import { chinaCompanyId } from "@/lib/market-companies/routes";
 
 function statusFromError(message: string): number {
   if (/not found/i.test(message)) {
@@ -88,9 +89,26 @@ export async function GET(
         : null;
     }
 
+    // Resolve display names from the same company records used by the graph.
+    // A missing profile must not prevent an existing prediction from opening.
+    const ticker = typeof prediction.ticker === "string" ? prediction.ticker.trim().toUpperCase() : "";
+    const companyId = chinaCompanyId(ticker) ?? (/^(?:US:)?[A-Z][A-Z0-9.-]{0,19}$/.test(ticker) ? `US:${ticker.replace(/^US:/, "")}` : null);
+    let company: { id: string; name: string; names: Record<string, string> } | null = null;
+    if (companyId) {
+      try {
+        const profile = (await db.collection("companies").doc(companyId).get()).data();
+        if (profile) company = {
+          id: companyId,
+          name: typeof profile.name === "string" ? profile.name : ticker,
+          names: Object.fromEntries(Object.entries(profile.names && typeof profile.names === "object" ? profile.names : {}).filter(([key, value]) => ["en", "zh-CN"].includes(key) && typeof value === "string" && value.trim())) as Record<string, string>,
+        };
+      } catch { /* Keep the ticker fallback when the directory is unavailable. */ }
+    }
+
     return NextResponse.json({
       id: snapshot.id,
       ...prediction,
+      company,
       status: canonicalPredictionStatus(prediction.status) ?? "CREATED",
       authorDisplayName,
       authorNickname,
