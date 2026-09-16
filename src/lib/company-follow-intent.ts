@@ -1,3 +1,4 @@
+import { trackEvent, trackFollowingVisit } from "./analytics";
 import { safeAuthDestination } from "./auth-continuation";
 
 export function validFollowCompany(id: string): boolean {
@@ -25,6 +26,8 @@ export async function persistCompanyFollow(companyId: string, follow: boolean, g
   if (!response.ok) throw new Error("Follow could not be saved");
   const data = await response.json();
   if (!Array.isArray(data.companyIds) || data.companyIds.includes(companyId) !== follow) throw new Error("Follow not confirmed");
+  trackEvent(follow ? "company_follow" : "company_unfollow");
+  if (follow) trackFollowingVisit(Date.now(), true);
   if (typeof window !== "undefined") window.dispatchEvent(new Event("company-follows-changed"));
   return data.companyIds as string[];
 }

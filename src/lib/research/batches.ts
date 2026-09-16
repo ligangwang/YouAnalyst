@@ -16,7 +16,7 @@ export function validateInput(value: unknown): ComputeBatch {
     for (const r of b.relationships) { assert(Array.isArray(r.facts)); for (const f of r.facts) assert(typeof f.scope === "string" && f.scope.length <= 1200 && typeof f.limitation === "string" && f.limitation.length <= 1200 && Array.isArray(f.sourceIds) && f.sourceIds.length <= 20); }
     validateBatch(b);
     // Explicit field allowlist: clients cannot write publication state or arbitrary fields.
-    return { batchId: b.batchId, asOf: b.asOf, sources: b.sources.map(s => ({ id: s.id, url: s.url, title: s.title, sourceDate: s.sourceDate, retrievedAt: s.retrievedAt })), relationships: b.relationships.map(r => ({ source: r.source, target: r.target, type: r.type, facts: r.facts.map(f => ({ state: f.state, scope: f.scope, sourceIds: f.sourceIds, limitation: f.limitation })) })) };
+    return { batchId: b.batchId, asOf: b.asOf, sources: b.sources.map(s => ({ id: s.id, url: s.url, title: s.title, sourceDate: s.sourceDate, retrievedAt: s.retrievedAt })), relationships: b.relationships.map(r => ({ source: r.source, target: r.target, type: r.type, facts: r.facts.map(f => ({ state: f.state, scope: f.scope, sourceIds: f.sourceIds, limitation: f.limitation, ...(f.verificationStatus ? {verificationStatus:f.verificationStatus} : {}), ...(f.eventDate ? {eventDate:f.eventDate} : {}) })) })) };
   } catch { throw new ResearchError(400, "Invalid research batch, sources or relationship types"); }
 }
 function bounded(record: BatchRecord) {

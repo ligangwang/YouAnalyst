@@ -1,4 +1,6 @@
 "use client";
+import { factVerification, verificationLabel, relationshipVerification } from "@/lib/knowledge-graph/relationship-status";
+import { trackEvent } from "@/lib/analytics";
 
 import { useEffect, useState } from "react";
 import { LocalizedLink as Link } from "./localized-link";
@@ -12,11 +14,11 @@ export function RelationshipEvidence({ edge, graph }: { edge: GraphEdge; graph: 
   const facts = edge.facts?.length ? edge.facts : [{ scope: edge.summary, state: edge.commercialStatus, sourceIds: edge.sourceIds }];
   return <div className="mt-3 space-y-3">
     {facts.map((fact, i) => <div key={fact.id ?? i} className="border-l-2 border-cyan-700 pl-3">
-      <p className="text-xs text-cyan-200">{fact.state === "ANNOUNCED" || edge.type === "PLANNED_ADOPTER_OF" ? text("Announced / planned — delivery not confirmed", "已宣布／计划中，尚不代表已交付") : text("Documented — status as described by source", "已有来源记录，以资料所述状态为准")}</p>
-      <p className="mt-2 text-sm leading-6 text-slate-200">{relationshipExplanation({ ...edge, facts: [fact] }, graph, chinese)}</p>
+      <p className="text-xs text-cyan-200"><span>{verificationLabel(factVerification(fact), chinese)}</span> · <span>{fact.state === "ANNOUNCED" || edge.type === "PLANNED_ADOPTER_OF" ? text("Announced / planned — delivery not confirmed", "已宣布／计划中，尚不代表已交付") : text("Documented — status as described by source", "已有来源记录，以资料所述状态为准")}</span></p>
+      <p className="mt-1 text-xs text-slate-400">{text("Last verified", "最近核实")}: {fact.verificationStatus ? fact.reviewedAt ?? text("Not recorded", "未记录") : text("Not recorded", "未记录")}</p><p className="mt-2 text-sm leading-6 text-slate-200">{relationshipExplanation({ ...edge, facts: [fact] }, graph, chinese)}</p>
       <p className="mt-1 text-sm text-slate-400">{text("Product / business", "产品／业务")}: {relationshipBusiness({ ...edge, facts: [fact] }, chinese)}</p>
       <details className="mt-2 text-sm text-slate-400"><summary className="cursor-pointer text-cyan-200">{text("Source description and scope", "来源说明与适用范围")}</summary><p className="mt-2 whitespace-pre-line break-words leading-6">{fact.scope}</p>{fact.limitation && <p className="mt-2 leading-6">{fact.limitation}</p>}</details>
-      <ul className="mt-2 space-y-1 text-xs">{graph.sources.filter(s => fact.sourceIds.includes(s.id) && s.url.startsWith("https://")).map(s => <li key={s.id}><a className="break-words text-cyan-200 hover:underline" href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a><p className="mt-1 text-slate-400">{text("Source published", "资料发布日期")}: {s.sourceDate ?? text("Unknown", "未注明")}</p></li>)}</ul>
+      <ul className="mt-2 space-y-1 text-xs">{graph.sources.filter(s => fact.sourceIds.includes(s.id) && s.url.startsWith("https://")).map(s => <li key={s.id}><a className="break-words text-cyan-200 hover:underline" onClick={() => trackEvent("company_evidence_view", {entry_point:"relationship_source"})} href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a><p className="mt-1 text-slate-400">{text("Source published", "资料发布日期")}: {s.sourceDate ?? text("Unknown", "未注明")}</p></li>)}</ul>
       {fact.eventDate && <p className="mt-1 text-xs text-slate-400">{text("Event date", "事件日期")}: {fact.eventDate}</p>}
     </div>)}
   </div>;
@@ -65,9 +67,9 @@ export function CompanyResearchPanel({ companyId, initialGraph }: { companyId: s
         const planned = edge.type === "PLANNED_ADOPTER_OF" || edge.facts?.some(f => f.state === "ANNOUNCED") || edge.commercialStatus === "ANNOUNCED";
         return <article id={relationAnchor(edge.id)} key={edge.id} className="min-w-0 scroll-mt-28 rounded-xl border border-white/10 p-4 target:border-cyan-300">
           <div className="flex flex-wrap items-center gap-2">{other && <Link className="font-semibold text-cyan-200 hover:underline" href={researchCompanyUrl(other)}>{companyName(other, locale)}</Link>}<span className="text-xs text-slate-400">· {group === "suppliers" ? text("Supplier", "供应商") : group === "customers" ? text("Customer", "客户") : text("Partner / technology", "合作／技术")}</span>{planned && <span className="text-xs text-amber-200">{text("Includes announced / planned activity", "含已宣布／计划中事项")}</span>}</div>
-          <p className="mt-2 text-sm text-slate-300">{relationshipBusiness(edge, chinese)}</p>
+          <p className="mt-2 text-xs text-slate-400">{verificationLabel(relationshipVerification(edge), chinese)} · {text("Last reviewed", "最近复核")}: {edge.researchReviewedAt ?? text("Not recorded", "未记录")}</p><p className="mt-2 text-sm text-slate-300">{relationshipBusiness(edge, chinese)}</p>
           <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">{other && <><Link className="text-cyan-200 underline" href={researchCompanyUrl(other)}>{text("Open company", "查看公司")}</Link><CompanyFollowButton companyId={other.id} /></>}</div>
-          <details className="mt-3 text-sm" open={target === relationAnchor(edge.id) || undefined}><summary className="cursor-pointer text-cyan-200">{text("View evidence", "查看证据")}</summary><RelationshipEvidence edge={edge} graph={graph} /></details>
+          <details onToggle={e => { if (e.currentTarget.open) trackEvent("company_evidence_view", {entry_point:"company_relationship"}); }} className="mt-3 text-sm" open={target === relationAnchor(edge.id) || undefined}><summary className="cursor-pointer text-cyan-200">{text("View evidence", "查看证据")}</summary><RelationshipEvidence edge={edge} graph={graph} /></details>
         </article>;
       })}</div>{rows.length > 4 && !target && <button className="mt-3 text-sm text-cyan-200 underline" onClick={() => setExpanded(values => values.includes(group) ? values.filter(value => value !== group) : [...values, group])}>{expanded.includes(group) ? text("Show fewer", "收起") : text(`Show all ${rows.length}`, `显示全部 ${rows.length} 项`)}</button>}</section>;
     })}

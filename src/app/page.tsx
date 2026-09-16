@@ -8,7 +8,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return localizedMetadata({ title: "AI Industry Map: AI Stocks & Companies | YouAnalyst", description: "Explore AI stocks, companies, and supply-chain relationships across US and China A-share markets.", alternates: { canonical: "/" } });
 }
 export default async function Home({ searchParams }: {
-  searchParams: Promise<{ company?: string | string[]; market?: string | string[]; q?: string | string[]; view?: string | string[]; type?: string | string[] }>;
+  searchParams: Promise<{ event?: string | string[]; relationship?: string | string[]; company?: string | string[]; market?: string | string[]; q?: string | string[]; view?: string | string[]; type?: string | string[] }>;
 }) {
   const params = await searchParams;
   // Preserve company campaign destinations and bookmarked feed filters.

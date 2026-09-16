@@ -84,3 +84,18 @@ test("opt-out response is untracked, uncached, and persists across public subdom
   runInNewContext(analyticsBootstrap("G-TEST123", true), env.context);
   assert.equal(env.scripts.length, 0);
 });
+
+test("seven-day returns count once per later day and honor analytics opt-out", () => {
+  const script = buildSync({entryPoints:["src/lib/analytics.ts"],bundle:true,write:false,format:"iife",globalName:"analytics"}).outputFiles[0].text;
+  for (const optedOut of [false,true]) {
+    const env=browser({cookie:optedOut ? "youanalyst_analytics_opt_out=1" : ""});
+    env.meta.content="enabled";
+    const stored=new Map<string,string>(), calls: unknown[][]=[];
+    env.window.gtag=(...args:unknown[])=>calls.push(args);
+    const context={...env.context,localStorage:{getItem:(k:string)=>stored.get(k)??null,setItem:(k:string,v:string)=>stored.set(k,v)}};
+    runInNewContext(script+`; analytics.trackFollowingVisit(100 * 86400000); analytics.trackFollowingVisit(100 * 86400000,true); analytics.trackFollowingVisit(101 * 86400000); analytics.trackFollowingVisit(101 * 86400000 + 6000); analytics.trackFollowingVisit(110 * 86400000);`,context);
+    assert.equal(calls.length,optedOut?0:1);
+    if(!optedOut)assert.equal(calls[0][1],"following_return_7d");
+    else assert.equal(stored.size,0);
+  }
+});

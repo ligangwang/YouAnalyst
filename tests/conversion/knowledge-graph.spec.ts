@@ -53,6 +53,18 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
   await expect(page.getByRole("region",{name:"Selected connection",exact:true})).toHaveCount(0);
 });
 let html: string;
+test("event deep link opens source evidence beside the selected company", async ({page}) => {
+  page.on("pageerror", error => { throw error; });
+  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+  await page.goto("http://graph.test/map?lang=en&company=US%3AAMD&event=amd-cisco-humain-live-20260831");
+  const evidence=page.getByRole("region",{name:"Selected event evidence"});
+  await expect(evidence.getByRole("heading",{name:"AMD and Cisco report HUMAIN systems are live"})).toBeVisible();
+  await expect(evidence.getByRole("link")).toHaveAttribute("href",/ir.amd.com\/news-events\/press-releases\/detail\/1298/);
+  await expect(evidence).toContainText("2026-08-31");
+  await page.getByRole("button",{name:"Clear selection"}).click();
+  await expect(evidence).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.has("event")).toBe(false);
+});
 test("admin edits a company name in place and stale edits show a conflict", async ({page}) => {
  const localized = structuredClone(graph);
  const tsm = localized.nodes.find(n => n.id === "US:TSM")!;
@@ -88,7 +100,7 @@ test("admin edits a company name in place and stale edits show a conflict", asyn
  await expect(page.getByRole("heading",{name:"台积电",exact:true})).toBeVisible();
 });
 test.beforeAll(async () => {
-  const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", plugins: [{ name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
+  const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [{ name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#08131d;font-family:Arial}*{box-sizing:border-box}button,input{font:inherit} ${bundle.outputFiles.find(f => f.path.endsWith(".css"))?.text}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 test("combination retains every company and isolates evidence IDs", () => {

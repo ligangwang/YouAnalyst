@@ -1,3 +1,4 @@
+import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { readCompanyFollows } from "@/lib/company-follows-store";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
@@ -15,6 +16,6 @@ export async function GET(request: NextRequest) {
     const ids = await readCompanyFollows(user.uid);
     if (!ids.length) return Response.json({ items: [], filingsAvailable: true }, { headers });
     const [graph, filings] = await Promise.all([loadKnowledgeGraph(), listPublicEvents({ limit: 50 }).catch(() => null)]);
-    return Response.json({ items: companyUpdates(graph, ids, filings?.items ?? []), filingsAvailable: filings !== null }, { headers });
+    return Response.json({ items: companyUpdates(graph, ids, filings?.items ?? [], curatedEvents), filingsAvailable: filings !== null }, { headers });
   } catch { return Response.json({ error: "Updates unavailable" }, { status: 503, headers }); }
 }

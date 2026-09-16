@@ -44,7 +44,8 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
         ...(typeof f.id === "string" ? { id: f.id } : {}),
         ...(typeof f.limitation === "string" ? { limitation: f.limitation } : {}),
         ...(typeof f.reviewedAt === "string" ? { reviewedAt: f.reviewedAt } : {}),
-        ...(typeof f.eventDate === "string" ? { eventDate: f.eventDate } : {}) }];
+        ...(typeof f.eventDate === "string" ? { eventDate: f.eventDate } : {}),
+        ...(["CONFIRMED", "PENDING", "TERMINATED"].includes(String(f.verificationStatus)) ? { verificationStatus: f.verificationStatus as GraphFact["verificationStatus"] } : {}) }];
     }) : [];
     const id = relationshipId(r.source, r.target, r.type), previous = relationships.get(id);
     relationships.set(id, { id, facts, ...(typeof r.researchReviewedAt === "string" ? { researchReviewedAt: r.researchReviewedAt } : {}), ...(typeof r.publishedAt === "string" ? { publishedAt: r.publishedAt } : {}), source: r.source, target: r.target, type: r.type, summary: String(r.summary ?? evidence[0].summary ?? ""), commercialStatus: String(r.commercialStatus ?? "DOCUMENTED"), sourceIds: [...new Set([...(previous?.sourceIds ?? []), ...sourceIds])] });
