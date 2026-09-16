@@ -1028,6 +1028,7 @@
   "Sign in with an admin account to run 13F actions.": "请使用管理员账号登录以运行 13F 操作。",
   "Not marked": "尚未更新价格",
   "Awaiting entry": "等待起始价",
+  "awaiting entry": "等待起始价",
   "Closing": "结算中",
   "Canceled": "已撤销",
   "Unable to load analyst profile.": "无法加载分析师主页。",
