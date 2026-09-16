@@ -2,6 +2,11 @@
 
 import { formatCallPrice } from "@/lib/predictions/instrument";
 import { UiText, useUiText } from "@/components/ui-text";
+import { useLocale } from "@/components/providers/locale-provider";
+import { companyName } from "@/lib/knowledge-graph/model";
+import { researchCompanyUrl } from "@/lib/knowledge-graph/research-view";
+import { localizedPath } from "@/lib/i18n/urls";
+import { chinaCompanyId } from "@/lib/market-companies/routes";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -30,6 +35,7 @@ type PredictionDetail = {
     totalPredictions?: number | null;
   } | null;
   ticker: string;
+  company?: { id: string; name: string; names?: Partial<Record<"en" | "zh-CN", string>> } | null;
   direction: "UP" | "DOWN";
   watchlistId?: string | null;
   watchlistName?: string | null;
@@ -172,6 +178,7 @@ function predictionShareUrl(prediction: PredictionDetail, returnText: string): s
 
 export function PredictionDetailPage({ predictionId }: { predictionId: string }) {
   const ui = useUiText();
+  const { locale, text } = useLocale();
   const { getIdToken, user } = useAuth();
   const [prediction, setPrediction] = useState<PredictionDetail | null>(null);
   const [comments, setComments] = useState<PredictionComment[]>([]);
@@ -541,6 +548,11 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         : null;
   const statusLabel = isSettlementPending ? "Settles at next close" : formatPredictionStatus(prediction.status);
   const xShareUrl = predictionShareUrl(prediction, returnText);
+  const displayName = prediction.company ? companyName(prediction.company, locale) : formatTickerSymbol(prediction.ticker);
+  const companyId = prediction.company?.id ?? chinaCompanyId(prediction.ticker) ?? `US:${prediction.ticker.replace(/^US:/, "")}`;
+  const displaySymbol = prediction.ticker.replace(/^(US|XSHG|XSHE):/, "");
+  const exchange = companyId.startsWith("XSHE:") ? text("Shenzhen Stock Exchange", "深圳证券交易所")
+    : companyId.startsWith("XSHG:") ? text("Shanghai Stock Exchange", "上海证券交易所") : text("US", "美股");
   const movingPublicPredictionToPrivate =
     prediction.visibility === "PUBLIC" &&
     ownerWatchlists.find((watchlist) => watchlist.id === moveWatchlistId)?.isPublic === false;
@@ -549,16 +561,19 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
     <main className="mx-auto grid w-full max-w-4xl gap-4 px-4 py-8">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="font-[var(--font-sora)] text-3xl font-semibold">
-            <Link
-              href={`/ticker/${prediction.ticker}`}
-              className="flex w-fit items-center gap-1 text-cyan-200 hover:text-cyan-100"
-              aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`)}
-            >
-              <span aria-hidden="true">{prediction.direction === "UP" ? "\u2191" : "\u2193"}</span>
-              <span>{formatTickerSymbol(prediction.ticker)}</span>
-            </Link>
-          </h1>
+          <div className="min-w-0">
+            <h1 className="font-[var(--font-sora)] text-3xl font-semibold">
+              <Link
+                href={localizedPath(researchCompanyUrl({ id: companyId }), locale)}
+                className="flex w-fit items-center gap-1 text-cyan-200 hover:text-cyan-100"
+                aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${displayName}`)}
+              >
+                <span aria-hidden="true">{prediction.direction === "UP" ? "\u2191" : "\u2193"}</span>
+                <span className="break-words">{displayName}</span>
+              </Link>
+            </h1>
+            <p className="mt-1 text-sm text-slate-400">{displaySymbol} · {exchange}</p>
+            </div>
           <div className="flex flex-wrap items-center gap-3">
             <span className="rounded-lg border border-cyan-400/30 px-2.5 py-1 text-xs font-medium text-cyan-100">
               {<UiText text={statusLabel} />}
