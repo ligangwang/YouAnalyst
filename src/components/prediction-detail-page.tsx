@@ -595,7 +595,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                   disabled={actionPending !== null}
                   className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {showCloseComposer ? <UiText text={"Cancel close"} /> : ownerAction.label}
+                  {showCloseComposer ? <UiText text={"Cancel close"} /> : <UiText text={ownerAction.label} />}
                 </button>
               ) : (
                 <button
@@ -604,7 +604,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                   disabled={actionPending !== null}
                   className="rounded-lg border border-cyan-400/35 px-3 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {actionPending === ownerAction.action ? <UiText text={"Working..."} /> : ownerAction.label}
+                  {actionPending === ownerAction.action ? <UiText text={"Working..."} /> : <UiText text={ownerAction.label} />}
                 </button>
               )
             ) : null}
@@ -769,16 +769,16 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Entry Price:"} /></dt>
-              <dd className="text-slate-100">{formatDetailCurrency(prediction.entryPrice, prediction.ticker)}</dd>
+              <dd className="text-slate-100">{ui(formatDetailCurrency(prediction.entryPrice, prediction.ticker))}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Last Price:"} /></dt>
-              <dd className="text-slate-100">{formatDetailCurrency(prediction.markPrice, prediction.ticker)}</dd>
+              <dd className="text-slate-100">{ui(formatDetailCurrency(prediction.markPrice, prediction.ticker))}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Return:"} /></dt>
               <dd className={typeof prediction.markReturnValue === "number" ? markToneClass(prediction.markReturnValue) : "text-slate-100"}>
-                {returnText}
+                {ui(returnText)}
               </dd>
             </div>
           </dl>
@@ -786,11 +786,11 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
           <dl className="grid gap-1">
             <div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Opened:"} /></dt>
-              <dd className="text-slate-100">{formatDetailDate(prediction.entryDate)}</dd>
+              <dd className="text-slate-100">{ui(formatDetailDate(prediction.entryDate))}</dd>
             </div>
             <div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Last Updated:"} /></dt>
-              <dd className="text-slate-100">{formatDetailDate(prediction.markPriceDate)}</dd>
+              <dd className="text-slate-100">{ui(formatDetailDate(prediction.markPriceDate))}</dd>
             </div>
           </dl>
         </div>

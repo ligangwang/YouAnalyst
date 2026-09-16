@@ -184,7 +184,7 @@ export function PredictionPriceChart({
         <div className="text-sm sm:text-right">
           <p className="text-slate-400"><UiText text={"Latest close"} /></p>
           <p className="font-semibold text-slate-100">{formatCurrency(latestPoint.close)}</p>
-          <p className={`font-semibold ${latestReturnClass}`}>{pointReturnText(latestPoint)}</p>
+          <p className={`font-semibold ${latestReturnClass}`}>{ui(pointReturnText(latestPoint))}</p>
         </div>
       </div>
 
