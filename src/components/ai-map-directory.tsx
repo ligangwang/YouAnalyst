@@ -6,14 +6,13 @@ import { useLocale } from "./providers/locale-provider";
 
 const DirectoryContent = lazy(() => import("./ai-map-directory-content"));
 
-export function AiMapDirectory({ graph, status, onRetry, initiallyExpanded = false }: {
+export function AiMapDirectory({ graph, status, onRetry }: {
   graph: KnowledgeGraph;
   status: string;
   onRetry: () => void;
-  initiallyExpanded?: boolean;
 }) {
   const { text } = useLocale();
-  const [expanded, setExpanded] = useState(initiallyExpanded);
+  const [expanded, setExpanded] = useState(false);
   const loading = <p className="my-5" role="status">{text("Loading company directory…", "正在加载公司目录…")}</p>;
   return <section className="mx-auto w-full max-w-6xl px-4 pb-8 text-sm text-slate-400" aria-label={text("AI companies and supply chain", "AI 公司与产业链")}>
     <details open={expanded} className="rounded-2xl border border-white/10 p-5" onToggle={event => setExpanded(event.currentTarget.open)}>

@@ -174,7 +174,7 @@ test("graph renders, orbits and resets without extra controls", async ({ page })
 });
 
 
-test("devices without WebGL show an honest message without a mode switch", async ({ page }) => {
+test("devices without WebGL keep the directory collapsed until requested", async ({ page }) => {
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function(this: HTMLCanvasElement, type: string, ...args: unknown[]) {
@@ -186,7 +186,9 @@ test("devices without WebGL show an honest message without a mode switch", async
   await page.goto("http://graph.test/map?lang=en&view=3d");
   await expect(page.getByRole("alert")).toContainText("This browser cannot display the 3D graph");
   const directory = page.getByRole("region", {name:"AI companies and supply chain",exact:true});
-  await expect(directory.locator("details").first()).toHaveAttribute("open", "");
+  await expect(directory.locator("details").first()).not.toHaveAttribute("open", "");
+  await expect(directory.locator("li")).toHaveCount(0);
+  await directory.locator("summary").click();
   await expect(directory.locator("li").first()).toBeVisible();
   await expect(page.getByRole("button", {name:/2D|3D/})).toHaveCount(0);
 });
