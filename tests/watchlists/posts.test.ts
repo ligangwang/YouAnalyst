@@ -3,6 +3,7 @@ import test from "node:test";
 import type { Firestore } from "firebase-admin/firestore";
 import { publishPost, readPost } from "../../src/lib/posts/service";
 import { validatePost } from "../../src/lib/posts/model";
+import { choosePrimaryPrediction } from "../../src/lib/predictions/primary";
 
 type Data = Record<string, unknown>;
 function fixture(extra: Record<string, Data> = {}) {
@@ -107,4 +108,18 @@ test("post reads enforce ownership, profile visibility, and linked prediction vi
   const privatePost = await publishPost({ ...input, requestId: "private-1234567890", direction: null, visibility: "PRIVATE" }, user, f.db);
   assert.equal(await readPost(privatePost.id, "bob", f.db), null);
   assert.ok(await readPost(privatePost.id, "alice", f.db));
+});
+
+test("legacy primary selection is owner-only and routes articles without changing either entry", async () => {
+  const f = fixture();
+  const original = await publishPost(input, user, f.db);
+  const originalKey = "predictions/" + original.predictionId;
+  f.records.set("predictions/comparison-amd", { ...f.records.get(originalKey), entryPrice: 100, entryDate: "2026-04-01", status: "OPEN" });
+  const before = JSON.stringify(f.records.get("predictions/comparison-amd"));
+  await assert.rejects(choosePrimaryPrediction(f.db, "bob", "comparison-amd"), /own active/);
+  await choosePrimaryPrediction(f.db, "alice", "comparison-amd");
+  const article = await publishPost({ ...input, requestId: "update-1234567890" }, user, f.db);
+  assert.equal(article.predictionId, "comparison-amd");
+  assert.equal(JSON.stringify(f.records.get("predictions/comparison-amd")), before);
+  assert.ok(f.records.has(originalKey));
 });
