@@ -11,5 +11,5 @@ const pageMetadata: Metadata = {
 export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
 
 export default function MyWatchlistsRoutePage() {
-  redirect("/watchlists?tab=mine");
+  redirect("/my/predictions");
 }

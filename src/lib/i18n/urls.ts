@@ -10,7 +10,7 @@ export function unlocalizedPath(path: string): string {
 }
 // Keep authentication, administration, APIs and static assets at their existing URLs.
 export function isLocalizedPage(path: string): boolean {
-  return path === "/" || /^\/(map|companies|company|ticker|feed|daily|watchlists|institutions|how-it-works|feedback|analysts|predictions|leaderboard)(\/|$)/.test(path);
+  return path === "/" || /^\/(posts|compare|my|map|companies|company|ticker|feed|daily|watchlists|institutions|how-it-works|feedback|analysts|predictions|leaderboard)(\/|$)/.test(path);
 }
 export function localizedPath(path: string, locale: Locale): string {
   const plain = unlocalizedPath(path);

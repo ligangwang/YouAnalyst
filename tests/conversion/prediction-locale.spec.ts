@@ -23,7 +23,7 @@ test("pending prediction translates placeholders and actions without changing st
   await expect(page.getByText("待处理", { exact: true })).toHaveCount(5);
   await expect(page.getByRole("button", { name: "取消", exact: true })).toBeVisible();
   await expect(page.getByText("Pending", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("My custom watchlist", { exact: true })).toBeVisible();
+  await expect(page.getByText("My custom watchlist", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Switch test language" }).click();
   await expect(page.getByText("Awaiting entry", { exact: true })).toBeVisible();
   await expect(page.getByText("Pending", { exact: true })).toHaveCount(5);

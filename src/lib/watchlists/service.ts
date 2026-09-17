@@ -840,9 +840,7 @@ export async function getWatchlistDetail(
   }
 
   const watchlist = mapWatchlistDoc(snapshot);
-  if (watchlist.archivedAt) {
-    return null;
-  }
+
 
   const isOwner = Boolean(options.viewerUserId && options.viewerUserId === watchlist.userId);
   if (!watchlist.isPublic && !isOwner) {

@@ -82,8 +82,8 @@ function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
         const label = call.direction === "UP" ? "Bullish" : "Bearish";
         const canCancel = call.cancelUntil && now <= Date.parse(call.cancelUntil);
         return <article key={call.id} aria-label={`${call.watchlistName}: ${label}`} className={`rounded-xl border p-4 ${call.direction === "UP" ? "border-emerald-400/35 bg-emerald-400/5" : "border-rose-400/35 bg-rose-400/5"}`}>
-          <h3 className="font-semibold text-white">{call.watchlistName} · {<UiText text={label} />}</h3>
-          <p className="mt-1 text-xs text-slate-400">{call.isDefault ? <UiText text={"Default watchlist · "} /> : ""}{<UiText text={call.visibility} />}</p>
+          <h3 className="font-semibold text-white">{<UiText text={label} />}</h3>
+          <p className="mt-1 text-xs text-slate-400">{<UiText text={call.visibility} />}</p>
           <p className="mt-2 text-slate-300">{call.createdAt ? <RelativeTime value={call.createdAt} prefix="Set" /> : <UiText text={"Date unavailable"} />}</p>
           <p className="mt-1 text-slate-300">{call.entryPrice !== null ? <><UiText text="Entry " />{formatCallPrice(call.entryPrice, ticker)}{call.entryDate ? <UiText text={` · recorded ${call.entryDate}`} /> : null}</> : <UiText text="Entry price pending the next end-of-day update." />}</p>
           {call.status === "CLOSING" ? <p className="mt-3 text-amber-200"><UiText text={"Closing — awaiting end-of-day settlement."} /></p>
@@ -100,6 +100,6 @@ function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
         </article>;
       })}
     </div>
-    {!!items?.length && <Link href={`/predictions/new?ticker=${encodeURIComponent(ticker)}`} className="mt-3 inline-block text-cyan-200 underline underline-offset-4"><UiText text={"Choose a watchlist for a new call"} /></Link>}
+    {!!items?.length && <Link href={`/predictions/new?ticker=${encodeURIComponent(ticker)}`} className="mt-3 inline-block text-cyan-200 underline underline-offset-4"><UiText text={"Post an article"} /></Link>}
   </section>;
 }

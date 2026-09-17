@@ -4,8 +4,8 @@ import { CreatePredictionPage } from "@/components/create-prediction-page";
 import { noIndexRobots } from "@/lib/seo";
 
 const pageMetadata: Metadata = {
-  title: "New prediction | YouAnalyst",
-  description: "Create a new public stock prediction on YouAnalyst.",
+  title: "Post | YouAnalyst",
+  description: "Publish company research with an optional investment view.",
   robots: noIndexRobots(),
 };
 export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }

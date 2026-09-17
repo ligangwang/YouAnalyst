@@ -52,7 +52,7 @@ test("multiple watchlists show their own call; close sends only the selected cal
   await page.goto(origin);
   await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveCount(0);
   await expect(page.getByText("Entry $150.25 · recorded 2026-09-08")).toHaveCount(2);
-  await expect(page.getByText("Default watchlist · Public")).toBeVisible();
+  await expect(page.getByText("Default watchlist · Public")).toHaveCount(0);
   await page.getByRole("button", { name: "Close Bearish", exact: true }).click();
   await expect(page.getByRole("button", { name: "Confirm close Bearish" })).toBeDisabled();
   await page.getByLabel("Why are you closing this call?").fill("Thesis changed");

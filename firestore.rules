@@ -45,30 +45,8 @@ service cloud.firestore {
     match /predictions/{predictionId} {
       allow read: if resource.data.visibility == 'PUBLIC' || isOwner(resource.data.userId);
 
-      allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'OPENING'
-        && request.resource.data.entryPrice == null
-        && request.resource.data.entryPriceSource == null
-        && request.resource.data.entryDate == null
-        && request.resource.data.entryCapturedAt == null
-        && request.resource.data.closedAt == null
-        && request.resource.data.result == null;
-
-      allow update: if isSignedIn()
-        && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.ticker == resource.data.ticker
-        && request.resource.data.direction == resource.data.direction
-        && request.resource.data.entryPrice == resource.data.entryPrice
-        && request.resource.data.entryPriceSource == resource.data.entryPriceSource
-        && request.resource.data.entryDate == resource.data.entryDate
-        && request.resource.data.entryCapturedAt == resource.data.entryCapturedAt
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.closedAt == resource.data.closedAt
-        && request.resource.data.result == resource.data.result;
-
-      allow delete: if false;
+      // Prediction lifecycle and uniqueness are enforced by authenticated server transactions.
+      allow create, update, delete: if false;
 
       match /comments/{commentId} {
         allow read: if canReadPrediction(predictionId);
@@ -79,6 +57,11 @@ service cloud.firestore {
 
         allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
       }
+    }
+
+    match /posts/{postId} {
+      // Server API enforces author, profile and linked-prediction visibility.
+      allow read, write: if false;
     }
 
     match /public_company_cache/{companyId} {

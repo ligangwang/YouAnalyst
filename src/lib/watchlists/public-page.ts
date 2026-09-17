@@ -30,7 +30,7 @@ export async function generatePublicWatchlistMetadata(
 
     const watchlist = watchlistSnapshot.data() as Record<string, unknown>;
     const ownerId = typeof watchlist.userId === "string" ? watchlist.userId.trim() : "";
-    if (!ownerId || watchlist.isPublic === false || watchlist.archivedAt) {
+    if (!ownerId || watchlist.isPublic === false) {
       return {
         title: "Watchlist not found | YouAnalyst",
         robots: noIndexRobots(),

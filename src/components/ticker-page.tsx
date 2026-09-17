@@ -1,5 +1,6 @@
 "use client";
 
+import { CompanyPosts } from "./company-posts";
 import { UiText, useUiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -684,6 +685,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
     return (
       <main className="mx-auto w-full max-w-6xl px-4 py-8 text-sm text-slate-300">
         {overview}
+      <CompanyPosts ticker={ticker} />
         <p role="status" className="py-6">{error ?? <UiText text={"Loading company activity..."} />}</p>
         <InsiderTransactionsSection displayTicker={displayTicker} error={insiderError} transactions={insiderTransactions} />
         <InstitutionalHoldingsSection displayTicker={displayTicker} summary={holdings} error={holdingsError} />
@@ -694,6 +696,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
       {overview}
+      <CompanyPosts ticker={ticker} />
       <section className="border-b border-white/15 py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

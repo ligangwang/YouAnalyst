@@ -1,3 +1,5 @@
+import { getAdminFirestore } from "@/lib/firebase/admin";
+import { redirect } from "next/navigation";
 import { localizedMetadata } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import { WatchlistDetailPage } from "@/components/watchlist-detail-page";
@@ -21,6 +23,8 @@ export default async function WatchlistDetailRoutePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const group = await getAdminFirestore().collection("watchlists").doc(id).get();
+  if (group.get("kind") === "COMPARISON") redirect("/compare");
   return <WatchlistDetailPage watchlistId={id} />;
 }
 
