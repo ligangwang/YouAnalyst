@@ -5,15 +5,18 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "./providers/locale-provider";
 import { localizedPath } from "@/lib/i18n/urls";
 import type { Prediction } from "@/lib/predictions/types";
-import { formatReturnPercent, markToneClass } from "./prediction-ui";
+import { PredictionReturnSummary, markToneClass } from "./prediction-ui";
 
 type Comparison = { id: string; name: string; predictions: Array<Prediction & { id: string }> };
 function value(p: Prediction) { return p.result?.returnValue ?? p.markReturnValue ?? null; }
-export function ComparisonsPage() {
+export function ComparisonsPage({ ownerId, embedded = false }: { ownerId?: string; embedded?: boolean } = {}) {
   const { loading, getIdToken, user } = useAuth();
   const { text, locale } = useLocale();
   const [items, setItems] = useState<Comparison[]>([]);
   const [error, setError] = useState(false);
+  const Wrapper = embedded ? "section" : "main";
+  const Heading = embedded ? "h2" : "h1";
+  const CardHeading = embedded ? "h3" : "h2";
   useEffect(() => {
     if (loading) return;
     let canceled = false;
@@ -21,31 +24,32 @@ export function ComparisonsPage() {
     void (async () => {
       try {
         const token = await getIdToken();
-        const response = await fetch("/api/comparisons", { headers: token ? { authorization: `Bearer ${token}` } : undefined });
+        const response = await fetch(`/api/comparisons${ownerId ? `?userId=${encodeURIComponent(ownerId)}` : ""}`, { headers: token ? { authorization: `Bearer ${token}` } : undefined });
         if (!response.ok) throw new Error();
         const data = await response.json(); if (!canceled) setItems(data.items);
       } catch { if (!canceled) setError(true); }
     })();
     return () => { canceled = true; };
-  }, [loading, getIdToken, user?.uid]);
-  return <main className="mx-auto max-w-4xl p-6"><h1 className="text-2xl font-semibold">{text("Compare predictions", "对比预测")}</h1>
+  }, [loading, getIdToken, user?.uid, ownerId]);
+  const comparableItems = items.filter(item => item.predictions.length === 2 && item.predictions[0].entryDate && item.predictions.every(p => p.entryDate === item.predictions[0].entryDate));
+  if (embedded && !error && !comparableItems.length) return null;
+  return <Wrapper className={embedded ? "my-6" : "mx-auto max-w-4xl p-6"}><Heading className="text-2xl font-semibold">{text("Group predictions", "组合预测")}</Heading>
     {error && <p role="alert">{text("Unable to load comparisons.", "无法加载对比。")}</p>}
-    {items.map(item => {
+    {comparableItems.map(item => {
       const [a, b] = item.predictions;
       const aValue = a ? value(a) : null, bValue = b ? value(b) : null;
-      return <section key={item.id} className="my-5 rounded-xl border border-white/10 p-5"><h2 className="text-xl">{item.name}</h2>
+      return <section key={item.id} className="my-3 rounded-xl border border-white/10 p-4"><CardHeading className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xl font-semibold"><span>{item.name}</span>{" "}<span className="text-sm font-normal text-slate-400">{text("Entry", "入场日期")}: {a.entryDate}</span></CardHeading>
         {item.predictions.map(p => {
           const returnValue = value(p);
-          return <article key={p.id} className="my-4">
+          return <article key={p.id} className="my-4 border-t border-white/10 pt-4">
             <Link className="font-semibold" href={localizedPath(`/predictions/${p.id}`, locale)}>
               <span className={p.direction === "UP" ? "text-emerald-300" : "text-rose-300"}>{p.direction === "UP" ? "↑" : "↓"} {p.ticker} · {p.direction === "UP" ? text("Bullish", "看多") : text("Bearish", "看空")}</span>
             </Link>
-            <p><span className={`font-semibold ${returnValue == null ? "text-slate-300" : markToneClass(returnValue)}`}>{returnValue == null ? text("Awaiting price", "等待价格") : formatReturnPercent(returnValue)}</span> · <span className="text-slate-400">{text("Entry", "入场日期")}: {p.entryDate ?? text("Pending", "待定")}</span></p>
+            <PredictionReturnSummary prediction={{ ...p, markReturnValue: returnValue }} status={p.status} href={localizedPath(`/predictions/${p.id}`, locale)} />
           </article>;
         })}
         {a && b && aValue !== null && bValue !== null && <p>{a.ticker} − {b.ticker}: <span className={`font-semibold ${markToneClass(aValue - bValue)}`}>{((aValue - bValue) * 100).toFixed(2)} {text("percentage points", "个百分点")}</span></p>}
-        <p className="mt-3 text-sm text-slate-400">{text("Each prediction retains its original entry date and direction. Different entry dates are not a same-period stock-return comparison.", "每条预测保留原始入场日期及方向。入场日期不同时，不代表同一期间的股票收益对比。")}</p>
       </section>;
     })}
-  </main>;
+  </Wrapper>;
 }

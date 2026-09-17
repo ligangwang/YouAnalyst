@@ -7,7 +7,7 @@ test.beforeAll(async () => {
   const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {MyPredictionsPage} from "./src/components/my-predictions-page";import {ComparisonsPage} from "./src/components/comparisons-page";import {LocaleProvider} from "./src/components/providers/locale-provider";const p=new URLSearchParams(location.search);createRoot(document.getElementById("root")).render(<LocaleProvider locale={p.has("zh")?"zh-CN":"en"}>{p.has("compare")?<ComparisonsPage/>:<MyPredictionsPage/>}</LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "publishing.js", platform: "browser", define: { "process.env": "{}" }, alias: { "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx"), "next/link": path.resolve("tests/industry/link.tsx") } });
   html = `<html><body><div id="root"></div><script>${bundle.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
-const prediction = { userId: "test-user", direction: "UP", thesisTitle: "Research", status: "OPEN", createdAt: "2026-04-10T00:00:00Z", entryPrice: 245.04, entryDate: "2026-04-10", markReturnValue: 0.20, result: null };
+const prediction = { userId: "test-user", direction: "UP", thesisTitle: "Research", status: "OPEN", createdAt: "2026-04-10T00:00:00Z", entryPrice: 245.04, entryDate: "2026-04-10", markPriceDate: "2026-04-20", markReturnValue: 0.20, result: null };
 
 for (const chinese of [false, true]) test(`legacy primary choice preserves both entry histories (${chinese ? "zh" : "en"})`, async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
@@ -19,7 +19,7 @@ for (const chinese of [false, true]) test(`legacy primary choice preserves both 
       return route.fulfill({ json: { primaryPredictions: {} } });
     }
     if (url.pathname === "/api/predictions") return route.fulfill({ json: { items: [{ ...prediction, ticker: "AMD", id: "original" }, { ...prediction, ticker: "AMD", id: "comparison", entryDate: "2026-04-27", entryPrice: 334.63 }], nextCursor: null } });
-    if (url.pathname === "/api/posts") return route.fulfill({ json: { items: [] } });
+    if (["/api/posts", "/api/comparisons"].includes(url.pathname)) return route.fulfill({ json: { items: [] } });
     return route.fulfill({ contentType: "text/html", body: html });
   });
   await page.goto("http://publishing.test/" + (chinese ? "?zh" : ""));
@@ -41,4 +41,37 @@ test("comparison shows individual returns and spread, not an average", async ({ 
   await expect(page.getByText("AMD − NVDA: 10.00 percentage points")).toBeVisible();
   await expect(page.getByText(/20.00%/)).toBeVisible();
   await expect(page.getByText(/15.00%/)).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "NVDA vs AMD Entry: 2026-04-10" })).toBeVisible();
+  await expect(page.getByText("since call (10d)", { exact: false })).toHaveCount(2);
+});
+
+for (const chinese of [false, true]) test(`group predictions are inline and scoped to the profile (${chinese ? "zh" : "en"})`, async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const requestedOwners: Array<string | null> = [];
+  await page.route("**/*", route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/comparisons") {
+      requestedOwners.push(url.searchParams.get("userId"));
+      return route.fulfill({ json: { items: [{ id: "pair", name: "NVDA vs AMD", predictions: [{ ...prediction, ticker: "AMD", id: "amd" }, { ...prediction, ticker: "NVDA", id: "nvda" }] }] } });
+    }
+    if (url.pathname === "/api/predictions/primary") return route.fulfill({ json: { primaryPredictions: {} } });
+    if (url.pathname.startsWith("/api/")) return route.fulfill({ json: { items: [], nextCursor: null } });
+    return route.fulfill({ contentType: "text/html", body: html });
+  });
+  await page.goto("http://publishing.test/" + (chinese ? "?zh" : ""));
+  await expect(page.getByRole("heading", { name: chinese ? "组合预测" : "Group predictions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /NVDA vs AMD/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Compare predictions|对比预测/ })).toHaveCount(0);
+  await expect(page.getByText(/Legacy predictions|历史预测的入场日期不同/)).toHaveCount(0);
+  expect(requestedOwners).toEqual(["test-user"]);
+});
+
+test("different or missing entry dates cannot form a comparison", async ({ page }) => {
+  await page.route("**/*", route => new URL(route.request().url()).pathname === "/api/comparisons"
+    ? route.fulfill({ json: { items: ["2026-04-11", null].map((entryDate, index) => ({ id: String(index), name: "Invalid pair", predictions: [{ ...prediction, ticker: "AMD", id: "amd" }, { ...prediction, ticker: "NVDA", id: "nvda", entryDate }] })) } })
+    : route.fulfill({ contentType: "text/html", body: html }));
+  await page.goto("http://publishing.test/?compare");
+  await expect(page.getByRole("heading", { name: "Group predictions" })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(0);
+  await expect(page.getByText(/percentage points/)).toHaveCount(0);
 });
