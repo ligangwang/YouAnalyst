@@ -60,11 +60,12 @@ export function MyPredictionsPage({ ownerId, embedded = false }: { ownerId?: str
     finally { setSaving(false); }
   }
   const duplicates = new Set(rows.filter(row => ["OPEN", "CREATED"].includes(row.status)).filter((row, _, all) => all.filter(other => other.ticker === row.ticker).length > 1).map(row => row.ticker));
-  return <Wrapper className="mx-auto max-w-4xl p-6"><div className="flex justify-between gap-4"><h1 className="text-2xl font-semibold">{text(ownerId ? "Predictions" : "My predictions", ownerId ? "预测" : "我的预测")}</h1><Link className="text-cyan-300" href={localizedPath("/predictions/new", locale)}>{text("Post", "发布")}</Link></div>
+  return <Wrapper className="mx-auto max-w-4xl p-6"><div className="flex justify-between gap-4"><h1 className="text-2xl font-semibold">{text(ownerId ? "Investment ideas" : "My ideas", ownerId ? "投资观点" : "我的观点")}</h1><Link className="text-cyan-300" href={localizedPath("/predictions/new", locale)}>{text("Publish an idea", "发布观点")}</Link></div>
     {loading ? <p>{text("Loading…", "加载中…")}</p> : !targetId ? <Link href={"/auth?next=" + encodeURIComponent(localizedPath("/my/predictions", locale))}>{text("Sign in", "登录")}</Link> : <>
       <ComparisonsPage ownerId={targetId} embedded />
+      <h2 className="mt-6 text-xl font-semibold">{text("Track record", "历史表现")}</h2>
       {selectionError && <p role="alert">{text("Unable to save your selection. Please retry.", "无法保存选择，请重试。")}</p>}
-      {pending ? <p>{text("Loading…", "加载中…")}</p> : error ? <p role="alert">{text("Unable to load predictions.", "无法加载预测。")}</p> : !rows.length ? <p>{text("No predictions yet. Publish an article with a view to start one.", "暂无预测。发布文章并选择投资观点即可开始。")}</p> : rows.map(row => <article key={row.id} className="my-3 rounded-xl border border-white/10 p-4">
+      {pending ? <p>{text("Loading…", "加载中…")}</p> : error ? <p role="alert">{text("Unable to load ideas.", "无法加载观点。")}</p> : !rows.length ? <p>{text("No tracked ideas yet. Publish a bullish or bearish idea to start your track record.", "暂无跟踪中的观点。发布看多或看空观点，即可开始记录历史表现。")}</p> : rows.map(row => <article key={row.id} className="my-3 rounded-xl border border-white/10 p-4">
         <Link className="font-semibold" href={localizedPath(`/predictions/${row.id}`, locale)}><span className={row.direction === "UP" ? "text-emerald-300" : "text-rose-300"}>{row.direction === "UP" ? "↑" : "↓"} {row.ticker}{row.thesisTitle?.trim() ? ` · ${row.thesisTitle.trim()}` : ""}</span></Link>
         <p>{<UiText text={formatPredictionStatus(row.status)} />}</p>
         <p className="text-sm text-slate-400">{text("Entry", "入场")}: {row.entryDate ?? text("Pending", "待定")} · {row.entryPrice == null ? text("Awaiting price", "等待价格") : formatCallPrice(row.entryPrice, row.ticker)}</p>

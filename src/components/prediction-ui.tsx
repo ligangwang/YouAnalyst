@@ -176,7 +176,7 @@ export function PredictionReturnSummary({
           <span className={`font-semibold ${markToneClass(markReturnValue)}`}>
             {formatReturnPercent(markReturnValue)}
           </span>
-          <span className="text-slate-400"><UiText text={` since call (${sinceCallDays}d)`} /></span>
+          <span className="text-slate-400"><UiText text={` since entry (${sinceCallDays}d)`} /></span>
         </>
       ) : null}
       {isAwaitingEntry ? <span className="text-slate-400"><UiText text={"Awaiting entry price"} /></span> : null}

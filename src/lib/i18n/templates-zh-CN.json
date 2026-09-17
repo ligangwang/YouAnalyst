@@ -63,5 +63,8 @@
   "{0} partners with {1}": "{0} 与 {1} 合作",
   "{0} distributes for {1}": "{0} 为 {1} 分销",
   "{0} manufactures for {1}": "{0} 为 {1} 代工",
-  "since call ({0}d)": "自发布以来（{0}天）"
+  "since call ({0}d)": "自发布以来（{0}天）",
+  "since entry ({0}d)": "入场以来（{0}天）",
+  "Up investment idea for {0}": "看多 {0} 的投资观点",
+  "Down investment idea for {0}": "看空 {0} 的投资观点"
 }

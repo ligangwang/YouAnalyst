@@ -43,13 +43,13 @@ function PostHistory({ ticker, predictionId, postId, userId }: Props) {
   }, [ticker, predictionId, postId, userId, user?.uid, loading, getIdToken, cursor]);
   return <section className="my-6 rounded-xl border border-white/10 p-5">
     <div className="flex flex-wrap justify-between gap-3"><h2 className="text-xl font-semibold">{text(predictionId ? "Research updates" : "Company articles", predictionId ? "研究更新" : "公司文章")}</h2>
-      {ticker && <Link className="text-cyan-300" href={localizedPath(`/predictions/new?ticker=${encodeURIComponent(ticker)}`, locale)}>{text("Post an article", "发布文章")}</Link>}
+      {ticker && <Link className="text-cyan-300" href={localizedPath(`/predictions/new?ticker=${encodeURIComponent(ticker)}`, locale)}>{text("Publish an idea", "发布观点")}</Link>}
     </div>
     {pending && !posts.length ? <p>{text("Loading…", "加载中…")}</p> : error ? <p role="alert">{text("Articles could not be loaded.", "文章暂时无法加载。")}</p> : !posts.length ? <p className="mt-3 text-slate-400">{text(nextCursor ? "No visible articles on this page." : "No articles yet.", nextCursor ? "本页暂无可见文章。" : "暂无文章。")}</p> : posts.map(post => <article key={post.id} className="mt-5 border-t border-white/10 pt-4">
       <h3 className="text-lg font-semibold"><Link href={localizedPath(`/posts/${post.id}`, locale)}>{post.title}</Link></h3>
       <p className="my-2 text-sm text-slate-400"><time dateTime={post.createdAt}>{new Date(post.createdAt).toLocaleString(locale)}</time> · {post.ticker} · <Link href={localizedPath(`/analysts/${post.userId}`, locale)}>{text("Author", "作者")}</Link></p>
       <p className="whitespace-pre-wrap break-words">{post.body}</p>
-      <div className="mt-3 flex gap-4 text-cyan-300"><Link href={localizedPath(`/ticker/${encodeURIComponent(post.ticker)}`, locale)}>{text("Open company", "查看公司")}</Link>{post.predictionId && <Link href={localizedPath(`/predictions/${post.predictionId}`, locale)}>{text("Open prediction", "查看预测")}</Link>}</div>
+      <div className="mt-3 flex gap-4 text-cyan-300"><Link href={localizedPath(`/ticker/${encodeURIComponent(post.ticker)}`, locale)}>{text("Open company", "查看公司")}</Link>{post.predictionId && <Link href={localizedPath(`/predictions/${post.predictionId}`, locale)}>{text("View track record", "查看历史表现")}</Link>}</div>
     </article>)}
     {nextCursor && <button disabled={pending} onClick={() => setCursor(nextCursor)} className="mt-4 rounded border border-cyan-400/40 px-3 py-2 text-cyan-200">{pending ? text("Loading…", "加载中…") : text("Load more", "加载更多")}</button>}
   </section>;

@@ -36,6 +36,10 @@ test("authored UI translations retain English, entities, numbers and company ide
   assert.equal(translateUi("Latest Calls", "en"), "Latest Calls");
   assert.equal(translateUi(" since call (133d)", "zh-CN"), " 自发布以来（133天）");
   assert.equal(translateUi(" since call (133d)", "en"), " since call (133d)");
+  assert.equal(translateUi(" since entry (133d)", "zh-CN"), " 入场以来（133天）");
+  assert.equal(translateUi(" since entry (133d)", "en"), " since entry (133d)");
+  assert.equal(translateUi("My ideas", "zh-CN"), "我的观点");
+  assert.equal(translateUi("Performance comparison", "zh-CN"), "表现对比");
   assert.equal(translateUi("&middot;", "en"), "·");
   assert.equal(translateUi("Up prediction for AMD", "zh-CN"), "AMD 的看多观点");
   assert.equal(translateUi("Title must be 120 characters or fewer.", "zh-CN"), "标题不得超过 120 个字符。");

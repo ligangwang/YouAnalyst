@@ -208,7 +208,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
       ]);
 
       if (!predictionResponse.ok) {
-        throw new Error("Prediction not found.");
+        throw new Error("Idea not found.");
       }
 
       const predictionPayload = (await predictionResponse.json()) as PredictionDetail;
@@ -219,7 +219,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
       setPrediction(predictionPayload);
       setComments(commentPayload.items);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to load prediction.");
+      setError(nextError instanceof Error ? nextError.message : "Unable to load idea.");
     } finally {
       setLoading(false);
     }
@@ -313,7 +313,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
   async function runPredictionAction(action: "close" | "cancel") {
     const token = await getIdToken();
     if (!token) {
-      setError("Sign in to manage this prediction.");
+      setError("Sign in to manage this idea.");
       return;
     }
 
@@ -338,7 +338,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Unable to update prediction.");
+        throw new Error(payload.error ?? "Unable to update idea.");
       }
 
       await loadAll();
@@ -347,7 +347,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         setShowCloseComposer(false);
       }
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to update prediction.");
+      setError(nextError instanceof Error ? nextError.message : "Unable to update idea.");
     } finally {
       setActionPending(null);
     }
@@ -393,7 +393,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
     const token = await getIdToken();
     if (!token) {
-      setError("Sign in to edit this prediction.");
+      setError("Sign in to edit this idea.");
       return;
     }
 
@@ -421,24 +421,24 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Unable to edit prediction.");
+        throw new Error(payload.error ?? "Unable to edit idea.");
       }
 
       setEditing(false);
       await loadAll();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to edit prediction.");
+      setError(nextError instanceof Error ? nextError.message : "Unable to edit idea.");
     } finally {
       setEditSaving(false);
     }
   }
 
   if (loading) {
-    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading prediction..."} /></main>;
+    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading idea..."} /></main>;
   }
 
   if (!prediction) {
-    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-rose-300">{error ?? <UiText text={"Prediction not found."} />}</main>;
+    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-rose-300">{error ?? <UiText text={"Idea not found."} />}</main>;
   }
 
   const thesis = sanitizePredictionThesis(prediction.thesis);
@@ -485,7 +485,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
               <Link
                 href={localizedPath(researchCompanyUrl({ id: companyId }), locale)}
                 className="flex w-fit items-center gap-1 text-cyan-200 hover:text-cyan-100"
-                aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${displayName}`)}
+                aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} investment idea for ${displayName}`)}
               >
                 <span aria-hidden="true">{prediction.direction === "UP" ? "\u2191" : "\u2193"}</span>
                 <span className="break-words">{displayName}</span>
@@ -563,7 +563,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                 rows={3}
                 value={closeReason}
                 onChange={(event) => setCloseReason(event.target.value)}
-                placeholder={ui("Why are you closing this prediction?")}
+                placeholder={ui("Why are you closing this idea?")}
                 className="rounded-lg border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
               <p className="text-xs text-slate-500"><UiText text={"A reason is required. There is no minimum length."} /></p>

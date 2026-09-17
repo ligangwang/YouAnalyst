@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
-const navigationChinese: Record<string, string> = {"My predictions":"我的预测","Compare":"对比","Post":"发布","Following":"我的关注","AI Map":"AI 图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Calls":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
+const navigationChinese: Record<string, string> = {"My ideas":"我的观点","Performance comparison":"表现对比","Publish an idea":"发布观点","Following":"我的关注","AI Map":"AI 图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Investment ideas":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
 function useNavText() { const { chinese } = useLocale(); return (value: string) => chinese ? navigationChinese[value] ?? value : value; }
 
 function initials(name: string | null | undefined, email: string | null | undefined): string {
@@ -103,10 +103,10 @@ const primaryNavItems = [
   { href: "/watchlists/following", label: "Following" },
 ];
 const secondaryNavItems = [
-  { href: "/my/predictions", label: "My predictions" },
-  { href: "/compare", label: "Compare" },
-  { href: "/predictions/new", label: "Post" },
-  { href: "/predictions", label: "Calls" },
+  { href: "/my/predictions", label: "My ideas" },
+  { href: "/compare", label: "Performance comparison" },
+  { href: "/predictions/new", label: "Publish an idea" },
+  { href: "/predictions", label: "Investment ideas" },
   { href: "/leaderboard", label: "Rankings" },
   { href: "/institutions", label: "Institutions" },
   { href: "/daily/calls", label: "Top Calls" },

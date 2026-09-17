@@ -856,7 +856,9 @@ export async function getWatchlistDetail(
   const owner = mapWatchlistOwner(watchlist.userId, ownerSnapshot.data() as Record<string, unknown> | undefined);
   const predictions = await listWatchlistPredictions(watchlist.id, { includePrivate: isOwner });
   const metrics = metricsForPredictions(predictions);
-  const viewerAccess = options.viewerUserId || !watchlist.isPublic ? "full" : "preview";
+  // A comparison needs every member to display its shared-date performance.
+  // Visibility is still enforced above and by listWatchlistPredictions.
+  const viewerAccess = options.viewerUserId || !watchlist.isPublic || snapshot.get("kind") === "COMPARISON" ? "full" : "preview";
   const visiblePredictions = viewerAccess === "preview"
     ? predictions.slice(0, WATCHLIST_PREVIEW_LIMIT)
     : predictions;

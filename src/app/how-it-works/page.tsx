@@ -44,23 +44,23 @@ export default function HowItWorksPage() {
       <section className="grid gap-6 border-b border-white/10 py-6 md:grid-cols-3">
         <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Explore connections"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Search for a company or choose one on the map. Use List view on a small screen, then select a relationship to inspect its sources."} /></p><Link href="/?company=NVDA" className="mt-3 inline-block text-cyan-200 underline"><UiText text={"Explore NVIDIA"} /></Link></div>
         <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Assess the evidence"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Connections come from AI-assisted filing extraction and reviewed industry research. Check the linked source, date and company identity. Coverage is incomplete; an older source does not establish whether a relationship remains active."} /></p></div>
-        <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Track your outlook"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Choose Bullish or Bearish on a company, then sign in to review your call. Your first watchlist is created automatically; you can create more. Nothing is published until you confirm. Calls in public watchlists are visible to others."} /></p></div>
+        <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Track your outlook"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Choose a company and publish your research. Add a bullish or bearish view to track performance, or publish research only. Choose who can see it before publishing."} /></p></div>
       </section>
 
       <section className="border-b border-white/10 py-6"><h2 className="text-xl font-semibold text-cyan-100"><UiText text={"Understand reported activity"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Institutional holdings show a report date and filing date. Comparisons require a complete prior report; unavailable history is not a new purchase. Dollar-value changes include valuation changes. Insider transaction totals under review are excluded from rankings while their source filings remain available."} /></p></section>
 
       <section className="grid gap-4 border-b border-white/10 py-6 md:grid-cols-3">
         <div>
-          <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Make a prediction"} /></h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Pick a stock, choose Bullish or Bearish, and confirm your watchlist. Reasoning and a time horizon are optional."} /></p>
+          <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Publish an idea"} /></h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Select a company, write your idea, and optionally choose Bullish or Bearish. No watchlist is required."} /></p>
         </div>
         <div>
           <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Track the mark"} /></h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"New predictions wait for their first completed end-of-day price to set the entry. After that, we update them daily."} /></p>
+          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"New ideas wait for their first completed end-of-day price to set the entry. After that, we update them daily."} /></p>
         </div>
         <div>
           <h2 className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Close when ready"} /></h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"When you close a live prediction, the exit request is locked and final settlement happens at the next end-of-day update, which runs around 9:00 PM ET on trading days."} /></p>
+          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"When you close a live idea, the exit request is locked and final settlement happens at the next end-of-day update, which runs around 9:00 PM ET on trading days."} /></p>
         </div>
       </section>
 
@@ -80,21 +80,21 @@ export default function HowItWorksPage() {
         <div>
           <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"How Scores Work"} /></h2>
           <div className="mt-2 space-y-2 text-sm leading-6 text-slate-300">
-            <p><UiText text={"Your Score reflects how your predictions perform from entry price to the latest end-of-day mark."} /></p>
-            <p><UiText text={"Prediction score uses a capped curve:"} />{" "}
+            <p><UiText text={"Your Score reflects how your ideas perform from entry price to the latest end-of-day mark."} /></p>
+            <p><UiText text={"Idea score uses a capped curve:"} />{" "}
               <span className="font-mono text-xs text-cyan-100">
                 round({SCORE_SCALE} * tanh(return / {TANH_SCALE}))
               </span>
               .
             </p>
-            <p><UiText text={"Daily score is the change in prediction score from the previous market close. Because the curve flattens as a call gets further ahead, the same daily price move can add more score early and less score later."} /></p>
+            <p><UiText text={"Daily score is the change in idea score from the previous market close. Because the curve flattens as a call gets further ahead, the same daily price move can add more score early and less score later."} /></p>
             <p><UiText text={"Rankings are based on overall Score across every open and settled public call."} /></p>
           </div>
         </div>
         <div>
           <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Level & XP"} /></h2>
           <div className="mt-2 space-y-2 text-sm leading-6 text-slate-300">
-            <p><UiText text={"You earn XP from settled predictions."} /></p>
+            <p><UiText text={"You earn XP from settled ideas."} /></p>
             <p><UiText text={"XP increases your Level, which reflects your experience over time."} /></p>
             <p><UiText text={"Level does not affect ranking."} /></p>
           </div>
@@ -172,7 +172,7 @@ export default function HowItWorksPage() {
         <Link
           href="/predictions/new"
           className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-        ><UiText text={"Make a prediction"} /></Link>
+        ><UiText text={"Publish an idea"} /></Link>
         <Link
           href="/predictions"
           className="rounded-lg border border-cyan-400/35 px-4 py-2 text-sm text-cyan-100 hover:bg-cyan-500/15"
