@@ -871,7 +871,7 @@ export function AnalystProfilePage({
             <p className="mt-1 text-sm text-slate-300"><UiText text={"Public watchlists and track record for this analyst."} /></p>
           </div>
           {isOwner ? (
-            <><Link href="/my/predictions" className="text-sm text-cyan-200"><UiText text="My predictions" /></Link><Link
+            <><Link href="/my/predictions" className="text-sm text-cyan-200"><UiText text="My ideas" /></Link><Link
               href="/watchlists/following"
               className="rounded-full border border-cyan-400/35 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15"
             ><UiText text={"Followed companies"} /></Link></>

@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     if (detail) {
       const ids = group.get("predictionIds") as string[] | undefined;
       const predictions = [...detail.livePredictions, ...detail.settledPredictions].filter(p => ids?.includes(p.id)).sort((a, b) => a.ticker.localeCompare(b.ticker));
-      if (ids?.length === 2 && predictions.length === 2 && predictions[0].entryDate && predictions[0].entryDate === predictions[1].entryDate) items.push({ id: detail.id, name: detail.name, predictions });
+      if (ids && ids.length >= 2 && predictions.length === ids.length && predictions[0].entryDate && predictions.every(p => p.entryDate === predictions[0].entryDate)) items.push({ id: detail.id, name: detail.name, predictions });
     }
   }
   return NextResponse.json({ items }, { headers: { "Cache-Control": "private, no-store" } });

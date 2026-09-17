@@ -4,7 +4,7 @@ import { CreatePredictionPage } from "@/components/create-prediction-page";
 import { noIndexRobots } from "@/lib/seo";
 
 const pageMetadata: Metadata = {
-  title: "Post | YouAnalyst",
+  title: "Publish an idea | YouAnalyst",
   description: "Publish company research with an optional investment view.",
   robots: noIndexRobots(),
 };

@@ -41,17 +41,17 @@ export function CreatePredictionPage({ requestedTicker = "", requestedDirection 
     finally { setBusy(false); }
   }
   if (loading) return <p>{text("Loading…", "加载中…")}</p>;
-  if (!user) return <main className="mx-auto max-w-3xl p-8"><h1 className="text-2xl">{text("Publish company research", "发布公司研究")}</h1><Link className="text-cyan-300" href={predictionSignInHref(requestedTicker, "", requestedDirection)}>{text("Sign in to publish", "请登录后发布")}</Link></main>;
+  if (!user) return <main className="mx-auto max-w-3xl p-8"><h1 className="text-2xl">{text("Publish an idea", "发布观点")}</h1><Link className="text-cyan-300" href={predictionSignInHref(requestedTicker, "", requestedDirection)}>{text("Sign in to publish", "请登录后发布")}</Link></main>;
   const inputClass = "w-full rounded-lg border border-white/20 bg-slate-900 p-3";
-  return <main className="mx-auto max-w-3xl p-6"><h1 className="mb-4 text-2xl font-semibold">{text("Publish company research", "发布公司研究")}</h1>
+  return <main className="mx-auto max-w-3xl p-6"><h1 className="mb-4 text-2xl font-semibold">{text("Publish an idea", "发布观点")}</h1>
     <form onSubmit={publish} className="grid gap-5">
       <TickerSearchInput value={ticker} onChange={setTicker} predictionSearch label={text("Company", "公司")} />
       <label>{text("Title", "标题")}<input className={inputClass} value={title} onChange={e => setTitle(e.target.value)} required maxLength={120} /></label>
       <label>{text("Article", "文章")}<textarea className={inputClass} rows={10} value={body} onChange={e => setBody(e.target.value)} required maxLength={10000} /></label>
       <label>{text("Investment view (optional)", "投资观点（可选）")}<select className={inputClass} value={direction} onChange={e => setDirection(e.target.value as typeof direction)}><option value="">{text("Research only", "仅发布研究")}</option><option value="UP">{text("Bullish", "看多")}</option><option value="DOWN">{text("Bearish", "看空")}</option></select></label>
-      <p className="text-sm text-slate-400">{text("The same view updates your active prediction without changing its entry price. To reverse your view, explicitly close the existing prediction first. Private predictions require Pro.", "相同观点会更新现有预测，保留原始入场价格。改变方向前，请先明确关闭原预测。私密预测需要 Pro。")}</p>
+      <p className="text-sm text-slate-400">{text("Bullish or bearish ideas track performance from the entry price. Research-only articles do not. The same direction updates your active idea without changing its entry price. Close the existing idea before reversing direction. Private ideas require Pro.", "看多或看空观点从入场价格开始跟踪表现，仅发布研究则不跟踪收益。同方向文章会更新现有观点并保留入场价格。改变方向前，请先关闭原观点。私密观点需要 Pro。")}</p>
       <label>{text("Visibility", "可见范围")}<select className={inputClass} value={visibility} onChange={e => setVisibility(e.target.value)}><option value="PUBLIC">{text("Public", "公开")}</option><option value="PRIVATE">{text("Only me", "仅自己")}</option></select></label>
-      {error && <p role="alert" className="text-amber-200">{translateUi(error, locale)} <Link href={localizedPath("/my/predictions", locale)} className="underline">{text("My predictions", "我的预测")}</Link></p>}
+      {error && <p role="alert" className="text-amber-200">{translateUi(error, locale)} <Link href={localizedPath("/my/predictions", locale)} className="underline">{text("My ideas", "我的观点")}</Link></p>}
       <button disabled={busy} className="rounded-lg bg-cyan-400 p-3 font-semibold text-slate-950 disabled:opacity-50">{busy ? text("Publishing…", "发布中…") : text("Publish", "发布")}</button>
     </form></main>;
 }

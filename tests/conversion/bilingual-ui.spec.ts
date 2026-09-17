@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 });
 test("Chinese calls translate title, actions and status while preserving author text", async ({ page }) => {
   await page.goto("http://bilingual.test/predictions?lang=zh-CN&market=US");
-  await expect(page.getByRole("heading", { name: "最新观点" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "最新投资观点" })).toBeVisible();
   await expect(page.getByText("等待起始价", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "看多", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "看空", exact: true })).toBeVisible();
@@ -33,11 +33,11 @@ test("Chinese calls translate title, actions and status while preserving author 
 test("legacy market selection does not hide calls or reappear after language changes", async ({ page }) => {
   await page.goto("http://bilingual.test/predictions?lang=zh-CN&market=CN_A");
   await expect(page.getByRole("combobox", { name: "市场", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "最新观点" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "最新投资观点" })).toBeVisible();
   await expect(page.getByText("Original author text")).toBeVisible();
   await page.getByRole("button", { name: "Switch to English" }).click();
   await expect(page).toHaveURL("http://bilingual.test/en/predictions");
-  await expect(page.getByRole("heading", { name: "Latest Calls" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Latest investment ideas" })).toBeVisible();
 });
 
 test("signed-in language preference saves and failed saves stay on the current page", async ({ page }) => {
@@ -52,11 +52,11 @@ test("signed-in language preference saves and failed saves stay on the current p
   await page.route("**/api/preferences", route => route.fulfill({ json: { preferences: route.request().postDataJSON() } }));
   await page.getByRole("button", { name: "Switch to English" }).click();
   await expect(page).toHaveURL("http://bilingual.test/en/predictions");
-  await expect(page.getByRole("heading", { name: "Latest Calls" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Latest investment ideas" })).toBeVisible();
 });
 test("English labels remain available", async ({ page }) => {
   await page.goto("http://bilingual.test/predictions?lang=en&market=US");
-  await expect(page.getByRole("heading", { name: "Latest Calls" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Latest investment ideas" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Bullish", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Up prediction for AMD" })).toBeVisible();
 });

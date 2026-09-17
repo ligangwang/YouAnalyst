@@ -145,8 +145,8 @@ export function PredictionsFeed() {
     <main className="mx-auto w-full max-w-6xl px-4 py-5">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-4 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
         <div className="mb-4">
-          <h1 className="text-lg font-semibold tracking-tight text-white sm:text-xl"><UiText text={"Latest Calls"} /></h1>
-          <p className="mt-1 text-sm text-slate-300"><UiText text={"Create watchlists, publish stock calls, and let performance speak for itself."} /></p>
+          <h1 className="text-lg font-semibold tracking-tight text-white sm:text-xl"><UiText text={"Latest investment ideas"} /></h1>
+          <p className="mt-1 text-sm text-slate-300"><UiText text={"Publish investment ideas and follow their track records."} /></p>
         </div>
 
         {loading || authLoading ? <p className="text-sm text-slate-300"><UiText text={"Loading feed..."} /></p> : null}
@@ -179,7 +179,7 @@ export function PredictionsFeed() {
           ))}
 
           {!loading && !error && items.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No predictions yet."} /></p>
+            <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No investment ideas yet."} /></p>
           ) : null}
         </div>
 

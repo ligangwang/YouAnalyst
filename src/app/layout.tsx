@@ -96,7 +96,7 @@ export default async function RootLayout({
           <div id="page-content" tabIndex={-1} className="flex-1">{children}</div>
           <footer className="border-t border-white/10 bg-slate-950/80">
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs leading-6 text-slate-400">
-              <UiText text={"Predictions, rankings, and commentary on YouAnalyst are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."} />
+              <UiText text={"Investment ideas, rankings, and commentary on YouAnalyst are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."} />
               <div className="mt-3">
                 <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline"><UiText text={"How it works"} /></Link>
                 <Link href="/feedback" className="font-medium text-cyan-200 underline-offset-2 hover:underline">
