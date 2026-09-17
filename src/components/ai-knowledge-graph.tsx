@@ -98,7 +98,6 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   return <><Container className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>{text("EXPLORE", "探索")}</p><Heading>{text("AI Industry Map", "AI 产业图谱")}</Heading><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></div></header>
     {!allowedRelationshipIds && <ShareResearchView/>}
-    {introduction}
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
       <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
@@ -138,6 +137,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       </aside>}
     </div>}
     <div className={styles.legend}><span role="status">{status === "ready" ? <>{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</> : text(status === "loading" ? "Loading company and connection totals…" : "Company and connection totals unavailable", status === "loading" ? "正在加载公司与关系数量…" : "暂时无法获取公司与关系数量")}</span></div>
+    {introduction}
     {status === "ready" && <details className={styles.companyBrowser}><summary>{text("Browse companies", "浏览公司")} · {visible.nodes.filter(n=>n.kind==="COMPANY").length}</summary>
       <input aria-label={text("Find a company in the list", "在列表中查找公司")} placeholder={text("Name, ticker or business…", "名称、代码或业务…")} value={browseQuery} onChange={e=>setBrowseQuery(e.target.value)}/>
       <div className={styles.companyList}>{browseMatches.map(n=><button key={n.id} onClick={()=>selectCompany(n.id)}><span style={{color:companySector(n).color}}>{companyName(n,locale)}</span><small>{n.symbol} · {text(companySector(n).en,companySector(n).zh)}</small></button>)}{!browseMatches.length && <p>{text("No matching companies.", "没有匹配的公司。")}</p>}</div>
