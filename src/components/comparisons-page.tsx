@@ -5,6 +5,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "./providers/locale-provider";
 import { localizedPath } from "@/lib/i18n/urls";
 import type { Prediction } from "@/lib/predictions/types";
+import { formatReturnPercent, markToneClass } from "./prediction-ui";
 
 type Comparison = { id: string; name: string; predictions: Array<Prediction & { id: string }> };
 function value(p: Prediction) { return p.result?.returnValue ?? p.markReturnValue ?? null; }
@@ -33,8 +34,16 @@ export function ComparisonsPage() {
       const [a, b] = item.predictions;
       const aValue = a ? value(a) : null, bValue = b ? value(b) : null;
       return <section key={item.id} className="my-5 rounded-xl border border-white/10 p-5"><h2 className="text-xl">{item.name}</h2>
-        {item.predictions.map(p => <article key={p.id} className="my-4"><Link className="text-cyan-300" href={localizedPath(`/predictions/${p.id}`, locale)}>{p.ticker} · {p.direction === "UP" ? text("Bullish", "看多") : text("Bearish", "看空")}</Link><p>{value(p) == null ? text("Awaiting price", "等待价格") : (value(p)! * 100).toFixed(2) + "%"} · {text("Entry", "入场日期")}: {p.entryDate ?? text("Pending", "待定")}</p></article>)}
-        {a && b && aValue !== null && bValue !== null && <p>{a.ticker} − {b.ticker}: {((aValue - bValue) * 100).toFixed(2)} {text("percentage points", "个百分点")}</p>}
+        {item.predictions.map(p => {
+          const returnValue = value(p);
+          return <article key={p.id} className="my-4">
+            <Link className="font-semibold" href={localizedPath(`/predictions/${p.id}`, locale)}>
+              <span className={p.direction === "UP" ? "text-emerald-300" : "text-rose-300"}>{p.direction === "UP" ? "↑" : "↓"} {p.ticker} · {p.direction === "UP" ? text("Bullish", "看多") : text("Bearish", "看空")}</span>
+            </Link>
+            <p><span className={`font-semibold ${returnValue == null ? "text-slate-300" : markToneClass(returnValue)}`}>{returnValue == null ? text("Awaiting price", "等待价格") : formatReturnPercent(returnValue)}</span> · <span className="text-slate-400">{text("Entry", "入场日期")}: {p.entryDate ?? text("Pending", "待定")}</span></p>
+          </article>;
+        })}
+        {a && b && aValue !== null && bValue !== null && <p>{a.ticker} − {b.ticker}: <span className={`font-semibold ${markToneClass(aValue - bValue)}`}>{((aValue - bValue) * 100).toFixed(2)} {text("percentage points", "个百分点")}</span></p>}
         <p className="mt-3 text-sm text-slate-400">{text("Each prediction retains its original entry date and direction. Different entry dates are not a same-period stock-return comparison.", "每条预测保留原始入场日期及方向。入场日期不同时，不代表同一期间的股票收益对比。")}</p>
       </section>;
     })}
