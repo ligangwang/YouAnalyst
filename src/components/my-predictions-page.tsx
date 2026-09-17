@@ -1,11 +1,10 @@
 "use client";
-import { UiText } from "./ui-text";
 import { formatCallPrice } from "@/lib/predictions/instrument";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "./providers/locale-provider";
-import { PredictionReturnSummary, formatPredictionStatus } from "./prediction-ui";
+import { PredictionReturnSummary } from "./prediction-ui";
 import { CompanyPosts } from "./company-posts";
 import { ComparisonsPage } from "./comparisons-page";
 import { localizedPath } from "@/lib/i18n/urls";
@@ -67,7 +66,6 @@ export function MyPredictionsPage({ ownerId, embedded = false }: { ownerId?: str
       {selectionError && <p role="alert">{text("Unable to save your selection. Please retry.", "无法保存选择，请重试。")}</p>}
       {pending ? <p>{text("Loading…", "加载中…")}</p> : error ? <p role="alert">{text("Unable to load ideas.", "无法加载观点。")}</p> : !rows.length ? <p>{text("No tracked ideas yet. Publish a bullish or bearish idea to start your track record.", "暂无跟踪中的观点。发布看多或看空观点，即可开始记录历史表现。")}</p> : rows.map(row => <article key={row.id} className="my-3 rounded-xl border border-white/10 p-4">
         <Link className="font-semibold" href={localizedPath(`/predictions/${row.id}`, locale)}><span className={row.direction === "UP" ? "text-emerald-300" : "text-rose-300"}>{row.direction === "UP" ? "↑" : "↓"} {row.ticker}{row.thesisTitle?.trim() ? ` · ${row.thesisTitle.trim()}` : ""}</span></Link>
-        <p>{<UiText text={formatPredictionStatus(row.status)} />}</p>
         <p className="text-sm text-slate-400">{text("Entry", "入场")}: {row.entryDate ?? text("Pending", "待定")} · {row.entryPrice == null ? text("Awaiting price", "等待价格") : formatCallPrice(row.entryPrice, row.ticker)}</p>
         {user?.uid === targetId && duplicates.has(row.ticker) && ["CREATED", "OPEN"].includes(row.status) && <button disabled={saving || primary[row.ticker] === row.id} onClick={() => void selectPrimary(row)} className="my-2 rounded border border-cyan-400/40 px-3 py-2 text-cyan-200 disabled:opacity-60">{primary[row.ticker] === row.id ? text("Receives future articles", "接收后续文章") : text("Use for future articles", "用于后续文章")}</button>}<PredictionReturnSummary prediction={row} status={row.status} href={localizedPath(`/predictions/${row.id}`, locale)} />
       </article>)}
