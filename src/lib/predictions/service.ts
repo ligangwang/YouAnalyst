@@ -335,7 +335,8 @@ export function validateCreatePredictionInput(raw: unknown): CreatePredictionInp
   if (!isPredictionDirection(direction)) {
     throw new Error("direction must be UP or DOWN");
   }
-
+  // Ungrouped calls are created only by the internal atomic article publisher.
+  if (!watchlistId) throw new Error("Publish an article through /api/posts; watchlist is required for legacy calls");
 
   validatePredictionText(thesisTitle, thesis);
 
@@ -550,7 +551,6 @@ export async function createPredictionForUser(
     if (postRef && options.post && activeTickerPredictions.length) {
       const primaryIds = userSnapshot.get("publishingPrimaryPredictions") as Record<string, string> | undefined;
       const primary = activeTickerPredictions.find(p => p.id === primaryIds?.[input.ticker]);
-      if (primaryIds?.[input.ticker] && !primary) throw new Error("Your primary prediction is no longer active. Select another active prediction or publish without a direction.");
       if (activeTickerPredictions.length !== 1 && !primary) throw new Error("Multiple legacy predictions exist. Select the primary prediction before publishing a directional update.");
       const activeRef = db.collection("predictions").doc((primary ?? activeTickerPredictions[0]).id);
       const active = (await tx.get(activeRef)).data() as Prediction;

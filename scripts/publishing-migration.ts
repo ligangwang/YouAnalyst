@@ -50,9 +50,9 @@ async function main() {
   const now = new Date().toISOString();
   const writes: unknown[] = snapshot.watchlists.filter(group => group.id === plan.comparison.id || plan.archiveGroupIds.includes(group.id)).map(group => ({
     update: { name: `${root.replace("https://firestore.googleapis.com/v1/", "")}/watchlists/${group.id}`, fields: group.id === plan.comparison.id
-      ? { kind: { stringValue: "COMPARISON" }, updatedAt: { stringValue: now } }
+      ? { kind: { stringValue: "COMPARISON" }, predictionIds: { arrayValue: { values: plan.comparison.predictionIds.map(id => ({ stringValue: id })) } }, updatedAt: { stringValue: now } }
       : { kind: { stringValue: "LEGACY" }, archivedAt: { stringValue: now }, updatedAt: { stringValue: now } } },
-    updateMask: { fieldPaths: group.id === plan.comparison.id ? ["kind", "updatedAt"] : ["kind", "archivedAt", "updatedAt"] },
+    updateMask: { fieldPaths: group.id === plan.comparison.id ? ["kind", "predictionIds", "updatedAt"] : ["kind", "archivedAt", "updatedAt"] },
     currentDocument: { updateTime: group._updateTime },
   }));
   for (const userId of new Set(groups.map(group => group.userId))) {

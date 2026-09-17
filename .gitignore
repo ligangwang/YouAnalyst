@@ -43,3 +43,6 @@ firebase-debug.log
 /test-results/conversion/
 
 /.release/
+
+# Private production migration snapshots and account-level dry-run reports.
+/output/publishing-*.json

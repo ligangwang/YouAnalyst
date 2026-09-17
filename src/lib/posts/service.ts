@@ -1,4 +1,5 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { FieldPath } from "firebase-admin/firestore";
 import { createPredictionForUser } from "@/lib/predictions/service";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { assertSamePost, postId, type Post, type PostInput } from "./model";
@@ -42,14 +43,25 @@ export async function readPost(id: string, viewerId?: string, db = getAdminFires
   return post && await canReadPost(post, viewerId, db) ? { ...post, id } : null;
 }
 
-export async function listPosts(filter: { predictionId?: string; ticker?: string; userId?: string }, viewerId?: string, db = getAdminFirestore()) {
+export async function listPosts(filter: { predictionId?: string; ticker?: string; userId?: string; cursor?: string }, viewerId?: string, db = getAdminFirestore()) {
   const [field, value] = filter.predictionId ? ["predictionId", filter.predictionId] : filter.ticker ? ["ticker", predictionInstrument(filter.ticker)?.ticker] : ["userId", filter.userId];
-  if (!value) return [];
-  // One equality query avoids requiring a composite index for the initial rollout.
-  const snapshot = await db.collection("posts").where(field, "==", value).get();
-  const rows = await Promise.all(snapshot.docs.map(async doc => {
+  if (!value) return { items: [], nextCursor: null };
+  let query = db.collection("posts").where(field, "==", value).orderBy("createdAt", "desc").orderBy(FieldPath.documentId(), "desc");
+  if (filter.cursor) {
+    if (filter.cursor.length > 300) throw new Error("Invalid cursor");
+    const cursor = JSON.parse(Buffer.from(filter.cursor, "base64url").toString()) as { createdAt: string; id: string };
+    if (typeof cursor.createdAt !== "string" || !Number.isFinite(Date.parse(cursor.createdAt)) || !/^[a-f0-9]{64}$/.test(cursor.id)) throw new Error("Invalid cursor");
+    query = query.startAfter(cursor.createdAt, cursor.id);
+  }
+  const snapshot = await query.limit(26).get();
+  const page = snapshot.docs.slice(0, 25);
+  const rows = await Promise.all(page.map(async doc => {
     const post = doc.data() as Post;
     return await canReadPost(post, viewerId, db) ? { ...post, id: doc.id } : null;
   }));
-  return rows.filter(row => row !== null).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const last = page.at(-1);
+  return {
+    items: rows.filter(row => row !== null),
+    nextCursor: snapshot.docs.length > 25 && last ? Buffer.from(JSON.stringify({ createdAt: last.get("createdAt"), id: last.id })).toString("base64url") : null,
+  };
 }

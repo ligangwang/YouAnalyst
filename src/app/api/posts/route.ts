@@ -6,8 +6,12 @@ import { listPosts, publishPost } from "@/lib/posts/service";
 export async function GET(request: NextRequest) {
   const user = await getDecodedUserFromRequest(request);
   const params = request.nextUrl.searchParams;
-  const items = await listPosts({ predictionId: params.get("predictionId") ?? undefined, ticker: params.get("ticker") ?? undefined, userId: params.get("userId") ?? undefined }, user?.uid);
-  return NextResponse.json({ items }, { headers: { "Cache-Control": "private, no-store" } });
+  try {
+    const result = await listPosts({ predictionId: params.get("predictionId") ?? undefined, ticker: params.get("ticker") ?? undefined, userId: params.get("userId") ?? undefined, cursor: params.get("cursor") ?? undefined }, user?.uid);
+    return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
+  } catch {
+    return NextResponse.json({ error: "Unable to load articles" }, { status: 400 });
+  }
 }
 
 export async function POST(request: NextRequest) {

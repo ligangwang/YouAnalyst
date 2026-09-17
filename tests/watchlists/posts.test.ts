@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Firestore } from "firebase-admin/firestore";
-import { publishPost, readPost } from "../../src/lib/posts/service";
+import { publishPost, readPost, listPosts } from "../../src/lib/posts/service";
 import { validatePost } from "../../src/lib/posts/model";
 import { choosePrimaryPrediction } from "../../src/lib/predictions/primary";
+import { validateCreatePredictionInput } from "../../src/lib/predictions/service";
+import { assertWatchlistCanReceivePrediction } from "../../src/lib/watchlists/service";
 
 type Data = Record<string, unknown>;
 function fixture(extra: Record<string, Data> = {}) {
@@ -122,4 +124,29 @@ test("legacy primary selection is owner-only and routes articles without changin
   assert.equal(article.predictionId, "comparison-amd");
   assert.equal(JSON.stringify(f.records.get("predictions/comparison-amd")), before);
   assert.ok(f.records.has(originalKey));
+  f.records.set("predictions/comparison-amd", { ...f.records.get("predictions/comparison-amd"), status: "SETTLED" });
+  const next = await publishPost({ ...input, requestId: "update-9999999999" }, user, f.db);
+  assert.equal(next.predictionId, original.predictionId, "sole active call recovers from a stale primary");
+});
+
+test("legacy endpoint requires its legacy group and comparisons reject additions", async () => {
+  assert.throws(() => validateCreatePredictionInput({ ticker: "AMD", direction: "UP" }), /watchlist is required/);
+  const tx = { get: async () => ({ exists: true, get: () => "COMPARISON" }) } as unknown as FirebaseFirestore.Transaction;
+  await assert.rejects(assertWatchlistCanReceivePrediction(tx, {} as FirebaseFirestore.DocumentReference, "alice"), /membership/);
+});
+
+test("post history is bounded and cursor pagination handles equal publication timestamps", async () => {
+  const rows = Array.from({ length: 52 }, (_, i) => ({ id: (100 - i).toString(16).padStart(64, "0"), data: () => ({ ...input, userId: "alice", createdAt: "2026-09-17T12:00:00.000Z" }), get: () => "2026-09-17T12:00:00.000Z" }));
+  const limits: number[] = [];
+  const db = { collection: () => {
+    let start = 0;
+    const query = { where: () => query, orderBy: () => query, startAfter: (_date: string, id: string) => { start = rows.findIndex(row => row.id === id) + 1; return query; }, limit: (n: number) => { limits.push(n); return { get: async () => ({ docs: rows.slice(start, start + n) }) }; } };
+    return query;
+  } } as unknown as Firestore;
+  const first = await listPosts({ ticker: "AMD" }, "alice", db);
+  const second = await listPosts({ ticker: "AMD", cursor: first.nextCursor! }, "alice", db);
+  assert.equal(first.items.length, 25);
+  assert.equal(second.items.length, 25);
+  assert.equal(new Set([...first.items, ...second.items].map(row => row.id)).size, 50);
+  assert.deepEqual(limits, [26, 26]);
 });

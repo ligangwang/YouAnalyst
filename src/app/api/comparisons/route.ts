@@ -10,7 +10,11 @@ export async function GET(request: NextRequest) {
     const owner = await getAdminFirestore().collection("users").doc(group.get("userId")).get();
     if (user?.uid !== group.get("userId") && (!owner.exists || owner.get("settings.isPublic") === false)) continue;
     const detail = await getWatchlistDetail(group.id, { viewerUserId: user?.uid });
-    if (detail) items.push({ id: detail.id, name: detail.name, predictions: [...detail.livePredictions, ...detail.settledPredictions] });
+    if (detail) {
+      const ids = group.get("predictionIds") as string[] | undefined;
+      const predictions = [...detail.livePredictions, ...detail.settledPredictions].filter(p => ids?.includes(p.id)).sort((a, b) => a.ticker.localeCompare(b.ticker));
+      if (ids?.length === 2 && predictions.length === 2) items.push({ id: detail.id, name: detail.name, predictions });
+    }
   }
   return NextResponse.json({ items }, { headers: { "Cache-Control": "private, no-store" } });
 }
