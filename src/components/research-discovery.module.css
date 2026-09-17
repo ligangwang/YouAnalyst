@@ -1,0 +1,22 @@
+.section { max-width: 1280px; margin: 24px auto; padding: 24px; border: 1px solid #254455; border-radius: 18px; background: #0b1927; color: #e7f2fa; }
+.section h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); line-height: 1.2; margin: 14px 0; }
+.section h2 { font-size: 1.4rem; margin: 14px 0; }
+.section p { line-height: 1.65; margin: 12px 0; }
+.section a { color: #72dfef; text-decoration: underline; text-underline-offset: 3px; }
+.section button, .section select { border: 1px solid #376479; border-radius: 8px; padding: 8px 12px; background: #102b3b; color: #e7f2fa; cursor: pointer; }
+.grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; }
+.card { padding: 14px; border: 1px solid #254455; border-radius: 10px; }
+.card p, .muted { color: #a7bccd; font-size: .9rem; }
+.actions { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin: 18px 0; }
+.table { overflow-x: auto; margin: 20px 0; }
+.table table { width: 100%; border-collapse: collapse; min-width: 640px; }
+.table th, .table td { text-align: left; vertical-align: top; padding: 16px 12px; border-bottom: 1px solid #254455; }
+.table th { color: #a7bccd; }
+.table td:first-child { width: 25%; }
+.table td:last-child { width: 26%; }
+.table summary { cursor: pointer; color: #72dfef; }
+.badge { display: inline-block; padding: 4px 8px; border: 1px solid #3d6577; border-radius: 8px; font-size: .82rem; margin-top: 8px; }
+.share button { padding: 8px 12px; border: 1px solid #376479; border-radius: 8px; color: #bceefa; background: #102b3b; cursor: pointer; }
+.share input { display: block; max-width: 100%; width: 440px; margin-top: 8px; color: #e7f2fa; background: #102b3b; padding: 8px; }
+@media(max-width:700px) { .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .section { margin: 16px 8px; padding: 16px; } }
+@media(max-width:420px) { .grid { grid-template-columns: 1fr; } }

@@ -18,6 +18,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { COMPANY_COLLECTION } from "@/lib/market-companies/model";
 import { publicChinaCompany } from "@/lib/industry-research/china-directory";
 import { ChinaCompanyPage } from "@/components/china-company-page";
+import { headers } from "next/headers";
 
 const loadChinaCompany = cache(async (id: string) => {
   const doc = await getAdminFirestore().collection(COMPANY_COLLECTION).doc(id).get();
@@ -54,7 +55,9 @@ async function buildPageMetadata({
   }
   const ticker = resolveTicker(symbol);
   const company = await loadCompanyResearch(ticker);
-  const title = `${company.name} (${ticker}) holdings & company research | YouAnalyst`;
+  const zh = (await headers()).get("x-ya-language") === "zh-CN";
+  const focus = company.connections.length ? (zh ? "AI 生态与产业链关系" : "AI ecosystem & supply-chain relationships") : (zh ? "公司研究" : "company research");
+  const title = `${company.name} (${ticker}) ${focus} | YouAnalyst`;
   const description = companyResearchDescription(company);
 
   return {
@@ -64,11 +67,14 @@ async function buildPageMetadata({
       canonical: `/ticker/${ticker}`,
     },
     openGraph: {
+      images: [{url:`/api/research-preview-image?company=US%3A${ticker}`,width:1200,height:630}],
       title,
       description,
       url: `/ticker/${ticker}`,
     },
     twitter: {
+      card: "summary_large_image",
+      images: [`/api/research-preview-image?company=US%3A${ticker}`],
       title,
       description,
     },

@@ -9,6 +9,7 @@ import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { CompanyFollowButton } from "./company-follow-button";
 import { CompanyNameEditor } from "./company-name-editor";
 import { AiMapDirectory } from "./ai-map-directory";
+import { ShareResearchView } from "./share-research-view";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { RelationshipEvidence } from "./company-research-panel";
 import { BusinessEventEvidence } from "./company-change-card";
@@ -19,7 +20,7 @@ import styles from "./ai-knowledge-graph.module.css";
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
-export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "" }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string }) {
+export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", introduction, allowedRelationshipIds }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; introduction?: React.ReactNode; allowedRelationshipIds?: string[] }) {
   const { text, locale } = useLocale();
   const [activeEdge, setActiveEdge] = useState(initialEdge);
   const [eventId, setEventId] = useState(initialEvent);
@@ -37,15 +38,20 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     fetch("/api/knowledge-graph", { signal: controller.signal }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { setGraph(data); setStatus("ready"); }).catch(() => { if (!controller.signal.aborted) setStatus("error"); });
     return () => controller.abort();
   }, [retry]);
-  const visible = graph;
-  const matches = useMemo(() => filterGraph(graph, ["US", "CN_A", "GLOBAL"], query).nodes.filter(n => n.kind === "COMPANY"), [graph, query]);
+  const visible = useMemo(() => {
+    if (!allowedRelationshipIds) return graph;
+    const relationships = graph.relationships.filter(e=>allowedRelationshipIds.includes(e.id));
+    const ids = new Set(relationships.flatMap(e=>[e.source,e.target]));
+    return {...graph, relationships, nodes:graph.nodes.filter(n=>ids.has(n.id))};
+  }, [graph, allowedRelationshipIds]);
+  const matches = useMemo(() => filterGraph(visible, ["US", "CN_A", "GLOBAL"], query).nodes.filter(n => n.kind === "COMPANY"), [visible, query]);
   const [browseQuery, setBrowseQuery] = useState("");
-  const browseMatches = useMemo(() => filterGraph(graph, ["US", "CN_A", "GLOBAL"], browseQuery).nodes.filter(n => n.kind === "COMPANY").sort((a,b)=>companyName(a,locale).localeCompare(companyName(b,locale),locale)), [graph,browseQuery,locale]);
+  const browseMatches = useMemo(() => filterGraph(visible, ["US", "CN_A", "GLOBAL"], browseQuery).nodes.filter(n => n.kind === "COMPANY").sort((a,b)=>companyName(a,locale).localeCompare(companyName(b,locale),locale)), [visible,browseQuery,locale]);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const sectorIds = new Set(visible.nodes.filter(n => n.kind === "COMPANY").map(n => companySector(n).id));
   const [reset, setReset] = useState(0);
   const company = visible.nodes.find(n => n.id === selected && n.kind === "COMPANY");
-  const relations = company ? graph.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
+  const relations = company ? visible.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
   const label = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n?.kind === "STAGE" ? text(n.labels?.en ?? n.label ?? id, n.labels?.["zh-CN"] ?? n.label ?? id) : n ? companyName(n,locale) : id; };
   function selectCompany(id: string) {
     setCameraRequest(value=>value+1);
@@ -87,8 +93,12 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     setSectorsExpanded(false);
   }
   const sourceLinks = (ids: string[]) => graph.sources.filter(s => ids.includes(s.id) && /^https:\/\//.test(s.url)).map(s => <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗{s.sourceDate && <time className={styles.sourceDate} dateTime={s.sourceDate}>{s.sourceDate}</time>}</a>);
-  return <><main className={styles.page}>
-    <header className={styles.header}><div><p className={styles.eyebrow}>{text("EXPLORE", "探索")}</p><h1>{text("AI Industry Map", "AI 产业图谱")}</h1><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></div></header>
+  const Container = allowedRelationshipIds ? "section" : "main";
+  const Heading = allowedRelationshipIds ? "h2" : "h1";
+  return <><Container className={styles.page}>
+    <header className={styles.header}><div><p className={styles.eyebrow}>{text("EXPLORE", "探索")}</p><Heading>{text("AI Industry Map", "AI 产业图谱")}</Heading><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></div></header>
+    {!allowedRelationshipIds && <ShareResearchView/>}
+    {introduction}
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
       <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
@@ -127,10 +137,10 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
         </details>
       </aside>}
     </div>}
-    <div className={styles.legend}><span role="status">{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</span></div>
-    {status === "ready" && <details className={styles.companyBrowser}><summary>{text("Browse companies", "浏览公司")} · {graph.nodes.filter(n=>n.kind==="COMPANY").length}</summary>
+    <div className={styles.legend}><span role="status">{status === "ready" ? <>{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</> : text(status === "loading" ? "Loading company and connection totals…" : "Company and connection totals unavailable", status === "loading" ? "正在加载公司与关系数量…" : "暂时无法获取公司与关系数量")}</span></div>
+    {status === "ready" && <details className={styles.companyBrowser}><summary>{text("Browse companies", "浏览公司")} · {visible.nodes.filter(n=>n.kind==="COMPANY").length}</summary>
       <input aria-label={text("Find a company in the list", "在列表中查找公司")} placeholder={text("Name, ticker or business…", "名称、代码或业务…")} value={browseQuery} onChange={e=>setBrowseQuery(e.target.value)}/>
       <div className={styles.companyList}>{browseMatches.map(n=><button key={n.id} onClick={()=>selectCompany(n.id)}><span style={{color:companySector(n).color}}>{companyName(n,locale)}</span><small>{n.symbol} · {text(companySector(n).en,companySector(n).zh)}</small></button>)}{!browseMatches.length && <p>{text("No matching companies.", "没有匹配的公司。")}</p>}</div>
     </details>}
-  </main><AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} /></>;
+  </Container>{!allowedRelationshipIds && <AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} />}</>;
 }
