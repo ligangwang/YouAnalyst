@@ -1,4 +1,5 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import { chinaCompanyId } from "@/lib/market-companies/routes";
 import { normalizeInsiderTransactionAmounts } from "@/lib/securities/insider-transaction-values";
 import { isPublishableInsiderMove } from "@/lib/securities/insider-value-quality";
 import { hasVerifiedHoldingComparison } from "@/lib/securities/thirteen-f-comparison";
@@ -10,6 +11,7 @@ export type DailyCallHighlight = {
   displayName: string | null;
   nickname: string | null;
   ticker: string | null;
+  company?: { id: string; name: string; names: Partial<Record<"en" | "zh-CN", string>> };
   direction: "UP" | "DOWN" | null;
   dailyScoreChange: number;
   dailyReturnChange: number | null;
@@ -566,6 +568,28 @@ export async function getDailyScores(dateInput?: string | null): Promise<DailySc
     latestInstitutionalMoves(db),
     latestInsiderMoves(db),
   ]);
+
+  const companyIdFor = (ticker: string | null) => {
+    const symbol = ticker?.trim().toUpperCase() ?? "";
+    return chinaCompanyId(symbol) ?? (/^(?:US:)?[A-Z][A-Z0-9.-]{0,19}$/.test(symbol) ? `US:${symbol.replace(/^US:/, "")}` : null);
+  };
+  const companyIds = [...new Set(topCalls.map(call => companyIdFor(call.ticker)).filter((id): id is string => id !== null))];
+  if (companyIds.length) {
+    try {
+      const profiles = await db.getAll(...companyIds.map(id => db.collection("companies").doc(id)));
+      const companies = new Map(profiles.filter(profile => profile.exists).map(profile => {
+        const data = profile.data()!;
+        return [profile.id, {
+          id: profile.id,
+          name: typeof data.name === "string" ? data.name : "",
+          names: Object.fromEntries(Object.entries(data.names && typeof data.names === "object" ? data.names : {}).filter(([key, value]) => ["en", "zh-CN"].includes(key) && typeof value === "string" && value.trim())),
+        }];
+      }));
+      for (const call of topCalls) {
+        call.company = companies.get(companyIdFor(call.ticker) ?? "");
+      }
+    } catch { /* Keep daily results available with ticker labels if company lookup fails. */ }
+  }
 
   return {
     date,
