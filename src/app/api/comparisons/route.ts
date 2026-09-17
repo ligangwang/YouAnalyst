@@ -5,10 +5,11 @@ import { getWatchlistDetail } from "@/lib/watchlists/service";
 export async function GET(request: NextRequest) {
   const user = await getDecodedUserFromRequest(request);
   const ownerId = request.nextUrl.searchParams.get("userId");
-  const groups = await getAdminFirestore().collection("watchlists").where("kind", "==", "COMPARISON").get();
+  const watchlists = getAdminFirestore().collection("watchlists");
+  const groups = await (ownerId ? watchlists.where("userId", "==", ownerId) : watchlists.where("kind", "==", "COMPARISON")).get();
   const items = [];
   for (const group of groups.docs) {
-    if (ownerId && group.get("userId") !== ownerId) continue;
+    if (group.get("kind") !== "COMPARISON") continue;
     const owner = await getAdminFirestore().collection("users").doc(group.get("userId")).get();
     if (user?.uid !== group.get("userId") && (!owner.exists || owner.get("settings.isPublic") === false)) continue;
     const detail = await getWatchlistDetail(group.id, { viewerUserId: user?.uid });
