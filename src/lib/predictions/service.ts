@@ -1,3 +1,4 @@
+import { assertSamePost, type Post, type PostInput } from "@/lib/posts/model";
 import { predictionInstrument, chinaTargetDate } from "./instrument";
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -30,6 +31,8 @@ type AuthedUser = {
 };
 
 type InternalCreatePredictionOptions = {
+  db?: FirebaseFirestore.Firestore;
+  post?: { id: string; input: PostInput };
   sourceType?: "HUMAN" | "AI_ANALYST";
   generation?: Prediction["generation"];
 };
@@ -60,7 +63,7 @@ type ListPredictionsResult = {
 const PUBLIC_PREDICTION_STATUSES = ["CREATED", "OPEN", "SETTLED", "OPENING", "CLOSING", "CLOSED"] as const;
 export const PUBLIC_FEED_PREVIEW_LIMIT = 10;
 const ACTIVE_PREDICTION_STATUSES = ["CREATED", "OPEN", "OPENING", "CLOSING"] as const;
-const MAX_ACTIVE_PREDICTIONS_PER_TICKER = 2;
+const MAX_ACTIVE_PREDICTIONS_PER_TICKER = 1;
 const CANCEL_WINDOW_MS = 5 * 60 * 1000;
 const TIME_HORIZON_LIMITS: Record<PredictionTimeHorizonUnit, number> = {
   DAYS: 3650,
@@ -332,10 +335,8 @@ export function validateCreatePredictionInput(raw: unknown): CreatePredictionInp
   if (!isPredictionDirection(direction)) {
     throw new Error("direction must be UP or DOWN");
   }
-
-  if (!watchlistId) {
-    throw new Error("watchlist is required");
-  }
+  // Ungrouped calls are created only by the internal atomic article publisher.
+  if (!watchlistId) throw new Error("Publish an article through /api/posts; watchlist is required for legacy calls");
 
   validatePredictionText(thesisTitle, thesis);
 
@@ -448,7 +449,7 @@ async function listActivePredictionsForTickerInTransaction(
       const data = doc.data() as Prediction;
       const status = canonicalPredictionStatus(data.status);
       const watchlistId = typeof data.watchlistId === "string" ? data.watchlistId.trim() : "";
-      if (!status || !ACTIVE_PREDICTION_STATUSES.includes(status as (typeof ACTIVE_PREDICTION_STATUSES)[number]) || !watchlistId) {
+      if (!status || !ACTIVE_PREDICTION_STATUSES.includes(status as (typeof ACTIVE_PREDICTION_STATUSES)[number])) {
         return null;
       }
 
@@ -474,10 +475,9 @@ function assertTickerActivePredictionLimit(
     throw new Error("An active prediction for this ticker already exists in that watchlist.");
   }
 
-  const distinctWatchlistCount = new Set(relevantPredictions.map((prediction) => prediction.watchlistId)).size;
-  if (distinctWatchlistCount >= MAX_ACTIVE_PREDICTIONS_PER_TICKER) {
+  if (relevantPredictions.length >= MAX_ACTIVE_PREDICTIONS_PER_TICKER) {
     throw new Error(
-      `Active prediction limit reached for this ticker. You can track the same ticker in up to ${MAX_ACTIVE_PREDICTIONS_PER_TICKER} distinct watchlists at a time.`,
+      "An active prediction already exists for this company. Publish an article to update it.",
     );
   }
 }
@@ -509,23 +509,34 @@ export async function createPredictionForUser(
   user: AuthedUser,
   options: InternalCreatePredictionOptions = {},
 ) {
-  const db = getAdminFirestore();
+  const db = options.db ?? getAdminFirestore();
   const nowIso = new Date().toISOString();
   const instrument = predictionInstrument(input.ticker);
   if (!instrument) throw new Error("Invalid ticker");
   input = { ...input, ticker: instrument.ticker };
   const predictionRef = db.collection("predictions").doc();
   const userRef = db.collection("users").doc(user.uid);
-  const watchlistRef = db.collection("watchlists").doc(input.watchlistId);
+  const watchlistRef = input.watchlistId ? db.collection("watchlists").doc(input.watchlistId) : null;
+  let resolvedId = predictionRef.id;
+  const postRef = options.post ? db.collection("posts").doc(options.post.id) : null;
 
   await db.runTransaction(async (tx) => {
+    if (postRef && options.post) {
+      const previous = await tx.get(postRef);
+      if (previous.exists) {
+        assertSamePost(previous.data() as Post, options.post.input);
+        resolvedId = previous.get("predictionId");
+        return;
+      }
+    }
     const company = await tx.get(db.collection("companies").doc(instrument.companyId));
+    if (options.post && !company.exists) throw new Error("Select a company from the directory");
     if (company.get("listingStatus") === "PRIVATE") throw new Error("Invalid ticker: private companies cannot receive stock calls");
     if (instrument.market === "CN_A" && (!company.exists || !["PUBLISHED", "DIRECTORY"].includes(company.get("status")))) throw new Error("Invalid A-share company");
     const [userSnapshot, entryTargetDate, watchlist] = await Promise.all([
       tx.get(userRef),
       resolveEodTargetDateInTransaction(tx, db, input.ticker),
-      assertWatchlistCanReceivePrediction(tx, watchlistRef, user.uid),
+      watchlistRef ? assertWatchlistCanReceivePrediction(tx, watchlistRef, user.uid) : Promise.resolve({ id: "", name: "", isPublic: input.visibility !== "PRIVATE" }),
     ]);
     if (!userSnapshot.exists) {
       throw new Error("User profile not found. Complete bootstrap first.");
@@ -537,6 +548,20 @@ export async function createPredictionForUser(
       tx.get(uniqueRef),
       listActivePredictionsForTickerInTransaction(tx, db, user.uid, input.ticker),
     ]);
+    if (postRef && options.post && activeTickerPredictions.length) {
+      const primaryIds = userSnapshot.get("publishingPrimaryPredictions") as Record<string, string> | undefined;
+      const primary = activeTickerPredictions.find(p => p.id === primaryIds?.[input.ticker]);
+      if (activeTickerPredictions.length !== 1 && !primary) throw new Error("Multiple legacy predictions exist. Select the primary prediction before publishing a directional update.");
+      const activeRef = db.collection("predictions").doc((primary ?? activeTickerPredictions[0]).id);
+      const active = (await tx.get(activeRef)).data() as Prediction;
+      if (active.status === "CLOSING") throw new Error("Your prediction is closing. Wait for settlement or publish without a direction.");
+      if (active.direction !== input.direction) throw new Error("Your active prediction has the opposite direction. Open it and explicitly close it before changing your view, or publish without a direction.");
+      if (active.visibility !== options.post.input.visibility) throw new Error("Choose the same visibility as your active prediction, or publish without a direction.");
+      tx.create(postRef, { ...options.post.input, userId: user.uid, companyId: instrument.companyId, predictionId: activeRef.id, createdAt: nowIso, initial: false } satisfies Post);
+      tx.update(userRef, { updatedAt: nowIso });
+      resolvedId = activeRef.id;
+      return;
+    }
     if (uniqueSnapshot.exists) {
       throw new Error("Duplicate prediction exists for the same user, ticker, watchlist, and entry target date.");
     }
@@ -594,6 +619,7 @@ export async function createPredictionForUser(
     };
 
     tx.set(predictionRef, prediction);
+    if (postRef && options.post) tx.create(postRef, { ...options.post.input, userId: user.uid, companyId: instrument.companyId, predictionId: predictionRef.id, createdAt: nowIso, initial: true } satisfies Post);
     tx.set(uniqueRef, {
       predictionId: predictionRef.id,
       userId: user.uid,
@@ -607,6 +633,7 @@ export async function createPredictionForUser(
     // If user is still 'user', promote to 'analyst' on first prediction
     if ((userData.role ?? "user") === "user") {
       tx.update(userRef, {
+        publishingPrimaryPredictions: { ...(userData.publishingPrimaryPredictions as Record<string, string> ?? {}), [input.ticker]: predictionRef.id },
         updatedAt: nowIso,
         role: "analyst",
         "stats.totalPredictions": FieldValue.increment(1),
@@ -614,6 +641,7 @@ export async function createPredictionForUser(
       });
     } else {
       tx.update(userRef, {
+        publishingPrimaryPredictions: { ...(userData.publishingPrimaryPredictions as Record<string, string> ?? {}), [input.ticker]: predictionRef.id },
         updatedAt: nowIso,
         "stats.totalPredictions": FieldValue.increment(1),
         "stats.openingPredictions": FieldValue.increment(1),
@@ -621,7 +649,7 @@ export async function createPredictionForUser(
     }
   });
 
-  return { id: predictionRef.id };
+  return { id: resolvedId };
 }
 
 export async function closePrediction(predictionId: string, user: AuthedUser) {

@@ -20,10 +20,12 @@ test("profile watchlists upgrade from preview to full and clear full rows on sig
   const url=r.request().url();
   if(url.includes("/api/users/analyst")) return r.fulfill({json:{profile:{id:"analyst",displayName:"Analyst",photoURL:null,nickname:null,bio:"",stats,latestDailyScore:null,settings:{isPublic:true,institutionDigestEnabled:false,institutionDigestCadence:"daily",institutionDigestLastSentAt:null}},relationship:{isFollowing:false},watchlists:[watchlist]}});
   if(url.includes("/api/watchlists/list")){const auth=r.request().headers().authorization;authHeaders.push(auth);return r.fulfill({json:{watchlist:{...watchlist,viewerAccess:auth?"full":"preview",livePredictions:auth?calls:calls.slice(0,3),settledPredictions:[]}}});}
+  if(url.includes("/api/posts") || url.includes("/api/predictions")) return r.fulfill({json:{items:[],nextCursor:null}});
   return r.fulfill({contentType:"text/html",body:html});
  });
  await page.goto("http://profile.test/analysts/analyst");
  await expect(page.locator('a[href^="/predictions/call-"]').filter({ hasText: /Q\d/ })).toHaveCount(3);
+ await page.getByText("Legacy groups", { exact: true }).click();
  await expect(page.getByRole("link",{name:"Sign in to unlock full watchlist"})).toBeVisible();
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent("test-auth-user",{detail:"alice"})));
  await expect(page.locator('a[href^="/predictions/call-"]').filter({ hasText: /Q\d/ })).toHaveCount(9);

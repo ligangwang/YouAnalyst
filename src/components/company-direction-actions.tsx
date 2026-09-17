@@ -11,6 +11,7 @@ export function CompanyDirectionActions({ ticker, entryPoint = "company" }: { ti
   const ui = useUiText();
   const { user, loading } = useAuth();
   return <div className="flex flex-wrap gap-2" role="group" aria-label={ui(`Track ${ticker}`)}>
+    <Link href={"/predictions/new?ticker=" + encodeURIComponent(ticker)} className="inline-flex min-h-11 items-center rounded-lg border border-cyan-400/50 px-4 text-cyan-200">{ui("Post an article")}</Link>
     {(["UP", "DOWN"] as const).map(direction => {
       const label = direction === "UP" ? "Bullish" : "Bearish";
       const destination = `/predictions/new?${new URLSearchParams({ ticker, direction })}`;

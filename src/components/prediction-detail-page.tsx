@@ -1,5 +1,6 @@
 "use client";
 
+import { CompanyPosts } from "./company-posts";
 import { formatCallPrice } from "@/lib/predictions/instrument";
 import { UiText, useUiText } from "@/components/ui-text";
 import { useLocale } from "@/components/providers/locale-provider";
@@ -62,11 +63,6 @@ type PredictionDetail = {
   } | null;
 };
 
-type WatchlistOption = {
-  id: string;
-  name: string;
-  isPublic: boolean;
-};
 
 type PredictionComment = {
   id: string;
@@ -194,9 +190,6 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
   const [editHorizonUnit, setEditHorizonUnit] = useState<"NONE" | PredictionTimeHorizonUnit>("NONE");
   const [editHorizonValue, setEditHorizonValue] = useState("");
   const [editSaving, setEditSaving] = useState(false);
-  const [ownerWatchlists, setOwnerWatchlists] = useState<WatchlistOption[]>([]);
-  const [moveWatchlistId, setMoveWatchlistId] = useState("");
-  const [moveSaving, setMoveSaving] = useState(false);
   const [priceHistory, setPriceHistory] = useState<PredictionPriceHistory | null>(null);
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(false);
   const [priceHistoryError, setPriceHistoryError] = useState<string | null>(null);
@@ -286,39 +279,6 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
       cancelled = true;
     };
   }, [getIdToken, prediction]);
-
-  useEffect(() => {
-    if (!user || !prediction || user.uid !== prediction.userId) {
-      return;
-    }
-
-    let cancelled = false;
-    void getIdToken()
-      .then(async (token) => {
-        const headers = token ? { authorization: `Bearer ${token}` } : undefined;
-        const response = await fetch(`/api/watchlists?userId=${encodeURIComponent(user.uid)}`, { headers });
-        if (!response.ok) {
-          throw new Error("Unable to load watchlists.");
-        }
-        return (await response.json()) as { items: WatchlistOption[] };
-      })
-      .then((payload) => {
-        if (cancelled) {
-          return;
-        }
-        setOwnerWatchlists(payload.items);
-        setMoveWatchlistId((current) => current || prediction.watchlistId || payload.items[0]?.id || "");
-      })
-      .catch((nextError) => {
-        if (!cancelled) {
-          setError(nextError instanceof Error ? nextError.message : "Unable to load watchlists.");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getIdToken, prediction, user]);
 
   async function submitComment() {
     if (!commentText.trim()) {
@@ -473,43 +433,6 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
     }
   }
 
-  async function movePrediction() {
-    if (!prediction || !moveWatchlistId || moveWatchlistId === prediction.watchlistId) {
-      return;
-    }
-
-    const token = await getIdToken();
-    if (!token) {
-      setError("Sign in to move this prediction.");
-      return;
-    }
-
-    setMoveSaving(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/predictions/${predictionId}/watchlist`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ watchlistId: moveWatchlistId }),
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Unable to move prediction.");
-      }
-
-      await loadAll();
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to move prediction.");
-    } finally {
-      setMoveSaving(false);
-    }
-  }
-
   if (loading) {
     return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading prediction..."} /></main>;
   }
@@ -553,10 +476,6 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
   const displaySymbol = prediction.ticker.replace(/^(US|XSHG|XSHE):/, "");
   const exchange = companyId.startsWith("XSHE:") ? text("Shenzhen Stock Exchange", "深圳证券交易所")
     : companyId.startsWith("XSHG:") ? text("Shanghai Stock Exchange", "上海证券交易所") : text("US", "美股");
-  const movingPublicPredictionToPrivate =
-    prediction.visibility === "PUBLIC" &&
-    ownerWatchlists.find((watchlist) => watchlist.id === moveWatchlistId)?.isPublic === false;
-
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-4 px-4 py-8">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
@@ -763,11 +682,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         )}
         <div className="mt-4 grid gap-6 text-sm text-slate-300 sm:grid-cols-2">
           <dl className="grid gap-1">
-            <div className="grid grid-cols-[110px_1fr] gap-3">
-              <dt className="text-slate-400"><UiText text={"Watchlist:"} /></dt>
-              <dd className="text-slate-100">{prediction.watchlistName || <UiText text={"Unassigned"} />}</dd>
-            </div>
-            <div className="grid grid-cols-[110px_1fr] gap-3">
+<div className="grid grid-cols-[110px_1fr] gap-3">
               <dt className="text-slate-400"><UiText text={"Entry Price:"} /></dt>
               <dd className="text-slate-100">{ui(formatDetailCurrency(prediction.entryPrice, prediction.ticker))}</dd>
             </div>
@@ -794,44 +709,6 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
             </div>
           </dl>
         </div>
-
-        {isOwner && ownerWatchlists.length > 0 ? (
-          <div className="mt-4 grid gap-2 rounded-xl border border-white/10 bg-slate-950/45 p-3">
-            <label className="text-xs text-slate-400" htmlFor="move-watchlist"><UiText text={"Move to watchlist"} /></label>
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-              <select
-                id="move-watchlist"
-                value={moveWatchlistId}
-                onChange={(event) => setMoveWatchlistId(event.target.value)}
-                className="rounded-lg border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
-              >
-                {ownerWatchlists.map((watchlist) => (
-                  <option
-                    key={watchlist.id}
-                    value={watchlist.id}
-                    disabled={prediction.visibility === "PUBLIC" && !watchlist.isPublic}
-                  >
-                    {watchlist.name}
-                    {watchlist.isPublic ? "" : prediction.visibility === "PUBLIC" ? <UiText text={" (Private unavailable for public calls)"} /> : <UiText text={" (Private)"} />}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() => void movePrediction()}
-                disabled={moveSaving || !moveWatchlistId || moveWatchlistId === prediction.watchlistId || movingPublicPredictionToPrivate}
-                className="rounded-lg border border-cyan-400/35 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
-              >
-                {moveSaving ? <UiText text={"Moving..."} /> : <UiText text={"Move"} />}
-              </button>
-            </div>
-            {movingPublicPredictionToPrivate ? (
-              <p className="text-xs text-slate-400"><UiText text={"Public predictions stay public. Close this prediction if you no longer want to continue it publicly."} /></p>
-            ) : ownerWatchlists.find((watchlist) => watchlist.id === moveWatchlistId)?.isPublic === false ? (
-              <p className="text-xs text-amber-200"><UiText text={"Moving this prediction into a private watchlist will make the prediction private too."} /></p>
-            ) : null}
-          </div>
-        ) : null}
 
         {!isOwner ? <PredictionAuthorSummary author={prediction} className="mt-5" /> : null}
 
@@ -889,6 +766,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
         {error ? <p className="mt-3 text-sm text-rose-300">{<UiText text={error} />}</p> : null}
       </section>
+      <CompanyPosts predictionId={predictionId} ticker={prediction.ticker} />
     </main>
   );
 }

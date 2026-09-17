@@ -1341,5 +1341,15 @@
   "Company relationships are temporarily unavailable.": "公司关系暂时不可用。",
   "Announced": "已宣布",
   "Followed companies": "我的关注",
-  "Published relationships from the AI Map, with links to their supporting sources. Source dates do not establish whether a relationship remains active.": "来自 AI 图谱的已发布关系，附有支持来源链接。来源日期不能证明关系目前仍然有效。"
+  "Published relationships from the AI Map, with links to their supporting sources. Source dates do not establish whether a relationship remains active.": "来自 AI 图谱的已发布关系，附有支持来源链接。来源日期不能证明关系目前仍然有效。",
+  "Post an article": "发布文章",
+  "My predictions": "我的预测",
+  "Legacy groups": "历史分组",
+  "Select a company from the directory": "请从公司目录中选择公司。",
+  "A title (up to 120 characters) and article (up to 10000 characters) are required": "请填写标题（最多120字符）和文章（最多10000字符）。",
+  "Your active prediction has the opposite direction. Open it and explicitly close it before changing your view, or publish without a direction.": "现有预测方向相反。请先打开并明确关闭该预测，或选择仅发布研究。",
+  "Your prediction is closing. Wait for settlement or publish without a direction.": "预测正在关闭，等待结算后再发布，或选择仅发布研究。",
+  "Choose the same visibility as your active prediction, or publish without a direction.": "请选择与现有预测相同的可见范围，或选择仅发布研究。",
+  "Multiple legacy predictions exist. Select the primary prediction before publishing a directional update.": "存在多条历史预测。请先在“我的预测”中选择接收后续文章的主要预测。",
+  "Your primary prediction is no longer active. Select another active prediction or publish without a direction.": "主要预测已结束。请选择另一条进行中的预测，或选择仅发布研究。"
 }

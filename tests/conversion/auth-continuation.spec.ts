@@ -6,91 +6,47 @@ import type { AuthScenario } from "./fixtures/mocks";
 
 const origin = "http://conversion.test";
 const watchlistId = "owned & research+1";
-const composer = `/predictions/new?${new URLSearchParams({ ticker: "AMD", watchlistId })}`;
+const composer = `/predictions/new?${new URLSearchParams({ ticker: "AMD" })}`;
 let html: string;
 
-test("A-share direction survives registration and publishes the qualified code to the default watchlist", async ({ page }) => {
-  const ticker = "XSHG:600584";
-  const destination = `/predictions/new?${new URLSearchParams({ ticker, direction: "DOWN" })}`;
-  await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination, mode: "register" })}`);
-  await page.getByRole("button", { name: "Continue with Google" }).click();
-  await expect(page).toHaveURL(`${origin}${destination}`);
-  await expect(page.getByRole("button", { name: "Bearish", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#watchlist")).toHaveValue("default");
-  await page.route(`${origin}/api/predictions`, route => {
-    expect(route.request().postDataJSON()).toMatchObject({ ticker, direction: "DOWN", watchlistId: "default" });
-    return route.fulfill({ json: { id: "china-call" } });
-  });
-  await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
-  await expect(page).toHaveURL(`${origin}/predictions/china-call`);
-});
-
-for (const direction of ["UP", "DOWN"] as const) {
-  test(`${direction} survives registration and is submitted to the selected watchlist`, async ({ page }) => {
-    const destination = `/predictions/new?${new URLSearchParams({ ticker: "AMD", direction })}`;
-    await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination, mode: "register" })}`);
-    await expect(page.getByRole("heading", { name: `Track your ${direction === "UP" ? "bullish" : "bearish"} view on AMD` })).toBeVisible();
-    await expect(page.getByText("Your company and direction will carry through.", { exact: false })).toBeVisible();
+for (const [ticker, direction] of [["AMD", "UP"], ["XSHG:600584", "DOWN"]] as const) {
+  test(ticker + " direction survives registration and publishes an article without a watchlist", async ({ page }) => {
+    const destination = "/predictions/new?" + new URLSearchParams({ ticker, direction });
+    await page.goto(origin + "/auth?" + new URLSearchParams({ next: destination, mode: "register" }));
     await page.getByRole("button", { name: "Continue with Google" }).click();
-    await expect(page).toHaveURL(`${origin}${destination}`);
-    await expect(page.getByRole("button", { name: direction === "UP" ? "Bullish" : "Bearish", exact: true })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator("#watchlist")).toHaveValue("default");
-    await expect(page.getByText("This watchlist is public.", { exact: false })).toBeVisible();
-    await expect(page.getByLabel("Thesis", { exact: true })).not.toBeVisible();
-    await page.locator("#watchlist").selectOption(watchlistId);
-    let submitted = false;
-    await page.route(`${origin}/api/predictions`, route => {
-      expect(route.request().postDataJSON()).toMatchObject({ ticker: "AMD", direction, watchlistId });
-      submitted = true;
-      return route.fulfill({ json: { id: "direction-test" } });
+    await expect(page.getByLabel("Investment view (optional)")).toHaveValue(direction);
+    await expect(page.locator("#watchlist")).toHaveCount(0);
+    await page.getByLabel("Title", { exact: true }).fill("Research finding");
+    await page.getByLabel("Article", { exact: true }).fill("Source-backed research finding.");
+    await page.route(origin + "/api/posts", route => {
+      expect(route.request().postDataJSON()).toMatchObject({ ticker, direction, title: "Research finding" });
+      expect(route.request().postDataJSON()).not.toHaveProperty("watchlistId");
+      return route.fulfill({ json: { id: "article", predictionId: "call" } });
     });
-    await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
-    await expect(page).toHaveURL(`${origin}/predictions/direction-test`);
-    expect(submitted).toBe(true);
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await expect(page).toHaveURL(origin + "/en/predictions/call");
   });
 }
 
-test("optional reasoning survives collapsing the editor and is published with the call", async ({ page }) => {
+test("research-only article has no direction", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
-  await page.goto(`${origin}/predictions/new?ticker=AMD&direction=UP`);
-  await page.getByText("Add reasoning or a time horizon (optional)", { exact: true }).click();
-  await page.getByLabel("Title", { exact: true }).fill("Demand thesis");
-  await page.getByLabel("Thesis", { exact: true }).fill("Watch customer demand in the next filing.");
-  await page.getByText("Add reasoning or a time horizon (optional)", { exact: true }).click();
-  await page.route(`${origin}/api/predictions`, route => {
-    expect(route.request().postDataJSON()).toMatchObject({ ticker: "AMD", direction: "UP", watchlistId: "default", thesisTitle: "Demand thesis", thesis: "Watch customer demand in the next filing." });
-    return route.fulfill({ json: { id: "optional-reasoning" } });
+  await page.goto(origin + "/predictions/new?ticker=AMD");
+  await page.getByLabel("Title", { exact: true }).fill("Research");
+  await page.getByLabel("Article", { exact: true }).fill("Evidence and analysis");
+  await page.route(origin + "/api/posts", route => {
+    expect(route.request().postDataJSON().direction).toBeNull();
+    return route.fulfill({ json: { id: "article", predictionId: null } });
   });
-  await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
-  await expect(page).toHaveURL(`${origin}/predictions/optional-reasoning`);
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page).toHaveURL(origin + "/en/posts/article");
 });
 
 test("signed-out composer preserves bearish direction through its sign-in action", async ({ page }) => {
   await page.goto(`${origin}/predictions/new?ticker=AMD&direction=DOWN`);
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Sign in to publish", exact: true }).click();
   expect(new URL(page.url()).searchParams.get("next")).toBe("/predictions/new?ticker=AMD&direction=DOWN");
 });
 
-test("empty account receives a default before list loading, with retry after failure", async ({ page }) => {
-  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
-  let ready = false;
-  let attempts = 0;
-  await page.route(`${origin}/api/watchlists/default`, route => {
-    ready = ++attempts > 1;
-    return route.fulfill(ready ? { json: { id: "new-default" } } : { status: 503, json: {} });
-  });
-  await page.route(`${origin}/api/watchlists?*`, route => {
-    expect(ready).toBe(true);
-    return route.fulfill({ json: { items: [{ id: "new-default", name: "My Watchlist", isPublic: true }] } });
-  });
-  await page.goto(`${origin}/predictions/new?ticker=AMD&direction=DOWN`);
-  await expect(page.getByRole("alert")).toContainText("Unable to prepare your watchlist");
-  await expect(page.getByRole("button", { name: "Publish prediction", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Retry watchlists" }).click();
-  await expect(page.locator("#watchlist")).toHaveValue("new-default");
-  await expect(page.getByRole("button", { name: "Bearish", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "Publish prediction", exact: true })).toBeEnabled();
-});
 
 test("auth views identify the save funnel once without leaking the destination", async ({ page }) => {
   await page.goto(`${origin}/auth?${new URLSearchParams({ next: "/?company=NVDA", mode: "register" })}`);
@@ -228,7 +184,7 @@ for (const method of ["google-new", "google-existing", "email-new", "email-exist
       googleNew: method === "google-new",
     });
     await page.goto(`${origin}${composer}`);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.getByRole("link", { name: "Sign in to publish", exact: true }).click();
     await expect(page).toHaveURL(`${origin}/auth?${new URLSearchParams({ next: composer })}`);
     if (method.startsWith("google")) {
       await page.getByRole("button", { name: "Continue with Google" }).click();
@@ -239,8 +195,8 @@ for (const method of ["google-new", "google-existing", "email-new", "email-exist
       await page.getByRole("button", { name: method === "email-new" ? "Create account" : "Sign in", exact: true }).click();
     }
     await expect(page).toHaveURL(`${origin}${composer}`);
-    await expect(page.getByRole("combobox", { name: "Ticker", exact: true })).toHaveValue("AMD");
-    await expect(page.locator("#watchlist")).toHaveValue(watchlistId);
+    await expect(page.getByRole("combobox", { name: "Company", exact: true })).toHaveValue("AMD");
+    await expect(page.locator("#watchlist")).toHaveCount(0);
     const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
     const success = method.endsWith("-new") ? "sign_up" : "login";
     expect(events.filter((event) => event[1] === success)).toHaveLength(1);
@@ -253,7 +209,7 @@ test("unowned watchlist still falls back to the user's own watchlist", async ({ 
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   await page.goto(`${origin}/auth?${new URLSearchParams({ next: "/predictions/new?ticker=MU&watchlistId=someone-elses" })}`);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.locator("#watchlist")).toHaveValue("default");
+  await expect(page.locator("#watchlist")).toHaveCount(0);
 });
 
 for (const isNew of [true, false]) {
@@ -291,19 +247,19 @@ test("publication analytics fires only after a successful response, without send
     window.sessionStorage.setItem("youanalyst:graph-visit", String(Date.now()));
   });
   await page.goto(`${origin}/predictions/new?ticker=AMD`);
-  await page.getByText("Add reasoning or a time horizon (optional)", { exact: true }).click();
-  await page.getByLabel("Thesis", { exact: true }).fill("Private research must never enter analytics.");
+  await page.getByLabel("Title", { exact: true }).fill("Research");
+  await page.getByLabel("Article", { exact: true }).fill("Private research must never enter analytics.");
   // Local response only; this handler intercepts the mutation and never reaches a server.
   let rejectPublication = true;
-  await page.route(`${origin}/api/predictions`, (route) => route.fulfill(rejectPublication
+  await page.route(`${origin}/api/posts`, (route) => route.fulfill(rejectPublication
     ? { status: 400, json: { error: "Test rejection" } }
-    : { json: { id: "test-prediction" } }));
-  await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
+    : { json: { id: "article", predictionId: "test-prediction" } }));
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("Test rejection")).toBeVisible();
   expect(await page.evaluate(() => (window.dataLayer ?? []).filter((item) => (item as ArrayLike<unknown>)[1] === "prediction_publish").length)).toBe(0);
   rejectPublication = false;
-  await page.getByRole("button", { name: "Publish prediction", exact: true }).click();
-  await expect(page).toHaveURL(`${origin}/predictions/test-prediction`);
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page).toHaveURL(`${origin}/en/predictions/test-prediction`);
   const events = await page.evaluate(() => (window.dataLayer ?? []).map((item) => Array.from(item as ArrayLike<unknown>)));
   expect(events.filter((event) => event[1] === "prediction_publish")).toHaveLength(1);
   expect(JSON.stringify(events)).toContain('"graph_origin":"yes"');

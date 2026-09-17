@@ -1,5 +1,6 @@
 "use client";
 
+import { CompanyPosts } from "./company-posts";
 import { LocalizedLink as Link } from "./localized-link";
 import { CompanyCallActions } from "./company-call-actions";
 import { useLocale } from "./providers/locale-provider";
@@ -18,6 +19,7 @@ export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
 
     </header>
     <CompanyResearchPanel companyId={company.id} />
+    <CompanyPosts ticker={company.id} />
     <section id="company-information" className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-6 sm:p-8">
       <h2 className="text-lg font-semibold">{text("Company overview", "公司概览")}</h2>
       <p className="mt-4 whitespace-pre-line text-base leading-8 text-slate-300">{company.description}</p>

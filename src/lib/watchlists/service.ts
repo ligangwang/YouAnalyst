@@ -555,6 +555,7 @@ export async function assertWatchlistCanReceivePrediction(
   if (!snapshot.exists) {
     throw new Error("watchlist is required");
   }
+  if (snapshot.get("kind") === "COMPARISON") throw new Error("Comparison membership cannot be changed");
 
   const watchlist = mapWatchlistDoc(snapshot);
   if (watchlist.userId !== userId) {
@@ -686,6 +687,10 @@ export async function movePredictionToWatchlist(
     const prediction = predictionSnapshot.data() as Prediction;
     if (prediction.userId !== user.uid) {
       throw new Error("Forbidden");
+    }
+    if (prediction.watchlistId) {
+      const source = await tx.get(db.collection("watchlists").doc(prediction.watchlistId));
+      if (source.get("kind") === "COMPARISON") throw new Error("Comparison membership cannot be changed");
     }
 
     const status = canonicalPredictionStatus(prediction.status);
@@ -840,9 +845,7 @@ export async function getWatchlistDetail(
   }
 
   const watchlist = mapWatchlistDoc(snapshot);
-  if (watchlist.archivedAt) {
-    return null;
-  }
+
 
   const isOwner = Boolean(options.viewerUserId && options.viewerUserId === watchlist.userId);
   if (!watchlist.isPublic && !isOwner) {
