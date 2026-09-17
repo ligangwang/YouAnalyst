@@ -7,6 +7,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "./providers/locale-provider";
 import { PredictionReturnSummary, formatPredictionStatus } from "./prediction-ui";
 import { CompanyPosts } from "./company-posts";
+import { ComparisonsPage } from "./comparisons-page";
 import { localizedPath } from "@/lib/i18n/urls";
 import type { Prediction } from "@/lib/predictions/types";
 
@@ -61,8 +62,7 @@ export function MyPredictionsPage({ ownerId, embedded = false }: { ownerId?: str
   const duplicates = new Set(rows.filter(row => ["OPEN", "CREATED"].includes(row.status)).filter((row, _, all) => all.filter(other => other.ticker === row.ticker).length > 1).map(row => row.ticker));
   return <Wrapper className="mx-auto max-w-4xl p-6"><div className="flex justify-between gap-4"><h1 className="text-2xl font-semibold">{text(ownerId ? "Predictions" : "My predictions", ownerId ? "预测" : "我的预测")}</h1><Link className="text-cyan-300" href={localizedPath("/predictions/new", locale)}>{text("Post", "发布")}</Link></div>
     {loading ? <p>{text("Loading…", "加载中…")}</p> : !targetId ? <Link href={"/auth?next=" + encodeURIComponent(localizedPath("/my/predictions", locale))}>{text("Sign in", "登录")}</Link> : <>
-      <Link className="my-4 inline-block text-cyan-300" href={localizedPath("/compare", locale)}>{text("Compare predictions", "对比预测")}</Link>
-      {duplicates.size > 0 && user?.uid === targetId && <p className="my-4 text-amber-200">{text("Legacy predictions have different entry dates. Choose one for future articles; every prediction keeps its history and performance.", "历史预测的入场日期不同。请选择一条接收后续文章；所有预测均保留历史记录及收益。")}</p>}
+      <ComparisonsPage ownerId={targetId} embedded />
       {selectionError && <p role="alert">{text("Unable to save your selection. Please retry.", "无法保存选择，请重试。")}</p>}
       {pending ? <p>{text("Loading…", "加载中…")}</p> : error ? <p role="alert">{text("Unable to load predictions.", "无法加载预测。")}</p> : !rows.length ? <p>{text("No predictions yet. Publish an article with a view to start one.", "暂无预测。发布文章并选择投资观点即可开始。")}</p> : rows.map(row => <article key={row.id} className="my-3 rounded-xl border border-white/10 p-4">
         <Link className="font-semibold" href={localizedPath(`/predictions/${row.id}`, locale)}><span className={row.direction === "UP" ? "text-emerald-300" : "text-rose-300"}>{row.direction === "UP" ? "↑" : "↓"} {row.ticker}{row.thesisTitle?.trim() ? ` · ${row.thesisTitle.trim()}` : ""}</span></Link>
