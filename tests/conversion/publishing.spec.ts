@@ -76,21 +76,22 @@ test("different or missing entry dates cannot form a comparison", async ({ page 
   await expect(page.getByText(/percentage points/)).toHaveCount(0);
 });
 
-for (const chinese of [false, true]) test(`comparison supports three stocks with a shared entry date (${chinese ? "zh" : "en"})`, async ({ page }) => {
+for (const chinese of [false, true]) test(`comparison supports four stocks with a shared entry date (${chinese ? "zh" : "en"})`, async ({ page }) => {
   await page.route("**/*", route => new URL(route.request().url()).pathname === "/api/comparisons"
     ? route.fulfill({ json: { items: [{ id: "three", name: "AI chips", predictions: [
       { ...prediction, ticker: "AMD", id: "amd" },
       { ...prediction, ticker: "NVDA", id: "nvda", markReturnValue: -0.1 },
       { ...prediction, ticker: "QCOM", id: "qcom", direction: "DOWN", markReturnValue: 0.05 },
+      { ...prediction, ticker: "AVGO", id: "avgo", markReturnValue: 0.15 },
     ] }] } })
     : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("http://publishing.test/?compare" + (chinese ? "&zh" : ""));
   await expect(page.getByRole("heading", { name: chinese ? "表现对比" : "Performance comparison" })).toBeVisible();
-  await expect(page.getByRole("article")).toHaveCount(3);
+  await expect(page.getByRole("article")).toHaveCount(4);
   await expect(page.getByRole("heading", { name: /AI chips.*2026-04-10/ })).toBeVisible();
   await expect(page.getByRole("link", { name: chinese ? "↓ QCOM · 看空" : "↓ QCOM · Bearish" })).toBeVisible();
   await expect(page.getByText("-10.00%", { exact: true })).toBeVisible();
-  await expect(page.getByText(chinese ? "入场以来（10天）" : "since entry (10d)", { exact: false })).toHaveCount(3);
+  await expect(page.getByText(chinese ? "入场以来（10天）" : "since entry (10d)", { exact: false })).toHaveCount(4);
   await expect(page.getByText(/percentage points|个百分点/)).toHaveCount(0);
 });
 
