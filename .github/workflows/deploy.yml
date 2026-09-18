@@ -860,7 +860,7 @@ jobs:
       - name: Keep production filing ingestion paused
         run: |
           set -euo pipefail
-          for job in "${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_JOB || 'thirteen-f-discovery-production' }}" "${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_JOB || 'thirteen-f-queue-production' }}" "${{ vars.INSIDER_TRANSACTIONS_SCHEDULER_JOB || 'insider-transactions-production' }}"; do
+          for job in "${{ vars.THIRTEEN_F_DISCOVERY_SCHEDULER_JOB || 'thirteen-f-discovery-production' }}" "${{ vars.THIRTEEN_F_QUEUE_SCHEDULER_JOB || 'thirteen-f-queue-production' }}" "${{ vars.INSIDER_TRANSACTIONS_SCHEDULER_JOB || 'insider-transactions-production' }}" "${{ vars.INSTITUTION_DIGEST_SCHEDULER_JOB || 'institution-digest-production' }}"; do
             if gcloud scheduler jobs describe "$job" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
               gcloud scheduler jobs pause "$job" --project "$GCP_PROJECT_ID" --location "$GCP_REGION"
             fi
@@ -1058,6 +1058,7 @@ jobs:
           fi
 
       - name: Upsert production institution digest scheduler
+        if: ${{ false }}
         env:
           CLOUD_RUN_URL: ${{ steps.production-url.outputs.url }}
           INSTITUTION_DIGEST_SCHEDULER_ENABLED: ${{ vars.INSTITUTION_DIGEST_SCHEDULER_ENABLED }}
