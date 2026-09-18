@@ -17,16 +17,7 @@ export type TickerSuggestion = {
   market?: string;
 };
 
-export type InstitutionSuggestion = {
-  id: string;
-  kind: "institution";
-  cik: string;
-  name: string;
-  latestReportDate: string | null;
-  latestQuarter: string | null;
-};
-
-export type SearchSuggestion = TickerSuggestion | InstitutionSuggestion;
+export type SearchSuggestion = TickerSuggestion;
 
 type TickerSearchInputProps = {
   value: string;
@@ -54,9 +45,6 @@ function suggestionMeta(item: TickerSuggestion): string {
 }
 
 function resultMeta(item: SearchSuggestion): string {
-  if (item.kind === "institution") {
-    return ["Institution", `CIK ${item.cik}`, item.latestQuarter].filter(Boolean).join(" / ");
-  }
 
   return suggestionMeta(item);
 }
@@ -139,7 +127,7 @@ export function TickerSearchInput({
   }, []);
 
   function selectSuggestion(item: SearchSuggestion) {
-    onChange(item.kind === "institution" ? item.name : item.market === "CN_A" ? item.id : item.symbol);
+    onChange(item.market === "CN_A" ? item.id : item.symbol);
     onSelectSuggestion?.(item);
     setOpen(false);
     setActiveIndex(-1);
@@ -248,11 +236,7 @@ export function TickerSearchInput({
               }`}
             >
               <span className="font-semibold text-cyan-100">
-                {item.kind === "institution" ? (
-                  <>
-                    {item.name} <span className="font-normal text-slate-300"><UiText text={"Institution"} /></span>
-                  </>
-                ) : (
+                {(
                   <>
                     {formatTickerSymbol(item.symbol)} <span className="font-normal text-slate-300">{item.name}</span>
                   </>

@@ -3,7 +3,6 @@ import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { readCompanyFollows } from "@/lib/company-follows-store";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
 import { companyUpdates } from "@/lib/knowledge-graph/company-updates";
-import { listPublicEvents } from "@/lib/events/service";
 import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
@@ -14,8 +13,8 @@ export async function GET(request: NextRequest) {
     const user = await getDecodedUserFromRequest(request);
     if (!user) return Response.json({ error: "Sign in required" }, { status: 401, headers });
     const ids = await readCompanyFollows(user.uid);
-    if (!ids.length) return Response.json({ items: [], filingsAvailable: true }, { headers });
-    const [graph, filings] = await Promise.all([loadKnowledgeGraph(), listPublicEvents({ limit: 50 }).catch(() => null)]);
-    return Response.json({ items: companyUpdates(graph, ids, filings?.items ?? [], curatedEvents), filingsAvailable: filings !== null }, { headers });
+    if (!ids.length) return Response.json({ items: [] }, { headers });
+    const graph = await loadKnowledgeGraph();
+    return Response.json({ items: companyUpdates(graph, ids, curatedEvents) }, { headers });
   } catch { return Response.json({ error: "Updates unavailable" }, { status: 503, headers }); }
 }

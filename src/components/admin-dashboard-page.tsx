@@ -226,41 +226,13 @@ export function AdminDashboardPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <Link
-          href="/admin/securities/13f"
-          className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
-        >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"13F Operations"} /></p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Monitor filing pipeline"} /></h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Review SEC discovery, queue health, failed filings, and backfill progress."} /></p>
-        </Link>
 
-        <Link
-          href="/admin/securities/cusip-gaps"
-          className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
-        >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"CUSIP Gaps"} /></p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Improve ticker coverage"} /></h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Find unmapped 13F holdings by CUSIP, issuer, value, and filing context."} /></p>
-        </Link>
 
-        <Link
-          href="/admin/securities/insiders"
-          className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
-        >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Insider Transactions"} /></p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Monitor Form 4 ingestion"} /></h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Inspect parsed SEC Form 4 filings, recent insider buys and sells, and ingestion failures."} /></p>
-        </Link>
 
-        <Link
-          href="/admin/institutions/digests"
-          className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
-        >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Institution Digests"} /></p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Generate in-app summaries"} /></h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Run dry previews, checkpoint live digest batches, and inspect saved activity snapshots."} /></p>
-        </Link>
+
+
+
+
 
         <Link
           href="/admin/openai-usage"

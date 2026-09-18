@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import { isMapTicker } from "../../src/lib/industry-graph/directory";
-import { publicEventFromDocument } from "../../src/lib/events/model";
 
 test("listed A-share pages offer calls in both languages while private companies do not", async ({ page }) => {
   for (const [locale, bullish, bearish] of [["en", "Bullish", "Bearish"], ["zh-cn", "看多", "看空"]]) {
@@ -87,15 +86,9 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
   expect(target.searchParams.get("market")).toBe("CN_A");
 });
 
-test("public event API returns a bounded page of approved public facts", async ({ request }) => {
-  const response = await request.get("/api/events?limit=2");
-  expect(response.status()).toBe(200);
-  const body = await response.json();
-  expect(Array.isArray(body.items)).toBe(true);
-  expect(body.items.length).toBeLessThanOrEqual(2);
-  for (const event of body.items) expect(publicEventFromDocument(event.id, event)).toEqual(event);
-  expect(body.nextCursor === null || typeof body.nextCursor === "string").toBe(true);
-  expect((await request.get("/api/events?limit=500")).status()).toBe(400);
+test("retired filing event API is unavailable", async ({ request }) => {
+  expect((await request.get("/api/events")).status()).toBe(404);
+  expect((await request.get("/api/events/stream")).status()).toBe(404);
 });
 
 function savedCompanyHeaders(userToken?: string): Record<string, string> {
@@ -159,7 +152,7 @@ test("feed shows research updates without filing features", async ({ page, reque
     expect((await request.get(path)).status()).toBe(404);
   }
   const response = await request.get("/api/events?type=SEC_FORM4");
-  expect((await response.json()).items).toEqual([]);
+  expect(response.status()).toBe(404);
 });
 
 test("homepage AI knowledge graph shows all companies without market controls", async ({ page, request }) => {

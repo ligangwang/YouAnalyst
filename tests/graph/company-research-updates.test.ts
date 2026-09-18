@@ -26,7 +26,7 @@ test("research API retains explicit verification and dates, refreshes without du
 
 test("one-hop events deduplicate multiple follows without inferring an event relationship", () => {
   const event: BusinessEvent = { id:"capacity", category:"CAPACITY", companyIds:["ORG:OPENAI"], eventDate:"2024-01-01", sourceDate:"2024-01-02", collectedAt:"2026-09-15", title:"Capacity", titleZh:"扩产", summary:"Company expansion", summaryZh:"公司扩产", sourceTitle:"Disclosure", sourceUrl:"https://example.com/source", planned:true };
-  const updates = companyUpdates(graph, ["US:AMD", "ORG:OPENAI"], [], [event]).filter(i => i.kind === "BUSINESS");
+  const updates = companyUpdates(graph, ["US:AMD", "ORG:OPENAI"], [event]).filter(i => i.kind === "BUSINESS");
   assert.equal(updates.length,1);
   assert.equal(updates[0].edgeId,undefined);
   assert.equal(updates[0].eventDate,"2024-01-01");

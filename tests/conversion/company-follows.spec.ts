@@ -19,7 +19,7 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
     const url = new URL(route.request().url());
     if(route.request().isNavigationRequest())return route.fulfill({contentType:"text/html",body:html});
     if(url.pathname === "/api/map-follows")return route.fulfill({json:{companyIds:["US:AMD"]}});
-    if(url.pathname === "/api/company-updates")return route.fulfill({json:{items:companyUpdates(graph,["US:AMD"],[],[event]),filingsAvailable:true}});
+    if(url.pathname === "/api/company-updates")return route.fulfill({json:{items:companyUpdates(graph,["US:AMD"],[event]),filingsAvailable:true}});
     return route.fulfill({json:graph});
   });
   await page.goto(origin+"/en/watchlists/following");

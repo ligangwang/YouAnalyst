@@ -168,24 +168,7 @@ EOD maintenance is controlled by:
 - `EOD_MAINTENANCE_SCHEDULER_LIMIT`
 - `EOD_MAINTENANCE_SCHEDULER_DRY_RUN`
 
-13F discovery is controlled by:
-
-- `THIRTEEN_F_DISCOVERY_SCHEDULER_ENABLED` (`1` to upsert, otherwise skipped)
-- `THIRTEEN_F_DISCOVERY_SCHEDULER_JOB` (defaults to `thirteen-f-discovery-staging` or `thirteen-f-discovery-production`)
-- `THIRTEEN_F_DISCOVERY_SCHEDULER_SCHEDULE` (defaults to `30 6 * * 1-6`, America/New_York)
-- `THIRTEEN_F_DISCOVERY_SCHEDULER_LOOKBACK_DAYS` (defaults to `3`)
-- `THIRTEEN_F_DISCOVERY_SCHEDULER_MAX_FILINGS` (defaults to `5000`)
-- `THIRTEEN_F_DISCOVERY_SCHEDULER_DRY_RUN` (defaults to `false`)
-
-13F queue processing is controlled by:
-
-- `THIRTEEN_F_QUEUE_SCHEDULER_ENABLED` (`1` to upsert, otherwise skipped)
-- `THIRTEEN_F_QUEUE_SCHEDULER_JOB` (defaults to `thirteen-f-queue-staging` or `thirteen-f-queue-production`)
-- `THIRTEEN_F_QUEUE_SCHEDULER_SCHEDULE` (defaults to `0 7-21/2 * * 1-6`, America/New_York)
-- `THIRTEEN_F_QUEUE_SCHEDULER_LIMIT` (defaults to `25`)
-- `THIRTEEN_F_QUEUE_SCHEDULER_DRY_RUN` (defaults to `false`)
-- `THIRTEEN_F_QUEUE_SCHEDULER_INCLUDE_STALE_PROCESSING` (defaults to `true`)
-- `THIRTEEN_F_QUEUE_SCHEDULER_STALE_PROCESSING_MINUTES` (defaults to `60`)
+Insider transaction and institutional holdings ingestion have been retired. Their scheduler provisioning and internal endpoints have been removed.
 
 ## IAM For Migrations
 

@@ -1,12 +1,6 @@
-import { ImageResponse } from "next/og";
-import {
-  isDailyInsiderMoveShareKind,
-  isDailyInstitutionalMoveShareKind,
-  type DailyInsiderMoveShareKind,
-  type DailyInstitutionalMoveShareKind,
-} from "@/lib/daily-scores/public-share";
-import { getDailyScores, type DailyCallHighlight, type DailyInsiderMove, type DailyInstitutionalMove } from "@/lib/daily-scores/service";
 import { normalizeTicker } from "@/lib/predictions/types";
+import { ImageResponse } from "next/og";
+import { getDailyScores, type DailyCallHighlight } from "@/lib/daily-scores/service";
 
 export const dailyShareCardSize = {
   width: 1200,
@@ -78,19 +72,6 @@ function dailyReturnText(value: number | null): string {
   return `${sign}${value.toFixed(1)}%`;
 }
 
-function currencyText(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    maximumFractionDigits: 0,
-    style: "currency",
-  }).format(value);
-}
-
-function signedCurrencyText(value: number): string {
-  const formatted = currencyText(value);
-  return value > 0 ? `+${formatted}` : formatted;
-}
-
 function returnToneColor(value: number | null): string {
   if (value === null) {
     return "#cbd5e1";
@@ -102,16 +83,6 @@ function returnToneColor(value: number | null): string {
     return "#fda4af";
   }
   return "#cbd5e1";
-}
-
-function findInstitutionalMove(
-  moves: Awaited<ReturnType<typeof getDailyScores>>["institutionalMoves"],
-  kind: DailyInstitutionalMoveShareKind,
-  ticker: string,
-): DailyInstitutionalMove | null {
-  const normalizedTicker = normalizeTicker(ticker);
-  const items = kind === "increase" ? moves.increases : moves.decreases;
-  return items.find((move) => normalizeTicker(move.ticker) === normalizedTicker) ?? null;
 }
 
 function fallbackImage() {
@@ -131,86 +102,6 @@ function fallbackImage() {
       <Brand />
       <div style={{ color: "#94a3b8", display: "flex", fontSize: 30, marginTop: 28 }}>
         Daily highlights unavailable
-      </div>
-    </div>
-  );
-}
-
-function findInsiderMove(
-  moves: Awaited<ReturnType<typeof getDailyScores>>["insiderMoves"],
-  kind: DailyInsiderMoveShareKind,
-  ticker: string,
-): DailyInsiderMove | null {
-  const normalizedTicker = normalizeTicker(ticker);
-  const items = kind === "purchase" ? moves.purchases : moves.sales;
-  return items.find((move) => normalizeTicker(move.ticker) === normalizedTicker) ?? null;
-}
-
-function institutionalMoveFallbackImage(date: string | null, kind: string, ticker: string) {
-  const normalizedTicker = normalizeTicker(ticker) || "Ticker";
-  const label = kind === "decrease" ? "Institutional 13F decrease" : "Institutional 13F increase";
-
-  return (
-    <div
-      style={{
-        alignItems: "flex-start",
-        background: "#020617",
-        color: "#e0f2fe",
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        justifyContent: "flex-start",
-        padding: "52px 64px",
-        width: "100%",
-      }}
-    >
-      <Brand />
-      <div style={{ color: "#38bdf8", display: "flex", fontSize: 26, fontWeight: 700, marginTop: 60 }}>
-        {label}
-      </div>
-      <div style={{ color: "#f8fafc", display: "flex", fontSize: 68, fontWeight: 800, marginTop: 16 }}>
-        {normalizedTicker}
-      </div>
-      <div style={{ color: "#94a3b8", display: "flex", fontSize: 30, marginTop: 28 }}>
-        Latest reported institutional 13F context
-      </div>
-      <div style={{ color: "#64748b", display: "flex", fontSize: 24, marginTop: 14 }}>
-        {dateLabel(date)}
-      </div>
-    </div>
-  );
-}
-
-function insiderMoveFallbackImage(date: string | null, kind: string, ticker: string) {
-  const normalizedTicker = normalizeTicker(ticker) || "Ticker";
-  const label = kind === "sale" ? "Insider Form 4 sales" : "Insider Form 4 purchases";
-
-  return (
-    <div
-      style={{
-        alignItems: "flex-start",
-        background: "#020617",
-        color: "#e0f2fe",
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        justifyContent: "flex-start",
-        padding: "52px 64px",
-        width: "100%",
-      }}
-    >
-      <Brand />
-      <div style={{ color: "#38bdf8", display: "flex", fontSize: 26, fontWeight: 700, marginTop: 60 }}>
-        {label}
-      </div>
-      <div style={{ color: "#f8fafc", display: "flex", fontSize: 68, fontWeight: 800, marginTop: 16 }}>
-        {normalizedTicker}
-      </div>
-      <div style={{ color: "#94a3b8", display: "flex", fontSize: 30, marginTop: 28 }}>
-        Latest reported insider transaction context
-      </div>
-      <div style={{ color: "#64748b", display: "flex", fontSize: 24, marginTop: 14 }}>
-        {dateLabel(date)}
       </div>
     </div>
   );
@@ -282,82 +173,6 @@ function shareCardImage(date: string | null, topCalls: DailyCallHighlight[]) {
   );
 }
 
-function institutionalMoveImage(
-  date: string | null,
-  move: DailyInstitutionalMove,
-  kind: DailyInstitutionalMoveShareKind,
-) {
-  const isIncrease = kind === "increase";
-  const verb = isIncrease ? "Increased" : "Reduced";
-  const amount = isIncrease ? signedCurrencyText(move.valueChangeUsd) : currencyText(Math.abs(move.valueChangeUsd));
-  const accent = isIncrease ? "#6ee7b7" : "#fda4af";
-  const statusLine = isIncrease
-    ? `${move.newManagers} new / ${move.increasedManagers} increased`
-    : `${move.reducedManagers} reduced / ${move.soldOutManagers} sold out`;
-
-  return (
-    <div
-      style={{
-        alignItems: "flex-start",
-        background: "#020617",
-        color: "#e0f2fe",
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        justifyContent: "flex-start",
-        padding: "52px 64px",
-        width: "100%",
-      }}
-    >
-      <Brand />
-      <div style={{ color: "#38bdf8", display: "flex", fontSize: 26, fontWeight: 700, marginTop: 52 }}>
-        Institutional 13F move / {dateLabel(date)}
-      </div>
-      <div style={{ color: "#f8fafc", display: "flex", fontSize: 64, fontWeight: 800, marginTop: 16 }}>
-        {normalizeTicker(move.ticker)}
-      </div>
-      <div
-        style={{
-          borderColor: "rgba(148, 163, 184, 0.22)",
-          borderRadius: 24,
-          borderStyle: "solid",
-          borderWidth: 1,
-          display: "flex",
-          flexDirection: "column",
-          marginTop: 34,
-          padding: "34px 38px",
-          width: "100%",
-        }}
-      >
-        <div style={{ color: "#cbd5e1", display: "flex", fontSize: 30 }}>
-          {move.nameOfIssuer}
-        </div>
-        <div style={{ alignItems: "flex-end", display: "flex", justifyContent: "space-between", marginTop: 30, width: "100%" }}>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ color: accent, display: "flex", fontSize: 34, fontWeight: 800 }}>
-              {verb} by
-            </div>
-            <div style={{ color: accent, display: "flex", fontSize: 58, fontWeight: 800, marginTop: 8 }}>
-              {amount}
-            </div>
-          </div>
-          <div style={{ alignItems: "flex-end", display: "flex", flexDirection: "column" }}>
-            <div style={{ color: "#f8fafc", display: "flex", fontSize: 34, fontWeight: 800 }}>
-              {move.managerCount} manager{move.managerCount === 1 ? "" : "s"}
-            </div>
-            <div style={{ color: "#94a3b8", display: "flex", fontSize: 24, marginTop: 10 }}>
-              {statusLine}
-            </div>
-            <div style={{ color: "#94a3b8", display: "flex", fontSize: 24, marginTop: 8 }}>
-              Report {move.reportDate}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export async function createDailyShareImage(date: string | null): Promise<ImageResponse> {
   try {
     const result = await getDailyScores(date);
@@ -367,134 +182,5 @@ export async function createDailyShareImage(date: string | null): Promise<ImageR
     );
   } catch {
     return new ImageResponse(fallbackImage(), dailyShareCardSize);
-  }
-}
-
-function insiderMoveImage(
-  date: string | null,
-  move: DailyInsiderMove,
-  kind: DailyInsiderMoveShareKind,
-) {
-  const isPurchase = kind === "purchase";
-  const noun = isPurchase ? "Purchases" : "Sales";
-  const accent = isPurchase ? "#6ee7b7" : "#fda4af";
-
-  return (
-    <div
-      style={{
-        alignItems: "flex-start",
-        background: "#020617",
-        color: "#e0f2fe",
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        justifyContent: "flex-start",
-        padding: "52px 64px",
-        width: "100%",
-      }}
-    >
-      <Brand />
-      <div style={{ color: "#38bdf8", display: "flex", fontSize: 26, fontWeight: 700, marginTop: 52 }}>
-        Insider Form 4 activity / {dateLabel(date)}
-      </div>
-      <div style={{ color: "#f8fafc", display: "flex", fontSize: 64, fontWeight: 800, marginTop: 16 }}>
-        {normalizeTicker(move.ticker)}
-      </div>
-      <div
-        style={{
-          borderColor: "rgba(148, 163, 184, 0.22)",
-          borderRadius: 24,
-          borderStyle: "solid",
-          borderWidth: 1,
-          display: "flex",
-          flexDirection: "column",
-          marginTop: 34,
-          padding: "34px 38px",
-          width: "100%",
-        }}
-      >
-        <div style={{ color: "#cbd5e1", display: "flex", fontSize: 30 }}>
-          {move.issuerName}
-        </div>
-        <div style={{ alignItems: "flex-end", display: "flex", justifyContent: "space-between", marginTop: 30, width: "100%" }}>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ color: accent, display: "flex", fontSize: 34, fontWeight: 800 }}>
-              Insider {noun}
-            </div>
-            <div style={{ color: accent, display: "flex", fontSize: 58, fontWeight: 800, marginTop: 8 }}>
-              {currencyText(move.totalValueUsd)}
-            </div>
-          </div>
-          <div style={{ alignItems: "flex-end", display: "flex", flexDirection: "column" }}>
-            <div style={{ color: "#f8fafc", display: "flex", fontSize: 34, fontWeight: 800 }}>
-              {move.insiderCount} insider{move.insiderCount === 1 ? "" : "s"}
-            </div>
-            <div style={{ color: "#94a3b8", display: "flex", fontSize: 24, marginTop: 10 }}>
-              {move.transactionCount} transaction{move.transactionCount === 1 ? "" : "s"} / {move.totalShares.toLocaleString("en-US")} shares
-            </div>
-            <div style={{ color: "#94a3b8", display: "flex", fontSize: 24, marginTop: 8 }}>
-              Filed {move.filingDate}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export async function createDailyInstitutionalMoveShareImage(
-  date: string,
-  kind: string,
-  ticker: string,
-  snapshot: DailyInstitutionalMove | null = null,
-): Promise<ImageResponse> {
-  try {
-    if (!isDailyInstitutionalMoveShareKind(kind)) {
-      return new ImageResponse(institutionalMoveFallbackImage(date, kind, ticker), dailyShareCardSize);
-    }
-
-    const result = await getDailyScores(date);
-    const candidate = findInstitutionalMove(result.institutionalMoves, kind, ticker);
-    const move = snapshot && candidate?.reportDate !== snapshot.reportDate ? null : candidate;
-    return new ImageResponse(
-      move ? institutionalMoveImage(result.date, move, kind) : institutionalMoveFallbackImage(result.date ?? date, kind, ticker),
-      dailyShareCardSize,
-    );
-  } catch {
-    return new ImageResponse(
-      institutionalMoveFallbackImage(date, kind, ticker),
-      dailyShareCardSize,
-    );
-  }
-}
-
-export async function createDailyInsiderMoveShareImage(
-  date: string,
-  kind: string,
-  ticker: string,
-  snapshot: DailyInsiderMove | null = null,
-): Promise<ImageResponse> {
-  try {
-    if (!isDailyInsiderMoveShareKind(kind)) {
-      return new ImageResponse(insiderMoveFallbackImage(date, kind, ticker), dailyShareCardSize);
-    }
-
-    if (snapshot) {
-      return new ImageResponse(insiderMoveImage(date, snapshot, kind), dailyShareCardSize);
-    }
-
-    const result = await getDailyScores(date);
-    const move = findInsiderMove(result.insiderMoves, kind, ticker);
-    return new ImageResponse(
-      move ? insiderMoveImage(result.date, move, kind) : insiderMoveFallbackImage(result.date ?? date, kind, ticker),
-      dailyShareCardSize,
-    );
-  } catch {
-    return new ImageResponse(
-      isDailyInsiderMoveShareKind(kind) && snapshot
-        ? insiderMoveImage(date, snapshot, kind)
-        : insiderMoveFallbackImage(date, kind, ticker),
-      dailyShareCardSize,
-    );
   }
 }
