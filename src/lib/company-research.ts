@@ -1,3 +1,4 @@
+import { companyName } from "./knowledge-graph/model";
 import { INDUSTRY_SEGMENTS } from "./industry-graph/catalog";
 import { normalizeCompanyProfile } from "./company-profile";
 import { RELATIONSHIP_LABELS, type IndustryGraph } from "./industry-graph/model";
@@ -23,6 +24,10 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
     listingStatus: listing?.listingStatus,
     profile: normalizeCompanyProfile(listing?.profile),
     name: text(listing?.name) ?? text(node?.aliases?.[0]) ?? node?.name ?? ticker,
+    names: {
+      en: text((listing?.names as Record<string, unknown> | undefined)?.en) ?? node?.names?.en,
+      "zh-CN": text((listing?.names as Record<string, unknown> | undefined)?.["zh-CN"]) ?? node?.names?.["zh-CN"],
+    },
     known: Boolean(listing || node),
     exchange: text(listing?.exchange),
     currency: text(listing?.currency),
@@ -38,6 +43,8 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
 
 export type CompanyResearch = ReturnType<typeof buildCompanyResearch>;
 
-export function companyResearchDescription(company: CompanyResearch) {
-  return `Research ${company.name} (${company.ticker}): business and financials${company.inMap ? ", sourced company relationships" : ""}, and public investment views.`;
+export function companyResearchDescription(company: CompanyResearch, locale = "en") {
+  const name = companyName({id: company.ticker, name: company.name, names: company.names}, locale);
+  if (locale === "zh-CN") return `研究${name}（${company.ticker}）：公司业务与财务${company.inMap ? "、有来源支持的产业链关系" : ""}，以及公开投资观点。`;
+  return `Research ${name} (${company.ticker}): business and financials${company.inMap ? ", sourced company relationships" : ""}, and public investment views.`;
 }

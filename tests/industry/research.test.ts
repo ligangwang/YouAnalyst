@@ -269,7 +269,7 @@ test("A-share requests produce five Chinese-only profiles within the existing to
  assert.equal(r.reasoning.effort, "low"); assert.equal(r.max_tool_calls, 4); assert.equal(r.max_output_tokens, 12000);
  const schema = r.text.format.schema.properties.companies as { maxItems: number; items: { required: string[] } };
  assert.equal(schema.maxItems, 5); assert.deepEqual(schema.items.required, ["id", "name", "stage", "description", "source", "sourceLabel"]);
- const c = normalizeChinaCompany(chinaSupplyChain[0])!; assert.ok(c); assert.equal(c.en, undefined);
+ const c = normalizeChinaCompany(chinaSupplyChain[0])!; assert.ok(c); assert.equal(c.en, chinaSupplyChain[0].en);
  assert.equal(normalizeChinaResearch({ companies: [c] }, [c.source]).chinaCompanies.length, 1);
  });
 

@@ -5,6 +5,7 @@ import { displayRelationshipTargetName, reviewRelationship, type RelationshipQua
 export type IndustryNode = {
   id: string;
   name: string;
+  names?: Partial<Record<"en" | "zh-CN", string>>;
   ticker: string | null;
   segment: IndustrySegment;
   kind: "issuer" | "mention" | "category" | "coverage" | "research" | "published";

@@ -3,7 +3,7 @@ import { normalizeCompanyProfile, type CompanyProfile } from "../company-profile
 
 export const MARKET_COMPANIES = "companies";
 export type ChinaCompany = {
-  id: string; name: string; en?: string; stage: string; stageEn?: string;
+  id: string; name: string; en?: string; names?: Partial<Record<"en" | "zh-CN", string>>; stage: string; stageEn?: string;
   description: string; descriptionEn?: string; source: string; sourceLabel: string; sourceLabelEn?: string;
   searchText?: string;
   profile?: CompanyProfile | null;
@@ -20,8 +20,11 @@ export function normalizeChinaCompany(value: unknown): ChinaCompany | null {
     stage: text(raw.stage).slice(0, 80),
     description: text(raw.description).slice(0, 1200),
     source: sourceUrl(raw.source), sourceLabel: text(raw.sourceLabel).slice(0, 200) };
+  const names = record(raw.names);
+  const localized = Object.fromEntries(["en", "zh-CN"].flatMap(key => text(names[key]) ? [[key, text(names[key])]] : []));
+  const translations = Object.fromEntries(["en", "stageEn", "descriptionEn", "sourceLabelEn"].flatMap(key => text(raw[key]) ? [[key, text(raw[key])]] : []));
   const profile = normalizeCompanyProfile(raw.profile);
-  return Object.values(company).every(Boolean) ? { ...company, listingStatus: raw.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC", ...(profile ? { profile } : {}) } : null;
+  return Object.values(company).every(Boolean) ? { ...company, ...translations, ...(Object.keys(localized).length ? {names: localized} : {}), listingStatus: raw.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC", ...(profile ? { profile } : {}) } : null;
 }
 export function normalizeChinaResearch(value: unknown, sources: string[]) {
   const raw = record(value), allowed = new Set(sources.map(sourceUrl).filter(Boolean));

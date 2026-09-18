@@ -1,3 +1,5 @@
+import { companyName } from "@/lib/knowledge-graph/model";
+import { localizedPath } from "@/lib/i18n/urls";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
 import { localizedMetadata } from "@/lib/i18n/server";
 
@@ -45,20 +47,21 @@ async function buildPageMetadata({
 }: {
   params: Promise<{ symbol: string }>;
 }): Promise<Metadata> {
+  const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
   const { symbol: rawSymbol } = await params;
   const symbol = decodeRouteSymbol(rawSymbol);
   const chinaId = chinaCompanyId(symbol);
   if (chinaId) {
     const company = await loadChinaCompany(chinaId);
-    return { title: `${company.name} (${chinaId.split(":")[1]}) | YouAnalyst`, description: company.description,
+    return { title: `${companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)} (${chinaId.split(":")[1]}) ${locale === "zh-CN" ? "公司研究" : "company research"} | YouAnalyst`, description: locale === "en" ? company.descriptionEn || company.description : company.description,
       alternates: { canonical: companyPageUrl(chinaId, "CN_A") } };
   }
   const ticker = resolveTicker(symbol);
   const company = await loadCompanyResearch(ticker);
-  const zh = (await headers()).get("x-ya-language") === "zh-CN";
+  const zh = locale === "zh-CN";
   const focus = company.connections.length ? (zh ? "AI 生态与产业链关系" : "AI ecosystem & supply-chain relationships") : (zh ? "公司研究" : "company research");
-  const title = `${company.name} (${ticker}) ${focus} | YouAnalyst`;
-  const description = companyResearchDescription(company);
+  const title = `${companyName({id:ticker, name:company.name, names:company.names},locale)} (${ticker}) ${focus} | YouAnalyst`;
+  const description = companyResearchDescription(company, locale);
 
   return {
     title,
@@ -82,6 +85,7 @@ async function buildPageMetadata({
 }
 
 export default async function TickerRoutePage({ params }: { params: Promise<{ symbol: string }> }) {
+  const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
   const { symbol: rawSymbol } = await params;
   const symbol = decodeRouteSymbol(rawSymbol);
   const chinaId = chinaCompanyId(symbol);
@@ -95,11 +99,11 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   const schema = {
     "@context": "https://schema.org",
     "@graph": [
-      { "@type": "WebPage", name: `${company.name} (${ticker}) company research`, url: absoluteUrl(`/ticker/${ticker}`), description: companyResearchDescription(company) },
+      { "@type": "WebPage", name: `${companyName({id:ticker, name:company.name, names:company.names},locale)} (${ticker}) ${locale === "zh-CN" ? "公司研究" : "company research"}`, url: absoluteUrl(localizedPath(`/ticker/${ticker}`, locale)), description: companyResearchDescription(company, locale) },
       { "@type": "BreadcrumbList", itemListElement: [
-        { "@type": "ListItem", position: 1, name: "YouAnalyst", item: absoluteUrl("/") },
-        { "@type": "ListItem", position: 2, name: "Companies", item: absoluteUrl("/companies") },
-        { "@type": "ListItem", position: 3, name: ticker, item: absoluteUrl(`/ticker/${ticker}`) },
+        { "@type": "ListItem", position: 1, name: "YouAnalyst", item: absoluteUrl(localizedPath("/", locale)) },
+        { "@type": "ListItem", position: 2, name: locale === "zh-CN" ? "公司" : "Companies", item: absoluteUrl(localizedPath("/companies", locale)) },
+        { "@type": "ListItem", position: 3, name: ticker, item: absoluteUrl(localizedPath(`/ticker/${ticker}`, locale)) },
       ] },
     ],
   };
