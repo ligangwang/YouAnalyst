@@ -31,11 +31,12 @@ export function CompanyQuote({ ticker, exchange }: { ticker: string; exchange?: 
   const { chinese, text } = useLocale();
   const symbol = tradingViewSymbol(ticker, exchange);
   if (!symbol) return null;
+  const label = ticker.includes(':') ? ticker.split(':')[1] : ticker;
   const href = `https://www.tradingview.com/symbols/${symbol.replace(':', '-')}/`;
   return <section aria-label={text('Stock quote', '股票行情')} className="mt-5 w-full max-w-sm">
     <QuoteEmbed key={`${symbol}:${chinese}`} symbol={symbol} chinese={chinese} />
     <p className="tradingview-widget-copyright mt-1 text-xs leading-5 text-slate-400">
-      <a href={href} target="_blank" rel="noopener noreferrer" className="text-cyan-200 hover:underline">{text(`${ticker} quotes by TradingView`, `${ticker} 行情由 TradingView 提供`)}</a>
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-cyan-200 hover:underline">{text(`${label} quotes by TradingView`, `${label} 行情由 TradingView 提供`)}</a>
       {' · '}{text('Quotes may be delayed.', '行情可能存在延迟。')}
     </p>
   </section>;
