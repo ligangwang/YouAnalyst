@@ -545,6 +545,13 @@ test("company selection dims unrelated names and restores them on clear", async 
   await expect(background).toHaveAttribute("data-company-focus", "background");
   await expect(background).toHaveCSS("opacity", "0.18");
   await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
+  const nextNode = page.locator('[data-company-focus="background"]:visible').first();
+  const nextId = (await nextNode.getAttribute("data-company-id"))!;
+  await nextNode.click({force:true});
+  await expect(page.locator(`[data-company-id="${nextId}"]`)).toHaveAttribute("data-company-focus", "selected");
+  await page.mouse.move(0,0);
+  await expect(selected).toHaveAttribute("data-company-focus", "background");
+  await expect(selected).toHaveCSS("opacity", "0.18");
   await page.getByRole("button",{name:"Clear selection",exact:true}).click();
   await expect(page.locator("[data-company-focus]")).toHaveCount(0);
   await expect(background).toHaveCSS("opacity", "1");
