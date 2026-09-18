@@ -1,3 +1,4 @@
+import { FILING_FEATURES_ENABLED } from "@/lib/feature-flags";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
@@ -178,15 +179,15 @@ export async function GET(request: NextRequest) {
         .where(prefixField, "array-contains", query)
         .limit(50)
         .get(),
-      db.collection("institutional_managers").where("searchPrefixes", "array-contains", query).limit(50).get(),
-      db
+      FILING_FEATURES_ENABLED ? db.collection("institutional_managers").where("searchPrefixes", "array-contains", query).limit(50).get() : Promise.resolve({ docs: [] }),
+      FILING_FEATURES_ENABLED ? db
         .collection("institutional_managers")
         .orderBy("name")
         .startAt(legacyNamePrefix)
         .endAt(`${legacyNamePrefix}\uf8ff`)
         .limit(50)
-        .get(),
-      normalizedCik ? db.collection("institutional_managers").doc(normalizedCik).get() : Promise.resolve(null),
+        .get() : Promise.resolve({ docs: [] }),
+      FILING_FEATURES_ENABLED && normalizedCik ? db.collection("institutional_managers").doc(normalizedCik).get() : Promise.resolve(null),
     ]);
 
     const tickerItems: ScoredSearchItem[] = tickerSnapshot.docs

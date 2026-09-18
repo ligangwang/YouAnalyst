@@ -47,7 +47,6 @@ export default function HowItWorksPage() {
         <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Track your outlook"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Choose a company and publish your research. Add a bullish or bearish view to track performance, or publish research only. Choose who can see it before publishing."} /></p></div>
       </section>
 
-      <section className="border-b border-white/10 py-6"><h2 className="text-xl font-semibold text-cyan-100"><UiText text={"Understand reported activity"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Institutional holdings show a report date and filing date. Comparisons require a complete prior report; unavailable history is not a new purchase. Dollar-value changes include valuation changes. Insider transaction totals under review are excluded from rankings while their source filings remain available."} /></p></section>
 
       <section className="grid gap-4 border-b border-white/10 py-6 md:grid-cols-3">
         <div>

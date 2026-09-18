@@ -1,3 +1,4 @@
+import { FILING_FEATURES_ENABLED } from "@/lib/feature-flags";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { parseLocale } from "./lib/locale";
@@ -22,6 +23,9 @@ export function proxy(request: NextRequest) {
     const prefix = pathLocale(request.nextUrl.pathname);
     const locale = explicit ?? prefix ?? parseLocale(request.cookies.get("ya-language")?.value) ?? "en";
     const plain = unlocalizedPath(request.nextUrl.pathname);
+    if (!FILING_FEATURES_ENABLED && /^(?:\/institutions(?:\/|$)|\/daily\/(?:insider|insiders|institutional)(?:\/|$)|\/api\/(?:institutions|institutional-holdings|insider-transactions)(?:\/|$)|\/api\/daily-scores\/institutional-share-image$)/.test(plain)) {
+      return new NextResponse("Not found", { status: 404, headers: { "X-Robots-Tag": "noindex", "Cache-Control": "no-store" } });
+    }
     const localizable = isLocalizedPage(plain);
     const target = new URL(request.url);
     const retiredResearch = (plain === "/" || plain === "/map") && target.searchParams.get("view") === "filings";

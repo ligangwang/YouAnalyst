@@ -184,7 +184,7 @@ export function TickerSearchInput({
     ? searchError
     : loading
       ? "Searching..."
-      : "Type a company, ticker, institution, or CIK.";
+      : "Type a company name or ticker.";
 
   return (
     <div ref={containerRef} className="relative grid gap-2">
@@ -213,7 +213,7 @@ export function TickerSearchInput({
           }
         }}
         onKeyDown={handleKeyDown}
-        placeholder={ui("Search company, ticker, or institution")}
+        placeholder={ui("Search company or ticker")}
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={showPanel}
@@ -263,7 +263,7 @@ export function TickerSearchInput({
           ))}
 
           {!loading && !searchError && suggestions.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-slate-400"><UiText text={"No matching company or institution found."} /></p>
+            <p className="px-3 py-2 text-sm text-slate-400"><UiText text={"No matching company found."} /></p>
           ) : null}
         </div>
       ) : null}

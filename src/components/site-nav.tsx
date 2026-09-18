@@ -108,10 +108,7 @@ const secondaryNavItems = [
   { href: "/predictions/new", label: "Publish an idea" },
   { href: "/predictions", label: "Investment ideas" },
   { href: "/leaderboard", label: "Rankings" },
-  { href: "/institutions", label: "Institutions" },
   { href: "/daily/calls", label: "Top Calls" },
-  { href: "/daily/institutional", label: "Institutional Moves" },
-  { href: "/daily/insiders", label: "Insider Transactions" },
   { href: "/how-it-works", label: "How it works" },
 ];
 function MoreMenu({ admin = false }: { admin?: boolean }) {

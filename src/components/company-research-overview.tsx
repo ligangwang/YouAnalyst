@@ -28,8 +28,6 @@ export function CompanyResearchOverview({ company, fundamentals, graph }: { comp
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
         {fundamentals && <a href="#company-fundamentals"><UiText text={"Business and financials"} /></a>}
         {company.inMap && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}
-        <a href="#insider-transactions"><UiText text={"Insider transactions"} /></a>
-        <a href="#institutional-holdings"><UiText text={"Institutional holdings"} /></a>
       </nav>
     </header>
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}

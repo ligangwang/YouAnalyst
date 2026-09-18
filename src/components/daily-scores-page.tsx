@@ -1,4 +1,6 @@
 "use client";
+import { FILING_FEATURES_ENABLED } from "@/lib/feature-flags";
+
 
 import { UiText, useUiText } from "@/components/ui-text";
 import { useLocale } from "@/components/providers/locale-provider";
@@ -518,8 +520,8 @@ export function DailyScoresPage({
   const topInsiderPurchase = insiderPurchases[0] ?? null;
   const topInsiderSale = insiderSales[0] ?? null;
   const showCalls = section === "calls";
-  const showInstitutional = section === "institutional";
-  const showInsiders = section === "insiders";
+  const showInstitutional = FILING_FEATURES_ENABLED && section === "institutional";
+  const showInsiders = FILING_FEATURES_ENABLED && section === "insiders";
   const heroCopy = {
     calls: {
       title: "Best Calls Today",
@@ -572,7 +574,7 @@ export function DailyScoresPage({
           ["calls", "Top Calls"],
           ["institutional", "Institutional Moves"],
           ["insiders", "Insider Transactions"],
-        ] as const).map(([nextSection, label]) => (
+        ] as const).filter(([nextSection]) => FILING_FEATURES_ENABLED || nextSection === "calls").map(([nextSection, label]) => (
           <Link
             key={nextSection}
             href={dailySectionPath(nextSection, payload?.date ?? initialDate)}
