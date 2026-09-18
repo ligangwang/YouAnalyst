@@ -150,3 +150,8 @@
   .pointerHint { display:none; }
   .touchHint { display:inline; }
 }
+
+/* Keep the full map as context while a company and its direct relationships are in focus. */
+.label3d[data-company-focus="background"] { opacity:.18; }
+.label3d[data-company-focus="connected"], .label3d[data-company-focus="selected"] { opacity:1; }
+.label3d[data-company-focus="background"]:focus-visible, .label3d[data-company-focus="background"]:hover, .label3d[data-company-focus="background"][data-highlighted="true"] { opacity:1; }

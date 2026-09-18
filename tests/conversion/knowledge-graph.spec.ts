@@ -528,3 +528,31 @@ test("company name emphasis scales gradually and respects reduced motion",async(
  await page.mouse.move(1,1);
  await expect.poll(()=>label.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--label-scale')))).toBeCloseTo(initial,2);
 });
+
+test("company selection dims unrelated names and restores them on clear", async ({page}) => {
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.route("**/*", r => r.request().url().includes("/api/knowledge-graph") ? r.fulfill({json:graph}) : r.fulfill({contentType:"text/html",body:html}));
+  await page.goto("http://graph.test/map?lang=en&company=US%3AAMD");
+  const selected = page.locator('[data-company-id="US:AMD"]');
+  await expect(selected).toHaveAttribute("data-company-focus", "selected");
+  await expect(selected).toHaveCSS("opacity", "1");
+  const layout = layout3D(graph);
+  const related = new Set(layout.edges.filter(e => e.source === "US:AMD" || e.target === "US:AMD").flatMap(e => [e.source,e.target]));
+  const connected = layout.nodes.find(n => n.id !== "US:AMD" && related.has(n.id))!;
+  const unrelated = layout.nodes.find(n => n.id !== "US:AMD" && !related.has(n.id))!;
+  await expect(page.locator(`[data-company-id="${connected.id}"]`)).toHaveCSS("opacity", "1");
+  const background = page.locator(`[data-company-id="${unrelated.id}"]`);
+  await expect(background).toHaveAttribute("data-company-focus", "background");
+  await expect(background).toHaveCSS("opacity", "0.18");
+  await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
+  const nextNode = page.locator('[data-company-focus="background"]:visible').first();
+  const nextId = (await nextNode.getAttribute("data-company-id"))!;
+  await nextNode.click({force:true});
+  await expect(page.locator(`[data-company-id="${nextId}"]`)).toHaveAttribute("data-company-focus", "selected");
+  await page.mouse.move(0,0);
+  await expect(selected).toHaveAttribute("data-company-focus", "background");
+  await expect(selected).toHaveCSS("opacity", "0.18");
+  await page.getByRole("button",{name:"Clear selection",exact:true}).click();
+  await expect(page.locator("[data-company-focus]")).toHaveCount(0);
+  await expect(background).toHaveCSS("opacity", "1");
+});
