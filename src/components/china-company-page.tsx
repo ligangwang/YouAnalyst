@@ -1,4 +1,6 @@
 "use client";
+import { CompanyQuote } from "./company-quote";
+
 
 import { CompanyPosts } from "./company-posts";
 import { LocalizedLink as Link } from "./localized-link";
@@ -15,6 +17,7 @@ export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
     <header className="mt-8 border-b border-white/10 pb-8">
       <p className="text-sm text-cyan-200">{company.stage}</p>
       <h1 className="mt-3 text-4xl font-semibold tracking-tight">{company.name}</h1>
+      {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.id} />}
       <p className="mt-3 text-sm tabular-nums text-slate-400">{company.id.split(":")[1]} · {company.id.startsWith("XSHG:") ? text("Shanghai", "上交所") : text("Shenzhen", "深交所")}</p>
 
     </header>

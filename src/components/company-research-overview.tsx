@@ -1,3 +1,4 @@
+import { CompanyQuote } from "./company-quote";
 import { CompanyResearchPanel } from "./company-research-panel";
 import { CompanyFollowButton } from "./company-follow-button";
 import type { KnowledgeGraph } from "@/lib/knowledge-graph/model";
@@ -19,6 +20,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph }: { comp
       </nav>
       <p className="text-sm font-semibold text-cyan-300"><UiText text={"Company research"} /></p>
       <h1 className="mt-2 break-words font-[var(--font-sora)] text-3xl font-semibold leading-tight text-white">{company.name}{company.name !== company.ticker ? ` (${company.ticker})` : ""}</h1>
+      {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.ticker} exchange={company.exchange} />}
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}
       {!graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
