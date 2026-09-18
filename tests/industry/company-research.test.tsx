@@ -61,3 +61,23 @@ test("company identity, evidence and crawlable links are present without browser
   assert.match(html, /<details/);
   assert.doesNotMatch(html, /Loading ticker/);
 });
+
+ test("company headings and descriptions use the requested language", async () => {
+  const { CompanyHeading } = await import("../../src/components/company-heading");
+  const { LocaleProvider } = await import("../../src/components/providers/locale-provider");
+  const company = buildCompanyResearch("AMD", [{symbol:"AMD",active:true,predictionSupported:true,name:"Advanced Micro Devices",names:{en:"AMD","zh-CN":"超威半导体"}}],fixtureGraph);
+  const en = renderToStaticMarkup(<LocaleProvider locale="en"><CompanyHeading {...company} /></LocaleProvider>);
+  const zh = renderToStaticMarkup(<LocaleProvider locale="zh-CN"><CompanyHeading {...company} /></LocaleProvider>);
+  assert.match(en, />AMD<\/h1>/);
+  assert.match(zh, /超威半导体/);
+  assert.match(companyResearchDescription(company,"zh-CN"), /研究超威半导体/);
+  assert.match(companyResearchDescription(company,"en"), /Research AMD/);
+ });
+ test("Chinese company normalization retains localized identity and descriptions", async () => {
+  const { normalizeChinaCompany } = await import("../../src/lib/industry-research/china");
+  const { companyName } = await import("../../src/lib/knowledge-graph/model");
+  const company = normalizeChinaCompany({id:"XSHE:002156",name:"通富微电",names:{en:"Tongfu Microelectronics","zh-CN":"通富微电"},stage:"封装",description:"公司介绍",descriptionEn:"Chip packaging",source:"https://example.com",sourceLabel:"报告"})!;
+  assert.equal(companyName(company,"en"),"Tongfu Microelectronics");
+  assert.equal(companyName(company,"zh-CN"),"通富微电");
+  assert.equal(company.descriptionEn,"Chip packaging");
+ });

@@ -1,3 +1,4 @@
+import { CompanyHeading } from "./company-heading";
 import { CompanyQuote } from "./company-quote";
 import { CompanyResearchPanel } from "./company-research-panel";
 import { CompanyFollowButton } from "./company-follow-button";
@@ -19,7 +20,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph }: { comp
         <Link href="/">YouAnalyst</Link><span aria-hidden="true">/</span><Link href="/companies"><UiText text={"Companies"} /></Link><span aria-hidden="true">/</span><span className="text-slate-300">{company.ticker}</span>
       </nav>
       <p className="text-sm font-semibold text-cyan-300"><UiText text={"Company research"} /></p>
-      <h1 className="mt-2 break-words font-[var(--font-sora)] text-3xl font-semibold leading-tight text-white">{company.name}{company.name !== company.ticker ? ` (${company.ticker})` : ""}</h1>
+      <CompanyHeading name={company.name} names={company.names} ticker={company.ticker} />
       {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.ticker} exchange={company.exchange} />}
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}
       {!graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}

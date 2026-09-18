@@ -12,7 +12,7 @@ export function companyResearchGraph(graph: KnowledgeGraph, locale="en"): Indust
   const byId=new Map(companies.map(n=>[n.id,n]));
   const sources=new Map(graph.sources.map(s=>[s.id,s]));
   return {
-    nodes:companies.map(n=>({id:n.id,name:companyName(n,locale),ticker:n.symbol||null,
+    nodes:companies.map(n=>({id:n.id,name:companyName(n,locale),names:n.names,ticker:n.symbol||null,
       segment:segments[companySector(n).id]??"other",kind:"published",market:n.market,
       profileUrl:companyPageUrl(n.market==="GLOBAL"?n.id:n.symbol||n.id,n.market),
       aliases:[n.name??"",...Object.values(n.names??{}),...(n.aliases??[])]})),
