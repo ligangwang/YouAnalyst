@@ -1,4 +1,3 @@
-import { FILING_FEATURES_ENABLED } from "@/lib/feature-flags";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
@@ -14,16 +13,7 @@ type TickerSearchItem = {
   market?: string;
 };
 
-type InstitutionSearchItem = {
-  id: string;
-  kind: "institution";
-  cik: string;
-  name: string;
-  latestReportDate: string | null;
-  latestQuarter: string | null;
-};
-
-type SearchItem = TickerSearchItem | InstitutionSearchItem;
+type SearchItem = TickerSearchItem;
 
 type ScoredSearchItem = {
   item: SearchItem;
@@ -44,28 +34,12 @@ type TickerDocument = {
   predictionSupported?: unknown;
 };
 
-type InstitutionalManagerDocument = {
-  cik?: unknown;
-  name?: unknown;
-  nameLower?: unknown;
-  latestReportDate?: unknown;
-  latestQuarter?: unknown;
-};
-
 function normalizeQuery(raw: string | null): string {
   return (raw ?? "").normalize("NFKC").trim().replace(/^\$/, "").toLowerCase();
 }
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizeCikQuery(query: string): string | null {
-  if (!/^\d{1,10}$/.test(query)) {
-    return null;
-  }
-
-  return query.padStart(10, "0");
 }
 
 function scoreTicker(item: TickerSearchItem & { symbolLower: string; nameLower: string; exchangePriority: number }, query: string): number {
@@ -83,28 +57,6 @@ function scoreTicker(item: TickerSearchItem & { symbolLower: string; nameLower: 
     score += 350;
   } else if (item.nameLower.split(/\s+/).some((token) => token.startsWith(query))) {
     score += 250;
-  }
-
-  return score;
-}
-
-function scoreInstitution(item: InstitutionSearchItem, query: string): number {
-  const nameLower = item.name.toLowerCase();
-  const cik = item.cik.replace(/^0+/, "") || item.cik;
-  let score = 0;
-
-  if (item.cik === query || cik === query) {
-    score += 900;
-  }
-
-  if (nameLower === query) {
-    score += 650;
-  } else if (nameLower.startsWith(query)) {
-    score += 450;
-  } else if (nameLower.split(/\s+/).some((token) => token.startsWith(query))) {
-    score += 300;
-  } else if (nameLower.includes(query)) {
-    score += 150;
   }
 
   return score;
@@ -137,24 +89,6 @@ function toSearchItem(id: string, data: TickerDocument) {
   };
 }
 
-function toInstitutionSearchItem(id: string, data: InstitutionalManagerDocument): InstitutionSearchItem | null {
-  const cik = readString(data.cik) ?? id;
-  const name = readString(data.name);
-
-  if (!cik || !name) {
-    return null;
-  }
-
-  return {
-    id,
-    kind: "institution",
-    cik,
-    name,
-    latestReportDate: readString(data.latestReportDate),
-    latestQuarter: readString(data.latestQuarter),
-  };
-}
-
 export async function GET(request: NextRequest) {
   const query = normalizeQuery(request.nextUrl.searchParams.get("q"));
   const limitParam = Number(request.nextUrl.searchParams.get("limit") ?? "10");
@@ -171,24 +105,7 @@ export async function GET(request: NextRequest) {
   try {
     const db = getAdminFirestore();
     const prefixField = query.length === 1 && request.nextUrl.searchParams.get("scope") !== "all" ? "symbolPrefixes" : "searchPrefixes";
-    const normalizedCik = normalizeCikQuery(query);
-    const legacyNamePrefix = query.toUpperCase();
-    const [tickerSnapshot, indexedInstitutionSnapshot, legacyInstitutionSnapshot, directInstitutionSnapshot] = await Promise.all([
-      db
-        .collection("companies")
-        .where(prefixField, "array-contains", query)
-        .limit(50)
-        .get(),
-      FILING_FEATURES_ENABLED ? db.collection("institutional_managers").where("searchPrefixes", "array-contains", query).limit(50).get() : Promise.resolve({ docs: [] }),
-      FILING_FEATURES_ENABLED ? db
-        .collection("institutional_managers")
-        .orderBy("name")
-        .startAt(legacyNamePrefix)
-        .endAt(`${legacyNamePrefix}\uf8ff`)
-        .limit(50)
-        .get() : Promise.resolve({ docs: [] }),
-      FILING_FEATURES_ENABLED && normalizedCik ? db.collection("institutional_managers").doc(normalizedCik).get() : Promise.resolve(null),
-    ]);
+    const tickerSnapshot = await db.collection("companies").where(prefixField, "array-contains", query).limit(50).get();
 
     const tickerItems: ScoredSearchItem[] = tickerSnapshot.docs
       .filter(doc => !doc.data().status || ["PUBLISHED", "DIRECTORY"].includes(doc.data().status))
@@ -216,51 +133,7 @@ export async function GET(request: NextRequest) {
         },
         score: scoreTicker(item, query),
       }));
-    const institutionsByCik = new Map<string, InstitutionSearchItem>();
-    for (const doc of [...indexedInstitutionSnapshot.docs, ...legacyInstitutionSnapshot.docs]) {
-      const item = toInstitutionSearchItem(doc.id, doc.data());
-      if (item) {
-        institutionsByCik.set(item.cik, item);
-      }
-    }
-    if (directInstitutionSnapshot?.exists) {
-      const item = toInstitutionSearchItem(directInstitutionSnapshot.id, directInstitutionSnapshot.data() as InstitutionalManagerDocument);
-      if (item) {
-        institutionsByCik.set(item.cik, item);
-      }
-    }
-
-    const institutionItems: ScoredSearchItem[] = [...institutionsByCik.values()]
-      .filter((item): item is InstitutionSearchItem => Boolean(item))
-      .map((item) => ({ item, score: scoreInstitution(item, query) }))
-      .filter(({ score }) => score > 0)
-      .sort((left, right) => right.score - left.score || left.item.name.localeCompare(right.item.name))
-      .slice(0, limit);
-    let selectedItems = [...tickerItems, ...institutionItems]
-      .sort((left, right) => {
-        if (right.score !== left.score) {
-          return right.score - left.score;
-        }
-        if (left.item.kind !== right.item.kind) {
-          return left.item.kind === "ticker" ? -1 : 1;
-        }
-        return left.item.name.localeCompare(right.item.name);
-      })
-      .slice(0, limit);
-
-    if (institutionItems.length > 0 && limit > 1 && !selectedItems.some(({ item }) => item.kind === "institution")) {
-      selectedItems = [...selectedItems.slice(0, limit - 1), institutionItems[0]].sort((left, right) => {
-        if (right.score !== left.score) {
-          return right.score - left.score;
-        }
-        if (left.item.kind !== right.item.kind) {
-          return left.item.kind === "ticker" ? -1 : 1;
-        }
-        return left.item.name.localeCompare(right.item.name);
-      });
-    }
-
-    const items: SearchItem[] = selectedItems.map(({ item }) => item);
+    const items = tickerItems.slice(0, limit).map(({ item }) => item);
 
     return NextResponse.json({ items });
   } catch (error) {

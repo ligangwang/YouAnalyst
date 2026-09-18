@@ -1,5 +1,4 @@
 "use client";
-import { FILING_FEATURES_ENABLED } from "@/lib/feature-flags";
 
 
 import { UiText, useUiText } from "@/components/ui-text";
@@ -10,14 +9,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatCashtag, formatTickerSymbol } from "@/components/prediction-ui";
 import { useAuth } from "@/components/providers/auth-provider";
-import { insiderMoveSnapshotSegment } from "@/lib/daily-scores/insider-share-snapshot";
-import { institutionalMoveSnapshotSegment } from "@/lib/daily-scores/institutional-share-snapshot";
 import {
   dailyCanonicalPath,
-  dailyInsiderMoveSharePath,
-  dailyInsiderMoveShareVersion,
-  dailyInstitutionalMoveSharePath,
-  dailyInstitutionalMoveShareVersion,
   dailyShareVersion,
 } from "@/lib/daily-scores/public-share";
 import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
@@ -40,48 +33,14 @@ type DailyCallHighlight = {
   thesis: string | null;
 };
 
-type DailyInstitutionalMove = {
-  ticker: string;
-  nameOfIssuer: string;
-  filingDate?: string | null;
-  reportDate: string;
-  managerCount: number;
-  valueChangeUsd: number;
-  shareChange: number;
-  newManagers: number;
-  increasedManagers: number;
-  reducedManagers: number;
-  soldOutManagers: number;
-};
-
-type DailyInsiderMove = {
-  ticker: string;
-  issuerName: string;
-  filingDate: string;
-  transactionCode: "P" | "S";
-  totalValueUsd: number;
-  totalShares: number;
-  insiderCount: number;
-  transactionCount: number;
-  latestTransactionDate: string;
-};
-
 type DailyScoresResponse = {
   date: string | null;
   callOfTheDay: DailyCallHighlight | null;
   topCalls: DailyCallHighlight[];
-  institutionalMoves?: {
-    increases: DailyInstitutionalMove[];
-    decreases: DailyInstitutionalMove[];
-  };
-  insiderMoves?: {
-    excludedGroups?: number;
-    purchases: DailyInsiderMove[];
-    sales: DailyInsiderMove[];
-  };
+
 };
 
-export type DailyScoresSection = "calls" | "institutional" | "insiders";
+export type DailyScoresSection = "calls";
 
 function scoreText(score: number): string {
   const sign = score > 0 ? "+" : "";
@@ -116,19 +75,6 @@ function dateLabel(value: string | null): string {
     day: "numeric",
     year: "numeric",
   }).toUpperCase();
-}
-
-function compactDateLabel(value: string): string {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 function userName(user: { displayName: string | null; nickname: string | null }): string {
@@ -193,14 +139,7 @@ function dailyShareUrl(date: string | null): string {
   });
 }
 
-function dailySectionPath(section: DailyScoresSection, date: string | null): string {
-  const datedSuffix = date ? `/${encodeURIComponent(date)}` : "";
-  if (section === "institutional") {
-    return `/daily/institutional${datedSuffix}`;
-  }
-  if (section === "insiders") {
-    return `/daily/insiders${datedSuffix}`;
-  }
+function dailySectionPath(date: string | null): string {
   return dailyCanonicalPath(date);
 }
 
@@ -217,68 +156,6 @@ function xShareUrl(payload: DailyScoresResponse): string {
   return xPostIntentUrl({
     text: shareText(payload),
     url: dailyShareUrl(payload.date),
-  });
-}
-
-function moveShareUrl(date: string | null, move: DailyInstitutionalMove, kind: "increase" | "decrease"): string {
-  const shareDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
-  const path = dailyInstitutionalMoveSharePath(shareDate, kind, move.ticker);
-  return xTrackedShareUrl({
-    campaign: `institutional_${kind}_share`,
-    share: dailyInstitutionalMoveShareVersion(shareDate, kind, move.ticker),
-    url: `${path}/${institutionalMoveSnapshotSegment(move)}`,
-  });
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
-    maximumFractionDigits: 0,
-    style: "currency",
-  }).format(value);
-}
-
-function formatSignedCurrency(value: number): string {
-  const formatted = formatCurrency(value);
-  return value > 0 ? `+${formatted}` : formatted;
-}
-
-function formatNumber(value: number): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
-}
-
-function moveShareText(move: DailyInstitutionalMove, kind: "increase" | "decrease"): string {
-  const direction = kind === "increase" ? "increased" : "reduced";
-  const amount = kind === "increase" ? formatSignedCurrency(move.valueChangeUsd) : formatCurrency(Math.abs(move.valueChangeUsd));
-  return `Latest 13F reports show ${formatCashtag(move.ticker)} ${direction} by ${amount} across ${move.managerCount} manager${move.managerCount === 1 ? "" : "s"} as of ${move.reportDate}.`;
-}
-
-function institutionalMoveShareUrl(move: DailyInstitutionalMove, date: string | null, kind: "increase" | "decrease"): string {
-  return xPostIntentUrl({
-    text: moveShareText(move, kind),
-    url: moveShareUrl(date, move, kind),
-  });
-}
-
-function insiderMoveShareUrlWithTracking(date: string | null, move: DailyInsiderMove, kind: "purchase" | "sale"): string {
-  const shareDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : new Date().toISOString().slice(0, 10);
-  const path = dailyInsiderMoveSharePath(shareDate, kind, move.ticker);
-  return xTrackedShareUrl({
-    campaign: `insider_${kind}_share`,
-    share: dailyInsiderMoveShareVersion(shareDate, kind, move.ticker),
-    url: `${path}/${insiderMoveSnapshotSegment(move)}`,
-  });
-}
-
-function insiderMoveShareText(move: DailyInsiderMove, kind: "purchase" | "sale"): string {
-  const noun = kind === "purchase" ? "purchases" : "sales";
-  return `Latest Form 4 reports show ${formatCashtag(move.ticker)} insider ${noun} totaling ${formatCurrency(move.totalValueUsd)} across ${move.insiderCount} insider${move.insiderCount === 1 ? "" : "s"}, filed ${move.filingDate}.`;
-}
-
-function insiderMoveShareUrl(move: DailyInsiderMove, date: string | null, kind: "purchase" | "sale"): string {
-  return xPostIntentUrl({
-    text: insiderMoveShareText(move, kind),
-    url: insiderMoveShareUrlWithTracking(date, move, kind),
   });
 }
 
@@ -304,91 +181,6 @@ function dailyReturnText(value: number | null): string {
 
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(1)}%`;
-}
-
-function InstitutionalMoveCard({
-  kind,
-  move,
-}: {
-  kind: "increase" | "decrease";
-  move: DailyInstitutionalMove;
-}) {
-  const isIncrease = kind === "increase";
-  const statusText = isIncrease
-    ? `${move.newManagers} new / ${move.increasedManagers} increased`
-    : `${move.reducedManagers} reduced / ${move.soldOutManagers} sold out`;
-
-  return (
-    <article className="rounded-lg border border-white/10 p-3">
-      <div>
-        <Link href={`/ticker/${encodeURIComponent(move.ticker)}`} className="min-w-0 hover:text-cyan-100">
-          <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">{formatTickerSymbol(move.ticker)}</p>
-          <p className="mt-1 truncate text-xs text-slate-400">{move.nameOfIssuer}</p>
-        </Link>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Value change"} /></p>
-          <p className={`mt-1 font-semibold tabular-nums ${isIncrease ? "text-emerald-300" : "text-rose-300"}`}>
-            {formatSignedCurrency(move.valueChangeUsd)}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Shares"} /></p>
-          <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.shareChange)}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Managers"} /></p>
-          <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.managerCount)}</p>
-        </div>
-      </div>
-      <p className="mt-3 text-xs text-slate-500">
-        {<UiText text={statusText} />}
-        {move.filingDate ? <UiText text={` \u00b7 filed ${compactDateLabel(move.filingDate)}`} /> : ""}
-        {" \u00b7 "}<UiText text={"report "} />{compactDateLabel(move.reportDate)}
-      </p>
-    </article>
-  );
-}
-
-function InsiderMoveCard({
-  kind,
-  move,
-}: {
-  kind: "purchase" | "sale";
-  move: DailyInsiderMove;
-}) {
-  const isPurchase = kind === "purchase";
-
-  return (
-    <article className="rounded-lg border border-white/10 p-3">
-      <div>
-        <Link href={`/ticker/${encodeURIComponent(move.ticker)}`} className="min-w-0 hover:text-cyan-100">
-          <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">{formatTickerSymbol(move.ticker)}</p>
-          <p className="mt-1 truncate text-xs text-slate-400">{move.issuerName}</p>
-        </Link>
-      </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Value"} /></p>
-          <p className={`mt-1 font-semibold tabular-nums ${isPurchase ? "text-emerald-300" : "text-rose-300"}`}>
-            {formatCurrency(move.totalValueUsd)}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Shares"} /></p>
-          <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.totalShares)}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><UiText text={"Insiders"} /></p>
-          <p className="mt-1 font-semibold tabular-nums text-slate-100">{formatNumber(move.insiderCount)}</p>
-        </div>
-      </div>
-      <p className="mt-3 text-xs text-slate-500">
-        {formatNumber(move.transactionCount)}<UiText text={" transaction"} />{move.transactionCount === 1 ? "" : <UiText text={"s"} />}<UiText text={" &middot; latest transaction "} />{compactDateLabel(move.latestTransactionDate)}<UiText text={" &middot; filed "} />{compactDateLabel(move.filingDate)}
-      </p>
-    </article>
-  );
 }
 
 export function DailyScoresPage({
@@ -511,29 +303,11 @@ export function DailyScoresPage({
 
   const topCalls = payload?.topCalls ?? [];
   const callOfTheDay = payload?.callOfTheDay ?? null;
-  const institutionalIncreases = payload?.institutionalMoves?.increases ?? [];
-  const institutionalDecreases = payload?.institutionalMoves?.decreases ?? [];
-  const topInstitutionalIncrease = institutionalIncreases[0] ?? null;
-  const topInstitutionalDecrease = institutionalDecreases[0] ?? null;
-  const insiderPurchases = payload?.insiderMoves?.purchases ?? [];
-  const insiderSales = payload?.insiderMoves?.sales ?? [];
-  const topInsiderPurchase = insiderPurchases[0] ?? null;
-  const topInsiderSale = insiderSales[0] ?? null;
   const showCalls = section === "calls";
-  const showInstitutional = FILING_FEATURES_ENABLED && section === "institutional";
-  const showInsiders = FILING_FEATURES_ENABLED && section === "insiders";
   const heroCopy = {
     calls: {
       title: "Best Calls Today",
       description: "Top-performing predictions based on the latest end-of-day results.",
-    },
-    institutional: {
-      title: "Institutional Moves",
-      description: "Latest reported 13F position changes ranked by net reported dollar change.",
-    },
-    insiders: {
-      title: "Insider Transactions",
-      description: "Latest Form 4 open-market purchases and sales ranked by reported dollar value.",
     },
   }[section];
 
@@ -572,12 +346,10 @@ export function DailyScoresPage({
       <nav className="mt-3 flex flex-wrap gap-2 text-sm" aria-label={ui("Daily sections")}>
         {([
           ["calls", "Top Calls"],
-          ["institutional", "Institutional Moves"],
-          ["insiders", "Insider Transactions"],
-        ] as const).filter(([nextSection]) => FILING_FEATURES_ENABLED || nextSection === "calls").map(([nextSection, label]) => (
+        ] as const).map(([nextSection, label]) => (
           <Link
             key={nextSection}
-            href={dailySectionPath(nextSection, payload?.date ?? initialDate)}
+            href={dailySectionPath(payload?.date ?? initialDate)}
             className={`rounded-full border px-3 py-1.5 font-semibold ${
               section === nextSection
                 ? "border-cyan-300 bg-cyan-500/15 text-cyan-100"
@@ -681,136 +453,6 @@ export function DailyScoresPage({
         </section>
       ) : null}
 
-      {showInsiders && insiderPurchases.length === 0 && insiderSales.length === 0 ? (
-        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-5">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"No insider transactions yet."} /></h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Check back after the next Form 4 sync writes purchase and sale activity."} /></p>
-        </section>
-      ) : null}
-
-      {showInsiders && (payload?.insiderMoves?.excludedGroups ?? 0) > 0 ? (
-        <p className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/10 p-4 text-sm text-amber-100"><UiText text={"Activity with dollar totals under review or unavailable is excluded from these rankings. You can inspect the reported transactions on company pages."} /></p>
-      ) : null}
-
-      {showInsiders && (insiderPurchases.length > 0 || insiderSales.length > 0) ? (
-        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Insider Activity"} /></h2>
-              <p className="mt-1 text-sm text-slate-300"><UiText text={"Latest Form 4 open-market purchases and sales ranked by reported dollar value."} /></p>
-            </div>
-            {canShareOnX ? (
-              <div className="flex flex-wrap gap-2">
-                {topInsiderPurchase ? (
-                  <a
-                    href={insiderMoveShareUrl(topInsiderPurchase, payload?.date ?? null, "purchase")}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-emerald-400/35 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15"
-                  ><UiText text={"Share purchase to X"} /></a>
-                ) : null}
-                {topInsiderSale ? (
-                  <a
-                    href={insiderMoveShareUrl(topInsiderSale, payload?.date ?? null, "sale")}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-rose-400/35 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/15"
-                  ><UiText text={"Share sale to X"} /></a>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300"><UiText text={"Largest purchases"} /></h3>
-              <div className="mt-3 grid gap-2">
-                {insiderPurchases.length > 0 ? insiderPurchases.map((move) => (
-                  <InsiderMoveCard key={`purchase-${move.ticker}-${move.filingDate}`} kind="purchase" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No insider purchases are available yet."} /></p>}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300"><UiText text={"Largest sales"} /></h3>
-              <div className="mt-3 grid gap-2">
-                {insiderSales.length > 0 ? insiderSales.map((move) => (
-                  <InsiderMoveCard key={`sale-${move.ticker}-${move.filingDate}`} kind="sale" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No insider sales are available yet."} /></p>}
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {showInstitutional && institutionalIncreases.length === 0 && institutionalDecreases.length === 0 ? (
-        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-5">
-          <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"No institutional moves yet."} /></h2>
-          <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Check back after the next 13F queue run writes holding changes."} /></p>
-        </section>
-      ) : null}
-
-      {showInstitutional && (institutionalIncreases.length > 0 || institutionalDecreases.length > 0) ? (
-        <section className="mt-4 rounded-xl border border-white/10 bg-slate-950/55 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Institutional Moves"} /></h2>
-              <p className="mt-1 text-sm text-slate-300"><UiText text={"Latest reported 13F position changes ranked by net reported dollar change."} /></p>
-            </div>
-            {canShareOnX ? (
-              <div className="flex flex-wrap gap-2">
-                {topInstitutionalIncrease ? (
-                  <a
-                    href={institutionalMoveShareUrl(topInstitutionalIncrease, payload?.date ?? null, "increase")}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-emerald-400/35 px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/15"
-                  ><UiText text={"Share increase to X"} /></a>
-                ) : null}
-                {topInstitutionalDecrease ? (
-                  <a
-                    href={institutionalMoveShareUrl(topInstitutionalDecrease, payload?.date ?? null, "decrease")}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-lg border border-rose-400/35 px-3 py-1.5 text-xs font-semibold text-rose-200 hover:bg-rose-500/15"
-                  ><UiText text={"Share decrease to X"} /></a>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-300"><UiText text={"Largest increases from latest filings"} /></h3>
-              <div className="mt-3 grid gap-2">
-                {institutionalIncreases.length > 0 ? institutionalIncreases.map((move) => (
-                  <InstitutionalMoveCard key={`increase-${move.ticker}`} kind="increase" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No increased 13F positions are available yet."} /></p>}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-rose-300"><UiText text={"Largest decreases from latest filings"} /></h3>
-              <div className="mt-3 grid gap-2">
-                {institutionalDecreases.length > 0 ? institutionalDecreases.map((move) => (
-                  <InstitutionalMoveCard key={`decrease-${move.ticker}`} kind="decrease" move={move} />
-                )) : <p className="rounded-lg border border-dashed border-white/10 p-3 text-sm text-slate-400"><UiText text={"No reduced 13F positions are available yet."} /></p>}
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="mt-4 rounded-xl border border-white/10 bg-slate-900/55 p-5">
-        <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Think you can beat today&apos;s top call?"} /></p>
-        <p className="mt-1 text-sm text-slate-300"><UiText text={"Make your prediction on YouAnalyst."} /></p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link
-            href="/predictions/new"
-            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
-          ><UiText text={"Make a prediction"} /></Link>
-          <Link
-            href="/predictions"
-            className="rounded-lg border border-cyan-400/35 px-4 py-2 text-sm text-cyan-100 hover:bg-cyan-500/15"
-          ><UiText text={"View feed"} /></Link>
-        </div>
-      </section>
     </main>
   );
 }

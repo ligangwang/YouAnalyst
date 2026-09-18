@@ -26,7 +26,7 @@ export function CompanySearchCard() {
   async function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const selectedTicker = selectedResult?.kind !== "institution" ? selectedResult : null;
+    const selectedTicker = selectedResult;
 
 
     if (selectedTicker?.symbol) {

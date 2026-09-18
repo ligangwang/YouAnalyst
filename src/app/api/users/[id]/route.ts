@@ -36,9 +36,6 @@ type LatestDailyScore = {
 
 type UserSettings = {
   isPublic: boolean;
-  institutionDigestEnabled: boolean;
-  institutionDigestCadence: "daily" | "weekly";
-  institutionDigestLastSentAt: string | null;
 };
 
 function coerceStats(raw: unknown): UserStats {
@@ -99,13 +96,9 @@ function isPredictionStatus(value: string | null): value is "LIVE" | "FINAL" | "
 
 function coerceSettings(raw: unknown): UserSettings {
   const settings = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-  const cadence = settings.institutionDigestCadence === "daily" ? "daily" : "weekly";
 
   return {
     isPublic: settings.isPublic !== false,
-    institutionDigestEnabled: settings.institutionDigestEnabled === true,
-    institutionDigestCadence: cadence,
-    institutionDigestLastSentAt: typeof settings.institutionDigestLastSentAt === "string" ? settings.institutionDigestLastSentAt : null,
   };
 }
 
@@ -210,9 +203,6 @@ export async function GET(
         },
         settings: {
           isPublic: true,
-          institutionDigestEnabled: false,
-          institutionDigestCadence: "weekly",
-          institutionDigestLastSentAt: null,
         },
       };
 
@@ -270,9 +260,6 @@ export async function GET(
           ? settings
           : {
               isPublic: settings.isPublic,
-              institutionDigestEnabled: false,
-              institutionDigestCadence: "weekly",
-              institutionDigestLastSentAt: null,
             },
       },
       relationship,
@@ -326,12 +313,6 @@ export async function PATCH(
     const settings = body.settings as Record<string, unknown>;
     if (typeof settings.isPublic === "boolean") {
       updates["settings.isPublic"] = settings.isPublic;
-    }
-    if (typeof settings.institutionDigestEnabled === "boolean") {
-      updates["settings.institutionDigestEnabled"] = settings.institutionDigestEnabled;
-    }
-    if (settings.institutionDigestCadence === "daily" || settings.institutionDigestCadence === "weekly") {
-      updates["settings.institutionDigestCadence"] = settings.institutionDigestCadence;
     }
   }
 

@@ -7,17 +7,12 @@ import { UiText, useUiText } from "@/components/ui-text";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { InstitutionDigestPreviewPanel } from "@/components/institution-digest-preview";
 import { useAuth } from "@/components/providers/auth-provider";
 import { formatTickerSymbol, PredictionReturnSummary } from "@/components/prediction-ui";
 import { analystLevelName } from "@/lib/predictions/analytics";
 import { type PredictionStatus } from "@/lib/predictions/types";
 
 type ProfileStatusFilter = "ALL" | "LIVE" | "SETTLED";
-// Keep digest controls off the simplified profile without changing saved preferences.
-const SHOW_INSTITUTION_DIGEST = false;
-
-type InstitutionDigestCadence = "daily" | "weekly";
 
 type WatchlistPrediction = {
   id: string;
@@ -117,9 +112,6 @@ type ProfilePayload = {
     } | null;
     settings: {
       isPublic: boolean;
-      institutionDigestEnabled: boolean;
-      institutionDigestCadence: InstitutionDigestCadence;
-      institutionDigestLastSentAt: string | null;
     };
   };
   relationship: {
@@ -234,9 +226,6 @@ export function AnalystProfilePage({
   const [nicknamePromptOpened, setNicknamePromptOpened] = useState(false);
   const [followSaving, setFollowSaving] = useState(false);
   const [followError, setFollowError] = useState<string | null>(null);
-  const [digestSaving, setDigestSaving] = useState(false);
-  const [digestMessage, setDigestMessage] = useState<string | null>(null);
-  const [digestError, setDigestError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [selectedWatchlistId, setSelectedWatchlistId] = useState<string | null>(null);
@@ -505,66 +494,6 @@ export function AnalystProfilePage({
     }
   }
 
-  async function saveInstitutionDigestSettings(nextSettings: {
-    institutionDigestEnabled?: boolean;
-    institutionDigestCadence?: InstitutionDigestCadence;
-  }) {
-    if (!payload || !isOwner) {
-      return;
-    }
-
-    setDigestSaving(true);
-    setDigestError(null);
-    setDigestMessage(null);
-
-    try {
-      const token = await getIdToken();
-      if (!token) {
-        throw new Error("Not authenticated.");
-      }
-
-      const mergedSettings = {
-        institutionDigestEnabled: nextSettings.institutionDigestEnabled ?? payload.profile.settings.institutionDigestEnabled,
-        institutionDigestCadence: nextSettings.institutionDigestCadence ?? payload.profile.settings.institutionDigestCadence,
-      };
-      const response = await fetch(`/api/users/${userId}`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          settings: mergedSettings,
-        }),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? "Failed to save digest settings.");
-      }
-
-      setPayload((current) =>
-        current
-          ? {
-              ...current,
-              profile: {
-                ...current.profile,
-                settings: {
-                  ...current.profile.settings,
-                  ...mergedSettings,
-                },
-              },
-            }
-          : current,
-      );
-      setDigestMessage("Institution digest settings saved.");
-    } catch (nextError) {
-      setDigestError(nextError instanceof Error ? nextError.message : "Failed to save digest settings.");
-    } finally {
-      setDigestSaving(false);
-    }
-  }
-
   function absoluteUrl(path: string): string {
     if (typeof window === "undefined") {
       return path;
@@ -774,49 +703,6 @@ export function AnalystProfilePage({
           </p>
         ) : null}
       </section>
-
-      {SHOW_INSTITUTION_DIGEST && isOwner ? (
-        <section className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Institution digest"} /></h2>
-              <p className="mt-1 text-sm text-slate-300"><UiText text={"Activity summaries for institutions you follow."} /></p>
-              {payload.profile.settings.institutionDigestLastSentAt ? (
-                <p className="mt-2 text-xs text-slate-500"><UiText text={"Last sent "} />{payload.profile.settings.institutionDigestLastSentAt}</p>
-              ) : null}
-            </div>
-            <div className="grid gap-3 sm:min-w-72">
-              <label className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-900/55 px-4 py-3">
-                <span>
-                  <span className="block text-sm font-semibold text-slate-100"><UiText text={"Digest"} /></span>
-                  <span className="mt-1 block text-xs text-slate-500"><UiText text={"Prepare followed-institution activity summaries."} /></span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={payload.profile.settings.institutionDigestEnabled}
-                  disabled={digestSaving}
-                  onChange={(event) => void saveInstitutionDigestSettings({ institutionDigestEnabled: event.target.checked })}
-                  className="h-5 w-5 accent-cyan-400"
-                />
-              </label>
-              <label className="grid gap-1 text-xs text-slate-400"><UiText text={"Cadence"} /><select
-                  value={payload.profile.settings.institutionDigestCadence}
-                  disabled={digestSaving || !payload.profile.settings.institutionDigestEnabled}
-                  onChange={(event) => void saveInstitutionDigestSettings({ institutionDigestCadence: event.target.value as InstitutionDigestCadence })}
-                  className="rounded-xl border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring disabled:opacity-60"
-                >
-                  <option value="daily"><UiText text={"Daily"} /></option>
-                  <option value="weekly"><UiText text={"Weekly"} /></option>
-                </select>
-              </label>
-              {digestSaving ? <p className="text-xs text-slate-400"><UiText text={"Saving digest settings..."} /></p> : null}
-              {digestMessage ? <p className="text-xs text-emerald-300">{<UiText text={digestMessage} />}</p> : null}
-              {digestError ? <p className="text-xs text-rose-300">{<UiText text={digestError} />}</p> : null}
-              <InstitutionDigestPreviewPanel />
-            </div>
-          </div>
-        </section>
-      ) : null}
 
       {payload.profile.aiAnalyst ? (
         <section className="grid gap-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5 md:grid-cols-3">
