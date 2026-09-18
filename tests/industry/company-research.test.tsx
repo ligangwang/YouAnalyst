@@ -63,8 +63,10 @@ test("company identity, evidence and crawlable links are present without browser
 });
 
  test("company headings and descriptions use the requested language", async () => {
-  const { CompanyHeading } = await import("../../src/components/company-heading");
-  const { LocaleProvider } = await import("../../src/components/providers/locale-provider");
+  // Match the CommonJS renderer above so Node 20 uses one locale context.
+  const require = createRequire(import.meta.url);
+  const { CompanyHeading } = require("../../src/components/company-heading") as typeof import("../../src/components/company-heading");
+  const { LocaleProvider } = require("../../src/components/providers/locale-provider") as typeof import("../../src/components/providers/locale-provider");
   const company = buildCompanyResearch("AMD", [{symbol:"AMD",active:true,predictionSupported:true,name:"Advanced Micro Devices",names:{en:"AMD","zh-CN":"超威半导体"}}],fixtureGraph);
   const en = renderToStaticMarkup(<LocaleProvider locale="en"><CompanyHeading {...company} /></LocaleProvider>);
   const zh = renderToStaticMarkup(<LocaleProvider locale="zh-CN"><CompanyHeading {...company} /></LocaleProvider>);
