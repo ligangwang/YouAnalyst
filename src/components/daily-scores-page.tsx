@@ -1,6 +1,8 @@
 "use client";
 
 import { UiText, useUiText } from "@/components/ui-text";
+import { useLocale } from "@/components/providers/locale-provider";
+import { companyName } from "@/lib/knowledge-graph/model";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +26,7 @@ type DailyCallHighlight = {
   displayName: string | null;
   nickname: string | null;
   ticker: string | null;
+  company?: { id: string; name: string; names: Partial<Record<"en" | "zh-CN", string>> };
   direction: "UP" | "DOWN" | null;
   dailyScoreChange: number;
   dailyReturnChange: number | null;
@@ -394,6 +397,8 @@ export function DailyScoresPage({
   section?: DailyScoresSection;
 }) {
   const ui = useUiText();
+  const { locale } = useLocale();
+  const callCompanyName = (call: DailyCallHighlight) => call.company ? companyName(call.company, locale) : formatTickerSymbol(call.ticker);
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<DailyScoresResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -602,17 +607,18 @@ export function DailyScoresPage({
         >
           <p className="text-sm font-semibold text-cyan-200"><UiText text={"🏆 Call of the Day"} /></p>
           <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">
+            <div className="min-w-0">
+              <p className="break-words font-[var(--font-sora)] text-3xl font-semibold text-cyan-100 sm:text-4xl">
                 <span aria-hidden="true" className="mr-2">
                   {directionArrow(callOfTheDay.direction)}
                 </span>
-                {formatTickerSymbol(callOfTheDay.ticker)}
+                {callCompanyName(callOfTheDay)}
               </p>
+              {callOfTheDay.company && callCompanyName(callOfTheDay) !== formatTickerSymbol(callOfTheDay.ticker) ? <p className="mt-1 text-sm text-slate-400">{formatTickerSymbol(callOfTheDay.ticker)}</p> : null}
               <p className="mt-2 text-sm text-slate-300"><UiText text={"by "} />{userName(callOfTheDay)}</p>
               <p className="mt-3 text-sm text-slate-400">{callDescription(callOfTheDay)}</p>
             </div>
-            <div className="sm:text-right">
+            <div className="shrink-0 sm:text-right">
               <p className={`text-4xl font-semibold ${returnTone(callOfTheDay.dailyReturnChange)}`}>
                 {dailyReturnText(callOfTheDay.dailyReturnChange)}
               </p>
@@ -649,8 +655,9 @@ export function DailyScoresPage({
                         {directionArrow(call.direction)}
                       </span>
                     ) : null}
-                    {formatTickerSymbol(call.ticker)}
+                    {callCompanyName(call)}
                   </span>
+                  {call.company && callCompanyName(call) !== formatTickerSymbol(call.ticker) ? <span className="text-slate-400"> · {formatTickerSymbol(call.ticker)}</span> : null}
                   <span className="text-slate-500"> / </span>
                   <span>{userName(call)}</span>
                 </Link>
