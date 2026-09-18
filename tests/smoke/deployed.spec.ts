@@ -151,34 +151,15 @@ test("Cloud Run service identity does not grant access to saved companies", asyn
   expect(response.status()).toBe(401);
 });
 
-test("feed remains accessible through More navigation", async ({ page }) => {
-  await page.goto("/");
-  await page.locator("header summary").filter({ hasText: /^More$/, visible: true }).click();
-  await page.getByRole("link", { name: "Feed", exact: true }).filter({ visible: true }).click();
-  await expect(page).toHaveURL(/\/feed$/);
-  await expect(page.getByRole("heading", { name: "Latest", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Explore company connections.", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
-  const first = page.getByRole("article").first();
-  if (await first.count()) {
-    await expect(first.locator("button time")).toHaveText(/^(now|\d+(m|h|d|mo|y))$/);
-    await expect(first).toContainText("Added");
-  }
-});
-
-test("event filters navigate between live categories", async ({ page, request }) => {
+test("feed shows research updates without filing features", async ({ page, request }) => {
   await page.goto("/feed");
-  for (const [label, type] of [["Insider activity", "SEC_FORM4"], ["Institutional holdings", "SEC_13F"]]) {
-    await page.getByRole("navigation", { name: "Event types" }).getByRole("link", { name: label }).click();
-    await expect(page).toHaveURL(new RegExp(`type=${type}`));
-    await expect(page.getByRole("navigation", { name: "Event types" }).getByRole("link", { name: label })).toHaveAttribute("aria-current", "page");
-    await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
-    const response = await request.get(`/api/events?type=${type}&limit=2`);
-    expect(response.status()).toBe(200);
-    for (const event of (await response.json()).items) expect(event.type).toBe(type);
+  await expect(page.getByRole("heading", { name: "Company research updates", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Event types" })).toHaveCount(0);
+  for (const path of ["/en/institutions", "/zh-cn/daily/insiders", "/daily/institutional", "/api/insider-transactions/AMD", "/api/institutional-holdings/AMD"]) {
+    expect((await request.get(path)).status()).toBe(404);
   }
-  await page.getByRole("navigation", { name: "Event types" }).getByRole("link", { name: "All", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: /^Live$/ })).toBeVisible({ timeout: 20_000 });
+  const response = await request.get("/api/events?type=SEC_FORM4");
+  expect((await response.json()).items).toEqual([]);
 });
 
 test("homepage AI knowledge graph shows all companies without market controls", async ({ page, request }) => {
@@ -242,11 +223,11 @@ test("industry graph is retired and identifies the shared replacement", async ({
   expect(new URL(saved.headers().location).pathname).toBe("/api/knowledge-graph/saved");
 });
 
-test("company and institution search remains available", async ({ page }) => {
+test("company search remains available", async ({ page }) => {
   await page.goto("/companies");
 
   // General search remains separate from the industry map.
-  await expect(page.getByRole("combobox", { name: "Company, ticker, or institution" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Company or ticker" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Go" })).toBeVisible();
   await expect(page.getByTestId("company-graph-chip").first()).toBeVisible();
 });

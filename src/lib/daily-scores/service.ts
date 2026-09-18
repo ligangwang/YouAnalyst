@@ -1,3 +1,4 @@
+import { FILING_FEATURES_ENABLED } from "@/lib/feature-flags";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { chinaCompanyId } from "@/lib/market-companies/routes";
 import { normalizeInsiderTransactionAmounts } from "@/lib/securities/insider-transaction-values";
@@ -565,8 +566,8 @@ export async function getDailyScores(dateInput?: string | null): Promise<DailySc
 
   const [topCalls, institutionalMoves, insiderMoves] = await Promise.all([
     topDailyCalls(db, date),
-    latestInstitutionalMoves(db),
-    latestInsiderMoves(db),
+    FILING_FEATURES_ENABLED ? latestInstitutionalMoves(db) : Promise.resolve({ increases: [], decreases: [] }),
+    FILING_FEATURES_ENABLED ? latestInsiderMoves(db) : Promise.resolve({ purchases: [], sales: [] }),
   ]);
 
   const companyIdFor = (ticker: string | null) => {

@@ -10,18 +10,18 @@ export const dynamic = "force-dynamic";
 
 const pageMetadata: Metadata = {
   title: "Company search | YouAnalyst",
-  description: "Search a company, ticker, or institution on YouAnalyst.",
+  description: "Search a company or ticker on YouAnalyst.",
   alternates: {
     canonical: "/companies",
   },
   openGraph: {
     title: "Company search | YouAnalyst",
-    description: "Search a company, ticker, or institution on YouAnalyst.",
+    description: "Search a company or ticker on YouAnalyst.",
     url: "/companies",
   },
   twitter: {
     title: "Company search | YouAnalyst",
-    description: "Search a company, ticker, or institution on YouAnalyst.",
+    description: "Search a company or ticker on YouAnalyst.",
   },
 };
 export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
@@ -33,7 +33,7 @@ export default function CompaniesPage() {
     <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4 pt-24 pb-8 sm:pt-28 lg:pt-32">
       <section className="w-full">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="sr-only"><UiText text={"Company, ticker, or institution search"} /></h1>
+          <h1 className="sr-only"><UiText text={"Company or ticker search"} /></h1>
         </div>
 
         <CompanySearchCard />

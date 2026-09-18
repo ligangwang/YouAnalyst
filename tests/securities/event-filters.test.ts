@@ -1,3 +1,4 @@
+import { FILING_FEATURES_ENABLED } from "../../src/lib/feature-flags";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore, QuerySnapshot } from "firebase-admin/firestore";
@@ -17,7 +18,7 @@ test("both endpoints reject unsupported types before accessing Firestore", async
   assert.equal(parseEventFilter(null), "all");
 });
 
-test("filtered pagination and shared live listeners query the same category and order", async () => {
+test("filtered pagination and shared live listeners query the same category and order", { skip: !FILING_FEATURES_ENABLED }, async () => {
   const queries: unknown[][] = [];
   const listeners: { next: (page: QuerySnapshot) => void; error: () => void; stopped: boolean }[] = [];
   const empty = { docs: [], size: 0 } as unknown as QuerySnapshot;
@@ -56,4 +57,17 @@ test("filtered pagination and shared live listeners query the same category and 
     listeners[1].error(); assert.equal(failures, 1);
     assert.equal(listeners[1].stopped, true);
   } finally { stopA(); stopB(); stopC(); }
+});
+
+
+test("paused filing feeds return no records and do not open queries or listeners", async () => {
+  assert.equal(stream(new Request("https://youanalyst.com/api/events/stream")).status, 204);
+  const db = { collection: () => { throw new Error("Unexpected filing query"); } } as unknown as Firestore;
+  for (const type of ["all", "SEC_FORM4", "SEC_13F"] as const) {
+    assert.deepEqual(await listPublicEvents({ type }, db), { items: [], nextCursor: null });
+    let snapshots = 0;
+    const stop = subscribePublicEvents(page => { snapshots++; assert.deepEqual(page, { items: [], nextCursor: null }); }, () => assert.fail("Unexpected failure"), type, db);
+    stop();
+    assert.equal(snapshots, 1);
+  }
 });

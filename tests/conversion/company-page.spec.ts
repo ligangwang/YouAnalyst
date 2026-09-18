@@ -31,6 +31,8 @@ test.beforeAll(async () => {
 
 for (const predictionsAvailable of [true, false]) {
   test(`company research remains usable with predictions ${predictionsAvailable ? "available" : "unavailable"}`, async ({ page }, testInfo) => {
+    const filingRequests: string[] = [];
+    page.on("request", request => { if (/\/api\/(institutional-holdings|insider-transactions)\//.test(request.url())) filingRequests.push(request.url()); });
     page.on("pageerror", (error) => { throw error; });
     await page.route("**/*", (route) => {
       const request = route.request();
@@ -51,7 +53,9 @@ for (const predictionsAvailable of [true, false]) {
     await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DDOWN/);
     await expect(page.getByRole("link", { name: "Research NVIDIA (NVDA)" })).toHaveAttribute("href", "/ticker/NVDA");
     await expect(page.getByRole("heading", { name: "Example Packaging supplies AMD", exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Institutional holdings", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Institutional holdings", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Insider transactions", exact: true })).toHaveCount(0);
+    expect(filingRequests).toEqual([]);
     if (!predictionsAvailable) await expect(page.getByRole("status")).toContainText("Unable to load ticker predictions");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("company-research.png"), fullPage: true });

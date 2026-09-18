@@ -1,3 +1,4 @@
+import { FILING_FEATURES_ENABLED } from "@/lib/feature-flags";
 import { type EventFilter } from "./filters";
 import { FieldPath, type Firestore, type Query, type QuerySnapshot } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -31,7 +32,9 @@ export async function publishFilingEvent(input: FilingEventInput, dependencies: 
   });
 }
 
-export async function listPublicEvents(input: { limit?: number; cursor?: EventCursor; type?: EventFilter } = {}, db = getAdminFirestore()) {
+export async function listPublicEvents(input: { limit?: number; cursor?: EventCursor; type?: EventFilter } = {}, db?: Firestore) {
+  if (!FILING_FEATURES_ENABLED) return { items: [] as Awaited<ReturnType<typeof enrichFilingEvents>>, nextCursor: null };
+  db ??= getAdminFirestore();
   const limit = Math.max(1, Math.min(MAX_EVENT_PAGE_SIZE, Math.trunc(input.limit ?? EVENT_PAGE_SIZE)));
   // The shared collection is public-only. Private calls never enter this store.
   let query = publicEventsQuery(input.type ?? "all", db);
@@ -61,7 +64,9 @@ type Hub = { viewers: Set<Viewer>; stop: (() => void) | null; latest: PublicEven
 /** One bounded listener per active filter, shared by viewers on this server. */
 const hubs = new Map<EventFilter, Hub>();
 
-export function subscribePublicEvents(next: Viewer["next"], error: Viewer["error"], type: EventFilter = "all", db = getAdminFirestore()): () => void {
+export function subscribePublicEvents(next: Viewer["next"], error: Viewer["error"], type: EventFilter = "all", db?: Firestore): () => void {
+  if (!FILING_FEATURES_ENABLED) { next({ items: [], nextCursor: null }); return () => {}; }
+  db ??= getAdminFirestore();
   let hub = hubs.get(type);
   if (!hub) { hub = { viewers: new Set(), stop: null, latest: null }; hubs.set(type, hub); }
   const currentHub = hub;

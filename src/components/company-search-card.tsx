@@ -26,16 +26,8 @@ export function CompanySearchCard() {
   async function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const selectedInstitution = selectedResult?.kind === "institution" ? selectedResult : null;
     const selectedTicker = selectedResult?.kind !== "institution" ? selectedResult : null;
 
-    if (selectedInstitution) {
-      setError(null);
-      startTransition(() => {
-        router.push(`/institutions/${encodeURIComponent(selectedInstitution.cik)}`);
-      });
-      return;
-    }
 
     if (selectedTicker?.symbol) {
       setError(null);
@@ -46,20 +38,20 @@ export function CompanySearchCard() {
     }
 
     if (!normalizedTicker) {
-      setError("Enter a ticker, company name, institution, or CIK.");
+      setError("Enter a ticker or company name.");
       return;
     }
 
-    if (chinaCompanyId(normalizedTicker) || /^\d{1,10}$/.test(normalizedTicker)) {
+    if (chinaCompanyId(normalizedTicker)) {
       setError(null);
       startTransition(() => {
-        router.push(chinaCompanyId(normalizedTicker) ? companyPageUrl(normalizedTicker, "CN_A") : `/institutions/${encodeURIComponent(normalizedTicker.padStart(10, "0"))}`);
+        router.push(companyPageUrl(normalizedTicker, "CN_A"));
       });
       return;
     }
 
     if (!isValidTicker(normalizedTicker)) {
-      setError("Choose a company or institution from search, or enter a valid ticker/CIK.");
+      setError("Choose a company from search, or enter a valid ticker.");
       return;
     }
 
@@ -86,7 +78,7 @@ export function CompanySearchCard() {
           onSelectSuggestion={setSelectedResult}
           error={error}
           hideLabel
-          label="Company, ticker, or institution"
+          label="Company or ticker"
           showHelperText={false}
         />
         <button

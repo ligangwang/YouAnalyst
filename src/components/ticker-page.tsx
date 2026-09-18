@@ -1,4 +1,6 @@
 "use client";
+import { FILING_FEATURES_ENABLED } from "@/lib/feature-flags";
+
 
 import { CompanyPosts } from "./company-posts";
 import { UiText, useUiText } from "@/components/ui-text";
@@ -600,7 +602,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
         }
       });
 
-    void fetch(`/api/institutional-holdings/${encodeURIComponent(ticker)}`)
+    if (FILING_FEATURES_ENABLED) void fetch(`/api/institutional-holdings/${encodeURIComponent(ticker)}`)
       .then(async (response) => {
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as ErrorResponse;
@@ -620,7 +622,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
         }
       });
 
-    void fetch(`/api/insider-transactions/${encodeURIComponent(ticker)}?limit=25`)
+    if (FILING_FEATURES_ENABLED) void fetch(`/api/insider-transactions/${encodeURIComponent(ticker)}?limit=25`)
       .then(async (response) => {
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as ErrorResponse;
@@ -687,8 +689,8 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
         {overview}
       <CompanyPosts ticker={ticker} />
         <p role="status" className="py-6">{error ?? <UiText text={"Loading company activity..."} />}</p>
-        <InsiderTransactionsSection displayTicker={displayTicker} error={insiderError} transactions={insiderTransactions} />
-        <InstitutionalHoldingsSection displayTicker={displayTicker} summary={holdings} error={holdingsError} />
+        {FILING_FEATURES_ENABLED && <InsiderTransactionsSection displayTicker={displayTicker} error={insiderError} transactions={insiderTransactions} />}
+        {FILING_FEATURES_ENABLED && <InstitutionalHoldingsSection displayTicker={displayTicker} summary={holdings} error={holdingsError} />}
       </main>
     );
   }
@@ -702,24 +704,24 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300"><UiText text={"Community"} /></p>
             {overview ? <h2 className="mt-2 text-xl font-semibold text-cyan-100"><UiText text={"Investment views on "} />{displayTicker}</h2> : <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>}
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Public calls, watchlists, and institutional 13F context for "} />{displayTicker}.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Investment views on "} />{displayTicker}.
             </p>
           </div>
         </div>
       </section>
 
-      <InsiderTransactionsSection
+      {FILING_FEATURES_ENABLED && <InsiderTransactionsSection
         displayTicker={displayTicker}
         error={insiderError}
         transactions={insiderTransactions}
-      />
+      />}
 
-      <InstitutionalHoldingsSection
+      {FILING_FEATURES_ENABLED && <InstitutionalHoldingsSection
         key={payload.ticker}
         displayTicker={displayTicker}
         summary={holdings}
         error={holdingsError}
-      />
+      />}
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Community position history"} /></h2>
