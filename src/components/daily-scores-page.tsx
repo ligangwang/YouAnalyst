@@ -453,6 +453,20 @@ export function DailyScoresPage({
         </section>
       ) : null}
 
+      <section className="mt-4 rounded-xl border border-white/10 bg-slate-900/55 p-5">
+        <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100"><UiText text={"Think you can beat today&apos;s top call?"} /></p>
+        <p className="mt-1 text-sm text-slate-300"><UiText text={"Make your prediction on YouAnalyst."} /></p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link
+            href="/predictions/new"
+            className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400"
+          ><UiText text={"Make a prediction"} /></Link>
+          <Link
+            href="/predictions"
+            className="rounded-lg border border-cyan-400/35 px-4 py-2 text-sm text-cyan-100 hover:bg-cyan-500/15"
+          ><UiText text={"View feed"} /></Link>
+        </div>
+      </section>
     </main>
   );
 }
