@@ -1,5 +1,21 @@
 # Deployment
 
+## Firebase email action links
+
+`/__/auth/action` now forwards complete email action links to the configured
+project's `firebaseapp.com/__/auth/action` handler. Firebase validates expired or
+used codes and handles password reset, verification and email recovery. The
+route preserves language and tenant parameters, uses the configured project/key,
+and only retains HTTPS continuations on `youanalyst.com`. It sends no-store,
+no-referrer and noindex headers and renders no application analytics. A bare
+URL shows bilingual guidance rather than attempting an account action.
+
+This is a handoff to Firebase's hosted UI, not a same-origin replacement for
+that UI; users still need connectivity to Firebase. Email templates must include
+their normal mode and oobCode parameters. No email templates or account settings
+are changed by this deployment. Test with `npm run test:auth`; do not log real
+email-action URLs/codes or consume production codes during smoke tests.
+
 ## Same-origin email authentication
 
 Email signup, password login, persisted-user lookup and token refresh use
