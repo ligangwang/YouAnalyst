@@ -1,5 +1,7 @@
 import { createMaintenanceLog, loggedTransaction, maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { predictionInstrument, marketDate, type PredictionMarket } from "./instrument";
+import { isPriceForEodDate, loadEodPriceUniverse, mapEodCoverage } from "./eod-universe";
+import { acquireMaintenanceLease, releaseMaintenanceLease } from "../maintenance-lease";
 import { getAdminFirestore, getAdminStorageBucket } from "@/lib/firebase/admin";
 import {
   computePredictionOutcome,
@@ -29,6 +31,8 @@ const DEFAULT_ROLL_FORWARD_BATCH_SIZE = 5;
 const MAX_ROLL_FORWARD_BATCH_SIZE = 20;
 
 export type DailyEodMaintenanceInput = {
+  trigger?: "admin";
+  requestedBy?: string;
   market?: PredictionMarket;
   runDate?: string;
   limit?: number;
@@ -64,6 +68,7 @@ export type EodPrice = {
 };
 
 export type DailyEodMaintenanceResult = {
+  runId?: string;
   dryRun: boolean;
   recompute: boolean;
   runDate: string;
@@ -83,6 +88,7 @@ export type DailyEodMaintenanceResult = {
     skipped: number;
     prices: Array<Pick<EodPrice, "ticker" | "tradingDate" | "close" | "source" | "previousClose" | "previousTradingDate" | "dailyReturn">>;
     failures: Array<{ ticker: string; reason: string }>;
+    mapCoverage: ReturnType<typeof mapEodCoverage> | null;
   };
   marking: {
     checked: number;
@@ -342,7 +348,7 @@ async function readCachedEodPrices(tickers: string[], tradingDate: string): Prom
         .doc(eodPriceDocId(ticker, tradingDate))
         .get();
       const price = snapshot.exists ? toCachedEodPrice(snapshot.data()) : null;
-      if (price) {
+      if (price && isPriceForEodDate(price, ticker, tradingDate)) {
         cached.set(ticker, price);
       }
     }),
@@ -1318,15 +1324,26 @@ export async function scanEodPredictions(
 }
 
 export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {}): Promise<DailyEodMaintenanceResult> {
-  const log = createMaintenanceLog("daily-eod-maintenance", { market: input.market ?? "US", requestedDate: input.runDate, dryRun: input.dryRun === true });
+  const market = input.market ?? "US";
+  if (market !== "US" && market !== "CN_A") throw new Error("Invalid EOD market");
+  const log = createMaintenanceLog("daily-eod-maintenance", { market, requestedDate: input.runDate, dryRun: input.dryRun === true, trigger: input.trigger ?? "internal", requestedBy: input.requestedBy });
+  // Share the lock between scheduled and admin runs, including different dates
+  // for the same market, because they can touch the same prediction scores.
+  const lease = input.dryRun || input.rollForward ? null : getAdminFirestore().collection("eod_runs").doc(`_active_${market}`);
+  if (lease && !await acquireMaintenanceLease(lease, log.runId)) {
+    log.emit("WARNING", "run_skipped", { reason: "EOD_ALREADY_RUNNING" });
+    throw Object.assign(new Error("An EOD job is already running for this market"), { code: "EOD_ALREADY_RUNNING" });
+  }
   log.emit("INFO", "run_started");
   try {
     const result = await runDailyEodMaintenanceImpl(input, log);
-    log.emit("INFO", "run_completed", { runDate: result.runDate, priceLoad: {loaded: result.priceLoad.loaded, failed: result.priceLoad.failed}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
-    return result;
+    log.emit("INFO", "run_completed", { runDate: result.runDate, priceLoad: {requestedTickers: result.priceLoad.requestedTickers, cacheHits: result.priceLoad.cacheHits, loaded: result.priceLoad.loaded, failed: result.priceLoad.failed, failures: result.priceLoad.failures, mapCoverage: result.priceLoad.mapCoverage}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
+    return { ...result, runId: log.runId };
   } catch (error) {
     log.emit("ERROR", "run_failed", { error: maintenanceError(error) });
     throw error;
+  } finally {
+    if (lease) await releaseMaintenanceLease(lease, log.runId).catch(error => log.emit("ERROR", "lease_release_failed", { error: maintenanceError(error) }));
   }
 }
 
@@ -1412,9 +1429,10 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       scannedCandidatePredictions,
       hasMoreCandidatePredictions,
     } = await scanEodPredictions(db, runDate, limit, manualTickers, market);
-    const requestedTickers = manualTickers.length > 0
-      ? manualTickers
-      : uniqueTickers(predictionsToProcess.map((item) => item.ticker));
+    log.stage("load_price_universe");
+    const { requestedTickers, mapTickers } = await loadEodPriceUniverse({ market, loadPrices, manualTickers,
+      predictionTickers: predictionsToProcess.map((item) => item.ticker) });
+    log.emit("INFO", "price_universe_selected", { runDate, requestedTickers: requestedTickers.length, mapTickers: mapTickers.length });
 
     console.info("[daily-eod-maintenance] Prediction scan completed", {
       runDate,
@@ -1437,6 +1455,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       skipped: loadPrices ? candidatePredictions.length - predictionsToProcess.length : requestedTickers.length,
       prices: [],
       failures: [],
+      mapCoverage: null,
     };
 
     const priceByTicker = new Map<string, EodPrice>();
@@ -1495,6 +1514,10 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
             .doc(eodPriceDocId(price.ticker, price.tradingDate, price.market))
             .set(price, { merge: true });
         }
+      }
+      if (mapTickers.length) {
+        priceLoad.mapCoverage = mapEodCoverage(mapTickers, runDate, priceByTicker, new Set(cachedPrices.keys()));
+        log.emit(priceLoad.mapCoverage.missing.length ? "ERROR" : "INFO", "map_price_coverage", { ...priceLoad.mapCoverage });
       }
     } else {
       console.info("[daily-eod-maintenance] EOD price load skipped", {
@@ -1904,6 +1927,8 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
         completedAt: new Date().toISOString(),
         error: null,
         recompute,
+        priceLoad: { requestedTickers: priceLoad.requestedTickers, cacheHits: priceLoad.cacheHits, loaded: priceLoad.loaded,
+          failed: priceLoad.failed, failures: priceLoad.failures, mapCoverage: priceLoad.mapCoverage },
       }, { merge: true });
     }
     console.info("[daily-eod-maintenance] Completed run", result);

@@ -39,7 +39,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   const callTicker = identity.listingStatus === "PRIVATE" ? undefined : identity.listings.map(listing =>
     listing.market === "US" ? listing.symbol : `${listing.exchange}:${listing.symbol}`
   ).find(ticker => predictionInstrument(ticker));
-  const sources: { url: string; title: string }[] = Array.isArray(data.aiGraph?.sources) ? data.aiGraph.sources.filter((s: { url?: unknown; title?: unknown }) => typeof s.url === "string" && s.url.startsWith("https://") && typeof s.title === "string") : [];
+  const membership = data.inGraph ?? data.aiGraph;
+  const sources: { url: string; title: string }[] = Array.isArray(membership?.sources) ? membership.sources.filter((s: { url?: unknown; title?: unknown }) => typeof s.url === "string" && s.url.startsWith("https://") && typeof s.title === "string") : [];
   return <main className="mx-auto max-w-5xl px-6 py-12 text-slate-200">
     <a className="text-cyan-200" href={`${localizedPath("/", locale)}?company=${encodeURIComponent(id)}&market=ALL`}>{zh ? "AI 产业图谱" : "AI Industry Map"} →</a>
     <h1 className="mt-8 text-4xl font-semibold"><CompanyCountryFlag country={identity.country} locale={locale} />{data.name}</h1>

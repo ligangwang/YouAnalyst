@@ -1,14 +1,10 @@
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
-import type { KnowledgeGraph } from "../knowledge-graph/model";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
-import { FUNDAMENTALS_COLLECTION, requestCompanyFundamentals, validFundamentalsTicker } from "./service";
+import { FUNDAMENTALS_COLLECTION, requestCompanyFundamentals } from "./service";
 import { refreshCompanyFundamentals } from "./worker";
 import { withSecRequestContext } from "../sec-request";
 
-export function usMapTickers(graph: Pick<KnowledgeGraph, "nodes">) {
-  return [...new Set(graph.nodes.filter(node => node.kind === "COMPANY" && node.id.startsWith("US:"))
-    .map(node => node.id.slice(3)).filter(validFundamentalsTicker))].sort();
-}
+export { usMapTickers } from "../knowledge-graph/us-companies";
 
 export async function seedMapFundamentals(db: Firestore, tickers: string[]) {
   for (const ticker of tickers) await requestCompanyFundamentals(ticker, db);

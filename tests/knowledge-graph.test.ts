@@ -80,3 +80,16 @@ test("new published master relationships bring in public neighbors; drafts, miss
   assert.equal(map.relationships.length,1);
   assert.equal(map.sources[0].url,evidence[0].url);
 });
+
+
+test("generic graph membership takes precedence and legacy import preserves reviewed metadata", async () => {
+ const membership = {status:"PUBLISHED" as const,stageIds:["energy"],stages:[],memberships:[],sources:[],order:9,asOf:"2026-09-20"};
+ const company = {id:"US:NVDA",name:"NVIDIA",status:"PUBLISHED",inGraph:membership,aiGraph:{...membership,stageIds:["compute"]}};
+ assert.deepEqual(graphFromMarket([company],[]).nodes.find(n=>n.id === company.id)?.stageIds,["energy"]);
+ const f=fakeDb(); f.resume();
+ f.records.set("companies/US:NVDA",{name:"Reviewed NVIDIA",status:"DIRECTORY",aiGraph:membership});
+ await importGraphs(f.db,graphs);
+ assert.deepEqual(f.records.get("companies/US:NVDA")?.inGraph,membership);
+ assert(f.records.get("companies/US:AMD")?.inGraph);
+ assert.equal(f.records.get("companies/US:AMD")?.aiGraph,undefined);
+});
