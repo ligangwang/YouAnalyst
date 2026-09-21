@@ -29,6 +29,19 @@ test("worker history uses bounded provider pagination and authoritative executio
   assert.equal(params.get("pageToken"), "opaque+/=");
   assert.equal(f.calls.length, 2);
 });
+test("worker status changes from starting to running only when a start time exists", async () => {
+  const execution = { name: "jobs/fundamentals/executions/e1", createTime: "2026-09-21T00:00:00Z", conditions: [{ type: "Completed", state: "CONDITION_PENDING", message: "Waiting for execution to start." }] };
+  const f = fixture([{ executions: [execution] }, { entries: [] },
+    { executions: [{ ...execution, startTime: "2026-09-21T00:01:00Z" }] }, { entries: [] }]);
+  const starting = (await loadJobHistory({ job: "fundamentals", view: "runs" }, f.request, "test-project")).records[0];
+  assert.equal(starting.status, "Starting");
+  assert.match(starting.message!, /preparing the worker/);
+  const running = (await loadJobHistory({ job: "fundamentals", view: "runs" }, f.request, "test-project")).records[0];
+  assert.equal(running.status, "Running");
+  assert.equal(running.startedAt, "2026-09-21T00:01:00Z");
+  assert.match(running.message!, /Execution has started/);
+  assert.doesNotMatch(running.message!, /Waiting/);
+});
 test("EOD pages join outcomes by run ID; incomplete runs never claim success", async () => {
   const f = fixture([{ entries: ["a", "b", "c"].map(runId => ({ timestamp: "2026-01-01T00:00:00Z", jsonPayload: { runId } })), nextPageToken: "next-eod" }, {
     entries: [ { timestamp: "2026-01-01T00:01:00Z", jsonPayload: { runId: "a", message: "daily-eod-maintenance: run_failed", error: { message: "contention" } } },

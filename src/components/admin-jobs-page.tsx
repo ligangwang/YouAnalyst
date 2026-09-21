@@ -10,7 +10,7 @@ import { scheduledJobs, type JobId, type HistoryView, type JobHistoryPage, type 
 
 const button = "rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40";
 const chineseNames = { fundamentals: "SEC 财务数据", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
-const statusLabels: Record<string, string> = { Succeeded: "成功", Failed: "失败", Cancelled: "已取消", Running: "运行中", Unknown: "未知", "No completion recorded": "无完成记录", "Completed with errors": "完成但有错误", "Delivery started": "开始触发", "Delivery failed": "触发失败", Delivered: "已送达" };
+const statusLabels: Record<string, string> = { Succeeded: "成功", Failed: "失败", Cancelled: "已取消", Starting: "启动中", Running: "运行中", Unknown: "未知", "No completion recorded": "无完成记录", "Completed with errors": "完成但有错误", "Delivery started": "开始触发", "Delivery failed": "触发失败", Delivered: "已送达" };
 function date(value: string) { return value ? new Date(value).toLocaleString() : "—"; }
 function summary(record: JobRecord): string {
   const fields = record.summary;
