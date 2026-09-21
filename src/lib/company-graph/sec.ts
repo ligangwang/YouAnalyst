@@ -71,7 +71,7 @@ async function fetchSecText(url: string, signal?: AbortSignal): Promise<string> 
   });
 
   if (!response.ok) {
-    throw new Error(`SEC filing download failed (${response.status}): ${url}`);
+    throw Object.assign(new Error(`SEC filing download failed (${response.status}): ${url}`), { code: response.status });
   }
 
   return response.text();

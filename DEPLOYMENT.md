@@ -223,7 +223,40 @@ GitHub schedule. Cancel any waiting old workflow runs during the cutover.
 The replacement GitHub `Deploy directory sync job` workflow is manual and deploys
 an image only; it never performs the directory import.
 
-### Maintenance diagnostics
+### SEC fundamentals queue
+
+Company pages read cached SEC fundamentals and deduplicate missing/expired cache
+requests on the existing `company_fundamentals/{ticker}` documents. They never
+download SEC filings. Queue fields include `pending`, `requestedAt`, `refreshAfter`,
+`lastAttemptAt`, `outcome` and sanitized `lastError`; successful refreshes merge
+into the same document, preserving request history. No new collection is used.
+
+Cloud Scheduler triggers `refresh-sec-fundamentals-production` daily at 21:00
+`America/New_York`. Build `Dockerfile.fundamentals` using
+`cloudbuild.fundamentals.yaml`, then provision with
+`scripts/deploy-sec-fundamentals.sh`. The script requires `GCP_PROJECT_ID`,
+`FUNDAMENTALS_IMAGE` and the existing `SEC_USER_AGENT` contact setting. It reuses
+the directory maintenance runtime/scheduler identities; invocation is scoped to
+the new job. The GitHub deployment workflow is manual, with no maintenance cron.
+
+Each run reads the same full graph as the website, queues all missing or expired
+US map companies (including ADRs), and audits that each has a cache or request
+record. `_worker` in `company_fundamentals` holds the shared lease and latest
+coverage summary. Overlapping executions are rejected; a later attempt of the
+same Cloud Run task can recover its predecessor's lease. A run processes up to
+500 requests or 18 minutes under a 20-minute timeout, retaining all remaining
+requests for the next run. Requests are sequential, spaced at least 500 ms apart.
+
+Provider failures preserve prior data and pending requests with a one-hour
+cooldown; HTTP 403/429 stops the batch. Failed/deferred-error requests make the
+execution fail instead of silently reporting success. Unmapped tickers or missing
+annual reports retain an explicit unavailable result/request history and retry
+after seven days. These are reported separately from cached financials.
+Use `--seed-only` to queue/audit the map without contacting SEC. Inspect structured
+logs with `jsonPayload.job="refresh-sec-fundamentals"`, and verify the job execution
+itself: a successful Scheduler invocation only means the execution was started.
+
+### EOD and directory diagnostics
 
 In Cloud Logging, filter `jsonPayload.job="daily-eod-maintenance"` or
 `jsonPayload.job="sync-cni-directory"`. Each invocation has a `runId`; EOD records

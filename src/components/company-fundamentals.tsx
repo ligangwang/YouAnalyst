@@ -11,7 +11,7 @@ function displayValue(value: number | null, unit: string | null) {
 export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | null }) {
   return <section aria-labelledby="company-fundamentals" className="border-b border-white/15 py-6">
     <h2 id="company-fundamentals" className="scroll-mt-24 text-xl font-semibold text-cyan-100"><UiText text={"Business and financials"} /></h2>
-    {!data ? <p className="mt-3 text-sm text-slate-400"><UiText text={"SEC fundamentals are unavailable for this company right now. Other company research remains available."} /></p> : <>
+    {!data ? <p className="mt-3 text-sm text-slate-400"><UiText text={"SEC fundamentals are not available for this company right now. Financial data is updated daily."} /></p> : <>
       <p className="mt-2 text-sm text-slate-300"><UiText text={"Annual report for the year ended "} />{data.report.end}<UiText text={". These are reported annual figures, not trailing twelve-month estimates."} /></p>
       {data.excerpt ? <details className="mt-4 rounded-xl border border-white/10 p-4" open>
         <summary className="cursor-pointer text-sm font-semibold text-cyan-200"><UiText text={"What the company says it does"} /></summary>
@@ -29,7 +29,7 @@ export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | 
           </>}</dd>
         </div>)}
       </dl>
-      <p className="mt-3 text-xs leading-5 text-slate-400"><UiText text={"Source: SEC Company Facts. Checked "} />{data.fetchedAt.slice(0, 10)}<UiText text={". We check for updates on visits after 24 hours. Missing or ambiguous figures are left unavailable."} /></p>
+      <p className="mt-3 text-xs leading-5 text-slate-400"><UiText text={"Source: SEC Company Facts. Checked "} />{data.fetchedAt.slice(0, 10)}<UiText text={". Updates run daily in the background. Missing or ambiguous figures are left unavailable."} /></p>
       {data.stale && <p className="mt-2 text-xs text-amber-200"><UiText text={"Showing a previously fetched snapshot. A recent refresh has not completed."} /></p>}
     </>}
   </section>;
