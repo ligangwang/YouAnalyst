@@ -204,7 +204,10 @@ To confirm which principal CI is using, inspect the `gcloud auth list` output in
 
 Routine maintenance belongs in Cloud Scheduler, not GitHub Actions. The directory
 sync uses Cloud Run Job `sync-cni-directory-production` in `us-central1`, triggered
-Monday at 02:20 UTC. Existing US/China nightly EOD HTTP schedules remain unchanged.
+Monday at 02:20 UTC. US EOD maintenance runs Monday–Friday at 8 PM New York
+time; China A-share EOD maintenance runs Monday–Friday at 8 AM New York time.
+Both HTTP schedules use `America/New_York`, following its daylight-saving changes.
+The China schedule replaces the previous 8 PM and 11 PM Shanghai runs.
 
 Build `Dockerfile.directory-sync` with `cloudbuild.directory-sync.yaml` and an
 `_IMAGE` substitution. Provision using `scripts/deploy-directory-sync.sh` with
