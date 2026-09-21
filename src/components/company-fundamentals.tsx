@@ -9,9 +9,25 @@ function displayValue(value: number | null, unit: string | null) {
 }
 
 export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | null }) {
+  const marketCap = data?.marketCap;
+  const hasMarketCap = marketCap?.status === "estimated" && typeof marketCap.value === "number"
+    && Number.isFinite(marketCap.value) && marketCap.value > 0 && marketCap.priceDate && marketCap.shares;
   return <section aria-labelledby="company-fundamentals" className="border-b border-white/15 py-6">
     <h2 id="company-fundamentals" className="scroll-mt-24 text-xl font-semibold text-cyan-100"><UiText text={"Business and financials"} /></h2>
     {!data ? <p className="mt-3 text-sm text-slate-400"><UiText text={"SEC fundamentals are not available for this company right now. Financial data is updated daily."} /></p> : <>
+      <div className="my-4 rounded-xl border border-white/10 bg-slate-900/40 p-4">
+        <p className="text-sm text-slate-300"><UiText text={"Estimated market cap"} /></p>
+        <p className="mt-2 text-2xl font-semibold text-white"><UiText text={hasMarketCap ? displayValue(marketCap!.value, marketCap!.currency) : "Unavailable"} /></p>
+        {hasMarketCap ? <>
+          <p className="mt-1 text-sm text-slate-400"><UiText text={`As of ${marketCap!.priceDate}`} /></p>
+          <details className="mt-2 text-xs leading-5 text-slate-400">
+            <summary className="cursor-pointer text-cyan-200"><UiText text={"Calculation details"} /></summary>
+            <p className="mt-2"><UiText text={"Latest cached closing price × SEC reported shares outstanding."} /></p>
+            <p><UiText text={"Share count as of "} />{marketCap!.shares!.date}</p>
+            <a href={marketCap!.shares!.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-200 underline underline-offset-2"><UiText text={"Filed "} />{marketCap!.shares!.filed} ↗</a>
+          </details>
+        </> : <p className="mt-2 text-xs text-slate-400"><UiText text={"A supported share count and cached closing price are required."} /></p>}
+      </div>
       <p className="mt-2 text-sm text-slate-300"><UiText text={"Annual report for the year ended "} />{data.report.end}<UiText text={". These are reported annual figures, not trailing twelve-month estimates."} /></p>
       {data.excerpt ? <details className="mt-4 rounded-xl border border-white/10 p-4" open>
         <summary className="cursor-pointer text-sm font-semibold text-cyan-200"><UiText text={"What the company says it does"} /></summary>
