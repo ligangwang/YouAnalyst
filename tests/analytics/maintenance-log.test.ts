@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Firestore, Transaction, DocumentReference } from "firebase-admin/firestore";
 import { createMaintenanceLog, loggedTransaction, maintenanceError } from "../../src/lib/maintenance-log";
-import { acquireMaintenanceLease, releaseMaintenanceLease } from "../../src/lib/maintenance-lease";
+import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../../src/lib/maintenance-lease";
 
 test("transaction retries are distinct from commits and document bodies are never logged", async t => {
   const lines: string[] = [];
@@ -51,4 +51,31 @@ test("directory lease rejects overlaps, recovers expiry, and only its owner rele
   assert.equal(await acquireMaintenanceLease(ref,"second",1000 + 31 * 60_000),true);
   await releaseMaintenanceLease(ref,"first");
   assert.equal(data.leaseOwner,"second");
+});
+
+test("a retry recovers a crashed attempt without admitting concurrent executions or stale releases", async () => {
+  let data: Record<string, unknown> = {};
+  const tx = { get: async () => ({data:()=>data,get:(key:string)=>data[key]}), set: (_ref: unknown, values: Record<string, unknown>) => { data = {...data,...values}; } };
+  const ref = {firestore:{runTransaction:async (work:(tx:unknown)=>Promise<unknown>)=>work(tx)}} as DocumentReference;
+  const task = { execution: "sync-abc", index: 0, attempt: 0 };
+  assert.equal(await acquireMaintenanceLease(ref, "crashed", 1000, task), true);
+  assert.equal(await acquireMaintenanceLease(ref, "duplicate", 1001, task), false);
+  assert.equal(await acquireMaintenanceLease(ref, "other-execution", 1001, {...task, execution: "sync-def", attempt: 1}), false);
+  assert.equal(await acquireMaintenanceLease(ref, "other-task", 1001, {...task, index: 1, attempt: 1}), false);
+  assert.equal(await acquireMaintenanceLease(ref, "retry", 1001, {...task, attempt: 1}), true);
+  assert.equal(data.leaseOwner, "retry");
+  assert.equal(await acquireMaintenanceLease(ref, "stale", 1002, task), false);
+  await releaseMaintenanceLease(ref, "crashed");
+  assert.equal(data.leaseOwner, "retry");
+  await releaseMaintenanceLease(ref, "retry");
+  assert.equal(await acquireMaintenanceLease(ref, "next", 1003, {...task, execution: "sync-next"}), true);
+});
+
+test("retry identity requires complete valid Cloud Run task metadata", () => {
+  const env = { CLOUD_RUN_EXECUTION: "sync-abc", CLOUD_RUN_TASK_INDEX: "0", CLOUD_RUN_TASK_ATTEMPT: "1" };
+  assert.deepEqual(cloudRunTaskAttempt(env), {execution: "sync-abc", index: 0, attempt: 1});
+  assert.equal(cloudRunTaskAttempt({}), undefined);
+  assert.equal(cloudRunTaskAttempt({...env, CLOUD_RUN_TASK_INDEX: undefined}), undefined);
+  assert.equal(cloudRunTaskAttempt({...env, CLOUD_RUN_TASK_ATTEMPT: ""}), undefined);
+  assert.equal(cloudRunTaskAttempt({...env, CLOUD_RUN_TASK_ATTEMPT: "-1"}), undefined);
 });

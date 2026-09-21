@@ -5,7 +5,7 @@ import { importCniDirectory } from "../src/lib/industry-research/directory-sync"
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
-import { acquireMaintenanceLease, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
+import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
 
 const log = createMaintenanceLog("sync-cni-directory");
 
@@ -15,9 +15,8 @@ async function main() {
   const db = getFirestore();
   const lease = db.collection("directory_syncs").doc("CN_A_CNI");
   log.stage("acquire_lease");
-  if (!await acquireMaintenanceLease(lease, log.runId)) {
-    log.emit("WARNING", "overlap_skipped");
-    return;
+  if (!await acquireMaintenanceLease(lease, log.runId, Date.now(), cloudRunTaskAttempt())) {
+    throw new Error("Directory sync lease is held by another task; import did not complete.");
   }
   try {
     const input = process.argv[2] ?? "/tmp/cni-directory.json";

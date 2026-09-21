@@ -93,7 +93,10 @@ try {
       const response = await fetch(`${base}/${locale}/company/${id}`);
       assert.equal(response.status, 200, `Global profile failed: ${locale}/${id}`);
       const html = await response.text();
-      assert.match(html, /<h1[^>]*>Global Lab<\/h1>/);
+      const heading = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/)?.[1];
+      assert.ok(heading, "Global profile must have a company heading");
+      assert.equal(heading.replace(/<[^>]+>/g, ""), "Global Lab");
+      assert.match(heading, /<img\b[^>]*src="\/flags\/fr\.svg"[^>]*>/);
       assert.match(html, /Global profile fixture/);
       assert.match(html, locale === "en" ? /France · Private/ : /法国 · 非上市公司/);
     }
