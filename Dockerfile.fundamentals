@@ -1,0 +1,16 @@
+FROM node:22-bookworm-slim AS builder
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+COPY scripts ./scripts
+RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-sec-fundamentals.cjs && npm prune --omit=dev
+
+FROM node:22-bookworm-slim
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+USER node
+CMD ["node", "dist/refresh-sec-fundamentals.cjs"]

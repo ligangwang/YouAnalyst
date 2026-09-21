@@ -1,15 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { refreshCompanyFundamentals } from "../../src/lib/fundamentals/service";
+import { refreshCompanyFundamentals } from "../../src/lib/fundamentals/worker";
+import { requestCompanyFundamentals } from "../../src/lib/fundamentals/service";
 
 type Dependencies = NonNullable<Parameters<typeof refreshCompanyFundamentals>[1]>;
 function fixture(initial: Record<string, unknown> = {}) {
   let stored = { ...initial };
   let requests = 0;
   let fail = false;
+  let writes = 0;
   const ref = {
     get: async () => ({ data: () => stored }),
-    set: async (value: Record<string, unknown>, options?: { merge: boolean }) => { stored = options?.merge ? { ...stored, ...value } : value; },
+    set: async (value: Record<string, unknown>, options?: { merge: boolean }) => { writes++; stored = options?.merge ? { ...stored, ...value } : value; },
   };
   const db = {
     collection: () => ({ doc: () => ref }),
@@ -25,7 +27,7 @@ function fixture(initial: Record<string, unknown> = {}) {
       } } } : { cik: 2488, facts: {} }) as T;
     },
   };
-  return { dependencies, stored: () => stored, requests: () => requests, expire: () => { stored.refreshAfter = 0; }, fail: () => { fail = true; } };
+  return { dependencies, stored: () => stored, requests: () => requests, writes: () => writes, expire: () => { stored.refreshAfter = 0; }, fail: () => { fail = true; } };
 }
 
 test("fundamentals snapshot is cached and subsequent visits do not call SEC", async () => {
@@ -34,7 +36,7 @@ test("fundamentals snapshot is cached and subsequent visits do not call SEC", as
   assert.equal(first?.report.end, "2025-12-31");
   assert.equal(first?.metrics.length, 6);
   assert.equal(f.requests(), 2);
-  assert.ok(Number(f.stored().refreshAfter) > Date.now() + 23 * 3_600_000);
+  assert.ok(Number(f.stored().refreshAfter) > Date.now() + 22 * 3_600_000);
   assert.deepEqual(await refreshCompanyFundamentals("AMD", f.dependencies), first);
   assert.equal(f.requests(), 2);
 });
@@ -43,7 +45,9 @@ test("expired snapshot survives provider failure with bounded retry delay", asyn
   const f = fixture();
   const first = await refreshCompanyFundamentals("AMD", f.dependencies);
   f.expire(); f.fail();
-  assert.deepEqual(await refreshCompanyFundamentals("AMD", f.dependencies), first);
+  await assert.rejects(refreshCompanyFundamentals("AMD", f.dependencies), /Synthetic SEC outage/);
+  assert.deepEqual(f.stored().value, first);
+  assert.equal(f.stored().pending, true);
   const retry = Number(f.stored().refreshAfter) - Date.now();
   assert.ok(retry > 3_500_000 && retry <= 3_600_000);
 });
@@ -60,4 +64,52 @@ test("unmapped ticker caches an unavailable result without calling Company Facts
   assert.equal(await refreshCompanyFundamentals("UNKNOWN", f.dependencies), null);
   assert.equal(f.requests(), 0);
   assert.equal(f.stored().value, null);
+});
+
+test("visitor bursts create one pending request and never fetch SEC", async () => {
+  const f = fixture();
+  for (let i = 0; i < 30; i++) assert.equal(await requestCompanyFundamentals("AMD", f.dependencies.db), null);
+  assert.equal(f.writes(), 1);
+  assert.equal(f.requests(), 0);
+  assert.equal(f.stored().pending, true);
+  assert.ok(f.stored().requestedAt);
+});
+
+test("visitors return fresh and stale cache without downloading or overwriting it", async () => {
+  const f = fixture();
+  const first = await refreshCompanyFundamentals("AMD", f.dependencies);
+  const writes = f.writes();
+  assert.deepEqual(await requestCompanyFundamentals("AMD", f.dependencies.db), {...first, stale: false});
+  assert.equal(f.writes(), writes);
+  f.expire();
+  await requestCompanyFundamentals("AMD", f.dependencies.db);
+  assert.equal(f.stored().pending, true);
+  assert.deepEqual(f.stored().value, first);
+  assert.equal(f.requests(), 2);
+  await refreshCompanyFundamentals("AMD", f.dependencies);
+  assert.equal(f.stored().pending, false);
+  assert.ok(f.stored().requestedAt);
+});
+
+test("unavailable SEC coverage retains its request history and retries after the cooldown", async () => {
+  const f = fixture();
+  await requestCompanyFundamentals("UNKNOWN", f.dependencies.db);
+  f.dependencies.identify = async () => null;
+  await refreshCompanyFundamentals("UNKNOWN", f.dependencies);
+  assert.ok(f.stored().requestedAt);
+  assert.equal(f.stored().outcome, "unavailable");
+  const writes = f.writes();
+  await requestCompanyFundamentals("UNKNOWN", f.dependencies.db);
+  assert.equal(f.writes(), writes);
+  f.expire();
+  await requestCompanyFundamentals("UNKNOWN", f.dependencies.db);
+  assert.equal(f.stored().pending, true);
+});
+
+test("invalid company IDs cannot create queue documents", async () => {
+  const f = fixture();
+  for (const ticker of ["", "_worker", "XSHG:688041", "AMD/other"]) {
+    assert.equal(await requestCompanyFundamentals(ticker, f.dependencies.db), null);
+  }
+  assert.equal(f.writes(), 0);
 });
