@@ -11,7 +11,6 @@ const cloudRequest: CloudRequest = async <T>(url: string, data?: unknown) => {
   return (await client.request<T>({ url, method: data ? "POST" : "GET", data, timeout: 20_000, retry: false })).data;
 };
 const q = (value: string) => JSON.stringify(value);
-const terminal = '(jsonPayload.message=~": run_(completed|failed)$")';
 const failedSeverity = (severity?: string) => ["ERROR", "CRITICAL", "ALERT", "EMERGENCY"].includes(severity ?? "");
 
 // The server chooses the project, job, filter and bounded page size. Clients may
@@ -19,6 +18,7 @@ const failedSeverity = (severity?: string) => ["ERROR", "CRITICAL", "ALERT", "EM
 export async function loadJobHistory(input: { job: JobId; view: HistoryView; pageToken?: string; runId?: string; execution?: string }, request: CloudRequest = cloudRequest, project = process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID): Promise<JobHistoryPage> {
   if (!project) throw new Error("Google Cloud project is not configured");
   const job = scheduledJobs[input.job];
+  const terminal = `jsonPayload.message=(${q(`${job.logJob}: run_completed`)} OR ${q(`${job.logJob}: run_failed`)})`;
   const region = process.env.GCP_REGION || "us-central1";
   const source = job.worker
     ? `resource.type="cloud_run_job" resource.labels.job_name=${q(job.worker)}`
@@ -90,8 +90,12 @@ export async function loadJobHistory(input: { job: JobId; view: HistoryView; pag
   const page = await listLogs(`${source} jsonPayload.message="daily-eod-maintenance: run_started"`, input.pageToken);
   const starts = page.entries ?? [];
   const ids = starts.map(s => s.jsonPayload?.runId).filter((id): id is string => typeof id === "string");
-  // Result query is bounded by the 20 run IDs in this page. Do not load all history.
-  const results = ids.length ? await findResults(`${source} ${terminal} jsonPayload.runId=(${ids.map(q).join(" OR ")})`, ids, entry => entry.jsonPayload?.runId) : { entries: [], incomplete: false };
+  // Run IDs are not indexed by default in Logging. Bound the scan with its indexed
+  // timestamp too, otherwise empty partial pages can exhaust our budget before
+  // reaching a completion that already exists. Preserve the exact provider timestamp.
+  const since = starts.map(s => s.timestamp).filter((value): value is string => Boolean(value)).sort()[0];
+  const timeRange = since ? ` timestamp>=${q(since)}` : "";
+  const results = ids.length ? await findResults(`${source}${timeRange} ${terminal} jsonPayload.runId=(${ids.map(q).join(" OR ")})`, ids, entry => entry.jsonPayload?.runId) : { entries: [], incomplete: false };
   return { records: starts.map(start => {
     const runId = String(start.jsonPayload?.runId ?? start.insertId);
     const end = results.entries?.find(log => log.jsonPayload?.runId === runId);

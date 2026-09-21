@@ -40,6 +40,9 @@ test("EOD pages join outcomes by run ID; incomplete runs never claim success", a
   assert.match(JSON.stringify(f.calls[0].data), /CN_A/);
   assert.equal((f.calls[0].data as { pageSize: number }).pageSize, 20);
   assert.equal((f.calls[0].data as { pageToken: string }).pageToken, "first-page");
+  const resultFilter = (f.calls[1].data as { filter: string }).filter;
+  assert.match(resultFilter, /timestamp>="2026-01-01T00:00:00Z"/);
+  assert.match(resultFilter, /jsonPayload.message=\("daily-eod-maintenance: run_completed" OR "daily-eod-maintenance: run_failed"\)/);
 });
 test("empty Logging pages retain next cursor, errors include SEC and detailed logs are execution-scoped", async () => {
   const f = fixture([{ entries: [], nextPageToken: "scan-more" }, { entries: [] }]);
@@ -86,6 +89,28 @@ test("outcome lookup follows partial Logging pages instead of declaring a comple
   assert.equal(page.records[0].status, "Succeeded");
   assert.equal((f.calls[2].data as { pageToken: string }).pageToken, "scan-2");
   assert.equal((f.calls[3].data as { pageToken: string }).pageToken, "scan-3");
+});
+
+test("EOD result scan starts at the oldest run on the requested page and keeps subsecond precision", async () => {
+  const since = "2026-09-18T17:10:52.123456Z";
+  const f = fixture([{ entries: [
+    { timestamp: "2026-09-21T17:10:52.987654Z", jsonPayload: { runId: "new" } },
+    { timestamp: since, jsonPayload: { runId: "old" } },
+  ], nextPageToken: "older-runs" }, { entries: ["new", "old"].map(runId => ({ jsonPayload: { runId, message: "daily-eod-maintenance: run_completed", priceLoad: { loaded: 52, failed: 0 } } })) }]);
+  const result = await loadJobHistory({ job: "us", view: "runs", pageToken: "page-two" }, f.request, "test-project");
+  assert.ok((f.calls[1].data as { filter: string }).filter.includes(`timestamp>=${JSON.stringify(since)}`));
+  assert.deepEqual(result.records.map(r => r.status), ["Succeeded", "Succeeded"]);
+  assert.equal(result.nextPageToken, "older-runs");
+  assert.equal(result.records[0].summary.priceLoad && (result.records[0].summary.priceLoad as {loaded:number}).loaded, 52);
+});
+
+test("exhausted result scans remain unknown rather than claiming success", async () => {
+  const f = fixture([{ entries: [{timestamp: "2026-09-21T17:10:52Z", jsonPayload: {runId: "missing"}}] },
+    ...[1,2,3].map(page => ({entries: [], nextPageToken: `scan-${page}`}))]);
+  const result = await loadJobHistory({job: "us", view: "runs"}, f.request, "test-project");
+  assert.equal(result.records[0].status, "Unknown");
+  assert.ok(result.warning);
+  assert.equal(f.calls.length, 4);
 });
 
 test("failed worker retains detailed results and failure from the same attempt across log pages", async () => {
