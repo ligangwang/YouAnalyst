@@ -9,13 +9,14 @@ function fixture(initial: Record<string, unknown> = {}) {
   let requests = 0;
   let fail = false;
   let writes = 0;
+  let transactions = 0;
   const ref = {
     get: async () => ({ data: () => stored, get: (key: string) => stored[key] }),
     set: async (value: Record<string, unknown>, options?: { merge: boolean }) => { writes++; stored = options?.merge ? { ...stored, ...value } : value; },
   };
   const db = {
     collection: () => ({ doc: () => ref }),
-    runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ get: ref.get, set: (_ref: unknown, value: Record<string, unknown>) => ref.set(value, { merge: true }) }),
+    runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => { transactions++; return fn({ get: ref.get, set: (_ref: unknown, value: Record<string, unknown>) => ref.set(value, { merge: true }) }); },
   } as unknown as Dependencies["db"];
   const dependencies: Dependencies = {
     db, identify: async () => "0000002488",
@@ -27,7 +28,7 @@ function fixture(initial: Record<string, unknown> = {}) {
       } } } : { cik: 2488, facts: {} }) as T;
     },
   };
-  return { dependencies, stored: () => stored, requests: () => requests, writes: () => writes, expire: () => { stored.refreshAfter = 0; }, fail: () => { fail = true; } };
+  return { dependencies, stored: () => stored, requests: () => requests, writes: () => writes, transactions: () => transactions, expire: () => { stored.refreshAfter = 0; }, fail: () => { fail = true; } };
 }
 
 test("fundamentals snapshot is cached and subsequent visits do not call SEC", async () => {
@@ -70,6 +71,7 @@ test("visitor bursts create one pending request and never fetch SEC", async () =
   const f = fixture();
   for (let i = 0; i < 30; i++) assert.equal(await requestCompanyFundamentals("AMD", f.dependencies.db), null);
   assert.equal(f.writes(), 1);
+  assert.equal(f.transactions(), 1);
   assert.equal(f.requests(), 0);
   assert.equal(f.stored().pending, true);
   assert.ok(f.stored().requestedAt);
@@ -79,8 +81,10 @@ test("visitors return fresh and stale cache without downloading or overwriting i
   const f = fixture();
   const first = await refreshCompanyFundamentals("AMD", f.dependencies);
   const writes = f.writes();
+  const transactions = f.transactions();
   assert.deepEqual(await requestCompanyFundamentals("AMD", f.dependencies.db), {...first, stale: false});
   assert.equal(f.writes(), writes);
+  assert.equal(f.transactions(), transactions);
   f.expire();
   await requestCompanyFundamentals("AMD", f.dependencies.db);
   assert.equal(f.stored().pending, true);

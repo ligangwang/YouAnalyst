@@ -1,6 +1,7 @@
 import { getAdminFirestore } from "../firebase/admin";
 import { maintenanceError } from "../maintenance-log";
 import type { CompanyFundamentals } from "./model";
+import type { DocumentData } from "firebase-admin/firestore";
 
 export const FUNDAMENTALS_COLLECTION = "company_fundamentals";
 export const validFundamentalsTicker = (ticker: string) => /^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker);
@@ -11,14 +12,19 @@ type Database = ReturnType<typeof getAdminFirestore>;
 export async function requestCompanyFundamentals(ticker: string, db: Database, now = Date.now()) {
   if (!validFundamentalsTicker(ticker)) return null;
   const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
+  const valueOf = (stored?: DocumentData) => stored?.version === 1 ? (stored.value as CompanyFundamentals | null) ?? null : null;
+  const needsRequest = (stored?: DocumentData) => stored?.pending !== true
+    && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now);
+  const fresh = (value: CompanyFundamentals | null) => value ? { ...value, stale: now - Date.parse(value.fetchedAt) > 2 * 86_400_000 } : null;
+  const current = (await ref.get()).data();
+  // Busy pages must not lock the cache document on every visitor read.
+  if (!needsRequest(current)) return fresh(valueOf(current));
   return db.runTransaction(async tx => {
     const stored = (await tx.get(ref)).data();
-    const value = stored?.version === 1 ? (stored.value as CompanyFundamentals | null) ?? null : null;
-    const due = (!stored?.requestedAt && !value) || Number(stored?.refreshAfter ?? 0) <= now;
-    if (due && stored?.pending !== true) {
+    if (needsRequest(stored)) {
       tx.set(ref, { version: 1, pending: true, requestedAt: new Date(now).toISOString() }, { merge: true });
     }
-    return value ? { ...value, stale: now - Date.parse(value.fetchedAt) > 2 * 86_400_000 } : null;
+    return fresh(valueOf(stored));
   });
 }
 

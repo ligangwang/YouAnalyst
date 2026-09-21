@@ -17,7 +17,7 @@ test("all US map nodes, including ADRs and share classes, are cached or requeste
   ]);
   const snapshot = (ref: {id:string}) => ({id:ref.id, data:()=>data.get(ref.id)});
   const db = {
-    collection: () => ({doc:(id:string)=>({id})}),
+    collection: () => ({doc:(id:string)=>({id,get:async()=>snapshot({id})})}),
     getAll: async (...refs: {id:string}[]) => refs.map(snapshot),
     runTransaction: async (fn:(tx:unknown)=>Promise<unknown>) => fn({
       get: async (ref:{id:string})=>snapshot(ref),
