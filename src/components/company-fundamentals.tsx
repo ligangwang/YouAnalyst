@@ -11,7 +11,7 @@ function displayValue(value: number | null, unit: string | null) {
 export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | null }) {
   return <section aria-labelledby="company-fundamentals" className="border-b border-white/15 py-6">
     <h2 id="company-fundamentals" className="scroll-mt-24 text-xl font-semibold text-cyan-100"><UiText text={"Business and financials"} /></h2>
-    {!data ? <p className="mt-3 text-sm text-slate-400"><UiText text={"No cached SEC fundamentals are available for this company. Financial data is updated daily in the background."} /></p> : <>
+    {!data ? <p className="mt-3 text-sm text-slate-400"><UiText text={"SEC fundamentals are not available for this company right now. Financial data is updated daily."} /></p> : <>
       <p className="mt-2 text-sm text-slate-300"><UiText text={"Annual report for the year ended "} />{data.report.end}<UiText text={". These are reported annual figures, not trailing twelve-month estimates."} /></p>
       {data.excerpt ? <details className="mt-4 rounded-xl border border-white/10 p-4" open>
         <summary className="cursor-pointer text-sm font-semibold text-cyan-200"><UiText text={"What the company says it does"} /></summary>

@@ -219,7 +219,7 @@
   "View call and history": "查看观点及历史",
   "Choose a watchlist for a new call": "为新观点选择自选股列表",
   "Business and financials": "业务与财务",
-  "No cached SEC fundamentals are available for this company. Financial data is updated daily in the background.": "这家公司暂无已缓存的 SEC 基本面数据。财务数据每天在后台更新。",
+  "SEC fundamentals are not available for this company right now. Financial data is updated daily.": "这家公司暂时没有可用的 SEC 基本面数据。财务数据每天更新。",
   "Annual report for the year ended": "年度报告，截至",
   ". These are reported annual figures, not trailing twelve-month estimates.": "。这些是已披露的年度数据，不是过去十二个月的估算值。",
   "What the company says it does": "公司如何描述自身业务",
