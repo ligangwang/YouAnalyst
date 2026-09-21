@@ -269,3 +269,13 @@ redacted. Document bodies are never recorded by transaction instrumentation.
 EOD processing semantics and retry policy are unchanged; this instrumentation does
 not itself resolve contention. Failure-status write errors no longer hide the
 original exception. No notification channel or alert policy is created by this change.
+
+### Admin scheduled-job history
+
+Open `/admin/jobs` (linked from the admin dashboard). All four production maintenance jobs have run history, results, errors/warnings, per-run logs and scheduler deliveries. Each view uses provider cursors with Previous/Next pagination, at most 20 entries per page. A Logging scan can return an empty page with a next cursor; Next remains available. Result joins only query run IDs on the current page and follow at most three bounded result pages; incomplete lookups show Unknown and a warning, never false success.
+
+Cloud Run Jobs supply authoritative execution status for SEC fundamentals and directory imports, including startup failures and cancellations. EOD runs join structured start/result/error logs by run ID and market; older runs without structured start logs are still visible through scheduler deliveries. Manual maintenance invocations can also appear. A scheduler delivery means its HTTP target accepted the request, not that a Cloud Run Job succeeded. Runs without a completion record become unconfirmed after one hour. Optional failures and warnings remain available in the error view even when a run succeeds.
+
+The backend reads existing Cloud Logging and Cloud Run APIs through ADC, using `GCP_PROJECT_ID` (or `NEXT_PUBLIC_FIREBASE_PROJECT_ID`) and `GCP_REGION` (default `us-central1`). Runtime permissions must include `logging.logEntries.list`, `logging.logs.list`, and `run.executions.list` for these jobs. No write access or new Firestore collection is needed. Production's existing runtime identity already has these reads. User requests require verified Firebase authentication and the existing admin-role check; responses are private/no-store and log credentials are redacted.
+
+Log history follows the existing `_Default` bucket's 30-day retention; execution availability follows Cloud Run's retention. A later successful retry does not erase earlier log entries. Results and error details are not copied into a new storage system.
