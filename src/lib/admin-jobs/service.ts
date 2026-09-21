@@ -62,7 +62,9 @@ export async function loadJobHistory(input: { job: JobId; view: HistoryView; pag
     if (executions.length) {
       try {
         const ids = executions.map(e => e.name.split("/").pop()!);
-        const logs = await findResults(`${source} ${terminal} labels."run.googleapis.com/execution_name"=(${ids.map(q).join(" OR ")})`, ids, entry => entry.labels?.["run.googleapis.com/execution_name"]);
+        const since = executions.map(e => e.createTime).sort()[0];
+        const logs = await findResults(`${source} timestamp>=${q(since)} ${terminal} labels."run.googleapis.com/execution_name"=(${ids.map(q).join(" OR ")})`, ids,
+          entry => String(entry.jsonPayload?.message).endsWith("run_completed") ? entry.labels?.["run.googleapis.com/execution_name"] : undefined);
         summaries = logs.entries;
         if (logs.incomplete) warning = "Some summaries are unavailable. Open run logs for the full history.";
       } catch { warning = "Run status is available, but result logs could not be loaded. Try refreshing."; }
@@ -70,7 +72,13 @@ export async function loadJobHistory(input: { job: JobId; view: HistoryView; pag
     return { records: executions.map(e => {
       const execution = e.name.split("/").pop()!;
       const completed = e.conditions?.find(c => c.type === "Completed");
-      const summary = summaries.find(s => s.labels?.["run.googleapis.com/execution_name"] === execution)?.jsonPayload ?? {};
+      const events = summaries.filter(s => s.labels?.["run.googleapis.com/execution_name"] === execution);
+      const latest = events[0]?.jsonPayload ?? {};
+      // A worker emits run_completed with counts before its final run_failed
+      // marker. Keep both, without mixing results from earlier retry attempts.
+      const result = events.find(s => s.jsonPayload?.taskAttempt === latest.taskAttempt
+        && String(s.jsonPayload?.message).endsWith("run_completed"))?.jsonPayload ?? {};
+      const summary = { ...result, ...latest };
       const status = e.cancelledCount ? "Cancelled" : completed?.state === "CONDITION_SUCCEEDED" ? "Succeeded"
         : completed?.state === "CONDITION_FAILED" ? "Failed" : e.completionTime ? "Unknown" : "Running";
       return { id: execution, execution, startedAt: e.startTime || e.createTime, endedAt: e.completionTime, status,

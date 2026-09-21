@@ -87,3 +87,21 @@ test("outcome lookup follows partial Logging pages instead of declaring a comple
   assert.equal((f.calls[2].data as { pageToken: string }).pageToken, "scan-2");
   assert.equal((f.calls[3].data as { pageToken: string }).pageToken, "scan-3");
 });
+
+test("failed worker retains detailed results and failure from the same attempt across log pages", async () => {
+  const labels = { "run.googleapis.com/execution_name": "e1" };
+  const f = fixture([{ executions: [{ name: "jobs/fundamentals/executions/e1", createTime: "2026-09-21T00:00:00Z", conditions: [{ type: "Completed", state: "CONDITION_FAILED" }] }] },
+    { entries: [{ labels, jsonPayload: { taskAttempt: "1", message: "refresh-sec-fundamentals: run_failed", error: { message: "2 requests failed" } } }], nextPageToken: "more-results" },
+    { entries: [
+      { labels, jsonPayload: { taskAttempt: "1", message: "refresh-sec-fundamentals: run_completed", processed: 11, failed: 2, remaining: 4, coverage: { cached: 67 } } },
+      { labels, jsonPayload: { taskAttempt: "0", message: "refresh-sec-fundamentals: run_completed", processed: 99, failed: 1 } },
+    ] },
+  ]);
+  const page = await loadJobHistory({ job: "fundamentals", view: "runs" }, f.request, "test-project");
+  assert.equal(page.records[0].status, "Failed");
+  assert.equal(page.records[0].summary.processed, 11);
+  assert.equal(page.records[0].summary.failed, 2);
+  assert.deepEqual(page.records[0].summary.error, { message: "2 requests failed" });
+  assert.deepEqual(page.records[0].summary.coverage, { cached: 67 });
+  assert.equal((f.calls[2].data as { pageToken: string }).pageToken, "more-results");
+});
