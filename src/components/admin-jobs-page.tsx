@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "@/components/providers/locale-provider";
 import { AdminEodRerun } from "./admin-eod-rerun";
+import { AdminSecRerun } from "./admin-sec-rerun";
 import { scheduledJobs, type JobId, type HistoryView, type JobHistoryPage, type JobRecord } from "@/lib/admin-jobs/model";
 
 const button = "rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40";
@@ -72,6 +73,7 @@ export function AdminJobsPage() {
       <p className="py-2 text-sm text-slate-400">{activeJob.schedule}</p>
     </div>
     {(query.job === "us" || query.job === "china") && <AdminEodRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
+    {query.job === "fundamentals" && <AdminSecRerun onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     <nav aria-label={text("Job history views", "任务历史视图")} className="mb-4 flex flex-wrap gap-2">
       {([ ["runs", "Runs", "运行记录"], ["errors", "Errors & warnings", "错误和警告"], ["scheduler", "Scheduler deliveries", "调度触发记录"] ] as const).map(([view, en, zh]) =>
         <button key={view} onClick={() => changeView(view)} aria-pressed={query.view === view && !query.run} className={`${button} ${query.view === view && !query.run ? "border-cyan-400 bg-cyan-950 text-cyan-100" : ""}`}>{text(en, zh)}</button>)}

@@ -54,7 +54,8 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
     const snapshot = await tx.get(ref);
     const stored = snapshot.data();
     const value = stored?.version === 1 ? (stored.value as CompanyFundamentals | null) ?? null : null;
-    if (stored?.version === 1 && Number(stored.refreshAfter) > now) return { acquired: false, value };
+    const needsShareUpgrade = stored?.outcome === "ready" && value && !value.shareAssessment;
+    if (stored?.version === 1 && Number(stored.refreshAfter) > now && !needsShareUpgrade) return { acquired: false, value };
     tx.set(ref, { version: 1, pending: true, refreshAfter: now + 90_000, lastAttemptAt: new Date(now).toISOString() }, { merge: true });
     return { acquired: true, value };
   });

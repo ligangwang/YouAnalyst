@@ -22,7 +22,7 @@ jobs:
       - name: Build fundamentals image
         run: |
           image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/sec-fundamentals:$GITHUB_SHA"
-          gcloud builds submit . --project "$GCP_PROJECT_ID" --config cloudbuild.fundamentals.yaml --substitutions "_IMAGE=$image"
+          gcloud builds submit . --project "$GCP_PROJECT_ID" --config cloudbuild.fundamentals.yaml --substitutions "_IMAGE=$image" --suppress-logs
           echo "FUNDAMENTALS_IMAGE=$image" >> "$GITHUB_ENV"
       - name: Deploy scheduled worker without executing maintenance
         env:

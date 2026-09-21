@@ -108,3 +108,22 @@ test("admin selects a date and reruns EOD once, then sees the result and refresh
   await expect.poll(() => historyReads).toBeGreaterThan(readsBefore);
   await expect(page.getByRole("button", { name: "Rerun for this date", exact: true })).toBeEnabled();
 });
+
+test("admin starts SEC job in the background without a trading date",async({page})=>{
+ await page.addInitScript(()=>{window.authScenario={signedIn:true};});
+ let starts=0;
+ await page.route("**/*",route=>{
+  const url=new URL(route.request().url());
+  if(url.pathname==="/api/admin/me")return route.fulfill({json:{isAdmin:true}});
+  if(url.pathname==="/api/admin/jobs/sec"){expect(route.request().method()).toBe("POST");starts++;return route.fulfill({status:202,json:{ok:true,operation:"operations/test"}});}
+  if(url.pathname==="/api/admin/jobs")return route.fulfill({json:{records:[],nextPageToken:null}});
+  return route.fulfill({contentType:"text/html",body:html});
+ });
+ await page.goto(origin);
+ await expect(page.getByLabel("Trading date",{exact:true})).toHaveCount(0);
+ await page.getByRole("button",{name:"Run SEC fundamentals now",exact:true}).click();
+ await expect(page.getByRole("status").filter({hasText:"Run requested."})).toContainText("continues in the background");
+ expect(starts).toBe(1);
+ await page.getByLabel("Job",{exact:true}).selectOption("us");
+ await expect(page.getByRole("button",{name:"Run SEC fundamentals now",exact:true})).toHaveCount(0);
+});
