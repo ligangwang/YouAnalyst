@@ -5,6 +5,7 @@ import { auditMapFundamentals, drainFundamentalsQueue, seedMapFundamentals, usMa
 import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
+import { refreshCachedMarketCaps } from "../src/lib/fundamentals/market-cap";
 
 const log = createMaintenanceLog("refresh-sec-fundamentals");
 async function main() {
@@ -21,11 +22,15 @@ async function main() {
     log.emit("INFO", "map_seeded", await seedMapFundamentals(db, tickers));
     if (process.argv.includes("--seed-only")) return;
     log.stage("fetch_queue");
-    const result = await drainFundamentalsQueue(db, log, deadline);
+    // Reserve time for valuation updates even when SEC requests consume their budget.
+    const result = await drainFundamentalsQueue(db, log, deadline - 120_000);
     const coverage = await auditMapFundamentals(db, tickers);
-    await lease.set({ lastRunAt: new Date().toISOString(), result, coverage }, { merge: true });
-    log.emit(result.failed ? "ERROR" : "INFO", "run_completed", { ...result, coverage });
-    if (result.failed) throw new Error(`${result.failed} fundamentals requests failed or are awaiting retry`);
+    log.stage("market_caps");
+    const marketCaps = await refreshCachedMarketCaps(db, log, deadline);
+    await lease.set({ lastRunAt: new Date().toISOString(), result, coverage, marketCaps }, { merge: true });
+    const failed = result.failed || marketCaps.failed || marketCaps.incomplete;
+    log.emit(failed ? "ERROR" : "INFO", "run_completed", { ...result, coverage, marketCaps });
+    if (failed) throw new Error("Fundamentals or market-cap refresh failed or is incomplete; see run summary");
   } finally {
     await releaseMaintenanceLease(lease, log.runId);
   }
