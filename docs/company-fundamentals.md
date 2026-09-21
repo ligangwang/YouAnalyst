@@ -13,3 +13,14 @@ A shared worker lease prevents overlapping executions; per-company 90-second lea
 Validation includes annual versus quarter/YTD separation, restatements and source provenance, missing/zero/negative values, ambiguous records, currency units, issuer identity, safe filing paths, narrative boilerplate, and desktop/mobile presentation. AMD's public 2025 annual data and Item 1 were also checked during implementation.
 
 Reference: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
+
+SEC failures are logged at the shared request boundary, before an optional caller can recover from them. HTTP errors (including 403/429), network failures, timeouts, cancellation, JSON decoding and filing-body read failures emit one structured `sec_request_failed` event per failed request to Cloud Logging. Events include a unique request ID, endpoint path, status, failure kind, duration, retry-after and provider request ID when available, CIK/company/filing context, revision and Cloud Run execution/attempt. Fundamentals batch events additionally share the company and run ID with the maintenance logs. Requests have a 12-second timeout; existing queue cooldowns and retries remain in force. Headers, credentials, query strings and response bodies are not recorded. Successful requests do not emit error events.
+
+In Google Cloud Logs Explorer, select project `ifindata-80905` and use:
+
+```text
+(resource.type="cloud_run_revision" OR resource.type="cloud_run_job")
+jsonPayload.event="sec_request_failed"
+```
+
+Filter further with `jsonPayload.status=429`, `jsonPayload.ticker="AMD"`, `jsonPayload.cik="0000002488"`, `jsonPayload.kind="timeout"` or a `jsonPayload.runId` from the failed job. Request failures remain in Cloud Logging even when a later retry clears the company's latest error in Firestore. Retention follows the project's log bucket policy.

@@ -1,3 +1,5 @@
+import { secRequest } from "../sec-request";
+
 export type SecCompanyIdentity = {
   cik: string;
   name: string;
@@ -46,35 +48,23 @@ function getSecUserAgent(): string {
   return `YouAnalyst company graph ${appUrl}`;
 }
 
-async function fetchSecJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
+async function fetchSecJson<T>(url: string, fields: { ticker?: string; cik?: string }): Promise<T> {
+  return secRequest(url, {
     headers: {
       accept: "application/json",
       "user-agent": getSecUserAgent(),
     },
-  });
-
-  if (!response.ok) {
-    throw new Error(`SEC request failed (${response.status}): ${url}`);
-  }
-
-  return (await response.json()) as T;
+  }, response => response.json() as Promise<T>, { ...fields, operation: "company_graph_json" });
 }
 
-async function fetchSecText(url: string, signal?: AbortSignal): Promise<string> {
-  const response = await fetch(url, {
+async function fetchSecText(url: string, fields: { cik: string; accession: string }, signal?: AbortSignal): Promise<string> {
+  return secRequest(url, {
     signal,
     headers: {
       accept: "text/html,application/xhtml+xml,text/plain",
       "user-agent": getSecUserAgent(),
     },
-  });
-
-  if (!response.ok) {
-    throw Object.assign(new Error(`SEC filing download failed (${response.status}): ${url}`), { code: response.status });
-  }
-
-  return response.text();
+  }, response => response.text(), { ...fields, operation: "filing_download" });
 }
 
 function normalizeTicker(value: string): string {
@@ -391,7 +381,7 @@ export async function resolveSecCompanyByTicker(ticker: string): Promise<SecComp
     throw new Error("Ticker is required.");
   }
 
-  const payload = await fetchSecJson<SecCompanyTickersResponse>(`${SEC_BASE_URL}/files/company_tickers_exchange.json`);
+  const payload = await fetchSecJson<SecCompanyTickersResponse>(`${SEC_BASE_URL}/files/company_tickers_exchange.json`, { ticker: normalizedTicker });
   const fields = Array.isArray(payload.fields) ? payload.fields.map(String) : [];
   const data = Array.isArray(payload.data) ? payload.data : [];
   const cikIndex = fields.indexOf("cik");
@@ -420,7 +410,7 @@ export async function resolveSecCompanyByTicker(ticker: string): Promise<SecComp
 
 export async function fetchLatest10K(cik: string): Promise<SecLatest10K> {
   const paddedCik = padCik(cik);
-  const payload = await fetchSecJson<SecSubmissionsResponse>(`${SEC_DATA_BASE_URL}/submissions/CIK${paddedCik}.json`);
+  const payload = await fetchSecJson<SecSubmissionsResponse>(`${SEC_DATA_BASE_URL}/submissions/CIK${paddedCik}.json`, { cik: paddedCik });
   const recent = payload.filings?.recent;
   if (!recent) {
     throw new Error(`No SEC submissions found for CIK ${paddedCik}.`);
@@ -447,7 +437,7 @@ export async function fetchLatest10K(cik: string): Promise<SecLatest10K> {
 }
 
 export async function fetchLatest10KSections(cik: string, filing: SecLatest10K, signal?: AbortSignal): Promise<SecFilingSection[]> {
-  const html = await fetchSecText(filing.filingUrl, signal);
+  const html = await fetchSecText(filing.filingUrl, { cik, accession: filing.accessionNumber }, signal);
   const anchoredSections = extractAnchoredSections(html);
   const text = htmlToText(html);
   const fallbackSections = [
