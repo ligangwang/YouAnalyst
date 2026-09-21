@@ -25,15 +25,26 @@ export async function saveLatestEodPrice(db: Firestore, price: LatestEodPrice) {
       : d.micCode === price.ticker.split(":")[0];
   }) ?? [];
   const refs = matching.length ? matching.map(d => d.ref) : [db.collection("tickers").doc(price.market === "FX" ? "FX_USD_CNY" : `${price.market}_${price.ticker}`)];
-  await db.runTransaction(async tx => {
-    const current = await tx.getAll(...refs);
-    current.forEach((doc, i) => {
-      if (!shouldReplaceLatest(doc.data()?.latestEodPrice, price)) return;
-      tx.set(refs[i], { latestEodPrice: price, ...(!doc.exists ? {symbol, market: price.market,
-        assetType: price.market === "FX" ? "fx" : "equity", currency: price.currency,
-        active: false, predictionSupported: false} : {}) }, {merge:true});
-    });
-  });
+  for (const ref of refs) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const doc = await ref.get();
+        if (!shouldReplaceLatest(doc.data()?.latestEodPrice, price)) break;
+        if (doc.exists) await ref.update({latestEodPrice:price}, {lastUpdateTime:doc.updateTime!});
+        else await ref.create({latestEodPrice:price,symbol,market:price.market,
+          assetType:price.market === "FX" ? "fx" : "equity",currency:price.currency,
+          active:false,predictionSupported:false});
+        break;
+      } catch (error) {
+        const code = Number((error as {code?:number}).code);
+        const retry = [6,9,10].includes(code) && attempt < 4;
+        console.warn(JSON.stringify({event:"latest_eod_write_failed",ticker:price.ticker,
+          document:ref.id,code,attempt,retry}));
+        if (!retry) throw error;
+        await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt));
+      }
+    }
+  }
 }
 
 export async function readLatestUsPrices(db: Firestore, tickers: string[]) {

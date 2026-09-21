@@ -65,6 +65,8 @@ test("the EOD job fetches and persists all 67 map prices with zero predictions, 
       const query = { where: () => query, orderBy: () => query, limit: () => query,
         get: async () => ({ docs: name === "companies" ? companies : [], empty: name !== "companies", size: name === "companies" ? companies.length : 0 }),
         doc: (id: string) => ({ firestore: db, get: async () => ({ exists: documents.has(`${name}/${id}`), data: () => documents.get(`${name}/${id}`), get: (key: string) => documents.get(`${name}/${id}`)?.[key] }),
+          create: async (value: Record<string, unknown>) => { documents.set(name + "/" + id, value); },
+          update: async (value: Record<string, unknown>) => { documents.set(name + "/" + id, { ...documents.get(name + "/" + id), ...value }); },
           set: async (value: Record<string, unknown>) => { documents.set(`${name}/${id}`, { ...documents.get(`${name}/${id}`), ...value }); } }),
       };
       return query;
