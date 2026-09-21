@@ -20,6 +20,7 @@ test.beforeAll(async () => {
       const company = buildCompanyResearch("AMD", [], fixtureGraph);
       const report = { cik: "0000002488", accession: "0000002488-26-000010", form: "10-K", filed: "2026-02-01", end: "2025-12-27", url: "https://www.sec.gov/Archives/example.htm" };
       const data = { report, metrics: annualMetrics({cik:2488, facts:{"us-gaap":{Revenues:{units:{USD:[{val:1000000000,start:"2024-12-29",end:report.end,filed:report.filed,accn:report.accession,form:"10-K"}]}}}}}, report), excerpt: "Synthetic business excerpt for company-page testing.", fetchedAt: "2026-09-09T00:00:00Z" };
+      if (new URLSearchParams(location.search).has("marketCap")) data.marketCap = { status:"estimated",value:2500000000,currency:"USD",priceDate:"2026-09-18",shares:{date:"2026-08-01",filed:"2026-08-05",sourceUrl:"https://www.sec.gov/Archives/shares.htm"} };
       createRoot(document.getElementById("root")).render(<TickerPage ticker="AMD" overview={<CompanyResearchOverview company={company} fundamentals={<CompanyFundamentalsView data={data} />} />} />);
     `, resolveDir: process.cwd(), loader: "tsx" },
     bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" },
@@ -42,13 +43,21 @@ for (const predictionsAvailable of [true, false]) {
       if (url.pathname === "/api/ticker/AMD" && predictionsAvailable) return route.fulfill({ json: { items: [], ticker: "AMD", nextCursor: null } });
       return route.fulfill({ status: 503, json: { error: "Test service unavailable" } });
     });
-    await page.goto(origin);
+    await page.goto(predictionsAvailable ? `${origin}?marketCap=1` : origin);
     await expect(page.getByRole("heading", { name: "Advanced Micro Devices (AMD)", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Business and financials", exact: true })).toBeVisible();
     await expect(page.getByText("1B USD", { exact: true })).toBeVisible();
     await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Filed 2026-02-01 ↗", exact: true })).toHaveAttribute("href", /sec.gov\/Archives\/edgar\/data\/2488\//);
-    await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(5);
+    await expect(page.getByText("Estimated market cap", { exact: true })).toBeVisible();
+    await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(predictionsAvailable ? 5 : 6);
+    if (predictionsAvailable) {
+      await expect(page.getByText("2.5B USD", {exact:true})).toBeVisible();
+      await expect(page.getByText("As of 2026-09-18", {exact:true})).toBeVisible();
+      await page.getByText("Calculation details", {exact:true}).click();
+      await expect(page.getByText("Share count as of 2026-08-01", {exact:true})).toBeVisible();
+      await expect(page.getByRole("link", {name:"Filed 2026-08-05 ↗",exact:true})).toHaveAttribute("href","https://www.sec.gov/Archives/shares.htm");
+    }
     await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DUP/);
     await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DDOWN/);
     await expect(page.getByRole("link", { name: "Research NVIDIA (NVDA)" })).toHaveAttribute("href", "/ticker/NVDA");
