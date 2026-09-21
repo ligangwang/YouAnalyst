@@ -6,6 +6,7 @@ import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { refreshCachedMarketCaps } from "../src/lib/fundamentals/market-cap";
+import { backfillLatestEod } from "../src/lib/predictions/backfill-latest-eod";
 
 const log = createMaintenanceLog("refresh-sec-fundamentals");
 async function main() {
@@ -16,6 +17,12 @@ async function main() {
   if (!await acquireMaintenanceLease(lease, log.runId, Date.now(), cloudRunTaskAttempt())) throw new Error("Another fundamentals worker holds the lease");
   const deadline = Date.now() + 18 * 60_000;
   try {
+    if (process.argv.includes("--backfill-latest-only")) {
+      log.stage("backfill_latest_prices");
+      await backfillLatestEod(db, true);
+      log.emit("INFO", "run_completed", {backfill:true});
+      return;
+    }
     log.stage("seed_map");
     const tickers = usMapTickers(await loadKnowledgeGraph());
     if (!tickers.length) throw new Error("No US map companies found; refusing an incomplete coverage check");

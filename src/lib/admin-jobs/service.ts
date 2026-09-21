@@ -101,7 +101,8 @@ export async function loadJobHistory(input: { job: JobId; view: HistoryView; pag
     const runId = String(start.jsonPayload?.runId ?? start.insertId);
     const end = results.entries?.find(log => log.jsonPayload?.runId === runId);
     const payload = end?.jsonPayload ?? {};
-    const partial = Number((payload.priceLoad as { failed?: number } | undefined)?.failed ?? 0) > 0;
+    const partial = Number((payload.priceLoad as { failed?: number } | undefined)?.failed ?? 0) > 0
+      || Number((payload.fx as { failed?: number } | undefined)?.failed ?? 0) > 0;
     const status = end ? (String(payload.message).endsWith("run_failed") || failedSeverity(end.severity) ? "Failed" : partial ? "Completed with errors" : "Succeeded")
       : results.incomplete ? "Unknown" : Date.now() - Date.parse(start.timestamp ?? "") < 3_600_000 ? "Running" : "No completion recorded";
     return { id: runId, runId, startedAt: start.timestamp ?? "", endedAt: end?.timestamp, status,
