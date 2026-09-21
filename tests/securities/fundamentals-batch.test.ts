@@ -33,7 +33,9 @@ test("all US map nodes, including ADRs and share classes, are cached or requeste
 });
 
 function queueFixture(data: Map<string, Record<string, unknown>>) {
-  const db = { collection: () => ({ where: () => {
+  const db = { collection: () => ({
+    doc: (id:string) => ({ get:async()=>({get:(key:string)=>data.get(id)?.[key]}), set:async(value:Record<string,unknown>)=>{data.set(id,{...data.get(id),...value});} }),
+    where: () => {
     let after = "", limit = Infinity;
     const rows = () => [...data].filter(([id, value]) => value.pending === true && id > after).sort(([a],[b]) => a.localeCompare(b));
     const query = {
@@ -57,13 +59,31 @@ test("queue pagination does not skip requests when completed entries disappear",
 });
 
 test("rate-limit responses stop the batch and leave untouched requests queued", async () => {
-  const data = new Map([ ["AMD",{pending:true}], ["MU",{pending:true}] ]);
+  const data = new Map<string,Record<string,unknown>>([ ["AMD",{pending:true}], ["MU",{pending:true}] ]);
   const {db,log} = queueFixture(data);
   let calls=0;
   const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;throw Object.assign(new Error("SEC status 429"),{code:429});});
   assert.equal(calls,1);
   assert.equal(result.failed,1);
   assert.equal(result.remaining,2);
+  data.set("AAPL",{pending:true});
+  const retried=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;return null;});
+  assert.equal(calls,1);
+  assert.equal(retried.failed,1);
+  assert.equal(retried.remaining,3);
+});
+
+test("a saved per-company SEC block stops a retry before other queued tickers", async () => {
+  const data=new Map<string,Record<string,unknown>>([
+    ["AMD",{pending:true,outcome:"retry",refreshAfter:Date.now()+3600000,lastError:{code:403}}],
+    ["MU",{pending:true}],
+  ]);
+  const {db,log}=queueFixture(data);
+  let calls=0;
+  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{calls++;return null;});
+  assert.equal(calls,0);
+  assert.equal(result.failed,1);
+  assert.ok(Number(data.get("_worker")?.providerRetryAfter)>Date.now());
 });
 
 test("a retry during provider cooldown still reports the unresolved failure", async () => {

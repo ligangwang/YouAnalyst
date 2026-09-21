@@ -10,7 +10,7 @@ function fixture(initial: Record<string, unknown> = {}) {
   let fail = false;
   let writes = 0;
   const ref = {
-    get: async () => ({ data: () => stored }),
+    get: async () => ({ data: () => stored, get: (key: string) => stored[key] }),
     set: async (value: Record<string, unknown>, options?: { merge: boolean }) => { writes++; stored = options?.merge ? { ...stored, ...value } : value; },
   };
   const db = {
@@ -112,4 +112,20 @@ test("invalid company IDs cannot create queue documents", async () => {
     assert.equal(await requestCompanyFundamentals(ticker, f.dependencies.db), null);
   }
   assert.equal(f.writes(), 0);
+});
+
+for (const code of [403, 429]) test(`filing HTML ${code} preserves the queue instead of marking a company ready`, async () => {
+  const f = fixture();
+  const readJson = f.dependencies.readJson!;
+  f.dependencies.readJson = async <T>(url: string): Promise<T> => {
+    const value = await readJson<T>(url);
+    if (url.includes("submissions")) (value as {filings:{recent:{form:string[]}}}).filings.recent.form = ["10-K"];
+    return value;
+  };
+  f.dependencies.readSections = async () => { throw Object.assign(new Error("SEC filing blocked"), {code}); };
+  await requestCompanyFundamentals("AMD", f.dependencies.db);
+  await assert.rejects(refreshCompanyFundamentals("AMD", f.dependencies), /SEC filing blocked/);
+  assert.equal(f.stored().pending, true);
+  assert.equal(f.stored().outcome, "retry");
+  assert.equal((f.stored().lastError as {code:number}).code, code);
 });

@@ -42,7 +42,7 @@ async function resolveCik(ticker: string): Promise<string | null> {
 }
 
 export async function refreshCompanyFundamentals(ticker: string, dependencies?: {
-  db: ReturnType<typeof getAdminFirestore>; identify?: typeof resolveCik; readJson?: typeof secJson; log?: MaintenanceLog;
+  db: ReturnType<typeof getAdminFirestore>; identify?: typeof resolveCik; readJson?: typeof secJson; readSections?: typeof fetchLatest10KSections; log?: MaintenanceLog;
 }): Promise<CompanyFundamentals | null> {
   if (!validFundamentalsTicker(ticker)) throw new Error("Invalid fundamentals ticker");
   const db = dependencies?.db ?? getAdminFirestore();
@@ -80,10 +80,12 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
         if (typeof section.get("text") === "string") excerpt = businessExcerpt(section.get("text"));
         if (!excerpt) {
           await secTurn();
-          const sections = await fetchLatest10KSections(cik, { accessionNumber: report.accession, filingDate: report.filed, reportDate: report.end, primaryDocument: report.url.split("/").pop()!, filingUrl: report.url }, AbortSignal.timeout(12_000));
+          const sections = await (dependencies?.readSections ?? fetchLatest10KSections)(cik, { accessionNumber: report.accession, filingDate: report.filed, reportDate: report.end, primaryDocument: report.url.split("/").pop()!, filingUrl: report.url }, AbortSignal.timeout(12_000));
           excerpt = businessExcerpt(sections.find(item => item.id === "item1")?.text ?? "");
         }
       } catch (error) {
+        const code = maintenanceError(error).code;
+        if (code === 403 || code === 429) throw error;
         dependencies?.log?.emit("WARNING", "excerpt_unavailable", { ticker, error: maintenanceError(error) });
         excerpt = lease.value?.report.accession === report.accession ? lease.value.excerpt : null;
       }

@@ -32,6 +32,14 @@ export async function auditMapFundamentals(db: Firestore, tickers: string[]) {
 
 export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog, deadline: number, refresh = refreshCompanyFundamentals) {
   const result = { processed: 0, failed: 0, deferred: 0, remaining: 0 };
+  const worker = db.collection(FUNDAMENTALS_COLLECTION).doc("_worker");
+  const cooldown = Number((await worker.get()).get("providerRetryAfter") ?? 0);
+  if (cooldown > Date.now()) {
+    log.emit("WARNING", "provider_cooldown", { retryAfter: new Date(cooldown).toISOString() });
+    result.failed = 1;
+    result.remaining = (await db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).count().get()).data().count;
+    return result;
+  }
   let cursor: string | undefined;
   let stop = false;
   while (!stop && Date.now() < deadline && result.processed < 500) {
@@ -45,7 +53,14 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
       const queued = doc.data();
       if (Number(queued.refreshAfter) > Date.now()) {
         result.deferred++;
-        if (queued.outcome === "retry") result.failed++;
+        if (queued.outcome === "retry") {
+          result.failed++;
+          if (queued.lastError?.code === 403 || queued.lastError?.code === 429) {
+            await worker.set({ providerRetryAfter: queued.refreshAfter }, { merge: true });
+            stop = true;
+            break;
+          }
+        }
         continue;
       }
       try {
@@ -59,7 +74,11 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
         const details = maintenanceError(error);
         log.emit("ERROR", "company_failed", { ticker: doc.id, error: details });
         // Do not hammer the provider after a block or rate-limit response.
-        if (details.code === 403 || details.code === 429) { stop = true; break; }
+        if (details.code === 403 || details.code === 429) {
+          await worker.set({ providerRetryAfter: Date.now() + 3_600_000 }, { merge: true });
+          stop = true;
+          break;
+        }
       }
     }
     if (page.size < 100) break;
