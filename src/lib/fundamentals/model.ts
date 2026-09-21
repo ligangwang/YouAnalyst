@@ -6,6 +6,8 @@ export type FundamentalMetric = {
   end: string; filed: string | null; sourceUrl: string | null; tag: string | null;
 };
 export type CompanyFundamentals = {
+  shareAssessment?: import("./market-cap").ShareAssessment;
+  marketCap?: import("./market-cap").MarketCap;
   report: AnnualReport; metrics: FundamentalMetric[]; excerpt: string | null; fetchedAt: string; stale?: boolean;
 };
 

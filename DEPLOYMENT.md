@@ -309,3 +309,26 @@ Log history follows the existing `_Default` bucket's 30-day retention; execution
 ### Generic graph membership
 
 Company graph metadata is now written to `companies.inGraph` (the same membership object previously stored in `aiGraph`, not a boolean). Readers query both published fields during the transition, deduplicate company IDs, and prefer `inGraph` when both exist. Existing legacy records remain usable without an immediate rewrite; import/publish replays copy their reviewed metadata into `inGraph`. No new collection is required. Separate industry views will still require graph identifiers and filtering.
+
+### Estimated market capitalization
+
+The SEC fundamentals job recalculates market caps after draining its SEC queue,
+including companies whose SEC cache remains fresh. It reads the latest dated US
+price already in `eod_prices` using the existing document-ID index; it does not
+fetch prices. Results are stored as `company_fundamentals/{ticker}.marketCap` and
+returned with cached fundamentals. No new collection is created.
+
+Values are estimates in USD, with price date, closing price, share-count date,
+filing date, SEC source, and calculation timestamp. The worker uses instantaneous
+`dei:EntityCommonStockSharesOutstanding`, never weighted-average EPS shares.
+Foreign annual filers, multiple/unknown ticker mappings, conflicting shares,
+share counts older than 180 days or newer than the price, and detected later
+split disclosures yield an unavailable reason. Corporate actions not yet reported
+to SEC can still make estimates differ from vendor market caps. Separate ADR and
+multi-class support requires verified share ratios/class coverage.
+
+The job reserves two minutes of its existing deadline for these cache-only
+calculations. Per-company failures are logged, and terminal summaries include
+estimated/unavailable/failed counts and incomplete status. Deployment requires
+both the web release and the manual `Deploy SEC fundamentals job` workflow; the
+next scheduled execution populates the new fields as SEC snapshots refresh.

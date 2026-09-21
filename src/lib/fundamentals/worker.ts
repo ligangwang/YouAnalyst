@@ -4,6 +4,7 @@ import { annualMetrics, businessExcerpt, latestAnnualReport, type CompanyFacts, 
 import { FUNDAMENTALS_COLLECTION, validFundamentalsTicker } from "./service";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { secRequest } from "../sec-request";
+import { assessShares } from "./market-cap";
 
 const DAY = 86_400_000;
 let identities: { expires: number; value: Promise<Map<string, string>> } | null = null;
@@ -64,7 +65,7 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
       await ref.set({ version: 1, value: lease.value, pending: false, outcome: "unavailable", unavailableReason: "No SEC ticker mapping", refreshAfter: now + 7 * DAY, lastError: null }, { merge: true });
       return null;
     }
-    const submissions = await readJson<Parameters<typeof latestAnnualReport>[1]>(`https://data.sec.gov/submissions/CIK${cik}.json`);
+    const submissions = await readJson<Parameters<typeof latestAnnualReport>[1] & { tickers?: string[] }>(`https://data.sec.gov/submissions/CIK${cik}.json`);
     const report = latestAnnualReport(cik, submissions);
     if (!report) {
       await ref.set({ version: 1, value: lease.value, pending: false, outcome: "unavailable", unavailableReason: "No annual SEC report", refreshAfter: now + 7 * DAY, lastError: null }, { merge: true });
@@ -89,7 +90,8 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
         excerpt = lease.value?.report.accession === report.accession ? lease.value.excerpt : null;
       }
     }
-    const value: CompanyFundamentals = { report, metrics: annualMetrics(facts, report), excerpt, fetchedAt: new Date().toISOString() };
+    const value: CompanyFundamentals = { report, metrics: annualMetrics(facts, report), excerpt, fetchedAt: new Date().toISOString(),
+      shareAssessment: assessShares(facts, ticker, submissions.tickers, report.form) };
     // Freshness margin prevents daily runs skipping yesterday's cache if today's
     // worker starts a few seconds earlier.
     await ref.set({ version: 1, value, pending: false, outcome: "ready", unavailableReason: null, lastError: null, refreshAfter: Date.now() + 23 * 3_600_000 }, { merge: true });

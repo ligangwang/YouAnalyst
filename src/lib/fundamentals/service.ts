@@ -12,7 +12,8 @@ type Database = ReturnType<typeof getAdminFirestore>;
 export async function requestCompanyFundamentals(ticker: string, db: Database, now = Date.now()) {
   if (!validFundamentalsTicker(ticker)) return null;
   const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
-  const valueOf = (stored?: DocumentData) => stored?.version === 1 ? (stored.value as CompanyFundamentals | null) ?? null : null;
+  const valueOf = (stored?: DocumentData): CompanyFundamentals | null => stored?.version === 1 && stored.value
+    ? { ...stored.value, ...(stored.marketCap ? { marketCap: stored.marketCap } : {}) } : null;
   const needsRequest = (stored?: DocumentData) => stored?.pending !== true
     && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now);
   const fresh = (value: CompanyFundamentals | null) => value ? { ...value, stale: now - Date.parse(value.fetchedAt) > 2 * 86_400_000 } : null;
