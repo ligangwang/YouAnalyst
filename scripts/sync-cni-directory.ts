@@ -2,10 +2,35 @@ import { readFile } from "node:fs/promises";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { importCniDirectory } from "../src/lib/industry-research/directory-sync";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
+import { acquireMaintenanceLease, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
+
+const log = createMaintenanceLog("sync-cni-directory");
 
 async function main() {
-  if (!process.env.GCP_PROJECT_ID || !process.argv[2]) throw new Error("Project and input file required.");
+  if (!process.env.GCP_PROJECT_ID) throw new Error("Project required.");
   initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
-  console.log(await importCniDirectory(getFirestore(), JSON.parse(await readFile(process.argv[2], "utf8"))));
+  const db = getFirestore();
+  const lease = db.collection("directory_syncs").doc("CN_A_CNI");
+  log.stage("acquire_lease");
+  if (!await acquireMaintenanceLease(lease, log.runId)) {
+    log.emit("WARNING", "overlap_skipped");
+    return;
+  }
+  try {
+    const input = process.argv[2] ?? "/tmp/cni-directory.json";
+    if (!process.argv[2]) {
+      log.stage("download_snapshot");
+      const { stdout } = await promisify(execFile)("python3", ["scripts/download-cni-directory.py", input], { timeout: 150_000 });
+      log.emit("INFO", "snapshot_downloaded", JSON.parse(stdout));
+    }
+    log.stage("import_snapshot");
+    const result = await importCniDirectory(db, JSON.parse(await readFile(input, "utf8")), log);
+    log.emit("INFO", "run_completed", result);
+  } finally {
+    await releaseMaintenanceLease(lease, log.runId).catch(error => log.emit("ERROR", "lease_release_failed", { error: maintenanceError(error) }));
+  }
 }
-main().catch(() => { console.error("CNI directory sync failed; completed snapshot was not advanced."); process.exitCode = 1; });
+main().catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });

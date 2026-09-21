@@ -1,3 +1,4 @@
+import { createMaintenanceLog, loggedTransaction, maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { predictionInstrument, marketDate, type PredictionMarket } from "./instrument";
 import { getAdminFirestore, getAdminStorageBucket } from "@/lib/firebase/admin";
 import {
@@ -1047,11 +1048,13 @@ async function writeUserDailyScoreSnapshots(
   userIds: string[],
   tradingDate: string,
   nowIso: string,
+  log?: MaintenanceLog,
 ): Promise<{ userScores: number; skippedUsers: number }> {
   let userScores = 0;
   let skippedUsers = 0;
 
   for (const userId of userIds) {
+    log?.emit("INFO", "daily_score_started", { userDocument: `users/${userId}`, tradingDate });
     const userDailyRef = db.collection("user_daily_scores").doc(userDailyScoreDocId(userId, tradingDate));
     const [userSnapshot, existingDailySnapshot, dailyMarkSnapshot, marksAsOfDateSnapshot, previousDailySnapshot] = await Promise.all([
       db.collection("users").doc(userId).get(),
@@ -1314,9 +1317,20 @@ export async function scanEodPredictions(
   };
 }
 
-export async function runDailyEodMaintenance(
-  input: DailyEodMaintenanceInput = {},
-): Promise<DailyEodMaintenanceResult> {
+export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {}): Promise<DailyEodMaintenanceResult> {
+  const log = createMaintenanceLog("daily-eod-maintenance", { market: input.market ?? "US", requestedDate: input.runDate, dryRun: input.dryRun === true });
+  log.emit("INFO", "run_started");
+  try {
+    const result = await runDailyEodMaintenanceImpl(input, log);
+    log.emit("INFO", "run_completed", { runDate: result.runDate, priceLoad: {loaded: result.priceLoad.loaded, failed: result.priceLoad.failed}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
+    return result;
+  } catch (error) {
+    log.emit("ERROR", "run_failed", { error: maintenanceError(error) });
+    throw error;
+  }
+}
+
+async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: MaintenanceLog): Promise<DailyEodMaintenanceResult> {
   const db = getAdminFirestore();
   const dryRun = input.dryRun === true;
   const recompute = input.recompute === true;
@@ -1326,6 +1340,7 @@ export async function runDailyEodMaintenance(
   if (market !== "US" && market !== "CN_A") throw new Error("Invalid EOD market");
   const runDate = resolveRunDate(input.runDate, market);
   const limit = readPredictionScanLimit(input.limit);
+  log.stage("initialize", { runDate, limit });
   const nowIso = new Date().toISOString();
   const manualTickers = input.tickers?.length ? uniqueTickers(input.tickers) : [];
   if (manualTickers.some(ticker => predictionInstrument(ticker)?.market !== market)) throw new Error("Ticker does not match EOD market");
@@ -1379,6 +1394,7 @@ export async function runDailyEodMaintenance(
       market,
       runDate,
       status: "STARTED",
+      logRunId: log.runId,
       startedAt: nowIso,
       completedAt: null,
       failedAt: null,
@@ -1388,6 +1404,7 @@ export async function runDailyEodMaintenance(
   }
 
   try {
+    log.stage("scan_predictions");
     const {
       candidatePredictions,
       predictionsNeedingWork,
@@ -1424,6 +1441,7 @@ export async function runDailyEodMaintenance(
 
     const priceByTicker = new Map<string, EodPrice>();
 
+    log.stage("load_prices", { requestedTickers: requestedTickers.length });
     if (loadPrices && requestedTickers.length > 0) {
       console.info("[daily-eod-maintenance] Loading EOD prices", {
         runDate,
@@ -1506,6 +1524,8 @@ export async function runDailyEodMaintenance(
     const usersNeedingDailyScores = new Set<string>();
     const usersNeedingAnalytics = new Set<string>();
 
+    log.stage("mark_predictions", { predictions: predictionsToProcess.length });
+    let transactionsCompleted = 0;
     if (markPredictions) {
       for (const prediction of predictionsToProcess) {
         const price = priceByTicker.get(prediction.ticker);
@@ -1535,7 +1555,18 @@ export async function runDailyEodMaintenance(
           continue;
         }
 
-        await db.runTransaction(async (tx) => {
+        const committedMarking = { ...marking };
+        const committedSnapshots = { ...dailySnapshots };
+        const committedScoreUsers = [...usersNeedingDailyScores];
+        const committedAnalyticsUsers = [...usersNeedingAnalytics];
+        await loggedTransaction(db, log, { predictionId: prediction.id, ticker: prediction.ticker, runDate, transactionsCompleted }, async (tx) => {
+          // Firestore may replay this callback: summaries must reflect only the committed attempt.
+          Object.assign(marking, committedMarking);
+          Object.assign(dailySnapshots, committedSnapshots);
+          usersNeedingDailyScores.clear();
+          committedScoreUsers.forEach(id => usersNeedingDailyScores.add(id));
+          usersNeedingAnalytics.clear();
+          committedAnalyticsUsers.forEach(id => usersNeedingAnalytics.add(id));
           const predictionSnapshot = await tx.get(prediction.ref);
 
           if (!predictionSnapshot.exists) {
@@ -1822,11 +1853,14 @@ export async function runDailyEodMaintenance(
           usersNeedingDailyScores.add(prediction.userId);
           usersNeedingAnalytics.add(prediction.userId);
         });
+        transactionsCompleted++;
       }
     }
 
+    log.stage("user_analytics", { transactionsCompleted, users: usersNeedingAnalytics.size });
     if (!dryRun && usersNeedingAnalytics.size > 0) {
       for (const userId of Array.from(usersNeedingAnalytics).sort()) {
+        log.emit("INFO", "user_analytics_started", { document: `users/${userId}` });
         const recomputed = await recomputeUserAnalytics(db, userId, nowIso);
         if (!recomputed) {
           dailySnapshots.skippedUsers += 1;
@@ -1834,12 +1868,14 @@ export async function runDailyEodMaintenance(
       }
     }
 
+    log.stage("daily_scores", { users: usersNeedingDailyScores.size });
     if (!dryRun && usersNeedingDailyScores.size > 0) {
       const written = await writeUserDailyScoreSnapshots(
         db,
         Array.from(usersNeedingDailyScores).sort(),
         runDate,
         nowIso,
+        log,
       );
       dailySnapshots.userScores = written.userScores;
       dailySnapshots.skippedUsers += written.skippedUsers;
@@ -1858,10 +1894,12 @@ export async function runDailyEodMaintenance(
       marking,
       dailySnapshots,
     };
+    log.stage("complete_run");
     if (!dryRun) {
       await runRef.set({
         market,
         runDate,
+        logRunId: log.runId,
         status: "COMPLETED",
         completedAt: new Date().toISOString(),
         error: null,
@@ -1871,14 +1909,16 @@ export async function runDailyEodMaintenance(
     console.info("[daily-eod-maintenance] Completed run", result);
     return result;
   } catch (error) {
+    log.emit("ERROR", "processing_failed", { error: maintenanceError(error) });
     if (!dryRun) {
       await runRef.set({
         market,
         runDate,
         status: "FAILED",
+        logRunId: log.runId,
         failedAt: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error),
-      }, { merge: true });
+        error: maintenanceError(error).message,
+      }, { merge: true }).catch(persistError => log.emit("ERROR", "failure_status_write_failed", {error: maintenanceError(persistError)}));
     }
     throw error;
   }
