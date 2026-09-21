@@ -104,7 +104,7 @@ test("admin selects a date and reruns EOD once, then sees the result and refresh
   expect(posts[0]).toEqual({ job: "us", runDate: "2026-01-02" });
   const readsBefore = historyReads;
   finish!();
-  await expect(page.getByRole("status")).toContainText("Cached 60, fetched 7, failed 0");
+  await expect(page.getByRole("status").filter({ hasText: "Run manual-run" })).toContainText("Cached 60, fetched 7, failed 0");
   await expect.poll(() => historyReads).toBeGreaterThan(readsBefore);
   await expect(page.getByRole("button", { name: "Rerun for this date", exact: true })).toBeEnabled();
 });
