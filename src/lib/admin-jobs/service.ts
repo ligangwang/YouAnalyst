@@ -80,10 +80,11 @@ export async function loadJobHistory(input: { job: JobId; view: HistoryView; pag
         && String(s.jsonPayload?.message).endsWith("run_completed"))?.jsonPayload ?? {};
       const summary = { ...result, ...latest };
       const status = e.cancelledCount ? "Cancelled" : completed?.state === "CONDITION_SUCCEEDED" ? "Succeeded"
-        : completed?.state === "CONDITION_FAILED" ? "Failed" : e.completionTime ? "Unknown" : "Running";
+        : completed?.state === "CONDITION_FAILED" ? "Failed" : e.completionTime ? "Unknown" : e.startTime ? "Running" : "Starting";
       return { id: execution, execution, startedAt: e.startTime || e.createTime, endedAt: e.completionTime, status,
         durationMs: e.completionTime ? Date.parse(e.completionTime) - Date.parse(e.startTime || e.createTime) : undefined,
-        summary: cleanDetails(summary), message: completed?.message };
+        summary: cleanDetails(summary), message: status === "Starting" ? "Google Cloud is preparing the worker. Refresh to check when it starts."
+          : status === "Running" ? "Execution has started. Refresh to check progress and results." : completed?.message };
     }), nextPageToken: page.nextPageToken || null, warning };
   }
 
