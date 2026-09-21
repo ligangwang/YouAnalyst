@@ -8,7 +8,9 @@ test("listed A-share pages offer calls in both languages while private companies
     await expect(page.getByRole("link", { name: bearish, exact: true })).toBeVisible();
   }
   await page.goto("/en/company/ORG:OPENAI");
-  await expect(page.getByRole("heading", { name: "OpenAI", exact: true })).toBeVisible();
+  const privateHeading = page.getByRole("heading", { level: 1 });
+  await expect(privateHeading).toBeVisible();
+  await expect(privateHeading).toHaveText("OpenAI");
   await expect(page.getByRole("link", { name: /^(Bullish|Bearish)$/ })).toHaveCount(0);
 });
 
@@ -179,7 +181,10 @@ test("global map companies open localized profiles", async ({ page, request }) =
   for (const locale of ["en", "zh-cn"]) {
     const profile = await page.goto(`/${locale}/company/${encodeURIComponent(company.id)}`);
     expect(profile?.status()).toBe(200);
-    await expect(page.getByRole("heading", { name: company.name, exact: true })).toBeVisible();
+    // Country flag alt text is part of the accessible name, but not the company title.
+    const heading = page.getByRole("heading", { level: 1 });
+    await expect(heading).toBeVisible();
+    await expect(heading).toHaveText(company.name);
     await expect(page.getByRole("heading", { name: locale === "en" ? "Company overview" : "公司概览", exact: true })).toBeVisible();
   }
 });
@@ -195,7 +200,10 @@ test("Research bookmarks open Feed and Feed is in primary navigation", async ({ 
 
 test("A-share company has its own research page", async ({ page }) => {
   await page.goto("/ticker/XSHG:688041?lang=zh-CN");
-  await expect(page.getByRole("heading", { name: "海光信息", exact: true })).toBeVisible();
+  const heading = page.getByRole("heading", { level: 1 });
+  await expect(heading).toBeVisible();
+  await expect(heading).toHaveText("海光信息");
+  await expect(heading.getByRole("img", { name: "中国", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "公司概览", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "资料来源", exact: true })).toBeVisible();
 });
