@@ -199,3 +199,37 @@ gcloud projects add-iam-policy-binding "$GOOGLE_CLOUD_PROJECT" \
 ```
 
 To confirm which principal CI is using, inspect the `gcloud auth list` output in the deploy workflow logs.
+
+## Recurring maintenance on Google Cloud
+
+Routine maintenance belongs in Cloud Scheduler, not GitHub Actions. The directory
+sync uses Cloud Run Job `sync-cni-directory-production` in `us-central1`, triggered
+Monday at 02:20 UTC. Existing US/China nightly EOD HTTP schedules remain unchanged.
+
+Build `Dockerfile.directory-sync` with `cloudbuild.directory-sync.yaml` and an
+`_IMAGE` substitution. Provision using `scripts/deploy-directory-sync.sh` with
+`GCP_PROJECT_ID`, `GCP_REGION`, and `DIRECTORY_SYNC_IMAGE` set to the built digest.
+The dedicated runtime identity requires `roles/datastore.user`; the scheduler
+identity receives `roles/run.invoker` only on this job. The job has one task,
+a 20-minute timeout, and a 30-minute lease on existing document
+`directory_syncs/CN_A_CNI`. Snapshot completion preserves the lease; failed partial
+imports are safe to replay. No new Firestore collection is used.
+
+Verify a successful execution and its source snapshot before retiring the old
+GitHub schedule. Cancel any waiting old workflow runs during the cutover.
+The replacement GitHub `Deploy directory sync job` workflow is manual and deploys
+an image only; it never performs the directory import.
+
+### Maintenance diagnostics
+
+In Cloud Logging, filter `jsonPayload.job="daily-eod-maintenance"` or
+`jsonPayload.job="sync-cni-directory"`. Each invocation has a `runId`; EOD records
+also persist it as `eod_runs.logRunId`. Filter `jsonPayload.error.contention=true`
+for contention failures, then use the same `jsonPayload.runId` to see all stages.
+Transaction logs distinguish callback retries from successful commits and record
+document paths, prediction ID, last operation, attempts, revision and elapsed time.
+Error stacks and codes are retained with API query tokens and bearer credentials
+redacted. Document bodies are never recorded by transaction instrumentation.
+EOD processing semantics and retry policy are unchanged; this instrumentation does
+not itself resolve contention. Failure-status write errors no longer hide the
+original exception. No notification channel or alert policy is created by this change.

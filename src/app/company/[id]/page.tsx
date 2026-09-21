@@ -1,3 +1,4 @@
+import { CompanyCountryFlag } from "@/components/company-country-flag";
 import { CompanyResearchPanel } from "@/components/company-research-panel";
 import { CompanyCallActions } from "@/components/company-call-actions";
 import { predictionInstrument } from "@/lib/predictions/instrument";
@@ -41,7 +42,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   const sources: { url: string; title: string }[] = Array.isArray(data.aiGraph?.sources) ? data.aiGraph.sources.filter((s: { url?: unknown; title?: unknown }) => typeof s.url === "string" && s.url.startsWith("https://") && typeof s.title === "string") : [];
   return <main className="mx-auto max-w-5xl px-6 py-12 text-slate-200">
     <a className="text-cyan-200" href={`${localizedPath("/", locale)}?company=${encodeURIComponent(id)}&market=ALL`}>{zh ? "AI 产业图谱" : "AI Industry Map"} →</a>
-    <h1 className="mt-8 text-4xl font-semibold">{data.name}</h1>
+    <h1 className="mt-8 text-4xl font-semibold"><CompanyCountryFlag country={identity.country} locale={locale} />{data.name}</h1>
     <p className="mt-4 text-slate-400">{companyGeographyLabel(companyGeography(data), locale)}</p>
     <CompanyResearchPanel companyId={id} />
     <section id="company-information" className="mt-10 rounded-2xl border border-white/10 p-6"><h2 className="text-xl font-semibold">{zh ? "公司概览" : "Company overview"}</h2><p className="mt-4 leading-8">{String(data.description ?? "")}</p>

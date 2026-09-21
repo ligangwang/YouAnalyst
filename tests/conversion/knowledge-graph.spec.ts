@@ -1,14 +1,64 @@
+import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import { build } from "esbuild";
 import { PerspectiveCamera, Vector3 } from "three";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
-import { companySector } from "../../src/lib/knowledge-graph/sectors";
+import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sectors";
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+test("map flags use company country and omit unknown countries", async ({page}) => {
+  const countries = structuredClone(graph);
+  countries.nodes.find(n => n.id === "US:NVDA")!.country = "US";
+  countries.nodes.find(n => n.id === "US:TSM")!.country = "TW";
+  delete countries.nodes.find(n => n.id === "US:AAPL")!.country;
+  await page.route("**/*", route => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/knowledge-graph") return route.fulfill({json:countries});
+    if (/^\/flags\/[a-z]{2}\.svg$/.test(path)) return route.fulfill({contentType:"image/svg+xml",body:readFileSync(process.cwd() + "/public" + path)});
+    return route.fulfill({contentType:"text/html",body:html});
+  });
+  await page.goto("http://graph.test/map?lang=en");
+  const tsm = page.locator('[data-company-id="US:TSM"]');
+  await expect(tsm.locator("img")).toHaveAttribute("src", "/flags/tw.svg");
+  await expect(tsm).toHaveAttribute("aria-label", /Taiwan/);
+  await expect(page.locator('[data-company-id="US:NVDA"] img')).toHaveAttribute("src", "/flags/us.svg");
+  await expect(page.locator('[data-company-id="US:AAPL"] img')).toHaveCount(0);
+  await expect.poll(() => tsm.locator("img").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+});
+test("every sector dims unrelated names and restores the full map on toggle", async ({page}) => {
+  await page.emulateMedia({reducedMotion:"reduce"});
+  await page.route("**/*", r => r.request().url().includes("/api/knowledge-graph") ? r.fulfill({json:graph}) : r.fulfill({contentType:"text/html",body:html}));
+  await page.goto("http://graph.test/map?lang=en");
+  const layout = layout3D(graph);
+  await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
+  const revealSectors = async () => {
+    const toggle = page.getByRole("button", {name:/^Sectors/});
+    if (await toggle.isVisible()) await toggle.click();
+  };
+  for (const sector of GRAPH_SECTORS) {
+    const members = new Set(layout.nodes.filter(n => companySector(n).id === sector.id).map(n => n.id));
+    if (!members.size) continue;
+    const related = new Set(layout.edges.filter(e => members.has(e.source) || members.has(e.target)).flatMap(e => [e.source,e.target]));
+    await revealSectors();
+    const button = page.getByRole("button", {name:sector.en,exact:true,includeHidden:true});
+    await button.click();
+    await page.mouse.move(0,0);
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator('[data-sector-emphasis="member"]')).toHaveCount(members.size);
+    const opacities = await page.locator("[data-company-id]").evaluateAll(elements => elements.map(el => ({id:el.getAttribute("data-company-id")!, opacity:getComputedStyle(el).opacity})));
+    for (const node of opacities) expect(node.opacity, `${sector.en}: ${node.id}`).toBe(members.has(node.id) ? "1" : related.has(node.id) ? "0.85" : "0.18");
+    await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
+    await revealSectors();
+    await button.click();
+    await page.mouse.move(0,0);
+    await expect(page.locator("[data-sector-emphasis]")).toHaveCount(0);
+    expect(await page.locator("[data-company-id]").evaluateAll(elements => elements.every(el => getComputedStyle(el).opacity === "1"))).toBe(true);
+  }
+});
 for(const sectorFocused of [false,true]) test(`line hover previews, click pins, and blank space clears (${sectorFocused?"sector":"overview"})`,async({page})=>{
   await page.emulateMedia({reducedMotion:"reduce"});
   await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));

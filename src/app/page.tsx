@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import MapPage from "@/app/map/page";
+import { MarketTicker } from "@/components/market-ticker";
 import { localizedMetadata } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -20,5 +21,5 @@ export default async function Home({ searchParams }: {
   const params = await searchParams;
   // Preserve company campaign destinations and bookmarked feed filters.
   if (typeof params.type === "string") redirect("/feed?type=" + encodeURIComponent(params.type));
-  return <MapPage searchParams={Promise.resolve(params)} />;
+  return <><MarketTicker /><MapPage searchParams={Promise.resolve(params)} /></>;
 }

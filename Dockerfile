@@ -29,7 +29,7 @@ ENV NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID
 ENV GOOGLE_ANALYTICS_ID=$GOOGLE_ANALYTICS_ID
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN npx next typegen && npm run verify
 
 FROM base AS runner
 WORKDIR /app

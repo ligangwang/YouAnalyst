@@ -155,3 +155,11 @@
 .label3d[data-company-focus="background"] { opacity:.18; }
 .label3d[data-company-focus="connected"], .label3d[data-company-focus="selected"] { opacity:1; }
 .label3d[data-company-focus="background"]:focus-visible, .label3d[data-company-focus="background"]:hover, .label3d[data-company-focus="background"][data-highlighted="true"] { opacity:1; }
+
+/* Sector focus retains the whole map while emphasizing members and their direct connections. */
+.label3d[data-sector-emphasis="dimmed"] { opacity:.18; }
+.label3d[data-sector-emphasis="connected"] { opacity:.85; }
+.label3d[data-sector-emphasis="member"] { opacity:1; }
+.label3d[data-sector-emphasis]:focus-visible, .label3d[data-sector-emphasis]:hover, .label3d[data-sector-emphasis][data-highlighted="true"] { opacity:1; }
+
+.companyFlag { display:inline-block; width:calc(14px * var(--label-scale, 1)); height:calc(10px * var(--label-scale, 1)); margin-right:calc(4px * var(--label-scale, 1)); object-fit:fill; vertical-align:-.05em; border-radius:1px; }
