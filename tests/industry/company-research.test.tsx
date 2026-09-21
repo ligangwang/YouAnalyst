@@ -78,8 +78,19 @@ test("company identity, evidence and crawlable links are present without browser
  test("Chinese company normalization retains localized identity and descriptions", async () => {
   const { normalizeChinaCompany } = await import("../../src/lib/industry-research/china");
   const { companyName } = await import("../../src/lib/knowledge-graph/model");
-  const company = normalizeChinaCompany({id:"XSHE:002156",name:"通富微电",names:{en:"Tongfu Microelectronics","zh-CN":"通富微电"},stage:"封装",description:"公司介绍",descriptionEn:"Chip packaging",source:"https://example.com",sourceLabel:"报告"})!;
+  const company = normalizeChinaCompany({id:"XSHE:002156",name:"通富微电",country:"CN",names:{en:"Tongfu Microelectronics","zh-CN":"通富微电"},stage:"封装",description:"公司介绍",descriptionEn:"Chip packaging",source:"https://example.com",sourceLabel:"报告"})!;
   assert.equal(companyName(company,"en"),"Tongfu Microelectronics");
   assert.equal(companyName(company,"zh-CN"),"通富微电");
   assert.equal(company.descriptionEn,"Chip packaging");
+  assert.equal(company.country,"CN");
+  assert.equal(normalizeChinaCompany({...company,country:undefined})?.country,undefined);
  });
+
+test("company heading shows domicile flag for a US-listed Taiwanese company", () => {
+  const require = createRequire(import.meta.url);
+  const { CompanyHeading } = require("../../src/components/company-heading") as typeof import("../../src/components/company-heading");
+  const html = renderToStaticMarkup(<CompanyHeading name="TSMC" ticker="TSM" country="TW" />);
+  assert.match(html, /src="\/flags\/tw.svg"/);
+  assert.doesNotMatch(html, /\/flags\/us.svg/);
+  assert.doesNotMatch(renderToStaticMarkup(<CompanyHeading name="Unknown" ticker="UNKNOWN" />), /<img/);
+});

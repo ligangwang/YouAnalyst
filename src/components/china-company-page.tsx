@@ -1,4 +1,5 @@
 "use client";
+import { CompanyCountryFlag } from "./company-country-flag";
 import { companyName } from "@/lib/knowledge-graph/model";
 import { CompanyQuote } from "./company-quote";
 
@@ -17,7 +18,7 @@ export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
     <Link href="/companies" className="text-sm text-cyan-200 hover:underline">{text("Search companies", "搜索公司")} →</Link>
     <header className="mt-8 border-b border-white/10 pb-8">
       <p className="text-sm text-cyan-200">{text(company.stageEn || company.stage, company.stage)}</p>
-      <h1 className="mt-3 text-4xl font-semibold tracking-tight">{companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)}</h1>
+      <h1 className="mt-3 text-4xl font-semibold tracking-tight"><CompanyCountryFlag country={company.country} locale={locale} />{companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)}</h1>
       {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.id} />}
       <p className="mt-3 text-sm tabular-nums text-slate-400">{company.id.split(":")[1]} · {company.id.startsWith("XSHG:") ? text("Shanghai", "上交所") : text("Shenzhen", "深交所")}</p>
 
