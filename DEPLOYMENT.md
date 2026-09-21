@@ -332,3 +332,14 @@ calculations. Per-company failures are logged, and terminal summaries include
 estimated/unavailable/failed counts and incomplete status. Deployment requires
 both the web release and the manual `Deploy SEC fundamentals job` workflow; the
 next scheduled execution populates the new fields as SEC snapshots refresh.
+
+The Scheduled Jobs admin page also offers **Run SEC fundamentals now**. Its
+admin-authenticated POST endpoint starts only the configured SEC Cloud Run job
+(no arbitrary job, command, environment or date overrides). It returns HTTP 202
+once Cloud Run accepts the request. The existing worker document stores a
+2-minute dispatch guard and the requesting admin ID; active worker leases reject
+additional manual starts. Cloud Run POST retries are disabled because an ambiguous
+response may already have created an execution. Refresh history to inspect status.
+The web runtime needs `run.jobs.run` on this job. Normal worker freshness and SEC
+cooldowns still apply; ready legacy caches missing share metadata are upgraded
+once, even inside their previous freshness window.

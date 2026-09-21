@@ -15,7 +15,8 @@ export async function requestCompanyFundamentals(ticker: string, db: Database, n
   const valueOf = (stored?: DocumentData): CompanyFundamentals | null => stored?.version === 1 && stored.value
     ? { ...stored.value, ...(stored.marketCap ? { marketCap: stored.marketCap } : {}) } : null;
   const needsRequest = (stored?: DocumentData) => stored?.pending !== true
-    && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now);
+    && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now
+      || (stored?.outcome === "ready" && stored.value && !stored.value.shareAssessment));
   const fresh = (value: CompanyFundamentals | null) => value ? { ...value, stale: now - Date.parse(value.fetchedAt) > 2 * 86_400_000 } : null;
   const current = (await ref.get()).data();
   // Busy pages must not lock the cache document on every visitor read.
