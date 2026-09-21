@@ -2,6 +2,7 @@ import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import type { CompanyFacts } from "./model";
 import { FUNDAMENTALS_COLLECTION, validFundamentalsTicker } from "./service";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
+import { readLatestUsPrices } from "../predictions/latest-eod";
 
 export type ShareBasis = { shares: number; date: string; filed: string; sourceUrl: string; tag: string };
 export type ShareAssessment = { basis: ShareBasis | null; reason: string | null };
@@ -56,15 +57,13 @@ export async function refreshCachedMarketCaps(db: Firestore, log: MaintenanceLog
     let query = db.collection(FUNDAMENTALS_COLLECTION).orderBy(FieldPath.documentId()).limit(100);
     if (cursor) query = query.startAfter(cursor);
     const page = await query.get();
+    const latestPrices = await readLatestUsPrices(db, page.docs.map(d => d.id).filter(validFundamentalsTicker));
     for (const doc of page.docs) {
       if (Date.now() >= deadline) return {...result,incomplete:true};
       cursor = doc.id;
       if (!validFundamentalsTicker(doc.id)) continue;
       try {
-        const prefix = `US_${doc.id}_`;
-        const prices = await db.collection("eod_prices").orderBy(FieldPath.documentId(),"desc")
-          .where(FieldPath.documentId(),">=",prefix).where(FieldPath.documentId(),"<=",`${prefix}${new Date().toISOString().slice(0,10)}`).limit(1).get();
-        const marketCap = calculateMarketCap(doc.data().value?.shareAssessment,prices.docs[0]?.data(),doc.id);
+        const marketCap = calculateMarketCap(doc.data().value?.shareAssessment,latestPrices.get(doc.id),doc.id);
         await doc.ref.set({marketCap},{merge:true});
         result.processed++; result[marketCap.status]++;
         log.emit("INFO","market_cap_calculated",{ticker:doc.id,...marketCap});

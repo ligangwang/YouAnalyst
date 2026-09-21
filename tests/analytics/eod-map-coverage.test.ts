@@ -60,7 +60,7 @@ test("the EOD job fetches and persists all 67 map prices with zero predictions, 
   t.mock.method(console, "error", recordLog);
   const companies = graph.nodes.filter(node => node.kind === "COMPANY").map(node => ({ id: node.id, data: () => ({ name: node.name || node.id, status: "PUBLISHED", aiGraph: { status: "PUBLISHED", stageIds: [], stages: [], memberships: [], sources: [], order: node.order, asOf: runDate } }) }));
   const db = {
-    runTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({ get: (ref: { get: () => unknown }) => ref.get(), set: (ref: { set: (v: unknown) => unknown }, value: unknown) => ref.set(value) }),
+    runTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({ getAll: (...refs: {get: () => unknown}[]) => Promise.all(refs.map(ref => ref.get())), get: (ref: { get: () => unknown }) => ref.get(), set: (ref: { set: (v: unknown) => unknown }, value: unknown) => ref.set(value) }),
     collection: (name: string) => {
       const query = { where: () => query, orderBy: () => query, limit: () => query,
         get: async () => ({ docs: name === "companies" ? companies : [], empty: name !== "companies", size: name === "companies" ? companies.length : 0 }),

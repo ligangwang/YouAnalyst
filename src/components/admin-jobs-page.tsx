@@ -17,6 +17,8 @@ function summary(record: JobRecord): string {
   const counts = ["processed", "failed", "remaining", "companies", "count", "created", "updated", "unchanged"]
     .filter(key => typeof fields[key] === "number").map(key => `${key}: ${fields[key]}`);
   if (fields.priceLoad) counts.push(`prices: ${JSON.stringify(fields.priceLoad)}`);
+  if (fields.fx) counts.push(`FX: ${JSON.stringify(fields.fx)}`);
+  if (fields.marketCaps) counts.push(`market caps: ${JSON.stringify(fields.marketCaps)}`);
   if (fields.coverage) counts.push(`coverage: ${JSON.stringify(fields.coverage)}`);
   return counts.join(" · ") || record.message || String((fields.error as { message?: string } | undefined)?.message ?? "");
 }

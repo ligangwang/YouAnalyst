@@ -1,3 +1,5 @@
+import { saveLatestEodPrice } from "./latest-eod";
+import { loadUsdCnyEod } from "./fx-eod";
 import { createMaintenanceLog, loggedTransaction, maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { predictionInstrument, marketDate, type PredictionMarket } from "./instrument";
 import { isPriceForEodDate, loadEodPriceUniverse, mapEodCoverage } from "./eod-universe";
@@ -69,6 +71,7 @@ export type EodPrice = {
 
 export type DailyEodMaintenanceResult = {
   runId?: string;
+  fx?: { processed: number; failed: number; tradingDate?: string; close?: number; error?: string };
   dryRun: boolean;
   recompute: boolean;
   runDate: string;
@@ -781,6 +784,7 @@ async function readRollForwardDates(
     }
 
     for (const doc of snapshot.docs) {
+      if (doc.get("market") === "FX") continue;
       const tradingDate = doc.get("tradingDate");
       if (typeof tradingDate === "string" && isIsoDate(tradingDate)) {
         dates.add(tradingDate);
@@ -1337,7 +1341,7 @@ export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {
   log.emit("INFO", "run_started");
   try {
     const result = await runDailyEodMaintenanceImpl(input, log);
-    log.emit("INFO", "run_completed", { runDate: result.runDate, priceLoad: {requestedTickers: result.priceLoad.requestedTickers, cacheHits: result.priceLoad.cacheHits, loaded: result.priceLoad.loaded, failed: result.priceLoad.failed, failures: result.priceLoad.failures, mapCoverage: result.priceLoad.mapCoverage}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
+    log.emit(result.fx?.failed ? "WARNING" : "INFO", "run_completed", { fx: result.fx ?? null, runDate: result.runDate, priceLoad: {requestedTickers: result.priceLoad.requestedTickers, cacheHits: result.priceLoad.cacheHits, loaded: result.priceLoad.loaded, failed: result.priceLoad.failed, failures: result.priceLoad.failures, mapCoverage: result.priceLoad.mapCoverage}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
     return { ...result, runId: log.runId };
   } catch (error) {
     log.emit("ERROR", "run_failed", { error: maintenanceError(error) });
@@ -1458,6 +1462,11 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       mapCoverage: null,
     };
 
+    let fx: DailyEodMaintenanceResult["fx"];
+    if (market === "US" && loadPrices && !dryRun) {
+      try { fx = await loadUsdCnyEod(db, runDate); log.emit("INFO", "fx_completed", fx); }
+      catch (error) { fx = {processed:0,failed:1,error:maintenanceError(error).message}; log.emit("ERROR", "fx_failed", fx); }
+    }
     const priceByTicker = new Map<string, EodPrice>();
 
     log.stage("load_prices", { requestedTickers: requestedTickers.length });
@@ -1513,6 +1522,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
             .collection("eod_prices")
             .doc(eodPriceDocId(price.ticker, price.tradingDate, price.market))
             .set(price, { merge: true });
+          await saveLatestEodPrice(db, {ticker:price.ticker,market:price.market,tradingDate:price.tradingDate,close:price.close,currency:price.market === "US" ? "USD" : "CNY",source:price.source,loadedAt:price.loadedAt});
         }
       }
       if (mapTickers.length) {
@@ -1914,6 +1924,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       scannedCandidatePredictions,
       hasMoreCandidatePredictions,
       priceLoad,
+      fx,
       marking,
       dailySnapshots,
     };
@@ -1923,7 +1934,8 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
         market,
         runDate,
         logRunId: log.runId,
-        status: "COMPLETED",
+        fx: fx ?? null,
+        status: fx?.failed ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
         completedAt: new Date().toISOString(),
         error: null,
         recompute,

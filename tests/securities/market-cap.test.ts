@@ -38,11 +38,11 @@ test("batch recalculates fresh SEC caches using newest stored EOD date without f
  const docs=["ABC","FAIL","MISSING"].map(id=>({id,data:()=>({value:{shareAssessment:share},refreshAfter:Date.now()+86400000}),ref:{set:async(v:unknown)=>{if(id==="FAIL")throw Error("synthetic write failure");writes[id]=v;}}}));
  const db={collection:(name:string)=>{
  if(name==="company_fundamentals")return {orderBy:()=>({limit:()=>({get:async()=>({docs,size:3})})})};
- let ticker="";const query={orderBy:()=>query,where:(...args:unknown[])=>{queries.push(args);if(args[1]===">=")ticker=String(args[2]).split("_")[1];return query;},limit:(n:number)=>{assert.equal(n,1);return query;},get:async()=>({docs:ticker==="MISSING"?[]:[{data:()=>({...price,ticker,tradingDate:share.basis.date})}]})};return query;
+ assert.equal(name,"tickers");const query={where:(...args:unknown[])=>{queries.push(args);return query;},select:()=>query,get:async()=>({docs:["ABC","FAIL"].map(ticker=>({data:()=>({latestEodPrice:{...price,ticker,tradingDate:share.basis.date}})}))})};return query;
  }} as unknown as Firestore;
  const result=await refreshCachedMarketCaps(db,createMaintenanceLog("test"),Date.now()+60000);
  assert.deepEqual(result,{processed:2,estimated:1,unavailable:1,failed:1,incomplete:false});
  assert.equal((writes.ABC as {marketCap:{value:number}}).marketCap.value,25000);
  assert.equal((writes.MISSING as {marketCap:{value:null}}).marketCap.value,null);
- assert(queries.some(q=>q[1]===">="&&q[2]==="US_ABC_"));
+ assert(queries.some(q=>q[0]==="symbol"&&q[1]==="in"));
 });
