@@ -3,6 +3,7 @@ import { fetchLatest10KSections } from "../company-graph/sec";
 import { annualMetrics, businessExcerpt, latestAnnualReport, type CompanyFacts, type CompanyFundamentals } from "./model";
 import { FUNDAMENTALS_COLLECTION, validFundamentalsTicker } from "./service";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
+import { secRequest } from "../sec-request";
 
 const DAY = 86_400_000;
 let identities: { expires: number; value: Promise<Map<string, string>> } | null = null;
@@ -17,12 +18,10 @@ async function secTurn() {
 }
 async function secJson<T>(url: string): Promise<T> {
   await secTurn();
-  const response = await fetch(url, {
+  return secRequest(url, {
     headers: { "user-agent": process.env.SEC_USER_AGENT?.trim() || "YouAnalyst/1.0 (https://youanalyst.com)", accept: "application/json" },
     cache: "no-store", signal: AbortSignal.timeout(12_000),
-  });
-  if (!response.ok) throw Object.assign(new Error(`SEC status ${response.status}`), { code: response.status });
-  return response.json() as Promise<T>;
+  }, response => response.json() as Promise<T>, { operation: "fundamentals_json" });
 }
 
 async function resolveCik(ticker: string): Promise<string | null> {

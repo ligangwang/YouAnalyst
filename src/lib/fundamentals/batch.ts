@@ -3,6 +3,7 @@ import type { KnowledgeGraph } from "../knowledge-graph/model";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { FUNDAMENTALS_COLLECTION, requestCompanyFundamentals, validFundamentalsTicker } from "./service";
 import { refreshCompanyFundamentals } from "./worker";
+import { withSecRequestContext } from "../sec-request";
 
 export function usMapTickers(graph: Pick<KnowledgeGraph, "nodes">) {
   return [...new Set(graph.nodes.filter(node => node.kind === "COMPANY" && node.id.startsWith("US:"))
@@ -65,7 +66,8 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
       }
       try {
         log.emit("INFO", "company_started", { ticker: doc.id });
-        await refresh(doc.id, { db, log });
+        await withSecRequestContext({ ticker: doc.id, runId: log.runId, job: "refresh-sec-fundamentals" },
+          () => refresh(doc.id, { db, log }));
         result.processed++;
         log.emit("INFO", "company_completed", { ticker: doc.id });
       } catch (error) {
