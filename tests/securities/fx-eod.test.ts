@@ -6,7 +6,7 @@ test("FX stores the requested daily close and reuses it without a provider call"
  const old=process.env.EODHD_API_TOKEN;process.env.EODHD_API_TOKEN="test-secret";
  t.after(()=>{if(old===undefined)delete process.env.EODHD_API_TOKEN;else process.env.EODHD_API_TOKEN=old;});
  const records=new Map<string,Record<string,unknown>>();
- const db={collection:(name:string)=>({doc:(id:string)=>({id:`${name}/${id}`,get:async()=>({data:()=>records.get(`${name}/${id}`)}),set:async(v:Record<string,unknown>)=>{records.set(`${name}/${id}`,v);}})}),runTransaction:async(fn:(tx: unknown)=>Promise<unknown>)=>fn({getAll:async(...refs:{id:string}[])=>refs.map(ref=>({exists:records.has(ref.id),data:()=>records.get(ref.id)})),set:(ref:{id:string},v:Record<string,unknown>)=>records.set(ref.id,v)})} as unknown as Firestore;
+ const db={collection:(name:string)=>({doc:(id:string)=>({id:`${name}/${id}`,create:async(v:Record<string,unknown>)=>{records.set(name+"/"+id,v);},update:async(v:Record<string,unknown>)=>{records.set(name+"/"+id,v);},get:async()=>({exists:records.has(name+"/"+id),data:()=>records.get(`${name}/${id}`)}),set:async(v:Record<string,unknown>)=>{records.set(`${name}/${id}`,v);}})}),runTransaction:async(fn:(tx: unknown)=>Promise<unknown>)=>fn({getAll:async(...refs:{id:string}[])=>refs.map(ref=>({exists:records.has(ref.id),data:()=>records.get(ref.id)})),set:(ref:{id:string},v:Record<string,unknown>)=>records.set(ref.id,v)})} as unknown as Firestore;
  let requests=0;
  t.mock.method(globalThis,"fetch",async()=>{requests++;return new Response(JSON.stringify([{date:"2026-09-18",close:6.6977}]));});
  assert.equal((await loadUsdCnyEod(db,"2026-09-18")).close,6.6977);
