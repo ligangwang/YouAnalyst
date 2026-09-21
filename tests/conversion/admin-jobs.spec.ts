@@ -73,3 +73,38 @@ test("non-admins never fetch job history", async ({ page }) => {
   await expect(page.getByRole("alert")).toHaveText("This page is available to administrators only.");
   expect(historyCalls).toBe(0);
 });
+
+test("admin selects a date and reruns EOD once, then sees the result and refreshed history", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const posts: unknown[] = [];
+  let finish: (() => void) | undefined;
+  let historyReads = 0;
+  await page.route("**/*", async route => {
+    const req = route.request(), url = new URL(req.url());
+    if (req.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/api/admin/me") return route.fulfill({ json: { isAdmin: true } });
+    if (url.pathname === "/api/admin/jobs" && req.method() === "POST") {
+      posts.push(req.postDataJSON());
+      await new Promise<void>(resolve => { finish = resolve; });
+      return route.fulfill({ json: { ok: true, result: { runId: "manual-run", priceLoad: { cacheHits: 60, loaded: 7, failed: 0 } } } });
+    }
+    if (url.pathname === "/api/admin/jobs") {
+      historyReads++;
+      return route.fulfill({ json: { records: [], nextPageToken: null } });
+    }
+    return route.abort();
+  });
+  await page.goto(origin);
+  await page.getByRole("combobox", { name: "Job", exact: true }).selectOption("us");
+  await page.getByLabel("Trading date", { exact: true }).fill("2026-01-02");
+  await page.getByRole("button", { name: "Rerun for this date", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Running…", exact: true })).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: "Job", exact: true })).toBeDisabled();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts[0]).toEqual({ job: "us", runDate: "2026-01-02" });
+  const readsBefore = historyReads;
+  finish!();
+  await expect(page.getByRole("status")).toContainText("Cached 60, fetched 7, failed 0");
+  await expect.poll(() => historyReads).toBeGreaterThan(readsBefore);
+  await expect(page.getByRole("button", { name: "Rerun for this date", exact: true })).toBeEnabled();
+});

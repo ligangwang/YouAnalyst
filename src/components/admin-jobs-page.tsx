@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "@/components/providers/locale-provider";
+import { AdminEodRerun } from "./admin-eod-rerun";
 import { scheduledJobs, type JobId, type HistoryView, type JobHistoryPage, type JobRecord } from "@/lib/admin-jobs/model";
 
 const button = "rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40";
@@ -27,6 +28,7 @@ export function AdminJobsPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(true);
   const [refresh, setRefresh] = useState(0);
+  const [rerunning, setRerunning] = useState(false);
   useEffect(() => {
     if (loading) return;
     const controller = new AbortController();
@@ -61,7 +63,7 @@ export function AdminJobsPage() {
     <p className="mt-2 text-sm text-slate-400">{text("Review run status, results and errors. Log history is retained for 30 days. Times below use your local timezone.", "查看运行状态、结果和错误。日志保留 30 天。下方时间使用您的本地时区。")}</p>
     <div className="my-6 flex flex-wrap items-end gap-3">
       <label className="grid gap-2 text-sm">{text("Job", "任务")}
-        <select aria-label={text("Job", "任务")} className="max-w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={query.job}
+        <select aria-label={text("Job", "任务")} disabled={rerunning} className="max-w-full rounded-lg border border-slate-600 bg-slate-900 p-2" value={query.job}
           onChange={e => setQuery({ job: e.target.value as JobId, view: "runs", tokens: [""] })}>
           {Object.entries(scheduledJobs).map(([id, job]) => <option value={id} key={id}>{text(job.name, chineseNames[id as JobId])}</option>)}
         </select>
@@ -69,6 +71,7 @@ export function AdminJobsPage() {
       <button className={button} disabled={busy} onClick={() => { setQuery(q => ({ ...q, tokens: [""] })); setRefresh(n => n + 1); }}>{text("Refresh", "刷新")}</button>
       <p className="py-2 text-sm text-slate-400">{activeJob.schedule}</p>
     </div>
+    {(query.job === "us" || query.job === "china") && <AdminEodRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     <nav aria-label={text("Job history views", "任务历史视图")} className="mb-4 flex flex-wrap gap-2">
       {([ ["runs", "Runs", "运行记录"], ["errors", "Errors & warnings", "错误和警告"], ["scheduler", "Scheduler deliveries", "调度触发记录"] ] as const).map(([view, en, zh]) =>
         <button key={view} onClick={() => changeView(view)} aria-pressed={query.view === view && !query.run} className={`${button} ${query.view === view && !query.run ? "border-cyan-400 bg-cyan-950 text-cyan-100" : ""}`}>{text(en, zh)}</button>)}

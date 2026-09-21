@@ -258,6 +258,19 @@ itself: a successful Scheduler invocation only means the execution was started.
 
 ### EOD and directory diagnostics
 
+Every ordinary US price-loading run unions all US-listed companies from the live
+AI industry map with the prediction tickers. Map coverage does not depend on the
+prediction scan limit or whether a company has any predictions; newly published
+map companies and US-listed ADRs are included automatically. Explicit manual ticker
+repairs and mark-only runs retain their requested scope; China runs are unchanged.
+Only a valid price for the exact ticker, market and run date counts as a cache hit.
+The existing `eod_prices` collection stores fetched prices. `map_price_coverage`
+logs and `eod_runs.priceLoad.mapCoverage` report requested, cached, fetched and
+missing map tickers, and the terminal result includes provider failure reasons.
+Unavailable provider prices remain visible as coverage errors; they are never
+silently counted as fetched. An unavailable or empty US graph fails the run rather
+than silently falling back to prediction-only coverage.
+
 In Cloud Logging, filter `jsonPayload.job="daily-eod-maintenance"` or
 `jsonPayload.job="sync-cni-directory"`. Each invocation has a `runId`; EOD records
 also persist it as `eod_runs.logRunId`. Filter `jsonPayload.error.contention=true`
@@ -272,10 +285,27 @@ original exception. No notification channel or alert policy is created by this c
 
 ### Admin scheduled-job history
 
+Admins can select a US or China EOD job, choose a date and use **Rerun for this date**.
+The authenticated POST validates a real calendar date in the market timezone,
+rejects future dates and non-EOD jobs, and runs the existing maintenance function
+with the normal 500-prediction limit. It reuses valid final prices and does not
+force score recomputation or roll forward into other dates. Manual run logs
+include `trigger=admin` and `requestedBy`; the response returns the run ID and
+price/result counts. The page refreshes its paginated history after completion.
+A shared 30-minute lease in existing `eod_runs/_active_US` or `_active_CN_A`
+documents prevents overlapping scheduled/manual mutations for the same market.
+Completed calls release their lease; crashes expire automatically. A conflict
+returns HTTP 409. After a browser/network interruption, inspect history before
+retrying because the server may still be processing the request.
+
 Open `/admin/jobs` (linked from the admin dashboard). All four production maintenance jobs have run history, results, errors/warnings, per-run logs and scheduler deliveries. Each view uses provider cursors with Previous/Next pagination, at most 20 entries per page. A Logging scan can return an empty page with a next cursor; Next remains available. Result joins only query run IDs on the current page and follow at most three bounded result pages; incomplete lookups show Unknown and a warning, never false success.
 
 Cloud Run Jobs supply authoritative execution status for SEC fundamentals and directory imports, including startup failures and cancellations. EOD runs join structured start/result/error logs by run ID and market; older runs without structured start logs are still visible through scheduler deliveries. Manual maintenance invocations can also appear. A scheduler delivery means its HTTP target accepted the request, not that a Cloud Run Job succeeded. Runs without a completion record become unconfirmed after one hour. Optional failures and warnings remain available in the error view even when a run succeeds.
 
-The backend reads existing Cloud Logging and Cloud Run APIs through ADC, using `GCP_PROJECT_ID` (or `NEXT_PUBLIC_FIREBASE_PROJECT_ID`) and `GCP_REGION` (default `us-central1`). Runtime permissions must include `logging.logEntries.list`, `logging.logs.list`, and `run.executions.list` for these jobs. No write access or new Firestore collection is needed. Production's existing runtime identity already has these reads. User requests require verified Firebase authentication and the existing admin-role check; responses are private/no-store and log credentials are redacted.
+The backend reads existing Cloud Logging and Cloud Run APIs through ADC, using `GCP_PROJECT_ID` (or `NEXT_PUBLIC_FIREBASE_PROJECT_ID`) and `GCP_REGION` (default `us-central1`). Runtime permissions must include `logging.logEntries.list`, `logging.logs.list`, and `run.executions.list` for these jobs. History reads need no write access; manual EOD reruns use the existing maintenance Firestore permissions. No new Firestore collection is needed. Production's existing runtime identity already has these permissions. User requests require verified Firebase authentication and the existing admin-role check; responses are private/no-store and log credentials are redacted.
 
 Log history follows the existing `_Default` bucket's 30-day retention; execution availability follows Cloud Run's retention. A later successful retry does not erase earlier log entries. Results and error details are not copied into a new storage system.
+
+### Generic graph membership
+
+Company graph metadata is now written to `companies.inGraph` (the same membership object previously stored in `aiGraph`, not a boolean). Readers query both published fields during the transition, deduplicate company IDs, and prefer `inGraph` when both exist. Existing legacy records remain usable without an immediate rewrite; import/publish replays copy their reviewed metadata into `inGraph`. No new collection is required. Separate industry views will still require graph identifiers and filtering.

@@ -5,7 +5,7 @@ import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import assert from "node:assert/strict";
 import { combineGraphs, type KnowledgeGraph } from "../src/lib/knowledge-graph/model";
-import { RELATIONSHIP_COLLECTION, relationshipId, type AiMembership } from "../src/lib/knowledge-graph/market-store";
+import { RELATIONSHIP_COLLECTION, relationshipId, type GraphMembership } from "../src/lib/knowledge-graph/market-store";
 import { companyFields } from "../src/lib/market-companies/model";
 
 type Source = { id: string; url: string; title: string; retrievedAt: string; sourceDate: string | null };
@@ -75,8 +75,8 @@ export async function importGraphs(db: Firestore, graphs: Graph[]) {
       const sourceIds = new Set([...(n.sourceIds ?? []), ...memberships.flatMap(e => e.sourceIds)]);
       const sources = combined.sources.filter(s => sourceIds.has(s.id));
       const profile = { name:n.name, symbol:n.symbol, description:n.summary ?? "", source:sources[0]?.url ?? "", sourceLabel:sources[0]?.title ?? "", ...current };
-      const aiGraph: AiMembership = { status:"PUBLISHED", stageIds:n.stageIds ?? [], stages:combined.nodes.filter(s => s.kind === "STAGE" && n.stageIds?.includes(s.id.slice(6))), memberships, sources, order:n.order, asOf:combined.asOf };
-      tx.set(companyRefs[i], {...profile, status:current.status ?? "DIRECTORY", ...companyFields(n.id,profile), aiGraph:current.aiGraph ?? aiGraph}, {merge:true});
+      const inGraph: GraphMembership = { status:"PUBLISHED", stageIds:n.stageIds ?? [], stages:combined.nodes.filter(s => s.kind === "STAGE" && n.stageIds?.includes(s.id.slice(6))), memberships, sources, order:n.order, asOf:combined.asOf };
+      tx.set(companyRefs[i], {...profile, status:current.status ?? "DIRECTORY", ...companyFields(n.id,profile), inGraph:current.inGraph ?? current.aiGraph ?? inGraph}, {merge:true});
     });
     edges.forEach((e,i) => {
       const current = previous[companies.length+i].data();

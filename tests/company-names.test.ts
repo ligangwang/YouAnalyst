@@ -108,3 +108,19 @@ test("shared name revision invalidates warm graph caches in separate server inst
    await assert.rejects(a.loadKnowledgeGraph(), /Unavailable/);
  } finally { Date.now = realNow; }
 });
+
+
+test("graph loader combines generic and legacy memberships without duplicates", async () => {
+ const membership = {status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[],order:1,asOf:"2026-09-20"};
+ const company = (id:string, fields:object) => ({id,data:()=>({name:id,status:"PUBLISHED",...fields})});
+ const shared = company("US:BOTH", {inGraph:membership,aiGraph:membership});
+ const queries:string[] = [];
+ const db = {collection:(name:string)=>({
+  doc:()=>({get:async()=>({data:()=>({revision:"generic"})})}),
+  where:(field:string)=>({get:async()=>{queries.push(field);return {docs:name !== "companies" ? [] : field === "inGraph.status" ? [company("US:NEW",{inGraph:membership}), shared] : [company("US:OLD",{aiGraph:membership}), shared]};}})
+ })};
+ const server = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
+ const graph = await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>;
+ assert.deepEqual(graph.nodes.filter(n=>n.kind === "COMPANY").map(n=>n.id).sort(), ["US:BOTH","US:NEW","US:OLD"]);
+ assert(queries.includes("inGraph.status")); assert(queries.includes("aiGraph.status"));
+});

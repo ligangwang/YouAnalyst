@@ -537,16 +537,19 @@ test("company labels keep their placement during rotation and after release",asy
    return {id:el.getAttribute('data-company-id')!,x:box.x+box.width/2,y:box.y+box.height/2};
  }).filter(point=>document.elementFromPoint(point.x,point.y) instanceof HTMLCanvasElement));
  let revealed=false;
- for(const point of hiddenPoints.slice(0,20)){
+ // Raycasting can hit a nearer point or edge in this dense graph. Inspect every
+ // exposed candidate, and wait for React/WebGL hover state instead of assuming
+ // it has committed after a fixed 80 ms on a busy CI runner.
+ for(const point of hiddenPoints){
    await page.mouse.move(point.x,point.y);
    const label=page.locator(`[data-company-id="${point.id}"]`);
-   await page.waitForTimeout(80);
-   if(await label.getAttribute('data-highlighted')!=='true')continue;
+   const highlighted = await expect.poll(() => label.getAttribute('data-highlighted'), {timeout:500,intervals:[50,100]}).toBe('true').then(()=>true,()=>false);
+   if(!highlighted)continue;
    await expect(label).toBeVisible();
    expect((await sides()).filter(node=>node.id!==point.id)).toEqual(held);
    revealed=true;break;
  }
- expect(revealed).toBe(true);
+ expect(revealed, `No hidden label revealed among ${hiddenPoints.length} exposed points`).toBe(true);
  await page.mouse.move(1,1);
  await expect.poll(sides).toEqual(held);
  await page.screenshot({path:'output/stable-rotation-'+test.info().project.name+'.png'});

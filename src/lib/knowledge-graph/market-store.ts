@@ -1,8 +1,12 @@
 import { companyGeography } from "../market-companies/identity";
 import type { GraphFact, GraphEdge, GraphNode, GraphSource, KnowledgeGraph } from "./model";
 export const RELATIONSHIP_COLLECTION = "company_relationships";
-export type AiMembership = { status: "PUBLISHED"; stageIds: string[]; stages: GraphNode[]; memberships: GraphEdge[]; sources: GraphSource[]; order: number; asOf: string };
-export type MarketCompany = Record<string, unknown> & { id: string; aiGraph?: AiMembership };
+export type GraphMembership = { status: "PUBLISHED"; stageIds: string[]; stages: GraphNode[]; memberships: GraphEdge[]; sources: GraphSource[]; order: number; asOf: string };
+export type MarketCompany = Record<string, unknown> & { id: string; inGraph?: GraphMembership; aiGraph?: GraphMembership };
+// Read legacy records during the transition; the generic field takes precedence.
+export function graphMembership(company: { inGraph?: GraphMembership; aiGraph?: GraphMembership }) {
+  return company.inGraph ?? company.aiGraph;
+}
 export type MarketRelationship = Record<string, unknown> & { id: string; source: string; target: string; type: string; status: string; evidence?: (GraphSource & { summary?: string })[] };
 export function relationshipId(source: string, target: string, type: string) {
   if (["PARTNER_OF", "COMPETES_WITH", "ECOSYSTEM_PARTNER_OF"].includes(type)) [source, target] = [source, target].sort();
@@ -12,20 +16,21 @@ export function relationshipId(source: string, target: string, type: string) {
 export function graphFromMarket(companies: MarketCompany[], records: MarketRelationship[]): KnowledgeGraph {
   const nodes = new Map<string, GraphNode>(), sources = new Map<string, GraphSource>(), relationships = new Map<string, GraphEdge>();
   const publicCompanies = companies.filter(c => ["PUBLISHED", "DIRECTORY"].includes(String(c.status)) && c.name);
-  const eligible = new Set(publicCompanies.filter(c => c.aiGraph?.status === "PUBLISHED").map(c => c.id));
+  const eligible = new Set(publicCompanies.filter(c => graphMembership(c)?.status === "PUBLISHED").map(c => c.id));
   const related = records.filter(r => r.status === "PUBLISHED" && r.evidence?.length && r.source !== r.target && (eligible.has(r.source) || eligible.has(r.target)));
   const included = new Set([...eligible, ...related.flatMap(r => [r.source, r.target])]), dates: string[] = [];
   for (const c of publicCompanies.filter(c => included.has(c.id))) {
-    const ai = c.aiGraph?.status === "PUBLISHED" ? c.aiGraph : undefined;
-    const stageIds = ai?.stageIds.length ? ai.stageIds : ["related"];
-    for (const s of ai?.stages ?? [{ id: "stage:related", kind: "STAGE" as const, order: 100, labels: { en: "Related companies", "zh-CN": "关联公司" } }]) {
+    const membership = graphMembership(c);
+    const graph = membership?.status === "PUBLISHED" ? membership : undefined;
+    const stageIds = graph?.stageIds.length ? graph.stageIds : ["related"];
+    for (const s of graph?.stages ?? [{ id: "stage:related", kind: "STAGE" as const, order: 100, labels: { en: "Related companies", "zh-CN": "关联公司" } }]) {
       const old = nodes.get(s.id);
       nodes.set(s.id, { ...s, labels: { ...old?.labels, ...s.labels } });
     }
-    for (const s of ai?.sources ?? []) sources.set(s.id, s);
-    nodes.set(c.id, { id: c.id, kind: "COMPANY", name: String(c.name), names: Object.fromEntries(Object.entries((c.names && typeof c.names === "object" ? c.names : {}) as Record<string, unknown>).filter(([key,value]) => ["en", "zh-CN"].includes(key) && typeof value === "string" && value.trim())), aliases: Array.isArray(c.aliases) ? c.aliases.filter((a): a is string => typeof a === "string") : [], symbol: String(c.symbol ?? (c.id.startsWith("ORG:") ? "" : c.id.split(":")[1])), market: c.id.startsWith("US:") ? "US" : /^(XSHG|XSHE):/.test(c.id) ? "CN_A" : "GLOBAL", ...companyGeography(c), summary: String(c.description ?? ""), order: ai?.order ?? 1000, stageIds, sourceIds: ai?.sources.map(s => s.id) ?? [] });
-    for (const e of ai?.memberships ?? []) relationships.set(e.id, e);
-    if (ai?.asOf) dates.push(ai.asOf);
+    for (const s of graph?.sources ?? []) sources.set(s.id, s);
+    nodes.set(c.id, { id: c.id, kind: "COMPANY", name: String(c.name), names: Object.fromEntries(Object.entries((c.names && typeof c.names === "object" ? c.names : {}) as Record<string, unknown>).filter(([key,value]) => ["en", "zh-CN"].includes(key) && typeof value === "string" && value.trim())), aliases: Array.isArray(c.aliases) ? c.aliases.filter((a): a is string => typeof a === "string") : [], symbol: String(c.symbol ?? (c.id.startsWith("ORG:") ? "" : c.id.split(":")[1])), market: c.id.startsWith("US:") ? "US" : /^(XSHG|XSHE):/.test(c.id) ? "CN_A" : "GLOBAL", ...companyGeography(c), summary: String(c.description ?? ""), order: graph?.order ?? 1000, stageIds, sourceIds: graph?.sources.map(s => s.id) ?? [] });
+    for (const e of graph?.memberships ?? []) relationships.set(e.id, e);
+    if (graph?.asOf) dates.push(graph.asOf);
   }
   for (const r of related) {
     if (!nodes.has(r.source) || !nodes.has(r.target)) continue;

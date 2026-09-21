@@ -77,9 +77,9 @@ export async function publishResearch(db: Firestore, batch: ResearchBatch, write
       const id = resolve(c.id), old = current.get(id) ?? {};
       const sources = batch.sources.filter(s => c.sourceIds.includes(s.id));
       const memberships = c.stageIds.map(stage => ({ id: `${id}__PARTICIPATES_IN__${stage}`, source: id, target: `stage:${stage}`, type: "PARTICIPATES_IN", commercialStatus: "NOT_A_COMMERCIAL_RELATIONSHIP", summary: c.description, sourceIds: c.sourceIds }));
-      const aiGraph = { status: "PUBLISHED", asOf: batch.asOf, order: 1000, stageIds: c.stageIds, sources, memberships, stages: stages.filter((s: { id: string }) => c.stageIds.includes(s.id.slice(6))).map((s: { id: string; label: string }) => ({ ...s, labels: { en: s.label, "zh-CN": cn.nodes.find((n: { id: string }) => n.id === s.id)?.label ?? s.label } })) };
+      const inGraph = { status: "PUBLISHED", asOf: batch.asOf, order: 1000, stageIds: c.stageIds, sources, memberships, stages: stages.filter((s: { id: string }) => c.stageIds.includes(s.id.slice(6))).map((s: { id: string; label: string }) => ({ ...s, labels: { en: s.label, "zh-CN": cn.nodes.find((n: { id: string }) => n.id === s.id)?.label ?? s.label } })) };
       const profile = { ...c, status: "DIRECTORY", identityReviewedAt: batch.asOf, ...old };
-      tx.set(db.collection("companies").doc(id), { ...profile, ...companyFields(id, profile), aiGraph: old.aiGraph ?? aiGraph }, { merge: true });
+      tx.set(db.collection("companies").doc(id), { ...profile, ...companyFields(id, profile), inGraph: old.inGraph ?? old.aiGraph ?? inGraph }, { merge: true });
     }
     edges.forEach((e, i) => {
       const old = docs[companyRefs.length + i].data();

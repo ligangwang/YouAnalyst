@@ -15,11 +15,13 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
   if (cached && cached.revision === revision && cached.expires > Date.now()) return cached.graph;
   if (pending?.revision === revision) return pending.promise;
   const promise = (async () => {
-    const [companies, edges] = await Promise.all([
+    const [companies, legacyCompanies, edges] = await Promise.all([
+      db.collection("companies").where("inGraph.status", "==", "PUBLISHED").get(),
       db.collection("companies").where("aiGraph.status", "==", "PUBLISHED").get(),
       db.collection(RELATIONSHIP_COLLECTION).where("status", "==", "PUBLISHED").get(),
     ]);
-    const rows = companies.docs.map(d => ({ ...d.data(), id: d.id }) as MarketCompany);
+    const companyDocs = [...new Map([...legacyCompanies.docs, ...companies.docs].map(doc => [doc.id, doc])).values()];
+    const rows = companyDocs.map(d => ({ ...d.data(), id: d.id }) as MarketCompany);
     const ids = new Set(rows.map(c => c.id));
     const relationships = edges.docs.map(d => ({ ...d.data(), id: d.id }) as MarketRelationship);
     const neighbors = [...new Set(relationships.filter(r => ids.has(r.source) || ids.has(r.target)).flatMap(r => [r.source, r.target]))].filter(id => !ids.has(id) && /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id));
@@ -28,7 +30,7 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
       rows.push(...profiles.filter(d => d.exists).map(d => ({ ...d.data(), id: d.id }) as MarketCompany));
     }
     const graph = graphFromMarket(rows, relationships);
-    if (!graph.nodes.some(n => n.kind === "COMPANY")) throw new Error("AI company directory unavailable");
+    if (!graph.nodes.some(n => n.kind === "COMPANY")) throw new Error("Graph company directory unavailable");
     cached = { graph, expires: Date.now() + 300_000, revision };
     return graph;
   })();
