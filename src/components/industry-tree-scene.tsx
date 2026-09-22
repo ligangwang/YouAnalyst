@@ -83,7 +83,7 @@ function Scene(props:TreeSceneProps){
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        label.style.transform=`scale(${Math.min(1,1.15/htmlScale)})`;
+        label.style.transform=`scale(${Math.min(1,1/htmlScale)})`;
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
     }
