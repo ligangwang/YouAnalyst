@@ -48,7 +48,8 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
       if (Date.now() >= deadline || result.processed >= 500) { stop = true; break; }
       cursor = doc.id;
       const queued = doc.data();
-      if (Number(queued.refreshAfter) > Date.now()) {
+      const needsShareUpgrade = queued.outcome === "ready" && queued.value && !queued.value.shareAssessment;
+      if (Number(queued.refreshAfter) > Date.now() && !needsShareUpgrade) {
         result.deferred++;
         if (queued.outcome === "retry") {
           result.failed++;

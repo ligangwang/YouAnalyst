@@ -50,6 +50,21 @@ function queueFixture(data: Map<string, Record<string, unknown>>) {
   return {db,log};
 }
 
+test("fresh legacy fundamentals reach the share upgrade worker while completed assessments and retry cooldowns wait", async () => {
+  const data = new Map<string,Record<string,unknown>>([
+    ["AMD", {pending:true,outcome:"ready",value:{fetchedAt:"2026-09-21"},refreshAfter:Date.now()+86400000}],
+    ["MU", {pending:true,outcome:"ready",value:{shareAssessment:{basis:null,reason:"unsupported"}},refreshAfter:Date.now()+86400000}],
+    ["NVDA", {pending:true,outcome:"retry",value:{fetchedAt:"2026-09-21"},refreshAfter:Date.now()+3600000}],
+  ]);
+  const {db,log}=queueFixture(data);
+  const refreshed:string[]=[];
+  const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async ticker=>{refreshed.push(ticker);data.set(ticker,{pending:false});return null;});
+  assert.deepEqual(refreshed,["AMD"]);
+  assert.equal(result.processed,1);
+  assert.equal(result.deferred,2);
+  assert.equal(result.failed,1);
+});
+
 test("queue pagination does not skip requests when completed entries disappear", async () => {
   const data = new Map(Array.from({length:105},(_,i)=>[`T${String(i).padStart(3,"0")}`,{pending:true}]));
   const {db,log} = queueFixture(data);
