@@ -44,16 +44,16 @@ export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   let bottom=0;
   for(const layer of layers){
     const expanded=open.has(layer.id);
-    const rows=expanded?Math.ceil(layer.branches.length/3):0;
-    const heights=Array.from({length:rows},(_,row)=>Math.max(105,...layer.branches.slice(row*3,row*3+3).map(b=>open.has(b.id)?100+b.companies.length*92:105)));
-    const height=Math.max(135,heights.reduce((a,b)=>a+b,0)+50);
+    // Each child owns a vertical interval sized to its visible descendants.
+    // Siblings share one column; opening a subtree pushes adjacent layers away.
+    const heights=expanded?layer.branches.map(b=>open.has(b.id)?Math.max(140,b.companies.length*92+40):140):[];
+    const height=Math.max(135,heights.reduce((a,b)=>a+b,0)+60);
     const top=bottom+height;
     nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[-240,bottom+height/2,0],count:layer.companies.length});
     if(expanded)layer.branches.forEach((branch,i)=>{
-      const row=Math.floor(i/3),column=i%3;
-      const x=100+column*330,y=top-65-heights.slice(0,row).reduce((a,b)=>a+b,0),z=(column-1)*35;
+      const x=100,y=top-30-heights.slice(0,i).reduce((a,b)=>a+b,0)-heights[i]/2,z=0;
       nodes.push({id:branch.id,parent:layer.id,layer:layer.id,branch:branch.id,kind:'branch',label:label(branch),color:layer.color,position:[x,y,z],count:branch.companies.length});
-      if(open.has(branch.id)) [...branch.companies].sort((a,b)=>a.id.localeCompare(b.id)).forEach((company,j)=>nodes.push({id:`${branch.id}/${company.id}`,parent:branch.id,layer:layer.id,branch:branch.id,kind:'company',label:company.names?.[locale==='zh-CN'?'zh-CN':'en']||company.name||company.id,color:layer.color,position:[x+22,y-90-j*92,z+25],company}));
+      if(open.has(branch.id)) [...branch.companies].sort((a,b)=>a.id.localeCompare(b.id)).forEach((company,j)=>nodes.push({id:`${branch.id}/${company.id}`,parent:branch.id,layer:layer.id,branch:branch.id,kind:'company',label:company.names?.[locale==='zh-CN'?'zh-CN':'en']||company.name||company.id,color:layer.color,position:[x+420,y+(branch.companies.length-1)*46-j*92,z+25],company}));
     });
     bottom=top+35;
   }
