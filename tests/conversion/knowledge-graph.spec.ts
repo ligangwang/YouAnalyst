@@ -631,12 +631,13 @@ test('three views default to graph, share filters and selection, and remember pr
  await page.goto('http://graph.test/map?lang=en');
  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
- await expect(page.getByRole('button',{name:'AI industry chain',exact:true})).toHaveAttribute('aria-expanded','false');
- await expect(page.getByRole('button',{name:/^AI compute/})).toBeHidden();
- await page.getByRole('button',{name:'AI industry chain',exact:true}).click();
- await expect(page.getByRole('button',{name:/^AI compute/})).toHaveAttribute('aria-expanded','false');
+ await expect(page.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','true');
+ await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(5);
+ await expect(page.locator('[data-industry-tree] canvas')).toBeVisible();
+ await page.locator('[data-tree-node="chips"]').click();
+ await expect(page.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','false');
  await expect(page.locator('[data-tree-company="US:NVDA"]').first()).not.toBeVisible();
- await page.getByRole('button',{name:/^AI compute/}).click();
+ await page.locator('[data-tree-node="chips/compute"]').click();
  await expect(page.locator('[data-tree-company="US:NVDA"]').first()).toBeVisible();
  await page.getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:NVDA"]').first()).not.toBeVisible();
@@ -657,6 +658,8 @@ test('three views default to graph, share filters and selection, and remember pr
  await page.goto('http://graph.test/map?lang=en');
  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(5);
+ await page.waitForTimeout(1200);
  await page.screenshot({path:'output/three-views-tree-'+test.info().project.name+'.png',fullPage:true});
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
  await page.screenshot({path:'output/three-views-table-'+test.info().project.name+'.png',fullPage:true});
@@ -726,4 +729,46 @@ test('three views selection and follow changes stay synchronized across tabs', a
  await expect(detail.getByRole('button',{name:'Following',exact:true})).toBeVisible();
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:NVDA"]').first()).toHaveAttribute('aria-pressed','true');
+});
+
+test('three views 3D tree focuses branches, keeps flags and market caps, and supports orbit and reset',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id)).map(n=>n.id==='US:NVDA'?{...n,country:'US',marketCap:{value:1e12,currency:'USD',priceDate:'2026-09-21'}}:n)};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/flags/')?r.fulfill({contentType:'image/svg+xml',body:readFileSync(process.cwd()+'/public/flags/us.svg')}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ await page.locator('[data-tree-node="chips"]').click();
+ await expect(page.locator('[data-tree-node="energy"]')).toHaveAttribute('data-tree-dimmed','true');
+ await page.locator('[data-tree-node="chips/compute"]').click();
+ const nvda=page.locator('[data-tree-company="US:NVDA"]').first(),amd=page.locator('[data-tree-company="US:AMD"]').first();
+ await expect(nvda).toContainText('NVDA · $1T');
+ await expect(nvda).toHaveAttribute('title',/2026-09-21/);
+ await expect(nvda.locator('img')).toHaveAttribute('src','/flags/us.svg');
+ await expect(nvda).toHaveAttribute('data-cap-scale','2.5');
+ await expect(amd).toHaveAttribute('data-cap-scale','1');
+ const canvas=page.locator('[data-industry-tree] canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ const box=(await canvas.boundingBox())!;
+ const before=(await nvda.boundingBox())!;
+ await page.mouse.move(box.x+box.width*.15,box.y+box.height*.85);
+ await page.mouse.down();await page.mouse.move(box.x+box.width*.35,box.y+box.height*.7,{steps:12});await page.mouse.up();
+ await expect.poll(async()=>{const next=(await nvda.boundingBox())!;return Math.abs(next.x-before.x)+Math.abs(next.y-before.y);}).toBeGreaterThan(5);
+ await page.mouse.wheel(0,-150);
+ await page.getByRole('button',{name:'Reset view',exact:true}).click();
+ await expect(page.locator('[data-tree-node="energy"]')).toHaveAttribute('data-tree-dimmed','false');
+ await expect(nvda).toBeVisible();
+ await page.screenshot({path:'output/three-views-expanded-'+test.info().project.name+'.png',fullPage:true});
+ await page.getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect(page.locator('[data-tree-company]')).toHaveCount(0);
+ await expect(page.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
+});
+
+test('three views tree remains browsable without WebGL',async({page})=>{
+ await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(this:HTMLCanvasElement,type:string,...args:unknown[]){return type.includes('webgl')?null:Reflect.apply(original,this,[type,...args]);} as typeof original;});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ await expect(page.getByRole('alert')).toContainText('3D is unavailable');
+ await page.locator('summary').filter({hasText:/^Chips/}).click();
+ await page.locator('summary').filter({hasText:/^AI accelerators/}).click();
+ await page.getByRole('button',{name:'NVIDIA',exact:true}).click();
+ await expect(page.getByRole('complementary',{name:'Company details'})).toBeVisible();
 });

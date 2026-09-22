@@ -5,8 +5,28 @@ import type { Firestore } from "firebase-admin/firestore";
 import { validateGraph, graphVersion, importGraphs, type Graph } from "../scripts/import-ai-knowledge-graphs";
 
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../src/lib/knowledge-graph/market-store";
+import { industryTree, layoutIndustryTree } from '../src/lib/knowledge-graph/industry-tree';
+import type { GraphNode } from '../src/lib/knowledge-graph/model';
 
 const graphs: Graph[] = ["ai-us", "ai-cn-a"].map(id => JSON.parse(readFileSync(new URL(`../data/ai-supply-chain/${id}.json`, import.meta.url), "utf8")));
+test('five-layer tree retains every company and distinguishes models from cloud infrastructure',()=>{
+  const companies=graphs.flatMap(g=>g.nodes.filter(n=>n.kind==='COMPANY')) as GraphNode[];
+  companies.push({id:'ORG:OPENAI',kind:'COMPANY',order:0,stageIds:['applications']},{id:'UNKNOWN',kind:'COMPANY',order:0,stageIds:['future-role']});
+  const layers=industryTree([...companies,companies[0]]);
+  assert.deepEqual(layers.map(l=>l.id),['energy','chips','infrastructure','models','applications']);
+  assert.equal(new Set(layers.flatMap(l=>l.companies.map(c=>c.id))).size,companies.length);
+  for(const layer of layers)assert.equal(new Set(layer.companies.map(c=>c.id)).size,layer.companies.length);
+  const models=layers.find(l=>l.id==='models')!.companies.map(c=>c.id);
+  assert(models.includes('ORG:OPENAI'));assert(models.includes('US:GOOGL'));assert(!models.includes('US:CRWV'));assert(!models.includes('US:ORCL'));
+  assert(layers.find(l=>l.id==='applications')!.branches.find(b=>b.id.endsWith('/other'))!.companies.some(c=>c.id==='UNKNOWN'));
+  const overview=layoutIndustryTree(layers,new Set(['root']),'en');
+  assert.equal(overview.length,6);
+  const heights=overview.filter(n=>n.kind==='layer').map(n=>n.position[1]);
+  assert(heights.every((y,i)=>!i||y>heights[i-1]));
+  const expanded=layoutIndustryTree(layers,new Set(['root','chips','chips/compute']),'en');
+  assert(expanded.some(n=>n.company?.id==='US:NVDA'));assert(!expanded.some(n=>n.company?.id==='US:ORCL'));
+  assert.equal(layoutIndustryTree(layers,new Set(),'en').length,1);
+});
 test("both datasets have unique sourced companies, valid topology and honest coverage counts", () => {
   graphs.forEach(validateGraph);
   assert.equal(graphs[0].coverage.companyCount, 67);
