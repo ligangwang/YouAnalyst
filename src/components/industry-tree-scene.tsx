@@ -83,7 +83,7 @@ function Scene(props:TreeSceneProps){
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        label.style.transform=`scale(${Math.min(1,1.15/htmlScale)})`;
+        label.style.transform=`scale(${Math.min(1,1/htmlScale)})`;
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
     }
@@ -104,7 +104,7 @@ function Scene(props:TreeSceneProps){
     <lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
-      const dim=Boolean(props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
+      const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
       const radius=node.company?4*marketCapScale(node.company.marketCap):node.kind==='layer'?12:7;
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(visible?1:0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         <mesh><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .12 : 1}/></mesh>
@@ -141,5 +141,5 @@ export default function IndustryTreeScene(props:TreeSceneProps){
     return ()=>{active=false;};
   },[onUnavailable]);
   if(!supported)return null;
-  return <Boundary onUnavailable={props.onUnavailable}><Canvas frameloop="demand" dpr={[1,1.5]} camera={{position:[0,0,1600],fov:45,near:1,far:100000}} gl={{antialias:true}} fallback={null}><Scene {...props}/></Canvas></Boundary>;
+  return <Boundary onUnavailable={props.onUnavailable}><Canvas onPointerMissed={event=>{if(event.type==='click'&&event.target instanceof HTMLCanvasElement&&props.selected)props.onSelect('');}} frameloop="demand" dpr={[1,1.5]} camera={{position:[0,0,1600],fov:45,near:1,far:100000}} gl={{antialias:true}} fallback={null}><Scene {...props}/></Canvas></Boundary>;
 }
