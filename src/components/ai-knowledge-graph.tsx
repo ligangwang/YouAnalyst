@@ -70,12 +70,13 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     return {...graph, relationships, nodes:graph.nodes.filter(n=>ids.has(n.id))};
   }, [graph, allowedRelationshipIds]);
   const visible = useMemo(() => {
+    if (view === "tree") return scoped;
     const filtered = filterGraph(scoped, ["US", "CN_A", "GLOBAL"], query);
     const companies = filtered.nodes.filter(n => n.kind === "COMPANY" && (marketFilter === "all" || n.market === marketFilter) && (!roleFilter || companySectors(n).some(s => s.id === roleFilter)) && (!onlyFollowed || follows.ids.includes(n.id)));
     const ids = new Set(companies.map(n => n.id));
     const stages = new Set(companies.flatMap(n => n.stageIds ?? []).map(id => "stage:" + id));
     return {...filtered, nodes:[...filtered.nodes.filter(n => n.kind === "STAGE" && stages.has(n.id)), ...companies], relationships:filtered.relationships.filter(e => ids.has(e.source) && (ids.has(e.target) || stages.has(e.target)))};
-  }, [scoped, query, marketFilter, roleFilter, onlyFollowed, follows.ids]);
+  }, [scoped, query, marketFilter, roleFilter, onlyFollowed, follows.ids, view]);
   const companies = visible.nodes.filter(n => n.kind === "COMPANY");
   const matches = useMemo(() => filterGraph(visible, ["US", "CN_A", "GLOBAL"], query).nodes.filter(n => n.kind === "COMPANY"), [visible, query]);
   const [browseQuery, setBrowseQuery] = useState("");
@@ -132,7 +133,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
       {([['table','Company list','公司列表'],['tree','Industry structure','产业结构'],['graph','Relationship graph','关系图谱']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids:IndustryView[]=['table','tree','graph'];let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%3];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+2)%3];if(e.key==='Home')next='table';if(e.key==='End')next='graph';if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}>{text(en,zh)}</button>)}
     </div>
-    <div className={styles.sharedFilters}>
+    <div hidden={view === "tree"}><div className={styles.sharedFilters}>
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
       <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
@@ -144,6 +145,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     </div>
     {onlyFollowed && !follows.user && <p className={styles.filterNotice}>{text("Sign in and follow companies to use this filter.", "登录并关注公司后，可使用此筛选。")}</p>}
     {onlyFollowed && follows.user && !follows.ready && <p className={styles.filterNotice} role="status">{follows.error?<button onClick={()=>void follows.refresh()}>{text("Could not load follows. Retry", "关注列表加载失败，重试")}</button>:text("Loading followed companies…", "正在加载关注公司…")}</p>}
+    </div>
     {view==='graph' && query.trim() && <section className={styles.searchResults} aria-label={text("Search results", "搜索结果")}>
       {matches.length ? matches.map(n => <button key={n.id} onClick={() => selectCompany(n.id)}>{companyName(n,locale)} · {n.symbol}</button>) : <p>{text("No matching companies.", "没有匹配的公司。")}</p>}
     </section>}
@@ -189,5 +191,5 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       <input aria-label={text("Find a company in the list", "在列表中查找公司")} placeholder={text("Name, ticker or business…", "名称、代码或业务…")} value={browseQuery} onChange={e=>setBrowseQuery(e.target.value)}/>
       <div className={styles.companyList}>{browseMatches.map(n=><button key={n.id} onClick={()=>selectCompany(n.id)}><span style={{color:companySector(n).color}}>{companyName(n,locale)}</span><small>{n.symbol} · {text(companySector(n).en,companySector(n).zh)}</small></button>)}{!browseMatches.length && <p>{text("No matching companies.", "没有匹配的公司。")}</p>}</div>
     </details>}
-  </Container>{!allowedRelationshipIds && <AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} />}</>;
+  </Container>{!allowedRelationshipIds && view !== "tree" && <AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} />}</>;
 }
