@@ -30,6 +30,22 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
       rows.push(...profiles.filter(d => d.exists).map(d => ({ ...d.data(), id: d.id }) as MarketCompany));
     }
     const graph = graphFromMarket(rows, relationships);
+    // Project only public valuation summaries; reuse the graph's five-minute cache.
+    const usCompanies = graph.nodes.filter(n => n.kind === "COMPANY" && n.id.startsWith("US:"));
+    try {
+      for (let i = 0; i < usCompanies.length; i += 100) {
+        const batch = usCompanies.slice(i, i + 100);
+        const values = await db.getAll(...batch.map(n => db.collection("company_fundamentals").doc(n.id.slice(3))), { fieldMask: ["marketCap"] });
+        values.forEach((doc, index) => {
+          const cap = doc.data()?.marketCap;
+          if (cap?.status === "estimated" && cap.currency === "USD" && typeof cap.value === "number" && Number.isFinite(cap.value) && cap.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? "")) {
+            batch[index].marketCap = { value: cap.value, currency: "USD", priceDate: cap.priceDate };
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Graph market cap summaries unavailable", error);
+    }
     if (!graph.nodes.some(n => n.kind === "COMPANY")) throw new Error("Graph company directory unavailable");
     cached = { graph, expires: Date.now() + 300_000, revision };
     return graph;

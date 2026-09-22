@@ -609,3 +609,14 @@ test("company selection dims unrelated names and restores them on clear", async 
   await expect(page.locator("[data-company-focus]")).toHaveCount(0);
   await expect(background).toHaveCSS("opacity", "1");
 });
+
+test("map displays stored market cap and date while unknown stays ticker only", async ({page}) => {
+  const valued = structuredClone(graph);
+  valued.nodes.find(n=>n.id==='US:NVDA')!.marketCap={value:1.25e12,currency:'USD',priceDate:'2026-09-21'};
+  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:valued}):r.fulfill({contentType:'text/html',body:html}));
+  await page.goto('http://graph.test/map?lang=en');
+  const label=page.locator('[data-company-id="US:NVDA"]');
+  await expect(label.locator('span')).toHaveText('NVDA · $1.25T');
+  await expect(label).toHaveAttribute('title', /Estimated market cap: \$1.25T USD · As of 2026-09-21/);
+  await expect(page.locator('[data-company-id="US:AAPL"] span')).toHaveText('AAPL');
+});
