@@ -6,7 +6,7 @@
 .actions button { border:1px solid #355368; background:#0c1c29; color:#bfe8f7; border-radius:9px; padding:9px 12px; min-height:40px; cursor:pointer; }
 .actions button:hover { background:#16384a; }
 .scene { height: min(78vh,850px); min-height:560px; position:relative; touch-action:none; }
-.node { display:flex; align-items:center; gap:10px; border:1px solid transparent; border-radius:9px; padding:7px 10px; background:#081523e8; text-align:left; white-space:nowrap; cursor:pointer; transition:opacity .2s,background .2s; }
+.node { display:flex; align-items:center; gap:10px; border:1px solid transparent; border-radius:9px; padding:7px 10px; background:#081523e8; text-align:left; white-space:nowrap; cursor:pointer; transition:opacity .2s,background .2s; transform-origin:0 0; }
 .node strong { display:flex; align-items:center; gap:6px; font-weight:500; }
 .node:hover,.node:focus-visible,.node[aria-pressed='true'] { background:#173e52; border-color:currentColor; outline:none; }
 .layer { font-size:17px; border-color:#63889855; box-shadow:0 0 22px #79bfe00b; }

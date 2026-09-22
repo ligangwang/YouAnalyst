@@ -25,6 +25,7 @@ function Scene(props:TreeSceneProps){
   useEffect(()=>{const canvas=gl.domElement;const lost=()=>onUnavailable();canvas.addEventListener("webglcontextlost",lost);return ()=>canvas.removeEventListener("webglcontextlost",lost);},[gl,onUnavailable]);
   const controls=useRef<CameraControls>(null);
   const groups=useRef(new Map<string,Group>());
+  const labels=useRef(new Map<string,HTMLButtonElement>());
   const particles=useRef(new Map<string,Mesh>());
   const reduced=useRef(false);
   const nodes=useMemo(()=>layoutIndustryTree(props.layers,new Set(props.open),locale),[props.layers,props.open,locale]);
@@ -58,10 +59,13 @@ function Scene(props:TreeSceneProps){
     let fitting=props.focus?nodes.filter(n=>n.id===props.focus||n.layer===props.focus||n.branch===props.focus):nodes;
     if(!fitting.length)fitting=nodes;
     const xs=fitting.map(n=>n.position[0]),ys=fitting.map(n=>n.position[1]);
-    const center=new Vector3((Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2,0);
-    const halfW=Math.max(210,(Math.max(...xs)-Math.min(...xs))/2+180),halfH=Math.max(160,(Math.max(...ys)-Math.min(...ys))/2+80);
+    // Labels extend to the right of their anchors. Reserve their projected width,
+    // including on narrow screens, instead of centering only the node spheres.
+    const left=Math.min(...xs)-80,right=Math.max(...xs)+Math.max(240,340*1100/size.height);
+    const center=new Vector3((left+right)/2,(Math.min(...ys)+Math.max(...ys))/2,0);
+    const halfW=Math.max(210,(right-left)/2+40),halfH=Math.max(160,(Math.max(...ys)-Math.min(...ys))/2+80);
     const distance=Math.max(halfH,halfW/(size.width/size.height))/Math.tan(Math.PI/8)*1.18;
-    void c.setLookAt(center.x+distance*.1,center.y+distance*.18,distance,center.x,center.y,0,!reduced.current);
+    void c.setLookAt(center.x+distance*.1,center.y,distance,center.x,center.y,0,!reduced.current);
     invalidate();
   },[nodes,props.focus,props.request,size.width,size.height,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
@@ -75,6 +79,12 @@ function Scene(props:TreeSceneProps){
       group.position.lerp(vector,amount);
       group.scale.lerp(vector.setScalar(scale),amount);
       group.visible=group.scale.x>.002;
+      const label=labels.current.get(target.node.id);
+      if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
+        // Html scales with distance; cap the final label size during close focus.
+        const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
+        label.style.transform=`scale(${Math.min(1,1.15/htmlScale)})`;
+      }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
     }
     const positions=geometry.getAttribute('position');
@@ -90,7 +100,7 @@ function Scene(props:TreeSceneProps){
     if(moving)invalidate();
   });
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={180} maxDistance={18000} smoothTime={.3}/>
+    <CameraControls ref={controls} makeDefault minDistance={180} maxDistance={60000} smoothTime={.3}/>
     <lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
@@ -101,6 +111,7 @@ function Scene(props:TreeSceneProps){
         <mesh><sphereGeometry args={[radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .01 : .08} depthWrite={false} blending={AdditiveBlending}/></mesh>
         {node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
         {visible&&<Html position={[node.kind==='company'?16:22,0,0]} distanceFactor={node.kind==='company'||node.kind==='branch'?1100:undefined} zIndexRange={[15,0]} style={{pointerEvents:'none'}}><button
+          ref={el=>{if(el)labels.current.set(node.id,el);else labels.current.delete(node.id);}}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto'}}
           data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
@@ -130,5 +141,5 @@ export default function IndustryTreeScene(props:TreeSceneProps){
     return ()=>{active=false;};
   },[onUnavailable]);
   if(!supported)return null;
-  return <Boundary onUnavailable={props.onUnavailable}><Canvas frameloop="demand" dpr={[1,1.5]} camera={{position:[0,0,1600],fov:45,near:1,far:30000}} gl={{antialias:true}} fallback={null}><Scene {...props}/></Canvas></Boundary>;
+  return <Boundary onUnavailable={props.onUnavailable}><Canvas frameloop="demand" dpr={[1,1.5]} camera={{position:[0,0,1600],fov:45,near:1,far:100000}} gl={{antialias:true}} fallback={null}><Scene {...props}/></Canvas></Boundary>;
 }

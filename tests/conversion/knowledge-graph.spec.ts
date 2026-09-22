@@ -772,3 +772,20 @@ test('three views tree remains browsable without WebGL',async({page})=>{
  await page.getByRole('button',{name:'NVIDIA',exact:true}).click();
  await expect(page.getByRole('complementary',{name:'Company details'})).toBeVisible();
 });
+
+test('three views application siblings share a vertical column and remain inside the canvas',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ await page.locator('[data-tree-node="applications"]').click();
+ const software=page.locator('[data-tree-node="applications/applications"]'),edge=page.locator('[data-tree-node="applications/edge"]');
+ await expect(software).toBeVisible();await expect(edge).toBeVisible();
+ await expect.poll(async()=>{
+   const a=(await software.boundingBox())!,b=(await edge.boundingBox())!,canvas=(await page.locator('[data-industry-tree] canvas').boundingBox())!;
+   return Math.abs(a.x-b.x)<2&&a.y+a.height<b.y&&a.x+a.width<=canvas.x+canvas.width&&b.x+b.width<=canvas.x+canvas.width;
+ }).toBe(true);
+ await expect(page.locator('[data-tree-node="models"]')).toHaveAttribute('data-tree-dimmed','true');
+ await software.click();
+ await expect(page.locator('[data-tree-company="US:CRM"]')).toBeVisible();
+ await page.screenshot({path:'output/tree-siblings-'+test.info().project.name+'.png',fullPage:true});
+});

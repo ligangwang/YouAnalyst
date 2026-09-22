@@ -27,6 +27,34 @@ test('five-layer tree retains every company and distinguishes models from cloud 
   assert(expanded.some(n=>n.company?.id==='US:NVDA'));assert(!expanded.some(n=>n.company?.id==='US:ORCL'));
   assert.equal(layoutIndustryTree(layers,new Set(),'en').length,1);
 });
+test('tree siblings align vertically and expanded descendants reserve space between layers',()=>{
+  const layers=industryTree(graphs.flatMap(g=>g.nodes.filter(n=>n.kind==='COMPANY')) as GraphNode[]);
+  const open=new Set(['root','applications']);
+  const branches=layoutIndustryTree(layers,open,'en');
+  const siblings=branches.filter(n=>n.kind==='branch'&&n.layer==='applications');
+  assert.equal(siblings.length,2);
+  assert.equal(siblings[0].parent,siblings[1].parent);
+  assert.equal(siblings[0].position[0],siblings[1].position[0]);
+  assert.equal(siblings[0].position[2],siblings[1].position[2]);
+  assert(siblings[0].position[1]>siblings[1].position[1]);
+  const expanded=layoutIndustryTree(layers,new Set([...open,'applications/applications']),'en');
+  const children=expanded.filter(n=>n.parent==='applications/applications');
+  assert(children.length>1);
+  assert(children.every(n=>n.position[0]>siblings[0].position[0]&&n.position[0]===children[0].position[0]));
+  const other=expanded.find(n=>n.id==='applications/edge')!;
+  assert(children.every(n=>n.position[1]>other.position[1]+46));
+  const distance=(nodes:typeof expanded)=>nodes.find(n=>n.id==='applications')!.position[1]-nodes.find(n=>n.id==='models')!.position[1];
+  assert(distance(expanded)>distance(branches));
+  assert.deepEqual(layoutIndustryTree(layers,open,'en'),branches);
+  const all=layoutIndustryTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
+  for(const layer of layers){
+    const group=all.filter(n=>n.kind==='branch'&&n.layer===layer.id);
+    assert(group.every(n=>n.position[0]===100&&n.position[2]===0));
+    const ys=all.filter(n=>n.layer===layer.id).map(n=>n.position[1]);
+    const next=layers[layers.indexOf(layer)+1];
+    if(next)assert(Math.max(...ys)<Math.min(...all.filter(n=>n.layer===next.id).map(n=>n.position[1])));
+  }
+});
 test("both datasets have unique sourced companies, valid topology and honest coverage counts", () => {
   graphs.forEach(validateGraph);
   assert.equal(graphs[0].coverage.companyCount, 67);
