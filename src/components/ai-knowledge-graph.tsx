@@ -2,13 +2,15 @@
 
 import { marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocale } from "./providers/locale-provider";
 import { companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
-import { CompanyFollowButton } from "./company-follow-button";
+import { IndustryCompanyTable, IndustryStructure } from "./industry-company-views";
+import { companySectors, isIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
+import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
 import { CompanyNameEditor } from "./company-name-editor";
 import { AiMapDirectory } from "./ai-map-directory";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
@@ -20,9 +22,31 @@ import { trackEvent } from "@/lib/analytics";
 import styles from "./ai-knowledge-graph.module.css";
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
+const subscribeView = (notify: () => void) => {
+  window.addEventListener("storage", notify); window.addEventListener("popstate", notify); window.addEventListener("industry-view-changed", notify);
+  return () => { window.removeEventListener("storage", notify); window.removeEventListener("popstate", notify); window.removeEventListener("industry-view-changed", notify); };
+};
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
 export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", introduction, allowedRelationshipIds }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; introduction?: React.ReactNode; allowedRelationshipIds?: string[] }) {
   const { text, locale } = useLocale();
+  const defaultView: IndustryView = initialEdge || initialEvent || allowedRelationshipIds ? "graph" : "tree";
+  const view = useSyncExternalStore(subscribeView, () => {
+    const requested = new URLSearchParams(window.location.search).get("view");
+    if (isIndustryView(requested)) return requested;
+    if (defaultView === "graph") return defaultView;
+    try { const saved = localStorage.getItem("ya-industry-view"); if (isIndustryView(saved)) return saved; } catch { /* Storage is optional. */ }
+    return defaultView;
+  }, () => defaultView);
+  const viewId = useId();
+  const [marketFilter, setMarketFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [onlyFollowed, setOnlyFollowed] = useState(false);
+  const follows = useCompanyFollows();
+  function changeView(next: IndustryView) {
+    try { localStorage.setItem("ya-industry-view", next); } catch { /* URL still preserves the selection. */ }
+    const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.replaceState(null, "", url);
+    window.dispatchEvent(new Event("industry-view-changed"));
+  }
   const [activeEdge, setActiveEdge] = useState(initialEdge);
   const [eventId, setEventId] = useState(initialEvent);
   const [sectorFocus, setSectorFocus] = useState("");
@@ -39,31 +63,37 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     fetch("/api/knowledge-graph", { signal: controller.signal }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { setGraph(data); setStatus("ready"); }).catch(() => { if (!controller.signal.aborted) setStatus("error"); });
     return () => controller.abort();
   }, [retry]);
-  const visible = useMemo(() => {
+  const scoped = useMemo(() => {
     if (!allowedRelationshipIds) return graph;
     const relationships = graph.relationships.filter(e=>allowedRelationshipIds.includes(e.id));
     const ids = new Set(relationships.flatMap(e=>[e.source,e.target]));
     return {...graph, relationships, nodes:graph.nodes.filter(n=>ids.has(n.id))};
   }, [graph, allowedRelationshipIds]);
+  const visible = useMemo(() => {
+    const filtered = filterGraph(scoped, ["US", "CN_A", "GLOBAL"], query);
+    const companies = filtered.nodes.filter(n => n.kind === "COMPANY" && (marketFilter === "all" || n.market === marketFilter) && (!roleFilter || companySectors(n).some(s => s.id === roleFilter)) && (!onlyFollowed || follows.ids.includes(n.id)));
+    const ids = new Set(companies.map(n => n.id));
+    const stages = new Set(companies.flatMap(n => n.stageIds ?? []).map(id => "stage:" + id));
+    return {...filtered, nodes:[...filtered.nodes.filter(n => n.kind === "STAGE" && stages.has(n.id)), ...companies], relationships:filtered.relationships.filter(e => ids.has(e.source) && (ids.has(e.target) || stages.has(e.target)))};
+  }, [scoped, query, marketFilter, roleFilter, onlyFollowed, follows.ids]);
+  const companies = visible.nodes.filter(n => n.kind === "COMPANY");
   const matches = useMemo(() => filterGraph(visible, ["US", "CN_A", "GLOBAL"], query).nodes.filter(n => n.kind === "COMPANY"), [visible, query]);
   const [browseQuery, setBrowseQuery] = useState("");
   const browseMatches = useMemo(() => filterGraph(visible, ["US", "CN_A", "GLOBAL"], browseQuery).nodes.filter(n => n.kind === "COMPANY").sort((a,b)=>companyName(a,locale).localeCompare(companyName(b,locale),locale)), [visible,browseQuery,locale]);
   const workspaceRef = useRef<HTMLDivElement>(null);
-  const sectorIds = new Set(visible.nodes.filter(n => n.kind === "COMPANY").map(n => companySector(n).id));
+  const sectorIds = new Set(scoped.nodes.filter(n => n.kind === "COMPANY").map(n => companySector(n).id));
   const [reset, setReset] = useState(0);
-  const company = visible.nodes.find(n => n.id === selected && n.kind === "COMPANY");
-  const relations = company ? visible.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
+  const company = scoped.nodes.find(n => n.id === selected && n.kind === "COMPANY");
+  const relations = company ? scoped.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
   const label = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n?.kind === "STAGE" ? text(n.labels?.en ?? n.label ?? id, n.labels?.["zh-CN"] ?? n.label ?? id) : n ? companyName(n,locale) : id; };
   function selectCompany(id: string) {
     setCameraRequest(value=>value+1);
     setSelected(id);
     setSectorFocus("");
     workspaceRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
-    setQuery("");
     setActiveEdge("");
     setEventId("");
     const url = new URL(window.location.href);
-    url.searchParams.delete("q");
     url.searchParams.delete("event");
     url.searchParams.delete("relationship");
     if (id) url.searchParams.set("company", id); else url.searchParams.delete("company");
@@ -76,6 +106,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     setSelected(nextCompany);
     setSectorFocus("");
     setQuery("");
+    changeView("graph");
     setActiveEdge(id);
     setEventId("");
     trackEvent("company_evidence_view", {entry_point:"map_connection"});
@@ -98,16 +129,31 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const Heading = allowedRelationshipIds ? "h2" : "h1";
   return <><Container className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>{text("EXPLORE", "探索")}</p><Heading>{text("AI Industry Map", "AI 产业图谱")}</Heading><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></div></header>
+    <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
+      {([['table','Company list','公司列表'],['tree','Industry structure','产业结构'],['graph','Relationship graph','关系图谱']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids:IndustryView[]=['table','tree','graph'];let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%3];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+2)%3];if(e.key==='Home')next='table';if(e.key==='End')next='graph';if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}>{text(en,zh)}</button>)}
+    </div>
+    <div className={styles.sharedFilters}>
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
       <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
     </div>
-    {query.trim() && <section className={styles.searchResults} aria-label={text("Search results", "搜索结果")}>
+    <label>{text("Listing market", "上市市场")}<select aria-label={text("Listing market", "上市市场")} value={marketFilter} onChange={e=>setMarketFilter(e.target.value)}><option value="all">{text("All markets", "全部市场")}</option><option value="US">{text("US-listed", "美股")}</option><option value="CN_A">{text("China A-shares", "A股")}</option><option value="GLOBAL">{text("Other / private", "其他／非上市")}</option></select></label>
+    <label>{text("Industry role", "产业环节")}<select aria-label={text("Industry role", "产业环节")} value={roleFilter} onChange={e=>setRoleFilter(e.target.value)}><option value="">{text("All roles", "全部环节")}</option>{[...GRAPH_SECTORS,OTHER_SECTOR].filter(s=>sectorIds.has(s.id)||scoped.nodes.some(n=>n.kind==='COMPANY'&&companySectors(n).some(role=>role.id===s.id))).map(s=><option key={s.id} value={s.id}>{text(s.en,s.zh)}</option>)}</select></label>
+    <label className={styles.followFilter}><input type="checkbox" checked={onlyFollowed} onChange={e=>setOnlyFollowed(e.target.checked)}/>{text("Following only", "仅看关注")}</label>
+    {(query || marketFilter!=='all' || roleFilter || onlyFollowed) && <button className={styles.filterReset} onClick={()=>{setQuery('');setMarketFilter('all');setRoleFilter('');setOnlyFollowed(false);const url=new URL(window.location.href);url.searchParams.delete('q');window.history.replaceState(null,'',url);}}>{text("Clear filters", "清除筛选")}</button>}
+    </div>
+    {onlyFollowed && !follows.user && <p className={styles.filterNotice}>{text("Sign in and follow companies to use this filter.", "登录并关注公司后，可使用此筛选。")}</p>}
+    {onlyFollowed && follows.user && !follows.ready && <p className={styles.filterNotice} role="status">{follows.error?<button onClick={()=>void follows.refresh()}>{text("Could not load follows. Retry", "关注列表加载失败，重试")}</button>:text("Loading followed companies…", "正在加载关注公司…")}</p>}
+    {view==='graph' && query.trim() && <section className={styles.searchResults} aria-label={text("Search results", "搜索结果")}>
       {matches.length ? matches.map(n => <button key={n.id} onClick={() => selectCompany(n.id)}>{companyName(n,locale)} · {n.symbol}</button>) : <p>{text("No matching companies.", "没有匹配的公司。")}</p>}
     </section>}
-    {status === "ready" && sectorIds.size > 0 && <div><button type="button" className={styles.sectorToggle} aria-expanded={sectorsExpanded} aria-controls={sectorControlsId} onClick={()=>setSectorsExpanded(value=>!value)}>{text("Sectors", "产业环节")}{sectorFocus && <> · {text((GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).en,(GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).zh)}</>} <span aria-hidden="true">{sectorsExpanded?"−":"+"}</span></button><div id={sectorControlsId} className={styles.sectorLegend} data-expanded={sectorsExpanded} role="group" aria-label={text("Colors by primary AI sector", "按主要 AI 产业环节着色")}><span>{text("Sector", "产业环节")}</span>{[...GRAPH_SECTORS, OTHER_SECTOR].filter(s => sectorIds.has(s.id)).map(s => <button key={s.id} type="button" aria-pressed={sectorFocus === s.id} onClick={() => toggleSector(s.id)} style={{ color: s.color }}><i aria-hidden="true" style={{ background: s.color }}/>{text(s.en, s.zh)}</button>)}</div><p className={styles.interactionHint}><span className={styles.pointerHint}>{text("Hover a line to preview · Click for evidence", "悬停连线预览关系 · 点击查看依据")}</span><span className={styles.touchHint}>{text("Tap a line for relationship evidence", "点按连线查看关系依据")}</span></p></div>}
-    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !visible.nodes.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
-      <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setReset(n => n + 1); }}/></Suspense>
+    {view === "graph" && status === "ready" && sectorIds.size > 0 && <div><button type="button" className={styles.sectorToggle} aria-expanded={sectorsExpanded} aria-controls={sectorControlsId} onClick={()=>setSectorsExpanded(value=>!value)}>{text("Sectors", "产业环节")}{sectorFocus && <> · {text((GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).en,(GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).zh)}</>} <span aria-hidden="true">{sectorsExpanded?"−":"+"}</span></button><div id={sectorControlsId} className={styles.sectorLegend} data-expanded={sectorsExpanded} role="group" aria-label={text("Colors by primary AI sector", "按主要 AI 产业环节着色")}><span>{text("Sector", "产业环节")}</span>{[...GRAPH_SECTORS, OTHER_SECTOR].filter(s => sectorIds.has(s.id)).map(s => <button key={s.id} type="button" aria-pressed={sectorFocus === s.id} onClick={() => toggleSector(s.id)} style={{ color: s.color }}><i aria-hidden="true" style={{ background: s.color }}/>{text(s.en, s.zh)}</button>)}</div><p className={styles.interactionHint}><span className={styles.pointerHint}>{text("Hover a line to preview · Click for evidence", "悬停连线预览关系 · 点击查看依据")}</span><span className={styles.touchHint}>{text("Tap a line for relationship evidence", "点按连线查看关系依据")}</span></p></div>}
+    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
+      <div className={styles.viewContent}>
+      <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
+      <div hidden={view!=='tree'}><IndustryStructure companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
+      {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setReset(n => n + 1); }}/></Suspense>}
+      </div>
       {company && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>
         <div className={styles.detailHeader}>
           <span className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</span>
@@ -139,7 +185,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     </div>}
     <div className={styles.legend}><span role="status">{status === "ready" ? <>{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</> : text(status === "loading" ? "Loading company and connection totals…" : "Company and connection totals unavailable", status === "loading" ? "正在加载公司与关系数量…" : "暂时无法获取公司与关系数量")}</span></div>
     {introduction}
-    {status === "ready" && <details className={styles.companyBrowser}><summary>{text("Browse companies", "浏览公司")} · {visible.nodes.filter(n=>n.kind==="COMPANY").length}</summary>
+    {view === "graph" && status === "ready" && <details className={styles.companyBrowser}><summary>{text("Browse companies", "浏览公司")} · {visible.nodes.filter(n=>n.kind==="COMPANY").length}</summary>
       <input aria-label={text("Find a company in the list", "在列表中查找公司")} placeholder={text("Name, ticker or business…", "名称、代码或业务…")} value={browseQuery} onChange={e=>setBrowseQuery(e.target.value)}/>
       <div className={styles.companyList}>{browseMatches.map(n=><button key={n.id} onClick={()=>selectCompany(n.id)}><span style={{color:companySector(n).color}}>{companyName(n,locale)}</span><small>{n.symbol} · {text(companySector(n).en,companySector(n).zh)}</small></button>)}{!browseMatches.length && <p>{text("No matching companies.", "没有匹配的公司。")}</p>}</div>
     </details>}
