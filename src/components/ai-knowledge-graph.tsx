@@ -8,8 +8,9 @@ import { companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-g
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
-import { IndustryCompanyTable, IndustryStructure } from "./industry-company-views";
+import { IndustryCompanyTable } from "./industry-company-views";
 import { companySectors, isIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
+import { IndustryStructure } from "./industry-tree";
 import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
 import { CompanyNameEditor } from "./company-name-editor";
 import { AiMapDirectory } from "./ai-map-directory";
@@ -153,7 +154,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
       <div className={styles.viewContent}>
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
-      <div hidden={view!=='tree'}><IndustryStructure companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
+      <div hidden={view!=='tree'}><IndustryStructure active={view==='tree'} companies={scoped.nodes.filter(n=>n.kind==='COMPANY')} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setReset(n => n + 1); }}/></Suspense>}
       </div>
       {company && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>

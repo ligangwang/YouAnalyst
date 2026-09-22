@@ -1,0 +1,23 @@
+.tree { background:radial-gradient(ellipse at 45% 50%,#102b3c 0%,#081522 50%,#060e19 100%); border-radius:18px; overflow:hidden; }
+.toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; padding:20px 24px; border-bottom:1px solid #29425480; }
+.toolbar h2 { font-size:19px; margin:0 0 6px; color:#daf4ff; }
+.toolbar p { margin:0; font-size:12px; color:#8fabbe; }
+.actions { display:flex; gap:8px; flex-wrap:wrap; }
+.actions button { border:1px solid #355368; background:#0c1c29; color:#bfe8f7; border-radius:9px; padding:9px 12px; min-height:40px; cursor:pointer; }
+.actions button:hover { background:#16384a; }
+.scene { height: min(78vh,850px); min-height:560px; position:relative; touch-action:none; }
+.node { display:flex; align-items:center; gap:10px; border:1px solid transparent; border-radius:9px; padding:7px 10px; background:#081523e8; text-align:left; white-space:nowrap; cursor:pointer; transition:opacity .2s,background .2s; }
+.node strong { display:flex; align-items:center; gap:6px; font-weight:500; }
+.node:hover,.node:focus-visible,.node[aria-pressed='true'] { background:#173e52; border-color:currentColor; outline:none; }
+.layer { font-size:17px; border-color:#63889855; box-shadow:0 0 22px #79bfe00b; }
+.root { font-size:19px; border-color:#6edaff44; }
+.branch { font-size:13px; border-color:#54758c44; }
+.company { flex-direction:column; align-items:flex-start; gap:3px; font-size:12px; padding:3px 7px; background:#071421c9; }
+.company small { padding-left:0; color:#9ebacd; font-size:10px; }
+.count { font-size:11px; opacity:.7; }
+.hint { display:block; padding:12px 20px; color:#92afc1; font-size:11px; line-height:1.8; border-top:1px solid #29425466; }
+.hint span { display:block; color:#678b9f; }
+.fallback { padding:20px; overflow:auto; height:100%; color:#bce2ef; }
+.fallback details { margin:12px 0 12px 18px; }.fallback button { display:block; padding:8px; color:inherit; }
+@media(max-width:800px){.toolbar {padding:14px;}.scene {min-height:520px;height:70vh;}.layer {font-size:14px;}.root {font-size:15px;}.hint {padding:10px 14px;}}
+@media(prefers-reduced-motion:reduce){.node {transition:none;}}

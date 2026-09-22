@@ -1,0 +1,62 @@
+import type { GraphNode } from './model';
+
+// Five-layer framework: https://blogs.nvidia.com/blog/ai-5-layer-cake/
+// Subdivisions are our industry-role mapping, not a standard sector taxonomy.
+export const INDUSTRY_LAYERS = [
+  {id:'energy', en:'Energy', zh:'能源', color:'#f4db7c', stages:['energy']},
+  {id:'chips', en:'Chips', zh:'芯片', color:'#9bb5ff', stages:['compute','memory','materials','equipment','design','foundry','packaging']},
+  {id:'infrastructure', en:'Infrastructure', zh:'基础设施', color:'#67e6bc', stages:['servers','interconnect','optics','boards','networking','power','cooling','datacenters','cloud']},
+  {id:'models', en:'Models', zh:'模型', color:'#e3a2ef', stages:['models']},
+  {id:'applications', en:'Applications', zh:'应用', color:'#ff9eae', stages:['applications','edge']},
+];
+const stageNames: Record<string,[string,string]> = {
+  energy:['Energy supply','能源供应'], compute:['AI accelerators & CPUs','AI 加速器与处理器'], memory:['Memory & storage','内存与存储'],
+  materials:['Semiconductor materials','半导体材料'], equipment:['Manufacturing equipment','制造设备'], design:['EDA & semiconductor IP','EDA 与半导体 IP'],
+  foundry:['Wafer fabrication','晶圆制造'], packaging:['Advanced packaging & test','先进封装与测试'], servers:['Servers & systems','服务器与系统'],
+  interconnect:['Electrical interconnects','高速电互连'], optics:['Optical communications','光通信'], boards:['PCBs & substrates','PCB 与基板'],
+  networking:['Network equipment & silicon','网络设备与芯片'], power:['Power delivery','供配电'], cooling:['Cooling & thermal management','散热与液冷'],
+  datacenters:['Data-center facilities','数据中心设施'], cloud:['Cloud compute & platforms','云算力与平台'], models:['Foundation models','基础模型'],
+  applications:['AI software & applications','AI 软件与应用'], edge:['Edge AI & devices','端侧 AI 与设备'], other:['Unclassified roles','待分类业务'],
+};
+// Explicit model-development roles; cloud membership alone is insufficient.
+// Sources: openai.com, anthropic.com, mistral.ai, deepmind.google/models,
+// ai.meta.com/llama, aws.amazon.com/ai/generative-ai/nova, qwen.ai, yiyan.baidu.com.
+const modelDevelopers = new Set(['ORG:OPENAI','ORG:ANTHROPIC','ORG:MISTRAL-AI','US:GOOGL','US:META','US:AMZN','US:BABA','US:BIDU']);
+export type TreeBranch = {id:string; en:string; zh:string; companies:GraphNode[]};
+export type TreeLayer = typeof INDUSTRY_LAYERS[number] & {branches:TreeBranch[]; companies:GraphNode[]};
+export function industryTree(companies:GraphNode[]):TreeLayer[] {
+  const unique=[...new Map(companies.map(c=>[c.id,c])).values()];
+  const known=new Set(INDUSTRY_LAYERS.flatMap(l=>l.stages));
+  return INDUSTRY_LAYERS.map(layer=>{
+    const stages=layer.id==='applications'?[...layer.stages,'other']:layer.stages;
+    const branches=stages.map(stage=>({id:`${layer.id}/${stage}`,en:stageNames[stage][0],zh:stageNames[stage][1],companies:unique.filter(c=>
+      stage==='models' ? modelDevelopers.has(c.id)||c.stageIds?.includes('models') :
+      stage==='other' ? !c.stageIds?.some(s=>known.has(s))&&!modelDevelopers.has(c.id) : c.stageIds?.includes(stage)
+    )})).filter(b=>b.companies.length);
+    return {...layer,branches,companies:[...new Map(branches.flatMap(b=>b.companies).map(c=>[c.id,c])).values()]};
+  });
+}
+export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company';label:string;color:string;position:[number,number,number];company?:GraphNode;count?:number};
+export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,locale:string):TreePoint[] {
+  const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;
+  const nodes:TreePoint[]=[{id:'root',kind:'root',label:locale==='zh-CN'?'AI 产业链':'AI industry chain',color:'#8be8ff',position:[-540,0,0]}];
+  if(!open.has('root'))return nodes;
+  let bottom=0;
+  for(const layer of layers){
+    const expanded=open.has(layer.id);
+    const rows=expanded?Math.ceil(layer.branches.length/3):0;
+    const heights=Array.from({length:rows},(_,row)=>Math.max(105,...layer.branches.slice(row*3,row*3+3).map(b=>open.has(b.id)?100+b.companies.length*92:105)));
+    const height=Math.max(135,heights.reduce((a,b)=>a+b,0)+50);
+    const top=bottom+height;
+    nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[-240,bottom+height/2,0],count:layer.companies.length});
+    if(expanded)layer.branches.forEach((branch,i)=>{
+      const row=Math.floor(i/3),column=i%3;
+      const x=100+column*330,y=top-65-heights.slice(0,row).reduce((a,b)=>a+b,0),z=(column-1)*35;
+      nodes.push({id:branch.id,parent:layer.id,layer:layer.id,branch:branch.id,kind:'branch',label:label(branch),color:layer.color,position:[x,y,z],count:branch.companies.length});
+      if(open.has(branch.id)) [...branch.companies].sort((a,b)=>a.id.localeCompare(b.id)).forEach((company,j)=>nodes.push({id:`${branch.id}/${company.id}`,parent:branch.id,layer:layer.id,branch:branch.id,kind:'company',label:company.names?.[locale==='zh-CN'?'zh-CN':'en']||company.name||company.id,color:layer.color,position:[x+22,y-90-j*92,z+25],company}));
+    });
+    bottom=top+35;
+  }
+  for(const n of nodes)if(n.id!=='root')n.position[1]-=bottom/2;
+  return nodes;
+}
