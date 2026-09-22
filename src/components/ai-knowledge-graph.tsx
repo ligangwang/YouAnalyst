@@ -29,11 +29,11 @@ const subscribeView = (notify: () => void) => {
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
 export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", introduction, allowedRelationshipIds }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; introduction?: React.ReactNode; allowedRelationshipIds?: string[] }) {
   const { text, locale } = useLocale();
-  const defaultView: IndustryView = initialEdge || initialEvent || allowedRelationshipIds ? "graph" : "tree";
+  const defaultView: IndustryView = "graph";
   const view = useSyncExternalStore(subscribeView, () => {
     const requested = new URLSearchParams(window.location.search).get("view");
     if (isIndustryView(requested)) return requested;
-    if (defaultView === "graph") return defaultView;
+    if (initialEdge || initialEvent || allowedRelationshipIds) return "graph";
     try { const saved = localStorage.getItem("ya-industry-view"); if (isIndustryView(saved)) return saved; } catch { /* Storage is optional. */ }
     return defaultView;
   }, () => defaultView);

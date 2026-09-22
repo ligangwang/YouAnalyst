@@ -626,11 +626,18 @@ test("map displays stored market cap and date while unknown stays ticker only", 
   await expect(page.locator('[data-company-id="US:AAPL"] span')).toHaveText('AAPL');
 });
 
-test('three views default to structure, share filters and selection, and remember preference', async ({page}) => {
+test('three views default to graph, share filters and selection, and remember preference', async ({page}) => {
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en');
- await expect(page.getByRole('tab',{name:'Industry structure',exact:true})).toHaveAttribute('aria-selected','true');
- await expect(page.getByRole('heading',{name:'AI industry chain',exact:true})).toBeVisible();
+ await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+ await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await expect(page.getByRole('button',{name:'AI industry chain',exact:true})).toHaveAttribute('aria-expanded','false');
+ await expect(page.getByRole('button',{name:/^AI compute/})).toBeHidden();
+ await page.getByRole('button',{name:'AI industry chain',exact:true}).click();
+ await expect(page.getByRole('button',{name:/^AI compute/})).toHaveAttribute('aria-expanded','false');
+ await expect(page.locator('[data-tree-company="US:NVDA"]').first()).not.toBeVisible();
+ await page.getByRole('button',{name:/^AI compute/}).click();
+ await expect(page.locator('[data-tree-company="US:NVDA"]').first()).toBeVisible();
  await page.getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:NVDA"]').first()).not.toBeVisible();
  await page.getByRole('button',{name:'Expand all',exact:true}).click();
@@ -658,6 +665,8 @@ test('three views support multi-role membership, sorting with unknown caps last,
  const fixture:KnowledgeGraph={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD','US:AAPL'].includes(n.id)).map(n=>n.id==='US:NVDA'?{...n,stageIds:['compute','networking'],marketCap:{value:2e12,currency:'USD',priceDate:'2026-09-21'}}:n.id==='US:AMD'?{...n,marketCap:{value:1e12,currency:'USD',priceDate:'2026-09-21'}}:n)};
  await page.route('**/*',r=>{const path=new URL(r.request().url()).pathname;if(path==='/api/knowledge-graph')return r.fulfill({json:fixture});if(path==='/api/map-follows')return r.fulfill({json:{companyIds:['US:NVDA']}});return r.fulfill({contentType:'text/html',body:html});});
  await page.goto('http://graph.test/map?lang=en&account=1');
+ await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:NVDA"]')).toHaveCount(2);
  await page.getByLabel('Industry role',{exact:true}).selectOption('connectivity');
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
@@ -676,6 +685,7 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('no-such-company');
  await expect(page.getByText('No matching companies.',{exact:true}).first()).toBeVisible();
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
+ await page.getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:AMD"]').first()).toBeVisible();
 });
 
@@ -695,6 +705,8 @@ test('three views selection and follow changes stay synchronized across tabs', a
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
  await page.route('**/*',async r=>{const path=new URL(r.request().url()).pathname;if(path==='/api/knowledge-graph')return r.fulfill({json:fixture});if(path==='/api/map-follows'){if(r.request().method()==='PATCH')ids=['US:NVDA'];return r.fulfill({json:{companyIds:ids}});}return r.fulfill({contentType:'text/html',body:html});});
  await page.goto('http://graph.test/map?lang=en&account=1');
+ await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('button',{name:'Expand all',exact:true}).click();
  await page.locator('[data-tree-company="US:NVDA"]').first().click();
  const detail=page.getByRole('complementary',{name:'Company details'});
  await expect(detail).toBeVisible();

@@ -157,7 +157,7 @@ test("feed shows research updates without filing features", async ({ page, reque
   expect(response.status()).toBe(404);
 });
 
-test("homepage AI knowledge graph shows all companies without market controls", async ({ page, request }) => {
+test("homepage defaults to graph and supports all three industry views", async ({ page, request }) => {
   const response = await request.get("/api/knowledge-graph");
   expect(response.ok()).toBeTruthy();
   const graph = await response.json();
@@ -166,8 +166,14 @@ test("homepage AI knowledge graph shows all companies without market controls", 
   await expect(page.getByRole("heading", { name: "AI Industry Map", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: /^(US stocks|A-shares|Global & private|2D|3D|Fit|Rotate right|Zoom in)$/ })).toHaveCount(0);
   await expect(page.locator('span[role="status"]')).toContainText(`${count} companies`);
+  await expect(page.getByRole("tab", { name: "Relationship graph", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("canvas")).toBeVisible();
   await page.getByRole("button", { name: "Reset view", exact: true }).click();
+  await page.getByRole("tab", { name: "Company list", exact: true }).click();
+  await expect(page.locator('[data-list-company]')).toHaveCount(count);
+  await page.getByRole("tab", { name: "Industry structure", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "AI industry chain", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Relationship graph", exact: true }).click();
   await page.reload();
   await expect(page.locator('span[role="status"]')).toContainText(`${count} companies`);
 });
