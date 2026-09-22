@@ -717,7 +717,7 @@ test('three views selection and follow changes stay synchronized across tabs', a
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
  await page.getByRole('button',{name:'Expand all',exact:true}).click();
  await page.locator('[data-tree-company="US:NVDA"]').first().click();
- const detail=page.getByRole('complementary',{name:'Company details'});
+ const detail=page.getByRole('dialog',{name:'Company details'});
  await expect(detail).toBeVisible();
  await detail.getByRole('button',{name:'＋ Follow',exact:true}).click();
  await expect(detail.getByRole('button',{name:'Following',exact:true})).toBeVisible();
@@ -726,7 +726,7 @@ test('three views selection and follow changes stay synchronized across tabs', a
  await expect(page.locator('[data-list-company="US:NVDA"]').getByLabel('Following',{exact:true})).toBeVisible();
  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
  await expect(page.locator('[data-company-id="US:NVDA"]')).toHaveAttribute('data-company-focus','selected');
- await expect(detail.getByRole('button',{name:'Following',exact:true})).toBeVisible();
+ await expect(page.getByRole('complementary',{name:'Company details'}).getByRole('button',{name:'Following',exact:true})).toBeVisible();
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:NVDA"]').first()).toHaveAttribute('aria-pressed','true');
 });
@@ -770,7 +770,7 @@ test('three views tree remains browsable without WebGL',async({page})=>{
  await page.locator('summary').filter({hasText:/^Chips/}).click();
  await page.locator('summary').filter({hasText:/^AI accelerators/}).click();
  await page.getByRole('button',{name:'NVIDIA',exact:true}).click();
- await expect(page.getByRole('complementary',{name:'Company details'})).toBeVisible();
+ await expect(page.getByRole('dialog',{name:'Company details'})).toBeVisible();
 });
 
 test('three views application siblings share a vertical column and remain inside the canvas',async({page})=>{
@@ -788,4 +788,34 @@ test('three views application siblings share a vertical column and remain inside
  await software.click();
  await expect(page.locator('[data-tree-company="US:CRM"]')).toBeVisible();
  await page.screenshot({path:'output/tree-siblings-'+test.info().project.name+'.png',fullPage:true});
+});
+
+test('three views company snapshot stays inside the canvas and closes without losing the tree',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
+ await page.route('**/*',r=>{
+  const url=r.request().url();
+  if(url.includes('/api/company-fundamentals'))return r.fulfill({json:{data:{metrics:[{label:'Revenue',value:1000000000,unit:'USD',start:'2025-01-01',end:'2025-12-31'}],marketCap:{close:150,currency:'USD',priceDate:'2026-09-21'},report:{end:'2025-12-31'}}}});
+  return url.includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ await page.locator('[data-tree-node="chips"]').click();
+ await page.locator('[data-tree-node="chips/compute"]').click();
+ await page.locator('[data-tree-company="US:NVDA"]').first().click();
+ const card=page.getByRole('dialog',{name:'Company details'});
+ await expect(card).toContainText('1B USD');
+ await expect(card).toContainText('150 USD');
+ await expect(card).toContainText('2026-09-21');
+ await expect(page.getByRole('complementary',{name:'Company details'})).toHaveCount(0);
+ const frame=(await page.locator('[data-industry-tree]').boundingBox())!,box=(await card.boundingBox())!;
+ expect(box.x).toBeGreaterThanOrEqual(frame.x);expect(box.y).toBeGreaterThanOrEqual(frame.y);
+ expect(box.x+box.width).toBeLessThanOrEqual(frame.x+frame.width);expect(box.y+box.height).toBeLessThanOrEqual(frame.y+frame.height);
+ await expect(page.locator('[data-tree-company="US:AMD"]').first()).toHaveAttribute('data-tree-dimmed','true');
+ await page.screenshot({path:'output/tree-card-'+test.info().project.name+'.png',fullPage:true});
+ await card.getByRole('button',{name:'Close company details'}).click();
+ await expect(card).toHaveCount(0);
+ await expect(page.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
+ await page.locator('[data-tree-company="US:AMD"]').first().click();
+ await expect(page.getByRole('dialog')).toContainText('AMD');
+ await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
 });

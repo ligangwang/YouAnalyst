@@ -92,7 +92,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     setCameraRequest(value=>value+1);
     setSelected(id);
     setSectorFocus("");
-    workspaceRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    if(view!=='tree') workspaceRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
     setActiveEdge("");
     setEventId("");
     const url = new URL(window.location.href);
@@ -151,13 +151,13 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       {matches.length ? matches.map(n => <button key={n.id} onClick={() => selectCompany(n.id)}>{companyName(n,locale)} · {n.symbol}</button>) : <p>{text("No matching companies.", "没有匹配的公司。")}</p>}
     </section>}
     {view === "graph" && status === "ready" && sectorIds.size > 0 && <div><button type="button" className={styles.sectorToggle} aria-expanded={sectorsExpanded} aria-controls={sectorControlsId} onClick={()=>setSectorsExpanded(value=>!value)}>{text("Sectors", "产业环节")}{sectorFocus && <> · {text((GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).en,(GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).zh)}</>} <span aria-hidden="true">{sectorsExpanded?"−":"+"}</span></button><div id={sectorControlsId} className={styles.sectorLegend} data-expanded={sectorsExpanded} role="group" aria-label={text("Colors by primary AI sector", "按主要 AI 产业环节着色")}><span>{text("Sector", "产业环节")}</span>{[...GRAPH_SECTORS, OTHER_SECTOR].filter(s => sectorIds.has(s.id)).map(s => <button key={s.id} type="button" aria-pressed={sectorFocus === s.id} onClick={() => toggleSector(s.id)} style={{ color: s.color }}><i aria-hidden="true" style={{ background: s.color }}/>{text(s.en, s.zh)}</button>)}</div><p className={styles.interactionHint}><span className={styles.pointerHint}>{text("Hover a line to preview · Click for evidence", "悬停连线预览关系 · 点击查看依据")}</span><span className={styles.touchHint}>{text("Tap a line for relationship evidence", "点按连线查看关系依据")}</span></p></div>}
-    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company ? styles.withDetail : ""}`}>
+    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company && view!=="tree" ? styles.withDetail : ""}`}>
       <div className={styles.viewContent}>
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       <div hidden={view!=='tree'}><IndustryStructure active={view==='tree'} companies={scoped.nodes.filter(n=>n.kind==='COMPANY')} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setReset(n => n + 1); }}/></Suspense>}
       </div>
-      {company && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>
+      {company && view!=="tree" && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>
         <div className={styles.detailHeader}>
           <span className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</span>
           <button className={styles.clear} onClick={() => selectCompany("")} aria-label={text("Clear selection", "取消选择")}>×</button>
