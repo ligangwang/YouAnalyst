@@ -136,9 +136,11 @@ for (const code of [403, 429]) test(`filing HTML ${code} preserves the queue ins
 
 test("legacy fresh SEC snapshots are queued once for share metadata without bypassing provider cooldown",async()=>{
  const old={report:{end:"2025-12-31"},metrics:[],excerpt:null,fetchedAt:new Date().toISOString()};
- const f=fixture({version:1,value:old,outcome:"ready",pending:false,refreshAfter:Date.now()+86400000,requestedAt:"2026-01-01"});
+ for (const outcome of [undefined, "ready"]) {
+ const f=fixture({version:1,value:old,outcome,pending:false,refreshAfter:Date.now()+86400000,requestedAt:"2026-01-01"});
  await requestCompanyFundamentals("AMD",f.dependencies.db);assert.equal(f.stored().pending,true);
  await refreshCompanyFundamentals("AMD",f.dependencies);assert.equal(f.requests(),2);assert.ok(f.stored().value && (f.stored().value as {shareAssessment?:unknown}).shareAssessment);
+ }
  const cooldown=fixture({version:1,value:old,outcome:"retry",pending:true,refreshAfter:Date.now()+3600000});
  await refreshCompanyFundamentals("AMD",cooldown.dependencies);assert.equal(cooldown.requests(),0);
 });

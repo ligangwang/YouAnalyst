@@ -1,6 +1,6 @@
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
-import { FUNDAMENTALS_COLLECTION, requestCompanyFundamentals } from "./service";
+import { FUNDAMENTALS_COLLECTION, requestCompanyFundamentals, needsShareMetadataUpgrade } from "./service";
 import { refreshCompanyFundamentals } from "./worker";
 import { withSecRequestContext } from "../sec-request";
 
@@ -48,7 +48,7 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
       if (Date.now() >= deadline || result.processed >= 500) { stop = true; break; }
       cursor = doc.id;
       const queued = doc.data();
-      const needsShareUpgrade = queued.outcome === "ready" && queued.value && !queued.value.shareAssessment;
+      const needsShareUpgrade = needsShareMetadataUpgrade(queued);
       if (Number(queued.refreshAfter) > Date.now() && !needsShareUpgrade) {
         result.deferred++;
         if (queued.outcome === "retry") {
