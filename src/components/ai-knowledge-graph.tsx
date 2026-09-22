@@ -1,5 +1,7 @@
 "use client";
 
+import { marketCapDescription } from "@/lib/knowledge-graph/market-cap";
+
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale } from "./providers/locale-provider";
 import { companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
@@ -115,6 +117,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
         <CompanyNameEditor key={`${company.id}-${locale}`} company={company} onSaved={updated => setGraph(previous => ({ ...previous, nodes: previous.nodes.map(node => node.id === updated.id ? { ...node, ...updated } : node) }))} />
         {company.symbol && <p className={styles.eyebrow}>{company.symbol}</p>}
         <p>{companyGeographyLabel(company, locale)}</p>
+        {company.marketCap && <p>{marketCapDescription(company.marketCap, locale)}</p>}
         <p>{company.summary}</p>
         <CompanyFollowButton companyId={company.id} /><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a>
         {eventId && curatedEvents.filter(e => e.id === eventId && e.companyIds.includes(company.id)).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected event evidence", "选中事件证据")}><BusinessEventEvidence event={e} /></section>)}

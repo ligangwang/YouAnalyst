@@ -12,6 +12,8 @@ import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./ai-knowledge-graph.module.css";
 
+import { marketCapScale, marketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
+
 const flagCountries = new Set(["CA", "CN", "FR", "GB", "IE", "NL", "SG", "TW", "US"]);
 function countryName(country: string | undefined, locale: string) {
   return country && flagCountries.has(country) ? new Intl.DisplayNames([locale], { type: "region" }).of(country) : undefined;
@@ -23,8 +25,8 @@ class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNod
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-const vertex = `attribute vec3 tint; attribute float emphasis; varying vec3 vColor; varying float vEmphasis;
-void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*(emphasis>1.?1.5:1.);}`;
+const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; varying vec3 vColor; varying float vEmphasis;
+void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*(emphasis>1.?1.5:1.);}`;
 const fragment = `varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis);if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
@@ -65,6 +67,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const geometry = useMemo(() => {
     const g = new BufferGeometry();
     g.setAttribute("position", new Float32BufferAttribute(layout.nodes.flatMap(n => [n.x, n.y, n.z]), 3));
+    g.setAttribute("capScale", new Float32BufferAttribute(layout.nodes.map(n => marketCapScale(n.marketCap)), 1));
     g.setAttribute("tint", new Float32BufferAttribute(layout.nodes.flatMap(n => new Color(companySector(n).color).toArray()), 3));
     g.setAttribute("emphasis", new Float32BufferAttribute(layout.nodes.map(n => selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : n.id === hovered || edgeEndpoints.has(n.id) ? 2 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), 1));
     return g;
@@ -270,7 +273,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#a8e8ef" transparent opacity={isBackgroundEdge(edge) ? .06 : .8}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>
     </group>)}
-    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{pointerEvents:"auto",visibility:"hidden",color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale)].filter(Boolean).join(" · ")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{n.country && flagCountries.has(n.country) && <Image className={styles.companyFlag} src={`/flags/${n.country.toLowerCase()}.svg`} width={14} height={10} unoptimized loading="eager" alt="" aria-hidden="true" />}{companyName(n,locale)}</strong><span>{n.symbol}</span></button></Html>)}
+    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{pointerEvents:"auto",visibility:"hidden",color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{n.country && flagCountries.has(n.country) && <Image className={styles.companyFlag} src={`/flags/${n.country.toLowerCase()}.svg`} width={14} height={10} unoptimized loading="eager" alt="" aria-hidden="true" />}{companyName(n,locale)}</strong><span>{[n.symbol, marketCapLabel(n.marketCap)].filter(Boolean).join(" · ")}</span></button></Html>)}
   </>;
 }
 
