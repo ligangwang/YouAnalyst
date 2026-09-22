@@ -6,6 +6,8 @@ import type { DocumentData } from "firebase-admin/firestore";
 export const FUNDAMENTALS_COLLECTION = "company_fundamentals";
 export const validFundamentalsTicker = (ticker: string) => /^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker);
 type Database = ReturnType<typeof getAdminFirestore>;
+export const needsShareMetadataUpgrade = (stored?: DocumentData) => Boolean(stored?.value
+  && !stored.value.shareAssessment && (!stored.outcome || stored.outcome === "ready"));
 
 // The existing cache document doubles as a durable, deduplicated request record.
 // Page reads never import the SEC worker or make provider requests.
@@ -16,7 +18,7 @@ export async function requestCompanyFundamentals(ticker: string, db: Database, n
     ? { ...stored.value, ...(stored.marketCap ? { marketCap: stored.marketCap } : {}) } : null;
   const needsRequest = (stored?: DocumentData) => stored?.pending !== true
     && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now
-      || (stored?.outcome === "ready" && stored.value && !stored.value.shareAssessment));
+      || needsShareMetadataUpgrade(stored));
   const fresh = (value: CompanyFundamentals | null) => value ? { ...value, stale: now - Date.parse(value.fetchedAt) > 2 * 86_400_000 } : null;
   const current = (await ref.get()).data();
   // Busy pages must not lock the cache document on every visitor read.

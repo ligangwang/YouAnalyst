@@ -13,7 +13,7 @@ test("all US map nodes, including ADRs and share classes, are cached or requeste
   ] });
   assert.deepEqual(tickers, ["BRK.B", "NVDA", "TSM"]);
   const data = new Map<string, Record<string, unknown>>([
-    ["NVDA", {version:1, value:{fetchedAt:new Date().toISOString()}, refreshAfter:Date.now()+86400000}],
+    ["NVDA", {version:1, value:{fetchedAt:new Date().toISOString(),shareAssessment:{basis:null,reason:"unsupported"}}, refreshAfter:Date.now()+86400000}],
   ]);
   const snapshot = (ref: {id:string}) => ({id:ref.id, data:()=>data.get(ref.id)});
   const db = {
@@ -52,7 +52,7 @@ function queueFixture(data: Map<string, Record<string, unknown>>) {
 
 test("fresh legacy fundamentals reach the share upgrade worker while completed assessments and retry cooldowns wait", async () => {
   const data = new Map<string,Record<string,unknown>>([
-    ["AMD", {pending:true,outcome:"ready",value:{fetchedAt:"2026-09-21"},refreshAfter:Date.now()+86400000}],
+    ["AMD", {pending:true,value:{fetchedAt:"2026-09-21"},refreshAfter:Date.now()+86400000}],
     ["MU", {pending:true,outcome:"ready",value:{shareAssessment:{basis:null,reason:"unsupported"}},refreshAfter:Date.now()+86400000}],
     ["NVDA", {pending:true,outcome:"retry",value:{fetchedAt:"2026-09-21"},refreshAfter:Date.now()+3600000}],
   ]);

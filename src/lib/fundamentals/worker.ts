@@ -1,7 +1,7 @@
 import { getAdminFirestore } from "../firebase/admin";
 import { fetchLatest10KSections } from "../company-graph/sec";
 import { annualMetrics, businessExcerpt, latestAnnualReport, type CompanyFacts, type CompanyFundamentals } from "./model";
-import { FUNDAMENTALS_COLLECTION, validFundamentalsTicker } from "./service";
+import { FUNDAMENTALS_COLLECTION, validFundamentalsTicker, needsShareMetadataUpgrade } from "./service";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { secRequest } from "../sec-request";
 import { assessShares } from "./market-cap";
@@ -54,7 +54,7 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
     const snapshot = await tx.get(ref);
     const stored = snapshot.data();
     const value = stored?.version === 1 ? (stored.value as CompanyFundamentals | null) ?? null : null;
-    const needsShareUpgrade = stored?.outcome === "ready" && value && !value.shareAssessment;
+    const needsShareUpgrade = needsShareMetadataUpgrade(stored);
     if (stored?.version === 1 && Number(stored.refreshAfter) > now && !needsShareUpgrade) return { acquired: false, value };
     tx.set(ref, { version: 1, pending: true, refreshAfter: now + 90_000, lastAttemptAt: new Date(now).toISOString() }, { merge: true });
     return { acquired: true, value };
