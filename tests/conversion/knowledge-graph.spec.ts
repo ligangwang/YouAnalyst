@@ -834,3 +834,32 @@ test('three views company snapshot stays inside the canvas and closes without lo
  await expect(page.getByRole('dialog')).toContainText('AMD');
  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+test('three views expanding all preserves zoom and pan when company cards open and close',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ await page.getByRole('button',{name:'Expand all',exact:true}).click();
+ const node=page.locator('[data-tree-company="US:NVDA"]').first(),canvas=page.locator('[data-industry-tree] canvas');
+ await expect(node).toBeVisible();
+ await canvas.scrollIntoViewIfNeeded();
+ const box=(await canvas.boundingBox())!;
+ const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree]')!.getBoundingClientRect();return {x:n.x-f.x,y:n.y-f.y};});
+ const initial=await position();
+ await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.wheel(0,-120);
+ await page.mouse.move(box.x+box.width*.12,box.y+box.height*.8);await page.mouse.down();await page.mouse.move(box.x+box.width*.18,box.y+box.height*.78,{steps:12});await page.mouse.up();
+ await expect.poll(async()=>{const p=await position();return Math.abs(p.x-initial.x)+Math.abs(p.y-initial.y);}).toBeGreaterThan(5);
+ // Wait for the camera's smoothing to settle, not a fixed animation delay.
+ let previous=await position(),stable=0;
+ await expect.poll(async()=>{const p=await position(),delta=Math.abs(p.x-previous.x)+Math.abs(p.y-previous.y);previous=p;stable=delta<.05?stable+1:0;return stable;},{intervals:[100,200,300]}).toBeGreaterThanOrEqual(3);
+ const held=await position();
+ const unchanged=async()=>{const p=await position();return Math.abs(p.x-held.x)+Math.abs(p.y-held.y);};
+ await node.click();
+ const card=page.getByRole('dialog',{name:'Company details'});await expect(card).toBeVisible();
+ await expect(card.getByRole('status')).toHaveCount(0);
+ await expect.poll(unchanged).toBeLessThan(1);
+ await card.getByRole('button',{name:'Close company details'}).click();
+ await expect(card).toHaveCount(0);await expect.poll(unchanged).toBeLessThan(1);
+ await expect(page.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
+});
