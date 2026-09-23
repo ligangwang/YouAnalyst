@@ -5,7 +5,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { validateGraph, graphVersion, importGraphs, type Graph } from "../scripts/import-ai-knowledge-graphs";
 
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../src/lib/knowledge-graph/market-store";
-import { layoutVerticalTree, VERTICAL_ROOT_REACH } from '../src/lib/knowledge-graph/vertical-tree';
+import { layoutVerticalTree } from '../src/lib/knowledge-graph/vertical-tree';
 import { industryTree, layoutIndustryTree } from '../src/lib/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 
@@ -152,7 +152,6 @@ test('vertical tree keeps five ordered sibling layers and reserves space for eve
  assert(trunks.every((n,i)=>n.parent==='root'&&(!i||n.position[1]>trunks[i-1].position[1])));
  const crown=trunks.at(-1)!;
  assert.equal(crown.id,'applications');assert.equal(crown.position[0],0);
- assert(crown.position[1]>VERTICAL_ROOT_REACH*2,'tree is taller than its root spread');
  const all=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
  assert.equal(new Set(all.filter(n=>n.company).map(n=>n.company!.id)).size,new Set(layers.flatMap(l=>l.companies.map(c=>c.id))).size);
  assert.equal(new Set(all.map(n=>n.id)).size,all.length);

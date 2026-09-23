@@ -20,7 +20,7 @@ export function VerticalTreeBranches({nodes,groups,focus}:{nodes:TreePoint[];gro
     const layers=nodes.filter(n=>n.kind==='layer');
     const result:Strand[]=[];
     if(layers.length){
-      for(let i=-7;i<=7;i++)result.push({from:'root',to:layers[layers.length-1].id,kind:'trunk',color:i===0?'#169ce8':i%2?'#3b9ff5':'#8de8ff',width:i===0?60:1.5,offset:i*9});
+      for(let i=-7;i<=7;i++)result.push({from:'root',to:layers[layers.length-1].id,kind:'trunk',color:i===0?'#169ce8':i%2?'#3b9ff5':'#8de8ff',width:i===0?180:4.5,offset:i*27});
       for(let i=-21;i<=21;i++)if(i)result.push({from:'root',to:'root',kind:'root',color:i%3?'#3097dc':'#7bdcff',width:i%4?1.6:2.3,offset:i*VERTICAL_ROOT_REACH/21});
     }
     for(const n of nodes.filter(n=>n.parent)){
@@ -73,7 +73,7 @@ export function VerticalTreeBranches({nodes,groups,focus}:{nodes:TreePoint[];gro
     return geometry;
   },[nodes]);
   useEffect(()=>()=>dust.dispose(),[dust]);
-  const scratch=useMemo(()=>({a:new Vector3(),b:new Vector3(),p:new Vector3(),q:new Vector3()}),[]);
+  const scratch=useMemo(()=>({a:new Vector3(),b:new Vector3(),p:new Vector3(),q:new Vector3(),before:new Vector3(),after:new Vector3(),normalP:new Vector3(),normalQ:new Vector3()}),[]);
   useFrame(()=>{
     const root=groups.current.get('root');if(!root)return;
     const top=Math.max(1,...nodes.filter(n=>n.kind==='layer').map(n=>groups.current.get(n.id)?.position.y??0));
@@ -92,15 +92,21 @@ export function VerticalTreeBranches({nodes,groups,focus}:{nodes:TreePoint[];gro
         out.set(u*u*u*a.x+3*u*u*t*c1x+3*u*t*t*c2x+t*t*t*b.x,u*u*u*a.y+3*u*u*t*c1y+3*u*t*t*b.y+t*t*t*b.y,-2);
         out.y+=strand.offset*Math.sin(Math.PI*t);return out;
       };
+      // Shared endpoint tangents join wide ribbons without cracks at bends.
+      const normal=(at:number,out:Vector3)=>{
+        point(Math.max(0,at-.001),scratch.before);point(Math.min(1,at+.001),scratch.after);
+        const dx=scratch.after.x-scratch.before.x,dy=scratch.after.y-scratch.before.y;
+        return out.set(-dy,dx,0).divideScalar(Math.hypot(dx,dy)||1);
+      };
       for(let step=0;step<segments;step++){
         const t=step/segments;point(t,p);point((step+1)/segments,q);
-        const dx=q.x-p.x,dy=q.y-p.y,length=Math.hypot(dx,dy)||1;
+        normal(t,scratch.normalP);normal((step+1)/segments,scratch.normalQ);
         const taper=(fraction:number)=>strand.kind==='trunk'?.08+.92*Math.pow(1-fraction,.9):1-fraction*.72;
         const width=strand.width*taper(t);
         geometries.forEach((g,glow)=>{
-          const w=width*(glow?1.8:1),nx=-dy/length*w,ny=dx/length*w;
+          const w=width*(glow?1.8:1),nx=scratch.normalP.x*w,ny=scratch.normalP.y*w;
           const nextWidth=strand.width*taper((step+1)/segments)*(glow?1.8:1);
-          const qx=-dy/length*nextWidth,qy=dx/length*nextWidth;
+          const qx=scratch.normalQ.x*nextWidth,qy=scratch.normalQ.y*nextWidth;
           const pos=g.getAttribute('position'),base=(index*segments+step)*6;
           pos.setXYZ(base,p.x+nx,p.y+ny,p.z);pos.setXYZ(base+1,p.x-nx,p.y-ny,p.z);pos.setXYZ(base+2,q.x+qx,q.y+qy,q.z);
           pos.setXYZ(base+3,p.x-nx,p.y-ny,p.z);pos.setXYZ(base+4,q.x-qx,q.y-qy,q.z);pos.setXYZ(base+5,q.x+qx,q.y+qy,q.z);
