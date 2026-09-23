@@ -1,7 +1,7 @@
 import { companyName } from './model';
 import type { TreeLayer, TreePoint } from './industry-tree';
 
-export const VERTICAL_ROOT_REACH=1050;
+export const VERTICAL_ROOT_REACH=2100;
 export const VERTICAL_ROOT_DEPTH=320;
 
 // Each layer owns a vertical band. The companies form a leaf cluster around
