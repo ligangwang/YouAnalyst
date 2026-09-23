@@ -41,8 +41,8 @@
 .vertical .branch {border-radius:16px;}
 .labelLeft {transform:translateX(-100%);}
 .labelLeft .node {transform-origin:100% 0;}
-.vertical .branch[data-compact='true']:not(:hover):not(:focus-visible) {width:19px;height:19px;padding:0;border-radius:50%;background:currentColor;box-shadow:0 0 14px currentColor;}
+.vertical .branch[data-compact='true']:not(:hover):not(:focus-visible) {width:12px;height:12px;padding:0;border-radius:50%;border:0;background:radial-gradient(circle,#fff 0 22%,currentColor 48%);box-shadow:0 0 0 3px color-mix(in srgb,currentColor,transparent 78%),0 0 12px color-mix(in srgb,currentColor,transparent 30%);}
 .vertical .branch[data-compact='true']:not(:hover):not(:focus-visible) strong,.vertical .branch[data-compact='true']:not(:hover):not(:focus-visible) .count {display:none;}
-.vertical .company[data-compact='true']:not(:hover):not(:focus-visible) {width:10px;height:10px;padding:0;border-radius:50%;background:currentColor;opacity:.7;}
+.vertical .company[data-compact='true']:not(:hover):not(:focus-visible) {width:calc(3px + 2.4px * var(--cap,1));height:calc(3px + 2.4px * var(--cap,1));padding:0;border-radius:50%;border:0;background:currentColor;box-shadow:0 0 7px color-mix(in srgb,currentColor,transparent 35%);}
 .vertical .company[data-compact='true']:not(:hover):not(:focus-visible) strong,.vertical .company[data-compact='true']:not(:hover):not(:focus-visible) small {display:none;}
 @media(max-width:800px){.vertical .scene {height:calc(100svh - 220px);min-height:340px;max-height:720px;}}
