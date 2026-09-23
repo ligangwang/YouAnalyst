@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import Image from 'next/image';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { CameraControls, CameraControlsImpl, Html } from '@react-three/drei';
@@ -10,6 +10,7 @@ import { marketCapDescription, marketCapLabel, marketCapScale } from '@/lib/know
 import { useLocale } from './providers/locale-provider';
 import { layoutVerticalTree, VERTICAL_ROOT_REACH, VERTICAL_ROOT_DEPTH } from '@/lib/knowledge-graph/vertical-tree';
 import { VerticalTreeBranches } from './vertical-tree-branches';
+import { verticalTreeNodeStyle } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
 
 export type TreeSceneProps={vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
@@ -94,8 +95,14 @@ function Scene(props:TreeSceneProps){
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1):Math.min(1,1/htmlScale)})`;
-        if(props.vertical)label.dataset.compact=String(target.node.kind==='company'?htmlScale<1.05:target.node.kind==='branch'&&htmlScale<.72);
+        const compact=props.vertical&&(target.node.kind==='company'?htmlScale<1.05:htmlScale<.72);
+        if(compact){
+          // A compact dot replaces the label: centre it on the node instead of beside it.
+          const px=htmlScale*size.height/1100,offset=(target.node.kind==='company'?16:22)*px;
+          const dot=target.node.kind==='company'?3+2.4*marketCapScale(target.node.company?.marketCap):12;
+          label.style.transform=`translate(${target.position[0]<0?offset+dot/2:-offset-dot/2}px,${-dot/2}px)`;
+        }else label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1):Math.min(1,1/htmlScale)})`;
+        if(props.vertical)label.dataset.compact=String(compact);
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
     }
@@ -120,15 +127,18 @@ function Scene(props:TreeSceneProps){
     {targets.map(({node,visible,position})=>{
       const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
       const left=Boolean(props.vertical&&position[0]<0);
-      const centered=props.vertical&&(node.kind==='root'||node.id==='applications');
-      const radius=node.company?4*marketCapScale(node.company.marketCap):node.kind==='layer'?12:7;
+      // Layer pills sit on their limb like knots, so fans of sub-branches never run under a label.
+      const centered=props.vertical&&(node.kind==='root'||node.kind==='layer');
+      const capScale=marketCapScale(node.company?.marketCap);
+      const look=props.vertical?verticalTreeNodeStyle(node,dim,capScale):{radius:node.company?4*capScale:node.kind==='layer'?12:7,core:dim?.12:1,glow:dim?.01:.08,glowRadius:0};
+      const radius=look.radius;
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(visible?1:0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
-        <mesh><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .12 : 1}/></mesh>
-        <mesh><sphereGeometry args={[radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .01 : .08} depthWrite={false} blending={AdditiveBlending}/></mesh>
+        <mesh><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
+        <mesh><sphereGeometry args={[look.glowRadius||radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.glow} depthWrite={false} blending={AdditiveBlending}/></mesh>
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
-        {visible&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left?styles.labelLeft:undefined}><button
+        {visible&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left&&!centered?styles.labelLeft:undefined}><button
           ref={el=>{if(el)labels.current.set(node.id,el);else labels.current.delete(node.id);}}
-          className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto'}}
+          className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto',...(node.company?{'--cap':capScale}:{})} as CSSProperties}
           data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
           aria-label={props.vertical&&(node.company||node.kind==='branch')?[node.label,node.company?.symbol].filter(Boolean).join(' '):undefined}
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
