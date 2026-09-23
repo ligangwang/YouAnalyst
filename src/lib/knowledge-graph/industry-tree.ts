@@ -36,7 +36,7 @@ export function industryTree(companies:GraphNode[]):TreeLayer[] {
     return {...layer,branches,companies:[...new Map(branches.flatMap(b=>b.companies).map(c=>[c.id,c])).values()]};
   });
 }
-export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company';label:string;color:string;position:[number,number,number];company?:GraphNode;count?:number};
+export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company';label:string;color:string;position:[number,number,number];company?:GraphNode;count?:number;span?:[number,number]};
 export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,locale:string):TreePoint[] {
   const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;
   const nodes:TreePoint[]=[{id:'root',kind:'root',label:locale==='zh-CN'?'AI 产业链':'AI industry chain',color:'#8be8ff',position:[-540,0,0]}];
