@@ -922,6 +922,40 @@ test('three views vertical tree retains the original tree and shares company sel
  expect(errors).toEqual([]);
 });
 
+test('three views vertical leaf body selects its company when zoomed out',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ // One company, so every leaf hit belongs to it.
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=vertical');
+ const node=page.locator('[data-tree-company="US:NVDA"]').first(),canvas=page.locator('[data-industry-tree] canvas');
+ await expect(node).toHaveAttribute('data-compact','true');
+ await canvas.scrollIntoViewIfNeeded();
+ // Park the pointer away from the stem so its label is not hover-expanded.
+ const box=(await canvas.boundingBox())!;await page.mouse.move(box.x+4,box.y+4);
+ const measure=()=>node.evaluate(el=>{const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,radius:r.width/2};});
+ // Wait for the labels to settle on their stems.
+ let stem=await measure(),stable=0;
+ await expect.poll(async()=>{const p=await measure(),moved=Math.abs(p.x-stem.x)+Math.abs(p.y-stem.y);stem=p;stable=moved<.05?stable+1:0;return stable;},{intervals:[100,200,300]}).toBeGreaterThanOrEqual(3);
+ // Scan around the stem: over the blade, only the canvas is under the pointer and it shows a pointer cursor.
+ const hits:{x:number;y:number}[]=[];
+ for(let dy=-16;dy<=16;dy++)for(let dx=-16;dx<=16;dx++){
+  const x=stem.x+dx,y=stem.y+dy;
+  if(Math.hypot(dx,dy)<=stem.radius+1.5)continue;
+  await page.mouse.move(x,y);
+  if(await page.evaluate(([x,y])=>{const el=document.elementFromPoint(x,y);return el instanceof HTMLCanvasElement&&el.style.cursor==='pointer';},[x,y]))hits.push({x,y});
+ }
+ // The blade is clickable outside the stem button, which was all that was clickable before.
+ // Click the middle of that area rather than an edge pixel.
+ expect(hits.length).toBeGreaterThan(0);
+ const cx=hits.reduce((t,h)=>t+h.x,0)/hits.length,cy=hits.reduce((t,h)=>t+h.y,0)/hits.length;
+ const target=hits.reduce((a,b)=>Math.hypot(b.x-cx,b.y-cy)<Math.hypot(a.x-cx,a.y-cy)?b:a);
+ await page.mouse.click(target.x,target.y);
+ const card=page.getByRole('dialog',{name:'Company details'});
+ await expect(card).toBeVisible();await expect(card).toContainText('NVDA');
+ await expect(node).toHaveAttribute('aria-pressed','true');
+});
+
 test('three views vertical defaults to expanded and preserves zoom and pan when company cards open and close',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
