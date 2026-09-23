@@ -874,6 +874,12 @@ test('three views vertical tree retains the original tree and shares company sel
  const root=(await page.locator('[data-tree-node="root"]').boundingBox())!;
  const apps=(await page.locator('[data-tree-node="applications"]').boundingBox())!;
  expect(apps.y).toBeLessThan(root.y);
+ expect(Math.abs(apps.x+apps.width/2-root.x-root.width/2)).toBeLessThan(2);
+ const outsideCanvas=()=>page.evaluate(()=>{
+  const canvas=document.querySelector('[data-industry-tree="vertical"] canvas')!.getBoundingClientRect();
+  return [...document.querySelectorAll('[data-tree-node]')].filter(el=>{const r=el.getBoundingClientRect();return r.left<canvas.left-1||r.right>canvas.right+1||r.top<canvas.top-1||r.bottom>canvas.bottom+1;}).map(el=>el.getAttribute('data-tree-node'));
+ });
+ await expect.poll(outsideCanvas).toEqual([]);
  await page.screenshot({path:'output/vertical-tree-initial-'+test.info().project.name+'.png',fullPage:true});
  await page.locator('[data-tree-node="applications"]').click();
  const software=page.locator('[data-tree-node="applications/applications"]'),edge=page.locator('[data-tree-node="applications/edge"]');
@@ -890,6 +896,8 @@ test('three views vertical tree retains the original tree and shares company sel
  await expect(software).toHaveAttribute('aria-expanded','true');
  await page.getByRole('button',{name:'Collapse all'}).click();await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(0);
  await page.getByRole('button',{name:'Expand all'}).click();await expect(page.locator('[data-tree-company]').first()).toBeVisible();
+ await expect.poll(outsideCanvas).toEqual([]);
+ await page.screenshot({path:'output/vertical-tree-all-'+test.info().project.name+'.png',fullPage:true});
  await page.getByRole('tab',{name:'Industry structure - vertical',exact:true}).focus();await page.keyboard.press('ArrowRight');
  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
  await page.keyboard.press('ArrowRight');await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
@@ -906,15 +914,6 @@ test('three views vertical expanding all preserves zoom and pan when company car
  await expect(node).toBeVisible();
  await canvas.scrollIntoViewIfNeeded();
  const box=(await canvas.boundingBox())!;
- // The narrow-screen overview intentionally crops the outer canopy; pan to a
- // leaf before selecting it, as a visitor would on a phone.
- for(let attempt=0;attempt<8;attempt++){
-  const visible=await page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),c=document.querySelector('[data-industry-tree="vertical"] canvas')!.getBoundingClientRect();return n.right>c.left+10&&n.left<c.right-10&&n.bottom>c.top+10&&n.top<c.bottom-10;});
-  if(visible)break;
-  await page.mouse.move(box.x+box.width*.4,box.y+box.height*.6);
-  await page.mouse.down();await page.mouse.move(box.x+box.width*.8,box.y+box.height*.6,{steps:10});await page.mouse.up();
- }
- await expect.poll(()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),c=document.querySelector('[data-industry-tree="vertical"] canvas')!.getBoundingClientRect();return n.right>c.left+10&&n.left<c.right-10&&n.bottom>c.top+10&&n.top<c.bottom-10;})).toBe(true);
  const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree="vertical"]')!.getBoundingClientRect();return {x:n.right-f.x,y:n.y-f.y};});
  const initial=await position();
  await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.wheel(0,-120);
