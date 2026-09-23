@@ -5,7 +5,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { validateGraph, graphVersion, importGraphs, type Graph } from "../scripts/import-ai-knowledge-graphs";
 
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../src/lib/knowledge-graph/market-store";
-import { layoutVerticalTree, verticalBranchOrigin } from '../src/lib/knowledge-graph/vertical-tree';
+import { layoutVerticalTree, verticalBranchOrigin, verticalLimbPoint } from '../src/lib/knowledge-graph/vertical-tree';
 import { industryTree, layoutIndustryTree, type TreePoint } from '../src/lib/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 
@@ -192,13 +192,23 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
      const parent=all.find(n=>n.id===branch.id)!;
      const [ox,oy]=verticalBranchOrigin(parent,top),dx=parent.position[0]-ox,dy=parent.position[1]-oy,length=Math.hypot(dx,dy);
      assert(children.every(n=>Math.sign(n.position[0])===Math.sign(parent.position[0])));
-     // Leaves hang along the outer half of their limb and a little past its tip, close to the wood.
+     assert.equal(new Set(children.map(n=>n.position.join(','))).size,children.length);
+     if(layer.id==='energy'){
+       // Roots carry no leaves: energy companies are nodules sitting on the root strand itself.
+       const curve=Array.from({length:201},(_,i)=>verticalLimbPoint([ox,oy],[parent.position[0],parent.position[1]],i/200));
+       for(const n of children)assert(Math.min(...curve.map(([x,y])=>Math.hypot(x-n.position[0],y-n.position[1])))<4,`${n.id} sits on its root`);
+       continue;
+     }
+     // Leaves spread over the outer part of their limb and out past its tip, fanning wider
+     // towards the end instead of bunching against the trunk.
+     const offsets:number[]=[];
      for(const n of children){
        const along=((n.position[0]-ox)*dx+(n.position[1]-oy)*dy)/length**2,off=Math.abs((n.position[0]-ox)*dy-(n.position[1]-oy)*dx)/length;
-       assert(along>.25&&along<1.2&&off<200,`${n.id} grows along its limb`);
+       assert(along>(layer.id==='applications'?.35:.55)&&along<1.35&&off<260,`${n.id} grows along its limb`);
+       offsets.push(along);
      }
+     if(children.length>3)assert(Math.max(...offsets)>1,`${branch.id} leaves reach past the limb tip`);
      if(layer.id==='applications')assert(children.every(n=>n.position[1]>oy));
-     assert.equal(new Set(children.map(n=>n.position.join(','))).size,children.length);
    }
  }
  // Lower limbs reach furthest, so the canopy tapers to a crown.

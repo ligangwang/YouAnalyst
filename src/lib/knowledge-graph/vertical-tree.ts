@@ -29,6 +29,17 @@ export function verticalBranchOrigin(branch:TreePoint,top:number):[number,number
   return [verticalTrunkX(stem,top)+side*30,stem];
 }
 
+// A limb's curve: it rises out of the trunk, then eases outward along its lean.
+// Shared by the layout and the renderer so things placed on a limb sit on it.
+export function verticalLimbControls(ax:number,ay:number,bx:number,by:number):[number,number,number,number]{
+  const dx=bx-ax,dy=by-ay;
+  return [ax+dx*.18,ay+dy*.45,bx-dx*.38,by-dy*.12];
+}
+export function verticalLimbPoint([ax,ay]:[number,number],[bx,by]:[number,number],t:number):[number,number]{
+  const [c1x,c1y,c2x,c2y]=verticalLimbControls(ax,ay,bx,by),u=1-t;
+  return [u*u*u*ax+3*u*u*t*c1x+3*u*t*t*c2x+t*t*t*bx,u*u*u*ay+3*u*u*t*c1y+3*u*t*t*c2y+t*t*t*by];
+}
+
 // The layers depend on one another, so the trunk is a stack: roots (energy)
 // feed chips, which carry infrastructure, which carries models, which carry the
 // application crown. Every trunk layer is a segment of the trunk and grows its
@@ -49,13 +60,21 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
     const companies=[...branch.companies].sort((a,b)=>a.id.localeCompare(b.id));
     companies.forEach((company,j)=>{
       const id=`${branch.id}/${company.id}`,wobble=verticalJitter(id,3);
-      // The crown's few limbs carry their leaves further down and wider, so the top rounds into a cap.
-      const crown=layer.id===CROWN_LAYER,from=crown?.28:.45;
-      const t=from+(1.13-from)*(j+.3+.4*wobble)/companies.length;
-      // Alternate above and below the limb, spreading further out mid-limb.
-      const flank=(j%2?1:-1)*(38+70*verticalJitter(id,5))*(crown?1.6:1)*Math.min(1,.55+Math.sin(Math.PI*Math.min(1,t)));
-      nodes.push({id,parent:branch.id,layer:layer.id,branch:branch.id,kind:'company',label:companyName(company,locale),color:layer.color,
-        position:[origin[0]+dx*t-uy*flank,origin[1]+dy*t+ux*flank,0],company});
+      let position:[number,number,number];
+      if(ROOT_LAYERS.has(layer.id)){
+        // Roots carry no leaves: energy companies are nodules sitting on the root strand itself.
+        const [x,y]=verticalLimbPoint(origin,[bx,by],.3+.65*(j+.35+.3*wobble)/companies.length);
+        position=[x,y,0];
+      }else{
+        // Leaves start past the limb's middle and run beyond its tip, fanning wider towards the end,
+        // so clusters spread outward into one canopy instead of bunching against the trunk.
+        // The crown's few limbs start a little lower and fan wider, so the top rounds into a cap.
+        const crown=layer.id===CROWN_LAYER,from=crown?.4:.62;
+        const t=from+(1.3-from)*(j+.3+.4*wobble)/companies.length;
+        const flank=(j%2?1:-1)*(42+80*verticalJitter(id,5))*(crown?1.3:1)*(.65+.55*t);
+        position=[origin[0]+dx*t-uy*flank,origin[1]+dy*t+ux*flank,0];
+      }
+      nodes.push({id,parent:branch.id,layer:layer.id,branch:branch.id,kind:'company',label:companyName(company,locale),color:layer.color,position,company});
     });
   };
   // Lower limbs reach furthest and upper ones less, so the canopy tapers to a
