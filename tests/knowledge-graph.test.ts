@@ -144,21 +144,33 @@ test("generic graph membership takes precedence and legacy import preserves revi
 });
 
 
-test('vertical tree keeps five ordered sibling layers and reserves space for every company',()=>{
+test('vertical tree stacks dependent layers on one trunk and reserves space for every company',()=>{
  const layers=industryTree(graphs.flatMap(g=>g.nodes.filter(n=>n.kind==='COMPANY')) as GraphNode[]);
  const initial=layoutVerticalTree(layers,new Set(['root']),'zh-CN');
  assert.equal(initial.length,6);assert.deepEqual(initial[0].position,[0,0,0]);
  const trunks=initial.filter(n=>n.kind==='layer');
+ // Energy -> chips -> infrastructure -> models -> applications, bottom to top.
  assert(trunks.every((n,i)=>n.parent==='root'&&(!i||n.position[1]>trunks[i-1].position[1])));
+ assert.equal(trunks[0].id,'energy');assert(trunks[0].position[1]<0,'energy grows as roots below ground');
  const crown=trunks.at(-1)!;
  assert.equal(crown.id,'applications');assert.equal(crown.position[0],0);
+ // Trunk layers sit on the trunk as contiguous segments, each resting on the one below.
+ const stack=trunks.slice(1,-1);
+ assert(stack.every(n=>Math.abs(n.position[0])<80&&n.span&&n.position[1]>n.span[0]&&n.position[1]<n.span[1]));
+ assert(stack.every((n,i)=>!i||n.span![0]===stack[i-1].span![1]));
  const all=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
  assert.equal(new Set(all.filter(n=>n.company).map(n=>n.company!.id)).size,new Set(layers.flatMap(l=>l.companies.map(c=>c.id))).size);
  assert.equal(new Set(all.map(n=>n.id)).size,all.length);
  for(const [i,layer] of layers.entries()){
    const group=all.filter(n=>n.layer===layer.id);
-   if(layer.id!=='applications')assert(group.every(n=>Math.sign(n.position[0])===(i%2?-1:1)));
-   else assert(group.filter(n=>n.kind!=='layer').every(n=>n.position[1]>group.find(n=>n.kind==='layer')!.position[1]),'application branches grow above the trunk tip');
+   const node=group.find(n=>n.kind==='layer')!;
+   if(layer.id==='energy')assert(group.every(n=>n.position[1]<0),'energy stays underground');
+   else if(layer.id==='applications')assert(group.filter(n=>n.kind!=='layer').every(n=>n.position[1]>node.position[1]),'application branches grow above the trunk tip');
+   else {
+     const branches=group.filter(n=>n.kind==='branch');
+     assert(branches.every(b=>b.position[1]>node.span![0]&&b.position[1]<node.span![1]),'branches grow from their own trunk segment');
+     if(branches.length>1)assert.equal(new Set(branches.map(b=>Math.sign(b.position[0]))).size,2,'branches grow outward on both sides');
+   }
    const next=layers[i+1];
    if(next)assert(Math.max(...group.filter(n=>n.kind!=='company').map(n=>n.position[1]))<Math.min(...all.filter(n=>n.layer===next.id&&n.kind!=='company').map(n=>n.position[1])));
    for(const branch of layer.branches){
@@ -167,7 +179,7 @@ test('vertical tree keeps five ordered sibling layers and reserves space for eve
      assert(children.every(n=>Math.sign(n.position[0])===Math.sign(parent.position[0])));
      assert(children.every(n=>Math.abs(n.position[0])>Math.abs(parent.position[0])));
      if(layer.id==='applications')assert(children.every(n=>n.position[1]>parent.position[1]));
-     else assert(children.every(n=>Math.abs(n.position[1]-parent.position[1])<170));
+     else assert(children.every(n=>Math.abs(n.position[1]-parent.position[1])<240));
      assert.equal(new Set(children.map(n=>n.position.join(','))).size,children.length);
    }
  }
