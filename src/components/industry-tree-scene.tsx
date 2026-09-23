@@ -100,7 +100,7 @@ function Scene(props:TreeSceneProps){
         if(compact){
           // A compact dot replaces the label: centre it on the node instead of beside it.
           const px=htmlScale*size.height/1100,offset=(target.node.kind==='company'?16:22)*px;
-          const dot=target.node.kind==='company'?8+6*marketCapScale(target.node.company?.marketCap):12;
+          const dot=target.node.kind==='company'?3+2.4*marketCapScale(target.node.company?.marketCap):12;
           label.style.transform=`translate(${target.position[0]<0?offset+dot/2:-offset-dot/2}px,${-dot/2}px)`;
         }else label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1):Math.min(1,1/htmlScale)})`;
         if(props.vertical)label.dataset.compact=String(compact);
