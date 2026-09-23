@@ -731,7 +731,7 @@ test('three views selection and follow changes stay synchronized across tabs', a
  await expect(page.locator('[data-tree-company="US:NVDA"]').first()).toHaveAttribute('aria-pressed','true');
 });
 
-test('three views 3D tree focuses branches, keeps flags and market caps, and supports orbit and reset',async({page})=>{
+test('three views 3D tree focuses branches, keeps flags and market caps, and supports pan, pinch and reset',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id)).map(n=>n.id==='US:NVDA'?{...n,country:'US',marketCap:{value:1e12,currency:'USD',priceDate:'2026-09-21'}}:n)};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/flags/')?r.fulfill({contentType:'image/svg+xml',body:readFileSync(process.cwd()+'/public/flags/us.svg')}):r.fulfill({contentType:'text/html',body:html}));
@@ -749,9 +749,24 @@ test('three views 3D tree focuses branches, keeps flags and market caps, and sup
  await canvas.scrollIntoViewIfNeeded();
  const box=(await canvas.boundingBox())!;
  const before=(await nvda.boundingBox())!;
+ const separation=()=>page.evaluate(()=>{const a=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),b=document.querySelector('[data-tree-company="US:AMD"]')!.getBoundingClientRect();return {x:a.x-b.x,y:a.y-b.y};});
+ const beforeSeparation=await separation();
  await page.mouse.move(box.x+box.width*.15,box.y+box.height*.85);
  await page.mouse.down();await page.mouse.move(box.x+box.width*.35,box.y+box.height*.7,{steps:12});await page.mouse.up();
  await expect.poll(async()=>{const next=(await nvda.boundingBox())!;return Math.abs(next.x-before.x)+Math.abs(next.y-before.y);}).toBeGreaterThan(5);
+ const afterSeparation=await separation();
+ // Panning translates both nodes equally instead of rotating the hierarchy.
+ await expect.poll(async()=>Math.abs((await separation()).x-beforeSeparation.x)).toBeLessThan(2);
+ await expect.poll(async()=>Math.abs((await separation()).y-beforeSeparation.y)).toBeLessThan(2);
+ const cdp=await page.context().newCDPSession(page);
+ const x=box.x+box.width*.45,y=box.y+box.height*.45;
+ const touch=(distance:number)=>[{x:x-distance,y,id:1},{x:x+distance,y,id:2}];
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:touch(30)});
+ for(let d=35;d<=65;d+=5)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:touch(d)});
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ await expect.poll(async()=>Math.abs((await separation()).y)).toBeGreaterThan(Math.abs(afterSeparation.y)*1.1);
+ await expect.poll(async()=>Math.abs((await separation()).x)).toBeLessThan(2);
+ await cdp.detach();
  await page.mouse.wheel(0,-150);
  await page.getByRole('button',{name:'Reset view',exact:true}).click();
  await expect(page.locator('[data-tree-node="energy"]')).toHaveAttribute('data-tree-dimmed','false');

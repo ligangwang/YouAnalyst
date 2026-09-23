@@ -3,7 +3,7 @@
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { CameraControls, Html } from '@react-three/drei';
+import { CameraControls, CameraControlsImpl, Html } from '@react-three/drei';
 import { AdditiveBlending, BufferGeometry, Color, Float32BufferAttribute, Vector3, type Group, type Mesh } from 'three';
 import { layoutIndustryTree, type TreeLayer, type TreePoint } from '@/lib/knowledge-graph/industry-tree';
 import { marketCapDescription, marketCapLabel, marketCapScale } from '@/lib/knowledge-graph/market-cap';
@@ -100,7 +100,9 @@ function Scene(props:TreeSceneProps){
     if(moving)invalidate();
   });
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={180} maxDistance={60000} smoothTime={.3}/>
+    <CameraControls ref={controls} makeDefault
+      mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
+      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.3}/>
     <lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
