@@ -47,6 +47,7 @@ function Scene(props:TreeSceneProps){
   },[nodes,all]);
   const edges=useMemo(()=>all.filter(n=>n.parent),[all]);
   const allById=useMemo(()=>new Map(all.map(n=>[n.id,n])),[all]);
+  const trunkTop=useMemo(()=>Math.max(1,...nodes.filter(n=>n.kind==='layer').map(n=>n.position[1])),[nodes]);
   const flowing=useMemo(()=>nodes.filter(n=>!props.vertical&&n.parent&&props.focus&&(n.layer===props.focus||n.branch===props.focus)).slice(0,6),[nodes,props.focus,props.vertical]);
   const geometry=useMemo(()=>{
     const g=new BufferGeometry();g.setAttribute('position',new Float32BufferAttribute(new Float32Array(edges.length*6),3));
@@ -136,10 +137,10 @@ function Scene(props:TreeSceneProps){
       const look=props.vertical?verticalTreeNodeStyle(node,dim,capScale):{radius:node.company?4*capScale:node.kind==='layer'?12:7,core:dim?.12:1,glow:dim?.01:.08,glowRadius:0};
       const radius=look.radius;
       // Companies grow as leaves in the vertical tree; the stem sits on the node.
-      const leaf=props.vertical&&node.company?verticalLeafPose(node,node.parent?allById.get(node.parent):undefined,capScale):undefined;
+      const leaf=props.vertical&&node.company?verticalLeafPose(node,node.parent?allById.get(node.parent):undefined,capScale,trunkTop):undefined;
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(visible?1:0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         {leaf?<group rotation={[0,0,leaf.angle]}>
-          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.3,leaf.width*1.5,1]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.14} depthWrite={false} blending={AdditiveBlending}/></mesh>
+          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.3,leaf.width*1.5,1]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.07} depthWrite={false} blending={AdditiveBlending}/></mesh>
           {/* The whole blade selects its company; the stem button stays as the keyboard and screen-reader target. */}
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,1]}
             onClick={visible?event=>{event.stopPropagation();props.onSelect(node.company!.id);}:undefined}
