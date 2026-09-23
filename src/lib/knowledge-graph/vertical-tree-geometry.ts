@@ -1,6 +1,6 @@
 import { AdditiveBlending, BufferGeometry, Color, DataTexture, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, NormalBlending, Points, PointsMaterial, Shape, ShapeGeometry, SphereGeometry, Vector3, type Object3D } from 'three';
 import type { TreePoint } from './industry-tree';
-import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalTrunkX } from './vertical-tree';
+import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalLimbControls, verticalTrunkX } from './vertical-tree';
 
 // Framework-free geometry for the vertical tree. The React scene and offline
 // previews share it, so what we review is exactly what ships.
@@ -83,7 +83,7 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
       // Bark near the trunk, lightening only towards the tip, so limbs read as wood rather than light pipes.
       const strand:Strand={from:n.parent,to:n.id,kind:'branch',width:[attach==='trunk'?0:12,1.6],offset:0,attach,end:parent?.span,stem:n.stem,layer:n.layer,branch:n.branch,color:t=>rgba(mix(base,light,.75*ease(t)),.97)};
       (attach==='trunk'?limbs:crown).push(strand);
-    }else twigs.push({from:n.parent,to:n.id,kind:'twig',width:[1.2,.35],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(light,tint,t),.75-.35*t)});
+    }else if(n.layer!==energy?.id)twigs.push({from:n.parent,to:n.id,kind:'twig',width:[1.2,.35],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(light,tint,t),.75-.35*t)});
   }
   // Draw order: limbs tuck in behind the trunk so they appear to grow out of
   // it; roots spill over the trunk base; crown branches and twigs sit on top.
@@ -170,9 +170,8 @@ export function createStrandWriter(){
           h0=trunkHalf(ay/top)*.42;ax=tx(ay)+side*trunkHalf(ay/top)*.35;
         }else if(strand.attach==='root'){ax=(Math.sign(bx)||1)*40;ay=-40;h0=strand.width[0];}
         else {ax=0;ay=strand.stem??top+20;h0=strand.width[0];}
-        // Rise out of the trunk, then ease outward along the limb's lean.
-        const dx=bx-ax,dy=by-ay;
-        curve={ax,ay,bx,by,c1x:ax+dx*.18,c1y:ay+dy*.45,c2x:bx-dx*.38,c2y:by-dy*.12,h0,h1:strand.width[1]};
+        const [c1x,c1y,c2x,c2y]=verticalLimbControls(ax,ay,bx,by);
+        curve={ax,ay,bx,by,c1x,c1y,c2x,c2y,h0,h1:strand.width[1]};
         limbs.set(strand.to,curve);
       }else if(strand.kind==='twig'){
         // Twigs leave their limb where the leaf hangs, not all from its tip.
@@ -261,6 +260,11 @@ export function verticalTreeObjects(geometries:BufferGeometry[],dust:BufferGeome
 // Leaf and knot styling for node spheres in the vertical view.
 export function verticalTreeNodeStyle(node:TreePoint,dim:boolean,capScale=1){
   // Branch ends are small knots on the wood, not lamps.
+  // Energy companies are root nodules: round, glowing, and sized by market cap.
+  if(node.kind==='company'&&node.layer==='energy'){
+    const radius=10+8*Math.min(2.5,Math.max(.65,capScale));
+    return {radius,core:dim?.15:.95,glow:dim?.02:.14,glowRadius:radius*2};
+  }
   const radius=node.kind==='company'?3.2*capScale:node.kind==='layer'?11:node.kind==='branch'?3.2:10;
   const knot=node.kind==='branch';
   return {radius,core:dim?.12:knot?.5:.95,glow:dim?.01:knot?.03:node.kind==='company'?.16:.12,glowRadius:radius*(node.kind==='company'?3.4:knot?1.8:2.8)};
@@ -306,7 +310,7 @@ export function verticalLeafPose(node:TreePoint,parent:TreePoint|undefined,capSc
     angle=lean+flank*(.55+.35*verticalJitter(node.id,8));
   }
   angle+=jitter*.6;
-  const length=96+52*Math.min(2.5,Math.max(.65,capScale));
+  const length=108+58*Math.min(2.5,Math.max(.65,capScale));
   const tint=new Color(node.color).offsetHSL(jitter*.05,jitter*.1,jitter*.08);
   return {angle,length,width:length*.78,tint:'#'+tint.getHexString()};
 }
