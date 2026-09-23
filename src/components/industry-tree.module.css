@@ -35,3 +35,10 @@
 @media(prefers-reduced-motion:reduce){.companyCard {animation:none;}}
 
 .scene canvas { touch-action:none; }
+.vertical {background:radial-gradient(ellipse at 50% 85%,#0b3040 0%,#091b28 35%,#050f1b 75%);}
+.vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 18px #55ccff12;background:#071727ee;}
+.vertical .branch {border-radius:16px;}
+.labelLeft {transform:translateX(-100%);}
+.labelLeft .node {transform-origin:100% 0;}
+.vertical .company[data-compact='true']:not(:hover):not(:focus-visible) {width:10px;height:10px;padding:0;border-radius:50%;background:currentColor;opacity:.7;}
+.vertical .company[data-compact='true']:not(:hover):not(:focus-visible) strong,.vertical .company[data-compact='true']:not(:hover):not(:focus-visible) small {display:none;}

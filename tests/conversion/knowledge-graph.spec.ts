@@ -630,7 +630,7 @@ test('three views default to graph, share filters and selection, and remember pr
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en');
  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
- await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('tab',{name:'Tree',exact:true}).click();
  await expect(page.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','true');
  await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(5);
  await expect(page.locator('[data-industry-tree] canvas')).toBeVisible();
@@ -657,7 +657,7 @@ test('three views default to graph, share filters and selection, and remember pr
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
  await page.goto('http://graph.test/map?lang=en');
  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
- await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('tab',{name:'Tree',exact:true}).click();
  await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(5);
  await page.waitForTimeout(1200);
  await page.screenshot({path:'output/three-views-tree-'+test.info().project.name+'.png',fullPage:true});
@@ -669,7 +669,7 @@ test('three views support multi-role membership, sorting with unknown caps last,
  const fixture:KnowledgeGraph={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD','US:AAPL'].includes(n.id)).map(n=>n.id==='US:NVDA'?{...n,stageIds:['compute','networking'],marketCap:{value:2e12,currency:'USD',priceDate:'2026-09-21'}}:n.id==='US:AMD'?{...n,marketCap:{value:1e12,currency:'USD',priceDate:'2026-09-21'}}:n)};
  await page.route('**/*',r=>{const path=new URL(r.request().url()).pathname;if(path==='/api/knowledge-graph')return r.fulfill({json:fixture});if(path==='/api/map-follows')return r.fulfill({json:{companyIds:['US:NVDA']}});return r.fulfill({contentType:'text/html',body:html});});
  await page.goto('http://graph.test/map?lang=en&account=1');
- await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('tab',{name:'Tree',exact:true}).click();
  await page.getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:NVDA"]')).toHaveCount(2);
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
@@ -684,7 +684,7 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await expect(page.locator('[data-list-company]').last()).toHaveAttribute('data-list-company','US:AAPL');
  await page.getByLabel('Following only',{exact:true}).check();
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
- await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('tab',{name:'Tree',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:AMD"]').first()).toBeVisible();
  await expect(page.getByLabel('Following only',{exact:true})).toBeHidden();
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
@@ -693,7 +693,7 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('no-such-company');
  await expect(page.getByText('No matching companies.',{exact:true}).first()).toBeVisible();
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
- await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('tab',{name:'Tree',exact:true}).click();
  await page.getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:AMD"]').first()).toBeVisible();
 });
@@ -706,7 +706,7 @@ test('three views explicit relationship links open graph and tabs support keyboa
  await tab.focus();await page.keyboard.press('Home');
  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toBeFocused();
  await page.keyboard.press('ArrowRight');
- await expect(page.getByRole('tab',{name:'Industry structure',exact:true})).toHaveAttribute('aria-selected','true');
+ await expect(page.getByRole('tab',{name:'Tree',exact:true})).toHaveAttribute('aria-selected','true');
 });
 
 test('three views selection and follow changes stay synchronized across tabs', async ({page}) => {
@@ -714,7 +714,7 @@ test('three views selection and follow changes stay synchronized across tabs', a
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
  await page.route('**/*',async r=>{const path=new URL(r.request().url()).pathname;if(path==='/api/knowledge-graph')return r.fulfill({json:fixture});if(path==='/api/map-follows'){if(r.request().method()==='PATCH')ids=['US:NVDA'];return r.fulfill({json:{companyIds:ids}});}return r.fulfill({contentType:'text/html',body:html});});
  await page.goto('http://graph.test/map?lang=en&account=1');
- await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('tab',{name:'Tree',exact:true}).click();
  await page.getByRole('button',{name:'Expand all',exact:true}).click();
  await page.locator('[data-tree-company="US:NVDA"]').first().click();
  const detail=page.getByRole('dialog',{name:'Company details'});
@@ -727,7 +727,7 @@ test('three views selection and follow changes stay synchronized across tabs', a
  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
  await expect(page.locator('[data-company-id="US:NVDA"]')).toHaveAttribute('data-company-focus','selected');
  await expect(page.getByRole('complementary',{name:'Company details'}).getByRole('button',{name:'Following',exact:true})).toBeVisible();
- await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await page.getByRole('tab',{name:'Tree',exact:true}).click();
  await expect(page.locator('[data-tree-company="US:NVDA"]').first()).toHaveAttribute('aria-pressed','true');
 });
 
@@ -822,7 +822,7 @@ test('three views company snapshot stays inside the canvas and closes without lo
  await expect(card).toContainText('150 USD');
  await expect(card).toContainText('2026-09-21');
  await expect(page.getByRole('complementary',{name:'Company details'})).toHaveCount(0);
- const frame=(await page.locator('[data-industry-tree]').boundingBox())!,box=(await card.boundingBox())!;
+ const frame=(await page.locator('[data-industry-tree]:visible').boundingBox())!,box=(await card.boundingBox())!;
  expect(box.x).toBeGreaterThanOrEqual(frame.x);expect(box.y).toBeGreaterThanOrEqual(frame.y);
  expect(box.x+box.width).toBeLessThanOrEqual(frame.x+frame.width);expect(box.y+box.height).toBeLessThanOrEqual(frame.y+frame.height);
  await expect(page.locator('[data-tree-company="US:AMD"]').first()).toHaveAttribute('data-tree-dimmed','true');
@@ -846,6 +846,67 @@ test('three views expanding all preserves zoom and pan when company cards open a
  await canvas.scrollIntoViewIfNeeded();
  const box=(await canvas.boundingBox())!;
  const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree]')!.getBoundingClientRect();return {x:n.x-f.x,y:n.y-f.y};});
+ const initial=await position();
+ await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.wheel(0,-120);
+ await page.mouse.move(box.x+box.width*.12,box.y+box.height*.8);await page.mouse.down();await page.mouse.move(box.x+box.width*.18,box.y+box.height*.78,{steps:12});await page.mouse.up();
+ await expect.poll(async()=>{const p=await position();return Math.abs(p.x-initial.x)+Math.abs(p.y-initial.y);}).toBeGreaterThan(5);
+ // Wait for the camera's smoothing to settle, not a fixed animation delay.
+ let previous=await position(),stable=0;
+ await expect.poll(async()=>{const p=await position(),delta=Math.abs(p.x-previous.x)+Math.abs(p.y-previous.y);previous=p;stable=delta<.05?stable+1:0;return stable;},{intervals:[100,200,300]}).toBeGreaterThanOrEqual(3);
+ const held=await position();
+ const unchanged=async()=>{const p=await position();return Math.abs(p.x-held.x)+Math.abs(p.y-held.y);};
+ await node.click();
+ const card=page.getByRole('dialog',{name:'Company details'});await expect(card).toBeVisible();
+ await expect(card.getByRole('status')).toHaveCount(0);
+ await expect.poll(unchanged).toBeLessThan(1);
+ await card.getByRole('button',{name:'Close company details'}).click();
+ await expect(card).toHaveCount(0);await expect.poll(unchanged).toBeLessThan(1);
+ await expect(page.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
+});
+
+test('three views vertical tree retains the original tree and shares company selection',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=vertical');
+ await expect(page.getByRole('tab',{name:'Vertical tree',exact:true})).toHaveAttribute('aria-selected','true');
+ await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(5);
+ const root=(await page.locator('[data-tree-node="root"]').boundingBox())!;
+ const apps=(await page.locator('[data-tree-node="applications"]').boundingBox())!;
+ expect(apps.y).toBeLessThan(root.y);
+ await page.screenshot({path:'output/vertical-tree-initial-'+test.info().project.name+'.png',fullPage:true});
+ await page.locator('[data-tree-node="applications"]').click();
+ const software=page.locator('[data-tree-node="applications/applications"]'),edge=page.locator('[data-tree-node="applications/edge"]');
+ await expect(software).toBeVisible();await expect(edge).toBeVisible();
+ await software.click();await expect(page.locator('[data-tree-company="US:CRM"]')).toBeVisible();
+ await page.screenshot({path:'output/vertical-tree-expanded-'+test.info().project.name+'.png',fullPage:true});
+ await page.locator('[data-tree-company="US:CRM"]').click();await expect(page.getByRole('dialog')).toBeVisible();
+ await expect(page.getByRole('complementary',{name:'Company details'})).toHaveCount(0);
+ await page.getByRole('tab',{name:'Tree',exact:true}).click();
+ await expect(page.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
+ await expect(page.getByRole('dialog')).toContainText('CRM');
+ await page.getByRole('button',{name:'Close company details'}).click();
+ await page.getByRole('tab',{name:'Vertical tree',exact:true}).click();
+ await expect(software).toHaveAttribute('aria-expanded','true');
+ await page.getByRole('button',{name:'Collapse all'}).click();await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(0);
+ await page.getByRole('button',{name:'Expand all'}).click();await expect(page.locator('[data-tree-company]').first()).toBeVisible();
+ await page.getByRole('tab',{name:'Vertical tree',exact:true}).focus();await page.keyboard.press('ArrowRight');
+ await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+ await page.keyboard.press('ArrowRight');await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+ expect(errors).toEqual([]);
+});
+
+test('three views vertical expanding all preserves zoom and pan when company cards open and close',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=vertical');
+ await page.getByRole('button',{name:'Expand all',exact:true}).click();
+ const node=page.locator('[data-tree-company="US:NVDA"]').first(),canvas=page.locator('[data-industry-tree] canvas');
+ await expect(node).toBeVisible();
+ await canvas.scrollIntoViewIfNeeded();
+ const box=(await canvas.boundingBox())!;
+ const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree="vertical"]')!.getBoundingClientRect();return {x:n.x-f.x,y:n.y-f.y};});
  const initial=await position();
  await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.wheel(0,-120);
  await page.mouse.move(box.x+box.width*.12,box.y+box.height*.8);await page.mouse.down();await page.mouse.move(box.x+box.width*.18,box.y+box.height*.78,{steps:12});await page.mouse.up();

@@ -8,9 +8,11 @@ import { AdditiveBlending, BufferGeometry, Color, Float32BufferAttribute, Vector
 import { layoutIndustryTree, type TreeLayer, type TreePoint } from '@/lib/knowledge-graph/industry-tree';
 import { marketCapDescription, marketCapLabel, marketCapScale } from '@/lib/knowledge-graph/market-cap';
 import { useLocale } from './providers/locale-provider';
+import { layoutVerticalTree } from '@/lib/knowledge-graph/vertical-tree';
+import { VerticalTreeBranches } from './vertical-tree-branches';
 import styles from './industry-tree.module.css';
 
-export type TreeSceneProps={layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
+export type TreeSceneProps={vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
   state={failed:false};
@@ -28,8 +30,9 @@ function Scene(props:TreeSceneProps){
   const labels=useRef(new Map<string,HTMLButtonElement>());
   const particles=useRef(new Map<string,Mesh>());
   const reduced=useRef(false);
-  const nodes=useMemo(()=>layoutIndustryTree(props.layers,new Set(props.open),locale),[props.layers,props.open,locale]);
-  const all=useMemo(()=>layoutIndustryTree(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale]);
+  const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
+  const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
+  const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
   const targets=useMemo(()=>{
     const visible=new Map(nodes.map(n=>[n.id,n]));
     const catalog=new Map(all.map(n=>[n.id,n]));
@@ -40,7 +43,7 @@ function Scene(props:TreeSceneProps){
     });
   },[nodes,all]);
   const edges=useMemo(()=>all.filter(n=>n.parent),[all]);
-  const flowing=useMemo(()=>nodes.filter(n=>n.parent&&props.focus&&(n.layer===props.focus||n.branch===props.focus)).slice(0,6),[nodes,props.focus]);
+  const flowing=useMemo(()=>nodes.filter(n=>!props.vertical&&n.parent&&props.focus&&(n.layer===props.focus||n.branch===props.focus)).slice(0,6),[nodes,props.focus,props.vertical]);
   const geometry=useMemo(()=>{
     const g=new BufferGeometry();g.setAttribute('position',new Float32BufferAttribute(new Float32Array(edges.length*6),3));
     g.setAttribute('color',new Float32BufferAttribute(edges.flatMap(n=>{
@@ -61,13 +64,16 @@ function Scene(props:TreeSceneProps){
     const xs=fitting.map(n=>n.position[0]),ys=fitting.map(n=>n.position[1]);
     // Labels extend to the right of their anchors. Reserve their projected width,
     // including on narrow screens, instead of centering only the node spheres.
-    const left=Math.min(...xs)-80,right=Math.max(...xs)+Math.max(240,340*1100/size.height);
+    const left=Math.min(...xs)-(props.vertical?Math.max(240,340*1100/size.height):80),right=Math.max(...xs)+Math.max(240,340*1100/size.height);
     const center=new Vector3((left+right)/2,(Math.min(...ys)+Math.max(...ys))/2,0);
     const halfW=Math.max(210,(right-left)/2+40),halfH=Math.max(160,(Math.max(...ys)-Math.min(...ys))/2+80);
-    const distance=Math.max(halfH,halfW/(size.width/size.height))/Math.tan(Math.PI/8)*1.18;
-    void c.setLookAt(center.x+distance*.1,center.y,distance,center.x,center.y,0,!reduced.current);
+    const distance=props.vertical
+      ? Math.max((Math.max(...ys)-Math.min(...ys)+160)/2*size.height/Math.max(100,size.height-90),(Math.max(...xs)-Math.min(...xs)+80)/2*size.height/Math.max(120,size.width-Math.min(280,size.width*.55)))/Math.tan(Math.PI/8)*1.08
+      : Math.max(halfH,halfW/(size.width/size.height))/Math.tan(Math.PI/8)*1.18;
+    if(props.vertical)center.x=(Math.min(...xs)+Math.max(...xs))/2;
+    void c.setLookAt(center.x+distance*(props.vertical?0:.1),center.y,distance,center.x,center.y,0,!reduced.current);
     invalidate();
-  },[nodes,props.focus,props.request,size.width,size.height,invalidate]);
+  },[nodes,props.focus,props.request,props.vertical,size.width,size.height,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
     let moving=false;
@@ -83,7 +89,8 @@ function Scene(props:TreeSceneProps){
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        label.style.transform=`scale(${Math.min(1,1/htmlScale)})`;
+        label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1):Math.min(1,1/htmlScale)})`;
+        if(props.vertical)label.dataset.compact=String(target.node.kind==='company'&&htmlScale<.28);
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
     }
@@ -103,26 +110,28 @@ function Scene(props:TreeSceneProps){
     <CameraControls ref={controls} makeDefault
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.3}/>
-    <lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>
+    {props.vertical?<VerticalTreeBranches nodes={nodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
       const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
+      const left=Boolean(props.vertical&&position[0]<0);
       const radius=node.company?4*marketCapScale(node.company.marketCap):node.kind==='layer'?12:7;
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(visible?1:0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         <mesh><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .12 : 1}/></mesh>
         <mesh><sphereGeometry args={[radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .01 : .08} depthWrite={false} blending={AdditiveBlending}/></mesh>
-        {node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
-        {visible&&<Html position={[node.kind==='company'?16:22,0,0]} distanceFactor={node.kind==='company'||node.kind==='branch'?1100:undefined} zIndexRange={[15,0]} style={{pointerEvents:'none'}}><button
+        {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
+        {visible&&<Html center={props.vertical&&node.kind==='root'} position={props.vertical&&node.kind==='root'?[0,-25,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={[15,0]} style={{pointerEvents:'none'}}><div className={left?styles.labelLeft:undefined}><button
           ref={el=>{if(el)labels.current.set(node.id,el);else labels.current.delete(node.id);}}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto'}}
           data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
+          aria-label={props.vertical&&node.company?`${node.label} ${node.company.symbol??''}`:undefined}
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):undefined}
           onClick={()=>node.company?props.onSelect(node.company.id):props.onToggle(node.id)}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}</small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
-        </button></Html>}
+        </button></div></Html>}
       </group>;
     })}
   </>;
