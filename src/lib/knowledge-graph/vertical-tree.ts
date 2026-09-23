@@ -26,7 +26,7 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   const leaves=(layer:TreeLayer,branch:TreeLayer['branches'][number],bx:number,by:number,side:number,up:number)=>{
     if(!open.has(branch.id))return;
     [...branch.companies].sort((a,b)=>a.id.localeCompare(b.id)).forEach((company,j)=>{
-      const angle=j*2.399963229728653,radius=40+Math.sqrt(j+1)*30;
+      const angle=j*2.399963229728653,radius=46+Math.sqrt(j+1)*33;
       nodes.push({id:`${branch.id}/${company.id}`,parent:branch.id,layer:layer.id,branch:branch.id,kind:'company',label:companyName(company,locale),color:layer.color,
         position:[bx+side*(290+radius*1.1*Math.cos(angle)),by+up+radius*Math.sin(angle)*.9,0],company});
     });

@@ -1,4 +1,4 @@
-import { AdditiveBlending, BufferGeometry, Color, DataTexture, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, NormalBlending, Points, PointsMaterial, SphereGeometry, Vector3, type Object3D } from 'three';
+import { AdditiveBlending, BufferGeometry, Color, DataTexture, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, NormalBlending, Points, PointsMaterial, Shape, ShapeGeometry, SphereGeometry, Vector3, type Object3D } from 'three';
 import type { TreePoint } from './industry-tree';
 import { VERTICAL_ROOT_REACH, verticalTrunkX } from './vertical-tree';
 
@@ -127,14 +127,7 @@ export function verticalTreeDust(nodes:TreePoint[]){
   const geometry=new BufferGeometry();
   const positions:number[]=[],colors:number[]=[];
   const random=(seed:number)=>{const v=Math.sin(seed)*43758.5453;return v-Math.floor(v);};
-  // A little pollen around each leaf keeps canopies alive without clutter.
-  for(const node of nodes)if(node.kind==='company'){
-    const color=mix(node.color,'#ffffff',.4);
-    for(let i=0;i<2;i++){
-      const seed=node.id.length*31.7+node.position[0]*.013+i*91.3,angle=random(seed)*Math.PI*2,r=18+random(seed+1)*34;
-      positions.push(node.position[0]+Math.cos(angle)*r,node.position[1]+Math.sin(angle)*r,-3);colors.push(...color.toArray());
-    }
-  }
+  // Companies are leaves now, so only the soil keeps its sparkle.
   if(nodes.some(n=>n.kind==='layer'))for(let i=0;i<80;i++){
     const u=random(i*12.7+3)*2-1,depth=random(i*7.1+1);
     positions.push(u*VERTICAL_ROOT_REACH*.9,-30-depth*260*(1-Math.abs(u)*.5),-3);
@@ -248,4 +241,44 @@ export function verticalTreeObjects(geometries:BufferGeometry[],dust:BufferGeome
 export function verticalTreeNodeStyle(node:TreePoint,dim:boolean,capScale=1){
   const radius=node.kind==='company'?3.2*capScale:node.kind==='layer'?11:node.kind==='branch'?8:10;
   return {radius,core:dim?.12:.95,glow:dim?.01:node.kind==='company'?.16:.12,glowRadius:radius*(node.kind==='company'?3.4:2.8)};
+}
+
+// Company leaves. One shared blade and vein, drawn along +x from a base at the
+// origin to a tip at x=1, so each leaf is just a rotation and scale. Vertex
+// colours shade the blade (deeper at the stem, brighter across the middle) and
+// multiply with each company's layer colour.
+function leafBlade(){
+  const shape=new Shape();
+  shape.moveTo(0,0);
+  shape.bezierCurveTo(.18,.2,.55,.34,1,0);
+  shape.bezierCurveTo(.55,-.34,.18,-.2,0,0);
+  const geometry=new ShapeGeometry(shape,14);
+  const pos=geometry.getAttribute('position'),colors:number[]=[];
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i),y=Math.abs(pos.getY(i));
+    const shade=.62+.46*Math.sin(Math.min(1,x)*Math.PI*.85)-.28*y;
+    colors.push(shade,shade,shade);
+  }
+  geometry.setAttribute('color',new Float32BufferAttribute(colors,3));
+  return geometry;
+}
+function leafVein(){
+  const shape=new Shape();
+  shape.moveTo(0,.012);shape.quadraticCurveTo(.5,.018,.9,0);shape.quadraticCurveTo(.5,-.018,0,-.012);shape.lineTo(0,.012);
+  return new ShapeGeometry(shape,6);
+}
+export const VERTICAL_LEAF_BLADE=leafBlade();
+export const VERTICAL_LEAF_VEIN=leafVein();
+
+// Each leaf points away from its branch along its twig, tilted a little by a
+// stable per-company jitter so a spray looks grown rather than stamped. Size
+// follows market cap within readable limits.
+export function verticalLeafPose(node:TreePoint,parent:TreePoint|undefined,capScale=1){
+  const [x,y]=node.position,[px,py]=parent?.position??[0,0];
+  let seed=0;for(const c of node.id)seed=(seed*31+c.charCodeAt(0))|0;
+  const jitter=((Math.sin(seed)*43758.5453)%1+1)%1-.5;
+  const angle=Math.atan2(y-py,x-px)+jitter*.9;
+  const length=44+24*Math.min(2.5,Math.max(.65,capScale));
+  const tint=new Color(node.color).offsetHSL(jitter*.05,jitter*.1,jitter*.08);
+  return {angle,length,width:length*.78,tint:'#'+tint.getHexString()};
 }
