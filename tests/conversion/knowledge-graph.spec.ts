@@ -786,6 +786,20 @@ test('three views tree remains browsable without WebGL',async({page})=>{
  await page.locator('summary').filter({hasText:/^AI accelerators/}).click();
  await page.getByRole('button',{name:'NVIDIA',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'Company details'})).toBeVisible();
+ await page.getByRole('button',{name:'Close company details'}).click();
+ await page.getByRole('tab',{name:'Industry structure - vertical',exact:true}).click();
+ const vertical=page.getByRole('region',{name:'Vertical tree',exact:true});
+ const chips=vertical.locator('details').filter({has:page.locator('summary').filter({hasText:/^Chips/})});
+ const nvidia=chips.getByRole('button',{name:'NVIDIA',exact:true,includeHidden:true});
+ await expect(nvidia).toBeVisible();
+ await vertical.getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect(nvidia).toBeHidden();
+ await vertical.getByRole('button',{name:'Expand all',exact:true}).click();
+ await expect(nvidia).toBeVisible();
+ await vertical.locator('summary').filter({hasText:/^Chips/}).click();
+ await expect(nvidia).toBeHidden();
+ await vertical.locator('summary').filter({hasText:/^Chips/}).click();
+ await expect(nvidia).toBeVisible();
 });
 
 test('three views application siblings share a vertical column and remain inside the canvas',async({page})=>{
