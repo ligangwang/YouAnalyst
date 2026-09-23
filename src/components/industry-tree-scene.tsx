@@ -62,13 +62,21 @@ function Scene(props:TreeSceneProps){
     let fitting=props.focus?nodes.filter(n=>n.id===props.focus||n.layer===props.focus||n.branch===props.focus):nodes;
     if(!fitting.length)fitting=nodes;
     const xs=fitting.map(n=>n.position[0]),ys=fitting.map(n=>n.position[1]);
+    if(props.vertical&&!props.focus){
+      const rootReach=nodes.some(n=>n.kind==='company')?2800:1900;
+      xs.push(-rootReach,rootReach);ys.push(-520);
+    }
     // Labels extend to the right of their anchors. Reserve their projected width,
     // including on narrow screens, instead of centering only the node spheres.
     const left=Math.min(...xs)-(props.vertical?Math.max(240,340*1100/size.height):80),right=Math.max(...xs)+Math.max(240,340*1100/size.height);
     const center=new Vector3((left+right)/2,(Math.min(...ys)+Math.max(...ys))/2,0);
     const halfW=Math.max(210,(right-left)/2+40),halfH=Math.max(160,(Math.max(...ys)-Math.min(...ys))/2+80);
+    const labelReserve=props.vertical&&nodes.some(n=>n.kind==='company')?40:Math.min(280,size.width*.55);
+    // On narrow screens, show a readable section of the canopy and let users pan
+    // to its outer leaves instead of shrinking every company into one tiny tree.
+    const fitWidth=props.vertical&&size.width<700?Math.max(680,size.width-labelReserve):size.width-labelReserve;
     const distance=props.vertical
-      ? Math.max((Math.max(...ys)-Math.min(...ys)+160)/2*size.height/Math.max(100,size.height-90),(Math.max(...xs)-Math.min(...xs)+80)/2*size.height/Math.max(120,size.width-Math.min(280,size.width*.55)))/Math.tan(Math.PI/8)*1.08
+      ? Math.max((Math.max(...ys)-Math.min(...ys)+160)/2*size.height/Math.max(100,size.height-90),(Math.max(...xs)-Math.min(...xs)+80)/2*size.height/Math.max(120,fitWidth))/Math.tan(Math.PI/8)*.84
       : Math.max(halfH,halfW/(size.width/size.height))/Math.tan(Math.PI/8)*1.18;
     if(props.vertical)center.x=(Math.min(...xs)+Math.max(...xs))/2;
     void c.setLookAt(center.x+distance*(props.vertical?0:.1),center.y,distance,center.x,center.y,0,!reduced.current);
@@ -90,7 +98,7 @@ function Scene(props:TreeSceneProps){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
         label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1):Math.min(1,1/htmlScale)})`;
-        if(props.vertical)label.dataset.compact=String(target.node.kind==='company'&&htmlScale<.28);
+        if(props.vertical)label.dataset.compact=String(target.node.kind==='company'?htmlScale<1.05:target.node.kind==='branch'&&htmlScale<.72);
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
     }
@@ -120,14 +128,14 @@ function Scene(props:TreeSceneProps){
         <mesh><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .12 : 1}/></mesh>
         <mesh><sphereGeometry args={[radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .01 : .08} depthWrite={false} blending={AdditiveBlending}/></mesh>
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
-        {visible&&<Html center={props.vertical&&node.kind==='root'} position={props.vertical&&node.kind==='root'?[0,-25,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={[15,0]} style={{pointerEvents:'none'}}><div className={left?styles.labelLeft:undefined}><button
+        {visible&&<Html center={props.vertical&&node.kind==='root'} position={props.vertical&&node.kind==='root'?[0,-25,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left?styles.labelLeft:undefined}><button
           ref={el=>{if(el)labels.current.set(node.id,el);else labels.current.delete(node.id);}}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto'}}
           data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
-          aria-label={props.vertical&&node.company?`${node.label} ${node.company.symbol??''}`:undefined}
+          aria-label={props.vertical&&(node.company||node.kind==='branch')?[node.label,node.company?.symbol].filter(Boolean).join(' '):undefined}
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
-          title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):undefined}
+          title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onClick={()=>node.company?props.onSelect(node.company.id):props.onToggle(node.id)}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}</small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
