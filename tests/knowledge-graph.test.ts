@@ -5,8 +5,8 @@ import type { Firestore } from "firebase-admin/firestore";
 import { validateGraph, graphVersion, importGraphs, type Graph } from "../scripts/import-ai-knowledge-graphs";
 
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../src/lib/knowledge-graph/market-store";
-import { layoutVerticalTree } from '../src/lib/knowledge-graph/vertical-tree';
-import { industryTree, layoutIndustryTree } from '../src/lib/knowledge-graph/industry-tree';
+import { layoutVerticalTree, verticalBranchOrigin } from '../src/lib/knowledge-graph/vertical-tree';
+import { industryTree, layoutIndustryTree, type TreePoint } from '../src/lib/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 
 const graphs: Graph[] = ["ai-us", "ai-cn-a"].map(id => JSON.parse(readFileSync(new URL(`../data/ai-supply-chain/${id}.json`, import.meta.url), "utf8")));
@@ -163,6 +163,10 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
  assert(all.slice(1).every(n=>n.position[1]>all[0].position[1]),'expanded Energy roots stay above the whole-tree title');
  assert.equal(new Set(all.filter(n=>n.company).map(n=>n.company!.id)).size,new Set(layers.flatMap(l=>l.companies.map(c=>c.id))).size);
  assert.equal(new Set(all.map(n=>n.id)).size,all.length);
+ const top=Math.max(...all.filter(n=>n.kind==='layer').map(n=>n.position[1]));
+ // Limbs grow from their stem, so order layers by where limbs leave the trunk, not by their tips.
+ const height=(n:TreePoint)=>n.kind==='branch'?n.stem!:n.position[1];
+ const reaches:number[]=[];
  for(const [i,layer] of layers.entries()){
    const group=all.filter(n=>n.layer===layer.id);
    const node=group.find(n=>n.kind==='layer')!;
@@ -170,21 +174,35 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
    else if(layer.id==='applications')assert(group.filter(n=>n.kind!=='layer').every(n=>n.position[1]>node.position[1]),'application branches grow above the trunk tip');
    else {
      const branches=group.filter(n=>n.kind==='branch');
-     assert(branches.every(b=>b.position[1]>node.span![0]&&b.position[1]<node.span![1]),'branches grow from their own trunk segment');
+     assert(branches.every(b=>b.stem!>node.span![0]&&b.stem!<node.span![1]),'branches grow from their own trunk segment');
      if(branches.length>1)assert.equal(new Set(branches.map(b=>Math.sign(b.position[0]))).size,2,'branches grow outward on both sides');
+     for(const b of branches){
+       const [ox,oy]=verticalBranchOrigin(b,top),tilt=Math.atan2(b.position[1]-oy,Math.abs(b.position[0]-ox))*180/Math.PI;
+       assert(tilt>=18&&tilt<=44,`${b.id} leans upward like a limb (${tilt.toFixed(1)}°)`);
+     }
+     reaches.push(Math.max(...branches.map(b=>{const [ox,oy]=verticalBranchOrigin(b,top);return Math.hypot(b.position[0]-ox,b.position[1]-oy);})));
+     // Stable jitter: the two sides are not mirror images.
+     const left=branches.filter(b=>b.position[0]<0),right=branches.filter(b=>b.position[0]>0);
+     if(left.length&&right.length)assert(!left.some(l=>right.some(r=>Math.abs(l.position[0]+r.position[0])<1&&Math.abs(l.position[1]-r.position[1])<1)));
    }
    const next=layers[i+1];
-   if(next)assert(Math.max(...group.filter(n=>n.kind!=='company').map(n=>n.position[1]))<Math.min(...all.filter(n=>n.layer===next.id&&n.kind!=='company').map(n=>n.position[1])));
+   if(next)assert(Math.max(...group.filter(n=>n.kind!=='company').map(height))<Math.min(...all.filter(n=>n.layer===next.id&&n.kind!=='company').map(height)));
    for(const branch of layer.branches){
      const children=all.filter(n=>n.parent===branch.id);
      const parent=all.find(n=>n.id===branch.id)!;
+     const [ox,oy]=verticalBranchOrigin(parent,top),dx=parent.position[0]-ox,dy=parent.position[1]-oy,length=Math.hypot(dx,dy);
      assert(children.every(n=>Math.sign(n.position[0])===Math.sign(parent.position[0])));
-     assert(children.every(n=>Math.abs(n.position[0])>Math.abs(parent.position[0])));
-     if(layer.id==='applications')assert(children.every(n=>n.position[1]>parent.position[1]));
-     else assert(children.every(n=>Math.abs(n.position[1]-parent.position[1])<240));
+     // Leaves hang along the outer half of their limb and a little past its tip, close to the wood.
+     for(const n of children){
+       const along=((n.position[0]-ox)*dx+(n.position[1]-oy)*dy)/length**2,off=Math.abs((n.position[0]-ox)*dy-(n.position[1]-oy)*dx)/length;
+       assert(along>.25&&along<1.2&&off<200,`${n.id} grows along its limb`);
+     }
+     if(layer.id==='applications')assert(children.every(n=>n.position[1]>oy));
      assert.equal(new Set(children.map(n=>n.position.join(','))).size,children.length);
    }
  }
+ // Lower limbs reach furthest, so the canopy tapers to a crown.
+ assert(reaches.every((r,i)=>!i||r<reaches[i-1]),`limb reach tapers upward: ${reaches.map(Math.round)}`);
  assert.deepEqual(layoutVerticalTree(layers,new Set(['root']),'zh-CN'),initial);
  assert.equal(layoutVerticalTree(layers,new Set(),'en').length,1);
 });

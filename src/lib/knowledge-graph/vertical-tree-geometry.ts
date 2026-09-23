@@ -1,6 +1,6 @@
 import { AdditiveBlending, BufferGeometry, Color, DataTexture, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, NormalBlending, Points, PointsMaterial, Shape, ShapeGeometry, SphereGeometry, Vector3, type Object3D } from 'three';
 import type { TreePoint } from './industry-tree';
-import { VERTICAL_ROOT_REACH, verticalTrunkX } from './vertical-tree';
+import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalTrunkX } from './vertical-tree';
 
 // Framework-free geometry for the vertical tree. The React scene and offline
 // previews share it, so what we review is exactly what ships.
@@ -16,7 +16,7 @@ const SEAM_BLEND=60;
 type Kind='trunk'|'fiber'|'root'|'ring'|'branch'|'twig';
 type Attach='trunk'|'root'|'crown';
 type RGBA=[number,number,number,number];
-export type Strand={from:string;to:string;kind:Kind;width:[number,number];offset:number;color:(t:number)=>RGBA;layer?:string;branch?:string;end?:[number,number];attach?:Attach};
+export type Strand={from:string;to:string;kind:Kind;width:[number,number];offset:number;color:(t:number)=>RGBA;layer?:string;branch?:string;end?:[number,number];attach?:Attach;stem?:number};
 type XY={x:number;y:number};
 
 // Half-width of the trunk at a height fraction: a flared base settling into a
@@ -79,10 +79,11 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
     if(n.kind==='branch'){
       const parent=byId.get(n.parent);
       const attach:Attach=parent===energy?'root':parent===crownLayer?'crown':'trunk';
-      const base=attach==='trunk'?trunkColor(Math.min(1,Math.max(0,(n.position[1]-150)/top))):attach==='root'?bark(gold.getStyle()):bark(crownLayer.color);
-      const strand:Strand={from:n.parent,to:n.id,kind:'branch',width:[attach==='trunk'?0:15,3.2],offset:0,attach,end:parent?.span,layer:n.layer,branch:n.branch,color:t=>rgba(mix(base,light,ease(Math.min(1,t*1.3))),.97)};
+      const base=attach==='trunk'?trunkColor(Math.min(1,Math.max(0,(n.stem??n.position[1])/top))):attach==='root'?bark(gold.getStyle()):bark(crownLayer.color);
+      // Bark near the trunk, lightening only towards the tip, so limbs read as wood rather than light pipes.
+      const strand:Strand={from:n.parent,to:n.id,kind:'branch',width:[attach==='trunk'?0:12,1.6],offset:0,attach,end:parent?.span,stem:n.stem,layer:n.layer,branch:n.branch,color:t=>rgba(mix(base,light,.75*ease(t)),.97)};
       (attach==='trunk'?limbs:crown).push(strand);
-    }else twigs.push({from:n.parent,to:n.id,kind:'twig',width:[1.3,.45],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(tint,light,t),.8-.45*t)});
+    }else twigs.push({from:n.parent,to:n.id,kind:'twig',width:[1.2,.35],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(light,tint,t),.75-.35*t)});
   }
   // Draw order: limbs tuck in behind the trunk so they appear to grow out of
   // it; roots spill over the trunk base; crown branches and twigs sit on top.
@@ -138,36 +139,59 @@ export function verticalTreeDust(nodes:TreePoint[]){
   return geometry;
 }
 
+type Curve={ax:number;ay:number;c1x:number;c1y:number;c2x:number;c2y:number;bx:number;by:number;h0:number;h1:number};
+const cubic=(c:Curve,t:number,out:Vector3)=>{
+  const u=1-t;
+  return out.set(u*u*u*c.ax+3*u*u*t*c.c1x+3*u*t*t*c.c2x+t*t*t*c.bx,u*u*u*c.ay+3*u*u*t*c.c1y+3*u*t*t*c.c2y+t*t*t*c.by,-4);
+};
+// Limbs taper smoothly from the trunk to a fine tip.
+const limbHalf=(c:Curve,t:number)=>c.h1+(c.h0-c.h1)*Math.pow(1-t,1.5);
+
 export function createStrandWriter(){
-  const a=new Vector3(),b=new Vector3(),p=new Vector3(),q=new Vector3(),before=new Vector3(),after=new Vector3(),normalP=new Vector3(),normalQ=new Vector3();
+  const p=new Vector3(),q=new Vector3(),before=new Vector3(),after=new Vector3(),normalP=new Vector3(),normalQ=new Vector3(),on=new Vector3();
+  const limbs=new Map<string,Curve>();
   // Rewrites ribbon vertices from current node positions (they animate).
   return (strands:Strand[],geometries:BufferGeometry[],positionOf:(id:string)=>XY|undefined,layerYs:number[])=>{
     if(!positionOf('root'))return;
     const top=Math.max(1,...layerYs);
     const tx=(y:number)=>verticalTrunkX(y,top);
+    limbs.clear();
     strands.forEach((strand,index)=>{
       const source=positionOf(strand.from),target=positionOf(strand.to);if(!source||!target)return;
-      a.set(source.x,source.y,-4);b.set(target.x,target.y,-4);
-      let startHalf=0;
-      if(strand.kind==='trunk'||strand.kind==='fiber'||strand.kind==='ring'){a.set(0,0,-4);b.set(0,top,-4);}
+      let curve:Curve|undefined;
       if(strand.kind==='branch'){
-        const side=Math.sign(b.x-tx(b.y))||1;
+        const bx=target.x,by=target.y;
+        let ax:number,ay:number,h0:number;
         if(strand.attach==='trunk'){
-          // Leave the trunk from inside this layer's own segment, a little
-          // below the branch so it grows up and out.
+          // Leave the trunk at the limb's own stem, inside its layer's segment.
           const [lo,hi]=strand.end??[0,top];
-          const lift=200+120*Math.abs(Math.sin(b.x*.013));
-          const y=Math.min(hi-50,Math.max(lo+50,b.y-lift));
-          startHalf=trunkHalf(y/top)*.5;
-          a.set(tx(y)+side*trunkHalf(y/top)*.35,y,-4);
-        }else if(strand.attach==='root'){a.set(side*40,-40,-4);startHalf=strand.width[0];}
-        else {a.set(0,top+20,-4);startHalf=strand.width[0];}
+          ay=Math.min(hi-30,Math.max(lo+30,strand.stem??by));
+          const side=Math.sign(bx-tx(ay))||1;
+          h0=trunkHalf(ay/top)*.42;ax=tx(ay)+side*trunkHalf(ay/top)*.35;
+        }else if(strand.attach==='root'){ax=(Math.sign(bx)||1)*40;ay=-40;h0=strand.width[0];}
+        else {ax=0;ay=strand.stem??top+20;h0=strand.width[0];}
+        // Rise out of the trunk, then ease outward along the limb's lean.
+        const dx=bx-ax,dy=by-ay;
+        curve={ax,ay,bx,by,c1x:ax+dx*.18,c1y:ay+dy*.45,c2x:bx-dx*.38,c2y:by-dy*.12,h0,h1:strand.width[1]};
+        limbs.set(strand.to,curve);
+      }else if(strand.kind==='twig'){
+        // Twigs leave their limb where the leaf hangs, not all from its tip.
+        const limb=limbs.get(strand.from);
+        if(limb){
+          const cx=limb.bx-limb.ax,cy=limb.by-limb.ay;
+          const along=Math.min(1,Math.max(.05,((target.x-limb.ax)*cx+(target.y-limb.ay)*cy)/(cx*cx+cy*cy||1)));
+          cubic(limb,along,on);
+          const dx=target.x-on.x,dy=target.y-on.y;
+          const h0=Math.max(.8,limbHalf(limb,along)*.5);
+          curve={ax:on.x,ay:on.y,bx:target.x,by:target.y,c1x:on.x+dx*.25+cx*.06,c1y:on.y+dy*.25+cy*.06,c2x:target.x-dx*.3,c2y:target.y-dy*.3,h0,h1:strand.width[1]};
+        }else{
+          const dx=target.x-source.x,dy=target.y-source.y;
+          curve={ax:source.x,ay:source.y,bx:target.x,by:target.y,c1x:source.x+dx*.22,c1y:source.y+dy*.15,c2x:target.x-dx*.35,c2y:target.y,h0:strand.width[0],h1:strand.width[1]};
+        }
       }
       const end=strand.end;
-      const bezier=(t:number,out:Vector3,c1x:number,c1y:number,c2x:number,c2y:number)=>{
-        const u=1-t;return out.set(u*u*u*a.x+3*u*u*t*c1x+3*u*t*t*c2x+t*t*t*b.x,u*u*u*a.y+3*u*u*t*c1y+3*u*t*t*c2y+t*t*t*b.y,-4);
-      };
       const point=(t:number,out:Vector3)=>{
+        if(curve)return cubic(curve,t,out);
         if(strand.kind==='trunk')return out.set(tx(top*t),top*t-30*(1-t),-4);
         if(strand.kind==='fiber')return out.set(tx(top*t)+strand.offset*trunkHalf(t)*(1-.1*t),top*t,-4);
         if(strand.kind==='ring'&&end){
@@ -180,11 +204,7 @@ export function createStrandWriter(){
           const y0=60,y1=end[1]*.7,y2=end[1]*1.05;
           return out.set(u*u*u*x0+3*u*u*t*x1+3*u*t*t*x2+t*t*t*end[0],u*u*u*y0+3*u*u*t*y1+3*u*t*t*y2+t*t*t*end[1],-4);
         }
-        const dx=b.x-a.x,dy=b.y-a.y;
-        if(strand.kind==='branch'&&strand.attach==='trunk')return bezier(t,out,a.x+dx*.12,a.y+Math.max(60,dy*.95),b.x-dx*.45,b.y);
-        if(strand.kind==='branch'&&strand.attach==='root')return bezier(t,out,a.x+dx*.12,a.y+dy*.85,b.x-dx*.4,b.y);
-        if(strand.kind==='branch')return bezier(t,out,a.x+dx*.08,a.y+dy*.8,b.x-dx*.3,b.y);
-        return bezier(t,out,a.x+dx*.22,a.y+dy*.15,b.x-dx*.35,b.y);
+        return out.set(source.x+(target.x-source.x)*t,source.y+(target.y-source.y)*t,-4);
       };
       const normal=(at:number,out:Vector3)=>{
         point(Math.max(0,at-.001),before);point(Math.min(1,at+.001),after);
@@ -193,7 +213,8 @@ export function createStrandWriter(){
       };
       const half=(t:number)=>{
         if(strand.kind==='trunk')return trunkHalf(t);
-        if(strand.kind==='branch')return strand.width[1]+(startHalf-strand.width[1])*Math.pow(1-t,1.8);
+        if(curve&&strand.kind==='branch')return limbHalf(curve,t);
+        if(curve)return curve.h1+(curve.h0-curve.h1)*Math.pow(1-t,1.2);
         const [w0,w1]=strand.width;return w1+(w0-w1)*Math.pow(1-t,1.2);
       };
       for(let step=0;step<segments;step++){
@@ -239,8 +260,10 @@ export function verticalTreeObjects(geometries:BufferGeometry[],dust:BufferGeome
 
 // Leaf and knot styling for node spheres in the vertical view.
 export function verticalTreeNodeStyle(node:TreePoint,dim:boolean,capScale=1){
-  const radius=node.kind==='company'?3.2*capScale:node.kind==='layer'?11:node.kind==='branch'?8:10;
-  return {radius,core:dim?.12:.95,glow:dim?.01:node.kind==='company'?.16:.12,glowRadius:radius*(node.kind==='company'?3.4:2.8)};
+  // Branch ends are small knots on the wood, not lamps.
+  const radius=node.kind==='company'?3.2*capScale:node.kind==='layer'?11:node.kind==='branch'?3.2:10;
+  const knot=node.kind==='branch';
+  return {radius,core:dim?.12:knot?.5:.95,glow:dim?.01:knot?.03:node.kind==='company'?.16:.12,glowRadius:radius*(node.kind==='company'?3.4:knot?1.8:2.8)};
 }
 
 // Company leaves. One shared blade and vein, drawn along +x from a base at the
@@ -270,15 +293,20 @@ function leafVein(){
 export const VERTICAL_LEAF_BLADE=leafBlade();
 export const VERTICAL_LEAF_VEIN=leafVein();
 
-// Each leaf points away from its branch along its twig, tilted a little by a
-// stable per-company jitter so a spray looks grown rather than stamped. Size
-// follows market cap within readable limits.
-export function verticalLeafPose(node:TreePoint,parent:TreePoint|undefined,capScale=1){
+// Each leaf leans away from its limb towards the limb's tip, tilted a little
+// by a stable per-company jitter so a canopy looks grown rather than stamped.
+// Size follows market cap within readable limits.
+export function verticalLeafPose(node:TreePoint,parent:TreePoint|undefined,capScale=1,top=1){
   const [x,y]=node.position,[px,py]=parent?.position??[0,0];
-  let seed=0;for(const c of node.id)seed=(seed*31+c.charCodeAt(0))|0;
-  const jitter=((Math.sin(seed)*43758.5453)%1+1)%1-.5;
-  const angle=Math.atan2(y-py,x-px)+jitter*.9;
-  const length=44+24*Math.min(2.5,Math.max(.65,capScale));
+  const jitter=verticalJitter(node.id,7)-.5;
+  let angle=Math.atan2(y-py,x-px);
+  if(parent?.kind==='branch'){
+    const [ox,oy]=verticalBranchOrigin(parent,top);
+    const lean=Math.atan2(py-oy,px-ox),flank=Math.sign((px-ox)*(y-oy)-(py-oy)*(x-ox))||1;
+    angle=lean+flank*(.55+.35*verticalJitter(node.id,8));
+  }
+  angle+=jitter*.6;
+  const length=96+52*Math.min(2.5,Math.max(.65,capScale));
   const tint=new Color(node.color).offsetHSL(jitter*.05,jitter*.1,jitter*.08);
   return {angle,length,width:length*.78,tint:'#'+tint.getHexString()};
 }

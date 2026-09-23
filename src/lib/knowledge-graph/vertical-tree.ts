@@ -1,7 +1,7 @@
 import { companyName } from './model';
 import type { TreeLayer, TreePoint } from './industry-tree';
 
-export const VERTICAL_ROOT_REACH=1400;
+export const VERTICAL_ROOT_REACH=1000;
 export const VERTICAL_ROOT_DEPTH=600;
 // Energy is underground: it feeds the whole trunk, so it grows as roots.
 const ROOT_LAYERS=new Set(['energy']);
@@ -13,24 +13,55 @@ export function verticalTrunkX(y:number,top:number){
   return Math.sin(t*Math.PI*1.6-.25)*70*Math.sin(t*Math.PI)*.9;
 }
 
+// Stable pseudo-random value in [0,1) per id, so the tree is irregular but
+// identical on every render.
+export function verticalJitter(id:string,salt=0){
+  let seed=salt*7919;for(const c of id)seed=(seed*31+c.charCodeAt(0))|0;
+  const v=Math.sin(seed*.0001+seed%977)*43758.5453;return v-Math.floor(v);
+}
+
+// Where a limb leaves the trunk. Branch tips carry `stem`, the height they grow
+// from; roots and the crown have fixed attachment points.
+export function verticalBranchOrigin(branch:TreePoint,top:number):[number,number]{
+  const side=Math.sign(branch.position[0])||1,stem=branch.stem??0;
+  if(ROOT_LAYERS.has(branch.layer??''))return [side*40,-40];
+  if(branch.layer===CROWN_LAYER)return [0,stem];
+  return [verticalTrunkX(stem,top)+side*30,stem];
+}
+
 // The layers depend on one another, so the trunk is a stack: roots (energy)
 // feed chips, which carry infrastructure, which carries models, which carry the
 // application crown. Every trunk layer is a segment of the trunk and grows its
-// own branches outward on both sides; companies are the leaves.
+// own limbs up and outward; companies are the leaves along each limb's outer half.
 export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,locale:string):TreePoint[] {
   const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;
   // The whole-tree title belongs below the underground Energy layer. Keep its
   // anchor in the layout so camera fitting includes the title on small screens.
   const nodes:TreePoint[]=[{id:'root',kind:'root',label:locale==='zh-CN'?'AI 产业链':'AI industry chain',color:'#8be8ff',position:[0,-VERTICAL_ROOT_DEPTH-320,0]}];
   if(!open.has('root'))return nodes;
-  const leaves=(layer:TreeLayer,branch:TreeLayer['branches'][number],bx:number,by:number,side:number,up:number)=>{
+  // A limb from its trunk origin at an upward angle; leaves grow along its
+  // outer half and a little past the tip, alternating sides of the limb.
+  const limb=(layer:TreeLayer,branch:TreeLayer['branches'][number],origin:[number,number],side:number,reach:number,angle:number,stem:number)=>{
+    const bx=origin[0]+side*reach*Math.cos(angle),by=origin[1]+reach*Math.sin(angle);
+    nodes.push({id:branch.id,parent:layer.id,layer:layer.id,branch:branch.id,kind:'branch',label:label(branch),color:layer.color,position:[bx,by,0],count:branch.companies.length,stem});
     if(!open.has(branch.id))return;
-    [...branch.companies].sort((a,b)=>a.id.localeCompare(b.id)).forEach((company,j)=>{
-      const angle=j*2.399963229728653,radius=46+Math.sqrt(j+1)*33;
-      nodes.push({id:`${branch.id}/${company.id}`,parent:branch.id,layer:layer.id,branch:branch.id,kind:'company',label:companyName(company,locale),color:layer.color,
-        position:[bx+side*(290+radius*1.1*Math.cos(angle)),by+up+radius*Math.sin(angle)*.9,0],company});
+    const dx=bx-origin[0],dy=by-origin[1],length=Math.hypot(dx,dy)||1,ux=dx/length,uy=dy/length;
+    const companies=[...branch.companies].sort((a,b)=>a.id.localeCompare(b.id));
+    companies.forEach((company,j)=>{
+      const id=`${branch.id}/${company.id}`,wobble=verticalJitter(id,3);
+      // The crown's few limbs carry their leaves further down and wider, so the top rounds into a cap.
+      const crown=layer.id===CROWN_LAYER,from=crown?.28:.45;
+      const t=from+(1.13-from)*(j+.3+.4*wobble)/companies.length;
+      // Alternate above and below the limb, spreading further out mid-limb.
+      const flank=(j%2?1:-1)*(38+70*verticalJitter(id,5))*(crown?1.6:1)*Math.min(1,.55+Math.sin(Math.PI*Math.min(1,t)));
+      nodes.push({id,parent:branch.id,layer:layer.id,branch:branch.id,kind:'company',label:companyName(company,locale),color:layer.color,
+        position:[origin[0]+dx*t-uy*flank,origin[1]+dy*t+ux*flank,0],company});
     });
   };
+  // Lower limbs reach furthest and upper ones less, so the canopy tapers to a
+  // rounded crown instead of a rectangle.
+  const stack=layers.filter(l=>!ROOT_LAYERS.has(l.id)&&l.id!==CROWN_LAYER).map(l=>l.id);
+  const tierReach=(id:string)=>id===CROWN_LAYER?470:660-85*Math.max(0,stack.indexOf(id));
   let bottom=150;
   for(const layer of layers){
     const expanded=open.has(layer.id);
@@ -38,43 +69,49 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       const y=-420;
       nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,y,0],count:layer.companies.length,span:[-VERTICAL_ROOT_DEPTH,0]});
       if(expanded)layer.branches.forEach((branch,i)=>{
-        const side=i%2?-1:1,k=Math.floor(i/2);
-        const bx=side*(900+k*180),by=-470-k*70;
-        nodes.push({id:branch.id,parent:layer.id,layer:layer.id,branch:branch.id,kind:'branch',label:label(branch),color:layer.color,position:[bx,by,0],count:branch.companies.length});
-        leaves(layer,branch,bx,by,side,-20);
+        const side=i%2?-1:1,k=Math.floor(i/2),jitter=verticalJitter(branch.id);
+        limb(layer,branch,[side*40,-40],side,(520+k*120)*(.9+.2*jitter),-(.42+.12*jitter+k*.06),-40);
       });
       continue;
     }
     if(layer.id===CROWN_LAYER){
-      const y=bottom+340;
+      const y=bottom+220;
       nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,y,0],count:layer.companies.length,span:[bottom,y]});
       if(expanded)layer.branches.forEach((branch,i)=>{
-        const offset=i-(layer.branches.length-1)/2,side=Math.sign(offset)||(i%2?-1:1);
-        const bx=offset*1500||side*750,by=y+430-Math.abs(offset)*40;
-        nodes.push({id:branch.id,parent:layer.id,layer:layer.id,branch:branch.id,kind:'branch',label:label(branch),color:layer.color,position:[bx,by,0],count:branch.companies.length});
-        leaves(layer,branch,bx,by,side,160);
+        const offset=i-(layer.branches.length-1)/2,side=Math.sign(offset)||(i%2?-1:1),jitter=verticalJitter(branch.id);
+        // The crown's limbs spread from the trunk tip into a dome.
+        const angle=(44-8*Math.min(1,Math.abs(offset)/2)+(jitter-.5)*10)*Math.PI/180;
+        limb(layer,branch,[0,y+20],side,tierReach(layer.id)*(.88+.24*jitter),angle,y+20);
       });
       continue;
     }
-    // Branches alternate sides and climb the segment, so each side reads as a
-    // sequence of limbs growing from that layer's part of the trunk.
+    // Limbs alternate sides and climb the segment; stems stay in the layer's
+    // own part of the trunk while the tips lean up into the canopy.
     const perSide=Math.ceil(layer.branches.length/2);
-    const height=expanded?Math.max(480,perSide*185+220):400;
+    const step=125;
+    const height=expanded?Math.max(360,perSide*step+200):400;
     const y=bottom+height/2;
     nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,y,0],count:layer.companies.length,span:[bottom,bottom+height]});
     if(expanded)layer.branches.forEach((branch,i)=>{
-      // Sides are staggered and reaches vary, so limbs read as grown, not combed.
-      const side=i%2?1:-1,k=Math.floor(i/2),step=(height-230)/perSide;
-      const by=Math.min(bottom+height-70,bottom+140+(k+.5)*step+(side>0?step*.45:0));
-      const jitter=Math.sin((i+1)*12.9898+layer.id.length*78.233)*43758.5453;
-      const bx=side*(880+420*(jitter-Math.floor(jitter)));
-      nodes.push({id:branch.id,parent:layer.id,layer:layer.id,branch:branch.id,kind:'branch',label:label(branch),color:layer.color,position:[bx,by,0],count:branch.companies.length});
-      leaves(layer,branch,bx,by,side,30);
+      const side=i%2?1:-1,k=Math.floor(i/2);
+      const stem=Math.min(bottom+height-60,bottom+90+k*step+(side>0?step*.5:0)+(verticalJitter(branch.id,2)-.5)*30);
+      // Higher limbs within a layer are a little shorter, continuing the taper.
+      const climb=perSide>1?k/(perSide-1):0,jitter=verticalJitter(branch.id);
+      const reach=tierReach(layer.id)*(1-.14*climb)*(.86+.28*jitter);
+      // Limbs lean steeper the higher they grow, as on a real crown.
+      const tier=Math.max(0,stack.indexOf(layer.id));
+      const angle=Math.min(42,19+7*tier+6*climb+8*verticalJitter(branch.id,1))*Math.PI/180;
+      limb(layer,branch,[side*30,stem],side,reach,angle,stem);
     });
     bottom+=height;
   }
   // The trunk sways; keep every trunk layer label on the trunk itself.
   const top=Math.max(1,...nodes.filter(n=>n.kind==='layer').map(n=>n.position[1]));
   for(const n of nodes)if(n.kind==='layer'&&!ROOT_LAYERS.has(n.id)&&n.id!==CROWN_LAYER)n.position[0]=verticalTrunkX(n.position[1],top);
+  // Limbs follow the sway too, so each one leaves the trunk where it really is.
+  for(const branch of nodes)if(branch.kind==='branch'&&branch.stem!==undefined&&!ROOT_LAYERS.has(branch.layer!)&&branch.layer!==CROWN_LAYER){
+    const shift=verticalTrunkX(branch.stem,top);
+    for(const n of nodes)if(n===branch||n.parent===branch.id)n.position[0]+=shift;
+  }
   return nodes;
 }
