@@ -48,6 +48,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.replaceState(null, "", url);
     window.dispatchEvent(new Event("industry-view-changed"));
   }
+  const treeView=view==='tree'||view==='vertical';
   const [activeEdge, setActiveEdge] = useState(initialEdge);
   const [eventId, setEventId] = useState(initialEvent);
   const [sectorFocus, setSectorFocus] = useState("");
@@ -73,7 +74,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   // Keep tree layout inputs stable when opening/closing a company card or following.
   const treeCompanies = useMemo(() => scoped.nodes.filter(n => n.kind === 'COMPANY'), [scoped.nodes]);
   const visible = useMemo(() => {
-    if (view === "tree") return scoped;
+    if (view === "tree" || view === "vertical") return scoped;
     const filtered = filterGraph(scoped, ["US", "CN_A", "GLOBAL"], query);
     const companies = filtered.nodes.filter(n => n.kind === "COMPANY" && (marketFilter === "all" || n.market === marketFilter) && (!roleFilter || companySectors(n).some(s => s.id === roleFilter)) && (!onlyFollowed || follows.ids.includes(n.id)));
     const ids = new Set(companies.map(n => n.id));
@@ -94,7 +95,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     setCameraRequest(value=>value+1);
     setSelected(id);
     setSectorFocus("");
-    if(view!=='tree') workspaceRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    if(!treeView) workspaceRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
     setActiveEdge("");
     setEventId("");
     const url = new URL(window.location.href);
@@ -134,9 +135,9 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   return <><Container className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>{text("EXPLORE", "探索")}</p><Heading>{text("AI Industry Map", "AI 产业图谱")}</Heading><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></div></header>
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
-      {([['table','Company list','公司列表'],['tree','Industry structure','产业结构'],['graph','Relationship graph','关系图谱']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids:IndustryView[]=['table','tree','graph'];let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%3];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+2)%3];if(e.key==='Home')next='table';if(e.key==='End')next='graph';if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}>{text(en,zh)}</button>)}
+      {([['table','Company list','公司列表'],['tree','Tree','树状图'],['vertical','Vertical tree','垂直树状图'],['graph','Relationship graph','关系图谱']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids:IndustryView[]=['table','tree','vertical','graph'];let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next='table';if(e.key==='End')next='graph';if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}>{text(en,zh)}</button>)}
     </div>
-    <div hidden={view === "tree"}><div className={styles.sharedFilters}>
+    <div hidden={treeView}><div className={styles.sharedFilters}>
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
       <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
@@ -153,13 +154,14 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       {matches.length ? matches.map(n => <button key={n.id} onClick={() => selectCompany(n.id)}>{companyName(n,locale)} · {n.symbol}</button>) : <p>{text("No matching companies.", "没有匹配的公司。")}</p>}
     </section>}
     {view === "graph" && status === "ready" && sectorIds.size > 0 && <div><button type="button" className={styles.sectorToggle} aria-expanded={sectorsExpanded} aria-controls={sectorControlsId} onClick={()=>setSectorsExpanded(value=>!value)}>{text("Sectors", "产业环节")}{sectorFocus && <> · {text((GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).en,(GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).zh)}</>} <span aria-hidden="true">{sectorsExpanded?"−":"+"}</span></button><div id={sectorControlsId} className={styles.sectorLegend} data-expanded={sectorsExpanded} role="group" aria-label={text("Colors by primary AI sector", "按主要 AI 产业环节着色")}><span>{text("Sector", "产业环节")}</span>{[...GRAPH_SECTORS, OTHER_SECTOR].filter(s => sectorIds.has(s.id)).map(s => <button key={s.id} type="button" aria-pressed={sectorFocus === s.id} onClick={() => toggleSector(s.id)} style={{ color: s.color }}><i aria-hidden="true" style={{ background: s.color }}/>{text(s.en, s.zh)}</button>)}</div><p className={styles.interactionHint}><span className={styles.pointerHint}>{text("Hover a line to preview · Click for evidence", "悬停连线预览关系 · 点击查看依据")}</span><span className={styles.touchHint}>{text("Tap a line for relationship evidence", "点按连线查看关系依据")}</span></p></div>}
-    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company && view!=="tree" ? styles.withDetail : ""}`}>
+    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company && !treeView ? styles.withDetail : ""}`}>
       <div className={styles.viewContent}>
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       <div hidden={view!=='tree'}><IndustryStructure active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
+      <div hidden={view!=='vertical'}><IndustryStructure vertical active={view==='vertical'} companies={treeCompanies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setReset(n => n + 1); }}/></Suspense>}
       </div>
-      {company && view!=="tree" && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>
+      {company && !treeView && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>
         <div className={styles.detailHeader}>
           <span className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</span>
           <button className={styles.clear} onClick={() => selectCompany("")} aria-label={text("Clear selection", "取消选择")}>×</button>
@@ -194,5 +196,5 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       <input aria-label={text("Find a company in the list", "在列表中查找公司")} placeholder={text("Name, ticker or business…", "名称、代码或业务…")} value={browseQuery} onChange={e=>setBrowseQuery(e.target.value)}/>
       <div className={styles.companyList}>{browseMatches.map(n=><button key={n.id} onClick={()=>selectCompany(n.id)}><span style={{color:companySector(n).color}}>{companyName(n,locale)}</span><small>{n.symbol} · {text(companySector(n).en,companySector(n).zh)}</small></button>)}{!browseMatches.length && <p>{text("No matching companies.", "没有匹配的公司。")}</p>}</div>
     </details>}
-  </Container>{!allowedRelationshipIds && view !== "tree" && <AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} />}</>;
+  </Container>{!allowedRelationshipIds && !treeView && <AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} />}</>;
 }

@@ -5,6 +5,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { validateGraph, graphVersion, importGraphs, type Graph } from "../scripts/import-ai-knowledge-graphs";
 
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../src/lib/knowledge-graph/market-store";
+import { layoutVerticalTree } from '../src/lib/knowledge-graph/vertical-tree';
 import { industryTree, layoutIndustryTree } from '../src/lib/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 
@@ -140,4 +141,29 @@ test("generic graph membership takes precedence and legacy import preserves revi
  assert.deepEqual(f.records.get("companies/US:NVDA")?.inGraph,membership);
  assert(f.records.get("companies/US:AMD")?.inGraph);
  assert.equal(f.records.get("companies/US:AMD")?.aiGraph,undefined);
+});
+
+
+test('vertical tree keeps five ordered sibling layers and reserves space for every company',()=>{
+ const layers=industryTree(graphs.flatMap(g=>g.nodes.filter(n=>n.kind==='COMPANY')) as GraphNode[]);
+ const initial=layoutVerticalTree(layers,new Set(['root']),'zh-CN');
+ assert.equal(initial.length,6);assert.deepEqual(initial[0].position,[0,0,0]);
+ const trunks=initial.filter(n=>n.kind==='layer');
+ assert(trunks.every((n,i)=>n.parent==='root'&&n.position[0]===(i%2?-210:210)&&(!i||n.position[1]>trunks[i-1].position[1])));
+ const all=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
+ assert.equal(new Set(all.filter(n=>n.company).map(n=>n.company!.id)).size,new Set(layers.flatMap(l=>l.companies.map(c=>c.id))).size);
+ assert.equal(new Set(all.map(n=>n.id)).size,all.length);
+ for(const [i,layer] of layers.entries()){
+   const group=all.filter(n=>n.layer===layer.id);
+   assert(group.every(n=>Math.sign(n.position[0])===(i%2?-1:1)));
+   const next=layers[i+1];
+   if(next)assert(Math.max(...group.map(n=>n.position[1]))<Math.min(...all.filter(n=>n.layer===next.id).map(n=>n.position[1])));
+   for(const branch of layer.branches){
+     const children=all.filter(n=>n.parent===branch.id);
+     assert(children.every(n=>Math.abs(n.position[0])===960));
+     assert(children.every((n,j)=>!j||children[j-1].position[1]-n.position[1]>=74));
+   }
+ }
+ assert.deepEqual(layoutVerticalTree(layers,new Set(['root']),'zh-CN'),initial);
+ assert.equal(layoutVerticalTree(layers,new Set(),'en').length,1);
 });
