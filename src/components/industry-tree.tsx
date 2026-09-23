@@ -13,7 +13,7 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
   const {text,locale}=useLocale();
   const company=companies.find(c=>c.id===selected);
   const layers=useMemo(()=>industryTree(companies),[companies]);
-  const [open,setOpen]=useState<string[]>(['root']);
+  const [open,setOpen]=useState<string[]>(()=>vertical?['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]:['root']);
   const [focus,setFocus]=useState('');
   const [request,setRequest]=useState(0);
   const [unavailable,setUnavailable]=useState(false);

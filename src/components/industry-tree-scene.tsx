@@ -140,6 +140,7 @@ function Scene(props:TreeSceneProps){
           ref={el=>{if(el)labels.current.set(node.id,el);else labels.current.delete(node.id);}}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto',...(node.company?{'--cap':capScale}:{})} as CSSProperties}
           data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
+          data-compact={props.vertical&&(node.kind==='company'||node.kind==='branch')?true:undefined}
           aria-label={props.vertical&&(node.company||node.kind==='branch')?[node.label,node.company?.symbol].filter(Boolean).join(' '):undefined}
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}

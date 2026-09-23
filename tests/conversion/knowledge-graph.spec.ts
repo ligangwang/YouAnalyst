@@ -868,7 +868,8 @@ test('three views vertical tree retains the original tree and shares company sel
  await page.emulateMedia({reducedMotion:'reduce'});
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
- await page.goto('http://graph.test/map?lang=en&view=vertical');
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ await page.getByRole('tab',{name:'Industry structure - vertical',exact:true}).click();
  await expect(page.getByRole('tab',{name:'Industry structure - vertical',exact:true})).toHaveAttribute('aria-selected','true');
  await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(5);
  const root=(await page.locator('[data-tree-node="root"]').boundingBox())!;
@@ -881,10 +882,11 @@ test('three views vertical tree retains the original tree and shares company sel
  });
  await expect.poll(outsideCanvas).toEqual([]);
  await page.screenshot({path:'output/vertical-tree-initial-'+test.info().project.name+'.png',fullPage:true});
- await page.locator('[data-tree-node="applications"]').click();
+ await expect(page.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');
  const software=page.locator('[data-tree-node="applications/applications"]'),edge=page.locator('[data-tree-node="applications/edge"]');
  await expect(software).toBeVisible();await expect(edge).toBeVisible();
- await software.click();await expect(page.locator('[data-tree-company="US:CRM"]')).toBeVisible();
+ await expect(software).toHaveAttribute('aria-expanded','true');
+ await expect(page.locator('[data-tree-company="US:CRM"]')).toBeVisible();
  await page.screenshot({path:'output/vertical-tree-expanded-'+test.info().project.name+'.png',fullPage:true});
  await page.locator('[data-tree-company="US:CRM"]').click();await expect(page.getByRole('dialog')).toBeVisible();
  await expect(page.getByRole('complementary',{name:'Company details'})).toHaveCount(0);
@@ -904,12 +906,11 @@ test('three views vertical tree retains the original tree and shares company sel
  expect(errors).toEqual([]);
 });
 
-test('three views vertical expanding all preserves zoom and pan when company cards open and close',async({page})=>{
+test('three views vertical defaults to expanded and preserves zoom and pan when company cards open and close',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=vertical');
- await page.getByRole('button',{name:'Expand all',exact:true}).click();
  const node=page.locator('[data-tree-company="US:NVDA"]').first(),canvas=page.locator('[data-industry-tree] canvas');
  await expect(node).toBeVisible();
  await canvas.scrollIntoViewIfNeeded();
