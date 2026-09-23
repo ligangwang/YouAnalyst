@@ -8,7 +8,7 @@ import { AdditiveBlending, BufferGeometry, Color, Float32BufferAttribute, Vector
 import { layoutIndustryTree, type TreeLayer, type TreePoint } from '@/lib/knowledge-graph/industry-tree';
 import { marketCapDescription, marketCapLabel, marketCapScale } from '@/lib/knowledge-graph/market-cap';
 import { useLocale } from './providers/locale-provider';
-import { layoutVerticalTree } from '@/lib/knowledge-graph/vertical-tree';
+import { layoutVerticalTree, VERTICAL_ROOT_REACH, VERTICAL_ROOT_DEPTH } from '@/lib/knowledge-graph/vertical-tree';
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import styles from './industry-tree.module.css';
 
@@ -63,20 +63,17 @@ function Scene(props:TreeSceneProps){
     if(!fitting.length)fitting=nodes;
     const xs=fitting.map(n=>n.position[0]),ys=fitting.map(n=>n.position[1]);
     if(props.vertical&&!props.focus){
-      const rootReach=nodes.some(n=>n.kind==='company')?2800:1900;
-      xs.push(-rootReach,rootReach);ys.push(-520);
+      xs.push(-VERTICAL_ROOT_REACH,VERTICAL_ROOT_REACH);ys.push(-VERTICAL_ROOT_DEPTH);
     }
     // Labels extend to the right of their anchors. Reserve their projected width,
     // including on narrow screens, instead of centering only the node spheres.
     const left=Math.min(...xs)-(props.vertical?Math.max(240,340*1100/size.height):80),right=Math.max(...xs)+Math.max(240,340*1100/size.height);
     const center=new Vector3((left+right)/2,(Math.min(...ys)+Math.max(...ys))/2,0);
     const halfW=Math.max(210,(right-left)/2+40),halfH=Math.max(160,(Math.max(...ys)-Math.min(...ys))/2+80);
-    const labelReserve=props.vertical&&nodes.some(n=>n.kind==='company')?40:Math.min(280,size.width*.55);
-    // On narrow screens, show a readable section of the canopy and let users pan
-    // to its outer leaves instead of shrinking every company into one tiny tree.
-    const fitWidth=props.vertical&&size.width<700?Math.max(680,size.width-labelReserve):size.width-labelReserve;
+    // Fit the complete tree on phones as well. Zoom and pan reveal local detail.
+    const fitWidth=size.width-96;
     const distance=props.vertical
-      ? Math.max((Math.max(...ys)-Math.min(...ys)+160)/2*size.height/Math.max(100,size.height-90),(Math.max(...xs)-Math.min(...xs)+80)/2*size.height/Math.max(120,fitWidth))/Math.tan(Math.PI/8)*.84
+      ? Math.max((Math.max(...ys)-Math.min(...ys)+100)/2*size.height/Math.max(100,size.height-84),(Math.max(...xs)-Math.min(...xs)+80)/2*size.height/Math.max(120,fitWidth))/Math.tan(Math.PI/8)*1.05
       : Math.max(halfH,halfW/(size.width/size.height))/Math.tan(Math.PI/8)*1.18;
     if(props.vertical)center.x=(Math.min(...xs)+Math.max(...xs))/2;
     void c.setLookAt(center.x+distance*(props.vertical?0:.1),center.y,distance,center.x,center.y,0,!reduced.current);
@@ -123,12 +120,13 @@ function Scene(props:TreeSceneProps){
     {targets.map(({node,visible,position})=>{
       const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
       const left=Boolean(props.vertical&&position[0]<0);
+      const centered=props.vertical&&(node.kind==='root'||node.id==='applications');
       const radius=node.company?4*marketCapScale(node.company.marketCap):node.kind==='layer'?12:7;
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(visible?1:0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         <mesh><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .12 : 1}/></mesh>
         <mesh><sphereGeometry args={[radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .01 : .08} depthWrite={false} blending={AdditiveBlending}/></mesh>
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
-        {visible&&<Html center={props.vertical&&node.kind==='root'} position={props.vertical&&node.kind==='root'?[0,-25,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left?styles.labelLeft:undefined}><button
+        {visible&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left?styles.labelLeft:undefined}><button
           ref={el=>{if(el)labels.current.set(node.id,el);else labels.current.delete(node.id);}}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto'}}
           data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
