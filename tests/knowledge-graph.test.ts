@@ -147,7 +147,8 @@ test("generic graph membership takes precedence and legacy import preserves revi
 test('vertical tree stacks dependent layers on one trunk and reserves space for every company',()=>{
  const layers=industryTree(graphs.flatMap(g=>g.nodes.filter(n=>n.kind==='COMPANY')) as GraphNode[]);
  const initial=layoutVerticalTree(layers,new Set(['root']),'zh-CN');
- assert.equal(initial.length,6);assert.deepEqual(initial[0].position,[0,0,0]);
+ assert.equal(initial.length,6);assert.equal(initial[0].position[0],0);
+ assert(initial.slice(1).every(n=>n.position[1]>initial[0].position[1]),'whole-tree title sits below every industry layer');
  const trunks=initial.filter(n=>n.kind==='layer');
  // Energy -> chips -> infrastructure -> models -> applications, bottom to top.
  assert(trunks.every((n,i)=>n.parent==='root'&&(!i||n.position[1]>trunks[i-1].position[1])));
@@ -159,6 +160,7 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
  assert(stack.every(n=>Math.abs(n.position[0])<80&&n.span&&n.position[1]>n.span[0]&&n.position[1]<n.span[1]));
  assert(stack.every((n,i)=>!i||n.span![0]===stack[i-1].span![1]));
  const all=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
+ assert(all.slice(1).every(n=>n.position[1]>all[0].position[1]),'expanded Energy roots stay above the whole-tree title');
  assert.equal(new Set(all.filter(n=>n.company).map(n=>n.company!.id)).size,new Set(layers.flatMap(l=>l.companies.map(c=>c.id))).size);
  assert.equal(new Set(all.map(n=>n.id)).size,all.length);
  for(const [i,layer] of layers.entries()){
