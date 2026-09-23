@@ -36,9 +36,13 @@
 
 .scene canvas { touch-action:none; }
 .vertical {background:radial-gradient(ellipse at 50% 85%,#0b3040 0%,#091b28 35%,#050f1b 75%);}
-.vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 18px #55ccff12;background:#071727ee;}
+.vertical .scene {height:min(82vh,920px);min-height:720px;}
+.vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 23px color-mix(in srgb,currentColor,transparent 68%),inset 0 0 16px color-mix(in srgb,currentColor,transparent 85%);background:#071727ee;}
 .vertical .branch {border-radius:16px;}
 .labelLeft {transform:translateX(-100%);}
 .labelLeft .node {transform-origin:100% 0;}
+.vertical .branch[data-compact='true']:not(:hover):not(:focus-visible) {width:19px;height:19px;padding:0;border-radius:50%;background:currentColor;box-shadow:0 0 14px currentColor;}
+.vertical .branch[data-compact='true']:not(:hover):not(:focus-visible) strong,.vertical .branch[data-compact='true']:not(:hover):not(:focus-visible) .count {display:none;}
 .vertical .company[data-compact='true']:not(:hover):not(:focus-visible) {width:10px;height:10px;padding:0;border-radius:50%;background:currentColor;opacity:.7;}
 .vertical .company[data-compact='true']:not(:hover):not(:focus-visible) strong,.vertical .company[data-compact='true']:not(:hover):not(:focus-visible) small {display:none;}
+@media(max-width:800px){.vertical .scene {height:72vh;min-height:560px;}}

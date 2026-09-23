@@ -906,7 +906,16 @@ test('three views vertical expanding all preserves zoom and pan when company car
  await expect(node).toBeVisible();
  await canvas.scrollIntoViewIfNeeded();
  const box=(await canvas.boundingBox())!;
- const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree="vertical"]')!.getBoundingClientRect();return {x:n.x-f.x,y:n.y-f.y};});
+ // The narrow-screen overview intentionally crops the outer canopy; pan to a
+ // leaf before selecting it, as a visitor would on a phone.
+ for(let attempt=0;attempt<8;attempt++){
+  const visible=await page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),c=document.querySelector('[data-industry-tree="vertical"] canvas')!.getBoundingClientRect();return n.right>c.left+10&&n.left<c.right-10&&n.bottom>c.top+10&&n.top<c.bottom-10;});
+  if(visible)break;
+  await page.mouse.move(box.x+box.width*.4,box.y+box.height*.6);
+  await page.mouse.down();await page.mouse.move(box.x+box.width*.8,box.y+box.height*.6,{steps:10});await page.mouse.up();
+ }
+ await expect.poll(()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),c=document.querySelector('[data-industry-tree="vertical"] canvas')!.getBoundingClientRect();return n.right>c.left+10&&n.left<c.right-10&&n.bottom>c.top+10&&n.top<c.bottom-10;})).toBe(true);
+ const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree="vertical"]')!.getBoundingClientRect();return {x:n.right-f.x,y:n.y-f.y};});
  const initial=await position();
  await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.wheel(0,-120);
  await page.mouse.move(box.x+box.width*.12,box.y+box.height*.8);await page.mouse.down();await page.mouse.move(box.x+box.width*.18,box.y+box.height*.78,{steps:12});await page.mouse.up();
