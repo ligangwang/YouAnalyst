@@ -888,6 +888,8 @@ test('three views vertical tree retains the original tree and shares company sel
  await expect(page.locator('[data-tree-kind="layer"]')).toHaveCount(5);
  const root=(await page.locator('[data-tree-node="root"]').boundingBox())!;
  const apps=(await page.locator('[data-tree-node="applications"]').boundingBox())!;
+ const energy=(await page.locator('[data-tree-node="energy"]').boundingBox())!;
+ expect(energy.y+energy.height).toBeLessThan(root.y);
  expect(apps.y).toBeLessThan(root.y);
  expect(Math.abs(apps.x+apps.width/2-root.x-root.width/2)).toBeLessThan(2);
  const outsideCanvas=()=>page.evaluate(()=>{

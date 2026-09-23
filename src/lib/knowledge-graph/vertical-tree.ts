@@ -19,7 +19,9 @@ export function verticalTrunkX(y:number,top:number){
 // own branches outward on both sides; companies are the leaves.
 export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,locale:string):TreePoint[] {
   const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;
-  const nodes:TreePoint[]=[{id:'root',kind:'root',label:locale==='zh-CN'?'AI 产业链':'AI industry chain',color:'#8be8ff',position:[0,0,0]}];
+  // The whole-tree title belongs below the underground Energy layer. Keep its
+  // anchor in the layout so camera fitting includes the title on small screens.
+  const nodes:TreePoint[]=[{id:'root',kind:'root',label:locale==='zh-CN'?'AI 产业链':'AI industry chain',color:'#8be8ff',position:[0,-VERTICAL_ROOT_DEPTH-320,0]}];
   if(!open.has('root'))return nodes;
   const leaves=(layer:TreeLayer,branch:TreeLayer['branches'][number],bx:number,by:number,side:number,up:number)=>{
     if(!open.has(branch.id))return;
