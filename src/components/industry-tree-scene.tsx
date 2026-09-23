@@ -26,6 +26,8 @@ function Scene(props:TreeSceneProps){
   const {size,invalidate,gl}=useThree();
   const {onUnavailable}=props;
   useEffect(()=>{const canvas=gl.domElement;const lost=()=>onUnavailable();canvas.addEventListener("webglcontextlost",lost);return ()=>canvas.removeEventListener("webglcontextlost",lost);},[gl,onUnavailable]);
+  // Leaves set a pointer cursor on hover; never leave it behind when the scene goes away.
+  useEffect(()=>()=>{gl.domElement.style.cursor='';},[gl]);
   const controls=useRef<CameraControls>(null);
   const groups=useRef(new Map<string,Group>());
   const labels=useRef(new Map<string,HTMLButtonElement>());
@@ -138,7 +140,11 @@ function Scene(props:TreeSceneProps){
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(visible?1:0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         {leaf?<group rotation={[0,0,leaf.angle]}>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.3,leaf.width*1.5,1]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.14} depthWrite={false} blending={AdditiveBlending}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,1]}><meshBasicMaterial vertexColors color={leaf.tint} side={DoubleSide} transparent opacity={dim?.12:.96}/></mesh>
+          {/* The whole blade selects its company; the stem button stays as the keyboard and screen-reader target. */}
+          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,1]}
+            onClick={visible?event=>{event.stopPropagation();props.onSelect(node.company!.id);}:undefined}
+            onPointerOver={visible?event=>{event.stopPropagation();gl.domElement.style.cursor='pointer';}:undefined}
+            onPointerOut={visible?()=>{gl.domElement.style.cursor='';}:undefined}><meshBasicMaterial vertexColors color={leaf.tint} side={DoubleSide} transparent opacity={dim?.12:.96}/></mesh>
           <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.length,1]} position={[0,0,.2]}><meshBasicMaterial color="#f4fbff" transparent opacity={dim?.05:.45}/></mesh>
         </group>:<>
         <mesh><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
