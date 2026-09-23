@@ -157,7 +157,7 @@ test("feed shows research updates without filing features", async ({ page, reque
   expect(response.status()).toBe(404);
 });
 
-test("homepage defaults to graph and supports all three industry views", async ({ page, request }) => {
+test("homepage defaults to graph and supports all four industry views", async ({ page, request }) => {
   const response = await request.get("/api/knowledge-graph");
   expect(response.ok()).toBeTruthy();
   const graph = await response.json();
@@ -172,6 +172,9 @@ test("homepage defaults to graph and supports all three industry views", async (
   await page.getByRole("tab", { name: "Company list", exact: true }).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(count);
   await page.getByRole("tab", { name: "Industry structure", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "AI industry chain", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Industry structure - vertical", exact: true }).click();
+  await expect(page.locator('[data-industry-tree="vertical"] canvas')).toBeVisible();
   await expect(page.getByRole("heading", { name: "AI industry chain", exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Relationship graph", exact: true }).click();
   await page.reload();
