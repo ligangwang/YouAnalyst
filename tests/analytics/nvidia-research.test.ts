@@ -5,7 +5,9 @@ import { researchFilters, selectedConnections, researchConnections, researchComp
 import { companyLinks, deepDives } from "../../src/lib/research/deep-dives";
 import { isLocalizedPage } from "../../src/lib/i18n/urls";
 
-const graph = JSON.parse(readFileSync("data/ai-supply-chain/ai-us.json", "utf8")) as { relationships: { id: string }[] };
+const graph = JSON.parse(readFileSync("data/ai-supply-chain/ai-us.json", "utf8")) as { relationships: { id: string; type: string; commercialStatus: string; facts?: { state: string }[] }[] };
+// Mirrors relationshipExplanation's planned test in src/lib/knowledge-graph/research-view.ts.
+const edgeStage = (e: typeof graph.relationships[number]) => e.type === "PLANNED_ADOPTER_OF" || (e.facts?.length ? e.facts.every(f => f.state === "ANNOUNCED") : e.commercialStatus === "ANNOUNCED") ? "announced" : "shipped";
 
 test("filters separate shipped evidence from announced plans and reject unknown values", () => {
   assert.deepEqual(researchFilters("<script>", "x", "y"), { layer: "all", kind: "all", stage: "all" });
@@ -31,6 +33,16 @@ test("every claim carries a dated https primary source with bilingual text", () 
 test("map links only point at relationships and companies the map knows", () => {
   const ids = new Set(graph.relationships.map(r => r.id));
   for (const r of researchConnections) if (r.edge) assert(ids.has(r.edge), r.edge);
+});
+
+test("a row's map relationship never contradicts the row's shipped or announced status", () => {
+  const edges = new Map(graph.relationships.map(e => [e.id, e]));
+  for (const r of researchConnections) if (r.edge) assert.equal(edgeStage(edges.get(r.edge)!), r.stage, `${r.id} is ${r.stage} but links ${r.edge}`);
+  // Rows without an agreeing edge still open the company itself in the map.
+  assert.equal(companyLinks("US:CRWV", "/en", researchConnections.find(r => r.id === "crwv-rubin")!.edge)?.map, "/en?company=US%3ACRWV");
+});
+
+test("company links resolve to directory pages or stay unlinked", () => {
   assert.deepEqual(companyLinks("US:NVDA", "/en", "US:TSM__SUPPLIER_OF__US:NVDA"), { page: "/en/ticker/NVDA", map: "/en?company=US%3ANVDA&relationship=US%3ATSM__SUPPLIER_OF__US%3ANVDA" });
   assert.equal(companyLinks("ORG:ANTHROPIC", "/zh-cn")?.page, "/zh-cn/company/ORG%3AANTHROPIC");
   assert.equal(companyLinks("KR:SK-HYNIX", "/en"), null);
