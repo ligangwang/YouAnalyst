@@ -4,8 +4,8 @@ import { useLocale } from "./providers/locale-provider";
 import { trackEvent } from "@/lib/analytics";
 import { AiKnowledgeGraph } from "./ai-knowledge-graph";
 export { ShareResearchView } from "./share-research-view";
-export function EvidenceLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return <a href={href} target="_blank" rel="noopener noreferrer" onClick={()=>trackEvent("company_evidence_view", {entry_point:"amd_ecosystem", ticker:"AMD"})}>{children} ↗</a>;
+export function EvidenceLink({ href, children, entryPoint = "amd_ecosystem", ticker = "AMD" }: { href: string; children: React.ReactNode; entryPoint?: string; ticker?: string }) {
+  return <a href={href} target="_blank" rel="noopener noreferrer" onClick={()=>trackEvent("company_evidence_view", {entry_point:entryPoint, ticker})}>{children} ↗</a>;
 }
 export function ResearchMap({ ids, company, edge = "" }: { ids: string[]; company: string; edge?: string }) {
   const [open, setOpen] = useState(false);
