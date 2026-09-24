@@ -1,0 +1,1171 @@
+{
+ "batchId": "relationship-verification-2026-09-24",
+ "asOf": "2026-09-24",
+ "rule": {
+  "verified": "A relationship is marked verified (CONFIRMED) only when a DOCUMENTED fact is stated by one of its two companies in its own regulatory filing, investor-relations or newsroom release, or official product/engineering page, and the https source link passes the automated link check on the review date.",
+  "notVerified": "Announced or planned activity, third-party reporting, and facts not yet re-checked are never marked verified. Needs verification is reserved for facts an editor explicitly marks PENDING.",
+  "sourceSummaries": "Each source summary paraphrases the cited passage for reviewers; it is not a verbatim quote. It is stored with excerptKind EDITORIAL_SUMMARY and is not displayed as a quotation."
+ },
+ "companies": [
+  {
+   "id": "US:SKHY",
+   "name": "SK hynix",
+   "legalName": "SK hynix Inc.",
+   "website": "https://www.skhynix.com",
+   "country": "KR",
+   "listingStatus": "PUBLIC",
+   "listings": [
+    {
+     "market": "US",
+     "exchange": "XNAS",
+     "symbol": "SKHY"
+    },
+    {
+     "market": "KR",
+     "exchange": "XKRX",
+     "symbol": "000660"
+    }
+   ],
+   "description": "Korean memory manufacturer supplying DRAM, NAND and high-bandwidth memory (HBM) used in AI accelerators. Named by NVIDIA as a memory supplier.",
+   "stageIds": [
+    "memory"
+   ],
+   "sourceIds": [
+    "ID-SKHY",
+    "NV10K"
+   ]
+  },
+  {
+   "id": "ORG:SAMSUNG-ELECTRONICS",
+   "name": "Samsung Electronics",
+   "legalName": "Samsung Electronics Co., Ltd.",
+   "website": "https://www.samsung.com",
+   "country": "KR",
+   "listingStatus": "PUBLIC",
+   "listings": [
+    {
+     "market": "KR",
+     "exchange": "XKRX",
+     "symbol": "005930"
+    }
+   ],
+   "description": "Korean electronics company whose semiconductor business makes memory, including HBM, and provides foundry manufacturing. Named by NVIDIA as a wafer and memory supplier.",
+   "stageIds": [
+    "memory",
+    "foundry"
+   ],
+   "sourceIds": [
+    "ID-SAMSUNG",
+    "NV10K"
+   ]
+  },
+  {
+   "id": "ORG:HON-HAI",
+   "name": "Hon Hai (Foxconn)",
+   "legalName": "Hon Hai Precision Industry Co., Ltd.",
+   "website": "https://www.foxconn.com",
+   "country": "TW",
+   "listingStatus": "PUBLIC",
+   "listings": [
+    {
+     "market": "TW",
+     "exchange": "XTAI",
+     "symbol": "2317"
+    }
+   ],
+   "aliases": [
+    "Foxconn"
+   ],
+   "description": "Taiwanese contract manufacturer (Foxconn). NVIDIA names it as a contract manufacturer for assembly, testing and packaging. Its A-share subsidiary Foxconn Industrial Internet (601138) is listed separately.",
+   "stageIds": [
+    "servers"
+   ],
+   "sourceIds": [
+    "ID-HONHAI",
+    "NV10K"
+   ]
+  },
+  {
+   "id": "ORG:WISTRON",
+   "name": "Wistron",
+   "legalName": "Wistron Corporation",
+   "website": "https://www.wistron.com",
+   "country": "TW",
+   "listingStatus": "PUBLIC",
+   "listings": [
+    {
+     "market": "TW",
+     "exchange": "XTAI",
+     "symbol": "3231"
+    }
+   ],
+   "description": "Taiwanese electronics manufacturer. NVIDIA names it as a contract manufacturer for assembly, testing and packaging.",
+   "stageIds": [
+    "servers"
+   ],
+   "sourceIds": [
+    "ID-WISTRON",
+    "NV10K"
+   ]
+  },
+  {
+   "id": "ORG:QUANTA-COMPUTER",
+   "name": "Quanta Computer",
+   "legalName": "Quanta Computer Inc.",
+   "website": "https://www.quantatw.com",
+   "country": "TW",
+   "listingStatus": "PUBLIC",
+   "listings": [
+    {
+     "market": "TW",
+     "exchange": "XTAI",
+     "symbol": "2382"
+    }
+   ],
+   "description": "Taiwanese computer and cloud-server manufacturer. Its subsidiary Quanta Cloud Technology (QCT) builds rack-scale NVIDIA systems.",
+   "stageIds": [
+    "servers"
+   ],
+   "sourceIds": [
+    "ID-QUANTA",
+    "QCTGB300"
+   ]
+  }
+ ],
+ "sources": [
+  {
+   "id": "AMD1",
+   "url": "https://ir.amd.com/financial-information/sec-filings/content/0000002488-26-000018/amd-20251227.htm",
+   "title": "AMD 2025 Form 10-K: manufacturing and competition",
+   "sourceDate": "2026-02-04",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AMD",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD2",
+   "url": "https://www.micron.com/partners/partner-networks/amd",
+   "title": "Micron and AMD: HBM3E for Instinct MI350",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:MU",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD4",
+   "url": "https://ir.amd.com/news-events/press-releases/detail/1279/amd-and-meta-announce-expanded-strategic-partnership-to-deploy-6-gigawatts-of-amd-gpus",
+   "title": "AMD and Meta expanded GPU deployment partnership",
+   "sourceDate": "2026-02-24",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AMD",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD6",
+   "url": "https://www.amd.com/zh-cn/newsroom/press-releases/amd-anthropic-strategic-partnership.html",
+   "title": "AMD and Anthropic strategic partnership",
+   "sourceDate": "2026-07-22",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AMD",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD7",
+   "url": "https://ir.amd.com/news-events/press-releases/detail/1291/microsoft-to-deploy-next-gen-amd-instinct-and-amd-epyc-processors-as-the-companies-expand-their-long-term-strategic-partnership",
+   "title": "Microsoft expands AMD Instinct, EPYC and Pensando deployment",
+   "sourceDate": "2026-07-20",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AMD",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD8",
+   "url": "https://www.oracle.com/cn/news/announcement/ai-world-oracle-and-amd-expand-partnership-to-help-customers-achieve-next-generation-ai-scale-2025-10-14/",
+   "title": "Oracle and AMD expand AI infrastructure partnership",
+   "sourceDate": "2025-10-14",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:ORCL",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD9",
+   "url": "https://aws.amazon.com/about-aws/whats-new/2026/02/announcing-amazon-ec2-hpc8a-instances/",
+   "title": "Amazon EC2 Hpc8a availability",
+   "sourceDate": "2026-02-16",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AMZN",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD10",
+   "url": "https://cloud.google.com/amd",
+   "title": "Google Cloud AMD EPYC virtual machines",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:GOOGL",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD11",
+   "url": "https://www.dell.com/en-us/shop/ipovw/poweredge-xe9785",
+   "title": "Dell PowerEdge XE9785 specifications",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:DELL",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AMD14",
+   "url": "https://newsroom.cisco.com/c/r/newsroom/en/us/a/y2026/m08/amd-cisco-and-humain-expand-saudi-arabia-ai-infrastructure.html",
+   "title": "AMD Cisco HUMAIN infrastructure expansion",
+   "sourceDate": "2026-08-31",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:CSCO",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "X86",
+   "url": "https://www.intel.com/content/www/us/en/newsroom/news/october-2024-intel-news.html",
+   "title": "Intel and AMD form x86 advisory group",
+   "sourceDate": "2024-10-15",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:INTC",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "DELLINTEL",
+   "url": "https://www.dell.com/en-us/blog/now-shipping-dell-ai-platform-with-intel/",
+   "title": "Dell Gaudi 3 platform shipping",
+   "sourceDate": "2025-05-19",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:DELL",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "INTELAWS",
+   "url": "https://www.intel.com/content/www/us/en/newsroom/news/foundry-momentum-progress-plan.html",
+   "title": "Intel AWS manufacturing framework",
+   "sourceDate": "2024-09-16",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:INTC",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "AVMETA",
+   "url": "https://investors.broadcom.com/news-releases/news-release-details/broadcom-announces-extended-partnership-meta-deploy-technology",
+   "title": "Broadcom Meta MTIA roadmap",
+   "sourceDate": "2026-04-14",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AVGO",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "METANET",
+   "url": "https://engineering.fb.com/2024/10/15/data-infrastructure/open-future-networking-hardware-ai-ocp-2024-meta/",
+   "title": "Meta FBNIC and switch design",
+   "sourceDate": "2024-10-15",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:META",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "NVMETA",
+   "url": "https://nvidianews.nvidia.com/news/meta-builds-ai-infrastructure-with-nvidia",
+   "title": "Meta NVIDIA infrastructure roadmap",
+   "sourceDate": "2026-02-17",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:NVDA",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "MRVLTSM",
+   "url": "https://www.marvell.com/company/newsroom/marvell-announces-industry-first-2nm-platform-for-accelerated-infrastructure-silicon.html",
+   "title": "Marvell TSMC platform development",
+   "sourceDate": "2024-03-07",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:MRVL",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "MRVLAWS",
+   "url": "https://www.marvell.com/company/newsroom/marvell-expands-strategic-collaboration-aws-enable-accelerated-infrastructure-ai-cloud.html",
+   "title": "Marvell AWS five-year semiconductor agreement",
+   "sourceDate": "2024-12-02",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:MRVL",
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "ETNNV",
+   "url": "https://www.eaton.com/us/en-us/company/news-insights/news-releases/2025/eaton-accelerates-data-center-infrastrructure-in-ai-era-with-nvidia.html",
+   "title": "Eaton accelerates the transformation of data center infrastructure in the AI era with NVIDIA",
+   "sourceDate": "2025-07-15",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:ETN",
+   "summary": "Seed evidence for US:ETN__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "CSCONV",
+   "url": "https://newsroom.cisco.com/c/r/newsroom/en/us/a/y2026/m08/cisco-secure-ai-factory-nvidia-rack-scale.html",
+   "title": "Cisco Expands Secure AI Factory with NVIDIA for the Rack-Scale Era",
+   "sourceDate": "2026-08-25",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:CSCO",
+   "summary": "Seed evidence for US:CSCO__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "NTAPNV",
+   "url": "https://www.netapp.com/nvidia/",
+   "title": "NetApp and NVIDIA: Delivering AI factory & AI as a Service | NetApp",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:NTAP",
+   "summary": "Seed evidence for US:NTAP__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "PNV",
+   "url": "https://www.purestorage.com/content/dam/pdf/en/case-studies/cs-ai-ready-infrastructure.pdf",
+   "title": "AI Object Detection by NVIDIA and AIRI | Pure Storage",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:P",
+   "summary": "Seed evidence for US:P__INTEGRATES_TECHNOLOGY_FROM__US:NVDA; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "ANETAVGO",
+   "url": "https://www.arista.com/assets/data/pdf/Datasheets/Arista-Broadcom-AI-Networking-Solution-Brief.pdf",
+   "title": "Arista-Broadcom AI Networking Solution Brief 05-0057",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:ANET",
+   "summary": "Seed evidence for US:AVGO__PARTNER_OF__US:ANET; re-checked as a first-party source on 2026-09-24."
+  },
+  {
+   "id": "NV10K",
+   "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000021/nvda-20260125.htm",
+   "title": "NVIDIA Form 10-K for fiscal year 2026 (Manufacturing)",
+   "sourceDate": "2026-02-25",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:NVDA",
+   "summary": "Manufacturing: foundries such as TSMC and Samsung produce NVIDIA semiconductor wafers; NVIDIA purchases memory from SK Hynix, Micron and Samsung; contract manufacturers such as Hon Hai Precision Industry, Wistron and Fabrinet perform assembly, testing and packaging of final products."
+  },
+  {
+   "id": "AVGO10K",
+   "url": "https://www.sec.gov/Archives/edgar/data/1730168/000173016825000121/avgo-20251102.htm",
+   "title": "Broadcom Form 10-K for fiscal year 2025 (Manufacturing)",
+   "sourceDate": "2025-12-18",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AVGO",
+   "summary": "Front-end wafer manufacturing is largely outsourced to foundries including TSMC (about 95% of contract-manufactured wafers in fiscal 2025); assembly and test contractors include TSMC, ASE, Foxconn Technology Group, Amkor and SPIL."
+  },
+  {
+   "id": "CRWV10K",
+   "url": "https://www.sec.gov/Archives/edgar/data/1769628/000176962826000104/crwv-20251231.htm",
+   "title": "CoreWeave Form 10-K for fiscal year 2025 (Suppliers)",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:CRWV",
+   "summary": "CoreWeave depends on a limited number of suppliers for its infrastructure; its GPUs are supplied principally by NVIDIA."
+  },
+  {
+   "id": "AZGB300",
+   "url": "https://azure.microsoft.com/en-us/blog/microsoft-azure-delivers-the-first-large-scale-cluster-with-nvidia-gb300-nvl72-for-openai-workloads/",
+   "title": "Microsoft Azure delivers the first large-scale cluster with NVIDIA GB300 NVL72",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:MSFT",
+   "summary": "Azure NDv6 GB300 VM series: a production cluster of more than 4,600 NVIDIA Blackwell Ultra GPUs in GB300 NVL72 systems."
+  },
+  {
+   "id": "AWSP6",
+   "url": "https://aws.amazon.com/about-aws/whats-new/2025/05/amazon-ec2-p6-b200-instances-nvidia-b200-gpus/",
+   "title": "Amazon EC2 P6-B200 instances powered by NVIDIA B200 GPUs now generally available",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AMZN",
+   "summary": "EC2 P6-B200 instances with eight NVIDIA Blackwell B200 GPUs are generally available."
+  },
+  {
+   "id": "GCA4X",
+   "url": "https://cloud.google.com/blog/products/compute/new-a4x-vms-powered-by-nvidia-gb200-gpus",
+   "title": "New A4X VMs powered by NVIDIA GB200 GPUs | Google Cloud Blog",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:GOOGL",
+   "summary": "Google Cloud A4X VMs run on NVIDIA GB200 NVL72; A4 VMs run on NVIDIA HGX B200."
+  },
+  {
+   "id": "NVOCI",
+   "url": "https://blogs.nvidia.com/blog/oracle-cloud-infrastructure-blackwell-gpus-agentic-ai-reasoning-models/",
+   "title": "Oracle Cloud Infrastructure Deploys Thousands of NVIDIA Blackwell GPUs for Agentic AI and Reasoning Models",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:NVDA",
+   "summary": "GB200 NVL72 racks are live on OCI, with thousands of NVIDIA Blackwell GPUs deployed for customer use."
+  },
+  {
+   "id": "METAGENAI",
+   "url": "https://engineering.fb.com/2024/03/12/data-center-engineering/building-metas-genai-infrastructure/",
+   "title": "Building Meta’s GenAI Infrastructure - Engineering at Meta",
+   "sourceDate": "2024-03-12",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:META",
+   "summary": "Two 24,576-GPU clusters built with NVIDIA H100 Tensor Core GPUs support Llama 3 training."
+  },
+  {
+   "id": "AMDMI350",
+   "url": "https://www.amd.com/en/blogs/2025/amd-instinct-mi350-series-and-beyond-accelerating-the-future-of-ai-and-hpc.html",
+   "title": "AMD Instinct MI350 Series and Beyond: Accelerating the Future of AI and HPC",
+   "sourceDate": "2025-06-12",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:AMD",
+   "summary": "Instinct MI350X and MI355X carry 288GB of HBM3E memory from Micron and Samsung Electronics."
+  },
+  {
+   "id": "SSAMD",
+   "url": "https://news.samsungsemiconductor.com/global/samsung-and-amd-expand-strategic-collaboration-on-next-generation-ai-memory-solutions/",
+   "title": "Samsung and AMD Expand Strategic Collaboration on Next-Generation AI Memory Solutions",
+   "sourceDate": "2026-03-18",
+   "retrievedAt": "2026-09-24",
+   "publisher": "ORG:SAMSUNG-ELECTRONICS",
+   "summary": "Samsung is an HBM3E supplier for AMD Instinct MI350X and MI355X; the MOU covers HBM4 for Instinct MI455X and DDR5 for EPYC and Helios."
+  },
+  {
+   "id": "QCTGB300",
+   "url": "https://blog.qct.io/qct-accelerates-ai-infrastructures-with-production-of-nvidia-gb300-nvl72-platform/",
+   "title": "QCT Accelerates AI Infrastructures with Production of NVIDIA GB300 NVL72 Platform",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "ORG:QUANTA-COMPUTER",
+   "summary": "Quanta Cloud Technology (QCT), a Quanta Computer subsidiary, produces systems on the NVIDIA GB300 NVL72 platform."
+  },
+  {
+   "id": "ID-SKHY",
+   "url": "https://www.sec.gov/Archives/edgar/data/0002120882/000119312526295501/d32785df1a.htm",
+   "title": "SK hynix Inc. Form F-1/A (ADS registration)",
+   "sourceDate": "2026-06-30",
+   "retrievedAt": "2026-09-24",
+   "publisher": "US:SKHY",
+   "summary": "Korean memory manufacturer headquartered in Icheon; common shares listed on the Korea Exchange (000660); ADSs registered for Nasdaq under SKHY."
+  },
+  {
+   "id": "ID-SAMSUNG",
+   "url": "https://www.samsung.com/global/ir/",
+   "title": "Samsung Electronics Investor Relations",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "ORG:SAMSUNG-ELECTRONICS",
+   "summary": "Samsung Electronics Co., Ltd., headquartered in Suwon, Korea; common shares listed on the Korea Exchange (005930)."
+  },
+  {
+   "id": "ID-HONHAI",
+   "url": "https://www.foxconn.com/en-us/investor-relations/shareholders-services/stock-inquiry",
+   "title": "Hon Hai Technology Group (Foxconn) stock quotes",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "ORG:HON-HAI",
+   "summary": "Hon Hai Precision Industry Co., Ltd. (Foxconn), New Taipei City, Taiwan; Taiwan Stock Exchange security code 2317."
+  },
+  {
+   "id": "ID-WISTRON",
+   "url": "https://www.wistron.com/en/Investors/ShareholdersServices/StockQuotes",
+   "title": "Wistron stock quotes",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "ORG:WISTRON",
+   "summary": "Wistron Corporation, Taipei, Taiwan; Taiwan Stock Exchange code 3231."
+  },
+  {
+   "id": "ID-QUANTA",
+   "url": "https://www.quantatw.com/quanta/english/investment/services_sq.aspx",
+   "title": "Quanta Computer stock quote",
+   "sourceDate": null,
+   "retrievedAt": "2026-09-24",
+   "publisher": "ORG:QUANTA-COMPUTER",
+   "summary": "Quanta Computer Inc., Taoyuan, Taiwan; Taiwan Stock Exchange code 2382."
+  }
+ ],
+ "relationships": [
+  {
+   "source": "US:AMZN",
+   "target": "US:AMD",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "AWS Hpc8a uses fifth-generation EPYC CPUs; not Instinct GPUs",
+     "sourceIds": [
+      "AMD9"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:AVGO",
+   "target": "US:META",
+   "type": "PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Existing MTIA co-design relationship",
+     "sourceIds": [
+      "AVMETA"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:DELL",
+   "target": "US:AMD",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "PowerEdge XE9785 EPYC and MI355X system specifications",
+     "sourceIds": [
+      "AMD11"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:DELL",
+   "target": "US:INTC",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Shipping Gaudi 3 PowerEdge XE9680 AI platform",
+     "sourceIds": [
+      "DELLINTEL"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:GFS",
+   "target": "US:AMD",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "12/14nm HPC wafer manufacturing, not advanced-node GPU fabrication",
+     "sourceIds": [
+      "AMD1"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:GOOGL",
+   "target": "US:AMD",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Google Cloud EPYC virtual machines; not TPU or GPU supply",
+     "sourceIds": [
+      "AMD10"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:INTC",
+   "target": "US:AMZN",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Existing Xeon Scalable supply to AWS",
+     "sourceIds": [
+      "INTELAWS"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:META",
+   "target": "US:AMD",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Existing EPYC and Instinct MI300/MI350 use",
+     "sourceIds": [
+      "AMD4"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:META",
+   "target": "US:AVGO",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Minipack3 design incorporates Tomahawk5; deployment was prospective in source",
+     "sourceIds": [
+      "METANET"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:META",
+   "target": "US:NVDA",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "NVIDIA Confidential Computing adoption",
+     "sourceIds": [
+      "NVMETA"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:META",
+   "target": "US:MRVL",
+   "type": "PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Marvell designed FBNIC module; Meta designed its ASIC",
+     "sourceIds": [
+      "METANET"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:MRVL",
+   "target": "US:TSM",
+   "type": "PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Existing 5nm/3nm platform collaboration",
+     "sourceIds": [
+      "MRVLTSM"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:MRVL",
+   "target": "US:AMZN",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Expanded supplier relationship for custom AI and connectivity semiconductors",
+     "sourceIds": [
+      "MRVLAWS"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:MSFT",
+   "target": "US:AMD",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Existing Azure AMD deployment",
+     "sourceIds": [
+      "AMD7"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:MU",
+   "target": "US:AMD",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "HBM3E design integration in Instinct MI350",
+     "sourceIds": [
+      "AMD2"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:ORCL",
+   "target": "US:AMD",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "OCI MI300X and MI355X services",
+     "sourceIds": [
+      "AMD8"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:TSM",
+   "target": "US:AMD",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Wafer manufacturing",
+     "sourceIds": [
+      "AMD1"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:AMD",
+   "target": "US:CSCO",
+   "type": "PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Joint HUMAIN deployment combines AMD compute with Cisco networking",
+     "sourceIds": [
+      "AMD14"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:AMD",
+   "target": "US:INTC",
+   "type": "ECOSYSTEM_PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Jointly founded x86 advisory group; no procurement implied",
+     "sourceIds": [
+      "X86"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "ORG:ANTHROPIC",
+   "target": "US:AMD",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "MI355X use described in partnership release",
+     "sourceIds": [
+      "AMD6"
+     ],
+     "limitation": "Only supports the stated product and source date; no exclusivity, procurement value or completed future capacity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:TSM",
+   "target": "US:NVDA",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Wafer foundry manufacturing for NVIDIA, as named in NVIDIA's FY2026 Form 10-K",
+     "sourceIds": [
+      "NV10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:MU",
+   "target": "US:NVDA",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Memory supply to NVIDIA, as named in NVIDIA's FY2026 Form 10-K",
+     "sourceIds": [
+      "NV10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:ETN",
+   "target": "US:NVDA",
+   "type": "PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Data-center power infrastructure collaboration with NVIDIA, as described in Eaton's release",
+     "sourceIds": [
+      "ETNNV"
+     ],
+     "limitation": "Confirms the collaboration described by the source; no procurement volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:CSCO",
+   "target": "US:NVDA",
+   "type": "PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Cisco Secure AI Factory with NVIDIA rack-scale infrastructure, as described in Cisco's release",
+     "sourceIds": [
+      "CSCONV"
+     ],
+     "limitation": "Confirms the collaboration described by the source; no procurement volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:NTAP",
+   "target": "US:NVDA",
+   "type": "PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "NetApp storage and data management integrated with NVIDIA AI infrastructure, as described on NetApp's NVIDIA page",
+     "sourceIds": [
+      "NTAPNV"
+     ],
+     "limitation": "Confirms the collaboration described by the source; no procurement volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:P",
+   "target": "US:NVDA",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "AIRI combines Pure Storage (now Everpure) storage with NVIDIA DGX systems",
+     "sourceIds": [
+      "PNV"
+     ],
+     "limitation": "Confirms the collaboration described by the source; no procurement volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:AVGO",
+   "target": "US:ANET",
+   "type": "PARTNER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Jointly tested Arista switches with Broadcom Ethernet silicon for AI networking",
+     "sourceIds": [
+      "ANETAVGO"
+     ],
+     "limitation": "Confirms the collaboration described by the source; no procurement volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:SKHY",
+   "target": "US:NVDA",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Memory supply to NVIDIA, as named in NVIDIA's FY2026 Form 10-K",
+     "sourceIds": [
+      "NV10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "ORG:SAMSUNG-ELECTRONICS",
+   "target": "US:NVDA",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Wafer foundry and memory supply to NVIDIA, as named in NVIDIA's FY2026 Form 10-K",
+     "sourceIds": [
+      "NV10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "ORG:HON-HAI",
+   "target": "US:NVDA",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Contract manufacturing: assembly, testing and packaging of NVIDIA final products, as named in NVIDIA's FY2026 Form 10-K",
+     "sourceIds": [
+      "NV10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "ORG:WISTRON",
+   "target": "US:NVDA",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Contract manufacturing: assembly, testing and packaging of NVIDIA final products, as named in NVIDIA's FY2026 Form 10-K",
+     "sourceIds": [
+      "NV10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "ORG:QUANTA-COMPUTER",
+   "target": "US:NVDA",
+   "type": "INTEGRATES_TECHNOLOGY_FROM",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Quanta subsidiary QCT produces NVIDIA GB300 NVL72 rack-scale systems",
+     "sourceIds": [
+      "QCTGB300"
+     ],
+     "limitation": "Confirms QCT system production on the NVIDIA platform; not a disclosure that Quanta supplies NVIDIA directly.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:NVDA",
+   "target": "US:MSFT",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Azure NDv6 GB300 cluster with more than 4,600 NVIDIA Blackwell Ultra GPUs in GB300 NVL72 systems",
+     "sourceIds": [
+      "AZGB300"
+     ],
+     "limitation": "Confirms deployment of the named NVIDIA products as described by the source; purchases may be direct or through system makers; no volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:NVDA",
+   "target": "US:AMZN",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "AWS EC2 P6-B200 instances with NVIDIA Blackwell B200 GPUs generally available",
+     "sourceIds": [
+      "AWSP6"
+     ],
+     "limitation": "Confirms deployment of the named NVIDIA products as described by the source; purchases may be direct or through system makers; no volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:NVDA",
+   "target": "US:GOOGL",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Google Cloud A4X VMs on NVIDIA GB200 NVL72 and A4 VMs on NVIDIA HGX B200",
+     "sourceIds": [
+      "GCA4X"
+     ],
+     "limitation": "Confirms deployment of the named NVIDIA products as described by the source; purchases may be direct or through system makers; no volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:NVDA",
+   "target": "US:ORCL",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "OCI deployed thousands of NVIDIA Blackwell GPUs in GB200 NVL72 racks for customer use",
+     "sourceIds": [
+      "NVOCI"
+     ],
+     "limitation": "Confirms deployment of the named NVIDIA products as described by the source; purchases may be direct or through system makers; no volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:NVDA",
+   "target": "US:META",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Two Meta GenAI training clusters of 24,576 NVIDIA H100 GPUs each",
+     "sourceIds": [
+      "METAGENAI"
+     ],
+     "limitation": "Confirms deployment of the named NVIDIA products as described by the source; purchases may be direct or through system makers; no volume or exclusivity inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:NVDA",
+   "target": "US:CRWV",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "NVIDIA is CoreWeave's principal GPU supplier, as disclosed in CoreWeave's FY2025 Form 10-K",
+     "sourceIds": [
+      "CRWV10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:TSM",
+   "target": "US:AVGO",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Front-end wafer manufacturing (about 95% of Broadcom's contract-manufactured wafers in fiscal 2025) and assembly/test, per Broadcom's FY2025 Form 10-K",
+     "sourceIds": [
+      "AVGO10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "ORG:HON-HAI",
+   "target": "US:AVGO",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Assembly and test contract manufacturing (Foxconn Technology Group), per Broadcom's FY2025 Form 10-K",
+     "sourceIds": [
+      "AVGO10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "US:AMKR",
+   "target": "US:AVGO",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "Assembly and test contract manufacturing, per Broadcom's FY2025 Form 10-K",
+     "sourceIds": [
+      "AVGO10K"
+     ],
+     "limitation": "Confirms the relationship as disclosed in the cited filing; no volume, share, exclusivity or current-quarter status inferred.",
+     "verificationStatus": "CONFIRMED"
+    }
+   ]
+  },
+  {
+   "source": "ORG:SAMSUNG-ELECTRONICS",
+   "target": "US:AMD",
+   "type": "SUPPLIER_OF",
+   "facts": [
+    {
+     "state": "DOCUMENTED",
+     "scope": "HBM3E memory for AMD Instinct MI350X and MI355X",
+     "sourceIds": [
+      "AMDMI350",
+      "SSAMD"
+     ],
+     "limitation": "Confirms HBM3E supply for the named products; no share or volume inferred.",
+     "verificationStatus": "CONFIRMED"
+    },
+    {
+     "state": "ANNOUNCED",
+     "scope": "MOU covering HBM4 for Instinct MI455X and DDR5 for EPYC and Helios",
+     "sourceIds": [
+      "SSAMD"
+     ],
+     "limitation": "Memorandum of understanding; future supply and volumes not confirmed."
+    }
+   ]
+  }
+ ]
+}
