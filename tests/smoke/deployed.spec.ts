@@ -71,7 +71,7 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
     expect(html).toContain('hrefLang="zh-CN"');
     // The collapsed company directory ships no company links; research teasers elsewhere on the page may link companies.
     const directoryLabel = prefix === "en" ? "AI companies and supply chain" : "AI 公司与产业链";
-    const directoryHtml = html.match(new RegExp(`<section[^>]*aria-label="${directoryLabel}"[^>]*>[\\s\\S]*?</section>`))?.[0];
+    const directoryHtml = sectionHtml(html, directoryLabel);
     expect(directoryHtml).toBeTruthy();
     expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/NVDA"`);
     expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/XSHG:688041"`);
@@ -96,6 +96,20 @@ test("retired filing event API is unavailable", async ({ request }) => {
   expect((await request.get("/api/events")).status()).toBe(404);
   expect((await request.get("/api/events/stream")).status()).toBe(404);
 });
+
+/** The complete `<section aria-label=…>` element, including nested sections, or undefined if absent or unbalanced. */
+function sectionHtml(html: string, label: string) {
+  const open = html.search(new RegExp(`<section\\b[^>]*aria-label="${label}"`));
+  if (open < 0) return undefined;
+  const tags = /<section\b|<\/section>/g;
+  tags.lastIndex = open;
+  let depth = 0;
+  for (let tag = tags.exec(html); tag; tag = tags.exec(html)) {
+    depth += tag[0] === "</section>" ? -1 : 1;
+    if (depth === 0) return html.slice(open, tags.lastIndex);
+  }
+  return undefined;
+}
 
 function savedCompanyHeaders(userToken?: string): Record<string, string> {
   const serviceToken = process.env.PLAYWRIGHT_AUTH_BEARER_TOKEN;
