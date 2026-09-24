@@ -8,7 +8,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { companyRole, researchCompanyUrl } from "@/lib/knowledge-graph/research-view";
 import { companyUpdates, type CompanyUpdate } from "@/lib/knowledge-graph/company-updates";
-import { CompanyChangeCard } from "./company-change-card";
+import { CompanyChangeCard, LaterCollectionNote } from "./company-change-card";
 import { trackFollowingVisit } from "@/lib/analytics";
 
 export function FollowedCompaniesPage({ feed = false }: { feed?: boolean }) {
@@ -58,6 +58,7 @@ export function FollowedCompaniesPage({ feed = false }: { feed?: boolean }) {
           return <li key={id} className="min-w-0 rounded-xl border border-white/10 p-4"><h3 className="font-semibold">{n ? companyName(n, locale) : id}</h3><p className="mt-2 text-sm leading-6 text-slate-400">{n ? companyRole(n, chinese) : text("Research coverage is not available yet.", "研究资料尚待覆盖。")}</p><div className="mt-4 flex flex-wrap items-center gap-4"><Link href={researchCompanyUrl(n ?? { id })} className="text-sm text-cyan-200 underline">{text("Continue research", "继续研究")}</Link><CompanyFollowButton companyId={id} /></div></li>;
         })}</ul></section>}
         <section className="mt-8" hidden={!showUpdates}><h2 className="text-xl font-semibold">{text("What changed in companies you follow", "我关注的公司有什么变化")}</h2><p className="mt-2 text-sm leading-6 text-slate-400">{text("Company events and one-hop supply-chain context. Business events are ordered by event date, or source date when unspecified. Evidence updates remain separate. Initial coverage is editorially maintained for selected core companies.", "展示公司事件及一跳供应链背景。业务事件按发生日期排列，未明确时按资料发布日期排列；资料复核另列。首批由编辑维护部分核心公司。")}</p>
+          <LaterCollectionNote className="mt-2" />
           <div className="mt-4 flex flex-wrap items-center gap-3" role="group" aria-label={text("Update filters", "更新筛选")}>
             {[["BUSINESS", "Business events", "业务事件"], ["RESEARCH", "Evidence updates", "证据更新"], ["ALL", "All", "全部"]].map(([value,en,zh]) => <button key={value} aria-pressed={category === value} className="rounded-full border border-cyan-400/30 px-3 py-1 text-sm aria-pressed:bg-cyan-900" onClick={() => {setCategory(value);setLimit(20);}}>{text(en,zh)}</button>)}
             <label className="text-sm"><input type="checkbox" checked={includeNeighbors} onChange={e => {setIncludeNeighbors(e.target.checked);setLimit(20);}} /> {text("Include one-hop suppliers / customers", "包含一跳供应商／客户")}</label>

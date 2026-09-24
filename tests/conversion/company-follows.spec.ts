@@ -26,7 +26,8 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
   await page.getByRole("button",{name:"Updates",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Customer expansion"})).toBeVisible();
   await expect(page.getByLabel("Why this appears")).toContainText("recorded customer of AMD");
-  await expect(page.getByText("Earlier event, added later. Collection is not a new business event.")).toBeVisible();
+  await expect(page.getByTitle("Earlier event, added later. Collection is not a new business event.")).toBeVisible();
+  await expect(page.getByText("marks an earlier event that was collected recently.", { exact: false })).toHaveCount(1);
   await expect(page.getByRole("link",{name:"Open in map"})).toHaveAttribute("href","/en?company=ORG%3AOPENAI&event=customer-expansion");
   await page.getByText("View evidence",{exact:true}).click();
   await expect(page.getByRole("link",{name:"Original announcement ↗"})).toHaveAttribute("href","https://example.com/event");
@@ -110,7 +111,8 @@ test("private list separates historic source dates and clears when the account c
   await page.getByRole("button", {name:"证据更新",exact:true}).click();
   await page.getByText("查看证据", {exact:true}).click();
   await expect(page.getByText("资料发布日期: 2024-01-02", { exact: true })).toBeVisible();
-  await expect(page.getByText(/事件／宣布日期: 未明确 · 收录／复核: 2026-09-15/)).toBeVisible();
+  await expect(page.getByText("事件／宣布日期: 未明确", { exact: true })).toBeVisible();
+  await expect(page.getByText("收录／复核: 2026-09-15", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "在图谱中打开" })).toHaveAttribute("href", "/zh-cn?company=US%3AAMD&relationship=amd-openai");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("following.png"), fullPage: true });

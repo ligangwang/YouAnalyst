@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { aiChipsAnalystConfig } from "@/lib/ai-analyst/config";
 import { SCORE_SCALE, TANH_SCALE } from "@/lib/predictions/analytics";
+import { SHOW_ANALYST_LEVELS } from "@/lib/community";
 
 const pageMetadata: Metadata = {
   title: "How It Works | YouAnalyst",
@@ -90,14 +91,14 @@ export default function HowItWorksPage() {
             <p><UiText text={"Rankings are based on overall Score across every open and settled public call."} /></p>
           </div>
         </div>
-        <div>
+        {SHOW_ANALYST_LEVELS ? <div>
           <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Level & XP"} /></h2>
           <div className="mt-2 space-y-2 text-sm leading-6 text-slate-300">
             <p><UiText text={"You earn XP from settled ideas."} /></p>
             <p><UiText text={"XP increases your Level, which reflects your experience over time."} /></p>
             <p><UiText text={"Level does not affect ranking."} /></p>
           </div>
-        </div>
+        </div> : null}
       </section>
 
       <section className="border-t border-white/10 py-6">
