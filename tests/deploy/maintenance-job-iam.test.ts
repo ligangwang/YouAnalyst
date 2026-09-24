@@ -1,0 +1,95 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+// Runs the deploy scripts against a fake gcloud that records every call.
+const root = process.cwd();
+const runtime = "directory-sync-runtime@demo.iam.gserviceaccount.com";
+const scheduler = "directory-sync-scheduler@demo.iam.gserviceaccount.com";
+const web = "web-runtime@demo.iam.gserviceaccount.com";
+
+function run(args: string[], env: Record<string, string> = {}) {
+  const dir = mkdtempSync(path.join(tmpdir(), "maintenance-iam-"));
+  const log = path.join(dir, "calls.log");
+  writeFileSync(log, "");
+  writeFileSync(path.join(dir, "gcloud"), `#!/usr/bin/env bash
+echo "$*" >> "$GCLOUD_LOG"
+case "$*" in
+  "run services describe"*) printf '%s\\n' "\${FAKE_WEB_SA-}" ;;
+  "run jobs describe"*) printf '%s\\n' "\${FAKE_JOB_SA-}" ;;
+  "scheduler jobs describe"*) exit 1 ;;
+esac
+`);
+  chmodSync(path.join(dir, "gcloud"), 0o755);
+  const result = spawnSync("bash", args, {
+    cwd: root, encoding: "utf8",
+    env: { NODE_ENV: "test", PATH: `${dir}:${process.env.PATH}`, GCLOUD_LOG: log, GCP_PROJECT_ID: "demo", FAKE_JOB_SA: runtime, ...env },
+  });
+  return { ...result, calls: readFileSync(log, "utf8").trim().split("\n").filter(Boolean) };
+}
+const helper = (env: Record<string, string> = {}) => run(["scripts/lib/maintenance-job-iam.sh", "some-job"], env);
+const grants = (calls: string[]) => calls.filter(call => call.startsWith("run jobs add-iam-policy-binding"));
+
+test("grants run.invoker to the scheduler and web accounts using the configured web account", () => {
+  const result = helper({ WEB_RUNTIME_SERVICE_ACCOUNT: web });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(!result.calls.some(call => call.startsWith("run services describe")));
+  assert.ok(!result.calls.some(call => call.startsWith("run jobs update")), "runtime already correct");
+  assert.deepEqual(grants(result.calls), [scheduler, web].map(account =>
+    `run jobs add-iam-policy-binding some-job --project demo --region us-central1 --member serviceAccount:${account} --role roles/run.invoker --quiet`));
+});
+
+test("falls back to the deployed web service's account", () => {
+  const result = helper({ FAKE_WEB_SA: web, CLOUD_RUN_SERVICE_PRODUCTION: "custom-web", GCP_REGION: "europe-west1" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.calls[0].startsWith("run services describe custom-web --project demo --region europe-west1"));
+  assert.match(grants(result.calls)[1], new RegExp(`serviceAccount:${web} `));
+});
+
+test("fails loudly without mutating when the web account cannot be determined", () => {
+  for (const env of [{ FAKE_WEB_SA: "" }, { WEB_RUNTIME_SERVICE_ACCOUNT: "not-an-account" }] as Record<string, string>[]) {
+    const result = helper(env);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /could not determine the web app's runtime service account/);
+    assert.deepEqual(grants(result.calls), []);
+  }
+});
+
+test("moves a job onto the shared runtime account", () => {
+  const result = helper({ WEB_RUNTIME_SERVICE_ACCOUNT: web, FAKE_JOB_SA: "other@demo.iam.gserviceaccount.com" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(result.calls.includes(`run jobs update some-job --project demo --region us-central1 --service-account ${runtime} --quiet`));
+});
+
+test("dry run prints mutating commands without running them", () => {
+  const result = helper({ WEB_RUNTIME_SERVICE_ACCOUNT: web, FAKE_JOB_SA: "", MAINTENANCE_IAM_DRY_RUN: "1" });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.calls.map(call => call.split(" ").slice(0, 3).join(" ")), ["run jobs describe"]);
+  assert.equal(result.stdout.match(/^DRY RUN: gcloud run jobs /gm)?.length, 3);
+  assert.match(result.stdout, new RegExp(`--member serviceAccount:${web} --role roles/run.invoker`));
+});
+
+for (const [script, job, env] of [
+  ["deploy-sec-fundamentals.sh", "refresh-sec-fundamentals-production", { FUNDAMENTALS_IMAGE: "image", SEC_USER_AGENT: "ua" }],
+  ["deploy-cn-fundamentals.sh", "refresh-cn-fundamentals-production", { FUNDAMENTALS_IMAGE: "image" }],
+  ["deploy-directory-sync.sh", "sync-cni-directory-production", { DIRECTORY_SYNC_IMAGE: "image" }],
+] as const) {
+  test(`${script} grants run.invoker on ${job} to the scheduler and web accounts`, () => {
+    const result = run([`scripts/${script}`], { ...env, FAKE_WEB_SA: web });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(result.calls.some(call => call.startsWith(`run jobs deploy ${job} `) && call.includes(`--service-account ${runtime}`)));
+    for (const account of [scheduler, web]) {
+      assert.ok(grants(result.calls).some(call => call.startsWith(`run jobs add-iam-policy-binding ${job} `) && call.includes(`serviceAccount:${account} `)), account);
+    }
+    assert.ok(result.calls.some(call => call.includes(`--oauth-service-account-email ${scheduler}`)));
+  });
+
+  test(`${script} stops before deploying when the web account is unknown`, () => {
+    const result = run([`scripts/${script}`], { ...env, FAKE_WEB_SA: "" });
+    assert.notEqual(result.status, 0);
+    assert.ok(!result.calls.some(call => call.startsWith("run jobs deploy") || call.startsWith("projects ") || call.startsWith("iam ")));
+  });
+}

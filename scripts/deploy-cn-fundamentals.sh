@@ -4,16 +4,19 @@ set -euo pipefail
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE to a built image digest}"
 region="${GCP_REGION:-us-central1}"
 job="refresh-cn-fundamentals-production"
-# Reuse the existing maintenance identities; no additional project-level grants.
-runtime="directory-sync-runtime@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
-trigger="directory-sync-scheduler@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
+# Shared maintenance identities; no additional project-level grants.
+source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
+runtime="$maintenance_runtime_account"
+trigger="$maintenance_scheduler_account"
+# Resolve before changing anything so a missing web account fails the deploy early.
+WEB_RUNTIME_SERVICE_ACCOUNT="$(web_runtime_service_account)"
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 \
   --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 \
   --command node --args dist/refresh-cn-fundamentals.cjs \
   --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}" --quiet
-gcloud run jobs add-iam-policy-binding "$job" --project "$GCP_PROJECT_ID" --region "$region" \
-  --member "serviceAccount:$trigger" --role roles/run.invoker --quiet >/dev/null
+# Scheduler and web app (/admin/jobs "Run now") invoker grants on this job.
+ensure_maintenance_job_iam "$job"
 # Weekdays after the China EOD job (08:00 New York). A new schedule is created
 # PAUSED: resume it only after reviewing a dry run (see docs/company-fundamentals.md).
 # Updates keep the schedule's current paused/enabled state.
