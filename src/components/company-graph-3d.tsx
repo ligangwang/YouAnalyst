@@ -10,6 +10,7 @@ import { layout3D } from "@/lib/knowledge-graph/layout-3d";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
+import { useWheelZoomGate, WheelZoomHint } from "./wheel-zoom-gate";
 import styles from "./ai-knowledge-graph.module.css";
 
 import { marketCapScale, marketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
@@ -287,6 +288,7 @@ function GraphUnavailable() {
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
   const [supported, setSupported] = useState<boolean | null>(null);
+  const [wheelGateRef, wheelHint] = useWheelZoomGate();
   useEffect(() => {
     let active = true;
     void Promise.resolve().then(() => {
@@ -303,9 +305,10 @@ export default function CompanyGraph3D(props: Props) {
   const fallback = <GraphUnavailable />;
   if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
   if (!supported) return fallback;
-  return <div className={styles.canvas3d}>
+  return <div ref={wheelGateRef} className={styles.canvas3d}>
+    <WheelZoomHint hint={wheelHint}/>
     <RenderBoundary fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
     <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>
-    <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
+    <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · Ctrl + 滚轮／双指缩放")}</p>
   </div>;
 }

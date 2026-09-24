@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { build } from "esbuild";
 import { PerspectiveCamera, Vector3 } from "three";
 import us from "../../data/ai-supply-chain/ai-us.json";
@@ -10,6 +10,12 @@ import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+// A plain wheel scrolls the page over 3D canvases; Ctrl + wheel (and trackpad pinch) zooms them.
+async function zoomWheel(page: Page, deltaY: number) {
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, deltaY);
+  await page.keyboard.up("Control");
+}
 test("map flags use company country and omit unknown countries", async ({page}) => {
   const countries = structuredClone(graph);
   countries.nodes.find(n => n.id === "US:NVDA")!.country = "US";
@@ -398,7 +404,7 @@ test("unselected zoom never shows context-free relationship labels", async ({pag
   await expect(canvas).toBeVisible();
   await expect.poll(()=>page.locator('[data-company-id]:visible').count()).toBeGreaterThan(0);
   await canvas.hover({position:{x:20,y:100}});
-  await page.mouse.wheel(0,-1200);
+  await zoomWheel(page,-1200);
   await expect.poll(()=>page.locator('[data-source]').evaluateAll(els=>{
     const nodes=[...document.querySelectorAll('[data-company-id]')].filter(el=>el.checkVisibility({visibilityProperty:true})).map(el=>el.getAttribute('data-company-id'));
     return els.filter(el=>el.checkVisibility({visibilityProperty:true})).filter(el=>!nodes.includes(el.getAttribute('data-source'))&&!nodes.includes(el.getAttribute('data-target'))).length;
@@ -424,10 +430,10 @@ test("company text grows on zoom in and shrinks on zoom out",async({page})=>{
   const fontSize=()=>label.evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
   const initial=await fontSize();
   await page.locator("canvas").hover({position:{x:20,y:100}});
-  await page.mouse.wheel(0,-400);
+  await zoomWheel(page,-400);
   await expect.poll(fontSize).toBeGreaterThan(initial+.5);
   const enlarged=await fontSize();
-  await page.mouse.wheel(0,400);
+  await zoomWheel(page,400);
   await expect.poll(fontSize).toBeLessThan(enlarged-.5);
 });
 
@@ -504,9 +510,9 @@ test("relationship labels always have a visible company endpoint",async({page})=
  // Labels can now occupy this point; move the real pointer without requiring bare canvas.
  const hoverGraph=async()=>{await canvas.scrollIntoViewIfNeeded();const box=await canvas.boundingBox();expect(box).not.toBeNull();await page.mouse.move(box!.x+20,box!.y+100);};
  await hoverGraph();
- await page.mouse.wheel(0,-2500);
+ await zoomWheel(page,-2500);
  await expect.poll(orphanLabels).toBe(0);
- await hoverGraph();await page.mouse.wheel(0,2500);
+ await hoverGraph();await zoomWheel(page,2500);
  await expect.poll(orphanLabels).toBe(0);
 });
 
@@ -637,7 +643,8 @@ test('three views default to graph, share filters and selection, and remember pr
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','true');
  await expect(tree.locator('[data-tree-kind="layer"]')).toHaveCount(5);
  await expect(tree.locator('canvas')).toBeVisible();
- await tree.locator('[data-tree-node="chips"]').click();
+ // The horizontal tree opens one level deep: every layer shows its branches, which stay closed.
+ await expect(tree.locator('[data-tree-kind="layer"][aria-expanded="true"]')).toHaveCount(5);
  await expect(tree.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','false');
  await expect(tree.locator('[data-tree-company="US:NVDA"]').first()).not.toBeVisible();
  await tree.locator('[data-tree-node="chips/compute"]').click();
@@ -743,9 +750,8 @@ test('three views 3D tree focuses branches, keeps flags and market caps, and sup
  await page.goto('http://graph.test/map?lang=en&view=tree');
  // The horizontal tree follows the vertical one on the merged page; it starts WebGL once scrolled to.
  const tree=page.locator('[data-industry-section="horizontal"]');await tree.scrollIntoViewIfNeeded();
- await tree.locator('[data-tree-node="chips"]').click();
- await expect(tree.locator('[data-tree-node="energy"]')).toHaveAttribute('data-tree-dimmed','true');
  await tree.locator('[data-tree-node="chips/compute"]').click();
+ await expect(tree.locator('[data-tree-node="energy"]')).toHaveAttribute('data-tree-dimmed','true');
  const nvda=tree.locator('[data-tree-company="US:NVDA"]').first(),amd=tree.locator('[data-tree-company="US:AMD"]').first();
  await expect(nvda).toContainText('NVDA · $1T');
  await expect(nvda).toHaveAttribute('title',/2026-09-21/);
@@ -774,7 +780,7 @@ test('three views 3D tree focuses branches, keeps flags and market caps, and sup
  await expect.poll(async()=>Math.abs((await separation()).y)).toBeGreaterThan(Math.abs(afterSeparation.y)*1.1);
  await expect.poll(async()=>Math.abs((await separation()).x)).toBeLessThan(2);
  await cdp.detach();
- await page.mouse.wheel(0,-150);
+ await zoomWheel(page,-150);
  await tree.getByRole('button',{name:'Reset view',exact:true}).click();
  await expect(tree.locator('[data-tree-node="energy"]')).toHaveAttribute('data-tree-dimmed','false');
  await expect(nvda).toBeVisible();
@@ -791,7 +797,7 @@ test('three views tree remains browsable without WebGL',async({page})=>{
  const horizontal=page.getByRole('region',{name:'Horizontal tree',exact:true});
  await horizontal.scrollIntoViewIfNeeded();
  await expect(horizontal.getByRole('alert')).toContainText('3D is unavailable');
- await horizontal.locator('summary').filter({hasText:/^Chips/}).click();
+ // Layers start open one level deep; open a branch to reach its companies.
  await horizontal.locator('summary').filter({hasText:/^AI accelerators/}).click();
  await horizontal.getByRole('button',{name:'NVIDIA',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'Company details'})).toHaveCount(1);
@@ -820,15 +826,16 @@ test('three views application siblings share a vertical column and remain inside
  await page.goto('http://graph.test/map?lang=en&view=tree');
  // The horizontal tree follows the vertical one on the merged page; it starts WebGL once scrolled to.
  const tree=page.locator('[data-industry-section="horizontal"]');await tree.scrollIntoViewIfNeeded();
- await tree.locator('[data-tree-node="applications"]').click();
+ // Layers start open, so the Applications branches are already showing.
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');
  const software=tree.locator('[data-tree-node="applications/applications"]'),edge=tree.locator('[data-tree-node="applications/edge"]');
  await expect(software).toBeVisible();await expect(edge).toBeVisible();
  await expect.poll(async()=>{
    const a=(await software.boundingBox())!,b=(await edge.boundingBox())!,canvas=(await tree.locator('canvas').boundingBox())!;
    return Math.abs(a.x-b.x)<2&&a.y+a.height<b.y&&a.x+a.width<=canvas.x+canvas.width&&b.x+b.width<=canvas.x+canvas.width;
  }).toBe(true);
- await expect(tree.locator('[data-tree-node="models"]')).toHaveAttribute('data-tree-dimmed','true');
  await software.click();
+ await expect(tree.locator('[data-tree-node="models"]')).toHaveAttribute('data-tree-dimmed','true');
  await expect(tree.locator('[data-tree-company="US:CRM"]')).toBeVisible();
  await page.screenshot({path:'output/tree-siblings-'+test.info().project.name+'.png',fullPage:true});
 });
@@ -844,7 +851,6 @@ test('three views company snapshot stays inside the canvas and closes without lo
  await page.goto('http://graph.test/map?lang=en&view=tree');
  // The horizontal tree follows the vertical one on the merged page; it starts WebGL once scrolled to.
  const tree=page.locator('[data-industry-section="horizontal"]');await tree.scrollIntoViewIfNeeded();
- await tree.locator('[data-tree-node="chips"]').click();
  await tree.locator('[data-tree-node="chips/compute"]').click();
  await tree.locator('[data-tree-company="US:NVDA"]').first().click();
  const card=page.getByRole('dialog',{name:'Company details'});
@@ -879,7 +885,7 @@ test('three views expanding all preserves zoom and pan when company cards open a
  const box=(await canvas.boundingBox())!;
  const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-industry-section="horizontal"] [data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree="3d"]')!.getBoundingClientRect();return {x:n.x-f.x,y:n.y-f.y};});
  const initial=await position();
- await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.wheel(0,-120);
+ await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await zoomWheel(page,-120);
  await page.mouse.move(box.x+box.width*.12,box.y+box.height*.8);await page.mouse.down();await page.mouse.move(box.x+box.width*.18,box.y+box.height*.78,{steps:12});await page.mouse.up();
  await expect.poll(async()=>{const p=await position();return Math.abs(p.x-initial.x)+Math.abs(p.y-initial.y);}).toBeGreaterThan(5);
  // Wait for the camera's smoothing to settle, not a fixed animation delay.
@@ -929,12 +935,13 @@ test('three views industry structure stacks the vertical tree above the horizont
  await expect(page.getByRole('dialog')).toHaveCount(1);await expect(v.getByRole('dialog')).toContainText('CRM');
  await expect(page.getByRole('complementary',{name:'Company details'})).toHaveCount(0);
  await h.scrollIntoViewIfNeeded();
- await expect(h.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
- await h.locator('[data-tree-node="applications"]').click();await h.locator('[data-tree-node="applications/applications"]').click();
+ await expect(h.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');
+ await expect(h.locator('[data-tree-node="applications/applications"]')).toHaveAttribute('aria-expanded','false');
+ await h.locator('[data-tree-node="applications/applications"]').click();
  await expect(h.locator('[data-tree-company="US:CRM"]').first()).toHaveAttribute('aria-pressed','true');
  await expect(v.locator('[data-tree-company="US:CRM"]')).toHaveAttribute('aria-pressed','true');
  // Selecting in the horizontal tree moves the one card there and updates the highlight in the vertical tree.
- await h.locator('[data-tree-node="chips"]').click();await h.locator('[data-tree-node="chips/compute"]').click();
+ await h.locator('[data-tree-node="chips/compute"]').click();
  await h.locator('[data-tree-company="US:NVDA"]').first().click();
  await expect(page.getByRole('dialog')).toHaveCount(1);await expect(h.getByRole('dialog')).toContainText('NVIDIA');
  await expect(v.locator('[data-tree-company="US:NVDA"]').first()).toHaveAttribute('aria-pressed','true');
@@ -1067,7 +1074,7 @@ test('three views vertical defaults to expanded and preserves zoom and pan when 
  const box=(await canvas.boundingBox())!;
  const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree="vertical"]')!.getBoundingClientRect();return {x:n.right-f.x,y:n.y-f.y};});
  const initial=await position();
- await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await page.mouse.wheel(0,-120);
+ await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await zoomWheel(page,-120);
  await page.mouse.move(box.x+box.width*.12,box.y+box.height*.8);await page.mouse.down();await page.mouse.move(box.x+box.width*.18,box.y+box.height*.78,{steps:12});await page.mouse.up();
  await expect.poll(async()=>{const p=await position();return Math.abs(p.x-initial.x)+Math.abs(p.y-initial.y);}).toBeGreaterThan(5);
  // Wait for the camera's smoothing to settle, not a fixed animation delay.
@@ -1081,5 +1088,82 @@ test('three views vertical defaults to expanded and preserves zoom and pan when 
  await expect.poll(unchanged).toBeLessThan(1);
  await card.getByRole('button',{name:'Close company details'}).click();
  await expect(card).toHaveCount(0);await expect.poll(unchanged).toBeLessThan(1);
- await expect(page.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
+ await expect(page.locator('[data-industry-section="vertical"] [data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
+});
+
+// Both trees are taller than most screens: a plain mouse wheel must scroll past them, not zoom.
+for(const section of ['vertical','horizontal'] as const) test(`three views ${section} tree: plain wheel scrolls the page, ctrl + wheel zooms`,async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const scope=`[data-industry-section="${section}"]`,tree=page.locator(scope),canvas=tree.locator('canvas');
+ await tree.scrollIntoViewIfNeeded();await expect(canvas).toBeVisible();
+ // Measure a node away from the dolly centre so zooming visibly moves it.
+ const node=tree.locator('[data-tree-node="applications"]');await expect(node).toBeVisible();
+ const hint=tree.locator('[data-wheel-zoom-hint]');
+ await expect(hint).toHaveAttribute('data-visible','false');
+ const offset=()=>page.evaluate(scope=>{const n=document.querySelector(scope+' [data-tree-node="applications"]')!.getBoundingClientRect(),f=document.querySelector(scope+' [data-industry-tree]')!.getBoundingClientRect();return {x:n.x-f.x,y:n.y-f.y};},scope);
+ const settle=async()=>{let previous=await offset(),stable=0;await expect.poll(async()=>{const p=await offset(),delta=Math.abs(p.x-previous.x)+Math.abs(p.y-previous.y);previous=p;stable=delta<.05?stable+1:0;return stable;},{intervals:[100,200,300]}).toBeGreaterThanOrEqual(3);return previous;};
+ const pointer=async()=>{const box=(await canvas.boundingBox())!,top=Math.max(box.y,0);await page.mouse.move(box.x+box.width*.5,top+Math.min(120,(box.y+box.height-top)/2));};
+ // Fit once the labels have mounted, so the baseline matches what Reset view restores.
+ await tree.getByRole('button',{name:'Reset view',exact:true}).click();
+ const initial=await settle();
+ const scrollY=()=>page.evaluate(()=>window.scrollY);
+ await pointer();const before=await scrollY();
+ await page.mouse.wheel(0,250);
+ await expect.poll(scrollY).toBeGreaterThan(before);
+ await expect(hint).toHaveAttribute('data-visible','true');
+ await expect(hint).toHaveText(/(Ctrl|⌘) \+ scroll to zoom/);
+ // The camera did not move: the node keeps its place inside the tree frame.
+ const held=await settle();expect(Math.abs(held.x-initial.x)+Math.abs(held.y-initial.y)).toBeLessThan(1);
+ await expect(hint).toHaveAttribute('data-visible','false');
+ await pointer();const kept=await scrollY();
+ await zoomWheel(page,-250);
+ await expect.poll(async()=>{const p=await offset();return Math.abs(p.x-held.x)+Math.abs(p.y-held.y);}).toBeGreaterThan(5);
+ expect(await scrollY()).toBe(kept);
+ await expect(hint).toHaveAttribute('data-visible','false');
+ // Reset view still restores the fitted camera after zooming.
+ await tree.getByRole('button',{name:'Reset view',exact:true}).click();
+ await expect.poll(async()=>{const p=await offset();return Math.abs(p.x-initial.x)+Math.abs(p.y-initial.y);}).toBeLessThan(2);
+});
+
+test('relationship graph: plain wheel scrolls the page and shows the zoom hint',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en');
+ const label=page.locator('button[class*="label3d"]').filter({hasText:"NVIDIA"}).locator("strong");
+ await expect(label).toBeVisible();
+ const fontSize=()=>label.evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+ const initial=await fontSize();
+ await page.locator('canvas').hover({position:{x:20,y:100}});
+ const before=await page.evaluate(()=>window.scrollY);
+ await page.mouse.wheel(0,300);
+ await expect.poll(()=>page.evaluate(()=>window.scrollY)).toBeGreaterThan(before);
+ await expect(page.locator('[data-wheel-zoom-hint][data-visible="true"]')).toHaveCount(1);
+ expect(await fontSize()).toBe(initial);
+ await expect(page.getByText('Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom',{exact:true})).toBeVisible();
+});
+
+test('three views horizontal tree opens one level deep with the root label clear of every layer label',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const h=page.locator('[data-industry-section="horizontal"]');await h.scrollIntoViewIfNeeded();
+ await expect(h.locator('[data-tree-kind="layer"][aria-expanded="true"]')).toHaveCount(5);
+ await expect(h.locator('[data-tree-kind="branch"]')).toHaveCount(await h.locator('[data-tree-kind="branch"]').count());
+ expect(await h.locator('[data-tree-kind="branch"]').count()).toBeGreaterThan(5);
+ await expect(h.locator('[data-tree-company]')).toHaveCount(0);
+ const overlaps=()=>page.evaluate(()=>{
+  const scope='[data-industry-section="horizontal"]',canvas=document.querySelector(scope+' canvas')!.getBoundingClientRect();
+  const box=(el:Element)=>el.getBoundingClientRect(),root=box(document.querySelector(scope+' [data-tree-node="root"]')!);
+  const hit=(a:DOMRect,b:DOMRect)=>a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
+  const labels=[...document.querySelectorAll(scope+' [data-tree-kind="layer"]')].filter(el=>hit(root,box(el))).map(el=>el.getAttribute('data-tree-node'));
+  if(root.left<canvas.left-1||root.right>canvas.right+1)labels.push('outside canvas');
+  return labels;
+ });
+ await expect.poll(overlaps).toEqual([]);
+ await page.screenshot({path:'output/horizontal-tree-initial-'+test.info().project.name+'.png',fullPage:true});
+ // Tree controls are compact icon buttons with accessible names and tooltips.
+ for(const name of ['Expand all','Collapse all','Reset view'])await expect(h.getByRole('button',{name,exact:true})).toHaveAttribute('title',name);
 });

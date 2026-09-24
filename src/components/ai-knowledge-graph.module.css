@@ -212,6 +212,9 @@
 .structureBranch li small { display:block; margin:5px 0 0 22px; color:#8fabbc; font-size:11px; }
 @media(max-width:800px) {
  .viewTabs { width:100%; flex-wrap:nowrap; }.viewTabs button { flex:1; padding:10px 6px; font-size:12px; }
+ /* A compact title block, so the first view of a phone screen reaches the content below the tabs. */
+ main.page { padding-top:14px; }main.page .header { margin-bottom:12px; }main.page .header .eyebrow { display:none; }main.page .header h1 { font-size:24px; margin:0 0 2px; }main.page .header p:not(.eyebrow) { font-size:13px; margin:0; line-height:1.45; }
+ main.page .viewTabs { margin-bottom:12px; padding:4px; }main.page .viewTabs button { min-height:40px; padding:6px 4px; line-height:1.2; }
  .sharedFilters label { flex:1; }.sharedFilters select { width:100%; max-width:none; }.sharedFilters .controls { flex-basis:100%; max-width:none; }
  .structure { padding:16px; }.structureBranches { grid-template-columns:1fr; }
  .withDetail:not([data-view="graph"]) .detail { position:fixed; inset:auto 0 0; z-index:80; max-height:70dvh; overflow:auto; border:1px solid #36536a; border-radius:20px 20px 0 0; box-shadow:0 -12px 40px #0009; padding-bottom:calc(24px + env(safe-area-inset-bottom)); }

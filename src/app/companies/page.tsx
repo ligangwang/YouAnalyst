@@ -2,9 +2,9 @@ import { localizedMetadata } from "@/lib/i18n/server";
 
 import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink as Link } from "@/components/localized-link";
 import { CompanySearchCard } from "@/components/company-search-card";
-import { randomFeaturedCompanies } from "@/lib/featured-companies";
+import { MostConnectedCompanies } from "@/components/most-connected-companies";
 
 export const dynamic = "force-dynamic";
 
@@ -26,20 +26,28 @@ const pageMetadata: Metadata = {
 };
 export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
 
-export default function CompaniesPage() {
-  const featuredCompanies = randomFeaturedCompanies();
+// Suggestions are companies on the AI map, so every chip leads to documented supply-chain research.
+const suggestedCompanies = [
+  { symbol: "NVDA", name: "NVIDIA" },
+  { symbol: "TSM", name: "TSMC" },
+  { symbol: "AVGO", name: "Broadcom" },
+  { symbol: "MSFT", name: "Microsoft" },
+  { symbol: "AMD", name: "AMD" },
+];
 
+export default function CompaniesPage() {
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4 pt-24 pb-8 sm:pt-28 lg:pt-32">
+    <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4 pt-10 pb-8 sm:pt-16 lg:pt-20">
       <section className="w-full">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="sr-only"><UiText text={"Company or ticker search"} /></h1>
+          <h1 className="text-2xl font-semibold text-slate-50 sm:text-3xl"><UiText text={"Company search"} /></h1>
+          <p className="mt-2 text-sm text-slate-400"><UiText text={"Search any listed company by name or ticker, or start from a company on the AI map."} /></p>
         </div>
 
         <CompanySearchCard />
 
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          {featuredCompanies.map((company) => (
+          {suggestedCompanies.map((company) => (
             <Link
               key={company.symbol}
               href={`/ticker/${company.symbol}`}
@@ -52,6 +60,8 @@ export default function CompaniesPage() {
           ))}
         </div>
       </section>
+
+      <MostConnectedCompanies />
     </main>
   );
 }

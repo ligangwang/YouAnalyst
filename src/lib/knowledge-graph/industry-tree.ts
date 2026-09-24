@@ -46,7 +46,8 @@ export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,l
     const expanded=open.has(layer.id);
     // Each child owns a vertical interval sized to its visible descendants.
     // Siblings share one column; opening a subtree pushes adjacent layers away.
-    const heights=expanded?layer.branches.map(b=>open.has(b.id)?Math.max(140,b.companies.length*92+40):140):[];
+    // A collapsed branch is one label tall, so a tree opened one level deep stays compact enough to read.
+    const heights=expanded?layer.branches.map(b=>open.has(b.id)?Math.max(140,b.companies.length*92+40):72):[];
     const height=Math.max(135,heights.reduce((a,b)=>a+b,0)+60);
     const top=bottom+height;
     nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[-240,bottom+height/2,0],count:layer.companies.length});
