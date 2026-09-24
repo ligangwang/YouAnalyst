@@ -9,7 +9,7 @@ import { AdminSecRerun } from "./admin-sec-rerun";
 import { scheduledJobs, type JobId, type HistoryView, type JobHistoryPage, type JobRecord } from "@/lib/admin-jobs/model";
 
 const button = "rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40";
-const chineseNames = { fundamentals: "SEC 财务数据", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
+const chineseNames = { fundamentals: "SEC 财务数据", cnFundamentals: "A 股股本与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
 const statusLabels: Record<string, string> = { Succeeded: "成功", Failed: "失败", Cancelled: "已取消", Starting: "启动中", Running: "运行中", Unknown: "未知", "No completion recorded": "无完成记录", "Completed with errors": "完成但有错误", "Delivery started": "开始触发", "Delivery failed": "触发失败", Delivered: "已送达" };
 function date(value: string) { return value ? new Date(value).toLocaleString() : "—"; }
 function summary(record: JobRecord): string {
@@ -19,6 +19,8 @@ function summary(record: JobRecord): string {
   if (fields.priceLoad) counts.push(`prices: ${JSON.stringify(fields.priceLoad)}`);
   if (fields.fx) counts.push(`FX: ${JSON.stringify(fields.fx)}`);
   if (fields.marketCaps) counts.push(`market caps: ${JSON.stringify(fields.marketCaps)}`);
+  if (fields.shares) counts.push(`shares: ${JSON.stringify(fields.shares)}`);
+  if (fields.actions) counts.push(`corporate actions: ${JSON.stringify(fields.actions)}`);
   if (fields.coverage) counts.push(`coverage: ${JSON.stringify(fields.coverage)}`);
   return counts.join(" · ") || record.message || String((fields.error as { message?: string } | undefined)?.message ?? "");
 }
@@ -75,7 +77,7 @@ export function AdminJobsPage() {
       <p className="py-2 text-sm text-slate-400">{activeJob.schedule}</p>
     </div>
     {(query.job === "us" || query.job === "china") && <AdminEodRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
-    {query.job === "fundamentals" && <AdminSecRerun onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
+    {(query.job === "fundamentals" || query.job === "cnFundamentals") && <AdminSecRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     <nav aria-label={text("Job history views", "任务历史视图")} className="mb-4 flex flex-wrap gap-2">
       {([ ["runs", "Runs", "运行记录"], ["errors", "Errors & warnings", "错误和警告"], ["scheduler", "Scheduler deliveries", "调度触发记录"] ] as const).map(([view, en, zh]) =>
         <button key={view} onClick={() => changeView(view)} aria-pressed={query.view === view && !query.run} className={`${button} ${query.view === view && !query.run ? "border-cyan-400 bg-cyan-950 text-cyan-100" : ""}`}>{text(en, zh)}</button>)}

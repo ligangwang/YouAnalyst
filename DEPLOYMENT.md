@@ -256,13 +256,55 @@ Use `--seed-only` to queue/audit the map without contacting SEC. Inspect structu
 logs with `jsonPayload.job="refresh-sec-fundamentals"`, and verify the job execution
 itself: a successful Scheduler invocation only means the execution was started.
 
+### A-share fundamentals job
+
+`refresh-cn-fundamentals-production` stores official A-share share counts and
+CNY/USD market caps in existing `company_fundamentals/{XSHG|XSHE:code}`
+documents (see docs/company-fundamentals.md). It uses the same image as the SEC
+job (`Dockerfile.fundamentals` bundles both workers) and runs
+`node dist/refresh-cn-fundamentals.cjs`. Provision it with the manual
+**Deploy A-share fundamentals job** workflow (`scripts/deploy-cn-fundamentals.sh`),
+which needs only `GCP_PROJECT_ID` and the built image: no API keys (FX and prices
+are read from Firestore). It reuses the directory maintenance runtime/scheduler
+identities, and invocation is scoped to the new job.
+
+The script creates the Cloud Scheduler job (weekdays 09:30 `America/New_York`,
+after the 08:00 China EOD job) **paused**, and later deploys keep its current
+state. Before enabling it:
+
+1. Run the dry run (no Firestore writes) and spot-check a few companies:
+   `gcloud run jobs execute refresh-cn-fundamentals-production --region us-central1 --args=dist/refresh-cn-fundamentals.cjs,--dry-run --wait`
+2. Confirm cninfo and SSE were reachable from Cloud Run (no `cn_request_failed`
+   events for `www.cninfo.com.cn` or `query.sse.com.cn`). SZSE is a best-effort
+   cross-check and was unreachable from US networks when this was built.
+3. As for the SEC job, grant the web runtime `run.jobs.run` on this job (for
+   **Run now**); history reads use its existing Logging/Cloud Run permissions.
+4. Resume: `gcloud scheduler jobs resume refresh-cn-fundamentals-production --location us-central1`.
+
+`_cn_worker` in `company_fundamentals` holds the shared lease, provider cooldowns
+and the last run summary; overlapping executions are rejected and a retry of the
+same Cloud Run task recovers its predecessor's lease. Per-company leases, 1-second
+request spacing, 6-hour retry and provider cooldowns, and kept-on-failure data
+follow the SEC job's design. The run fails when a provider request fails or the
+batch cannot finish; explicitly unavailable companies do not fail it. Filter logs
+with `jsonPayload.job="refresh-cn-fundamentals"` and a `jsonPayload.runId`;
+request failures are `jsonPayload.event="cn_request_failed"`. The Scheduled Jobs
+admin page lists its executions and offers **Run A-share fundamentals now**
+(admin-only POST `/api/admin/jobs/cn-fundamentals`, with the same 2-minute
+dispatch guard as the SEC button, stored on `_cn_worker`).
+
+The read-only **Probe A-share share-count sources** workflow re-checks source
+reachability and parsing from a GitHub-hosted runner for any list of codes.
+
 ### EOD and directory diagnostics
 
 Every ordinary US price-loading run unions all US-listed companies from the live
 AI industry map with the prediction tickers. Map coverage does not depend on the
 prediction scan limit or whether a company has any predictions; newly published
 map companies and US-listed ADRs are included automatically. Explicit manual ticker
-repairs and mark-only runs retain their requested scope; China runs are unchanged.
+repairs and mark-only runs retain their requested scope. Ordinary China runs
+likewise union every Shanghai/Shenzhen map company with the prediction tickers,
+so A-share market caps have stored closes; an empty A-share map fails the run.
 Only a valid price for the exact ticker, market and run date counts as a cache hit.
 The existing `eod_prices` collection stores fetched prices. `map_price_coverage`
 logs and `eod_runs.priceLoad.mapCoverage` report requested, cached, fetched and
@@ -298,9 +340,9 @@ Completed calls release their lease; crashes expire automatically. A conflict
 returns HTTP 409. After a browser/network interruption, inspect history before
 retrying because the server may still be processing the request.
 
-Open `/admin/jobs` (linked from the admin dashboard). All four production maintenance jobs have run history, results, errors/warnings, per-run logs and scheduler deliveries. Each view uses provider cursors with Previous/Next pagination, at most 20 entries per page. A Logging scan can return an empty page with a next cursor; Next remains available. Result joins only query run IDs on the current page and follow at most three bounded result pages; incomplete lookups show Unknown and a warning, never false success.
+Open `/admin/jobs` (linked from the admin dashboard). All five production maintenance jobs have run history, results, errors/warnings, per-run logs and scheduler deliveries. Each view uses provider cursors with Previous/Next pagination, at most 20 entries per page. A Logging scan can return an empty page with a next cursor; Next remains available. Result joins only query run IDs on the current page and follow at most three bounded result pages; incomplete lookups show Unknown and a warning, never false success.
 
-Cloud Run Jobs supply authoritative execution status for SEC fundamentals and directory imports, including startup failures and cancellations. EOD runs join structured start/result/error logs by run ID and market; older runs without structured start logs are still visible through scheduler deliveries. Manual maintenance invocations can also appear. A scheduler delivery means its HTTP target accepted the request, not that a Cloud Run Job succeeded. Runs without a completion record become unconfirmed after one hour. Optional failures and warnings remain available in the error view even when a run succeeds.
+Cloud Run Jobs supply authoritative execution status for SEC fundamentals, A-share fundamentals and directory imports, including startup failures and cancellations. EOD runs join structured start/result/error logs by run ID and market; older runs without structured start logs are still visible through scheduler deliveries. Manual maintenance invocations can also appear. A scheduler delivery means its HTTP target accepted the request, not that a Cloud Run Job succeeded. Runs without a completion record become unconfirmed after one hour. Optional failures and warnings remain available in the error view even when a run succeeds.
 
 The backend reads existing Cloud Logging and Cloud Run APIs through ADC, using `GCP_PROJECT_ID` (or `NEXT_PUBLIC_FIREBASE_PROJECT_ID`) and `GCP_REGION` (default `us-central1`). Runtime permissions must include `logging.logEntries.list`, `logging.logs.list`, and `run.executions.list` for these jobs. History reads need no write access; manual EOD reruns use the existing maintenance Firestore permissions. No new Firestore collection is needed. Production's existing runtime identity already has these permissions. User requests require verified Firebase authentication and the existing admin-role check; responses are private/no-store and log credentials are redacted.
 
