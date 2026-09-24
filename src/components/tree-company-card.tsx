@@ -11,10 +11,13 @@ import { useLocale } from './providers/locale-provider';
 import styles from './industry-tree.module.css';
 
 type Snapshot = Pick<CompanyFundamentals,'metrics'|'marketCap'|'report'|'stale'>;
-export function TreeCompanyCard({company,color,onClose}:{company:GraphNode;color:string;onClose:()=>void}) {
+export function TreeCompanyCard({company,color,onClose,reveal=false}:{company:GraphNode;color:string;onClose:()=>void;reveal?:boolean}) {
   const {locale,text}=useLocale();
   const [result,setResult]=useState<{data:Snapshot|null;error?:boolean}|null>(null);
   const close=useRef<HTMLButtonElement>(null);
+  const card=useRef<HTMLElement>(null);
+  // A card opened from outside the tree (list, graph, links) may sit below the fold; bring it into view.
+  useEffect(()=>{if(reveal)card.current?.scrollIntoView({block:'nearest'});},[reveal,company.id]);
   useEffect(()=>{
     close.current?.focus({preventScroll:true});
     if(!company.id.startsWith('US:')) return;
@@ -29,7 +32,7 @@ export function TreeCompanyCard({company,color,onClose}:{company:GraphNode;color
   const number=(value:number|null|undefined,unit?:string|null)=>typeof value==='number'&&Number.isFinite(value)
     ? `${new Intl.NumberFormat(locale,{notation:'compact',maximumFractionDigits:2}).format(value)} ${unit??''}`
     : text('Unavailable','暂无');
-  return <aside role="dialog" aria-modal="false" aria-label={text('Company details','公司详情')} className={styles.companyCard}
+  return <aside ref={card} role="dialog" aria-modal="false" aria-label={text('Company details','公司详情')} className={styles.companyCard}
     style={{'--card-accent':color} as CSSProperties} onPointerDown={e=>e.stopPropagation()} onWheel={e=>e.stopPropagation()}
     onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape')onClose();}}>
     <header className={styles.cardHeader}><span>{text('Company snapshot','公司基本面')}</span><button ref={close} aria-label={text('Close company details','关闭公司详情')} onClick={onClose}>×</button></header>

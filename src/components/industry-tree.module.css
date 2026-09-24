@@ -34,7 +34,8 @@
 @media(max-width:800px){.companyCard {right:10px;bottom:10px;width:calc(100% - 20px);max-height:72%;}.cardBody {padding:12px 16px 16px;}.cardBody h3 {font-size:16px;}}
 @media(prefers-reduced-motion:reduce){.companyCard {animation:none;}}
 
-.scene canvas { touch-action:none; }
+/* Vertical swipes scroll the page (two tree canvases share it); horizontal drags and two-finger gestures stay with the camera. */
+.scene canvas { touch-action:pan-y; }
 .vertical {background:radial-gradient(ellipse at 50% 85%,#0b3040 0%,#091b28 35%,#050f1b 75%);}
 .vertical .scene {height:min(90vh,1100px);min-height:780px;}
 .vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 23px color-mix(in srgb,currentColor,transparent 68%),inset 0 0 16px color-mix(in srgb,currentColor,transparent 85%);background:#071727ee;}

@@ -13,7 +13,7 @@ import { VerticalTreeBranches } from './vertical-tree-branches';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
 
-export type TreeSceneProps={vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
+export type TreeSceneProps={paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
   state={failed:false};
@@ -28,6 +28,8 @@ function Scene(props:TreeSceneProps){
   useEffect(()=>{const canvas=gl.domElement;const lost=()=>onUnavailable();canvas.addEventListener("webglcontextlost",lost);return ()=>canvas.removeEventListener("webglcontextlost",lost);},[gl,onUnavailable]);
   // Leaves set a pointer cursor on hover; never leave it behind when the scene goes away.
   useEffect(()=>()=>{gl.domElement.style.cursor='';},[gl]);
+  // Redraw on resume so changes made while scrolled away (e.g. a selection in the other tree) appear.
+  useEffect(()=>{if(!props.paused)invalidate();},[props.paused,invalidate]);
   const controls=useRef<CameraControls>(null);
   const groups=useRef(new Map<string,Group>());
   const labels=useRef(new Map<string,HTMLButtonElement>());
@@ -188,5 +190,5 @@ export default function IndustryTreeScene(props:TreeSceneProps){
     return ()=>{active=false;};
   },[onUnavailable]);
   if(!supported)return null;
-  return <Boundary onUnavailable={props.onUnavailable}><Canvas onPointerMissed={event=>{if(event.type==='click'&&event.target instanceof HTMLCanvasElement&&props.selected)props.onSelect('');}} frameloop="demand" dpr={[1,1.5]} camera={{position:[0,0,1600],fov:45,near:1,far:100000}} gl={{antialias:true}} fallback={null}><Scene {...props}/></Canvas></Boundary>;
+  return <Boundary onUnavailable={props.onUnavailable}><Canvas onPointerMissed={event=>{if(event.type==='click'&&event.target instanceof HTMLCanvasElement&&props.selected)props.onSelect('');}} frameloop={props.paused?'never':'demand'} dpr={[1,1.5]} camera={{position:[0,0,1600],fov:45,near:1,far:100000}} gl={{antialias:true}} fallback={null}><Scene {...props}/></Canvas></Boundary>;
 }

@@ -55,6 +55,9 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const projected = useMemo(() => new Vector3(), []);
   const [hovered, setHovered] = useState("");
   const [hoveredEdge, setHoveredEdge] = useState("");
+  // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
+  // rather than relying on the geometry swap to invalidate.
+  useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
   const displayedEdge=activeEdge||hoveredEdge;
   const edgeEndpoints=useMemo(()=>new Set(layout.edges.filter(e=>e.id===displayedEdge).flatMap(e=>[e.source,e.target])),[layout,displayedEdge]);
   const sectorMembers = useMemo(() => new Set(layout.nodes.filter(n => companySector(n).id === sectorFocus).map(n => n.id)), [layout, sectorFocus]);

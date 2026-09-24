@@ -9,7 +9,7 @@ import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { IndustryCompanyTable } from "./industry-company-views";
-import { companySectors, isIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
+import { companySectors, INDUSTRY_VIEWS, LEGACY_VERTICAL_VIEW, parseIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
 import { IndustryStructure } from "./industry-tree";
 import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
 import { CompanyNameEditor } from "./company-name-editor";
@@ -32,10 +32,10 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const { text, locale } = useLocale();
   const defaultView: IndustryView = "graph";
   const view = useSyncExternalStore(subscribeView, () => {
-    const requested = new URLSearchParams(window.location.search).get("view");
-    if (isIndustryView(requested)) return requested;
+    const requested = parseIndustryView(new URLSearchParams(window.location.search).get("view"));
+    if (requested) return requested;
     if (initialEdge || initialEvent || allowedRelationshipIds) return "graph";
-    try { const saved = localStorage.getItem("ya-industry-view"); if (isIndustryView(saved)) return saved; } catch { /* Storage is optional. */ }
+    try { const saved = parseIndustryView(localStorage.getItem("ya-industry-view")); if (saved) return saved; } catch { /* Storage is optional. */ }
     return defaultView;
   }, () => defaultView);
   const viewId = useId();
@@ -47,8 +47,20 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     try { localStorage.setItem("ya-industry-view", next); } catch { /* URL still preserves the selection. */ }
     const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.replaceState(null, "", url);
     window.dispatchEvent(new Event("industry-view-changed"));
+    if (next !== view) trackEvent("graph_view_change", {view_mode: next});
   }
-  const treeView=view==='tree'||view==='vertical';
+  const treeView=view==='tree';
+  // The company card opens in the tree the company was picked in; both trees highlight it. A selection
+  // made anywhere else (list, graph, search, links, restored state) opens it in the leading vertical
+  // tree and scrolls it into view, so it is never left below the fold in the lower tree.
+  const [cardHost, setCardHost] = useState<{tree:"vertical"|"horizontal";reveal:boolean}>({tree:"vertical",reveal:true});
+  useEffect(() => {
+    // Legacy 'vertical' links and preferences open the merged page, whose vertical tree comes first;
+    // rewrite them so the URL and the saved preference name the tab that is shown.
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("view") === LEGACY_VERTICAL_VIEW) { url.searchParams.set("view", "tree"); window.history.replaceState(null, "", url); }
+    try { if (localStorage.getItem("ya-industry-view") === LEGACY_VERTICAL_VIEW) localStorage.setItem("ya-industry-view", "tree"); } catch { /* Storage is optional. */ }
+  }, []);
   const [activeEdge, setActiveEdge] = useState(initialEdge);
   const [eventId, setEventId] = useState(initialEvent);
   const [sectorFocus, setSectorFocus] = useState("");
@@ -74,7 +86,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   // Keep tree layout inputs stable when opening/closing a company card or following.
   const treeCompanies = useMemo(() => scoped.nodes.filter(n => n.kind === 'COMPANY'), [scoped.nodes]);
   const visible = useMemo(() => {
-    if (view === "tree" || view === "vertical") return scoped;
+    if (view === "tree") return scoped;
     const filtered = filterGraph(scoped, ["US", "CN_A", "GLOBAL"], query);
     const companies = filtered.nodes.filter(n => n.kind === "COMPANY" && (marketFilter === "all" || n.market === marketFilter) && (!roleFilter || companySectors(n).some(s => s.id === roleFilter)) && (!onlyFollowed || follows.ids.includes(n.id)));
     const ids = new Set(companies.map(n => n.id));
@@ -91,7 +103,8 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const company = scoped.nodes.find(n => n.id === selected && n.kind === "COMPANY");
   const relations = company ? scoped.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
   const label = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n?.kind === "STAGE" ? text(n.labels?.en ?? n.label ?? id, n.labels?.["zh-CN"] ?? n.label ?? id) : n ? companyName(n,locale) : id; };
-  function selectCompany(id: string) {
+  function selectCompany(id: string, fromTree?: "vertical"|"horizontal") {
+    setCardHost(fromTree ? {tree:fromTree,reveal:false} : {tree:"vertical",reveal:true});
     setCameraRequest(value=>value+1);
     setSelected(id);
     setSectorFocus("");
@@ -109,6 +122,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     const edge = graph.relationships.find(e => e.id === id); if (!edge || edge.type === "PARTICIPATES_IN") return;
     const nextCompany=reached ?? (selected===edge.source||selected===edge.target?selected:edge.source);
     setSelected(nextCompany);
+    setCardHost({tree:"vertical",reveal:true});
     setSectorFocus("");
     setQuery("");
     changeView("graph");
@@ -135,7 +149,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   return <><Container className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>{text("EXPLORE", "探索")}</p><Heading>{text("AI Industry Map", "AI 产业图谱")}</Heading><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></div></header>
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
-      {([['table','Company list','公司列表'],['tree','Industry structure','产业结构'],['vertical','Industry structure - vertical','产业结构 - 垂直'],['graph','Relationship graph','关系图谱']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids:IndustryView[]=['table','tree','vertical','graph'];let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next='table';if(e.key==='End')next='graph';if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}>{text(en,zh)}</button>)}
+      {([['table','Company list','公司列表'],['tree','Industry structure','产业结构'],['graph','Relationship graph','关系图谱']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}>{text(en,zh)}</button>)}
     </div>
     <div hidden={treeView}><div className={styles.sharedFilters}>
     <div className={styles.controls}>
@@ -157,8 +171,11 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company && !treeView ? styles.withDetail : ""}`}>
       <div className={styles.viewContent}>
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
-      <div hidden={view!=='tree'}><IndustryStructure active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
-      <div hidden={view!=='vertical'}><IndustryStructure vertical active={view==='vertical'} companies={treeCompanies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
+      {/* One industry-structure page: the vertical tree leads, the horizontal tree follows. Selection is shared. */}
+      <div hidden={view!=='tree'} className={styles.structureStack}>
+        <IndustryStructure vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectCompany(id,"vertical")} showCard={cardHost.tree==="vertical"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
+        <IndustryStructure active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectCompany(id,"horizontal")} showCard={cardHost.tree==="horizontal"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
+      </div>
       {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setReset(n => n + 1); }}/></Suspense>}
       </div>
       {company && !treeView && <aside className={styles.detail} aria-label={text("Company details", "公司详情")}>
