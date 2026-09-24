@@ -76,6 +76,7 @@ test("write applies the reviewed preview once; replay is unchanged; stale previe
   await assert.rejects(run(db, b, stale), /stale/);
   const otherBatch = { ...structuredClone(preview), batchHash: "other" };
   await assert.rejects(run(db, b, otherBatch), /different batch/);
+  assert.equal(writes(), 0);
   await run(db, b, preview);
   assert.ok(writes() > 0);
   assert.ok((await run(db, b)).summary.every(s => s.action === "UNCHANGED"));
@@ -91,6 +92,36 @@ test("write applies the reviewed preview once; replay is unchanged; stale previe
   assert.equal(relationshipTrust(nvda.find(e => e.source === "US:MSFT" && e.type === "PLANNED_ADOPTER_OF")!).status, "UNREVIEWED");
   const samsung = records.get("companies/ORG:SAMSUNG-ELECTRONICS")!;
   assert.deepEqual([samsung.status, samsung.country, (samsung.inGraph as { stageIds: string[] }).stageIds], ["DIRECTORY", "KR", ["memory", "foundry"]]);
+});
+
+test("a relationship changed after the dry run fails the write with nothing written", async () => {
+  const { b, db, records, writes } = await production();
+  const preview = await run(db, b);
+  const key = "company_relationships/US:TSM__SUPPLIER_OF__US:NVDA";
+  records.set(key, { ...records.get(key)!, summary: "Edited by an editor after the dry run." });
+  await assert.rejects(run(db, b, preview), /stale/);
+  assert.equal(writes(), 0);
+  for (const c of b.companies) assert.equal(records.has(`companies/${c.id}`), false, c.id);
+});
+
+test("a company record changed after the dry run fails the write with nothing written", async () => {
+  const { b, db, records, writes } = await production();
+  records.set("companies/ORG:WISTRON", { id: "ORG:WISTRON", name: "Wistron", status: "DIRECTORY", country: "TW" });
+  const preview = await run(db, b);
+  records.set("companies/ORG:WISTRON", { ...records.get("companies/ORG:WISTRON")!, description: "Edited" });
+  await assert.rejects(run(db, b, preview), /Company records changed/);
+  assert.equal(writes(), 0);
+});
+
+test("source summaries are stored as editorial summaries, never as verbatim quotes", async () => {
+  const { b, db, records } = await production();
+  await run(db, b, await run(db, b));
+  const sources = (records.get("companies/ORG:SAMSUNG-ELECTRONICS")!.inGraph as { sources: { excerptKind?: string }[] }).sources;
+  assert.ok(sources.length > 0 && sources.every(s => s.excerptKind === "EDITORIAL_SUMMARY"));
+  // Relationship evidence carries only title, link and dates, so no summary can be shown as source text.
+  const urls = new Set(b.sources.map(s => s.url));
+  const evidence = [...records].filter(([k]) => k.startsWith("company_relationships/")).flatMap(([, v]) => (v.evidence ?? []) as Record<string, unknown>[]).filter(s => urls.has(String(s.url)));
+  assert.ok(evidence.length > 0 && evidence.every(s => !("excerpt" in s) && !("summary" in s)));
 });
 
 test("link check blocks dead links and flags bot-blocked sources for manual review", async () => {

@@ -2,24 +2,25 @@ import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { publishResearch, validateResearch, type ResearchBatch } from "./publish-global-ai-research";
-import { hash, processBatch, validateBatch, type ComputeBatch, type Plan } from "../src/lib/research/publisher";
+import { getFirestore, type Firestore, type Transaction } from "firebase-admin/firestore";
+import { applyResearchPlan, planResearchInTransaction, validateResearch, type ResearchBatch } from "./publish-global-ai-research";
+import { applyBatchPlan, hash, planBatchInTransaction, validateBatch, type ComputeBatch, type Plan } from "../src/lib/research/publisher";
 import { relationshipTrust } from "../src/lib/knowledge-graph/relationship-status";
 import type { GraphFact } from "../src/lib/knowledge-graph/model";
 
 // Reviewed relationship verification: new company identities first (existing `companies` collection),
 // then relationship facts (existing `company_relationships` collection). No other collection is touched.
-type Source = ComputeBatch["sources"][number] & { publisher: string; excerpt: string };
+// `summary` paraphrases the cited passage; it is not a verbatim quote and is stored as an editorial summary.
+type Source = ComputeBatch["sources"][number] & { publisher: string; summary: string };
 export type VerificationBatch = Omit<ComputeBatch, "sources"> & { rule: Record<string, string>; companies: ResearchBatch["companies"]; sources: Source[] };
-type Preview = { batchHash: string; identities: [string, string][]; plan: Plan; summary: ChangeSummary[] };
+export type Preview = { batchHash: string; identities: [string, string][]; companyPlanHash: string; plan: Plan; summary: ChangeSummary[] };
 export type ChangeSummary = { id: string; action: "ADD" | "UPDATE" | "UNCHANGED"; trustBefore: string; trustAfter: string; commercialStatus: string; factsVerified: string[]; factsAdded: string[]; sources: string[] };
 const FILE = new URL("../data/ai-supply-chain/relationship-verification.json", import.meta.url);
 const PREVIEW = "relationship-verification-preview.json";
 const validId = (id: string) => /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id);
 
 export function companyBatch(b: VerificationBatch): ResearchBatch {
-  return { asOf: b.asOf, companies: b.companies, relationships: [], sources: b.sources.map(s => ({ id: s.id, url: s.url, title: s.title, sourceDate: s.sourceDate, retrievedAt: s.retrievedAt, excerpt: s.excerpt })) };
+  return { asOf: b.asOf, companies: b.companies, relationships: [], sources: b.sources.map(s => ({ id: s.id, url: s.url, title: s.title, sourceDate: s.sourceDate, retrievedAt: s.retrievedAt, excerpt: s.summary, excerptKind: "EDITORIAL_SUMMARY" as const })) };
 }
 export function relationshipBatch(b: VerificationBatch, identities: Map<string, string> = new Map()): ComputeBatch {
   const resolve = (id: string) => identities.get(id) ?? id;
@@ -32,7 +33,7 @@ export function validateVerification(b: VerificationBatch) {
   validateBatch(relationshipBatch(b));
   assert(b.rule?.verified?.trim(), "Batch must state its verification rule");
   const sources = new Map(b.sources.map(s => [s.id, s]));
-  for (const s of b.sources) assert(validId(s.publisher) && s.excerpt.trim(), `Source ${s.id} needs a publisher company and excerpt`);
+  for (const s of b.sources) assert(validId(s.publisher) && s.summary.trim(), `Source ${s.id} needs a publisher company and summary`);
   for (const e of b.relationships) for (const f of e.facts) {
     if (f.verificationStatus !== "CONFIRMED") continue;
     assert(f.state === "DOCUMENTED", `${e.source} ${e.type} ${e.target}: announced or planned facts cannot be verified`);
@@ -79,24 +80,37 @@ export function summaryMarkdown(summary: ChangeSummary[], identities: [string, s
     ...summary.map(s => `| ${s.id} | ${s.action} | ${s.trustBefore} → ${s.trustAfter} | ${s.commercialStatus} | ${[...s.factsVerified.map(f => `marked ${f}`), ...s.factsAdded.map(f => `added ${f}`), ...s.sources.map(u => `source ${u}`)].join("<br>").replaceAll("|", "\\|") || "—"} |`)].join("\n");
 }
 
-/** Read-only unless `approved` is supplied. Companies are written before relationships, each in its own transaction. */
+type Planned = Omit<Preview, "summary">;
+/** Reads everything and plans companies and relationships in one transaction; with `approved`, refuses any mismatch. Never writes. */
+async function planAll(db: Firestore, tx: Transaction, b: VerificationBatch, approved?: Preview) {
+  const research = await planResearchInTransaction(db, tx, companyBatch(b));
+  const identities = research.companies, map = new Map(identities);
+  const companyPlanHash = hash(research.ops.map(([ref, value]) => [ref.path, value]));
+  if (approved) {
+    assert.deepEqual(identities, approved.identities, "Company identity resolution changed since the dry run");
+    assert.equal(companyPlanHash, approved.companyPlanHash, "Company records changed since the dry run");
+  }
+  // Companies created in this same transaction count as existing relationship endpoints.
+  const plan = await planBatchInTransaction(db, tx, relationshipBatch(b, map), approved?.plan, new Set(map.values()));
+  return { research, planned: { batchHash: hash(b), identities, companyPlanHash, plan } satisfies Planned };
+}
+/**
+ * Read-only unless `approved` is supplied. A write re-plans the complete batch and commits company identities and
+ * relationships in a single transaction, so a stale or mismatched preview fails with nothing written.
+ */
 export async function run(db: Firestore, b: VerificationBatch, approved?: Preview): Promise<Preview> {
   validateVerification(b);
-  const batchHash = hash(b);
-  if (approved) assert(approved.batchHash === batchHash, "Preview is for a different batch; run the dry run again");
-  const identity = await publishResearch(db, companyBatch(b), false);
-  const identities = identity.companies as [string, string][];
-  if (approved) assert.deepEqual(identities, approved.identities, "Company identity resolution changed since the dry run");
-  const map = new Map(identities), relationships = relationshipBatch(b, map);
-  if (!approved) {
-    const plan = await processBatch(db, relationships, undefined, new Set(map.values()));
-    return { batchHash, identities, plan, summary: summarize(plan) };
+  if (approved) assert.equal(approved.batchHash, hash(b), "Preview is for a different batch; run the dry run again");
+  const planned = await db.runTransaction(async tx => {
+    const { research, planned } = await planAll(db, tx, b, approved);
+    if (approved) { applyResearchPlan(tx, research); applyBatchPlan(db, tx, planned.plan); }
+    return planned;
+  }, approved ? { readOnly: false } : { readOnly: true });
+  if (approved) {
+    const verify = await db.runTransaction(async tx => (await planAll(db, tx, b)).planned.plan, { readOnly: true });
+    assert(verify.changes.every(c => !c.changed), "Publication incomplete or not idempotent");
   }
-  await publishResearch(db, companyBatch(b), true);
-  const plan = await processBatch(db, relationships, approved.plan);
-  const verify = await processBatch(db, relationships);
-  assert(verify.changes.every(c => !c.changed), "Publication incomplete or not idempotent");
-  return { batchHash, identities, plan, summary: summarize(plan) };
+  return { ...planned, summary: summarize(planned.plan) };
 }
 
 async function main() {

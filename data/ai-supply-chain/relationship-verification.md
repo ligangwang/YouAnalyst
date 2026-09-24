@@ -33,16 +33,26 @@ The fact then stores `verificationStatus: "CONFIRMED"` and `reviewedAt` (the bat
 
 Not included: Fabrinet is named in NVIDIA's 10-K, but `US:FN` has no public directory status yet. It is also unclear whether Broadcom supplies Google's TPUs; no first-party source names the relationship.
 
+## Source summaries
+
+Each source's `summary` paraphrases the cited passage so reviewers can check it. It is **not a verbatim quote**. For new company identities the summary is stored in the company's graph sources as `excerpt` with `excerptKind: "EDITORIAL_SUMMARY"`. Relationship evidence stores only title, link and dates. No page displays these summaries as a quotation.
+
 ## Operation
 
-The **Publish reviewed relationship verification** workflow runs from main by manual dispatch only.
+The **Publish reviewed relationship verification** workflow runs from main by manual dispatch only. It takes two separate runs.
 
-1. Local checks: `npx tsx --test tests/relationship-verification.test.ts` and `npx tsx scripts/publish-relationship-verification.ts --validate`.
-2. `--check-links` fetches every source and fails on dead links.
-3. `--dry-run` resolves company identities and plans every relationship change in read-only transactions. It writes `relationship-verification-preview.json` and `relationship-verification-summary.md`, which lists every relationship with its action (ADD/UPDATE/UNCHANGED), its display status before and after, commercial-status change, facts marked or added, and new source URLs. Review this before writing.
-4. `--write` requires the preview file:
-   - It refuses to run if the batch, identity resolution or any relationship document changed since the dry run.
-   - It writes company identities, then the relationships in one transaction.
+1. **Local checks.** Run `npx tsx --test tests/relationship-verification.test.ts` and `npx tsx scripts/publish-relationship-verification.ts --validate`.
+2. **`dry-run`.** This run is read-only:
+   - `--check-links` fails on dead links. It lists links that block automated requests as `BLOCKED`.
+   - `--dry-run` plans all company and relationship changes in read-only transactions.
+   - The run summary shows the change table (action, display status before → after, commercial status, facts marked or added, new sources), the link report and the **preview SHA-256**.
+   - The preview is uploaded as an artifact.
+   - Open any `BLOCKED` links manually before approving a write.
+3. **`write`.** Dispatch it with the dry run's **run ID and preview SHA-256**.
+   - The job runs behind the production environment's required reviewers.
+   - It accepts only a successful dry run of this workflow on main, and only a preview whose SHA-256 matches.
+   - `--write` re-plans everything in one transaction. It refuses if the batch, company identity resolution, any affected company record or any relationship document changed since the dry run.
+   - Company identities and relationships are written in that same transaction, so a refused or failed write leaves production unchanged.
    - It then re-plans and asserts that nothing is left to change.
 
 Existing editorial status wins. A withdrawn or duplicate relationship fails the run for review instead of being republished.

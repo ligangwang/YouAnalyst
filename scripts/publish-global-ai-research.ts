@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getFirestore, type DocumentReference, type Firestore, type SetOptions, type Transaction } from "firebase-admin/firestore";
 import { matchCompany, type CompanyIdentity } from "../src/lib/market-companies/identity";
 import { companyFields } from "../src/lib/market-companies/model";
 import { relationshipId } from "../src/lib/knowledge-graph/market-store";
 
-type Evidence = { id: string; url: string; title: string; sourceDate: string | null; retrievedAt: string; excerpt: string };
+// `excerpt` is verbatim source text unless `excerptKind` marks it as an editorial summary.
+type Evidence = { id: string; url: string; title: string; sourceDate: string | null; retrievedAt: string; excerpt: string; excerptKind?: "EDITORIAL_SUMMARY" };
 type Company = CompanyIdentity & { description: string; stageIds: string[]; sourceIds: string[] };
 type Relationship = { source: string; target: string; type: "PARTNER_OF" | "SUPPLIER_OF" | "INTEGRATES_TECHNOLOGY_FROM"; summary: string; sourceIds: string[]; commercialStatus: "DOCUMENTED" | "ANNOUNCED" };
 export type ResearchBatch = { asOf: string; companies: Company[]; relationships: Relationship[]; sources: Evidence[] };
@@ -40,13 +41,26 @@ export function validateResearch(batch: ResearchBatch) {
   }
 }
 export async function publishResearch(db: Firestore, batch: ResearchBatch, write = false) {
+  return db.runTransaction(async tx => {
+    const plan = await planResearchInTransaction(db, tx, batch);
+    if (write) applyResearchPlan(tx, plan);
+    return { write, companies: plan.companies, relationships: plan.relationships };
+  }, write ? { readOnly: false } : { readOnly: true });
+}
+type WriteOp = [DocumentReference, Record<string, unknown>, SetOptions?];
+export type ResearchPlan = { companies: [string, string][]; relationships: string[]; ops: WriteOp[] };
+export function applyResearchPlan(tx: Transaction, plan: ResearchPlan) {
+  for (const [ref, value, options] of plan.ops) if (options) tx.set(ref, value, options); else tx.set(ref, value);
+}
+/** Reads and plans only. Callers apply the returned writes in the same transaction after all their own reads. */
+export async function planResearchInTransaction(db: Firestore, tx: Transaction, batch: ResearchBatch): Promise<ResearchPlan> {
   validateResearch(batch);
   const seed = JSON.parse(await readFile(new URL("../data/ai-supply-chain/ai-us.json", import.meta.url), "utf8"));
   const cn = JSON.parse(await readFile(new URL("../data/ai-supply-chain/ai-cn-a.json", import.meta.url), "utf8"));
   const stages = seed.nodes.filter((s: { kind: string }) => s.kind === "STAGE");
   for (const c of batch.companies) assert(c.stageIds.every(id => stages.some((s: { id: string }) => s.id === `stage:${id}`)), "Unknown AI stage");
   // Read identity fields again inside the transaction: stale preview results cannot authorize writes.
-  return db.runTransaction(async tx => {
+  {
     const snapshot = await tx.get(db.collection("companies").select("name", "legalName", "aliases", "website", "country", "identifiers", "listings", "symbol", "micCode", "cik"));
     const directory = snapshot.docs.map(d => {
       const v = d.data();
@@ -72,24 +86,24 @@ export async function publishResearch(db: Firestore, batch: ResearchBatch, write
       assert(old || [...resolved.values()].includes(id), `Missing endpoint ${id}`);
       assert(!old || ["DIRECTORY", "PUBLISHED"].includes(String(old.status)), `Non-public endpoint ${id}`);
     }
-    if (!write) return { write: false, companies: [...resolved], relationships: edgeRefs.map(r => r.id) };
+    const ops: WriteOp[] = [];
     for (const { company: c } of matches) {
       const id = resolve(c.id), old = current.get(id) ?? {};
       const sources = batch.sources.filter(s => c.sourceIds.includes(s.id));
       const memberships = c.stageIds.map(stage => ({ id: `${id}__PARTICIPATES_IN__${stage}`, source: id, target: `stage:${stage}`, type: "PARTICIPATES_IN", commercialStatus: "NOT_A_COMMERCIAL_RELATIONSHIP", summary: c.description, sourceIds: c.sourceIds }));
       const inGraph = { status: "PUBLISHED", asOf: batch.asOf, order: 1000, stageIds: c.stageIds, sources, memberships, stages: stages.filter((s: { id: string }) => c.stageIds.includes(s.id.slice(6))).map((s: { id: string; label: string }) => ({ ...s, labels: { en: s.label, "zh-CN": cn.nodes.find((n: { id: string }) => n.id === s.id)?.label ?? s.label } })) };
       const profile = { ...c, status: "DIRECTORY", identityReviewedAt: batch.asOf, ...old };
-      tx.set(db.collection("companies").doc(id), { ...profile, ...companyFields(id, profile), inGraph: old.inGraph ?? old.aiGraph ?? inGraph }, { merge: true });
+      ops.push([db.collection("companies").doc(id), { ...profile, ...companyFields(id, profile), inGraph: old.inGraph ?? old.aiGraph ?? inGraph }, { merge: true }]);
     }
     edges.forEach((e, i) => {
       const old = docs[companyRefs.length + i].data();
       const evidence = batch.sources.filter(s => e.sourceIds.includes(s.id));
       // Existing editorial decisions (including WITHDRAWN) win; append only new evidence.
       const combined = [...(old?.evidence ?? []), ...evidence];
-      tx.set(edgeRefs[i], { ...e, id: edgeRefs[i].id, status: "PUBLISHED", ...(!old ? { publishedAt: new Date().toISOString() } : {}), topic: "AI", asOf: batch.asOf, ...old, evidence: combined.filter((s, j) => combined.findIndex(other => other.url === s.url && other.title === s.title) === j) });
+      ops.push([edgeRefs[i], { ...e, id: edgeRefs[i].id, status: "PUBLISHED", ...(!old ? { publishedAt: new Date().toISOString() } : {}), topic: "AI", asOf: batch.asOf, ...old, evidence: combined.filter((s, j) => combined.findIndex(other => other.url === s.url && other.title === s.title) === j) }]);
     });
-    return { write: true, companies: [...resolved], relationships: edgeRefs.map(r => r.id) };
-  }, write ? { readOnly: false } : { readOnly: true });
+    return { companies: [...resolved], relationships: edgeRefs.map(r => r.id), ops };
+  }
 }
 async function main() {
   const batch = JSON.parse(await readFile(new URL("../data/ai-supply-chain/global-research.json", import.meta.url), "utf8"));

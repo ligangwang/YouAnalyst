@@ -3,7 +3,8 @@
  "asOf": "2026-09-24",
  "rule": {
   "verified": "A relationship is marked verified (CONFIRMED) only when a DOCUMENTED fact is stated by one of its two companies in its own regulatory filing, investor-relations or newsroom release, or official product/engineering page, and the https source link passes the automated link check on the review date.",
-  "notVerified": "Announced or planned activity, third-party reporting, and facts not yet re-checked are never marked verified. Needs verification is reserved for facts an editor explicitly marks PENDING."
+  "notVerified": "Announced or planned activity, third-party reporting, and facts not yet re-checked are never marked verified. Needs verification is reserved for facts an editor explicitly marks PENDING.",
+  "sourceSummaries": "Each source summary paraphrases the cited passage for reviewers; it is not a verbatim quote. It is stored with excerptKind EDITORIAL_SUMMARY and is not displayed as a quotation."
  },
  "companies": [
   {
@@ -139,7 +140,7 @@
    "sourceDate": "2026-02-04",
    "retrievedAt": "2026-09-24",
    "publisher": "US:AMD",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD2",
@@ -148,7 +149,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:MU",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD4",
@@ -157,7 +158,7 @@
    "sourceDate": "2026-02-24",
    "retrievedAt": "2026-09-24",
    "publisher": "US:AMD",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD6",
@@ -166,7 +167,7 @@
    "sourceDate": "2026-07-22",
    "retrievedAt": "2026-09-24",
    "publisher": "US:AMD",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD7",
@@ -175,7 +176,7 @@
    "sourceDate": "2026-07-20",
    "retrievedAt": "2026-09-24",
    "publisher": "US:AMD",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD8",
@@ -184,7 +185,7 @@
    "sourceDate": "2025-10-14",
    "retrievedAt": "2026-09-24",
    "publisher": "US:ORCL",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD9",
@@ -193,7 +194,7 @@
    "sourceDate": "2026-02-16",
    "retrievedAt": "2026-09-24",
    "publisher": "US:AMZN",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD10",
@@ -202,7 +203,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:GOOGL",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD11",
@@ -211,7 +212,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:DELL",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AMD14",
@@ -220,7 +221,7 @@
    "sourceDate": "2026-08-31",
    "retrievedAt": "2026-09-24",
    "publisher": "US:CSCO",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "X86",
@@ -229,7 +230,7 @@
    "sourceDate": "2024-10-15",
    "retrievedAt": "2026-09-24",
    "publisher": "US:INTC",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "DELLINTEL",
@@ -238,7 +239,7 @@
    "sourceDate": "2025-05-19",
    "retrievedAt": "2026-09-24",
    "publisher": "US:DELL",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "INTELAWS",
@@ -247,7 +248,7 @@
    "sourceDate": "2024-09-16",
    "retrievedAt": "2026-09-24",
    "publisher": "US:INTC",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "AVMETA",
@@ -256,7 +257,7 @@
    "sourceDate": "2026-04-14",
    "retrievedAt": "2026-09-24",
    "publisher": "US:AVGO",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "METANET",
@@ -265,7 +266,7 @@
    "sourceDate": "2024-10-15",
    "retrievedAt": "2026-09-24",
    "publisher": "US:META",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "NVMETA",
@@ -274,7 +275,7 @@
    "sourceDate": "2026-02-17",
    "retrievedAt": "2026-09-24",
    "publisher": "US:NVDA",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "MRVLTSM",
@@ -283,7 +284,7 @@
    "sourceDate": "2024-03-07",
    "retrievedAt": "2026-09-24",
    "publisher": "US:MRVL",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "MRVLAWS",
@@ -292,7 +293,7 @@
    "sourceDate": "2024-12-02",
    "retrievedAt": "2026-09-24",
    "publisher": "US:MRVL",
-   "excerpt": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
+   "summary": "Previously reviewed in batch ai-compute-2026-09-15; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "ETNNV",
@@ -301,7 +302,7 @@
    "sourceDate": "2025-07-15",
    "retrievedAt": "2026-09-24",
    "publisher": "US:ETN",
-   "excerpt": "Seed evidence for US:ETN__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
+   "summary": "Seed evidence for US:ETN__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "CSCONV",
@@ -310,7 +311,7 @@
    "sourceDate": "2026-08-25",
    "retrievedAt": "2026-09-24",
    "publisher": "US:CSCO",
-   "excerpt": "Seed evidence for US:CSCO__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
+   "summary": "Seed evidence for US:CSCO__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "NTAPNV",
@@ -319,7 +320,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:NTAP",
-   "excerpt": "Seed evidence for US:NTAP__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
+   "summary": "Seed evidence for US:NTAP__PARTNER_OF__US:NVDA; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "PNV",
@@ -328,7 +329,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:P",
-   "excerpt": "Seed evidence for US:P__INTEGRATES_TECHNOLOGY_FROM__US:NVDA; re-checked as a first-party source on 2026-09-24."
+   "summary": "Seed evidence for US:P__INTEGRATES_TECHNOLOGY_FROM__US:NVDA; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "ANETAVGO",
@@ -337,7 +338,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:ANET",
-   "excerpt": "Seed evidence for US:AVGO__PARTNER_OF__US:ANET; re-checked as a first-party source on 2026-09-24."
+   "summary": "Seed evidence for US:AVGO__PARTNER_OF__US:ANET; re-checked as a first-party source on 2026-09-24."
   },
   {
    "id": "NV10K",
@@ -346,7 +347,7 @@
    "sourceDate": "2026-02-25",
    "retrievedAt": "2026-09-24",
    "publisher": "US:NVDA",
-   "excerpt": "Manufacturing: foundries such as TSMC and Samsung produce NVIDIA semiconductor wafers; NVIDIA purchases memory from SK Hynix, Micron and Samsung; contract manufacturers such as Hon Hai Precision Industry, Wistron and Fabrinet perform assembly, testing and packaging of final products."
+   "summary": "Manufacturing: foundries such as TSMC and Samsung produce NVIDIA semiconductor wafers; NVIDIA purchases memory from SK Hynix, Micron and Samsung; contract manufacturers such as Hon Hai Precision Industry, Wistron and Fabrinet perform assembly, testing and packaging of final products."
   },
   {
    "id": "AVGO10K",
@@ -355,7 +356,7 @@
    "sourceDate": "2025-12-18",
    "retrievedAt": "2026-09-24",
    "publisher": "US:AVGO",
-   "excerpt": "Front-end wafer manufacturing is largely outsourced to foundries including TSMC (about 95% of contract-manufactured wafers in fiscal 2025); assembly and test contractors include TSMC, ASE, Foxconn Technology Group, Amkor and SPIL."
+   "summary": "Front-end wafer manufacturing is largely outsourced to foundries including TSMC (about 95% of contract-manufactured wafers in fiscal 2025); assembly and test contractors include TSMC, ASE, Foxconn Technology Group, Amkor and SPIL."
   },
   {
    "id": "CRWV10K",
@@ -364,7 +365,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:CRWV",
-   "excerpt": "CoreWeave depends on a limited number of suppliers for its infrastructure; its GPUs are supplied principally by NVIDIA."
+   "summary": "CoreWeave depends on a limited number of suppliers for its infrastructure; its GPUs are supplied principally by NVIDIA."
   },
   {
    "id": "AZGB300",
@@ -373,7 +374,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:MSFT",
-   "excerpt": "Azure NDv6 GB300 VM series: a production cluster of more than 4,600 NVIDIA Blackwell Ultra GPUs in GB300 NVL72 systems."
+   "summary": "Azure NDv6 GB300 VM series: a production cluster of more than 4,600 NVIDIA Blackwell Ultra GPUs in GB300 NVL72 systems."
   },
   {
    "id": "AWSP6",
@@ -382,7 +383,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:AMZN",
-   "excerpt": "EC2 P6-B200 instances with eight NVIDIA Blackwell B200 GPUs are generally available."
+   "summary": "EC2 P6-B200 instances with eight NVIDIA Blackwell B200 GPUs are generally available."
   },
   {
    "id": "GCA4X",
@@ -391,7 +392,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:GOOGL",
-   "excerpt": "Google Cloud A4X VMs run on NVIDIA GB200 NVL72; A4 VMs run on NVIDIA HGX B200."
+   "summary": "Google Cloud A4X VMs run on NVIDIA GB200 NVL72; A4 VMs run on NVIDIA HGX B200."
   },
   {
    "id": "NVOCI",
@@ -400,7 +401,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "US:NVDA",
-   "excerpt": "GB200 NVL72 racks are live on OCI, with thousands of NVIDIA Blackwell GPUs deployed for customer use."
+   "summary": "GB200 NVL72 racks are live on OCI, with thousands of NVIDIA Blackwell GPUs deployed for customer use."
   },
   {
    "id": "METAGENAI",
@@ -409,7 +410,7 @@
    "sourceDate": "2024-03-12",
    "retrievedAt": "2026-09-24",
    "publisher": "US:META",
-   "excerpt": "Two 24,576-GPU clusters built with NVIDIA H100 Tensor Core GPUs support Llama 3 training."
+   "summary": "Two 24,576-GPU clusters built with NVIDIA H100 Tensor Core GPUs support Llama 3 training."
   },
   {
    "id": "AMDMI350",
@@ -418,7 +419,7 @@
    "sourceDate": "2025-06-12",
    "retrievedAt": "2026-09-24",
    "publisher": "US:AMD",
-   "excerpt": "Instinct MI350X and MI355X carry 288GB of HBM3E memory from Micron and Samsung Electronics."
+   "summary": "Instinct MI350X and MI355X carry 288GB of HBM3E memory from Micron and Samsung Electronics."
   },
   {
    "id": "SSAMD",
@@ -427,7 +428,7 @@
    "sourceDate": "2026-03-18",
    "retrievedAt": "2026-09-24",
    "publisher": "ORG:SAMSUNG-ELECTRONICS",
-   "excerpt": "Samsung is an HBM3E supplier for AMD Instinct MI350X and MI355X; the MOU covers HBM4 for Instinct MI455X and DDR5 for EPYC and Helios."
+   "summary": "Samsung is an HBM3E supplier for AMD Instinct MI350X and MI355X; the MOU covers HBM4 for Instinct MI455X and DDR5 for EPYC and Helios."
   },
   {
    "id": "QCTGB300",
@@ -436,7 +437,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "ORG:QUANTA-COMPUTER",
-   "excerpt": "Quanta Cloud Technology (QCT), a Quanta Computer subsidiary, produces systems on the NVIDIA GB300 NVL72 platform."
+   "summary": "Quanta Cloud Technology (QCT), a Quanta Computer subsidiary, produces systems on the NVIDIA GB300 NVL72 platform."
   },
   {
    "id": "ID-SKHY",
@@ -445,7 +446,7 @@
    "sourceDate": "2026-06-30",
    "retrievedAt": "2026-09-24",
    "publisher": "US:SKHY",
-   "excerpt": "Korean memory manufacturer headquartered in Icheon; common shares listed on the Korea Exchange (000660); ADSs registered for Nasdaq under SKHY."
+   "summary": "Korean memory manufacturer headquartered in Icheon; common shares listed on the Korea Exchange (000660); ADSs registered for Nasdaq under SKHY."
   },
   {
    "id": "ID-SAMSUNG",
@@ -454,7 +455,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "ORG:SAMSUNG-ELECTRONICS",
-   "excerpt": "Samsung Electronics Co., Ltd., headquartered in Suwon, Korea; common shares listed on the Korea Exchange (005930)."
+   "summary": "Samsung Electronics Co., Ltd., headquartered in Suwon, Korea; common shares listed on the Korea Exchange (005930)."
   },
   {
    "id": "ID-HONHAI",
@@ -463,7 +464,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "ORG:HON-HAI",
-   "excerpt": "Hon Hai Precision Industry Co., Ltd. (Foxconn), New Taipei City, Taiwan; Taiwan Stock Exchange security code 2317."
+   "summary": "Hon Hai Precision Industry Co., Ltd. (Foxconn), New Taipei City, Taiwan; Taiwan Stock Exchange security code 2317."
   },
   {
    "id": "ID-WISTRON",
@@ -472,7 +473,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "ORG:WISTRON",
-   "excerpt": "Wistron Corporation, Taipei, Taiwan; Taiwan Stock Exchange code 3231."
+   "summary": "Wistron Corporation, Taipei, Taiwan; Taiwan Stock Exchange code 3231."
   },
   {
    "id": "ID-QUANTA",
@@ -481,7 +482,7 @@
    "sourceDate": null,
    "retrievedAt": "2026-09-24",
    "publisher": "ORG:QUANTA-COMPUTER",
-   "excerpt": "Quanta Computer Inc., Taoyuan, Taiwan; Taiwan Stock Exchange code 2382."
+   "summary": "Quanta Computer Inc., Taoyuan, Taiwan; Taiwan Stock Exchange code 2382."
   }
  ],
  "relationships": [

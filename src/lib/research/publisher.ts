@@ -100,6 +100,15 @@ export async function processBatch(db: Firestore, b: ComputeBatch, approved?: Pl
   return db.runTransaction(tx => processBatchInTransaction(db, tx, b, approved, approved ? new Set() : plannedCompanies), approved ? { readOnly: false } : { readOnly: true });
 }
 export async function processBatchInTransaction(db: Firestore, tx: Transaction, b: ComputeBatch, approved?: Plan, plannedCompanies: ReadonlySet<string> = new Set()): Promise<Plan> {
+  const plan = await planBatchInTransaction(db, tx, b, approved, plannedCompanies);
+  if (approved) applyBatchPlan(db, tx, plan);
+  return plan;
+}
+export function applyBatchPlan(db: Firestore, tx: Transaction, plan: Plan) {
+  for (const c of plan.changes) if (c.changed) tx.set(db.collection("company_relationships").doc(c.id), c.after);
+}
+/** Reads, plans and (with `approved`) checks the plan is not stale. Never writes. */
+export async function planBatchInTransaction(db: Firestore, tx: Transaction, b: ComputeBatch, approved?: Plan, plannedCompanies: ReadonlySet<string> = new Set()): Promise<Plan> {
     // Query all statuses to detect reversed/legacy keys and avoid reviving rejected evidence.
     const all = await tx.get(db.collection("company_relationships"));
     const ids = [...new Set(b.relationships.flatMap(e => [e.source, e.target]))];
@@ -123,6 +132,5 @@ export async function processBatchInTransaction(db: Firestore, tx: Transaction, 
       plan.changes.push(change);
     }
     // All validation and reads precede the first mutation. Entire batch commits atomically.
-    if (approved) for (const c of plan.changes) if (c.changed) tx.set(db.collection("company_relationships").doc(c.id), c.after);
     return plan;
 }
