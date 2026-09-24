@@ -18,10 +18,18 @@ test("US price universe includes every current map company with no predictions, 
   assert.ok(expanded.requestedTickers.includes("XYZ"));
   assert.equal(expanded.requestedTickers.filter(t => t === "NVDA").length, 1);
 });
-test("China, explicit ticker repairs and mark-only runs keep their scope without loading the US graph", async () => {
+test("China price universe includes every A-share map company plus prediction tickers, never US nodes", async () => {
+  const cn = JSON.parse(readFileSync(new URL("../../data/ai-supply-chain/ai-cn-a.json", import.meta.url), "utf8")) as KnowledgeGraph;
+  const combined = { ...graph, nodes: [...graph.nodes, ...cn.nodes] };
+  const china = await loadEodPriceUniverse({ ...ordinary, market: "CN_A", predictionTickers: ["XSHE:000001"] }, async () => combined);
+  assert.equal(china.mapTickers.length, 62);
+  assert.ok(china.mapTickers.every(id => /^(XSHG|XSHE):/.test(id)));
+  assert.ok(china.requestedTickers.includes("XSHE:000001") && china.requestedTickers.includes("XSHG:688981"));
+  await assert.rejects(loadEodPriceUniverse({ ...ordinary, market: "CN_A" }, async () => graph), /No CN_A map companies/);
+});
+test("explicit ticker repairs and mark-only runs keep their scope without loading the graph", async () => {
   const noGraph = async (): Promise<KnowledgeGraph> => { throw new Error("Should not load map"); };
-  const china = await loadEodPriceUniverse({ ...ordinary, market: "CN_A", predictionTickers: ["XSHG:688041"] }, noGraph);
-  assert.deepEqual(china, { requestedTickers: ["XSHG:688041"], mapTickers: [] });
+  assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, market: "CN_A", manualTickers: ["XSHG:688041"] }, noGraph), { requestedTickers: ["XSHG:688041"], mapTickers: [] });
   assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, manualTickers: ["AMD"], predictionTickers: ["NVDA"] }, noGraph), { requestedTickers: ["AMD"], mapTickers: [] });
   assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, loadPrices: false, predictionTickers: ["AMD"] }, noGraph), { requestedTickers: ["AMD"], mapTickers: [] });
 });
