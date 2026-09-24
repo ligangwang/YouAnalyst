@@ -69,10 +69,14 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
     expect(html).toMatch(new RegExp(`<link[^>]+rel="canonical"[^>]+href="[^"]+/${prefix}"`));
     expect(html).toContain('hrefLang="en"');
     expect(html).toContain('hrefLang="zh-CN"');
-    expect(html).not.toContain(`href="/${prefix}/ticker/NVDA"`);
-    expect(html).not.toContain(`href="/${prefix}/ticker/XSHG:688041"`);
+    // The collapsed company directory ships no company links; research teasers elsewhere on the page may link companies.
+    const directoryLabel = prefix === "en" ? "AI companies and supply chain" : "AI 公司与产业链";
+    const directoryHtml = html.match(new RegExp(`<section[^>]*aria-label="${directoryLabel}"[^>]*>[\\s\\S]*?</section>`))?.[0];
+    expect(directoryHtml).toBeTruthy();
+    expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/NVDA"`);
+    expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/XSHG:688041"`);
     await page.goto(`/${prefix}`);
-    const directory = page.getByRole("region", { name: prefix === "en" ? "AI companies and supply chain" : "AI 公司与产业链", exact: true });
+    const directory = page.getByRole("region", { name: directoryLabel, exact: true });
     await expect(directory.locator("li")).toHaveCount(0);
     await directory.locator("summary").click();
     await expect(directory.locator(`a[href="/${prefix}/ticker/NVDA"]`).first()).toBeVisible({ timeout: 20_000 });
