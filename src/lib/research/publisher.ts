@@ -61,11 +61,20 @@ export function mergeEdge(b: ComputeBatch, edge: Edge, old: Row | null): Row {
       evidence.push(item); return item.id;
     });
     // Identity uses source URLs, not batch-local aliases or changing retrieval dates.
-    const id = hash([...(f.verificationStatus || f.eventDate ? [f.verificationStatus ?? null, f.eventDate ?? null] : []), f.state, f.scope.trim(), f.limitation.trim(), f.sourceIds.map(id => b.sources.find(s => s.id === id)!.url).sort()]);
-    const existingIndex = facts.findIndex(f => f.id === id);
+    const urls = f.sourceIds.map(id => b.sources.find(s => s.id === id)!.url).sort();
+    const id = hash([...(f.verificationStatus || f.eventDate ? [f.verificationStatus ?? null, f.eventDate ?? null] : []), f.state, f.scope.trim(), f.limitation.trim(), urls]);
+    let existingIndex = facts.findIndex(f => f.id === id);
+    // A review of an identical, previously unreviewed fact marks that fact instead of duplicating it.
+    if (existingIndex < 0 && f.verificationStatus && !f.eventDate) {
+      const unreviewed = hash([f.state, f.scope.trim(), f.limitation.trim(), urls]);
+      existingIndex = facts.findIndex(old => old.id === unreviewed && !old.eventDate && (old.verificationStatus ?? f.verificationStatus) === f.verificationStatus);
+    }
     if (existingIndex < 0) {
       const fact = { ...f, sourceIds: [...new Set(resolved)], id, reviewedAt: b.asOf };
       facts.push(fact); added.push(fact);
+    } else if (f.verificationStatus && !facts[existingIndex].verificationStatus) {
+      facts[existingIndex] = { ...facts[existingIndex], verificationStatus: f.verificationStatus, reviewedAt: b.asOf };
+      refreshed = true;
     } else if (f.verificationStatus && facts[existingIndex].reviewedAt < b.asOf) {
       facts[existingIndex] = { ...facts[existingIndex], reviewedAt: b.asOf };
       refreshed = true;
@@ -77,23 +86,25 @@ export function mergeEdge(b: ComputeBatch, edge: Edge, old: Row | null): Row {
     return `${f.state === "ANNOUNCED" ? "Announced/planned" : "Documented"}${dates.length ? ` (${dates.join(", ")})` : " (undated source)"}: ${f.scope}.`;
   })].filter(Boolean).join(" ");
   return { ...old, ...n, status: "PUBLISHED", topic: old?.topic ?? "AI", summary,
-    commercialStatus: old?.commercialStatus ?? (facts.some(f => f.state === "DOCUMENTED") ? "DOCUMENTED" : "ANNOUNCED"),
+    // A confirmed documented fact supersedes an earlier announcement-only status; planned adoption stays announced.
+    commercialStatus: n.type !== "PLANNED_ADOPTER_OF" && facts.some(f => f.state === "DOCUMENTED" && f.verificationStatus === "CONFIRMED") ? "DOCUMENTED" : old?.commercialStatus ?? (facts.some(f => f.state === "DOCUMENTED") ? "DOCUMENTED" : "ANNOUNCED"),
     evidence, sourceIds: [...new Set(evidence.map(s => s.id))], researchFacts: facts,
     researchBatchIds: [...new Set([...(Array.isArray(old?.researchBatchIds) ? old.researchBatchIds : []), b.batchId])],
     researchReviewedAt: b.asOf, ...(old ? {} : { asOf: b.asOf, publishedAt: new Date().toISOString() }) };
 }
 type Change = { id: string; before: Row | null; beforeHash: string; after: Row; changed: boolean };
 export type Plan = { batchHash: string; changes: Change[] };
-export async function processBatch(db: Firestore, b: ComputeBatch, approved?: Plan): Promise<Plan> {
+/** `plannedCompanies` lets a read-only preview include companies created earlier in the same reviewed run. Writes always require existing endpoints. */
+export async function processBatch(db: Firestore, b: ComputeBatch, approved?: Plan, plannedCompanies: ReadonlySet<string> = new Set()): Promise<Plan> {
   validateBatch(b);
-  return db.runTransaction(tx => processBatchInTransaction(db, tx, b, approved), approved ? { readOnly: false } : { readOnly: true });
+  return db.runTransaction(tx => processBatchInTransaction(db, tx, b, approved, approved ? new Set() : plannedCompanies), approved ? { readOnly: false } : { readOnly: true });
 }
-export async function processBatchInTransaction(db: Firestore, tx: Transaction, b: ComputeBatch, approved?: Plan): Promise<Plan> {
+export async function processBatchInTransaction(db: Firestore, tx: Transaction, b: ComputeBatch, approved?: Plan, plannedCompanies: ReadonlySet<string> = new Set()): Promise<Plan> {
     // Query all statuses to detect reversed/legacy keys and avoid reviving rejected evidence.
     const all = await tx.get(db.collection("company_relationships"));
     const ids = [...new Set(b.relationships.flatMap(e => [e.source, e.target]))];
     const companies = await tx.getAll(...ids.map(id => db.collection("companies").doc(id)));
-    for (const d of companies) assert(d.exists && ["DIRECTORY", "PUBLISHED"].includes(String(d.data()?.status)), `Missing/non-public company ${d.id}`);
+    for (const d of companies) assert(d.exists ? ["DIRECTORY", "PUBLISHED"].includes(String(d.data()?.status)) : plannedCompanies.has(d.id), `Missing/non-public company ${d.id}`);
     const plan: Plan = { batchHash: hash(b), changes: [] };
     for (const edge of b.relationships) {
       const n = canonical(edge.source, edge.target, edge.type);

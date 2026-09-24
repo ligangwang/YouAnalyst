@@ -1,0 +1,55 @@
+name: Publish reviewed relationship verification
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Dry run (read-only preview) or write the reviewed batch
+        type: choice
+        options: [dry-run, write]
+        default: dry-run
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: global-ai-research-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test tests/relationship-verification.test.ts tests/compute-research.test.ts tests/global-research.test.ts
+      - run: npx tsx scripts/publish-relationship-verification.ts --validate
+      - run: npx tsx scripts/publish-relationship-verification.ts --check-links
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - run: npx tsx scripts/publish-relationship-verification.ts --dry-run
+      - run: cat relationship-verification-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relationship-verification-dry-run
+          path: |
+            relationship-verification-preview.json
+            relationship-verification-summary.md
+          if-no-files-found: error
+      - if: inputs.operation == 'write'
+        run: npx tsx scripts/publish-relationship-verification.ts --write
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.operation == 'write'
+        with:
+          name: relationship-verification-result
+          path: |
+            relationship-verification-written.json
+            relationship-verification-written.md
+          if-no-files-found: ignore
