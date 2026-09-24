@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_ANALYST_LEVELS } from "@/lib/community";
 import { UiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -213,7 +214,7 @@ export function PredictionAuthorSummary({ author, className = "" }: { author: Pr
   const label = nickname ? `@${nickname}` : displayName || "Anonymous";
   const avatarLabel = nickname?.slice(0, 1) ?? displayName?.slice(0, 1) ?? "?";
   const level = author.authorStats?.level;
-  const hasLevel = typeof level === "number";
+  const hasLevel = SHOW_ANALYST_LEVELS && typeof level === "number";
   const isAiAnalyst = author.authorAccountType === "AI_ANALYST";
 
   return (

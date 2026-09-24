@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { formatTickerSymbol, PredictionReturnSummary } from "@/components/prediction-ui";
 import { analystLevelName } from "@/lib/predictions/analytics";
+import { SHOW_ANALYST_LEVELS } from "@/lib/community";
 import { type PredictionStatus } from "@/lib/predictions/types";
 
 type ProfileStatusFilter = "ALL" | "LIVE" | "SETTLED";
@@ -590,6 +591,7 @@ export function AnalystProfilePage({
                   {scoreValueText(payload.profile.stats.totalScore)}
                 </span>
               </p>
+              {SHOW_ANALYST_LEVELS ? <>
               <p className="text-sm">
                 <span className="text-slate-400"><UiText text={"Level: "} /></span>
                 <span className="font-semibold text-cyan-100"><UiText text={"Level "} />{payload.profile.stats.level}<UiText text={" &middot; "} />{<UiText text={analystLevelName(payload.profile.stats.level)} />}
@@ -601,6 +603,7 @@ export function AnalystProfilePage({
                   {xpProgressText(payload.profile.stats.totalXP, payload.profile.stats.level)}
                 </span>
               </p>
+              </> : null}
               <p className="text-xs">
                 <span className="text-slate-400"><UiText text={"Settled: "} /></span>
                 <span className="font-semibold text-cyan-100">{settledCalls.toLocaleString()}</span>

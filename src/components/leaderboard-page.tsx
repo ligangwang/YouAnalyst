@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { analystLevelName } from "@/lib/predictions/analytics";
+import { MIN_RANKED_ANALYSTS, SHOW_ANALYST_LEVELS, rankingsOpen } from "@/lib/community";
 
 type LeaderboardEntry = {
   userId: string;
@@ -38,6 +39,33 @@ function initials(name: string): string {
     return parts[0].slice(0, 1).toUpperCase();
   }
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
+const SCORE_EXPLANATION = "Score: each public call is scored from −1000 to +1000 on its return since entry (1000 × tanh(return ÷ 30%)). An analyst's score averages those call scores, adjusts for win rate, and is scaled down until they have about 10 calls. Open and settled calls both count.";
+
+function ScoreExplanation() {
+  return (
+    <p id="leaderboard-score-explanation" className="mb-4 rounded-lg border border-white/10 bg-slate-950/40 p-3 text-xs leading-5 text-slate-300">
+      <UiText text={SCORE_EXPLANATION} />{" "}
+      <Link href="/how-it-works" className="text-cyan-200 underline"><UiText text={"How scores work"} /></Link>
+    </p>
+  );
+}
+
+function RankingsComingSoon({ rankedAnalysts }: { rankedAnalysts: number }) {
+  return (
+    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+      <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
+        <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Rankings are coming soon"} /></h1>
+        <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={`Rankings open once at least ${MIN_RANKED_ANALYSTS} analysts have public calls. ${rankedAnalysts} ranked so far.`} /></p>
+        <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Individual calls stay visible on company pages and in Investment ideas."} /></p>
+        <div className="mt-4 flex flex-wrap gap-3 text-sm">
+          <Link href="/predictions" className="rounded-lg border border-cyan-400/35 px-4 py-2 text-cyan-100 hover:bg-cyan-500/15"><UiText text={"Browse investment ideas"} /></Link>
+          <Link href="/predictions/new" className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950 hover:bg-cyan-400"><UiText text={"Make your first prediction"} /></Link>
+        </div>
+      </section>
+    </main>
+  );
 }
 
 export function LeaderboardPage() {
@@ -78,13 +106,18 @@ export function LeaderboardPage() {
     );
   }
 
+  if (!rankingsOpen(payload.items.length)) {
+    return <RankingsComingSoon rankedAnalysts={payload.items.length} />;
+  }
+
   const emergingItems = payload.emergingItems ?? [];
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
         <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Leaderboard"} /></h1>
-        <p className="mb-4 text-sm text-slate-300"><UiText text={"Analysts ranked by performance across all open and settled calls."} /></p>
+        <p className="mb-2 text-sm text-slate-300"><UiText text={"Analysts ranked by performance across all open and settled calls."} /></p>
+        <ScoreExplanation />
 
         <div className="grid gap-2">
           {payload.items.map((entry, index) => {
@@ -113,9 +146,9 @@ export function LeaderboardPage() {
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-sm text-slate-100">{displayName}</p>
-                  <p className="text-xs text-slate-400"><UiText text={"Level "} />{entry.level}<UiText text={" &middot; "} />{<UiText text={analystLevelName(entry.level)} />}<UiText text={" &middot; "} />{(entry.liveCalls ?? 0).toLocaleString()}<UiText text={" open &middot; "} />{entry.settledCalls.toLocaleString()}<UiText text={" settled"} /></p>
+                  <p className="text-xs text-slate-400">{SHOW_ANALYST_LEVELS ? <><UiText text={"Level "} />{entry.level}<UiText text={" &middot; "} />{<UiText text={analystLevelName(entry.level)} />}<UiText text={" &middot; "} /></> : null}{(entry.liveCalls ?? 0).toLocaleString()}<UiText text={" open &middot; "} />{entry.settledCalls.toLocaleString()}<UiText text={" settled"} /></p>
                 </div>
-                <p className="text-sm font-semibold text-emerald-200">{scoreText(entry.totalScore)}</p>
+                <p className="text-sm font-semibold text-emerald-200" title={ui(SCORE_EXPLANATION)} aria-describedby="leaderboard-score-explanation"><span className="sr-only"><UiText text={"Score "} /></span>{scoreText(entry.totalScore)}</p>
               </Link>
             );
           })}

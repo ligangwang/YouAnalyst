@@ -1,5 +1,6 @@
 "use client";
 
+import { SHOW_ANALYST_LEVELS } from "@/lib/community";
 import { UiText, useUiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -267,7 +268,7 @@ export function WatchlistDetailPage({
             <Link href={`/analysts/${watchlist.owner.id}`} className="text-sm font-semibold text-cyan-100 hover:text-cyan-50">
               {ownerLabel(watchlist.owner)}
             </Link>
-            <p className="mt-0.5 text-xs text-slate-400"><UiText text={"Level "} />{watchlist.owner.stats.level}<UiText text={" &middot; "} />{watchlist.owner.stats.followersCount.toLocaleString()}<UiText text={" followers &middot; "} />{watchlist.owner.stats.settledCalls.toLocaleString()}<UiText text={" settled calls"} /></p>
+            <p className="mt-0.5 text-xs text-slate-400">{SHOW_ANALYST_LEVELS ? <><UiText text={"Level "} />{watchlist.owner.stats.level}<UiText text={" &middot; "} /></> : null}{watchlist.owner.stats.followersCount.toLocaleString()}<UiText text={" followers &middot; "} />{watchlist.owner.stats.settledCalls.toLocaleString()}<UiText text={" settled calls"} /></p>
           </div>
         </div>
       </section>
