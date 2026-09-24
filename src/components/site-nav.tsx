@@ -132,7 +132,7 @@ function MoreMenu({ admin = false }: { admin?: boolean }) {
   const t = useNavText();
   const showRankings = useRankingsOpen();
   return <details className="relative" onKeyDown={event => { if(event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
-    <summary className="cursor-pointer rounded-lg px-3 py-3 text-sm">{t("More")}</summary>
+    <summary className="flex cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-lg px-1 py-3 text-sm min-[360px]:px-2 sm:px-3 [&::-webkit-details-marker]:hidden">{t("More")}<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg></summary>
     <div className="absolute right-0 z-50 mt-2 grid max-h-[70vh] w-56 overflow-y-auto rounded-xl border border-white/15 bg-slate-950 p-2 shadow-xl" onClick={event => { if((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
       {[...secondaryNavItems.filter(item => showRankings || item.href !== "/leaderboard"), ...(admin ? [{href:"/admin",label:"Admin"}] : [])].map(item => <Link key={item.href} href={item.href} className="rounded-lg px-3 py-3 text-sm text-slate-200 hover:bg-white/10">{t(item.label)}</Link>)}
     </div>
@@ -240,9 +240,12 @@ export function SiteNav() {
           </div>
         </div>
 
-        <nav aria-label={ui("Mobile navigation")} className="mt-2 flex flex-wrap items-center gap-1 text-sm text-slate-200 lg:hidden">
-          {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="whitespace-nowrap rounded-lg px-2 py-3">{t(item.label)}</Link>)}
-          <div className="ml-auto"><MoreMenu admin={showAdminLink} /></div>
+        {/* One line: More stays beside the primary links instead of wrapping; on the narrowest phones the links scroll. */}
+        <nav aria-label={ui("Mobile navigation")} className="mt-1 flex items-center text-sm text-slate-200 lg:hidden">
+          <div className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] min-[360px]:gap-0.5 min-[400px]:gap-1">
+            {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="shrink-0 whitespace-nowrap rounded-lg px-1 py-3 max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
+          </div>
+          <div className="ml-auto shrink-0"><MoreMenu admin={showAdminLink} /></div>
         </nav>
       </div>
       <PreferenceError />

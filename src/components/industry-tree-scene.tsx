@@ -33,6 +33,9 @@ function Scene(props:TreeSceneProps){
   const controls=useRef<CameraControls>(null);
   const groups=useRef(new Map<string,Group>());
   const labels=useRef(new Map<string,HTMLButtonElement>());
+  // Labels mount after the frame that placed them; redraw once they settle so their scale is applied.
+  const labelsSettled=useRef<number|undefined>(undefined);
+  useEffect(()=>()=>window.clearTimeout(labelsSettled.current),[]);
   const particles=useRef(new Map<string,Mesh>());
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
@@ -74,15 +77,28 @@ function Scene(props:TreeSceneProps){
     }
     // Labels extend to the right of their anchors. Reserve their projected width,
     // including on narrow screens, instead of centering only the node spheres.
-    const left=Math.min(...xs)-(props.vertical?Math.max(240,340*1100/size.height):80),right=Math.max(...xs)+Math.max(240,340*1100/size.height);
-    const center=new Vector3((left+right)/2,(Math.min(...ys)+Math.max(...ys))/2,0);
-    const halfW=Math.max(210,(right-left)/2+40),halfH=Math.max(160,(Math.max(...ys)-Math.min(...ys))/2+80);
-    // Fit the complete tree on phones as well. Zoom and pan reveal local detail.
-    const fitWidth=size.width-96;
-    const distance=props.vertical
-      ? Math.max((Math.max(...ys)-Math.min(...ys)+100)/2*size.height/Math.max(100,size.height-84),(Math.max(...xs)-Math.min(...xs)+80)/2*size.height/Math.max(120,fitWidth))/Math.tan(Math.PI/8)*1.05
-      : Math.max(halfH,halfW/(size.width/size.height))/Math.tan(Math.PI/8)*1.18;
-    if(props.vertical)center.x=(Math.min(...xs)+Math.max(...xs))/2;
+    const reach=Math.max(240,340*1100/size.height);
+    const center=new Vector3(0,(Math.min(...ys)+Math.max(...ys))/2,0);
+    const halfH=Math.max(160,(Math.max(...ys)-Math.min(...ys))/2+80);
+    let distance:number;
+    if(props.vertical){
+      // Fit the complete tree on phones as well. Zoom and pan reveal local detail.
+      const fitWidth=size.width-96;
+      distance=Math.max((Math.max(...ys)-Math.min(...ys)+100)/2*size.height/Math.max(100,size.height-84),(Math.max(...xs)-Math.min(...xs)+80)/2*size.height/Math.max(120,fitWidth))/Math.tan(Math.PI/8)*1.05;
+      center.x=(Math.min(...xs)+Math.max(...xs))/2;
+    }else{
+      // The root's label sits left of its node at a fixed pixel size, so its world width depends
+      // on the fitted distance: settle the two together.
+      const rootLabel=fitting.some(n=>n.kind==='root')?(labels.current.get('root')?.offsetWidth||150)+40:0;
+      const branchReach=nodes.some(n=>n.kind==='company')?reach:Math.max(160,220*1100/size.height);
+      let pad=80;distance=0;
+      for(let i=0;i<6;i++){
+        const left=Math.min(...xs)-pad,right=Math.max(...xs)+branchReach;
+        distance=Math.max(halfH,Math.max(210,(right-left)/2+40)/(size.width/size.height))/Math.tan(Math.PI/8)*1.18;
+        center.x=(left+right)/2;
+        pad=Math.max(80,rootLabel*2*distance*Math.tan(Math.PI/8)/size.height);
+      }
+    }
     void c.setLookAt(center.x+distance*(props.vertical?0:.1),center.y,distance,center.x,center.y,0,!reduced.current);
     invalidate();
   },[nodes,props.focus,props.request,props.vertical,size.width,size.height,invalidate]);
@@ -107,6 +123,10 @@ function Scene(props:TreeSceneProps){
           const px=htmlScale*size.height/1100,offset=(target.node.kind==='company'?16:22)*px;
           const dot=target.node.kind==='company'?3+2.4*marketCapScale(target.node.company?.marketCap):12;
           label.style.transform=`translate(${target.position[0]<0?offset+dot/2:-offset-dot/2}px,${-dot/2}px)`;
+        }else if(!props.vertical&&target.node.kind==='branch'){
+          // Collapsed sibling branches sit 72 units apart: grow their labels up to that gap, never past natural size.
+          const gap=72*htmlScale*size.height/1100;
+          label.style.transform=`scale(${Math.min(1,Math.max(htmlScale,gap/34))/htmlScale})`;
         }else label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1):Math.min(1,1/htmlScale)})`;
         if(props.vertical)label.dataset.compact=String(compact);
       }
@@ -132,9 +152,11 @@ function Scene(props:TreeSceneProps){
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
       const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
-      const left=Boolean(props.vertical&&position[0]<0);
+      // In the horizontal tree the root label points away from the layers, so it never covers the middle layer's label.
+      const left=Boolean(props.vertical?position[0]<0:node.kind==='root');
       // Layer pills sit on their limb like knots, so fans of sub-branches never run under a label.
-      const centered=props.vertical&&(node.kind==='root'||node.kind==='layer');
+      // Horizontal layer labels are centred on their node too, between the root's fan and their branches.
+      const centered=props.vertical?node.kind==='root'||node.kind==='layer':node.kind==='layer';
       const capScale=marketCapScale(node.company?.marketCap);
       const look=props.vertical?verticalTreeNodeStyle(node,dim,capScale):{radius:node.company?4*capScale:node.kind==='layer'?12:7,core:dim?.12:1,glow:dim?.01:.08,glowRadius:0};
       const radius=look.radius;
@@ -158,7 +180,7 @@ function Scene(props:TreeSceneProps){
         </>}
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
         {visible&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left&&!centered?styles.labelLeft:undefined}><button
-          ref={el=>{if(el)labels.current.set(node.id,el);else labels.current.delete(node.id);}}
+          ref={el=>{if(el){labels.current.set(node.id,el);window.clearTimeout(labelsSettled.current);labelsSettled.current=window.setTimeout(invalidate,120);}else labels.current.delete(node.id);}}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto',...(node.company?{'--cap':capScale}:{})} as CSSProperties}
           data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
           data-compact={props.vertical&&(node.kind==='company'||node.kind==='branch')?true:undefined}
