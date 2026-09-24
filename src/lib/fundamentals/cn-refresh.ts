@@ -1,7 +1,7 @@
 import type { DocumentData, Firestore } from "firebase-admin/firestore";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { FUNDAMENTALS_COLLECTION } from "./service";
-import { calculateCnMarketCap, combineShareCount, shanghaiDate, shareRefreshDue, sourceFailed, daysBetween, CN_ACTION_CHECK_MAX_AGE_DAYS,
+import { calculateCnMarketCap, combineShareCount, shanghaiDate, shareRefreshDue, sourceFailed, daysBetween, CN_ACTION_CHECK_MAX_AGE_DAYS, CN_UNAVAILABLE_REASONS,
   type CnActionCheck, type CnMarketCap, type CnShareCount } from "./cn-market-cap";
 import { CnSourceError, type CnSources } from "./cn-sources";
 import { createFxReader, readLatestCnPrices } from "./cn-prices";
@@ -13,10 +13,15 @@ const HOUR = 3_600_000;
 const COMPANY_LEASE_MS = 120_000;
 const RETRY_MS = 6 * HOUR;
 const PROVIDER_COOLDOWN_MS = 6 * HOUR;
+// A couple of transient provider failures are tolerated (logged at ERROR, old data
+// kept); more than this, or any write failure or unfinished batch, fails the run.
+export const CN_FAILURE_THRESHOLD = 2;
 type Stored = DocumentData & { cnShares?: CnShareCount | null; cnActions?: CnActionCheck | null; cnOrgId?: string | null };
 export type CnRunOptions = { db: Firestore; log: MaintenanceLog; sources: CnSources; companies: string[]; deadline: number; dryRun?: boolean;
   now?: () => Date; print?: (line: string) => void; blockedHosts?: () => Record<string, string> };
 
+// A validated unavailable outcome; anything else thrown while refreshing is retryable.
+const unavailableError = (reason: string) => Object.assign(new Error(reason), { code: reason, unavailable: CN_UNAVAILABLE_REASONS.has(reason) });
 const blockedCode = (error: unknown) => error instanceof CnSourceError && (error.code === 403 || error.code === 429);
 
 // Per-company lease on the company's own document (never on dry runs).
@@ -41,10 +46,12 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
     companies: companies.length,
     actions: { checked: 0, events: 0, failed: 0, skipped: 0 },
     shares: { refreshed: 0, fresh: 0, unavailable: 0, failed: 0, deferred: 0, skipped: 0 },
-    marketCaps: { processed: 0, estimated: 0, unavailable: 0, failed: 0, lastClose: 0, missingUsd: 0 },
+    marketCaps: { processed: 0, estimated: 0, unavailable: 0, failed: 0, kept: 0, lastClose: 0, missingUsd: 0 },
     failed: 0, sourcesIncomplete: false, blockedHosts: {} as Record<string, string>,
   };
   const docs = new Map<string, Stored>();
+  // Companies whose provider refresh failed this run keep their published valuation.
+  const providerFailed = new Set<string>();
   for (let i = 0; i < companies.length; i += 100) {
     const page = await db.getAll(...companies.slice(i, i + 100).map(id => collection.doc(id)));
     page.forEach(doc => docs.set(doc.id, doc.data() ?? {}));
@@ -78,13 +85,13 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
         if (!orgId) { orgId = await sources.orgId(id); update.cnOrgId = orgId; }
         if (!orgId) throw Object.assign(new Error("cninfo organisation ID not found"), { code: "MISSING_ORG_ID" });
         const check = await sources.actions(id, orgId, today, now);
-        if (sourceFailed(check)) throw Object.assign(new Error(check.reason), { code: check.reason });
+        if (sourceFailed(check)) throw unavailableError(check.reason);
         next.cnActions = update.cnActions = check;
         update.cnActionStatus = { outcome: "ready", lastError: null, checkedAt: now.toISOString() };
         result.actions.checked++; result.actions.events += check.events.length;
         log.emit("INFO", "corporate_actions_checked", { company: id, events: check.events });
       } catch (error) {
-        result.actions.failed++;
+        result.actions.failed++; providerFailed.add(id);
         const details = maintenanceError(error);
         // Keep the last successful check; the market-cap guard expires it after three days.
         update.cnActionStatus = { outcome: "retry", lastError: { code: details.code, message: details.message }, attemptedAt: now.toISOString() };
@@ -100,10 +107,12 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
       else if (cooling("www.cninfo.com.cn")) result.shares.skipped++;
       else try {
         const structure = await sources.structure(id, today);
-        const listing = sourceFailed(structure) ? null : await sources.listing(id, now.toISOString());
+        if (sourceFailed(structure)) throw unavailableError(structure.reason);
+        const listing = await sources.listing(id, now.toISOString());
+        if (sourceFailed(listing)) throw unavailableError(listing.reason);
         const exchangeHost = id.startsWith("XSHG:") ? "query.sse.com.cn" : "www.szse.cn";
         let exchange = null, exchangeStatus = "not_checked";
-        if (!sourceFailed(structure) && !cooling(exchangeHost)) {
+        if (!cooling(exchangeHost)) {
           try {
             const value = await sources.exchange(id, today);
             if (sourceFailed(value)) exchangeStatus = value.reason; else { exchange = value; exchangeStatus = "matched"; }
@@ -112,14 +121,12 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
             exchangeStatus = error instanceof CnSourceError && error.code === "HOST_SKIPPED" ? "unreachable" : `unreachable: ${maintenanceError(error).message}`;
             if (blockedCode(error)) await coolDown(exchangeHost);
           }
-        } else if (cooling(exchangeHost)) exchangeStatus = "provider_cooldown";
-        // A published SSE page that fails our checks is a disagreement, not an outage.
-        if (id.startsWith("XSHG:") && !exchange && !/^unreachable|provider_cooldown/.test(exchangeStatus)) {
-          throw Object.assign(new Error(`SSE cross-check failed: ${exchangeStatus}`), { code: exchangeStatus, unavailable: true });
-        }
-        const count = sourceFailed(structure) ? structure : combineShareCount({ structure, listing: listing && !sourceFailed(listing) ? listing : null,
-          exchange, exchangeStatus, fetchedAt: now.toISOString(), today });
-        if (sourceFailed(count)) throw Object.assign(new Error(count.reason), { code: count.reason, unavailable: true });
+        } else exchangeStatus = "provider_cooldown";
+        // A reachable SSE page that does not parse is a source failure (retry);
+        // a CDR structure is a validated unsupported case (unavailable).
+        if (id.startsWith("XSHG:") && !exchange && !/^unreachable|provider_cooldown/.test(exchangeStatus)) throw unavailableError(exchangeStatus);
+        const count = combineShareCount({ structure, listing, exchange, exchangeStatus, fetchedAt: now.toISOString(), today });
+        if (sourceFailed(count)) throw unavailableError(count.reason);
         next.cnShares = update.cnShares = count;
         update.cnShareStatus = { outcome: "ready", reason: null, refreshReason: due, lastError: null, retryAfter: null, attemptedAt: now.toISOString() };
         result.shares.refreshed++;
@@ -132,13 +139,13 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
           lastError: { code: details.code, message: details.message }, retryAfter: now.getTime() + RETRY_MS, attemptedAt: now.toISOString() };
         next.cnShareStatus = update.cnShareStatus;
         if (unavailable) { result.shares.unavailable++; log.emit("WARNING", "share_count_unavailable", { company: id, reason: details.code }); }
-        else { result.shares.failed++; log.emit("ERROR", "share_count_failed", { company: id, error: details }); }
+        else { result.shares.failed++; providerFailed.add(id); log.emit("ERROR", "share_count_failed", { company: id, error: details }); }
         if (blockedCode(error)) await coolDown((error as CnSourceError).host);
       }
       if (dryRun) docs.set(id, { ...next, ...update });
       else { update.cnLeaseUntil = 0; await collection.doc(id).set(update, { merge: true }); docs.set(id, { ...stored, ...update }); }
     } catch (error) {
-      result.failed++;
+      result.failed++; providerFailed.add(id);
       log.emit("ERROR", "company_failed", { company: id, error: maintenanceError(error) });
     }
   }
@@ -151,6 +158,14 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
   for (const id of companies) {
     try {
       const stored = docs.get(id) ?? {};
+      // A provider failure is not evidence the published valuation is wrong: keep it.
+      if (providerFailed.has(id) && stored.marketCap) {
+        result.marketCaps.kept++;
+        if (dryRun) print(JSON.stringify({ company: id, status: "kept", reason: "provider_failure", shareStatus: stored.cnShareStatus ?? null,
+          published: { status: stored.marketCap.status, value: stored.marketCap.value ?? null, priceDate: stored.marketCap.priceDate ?? null } }));
+        log.emit("WARNING", "market_cap_kept", { company: id, reason: "provider_failure" });
+        continue;
+      }
       const price = prices.get(id);
       const fx = price ? await readFx(price.tradingDate) : null;
       const shareStatus = stored.cnShareStatus as { outcome?: string; reason?: string } | undefined;
@@ -169,6 +184,12 @@ export async function refreshCnFundamentals(options: CnRunOptions) {
     }
   }
   return result;
+}
+
+// Tolerate a couple of transient provider failures; never an unfinished batch or a failed write.
+export function cnRunFailed(result: Awaited<ReturnType<typeof refreshCnFundamentals>>) {
+  const providerFailures = result.failed + result.actions.failed + result.shares.failed;
+  return providerFailures > CN_FAILURE_THRESHOLD || result.marketCaps.failed > 0 || result.sourcesIncomplete;
 }
 
 // One human-readable record per company for spot checks before the first real run.

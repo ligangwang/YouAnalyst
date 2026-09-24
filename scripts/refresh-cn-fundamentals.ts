@@ -3,7 +3,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { loadKnowledgeGraph } from "../src/lib/knowledge-graph/service";
 import { cnMapCompanies, CN_COMPANY_ID } from "../src/lib/knowledge-graph/cn-companies";
 import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";
-import { CN_WORKER_DOC, refreshCnFundamentals } from "../src/lib/fundamentals/cn-refresh";
+import { CN_WORKER_DOC, cnRunFailed, refreshCnFundamentals } from "../src/lib/fundamentals/cn-refresh";
 import { createCnRequester, createCnSources } from "../src/lib/fundamentals/cn-sources";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
@@ -38,9 +38,9 @@ async function main() {
     const result = await refreshCnFundamentals({ db, log, sources: createCnSources(requester), companies, deadline, dryRun,
       blockedHosts: requester.blockedHosts, print: line => console.log(line) });
     if (!dryRun) await lease.set({ lastRunAt: new Date().toISOString(), result }, { merge: true });
-    // Like the SEC job, any provider failure marks the run failed (old data is kept).
-    // Explicitly unavailable data (e.g. a pending corporate action) does not.
-    const failed = result.failed || result.actions.failed || result.shares.failed || result.marketCaps.failed || result.sourcesIncomplete;
+    // Provider/format failures keep old data and exit non-zero above a small
+    // threshold; validated unavailable outcomes (e.g. missing H shares) do not.
+    const failed = cnRunFailed(result);
     log.emit(failed ? "ERROR" : "INFO", "run_completed", result);
     if (failed) throw new Error("A-share fundamentals refresh failed or is incomplete; see run summary");
   } finally {

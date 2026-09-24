@@ -10,8 +10,8 @@ import { calculateCnMarketCap, classifyAnnouncement, combineShareCount, parseCni
   parseCninfoStructure, parseSseShareStructure, parseSzseAShareList, pendingActions, resolveDistributions, selectFx, shareRefreshDue,
   sourceFailed, type CnActionCheck, type CnListing, type CnShareCount, type CninfoStructure } from "../../src/lib/fundamentals/cn-market-cap";
 import { publicCnMarketCap } from "../../src/lib/fundamentals/cn-service";
-import { refreshCnFundamentals } from "../../src/lib/fundamentals/cn-refresh";
-import { CnSourceError, type CnSources } from "../../src/lib/fundamentals/cn-sources";
+import { cnRunFailed, refreshCnFundamentals } from "../../src/lib/fundamentals/cn-refresh";
+import { CnSourceError, createCnRequester, createCnSources, type CnSources } from "../../src/lib/fundamentals/cn-sources";
 import { createMaintenanceLog } from "../../src/lib/maintenance-log";
 
 // Payloads below are trimmed copies of live responses captured on 2026-09-24.
@@ -295,4 +295,67 @@ test("a run that reaches its deadline still recalculates stored valuations and r
     companies: ["XSHG:688981"], deadline: Date.now(), now: () => NOW });
   assert.equal(calls, 0); assert.equal(result.sourcesIncomplete, true);
   assert.equal(result.marketCaps.estimated, 1);
+});
+
+// cninfo answering HTTP 200 with an error body or a changed schema is a source
+// failure: previously published counts and valuations must stay untouched.
+async function runAgainstCninfo(structureBody: unknown, companies: string[]) {
+  const published = calculateCnMarketCap({ id: "XSHG:688981", count: smicCount({ asOf: "2026-09-10" }), check: check(), price: price(40, "2026-09-10"), latestSession: "2026-09-10", fx, now: new Date("2026-09-10T13:30:00Z") });
+  assert.equal(published.status, "estimated");
+  const docs: Record<string, Record<string, unknown>> = {};
+  for (const id of companies) docs[id] = { cnShares: smicCount({ asOf: "2026-09-10" }), cnActions: check(), cnOrgId: "org", marketCap: { ...published } };
+  const before = structuredClone(docs);
+  const { db } = memoryDb(docs, companies.map(id => price(50, "2026-09-25", id)), fxDoc);
+  const fetcher = (async (input: string | URL) => {
+    const url = String(input);
+    const body = url.includes("getStockStructure") ? structureBody : url.includes("hisAnnouncement") ? { announcements: null, hasMore: false } : {};
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  const sources = createCnSources(createCnRequester({ spacingMs: 0, fetcher }));
+  const result = await refreshCnFundamentals({ db, log: createMaintenanceLog("test"), sources, companies, deadline: Date.now() + 600_000, now: () => NOW });
+  return { result, docs, before };
+}
+for (const [label, body] of [
+  ["a 200 error payload", { code: 200, data: { resultMsg: "fail", resultCode: "500", records: null }, msg: "系统繁忙" }],
+  ["a changed schema", cninfo([{ CHANGE_DATE: "2026-09-10", TOTAL_SHARES: 856226.4585, A_SHARES: 254777.5982, H_SHARES: 601448.8603 }])],
+] as const) {
+  test(`cninfo ${label} is a retryable failure that keeps the published valuation and fails the run`, async (t) => {
+    t.mock.method(console, "info", () => {}); t.mock.method(console, "error", () => {}); t.mock.method(console, "warn", () => {});
+    const companies = ["XSHG:688981", "XSHG:688347", "XSHE:000063"];
+    const { result, docs, before } = await runAgainstCninfo(body, companies);
+    assert.equal(result.shares.failed, 3); assert.equal(result.shares.unavailable, 0);
+    assert.equal(result.marketCaps.kept, 3); assert.equal(result.marketCaps.processed, 0);
+    for (const id of companies) {
+      assert.deepEqual(docs[id].marketCap, before[id].marketCap, `${id} keeps its published market cap`);
+      assert.deepEqual(docs[id].cnShares, before[id].cnShares, `${id} keeps its share count`);
+      const status = docs[id].cnShareStatus as { outcome: string; reason: string | null; retryAfter: number; lastError: { code: string } };
+      assert.equal(status.outcome, "retry"); assert.equal(status.reason, null);
+      assert.equal(status.lastError.code, "unrecognized_source_format");
+      assert.ok(status.retryAfter > NOW.getTime());
+    }
+    assert.equal(cnRunFailed(result), true);
+  });
+}
+
+test("a single transient failure is tolerated but still keeps the published valuation", async (t) => {
+  t.mock.method(console, "info", () => {}); t.mock.method(console, "error", () => {}); t.mock.method(console, "warn", () => {});
+  const { result, docs, before } = await runAgainstCninfo({ code: 200, data: { resultMsg: "fail" } }, ["XSHG:688981"]);
+  assert.equal(result.shares.failed, 1);
+  assert.deepEqual(docs["XSHG:688981"].marketCap, before["XSHG:688981"].marketCap);
+  assert.equal(cnRunFailed(result), false);
+  assert.equal(cnRunFailed({ ...result, marketCaps: { ...result.marketCaps, failed: 1 } }), true);
+  assert.equal(cnRunFailed({ ...result, sourcesIncomplete: true }), true);
+});
+
+test("validated outcomes (an H listing without an H-share count) stay unavailable and do not fail the run", async (t) => {
+  t.mock.method(console, "info", () => {}); t.mock.method(console, "error", () => {}); t.mock.method(console, "warn", () => {});
+  const { db } = memoryDb({ "XSHG:600584": { cnShares: smicCount({ asOf: "2026-09-10" }), cnActions: check() } }, [price(50, "2026-09-25", "XSHG:600584")], fxDoc);
+  const sources = fakeSources({ structure: async () => structureOf(jcetStructure), listing: async () => listing("00981"),
+    exchange: async () => { const e = parseSseShareStructure(sse({ TOTAL_DOMESTIC_VOL: "178941.46", A_LIMIT_VOL: "0.00", A_UNLIMIT_VOL: "178941.46" }), ""); assert.ok(!sourceFailed(e)); return e; } });
+  const result = await refreshCnFundamentals({ db, log: createMaintenanceLog("test"), sources, companies: ["XSHG:600584"], deadline: Date.now() + 600_000, now: () => NOW });
+  assert.equal(result.shares.unavailable, 1); assert.equal(result.shares.failed, 0);
+  const stored = (await db.collection("company_fundamentals").doc("XSHG:600584").get()).data() as Record<string, { status?: string; reason?: string; outcome?: string }>;
+  assert.equal(stored.cnShareStatus.outcome, "unavailable");
+  assert.equal(stored.marketCap.status, "unavailable"); assert.equal(stored.marketCap.reason, "h_share_count_unavailable");
+  assert.equal(cnRunFailed(result), false);
 });

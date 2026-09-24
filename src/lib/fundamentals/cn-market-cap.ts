@@ -56,6 +56,12 @@ function decimal(value: unknown): number | null {
 }
 const shares = (value: number, unit: number) => Math.round(value * unit);
 
+// Reasons that are validated facts about the company, not source problems: the
+// payloads parsed and checked out, and they prove the count cannot be used.
+// Every other reason (malformed, changed or error payloads) is a retryable failure.
+export const CN_UNAVAILABLE_REASONS: ReadonlySet<string> = new Set(["h_share_count_unavailable", "b_share_count_unavailable",
+  "exchange_share_count_mismatch", "cdr_share_structure_unsupported"]);
+
 // cninfo share structure (股本结构): data20/stockholderCapital/getStockStructure.
 // Records are newest first, in 10,000 shares (万股) with four decimals, dated by
 // VARYDATE (the day the structure took effect). F003N total, F022N tradable
@@ -65,6 +71,8 @@ export type CninfoStructure = { totalShares: number; aShares: number; aTradableS
 export function parseCninfoStructure(payload: unknown, sourceUrl: string, today: string): Parsed<CninfoStructure> {
   const data = (payload as { code?: unknown; data?: { resultMsg?: unknown; records?: unknown } })?.data;
   if (!data || data.resultMsg !== "success" || !Array.isArray(data.records)) return { reason: "unrecognized_source_format" };
+  // Records without the expected fields mean the schema changed, not that data is missing.
+  if (data.records.length && !(data.records as Record<string, unknown>[]).some(r => "VARYDATE" in r && "F003N" in r)) return { reason: "unrecognized_source_format" };
   const rows = (data.records as Record<string, unknown>[]).filter(r => isoDate(r.VARYDATE) && r.VARYDATE <= today)
     .sort((x, y) => String(y.VARYDATE).localeCompare(String(x.VARYDATE)));
   if (!rows.length) return { reason: "missing_share_structure" };

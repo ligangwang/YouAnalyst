@@ -285,8 +285,10 @@ state. Before enabling it:
 and the last run summary; overlapping executions are rejected and a retry of the
 same Cloud Run task recovers its predecessor's lease. Per-company leases, 1-second
 request spacing, 6-hour retry and provider cooldowns, and kept-on-failure data
-follow the SEC job's design. The run fails when a provider request fails or the
-batch cannot finish; explicitly unavailable companies do not fail it. Filter logs
+follow the SEC job's design. Provider and format failures (including HTTP 200
+error bodies and schema changes) keep the published count and market cap; the
+execution exits non-zero when more than 2 companies fail, a valuation write fails
+or the batch cannot finish. Validated unavailable outcomes never fail it. Filter logs
 with `jsonPayload.job="refresh-cn-fundamentals"` and a `jsonPayload.runId`;
 request failures are `jsonPayload.event="cn_request_failed"`. The Scheduled Jobs
 admin page lists its executions and offers **Run A-share fundamentals now**
