@@ -69,10 +69,14 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
     expect(html).toMatch(new RegExp(`<link[^>]+rel="canonical"[^>]+href="[^"]+/${prefix}"`));
     expect(html).toContain('hrefLang="en"');
     expect(html).toContain('hrefLang="zh-CN"');
-    expect(html).not.toContain(`href="/${prefix}/ticker/NVDA"`);
-    expect(html).not.toContain(`href="/${prefix}/ticker/XSHG:688041"`);
+    // The collapsed company directory ships no company links; research teasers elsewhere on the page may link companies.
+    const directoryLabel = prefix === "en" ? "AI companies and supply chain" : "AI 公司与产业链";
+    const directoryHtml = sectionHtml(html, directoryLabel);
+    expect(directoryHtml).toBeTruthy();
+    expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/NVDA"`);
+    expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/XSHG:688041"`);
     await page.goto(`/${prefix}`);
-    const directory = page.getByRole("region", { name: prefix === "en" ? "AI companies and supply chain" : "AI 公司与产业链", exact: true });
+    const directory = page.getByRole("region", { name: directoryLabel, exact: true });
     await expect(directory.locator("li")).toHaveCount(0);
     await directory.locator("summary").click();
     await expect(directory.locator(`a[href="/${prefix}/ticker/NVDA"]`).first()).toBeVisible({ timeout: 20_000 });
@@ -92,6 +96,20 @@ test("retired filing event API is unavailable", async ({ request }) => {
   expect((await request.get("/api/events")).status()).toBe(404);
   expect((await request.get("/api/events/stream")).status()).toBe(404);
 });
+
+/** The complete `<section aria-label=…>` element, including nested sections, or undefined if absent or unbalanced. */
+function sectionHtml(html: string, label: string) {
+  const open = html.search(new RegExp(`<section\\b[^>]*aria-label="${label}"`));
+  if (open < 0) return undefined;
+  const tags = /<section\b|<\/section>/g;
+  tags.lastIndex = open;
+  let depth = 0;
+  for (let tag = tags.exec(html); tag; tag = tags.exec(html)) {
+    depth += tag[0] === "</section>" ? -1 : 1;
+    if (depth === 0) return html.slice(open, tags.lastIndex);
+  }
+  return undefined;
+}
 
 function savedCompanyHeaders(userToken?: string): Record<string, string> {
   const serviceToken = process.env.PLAYWRIGHT_AUTH_BEARER_TOKEN;
