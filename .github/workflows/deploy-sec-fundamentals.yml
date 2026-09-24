@@ -23,6 +23,12 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
+      # Validate IAM inputs (job name, shared and web app accounts) before
+      # building or changing anything; later steps reuse the resolved account.
+      - name: Check maintenance job IAM inputs
+        run: |
+          web_account="$(bash scripts/lib/maintenance-job-iam.sh --check refresh-sec-fundamentals-production)"
+          echo "WEB_RUNTIME_SERVICE_ACCOUNT=$web_account" >> "$GITHUB_ENV"
       - name: Build fundamentals image
         run: |
           image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/sec-fundamentals:$GITHUB_SHA"

@@ -241,8 +241,11 @@ The shared accounts keep their original directory-sync names for now.
 maintenance runtime account and adds (never removes) the two job-level
 `roles/run.invoker` bindings. The web account comes from the GitHub environment
 variable `WEB_RUNTIME_SERVICE_ACCOUNT`; if unset, it is read from the deployed
-service (`CLOUD_RUN_SERVICE_PRODUCTION`, default `ifindata-web`), and the deploy
-fails before changing anything when neither yields an account. Preview with
+service (`CLOUD_RUN_SERVICE_PRODUCTION`, default `ifindata-web`).
+`bash scripts/lib/maintenance-job-iam.sh --check JOB` validates the job name and
+all three accounts without changing anything; every deploy workflow and script
+runs it before building or updating a job, so a bad input never leaves a
+partially deployed release. Preview the changes with
 `MAINTENANCE_IAM_DRY_RUN=1 bash scripts/lib/maintenance-job-iam.sh JOB`, which
 prints the mutating gcloud commands instead of running them.
 
@@ -256,15 +259,18 @@ prints the mutating gcloud commands instead of running them.
 
 Adding a Cloud Run maintenance job:
 
-1. Deploy it with `--service-account "$maintenance_runtime_account"` after
-   sourcing `scripts/lib/maintenance-job-iam.sh`, and resolve
-   `WEB_RUNTIME_SERVICE_ACCOUNT="$(web_runtime_service_account)"` before deploying.
+1. Source `scripts/lib/maintenance-job-iam.sh`, call
+   `check_maintenance_job_iam "$job"` before any other change, then deploy with
+   `--service-account "$maintenance_runtime_account"`. A workflow that updates the
+   job directly runs `--check` as a step before its build/update.
 2. Call `ensure_maintenance_job_iam "$job"` after the job exists.
 3. Use `--oauth-service-account-email "$maintenance_scheduler_account"` for its
    Cloud Scheduler job.
 4. Pass `WEB_RUNTIME_SERVICE_ACCOUNT` and `CLOUD_RUN_SERVICE_PRODUCTION` from the
-   `production` GitHub environment to its deploy workflow.
-5. Add a case to `tests/deploy/maintenance-job-iam.test.ts` and a row above.
+   `production` GitHub environment to its deploy workflow, with the `--check`
+   step first.
+5. Add cases to `tests/deploy/maintenance-job-iam.test.ts` (including a failed
+   account lookup making no changes) and a row above.
 
 Any other permission the job needs beyond Firestore and logging is a new
 project-level grant on the shared runtime account; ask before adding one.

@@ -7,8 +7,8 @@ job="sync-cni-directory-production"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
 runtime="$maintenance_runtime_account"
 trigger="$maintenance_scheduler_account"
-# Resolve before changing anything so a missing web account fails the deploy early.
-WEB_RUNTIME_SERVICE_ACCOUNT="$(web_runtime_service_account)"
+# Validate the job name and all three accounts before changing anything.
+check_maintenance_job_iam "$job"
 for account in directory-sync-runtime directory-sync-scheduler; do
   gcloud iam service-accounts describe "${account}@${GCP_PROJECT_ID}.iam.gserviceaccount.com" --project "$GCP_PROJECT_ID" >/dev/null 2>&1 ||
     gcloud iam service-accounts create "$account" --project "$GCP_PROJECT_ID"

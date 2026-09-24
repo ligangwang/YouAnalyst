@@ -9,8 +9,11 @@
 # Source it from a deploy script, which may use $maintenance_runtime_account and
 # $maintenance_scheduler_account for `gcloud run jobs deploy` and the scheduler:
 #   source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
+#   check_maintenance_job_iam "$job"   # before changing anything
+#   ...deploy or update the job...
 #   ensure_maintenance_job_iam "$job"
 # or run it directly for an existing job:
+#   bash scripts/lib/maintenance-job-iam.sh --check JOB_NAME   # validate only; prints the web account
 #   bash scripts/lib/maintenance-job-iam.sh JOB_NAME
 #
 # Inputs: GCP_PROJECT_ID (required), GCP_REGION (default us-central1),
@@ -48,9 +51,28 @@ web_runtime_service_account() {
   printf '%s\n' "$account"
 }
 
+# Validates the job name and all three accounts without changing anything, and
+# exports the resolved WEB_RUNTIME_SERVICE_ACCOUNT so later steps reuse it.
+check_maintenance_job_iam() {
+  local job="${1:-}" web account
+  if [[ ! "$job" =~ ^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$ ]]; then
+    echo "ERROR: invalid Cloud Run job name '${job}'." >&2
+    return 1
+  fi
+  for account in "$maintenance_runtime_account" "$maintenance_scheduler_account"; do
+    if [[ ! "$account" =~ ^[a-z][-a-z0-9]*@[a-z][-a-z0-9]*\.iam\.gserviceaccount\.com$ ]]; then
+      echo "ERROR: invalid shared maintenance service account '${account}'; check GCP_PROJECT_ID." >&2
+      return 1
+    fi
+  done
+  web="$(web_runtime_service_account)" || return 1
+  export WEB_RUNTIME_SERVICE_ACCOUNT="$web"
+}
+
 ensure_maintenance_job_iam() {
   local job="${1:?Usage: ensure_maintenance_job_iam JOB_NAME}" web current member
-  web="$(web_runtime_service_account)" || return 1
+  check_maintenance_job_iam "$job" || return 1
+  web="$WEB_RUNTIME_SERVICE_ACCOUNT"
   current="$(gcloud run jobs describe "$job" --project "$GCP_PROJECT_ID" --region "$maintenance_region" \
     --format='value(spec.template.spec.template.spec.serviceAccountName)')" || return 1
   if [[ "$current" != "$maintenance_runtime_account" ]]; then
@@ -66,6 +88,13 @@ ensure_maintenance_job_iam() {
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
-  [[ $# -eq 1 ]] || { echo "Usage: $0 JOB_NAME" >&2; exit 2; }
-  ensure_maintenance_job_iam "$1"
+  if [[ $# -eq 2 && "$1" == "--check" ]]; then
+    check_maintenance_job_iam "$2"
+    echo "Maintenance IAM inputs for $2 are valid; web app account $WEB_RUNTIME_SERVICE_ACCOUNT." >&2
+    printf '%s\n' "$WEB_RUNTIME_SERVICE_ACCOUNT"
+  elif [[ $# -eq 1 && "$1" != -* ]]; then
+    ensure_maintenance_job_iam "$1"
+  else
+    echo "Usage: $0 [--check] JOB_NAME" >&2; exit 2
+  fi
 fi

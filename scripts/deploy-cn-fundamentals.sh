@@ -8,8 +8,8 @@ job="refresh-cn-fundamentals-production"
 source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
 runtime="$maintenance_runtime_account"
 trigger="$maintenance_scheduler_account"
-# Resolve before changing anything so a missing web account fails the deploy early.
-WEB_RUNTIME_SERVICE_ACCOUNT="$(web_runtime_service_account)"
+# Validate the job name and all three accounts before changing anything.
+check_maintenance_job_iam "$job"
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 \
   --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 \
