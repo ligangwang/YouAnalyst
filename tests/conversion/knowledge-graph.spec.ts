@@ -516,6 +516,9 @@ test("company labels keep their placement during rotation and after release",asy
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
  const canvas=page.locator("canvas");
+ // Every <Html> label mounts through its own React root; on a slow runner some are still
+ // mounting after the first appears, and a late label would pop in mid-test with no placement.
+ await expect(page.locator("[data-company-id]")).toHaveCount(layout3D(graph).nodes.length);
  await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
  await canvas.scrollIntoViewIfNeeded();
  const sides=()=>page.locator('[data-company-id]:visible').evaluateAll(els=>els.map(el=>({id:el.getAttribute('data-company-id'),x:Math.sign(parseFloat((el as HTMLElement).style.getPropertyValue('--label-offset-x'))),y:Math.sign(parseFloat((el as HTMLElement).style.getPropertyValue('--label-offset-y')))})));
@@ -529,13 +532,17 @@ test("company labels keep their placement during rotation and after release",asy
  expect(retained.length).toBeGreaterThan(5);
  for(const node of retained)expect(node).toEqual(before.find(b=>b.id===node.id));
  // Let camera damping finish while held, then isolate the release from projection changes.
- await page.waitForTimeout(1000);
+ // Damping can outlast any fixed wait on a slow runner, so wait for camera-controls to sleep.
+ // The two frames guarantee the drag's first camera update (wake) has run before checking.
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await expect(canvas).toHaveAttribute("data-camera","idle",{timeout:10000});
  const held=await sides();
  expect(held.some(node=>!before.some(old=>old.id===node.id))).toBe(true);
  expect(before.some(node=>!held.some(current=>current.id===node.id))).toBe(true);
  for(const node of held.filter(node=>before.some(old=>old.id===node.id)))expect(node).toEqual(before.find(old=>old.id===node.id));
  await page.mouse.up();
  await page.waitForTimeout(1000);
+ await expect(canvas).toHaveAttribute("data-camera","idle");
  expect(await sides()).toEqual(held);
  const hiddenPoints=await page.locator('[data-company-id]').evaluateAll(els=>els.filter(el=>getComputedStyle(el).visibility==='hidden').map(el=>{
    const box=el.parentElement!.getBoundingClientRect();
@@ -545,11 +552,16 @@ test("company labels keep their placement during rotation and after release",asy
  // Raycasting can hit a nearer point or edge in this dense graph. Inspect every
  // exposed candidate, and wait for React/WebGL hover state instead of assuming
  // it has committed after a fixed 80 ms on a busy CI runner.
+ const highlightedIds=()=>page.locator('[data-highlighted="true"]').evaluateAll(els=>els.map(el=>el.getAttribute('data-company-id')).join());
  for(const point of hiddenPoints){
+   const prior=await highlightedIds();
    await page.mouse.move(point.x,point.y);
    const label=page.locator(`[data-company-id="${point.id}"]`);
-   const highlighted = await expect.poll(() => label.getAttribute('data-highlighted'), {timeout:500,intervals:[50,100]}).toBe('true').then(()=>true,()=>false);
-   if(!highlighted)continue;
+   // One pointer move commits its hover in a single render, so the first change is the result.
+   await expect.poll(highlightedIds,{timeout:500,intervals:[50,100]}).not.toBe(prior).catch(()=>{});
+   // Endpoints of a hovered edge are highlighted too, but only a hovered point reveals its
+   // name; require this company to be the sole highlight so an edge hit is skipped.
+   if(await highlightedIds()!==point.id)continue;
    // The reveal is applied by the next demand frame; allow a slow CI frame but still require it.
    await expect.poll(()=>label.evaluate(el=>getComputedStyle(el).visibility),{timeout:10000}).toBe('visible');
    await expect(label).toBeVisible();
