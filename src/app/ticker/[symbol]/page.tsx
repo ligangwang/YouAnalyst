@@ -20,6 +20,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { COMPANY_COLLECTION } from "@/lib/market-companies/model";
 import { publicChinaCompany } from "@/lib/industry-research/china-directory";
 import { ChinaCompanyPage } from "@/components/china-company-page";
+import { loadCnMarketCap } from "@/lib/fundamentals/cn-service";
 import { headers } from "next/headers";
 
 const loadChinaCompany = cache(async (id: string) => {
@@ -91,7 +92,8 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   const chinaId = chinaCompanyId(symbol);
   if (chinaId) {
     if (symbol !== chinaId) permanentRedirect(companyPageUrl(chinaId, "CN_A"));
-    return <ChinaCompanyPage company={await loadChinaCompany(chinaId)} />;
+    const [company, marketCap] = await Promise.all([loadChinaCompany(chinaId), loadCnMarketCap(chinaId)]);
+    return <ChinaCompanyPage company={company} marketCap={marketCap} />;
   }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(`/ticker/${encodeURIComponent(ticker)}`);

@@ -1,0 +1,30 @@
+name: Deploy A-share fundamentals job
+on:
+  workflow_dispatch:
+concurrency:
+  group: deploy-cn-fundamentals-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: us-central1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build fundamentals image
+        run: |
+          image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/sec-fundamentals:$GITHUB_SHA"
+          gcloud builds submit . --project "$GCP_PROJECT_ID" --config cloudbuild.fundamentals.yaml --substitutions "_IMAGE=$image" --suppress-logs
+          echo "FUNDAMENTALS_IMAGE=$image" >> "$GITHUB_ENV"
+      # Creates a new Cloud Scheduler job paused; never executes the worker.
+      - name: Deploy worker and paused schedule without executing maintenance
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: bash scripts/deploy-cn-fundamentals.sh

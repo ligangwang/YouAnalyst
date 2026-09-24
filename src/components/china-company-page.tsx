@@ -11,8 +11,10 @@ import { useLocale } from "./providers/locale-provider";
 import type { ChinaCompany } from "@/lib/industry-research/china";
 import { CompanyResearchPanel } from "./company-research-panel";
 import { CompanyProfileDetails } from "./company-profile-details";
+import { ChinaMarketCap } from "./china-market-cap";
+import type { PublicCnMarketCap } from "@/lib/fundamentals/cn-service";
 
-export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
+export function ChinaCompanyPage({ company, marketCap = null }: { company: ChinaCompany; marketCap?: PublicCnMarketCap | null }) {
   const { text, locale } = useLocale();
   return <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
     <Link href="/companies" className="text-sm text-cyan-200 hover:underline">{text("Search companies", "搜索公司")} →</Link>
@@ -23,6 +25,7 @@ export function ChinaCompanyPage({ company }: { company: ChinaCompany }) {
       <p className="mt-3 text-sm tabular-nums text-slate-400">{company.id.split(":")[1]} · {company.id.startsWith("XSHG:") ? text("Shanghai", "上交所") : text("Shenzhen", "深交所")}</p>
 
     </header>
+    {company.listingStatus !== "PRIVATE" && <ChinaMarketCap data={marketCap} />}
     <CompanyResearchPanel companyId={company.id} />
     <CompanyPosts ticker={company.id} />
     <section id="company-information" className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-6 sm:p-8">

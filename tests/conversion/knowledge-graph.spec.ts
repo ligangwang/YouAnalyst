@@ -524,7 +524,11 @@ test("company labels keep their placement during rotation and after release",asy
  const canvas=page.locator("canvas");
  // Every <Html> label mounts through its own React root; on a slow runner some are still
  // mounting after the first appears, and a late label would pop in mid-test with no placement.
- await expect(page.locator("[data-company-id]")).toHaveCount(layout3D(graph).nodes.length);
+ // Mounting all of them is steady but CPU-bound: ~1.3 s locally, while a shared CI runner
+ // (other worker in a WebGL test) was seen at 0 -> 41 -> 79 of 129 after 5 s. The expect
+ // default (5 s) is a speed limit, not a correctness bound, so allow 20 s; the exact count
+ // is unchanged.
+ await expect(page.locator("[data-company-id]")).toHaveCount(layout3D(graph).nodes.length,{timeout:20_000});
  await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
  await canvas.scrollIntoViewIfNeeded();
  const sides=()=>page.locator('[data-company-id]:visible').evaluateAll(els=>els.map(el=>({id:el.getAttribute('data-company-id'),x:Math.sign(parseFloat((el as HTMLElement).style.getPropertyValue('--label-offset-x'))),y:Math.sign(parseFloat((el as HTMLElement).style.getPropertyValue('--label-offset-y')))})));
@@ -800,6 +804,24 @@ test('three views 3D tree focuses branches, keeps flags and market caps, and sup
  await tree.getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(tree.locator('[data-tree-company]')).toHaveCount(0);
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
+});
+
+test('three views sizes an A-share leaf by its USD market cap and shows the CNY value',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const smicCap={value:120.6e9,currency:'USD' as const,priceDate:'2026-09-25',local:{value:856.2e9,currency:'CNY' as const,rateDate:'2026-09-24'}};
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['XSHG:688981','XSHG:688347'].includes(n.id)).map(n=>n.id==='XSHG:688981'?{...n,marketCap:smicCap}:n)};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ for(const [lang,title] of [['en',/Estimated market cap: ¥856\.2B CNY \(≈ \$120\.6B USD\) · As of 2026-09-25/],['zh-CN',/估算市值: ¥8,562亿 CNY \(≈ \$120\.6B USD\) · 截至 2026-09-25/]] as const){
+  await page.goto(`http://graph.test/map?lang=${lang}&view=tree`);
+  const tree=page.locator('[data-industry-section="horizontal"]');await tree.scrollIntoViewIfNeeded();
+  await tree.locator('[data-tree-node="chips/foundry"]').click();
+  const smic=tree.locator('[data-tree-company="XSHG:688981"]').first(),huahong=tree.locator('[data-tree-company="XSHG:688347"]').first();
+  await expect(smic).toContainText('688981 · $120.6B');
+  await expect(smic).toHaveAttribute('data-cap-scale',String(Math.sqrt(1.206)));
+  await expect(smic).toHaveAttribute('title',title);
+  // A company without a stored estimate keeps the default leaf size.
+  await expect(huahong).toHaveAttribute('data-cap-scale','1');
+ }
 });
 
 test('three views tree remains browsable without WebGL',async({page})=>{
