@@ -802,6 +802,24 @@ test('three views 3D tree focuses branches, keeps flags and market caps, and sup
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
 });
 
+test('three views sizes an A-share leaf by its USD market cap and shows the CNY value',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const smicCap={value:120.6e9,currency:'USD' as const,priceDate:'2026-09-25',local:{value:856.2e9,currency:'CNY' as const,rateDate:'2026-09-24'}};
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['XSHG:688981','XSHG:688347'].includes(n.id)).map(n=>n.id==='XSHG:688981'?{...n,marketCap:smicCap}:n)};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ for(const [lang,title] of [['en',/Estimated market cap: ¥856\.2B CNY \(≈ \$120\.6B USD\) · As of 2026-09-25/],['zh-CN',/估算市值: ¥8,562亿 CNY \(≈ \$120\.6B USD\) · 截至 2026-09-25/]] as const){
+  await page.goto(`http://graph.test/map?lang=${lang}&view=tree`);
+  const tree=page.locator('[data-industry-section="horizontal"]');await tree.scrollIntoViewIfNeeded();
+  await tree.locator('[data-tree-node="chips/foundry"]').click();
+  const smic=tree.locator('[data-tree-company="XSHG:688981"]').first(),huahong=tree.locator('[data-tree-company="XSHG:688347"]').first();
+  await expect(smic).toContainText('688981 · $120.6B');
+  await expect(smic).toHaveAttribute('data-cap-scale',String(Math.sqrt(1.206)));
+  await expect(smic).toHaveAttribute('title',title);
+  // A company without a stored estimate keeps the default leaf size.
+  await expect(huahong).toHaveAttribute('data-cap-scale','1');
+ }
+});
+
 test('three views tree remains browsable without WebGL',async({page})=>{
  await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(this:HTMLCanvasElement,type:string,...args:unknown[]){return type.includes('webgl')?null:Reflect.apply(original,this,[type,...args]);} as typeof original;});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));

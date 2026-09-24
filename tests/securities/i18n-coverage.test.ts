@@ -7,7 +7,7 @@ import { translateUi } from "../../src/lib/i18n/translate";
 
 test("authored static JSX labels have a translation or an explicit language/brand exception", () => {
   const missing: string[] = [];
-  const intentional = new Set(["YouAnalyst", "YouAnalyst.", "TradingView", "SEC EDGAR", "CIK", "English", "EN", "AI", "USD", "UTC", "Pro", "round(", "* tanh(return /", "&mdash;", "&middot;"]);
+  const intentional = new Set(["YouAnalyst", "YouAnalyst.", "TradingView", "SEC EDGAR", "CIK", "English", "EN", "AI", "USD", "CNY", "UTC", "Pro", "round(", "* tanh(return /", "&mdash;", "&middot;"]);
   function scan(directory: string) {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const file = path.join(directory, entry.name);
