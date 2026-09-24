@@ -50,8 +50,10 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     if (next !== view) trackEvent("graph_view_change", {view_mode: next});
   }
   const treeView=view==='tree';
-  // The company card opens in the tree the company was picked in; both trees highlight it.
-  const [cardTree, setCardTree] = useState<"vertical"|"horizontal">("vertical");
+  // The company card opens in the tree the company was picked in; both trees highlight it. A selection
+  // made anywhere else (list, graph, search, links, restored state) opens it in the leading vertical
+  // tree and scrolls it into view, so it is never left below the fold in the lower tree.
+  const [cardHost, setCardHost] = useState<{tree:"vertical"|"horizontal";reveal:boolean}>({tree:"vertical",reveal:true});
   useEffect(() => {
     // Legacy 'vertical' links and preferences open the merged page, whose vertical tree comes first;
     // rewrite them so the URL and the saved preference name the tab that is shown.
@@ -101,7 +103,8 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const company = scoped.nodes.find(n => n.id === selected && n.kind === "COMPANY");
   const relations = company ? scoped.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
   const label = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n?.kind === "STAGE" ? text(n.labels?.en ?? n.label ?? id, n.labels?.["zh-CN"] ?? n.label ?? id) : n ? companyName(n,locale) : id; };
-  function selectCompany(id: string) {
+  function selectCompany(id: string, fromTree?: "vertical"|"horizontal") {
+    setCardHost(fromTree ? {tree:fromTree,reveal:false} : {tree:"vertical",reveal:true});
     setCameraRequest(value=>value+1);
     setSelected(id);
     setSectorFocus("");
@@ -119,6 +122,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     const edge = graph.relationships.find(e => e.id === id); if (!edge || edge.type === "PARTICIPATES_IN") return;
     const nextCompany=reached ?? (selected===edge.source||selected===edge.target?selected:edge.source);
     setSelected(nextCompany);
+    setCardHost({tree:"vertical",reveal:true});
     setSectorFocus("");
     setQuery("");
     changeView("graph");
@@ -169,8 +173,8 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       {/* One industry-structure page: the vertical tree leads, the horizontal tree follows. Selection is shared. */}
       <div hidden={view!=='tree'} className={styles.structureStack}>
-        <IndustryStructure vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>{setCardTree("vertical");selectCompany(id);}} showCard={cardTree==="vertical"} followedIds={follows.ids}/>
-        <IndustryStructure active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>{setCardTree("horizontal");selectCompany(id);}} showCard={cardTree==="horizontal"} followedIds={follows.ids}/>
+        <IndustryStructure vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectCompany(id,"vertical")} showCard={cardHost.tree==="vertical"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
+        <IndustryStructure active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectCompany(id,"horizontal")} showCard={cardHost.tree==="horizontal"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
       </div>
       {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={() => { selectCompany(""); setReset(n => n + 1); }}/></Suspense>}
       </div>

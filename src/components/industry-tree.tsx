@@ -8,7 +8,7 @@ import { TreeCompanyCard } from './tree-company-card';
 import styles from './industry-tree.module.css';
 
 const Scene=lazy(()=>import('./industry-tree-scene'));
-type Props={companies:GraphNode[];selected:string;onSelect:(id:string)=>void;followedIds:string[];active:boolean;vertical?:boolean;showCard?:boolean};
+type Props={companies:GraphNode[];selected:string;onSelect:(id:string)=>void;followedIds:string[];active:boolean;vertical?:boolean;showCard?:boolean;revealCard?:boolean};
 // Both trees share one page, so each one only starts WebGL once it scrolls into view and pauses its
 // render loop while off-screen. Without IntersectionObserver both simply stay live.
 function useOnScreen(active:boolean){
@@ -22,7 +22,7 @@ function useOnScreen(active:boolean){
   },[active]);
   return [ref,state] as const;
 }
-export function IndustryStructure({companies,selected,onSelect,followedIds,active,vertical=false,showCard=true}:Props){
+export function IndustryStructure({companies,selected,onSelect,followedIds,active,vertical=false,showCard=true,revealCard=false}:Props){
   const {text,locale}=useLocale();
   const company=companies.find(c=>c.id===selected);
   const layers=useMemo(()=>industryTree(companies),[companies]);
@@ -47,7 +47,7 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
     <div ref={sceneRef} className={styles.scene} data-industry-tree={vertical?'vertical':'3d'}>
       {active&&seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene paused={!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback}/></Suspense>}
       {unavailable&&<div className={styles.fallback}><p role="alert">{text('3D is unavailable on this device. Browse the same tree below.','此设备暂时无法显示三维场景，可使用下方层级树。')}</p>{layers.map(l=><details key={l.id} open={open.includes(l.id)}><summary onClick={e=>{e.preventDefault();toggle(l.id);}}>{text(l.en,l.zh)} · {l.companies.length}</summary>{l.branches.map(b=><details key={b.id} open={open.includes(b.id)}><summary onClick={e=>{e.preventDefault();toggle(b.id);}}>{text(b.en,b.zh)} · {b.companies.length}</summary>{b.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)}</button>)}</details>)}</details>)}</div>}
-      {active&&showCard&&company&&<TreeCompanyCard key={company.id} company={company} color={layers.find(l=>l.companies.some(c=>c.id===company.id))?.color??'#7dd3fc'} onClose={()=>onSelect('')}/>}
+      {active&&showCard&&company&&<TreeCompanyCard key={company.id} reveal={revealCard} company={company} color={layers.find(l=>l.companies.some(c=>c.id===company.id))?.color??'#7dd3fc'} onClose={()=>onSelect('')}/>}
     </div>
     <footer className={styles.hint}>{text('Click nodes to expand / collapse · Drag to pan · Scroll / pinch to zoom · On touch, swipe up or down to scroll the page','点击节点展开／收起 · 拖动平移 · 双指／滚轮缩放 · 触屏上下滑动可滚动页面')}<span>{text('Energy → Chips → Infrastructure → Models → Applications · Companies can span layers','自底向上：能源 → 芯片 → 基础设施 → 模型 → 应用 · 公司可跨层')}</span></footer>
   </section>;

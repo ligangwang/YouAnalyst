@@ -550,6 +550,8 @@ test("company labels keep their placement during rotation and after release",asy
    const label=page.locator(`[data-company-id="${point.id}"]`);
    const highlighted = await expect.poll(() => label.getAttribute('data-highlighted'), {timeout:500,intervals:[50,100]}).toBe('true').then(()=>true,()=>false);
    if(!highlighted)continue;
+   // The reveal is applied by the next demand frame; allow a slow CI frame but still require it.
+   await expect.poll(()=>label.evaluate(el=>getComputedStyle(el).visibility),{timeout:10000}).toBe('visible');
    await expect(label).toBeVisible();
    expect((await sides()).filter(node=>node.id!==point.id)).toEqual(held);
    revealed=true;break;
@@ -954,6 +956,50 @@ test('three views industry structure stacks the vertical tree above the horizont
  await page.keyboard.press('ArrowRight');await expect(tab('Industry structure')).toHaveAttribute('aria-selected','true');
  await page.keyboard.press('End');await expect(tab('Relationship graph')).toHaveAttribute('aria-selected','true');
  expect(errors).toEqual([]);
+});
+
+test('three views selections made outside the trees open the card in the vertical tree, in view',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const v=page.getByRole('region',{name:'Vertical tree',exact:true}),h=page.getByRole('region',{name:'Horizontal tree',exact:true});
+ const tab=(name:string)=>page.getByRole('tab',{name,exact:true});
+ const pickInHorizontal=async(id:string,name:string)=>{
+  await h.scrollIntoViewIfNeeded();
+  // Each tree keeps its expansion across tab switches; open Chips › compute only if needed.
+  const chips=h.locator('[data-tree-node="chips"]');await expect(chips).toBeVisible();
+  if(await chips.getAttribute('aria-expanded')!=='true')await chips.click();
+  const compute=h.locator('[data-tree-node="chips/compute"]');await expect(compute).toBeVisible();
+  if(await compute.getAttribute('aria-expanded')!=='true')await compute.click();
+  await h.locator(`[data-tree-company="${id}"]`).first().click();
+  // Picking inside a tree keeps the card in that tree.
+  await expect(h.getByRole('dialog')).toContainText(name);await expect(v.getByRole('dialog')).toHaveCount(0);
+ };
+ const expectCardInVerticalTree=async(name:string)=>{
+  await expect(tab('Industry structure')).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('dialog',{name:'Company details'})).toHaveCount(1);
+  const card=v.getByRole('dialog',{name:'Company details'});
+  await expect(card).toContainText(name);
+  await expect(card).toBeInViewport();
+  await expect(h.getByRole('dialog')).toHaveCount(0);
+ };
+ // Company list: pick in the horizontal tree, then select another company in the list.
+ await pickInHorizontal('US:NVDA','NVIDIA');
+ await tab('Company list').click();
+ // On phones the list's own details panel overlays the rows; close it as a user would.
+ await page.getByRole('button',{name:'Clear selection',exact:true}).click();
+ await page.locator('[data-list-company="US:AMD"] button').click();
+ await tab('Industry structure').click();
+ await expectCardInVerticalTree('AMD');
+ // Relationship graph: the same, choosing the company from the graph's company browser.
+ await pickInHorizontal('US:AMD','AMD');
+ await tab('Relationship graph').click();
+ const browser=page.locator('details').filter({has:page.locator('summary',{hasText:'Browse companies'})});
+ await browser.locator('summary').click();
+ await browser.getByRole('button',{name:/NVIDIA/}).click();
+ await tab('Industry structure').click();
+ await expectCardInVerticalTree('NVIDIA');
 });
 
 test('three views legacy vertical links and preferences open the merged industry structure',async({page})=>{
