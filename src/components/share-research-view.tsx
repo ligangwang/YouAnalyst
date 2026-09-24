@@ -10,7 +10,7 @@ export function ShareResearchView() {
   const [manualUrl, setManualUrl] = useState("");
   async function share() {
     const url = new URL(window.location.href);
-    for (const key of [...url.searchParams.keys()]) if (!["company", "relationship", "product", "relation", "event", "q"].includes(key)) url.searchParams.delete(key);
+    for (const key of [...url.searchParams.keys()]) if (!["company", "relationship", "product", "relation", "layer", "stage", "event", "q"].includes(key)) url.searchParams.delete(key);
     try {
       await navigator.clipboard.writeText(url.toString());
       setMessage(text("Link copied", "链接已复制"));
