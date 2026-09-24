@@ -172,10 +172,10 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await page.getByRole("tab", { name: "Company list", exact: true }).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(count);
   await page.getByRole("tab", { name: "Industry structure", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "AI industry chain", exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "Industry structure - vertical", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Vertical tree", exact: true })).toBeVisible();
   await expect(page.locator('[data-industry-tree="vertical"] canvas')).toBeVisible();
-  await expect(page.getByRole("heading", { name: "AI industry chain", exact: true })).toBeVisible();
+  await page.getByRole("heading", { name: "Horizontal tree", exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.locator('[data-industry-tree="3d"] canvas')).toBeVisible();
   await page.getByRole("tab", { name: "Relationship graph", exact: true }).click();
   await page.reload();
   await expect(page.locator('span[role="status"]')).toContainText(`${count} companies`);

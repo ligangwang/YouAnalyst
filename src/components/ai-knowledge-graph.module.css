@@ -178,6 +178,8 @@
 .filterNotice { color:#afc4d8; font-size:13px; }
 .viewContent { min-width:0; }
 .viewContent [hidden] { display:none; }
+.structureStack { display:grid; }
+.structureStack > * + * { border-top:1px solid #26334a; }
 .tableScroll { overflow:auto; max-height: min(75vh,850px); min-height:400px; background:#091420; }
 .companyTable { border-collapse:separate; border-spacing:0; width:100%; text-align:left; font-size:13px; }
 .companyTable caption { text-align:left; padding:16px; color:#9fb6c9; font-size:12px; }
