@@ -266,8 +266,9 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     placeEdges();
 
   });
+  // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
+    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
