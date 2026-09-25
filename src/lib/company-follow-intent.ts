@@ -1,6 +1,11 @@
 import { trackEvent, trackFollowingVisit } from "./analytics";
 import { safeAuthDestination } from "./auth-continuation";
 
+// Count explicit clicks, not auth continuation/replays or successful saves.
+export function trackCompanyFollowIntent() {
+  trackEvent("company_follow_intent", { entry_point: "company_follow_button" });
+}
+
 export function validFollowCompany(id: string): boolean {
   return /^(US:[A-Z0-9.-]{1,16}|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id);
 }

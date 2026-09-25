@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "./providers/locale-provider";
-import { companyFollowSignIn, persistCompanyFollow } from "@/lib/company-follow-intent";
+import { companyFollowSignIn, persistCompanyFollow, trackCompanyFollowIntent } from "@/lib/company-follow-intent";
 
 type Snapshot = { uid: string | null; ids: string[]; ready: boolean; error: boolean };
 const empty: Snapshot = { uid: null, ids: [], ready: false, error: false };
@@ -66,8 +66,9 @@ export function CompanyFollowButton({ companyId }: { companyId: string }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState(false);
   const followed = follows.ids.includes(companyId);
   async function click() {
-    if (!follows.user) { window.location.assign(companyFollowSignIn(companyId, window.location.pathname + window.location.search + window.location.hash)); return; }
+    if (!follows.user) { trackCompanyFollowIntent(); window.location.assign(companyFollowSignIn(companyId, window.location.pathname + window.location.search + window.location.hash)); return; }
     if (!follows.ready) { void follows.refresh(); return; }
+    if (!followed) trackCompanyFollowIntent();
     setBusy(true); setError(false);
     try { await follows.change(companyId, !followed); } catch { setError(true); } finally { setBusy(false); }
   }
