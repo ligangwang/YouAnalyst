@@ -91,7 +91,7 @@ export function discoverFundingLinks(html: string, newsUrl: string, knownUrl: st
   return [...links].sort().slice(0, 30);
 }
 
-export type PrivateCheck = { status: "verified" | "review_required" | "stale" | "unsupported"; checkedAt: string; valuation?: PrivateValuation; candidates: string[]; reason?: string };
+export type PrivateCheck = { status: "verified" | "review_required" | "stale" | "unsupported"; checkedAt: string; valuation?: PrivateValuation; verification?: "source_checked" | "reviewed"; candidates: string[]; reason?: string };
 export async function checkPrivateValuation(id: string, now = Date.now(), get = fetchPrivateSource): Promise<PrivateCheck> {
   const source = privateValuationSources[id]; const checkedAt = new Date(now).toISOString();
   if (!source) return { status: "unsupported", checkedAt, candidates: [], reason: "No reviewed official source configured for this company" };
@@ -104,9 +104,20 @@ export async function checkPrivateValuation(id: string, now = Date.now(), get = 
   try { article = await get(source.valuation.sourceUrl, origin); }
   catch (error) {
     if (!source.newsUrl.endsWith("/rss.xml")) throw error;
-    return { status: "review_required", checkedAt, candidates: [source.valuation.sourceUrl, ...candidates], reason: "Official RSS checked, but the valuation announcement could not be fetched. The previously reviewed value was not reverified." };
+    // The amount was independently reviewed from the official announcement on
+    // reviewedAt. RSS only corroborates the identity/date of that announcement;
+    // it does not verify its valuation amount or renew the financing date.
+    const reviewedEntry = [...news.matchAll(/<item>([\s\S]*?)<\/item>/gi)].some(([, item]) => {
+      const link = item.match(/<link>(.*?)<\/link>/i)?.[1]?.trim().replace(/\/$/, "");
+      const date = Date.parse(item.match(/<pubDate>(.*?)<\/pubDate>/i)?.[1] ?? "");
+      return link === source.valuation.sourceUrl.replace(/\/$/, "") && Number.isFinite(date)
+        && new Date(date).toISOString().slice(0, 10) === source.valuation.valuationDate;
+    });
+    return { status: privateValuationFresh(source.valuation, now) ? "review_required" : "stale", checkedAt,
+      ...(reviewedEntry ? { valuation: source.valuation, verification: "reviewed" as const } : {}),
+      candidates: [source.valuation.sourceUrl, ...candidates], reason: "Official RSS checked; article unavailable. Any displayed amount is the previously reviewed financing valuation, not newly verified by this check." };
   }
   if (!plainSource(article).includes(plainSource(source.evidence))) return { status: "review_required", checkedAt, candidates: [source.valuation.sourceUrl], reason: "Reviewed valuation passage changed or could not be verified" };
-  return { status: !privateValuationFresh(source.valuation, now) ? "stale" : candidates.length ? "review_required" : "verified", checkedAt, valuation: source.valuation, candidates,
+  return { status: !privateValuationFresh(source.valuation, now) ? "stale" : candidates.length ? "review_required" : "verified", checkedAt, valuation: source.valuation, verification: "source_checked", candidates,
     ...(candidates.length ? { reason: "Funding links found on official news index; review dates and terms before replacing the reviewed valuation" } : {}) };
 }

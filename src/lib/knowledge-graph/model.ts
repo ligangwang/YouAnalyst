@@ -1,9 +1,11 @@
 import type { CompanyListing } from "../market-companies/identity";
+import type { PrivateValuation } from "../fundamentals/private-valuations";
+export type GraphPrivateValuation = PrivateValuation & { verification: "source_checked" | "reviewed"; reviewPending: boolean };
 export type Market = "US" | "CN_A" | "GLOBAL";
 // `value` is always USD so map sizing is comparable across markets; A-shares also
 // carry the CNY value and the FX rate date used for the conversion.
 export type GraphMarketCap = { value: number; currency: "USD"; priceDate: string; local?: { value: number; currency: "CNY"; rateDate: string } };
-export type GraphNode = { marketCap?: GraphMarketCap; id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; names?: Partial<Record<"en" | "zh-CN", string>>; aliases?: string[]; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; sourceIds?: string[] };
+export type GraphNode = { privateValuation?: GraphPrivateValuation; marketCap?: GraphMarketCap; id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; names?: Partial<Record<"en" | "zh-CN", string>>; aliases?: string[]; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; sourceIds?: string[] };
 export type GraphFact = { verificationStatus?: "CONFIRMED" | "PENDING" | "TERMINATED"; id?: string; state: string; scope: string; sourceIds: string[]; limitation?: string; reviewedAt?: string; eventDate?: string };
 export type GraphEdge = { publishedAt?: string; researchReviewedAt?: string; facts?: GraphFact[]; id: string; source: string; target: string; type: string; summary: string; sourceIds: string[]; commercialStatus: string };
 export type GraphSource = { id: string; title: string; url: string; sourceDate: string | null };
