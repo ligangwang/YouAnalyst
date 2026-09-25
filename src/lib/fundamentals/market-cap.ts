@@ -13,7 +13,7 @@ const date = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}
   && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0,10) === v;
 
 export function assessShares(facts: CompanyFacts, ticker: string, tickers: unknown, form: string, today = new Date().toISOString().slice(0,10)): ShareAssessment {
-  const unavailable = (reason: string): ShareAssessment => ({basis:null,reason,version:2});
+  const unavailable = (reason: string): ShareAssessment => ({basis:null,reason,version:3});
   // Companyfacts aggregates entity-wide data, not ADR ratios or share-class prices.
   const foreign = form !== "10-K";
   const listing = foreign ? verifiedForeignListings[ticker] : undefined;
@@ -34,7 +34,7 @@ export function assessShares(facts: CompanyFacts, ticker: string, tickers: unkno
     const laterSplit = Object.entries(facts.facts?.["us-gaap"] ?? {}).filter(([name])=>/StockSplit|StockSplits/.test(name))
       .some(([,concept])=>Object.values(concept.units ?? {}).flat().some(r=>date(r.end) && r.end > reviewed.date && r.end <= today));
     if (laterSplit) return unavailable("split_requires_updated_share_count");
-    return {basis:{...reviewed,listing},reason:null,version:2};
+    return {basis:{...reviewed,listing},reason:null,version:3};
   }
   if (!candidates.length) return unavailable("missing_outstanding_shares");
   const latest = candidates[0];
@@ -46,7 +46,7 @@ export function assessShares(facts: CompanyFacts, ticker: string, tickers: unkno
   if (split) return unavailable("split_requires_updated_share_count");
   return {basis:{shares:latest.val as number,date:latest.end!,filed:latest.filed!,tag:latest.tag,
     ...(listing ? {listing} : {}),
-    sourceUrl:`https://www.sec.gov/Archives/edgar/data/${Number(facts.cik)}/${latest.accn!.replaceAll("-", "")}/${latest.accn}-index.html`},reason:null,version:2};
+    sourceUrl:`https://www.sec.gov/Archives/edgar/data/${Number(facts.cik)}/${latest.accn!.replaceAll("-", "")}/${latest.accn}-index.html`},reason:null,version:3};
 }
 
 export function calculateMarketCap(assessment: ShareAssessment | undefined, price: Record<string, unknown> | undefined, ticker: string, now = new Date()): MarketCap {
@@ -58,7 +58,8 @@ export function calculateMarketCap(assessment: ShareAssessment | undefined, pric
   const basis = assessment?.basis;
   if (!basis) return result;
   if (basis.date > price.tradingDate) return {...result,reason:"share_count_newer_than_price"};
-  if (now.getTime()-Date.parse(basis.date) > 180*86_400_000) return {...result,reason:"stale_share_count"};
+  // Annual disclosures remain eligible through 365 days after observation.
+  if (now.getTime()-Date.parse(basis.date) > 365*86_400_000) return {...result,reason:"stale_share_count"};
   const ratio = basis.listing?.ordinarySharesPerUnit ?? 1;
   if (basis.listing) {
     const verified = verifiedForeignListings[ticker];

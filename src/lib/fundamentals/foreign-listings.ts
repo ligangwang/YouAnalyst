@@ -10,9 +10,11 @@ export type VerifiedForeignListing = {
 export type ReviewedShareCount = { shares: number; date: string; filed: string; sourceUrl: string; tag: string };
 
 // Point-in-time observations from disclosures that are absent from companyfacts.
-// These are NOT perpetual overrides: the normal 180-day freshness check applies.
+// These are NOT perpetual overrides: the normal 365-day freshness check applies.
 // Preserve the actual observation date, never the date this file was edited.
 export const reviewedForeignShareCounts: Readonly<Record<string, ReviewedShareCount>> = {
+  BIDU: {shares:2_197_993_760+524_020_320,date:"2025-12-31",filed:"2026-03-17",tag:"reviewed:class_a_plus_b_outstanding",
+    sourceUrl:"https://www.sec.gov/Archives/edgar/data/1329099/000119312526109289/R1.htm"},
   ASML: {shares:384_100_000,date:"2026-06-28",filed:"2026-07-15",tag:"reviewed:outstanding_shares_millions",
     sourceUrl:"https://www.sec.gov/Archives/edgar/data/937966/000162828026048235/statutoryinterimreport20.htm"},
   BABA: {shares:19_884_988_918,date:"2026-08-31",filed:"2026-09-04",tag:"reviewed:issued_shares_excluding_treasury",

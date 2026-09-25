@@ -20,16 +20,19 @@ scaling, and class composition are retained in each saved assessment. ASML's cou
 is reported in millions and TSM's in thousands; their caps remain estimates.
 These observations require periodic source review; deployment or a worker rerun
 does not update their dates. Newer approved SEC facts replace them. The existing
-180-day expiry and split checks apply to all observations, including the backfill.
+365-day expiry and split checks apply to all SEC share observations, including the
+backfill. The age is measured from the share observation date, not filing or import.
 
 Read-only replay of SEC data retrieved on 2026-09-25 produced usable share bases for
 ARM, ASML, BABA, GFS, NBIS, TAL, TSM and VNET. BABA's August monthly return and
-VNET's September disclosure replace the older March observations. BIDU and GDS
-remain unavailable: their current entity-wide eligible counts have not been verified.
+VNET's September disclosure replace the older March observations. BIDU now uses
+its 2025 annual-report cover: 2,197,993,760 Class A + 524,020,320 Class B shares,
+as of 2025-12-31, filed 2026-03-17. This dated estimate is eligible under the
+365-day limit. GDS remains unavailable pending verification of its eligible count.
 Do not clear those statuses using weighted averages or totals mixing dates/classes.
 
 After deployment, run **Deploy SEC fundamentals job** to update the worker image
 if it has not already been deployed, then run SEC fundamentals maintenance.
-Version 2 assessments make the batch upgrade existing foreign assessments once;
+Version 3 assessments make the batch upgrade existing foreign assessments once;
 retry cooldowns remain in force. Inspect per-ticker `market_cap_calculated` logs
 and `marketCap.reason`, not just the job's overall success status.

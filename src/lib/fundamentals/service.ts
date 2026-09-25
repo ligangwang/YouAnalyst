@@ -7,7 +7,7 @@ export const FUNDAMENTALS_COLLECTION = "company_fundamentals";
 export const validFundamentalsTicker = (ticker: string) => /^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker);
 type Database = ReturnType<typeof getAdminFirestore>;
 export const needsShareMetadataUpgrade = (stored?: DocumentData) => Boolean(stored?.value
-  && (!stored.value.shareAssessment || (stored.value.report?.form === "20-F" && stored.value.shareAssessment.version !== 2))
+  && (!stored.value.shareAssessment || (stored.value.report?.form === "20-F" && stored.value.shareAssessment.version !== 3))
   && (!stored.outcome || stored.outcome === "ready"));
 
 // The existing cache document doubles as a durable, deduplicated request record.

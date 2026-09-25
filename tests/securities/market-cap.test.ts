@@ -41,6 +41,24 @@ test("verified ADS ratios divide ordinary share counts, including TAL's three AD
  }
 });
 
+test("share counts are eligible through 365 days and expire immediately afterward",()=>{
+ const a={...assessment(),basis:{...assessment().basis!,date:"2025-09-25"}};
+ const p={...price,tradingDate:"2026-09-25"};
+ assert.equal(calculateMarketCap(a,p,"ABC",new Date("2026-09-25T00:00:00Z")).value,25000);
+ assert.equal(calculateMarketCap(a,p,"ABC",new Date("2026-09-25T00:00:00.001Z")).reason,"stale_share_count");
+});
+
+test("Baidu's annual cover totals support a dated ADS-adjusted estimate",()=>{
+ const f:CompanyFacts={cik:1329099,facts:{}};
+ const a=assessShares(f,"BIDU",["BIDU"],"20-F","2026-09-25");
+ assert.equal(a.basis?.shares,2_722_014_080);
+ assert.equal(a.basis?.date,"2025-12-31");
+ assert.equal(assessShares(f,"BIDU",["BIDU"],"20-F","2026-03-16").basis,null);
+ const cap=calculateMarketCap(a,{...price,ticker:"BIDU",close:100},"BIDU",new Date("2026-09-25"));
+ assert.equal(cap.value,34_025_176_000);
+ assert.equal(calculateMarketCap(a,{...price,ticker:"BIDU"},"BIDU",new Date("2027-01-01")).reason,"stale_share_count");
+});
+
 test("foreign facts use audited outstanding concepts, permit known secondary symbols and reject wrong identities",()=>{
  const listing=verifiedForeignListings.BABA;
  const f:CompanyFacts={cik:listing.cik,facts:{dei:{EntityCommonStockSharesOutstanding:{units:{shares:[{...row,end:"2026-09-01",filed:"2026-09-05",form:"20-F",val:100}]}}},"us-gaap":{CommonStockSharesOutstanding:{units:{shares:[{...row,end:"2026-09-01",filed:"2026-09-05",form:"20-F"}]}}}}};
@@ -59,7 +77,7 @@ test("reviewed disclosures keep dates, exclude treasury, expire, and yield to ne
  const a=assessShares(f,"NBIS",["NBIS"],"20-F","2026-09-25");
  assert.equal(a.basis?.shares,271855218);
  assert.equal(a.basis?.date,"2026-06-30");
- assert.equal(calculateMarketCap(a,{...price,ticker:"NBIS"},"NBIS",new Date("2027-01-01")).reason,"stale_share_count");
+ assert.equal(calculateMarketCap(a,{...price,ticker:"NBIS"},"NBIS",new Date("2027-07-01")).reason,"stale_share_count");
  assert.equal(assessShares(f,"NBIS",["NBIS"],"20-F","2026-08-01").basis,null);
  f.facts={"us-gaap":{CommonStockSharesOutstanding:{units:{shares:[{...row,form:"6-K"}]}}}};
  assert.equal(assessShares(f,"NBIS",["NBIS"],"20-F","2026-09-25").basis?.shares,1000);
@@ -73,8 +91,9 @@ test("reviewed disclosures keep dates, exclude treasury, expire, and yield to ne
 test("foreign share metadata refreshes once after deployment, without bypassing retry backoff",()=>{
  const stored={value:{report:{form:"20-F"},shareAssessment:{basis:null,reason:"foreign_listing_requires_verified_share_ratio"}},outcome:"ready"};
  assert(needsShareMetadataUpgrade(stored));
+ assert(needsShareMetadataUpgrade({...stored,value:{...stored.value,shareAssessment:{...stored.value.shareAssessment,version:2}}}));
  assert(!needsShareMetadataUpgrade({...stored,outcome:"retry"}));
- assert(!needsShareMetadataUpgrade({...stored,value:{...stored.value,shareAssessment:{...stored.value.shareAssessment,version:2}}}));
+ assert(!needsShareMetadataUpgrade({...stored,value:{...stored.value,shareAssessment:{...stored.value.shareAssessment,version:3}}}));
 });
 
 test("cached foreign ratios cannot transfer to a different symbol or bypass ratio verification",()=>{
