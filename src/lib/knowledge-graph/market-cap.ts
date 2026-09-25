@@ -8,9 +8,13 @@ function compact(value: number, symbol: string) {
   const unit = value >= 1e12 ? [1e12, "T"] as const : value >= 1e9 ? [1e9, "B"] as const : [1e6, "M"] as const;
   return symbol + new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value / unit[0]) + unit[1];
 }
+export function currencyValueLabel(value: number, currency: "USD" | "EUR"): string {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return compact(value, currency === "USD" ? "$" : "€");
+}
 export function marketCapLabel(cap?: GraphMarketCap): string {
   if (!cap || !Number.isFinite(cap.value) || cap.value <= 0) return "";
-  return compact(cap.value, "$");
+  return currencyValueLabel(cap.value, "USD");
 }
 // 亿 (1e8) and 万亿 (1e12) are the units Chinese readers expect for CNY values.
 export function cnyLabel(value: number, locale: string): string {
