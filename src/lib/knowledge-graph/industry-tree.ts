@@ -36,7 +36,7 @@ export function industryTree(companies:GraphNode[]):TreeLayer[] {
     return {...layer,branches,companies:[...new Map(branches.flatMap(b=>b.companies).map(c=>[c.id,c])).values()]};
   });
 }
-export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company';label:string;color:string;position:[number,number,number];company?:GraphNode;count?:number;span?:[number,number]};
+export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company';label:string;color:string;position:[number,number,number];company?:GraphNode;count?:number;span?:[number,number];stem?:number};
 export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,locale:string):TreePoint[] {
   const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;
   const nodes:TreePoint[]=[{id:'root',kind:'root',label:locale==='zh-CN'?'AI 产业链':'AI industry chain',color:'#8be8ff',position:[-540,0,0]}];
@@ -46,7 +46,8 @@ export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,l
     const expanded=open.has(layer.id);
     // Each child owns a vertical interval sized to its visible descendants.
     // Siblings share one column; opening a subtree pushes adjacent layers away.
-    const heights=expanded?layer.branches.map(b=>open.has(b.id)?Math.max(140,b.companies.length*92+40):140):[];
+    // A collapsed branch is one label tall, so a tree opened one level deep stays compact enough to read.
+    const heights=expanded?layer.branches.map(b=>open.has(b.id)?Math.max(140,b.companies.length*92+40):72):[];
     const height=Math.max(135,heights.reduce((a,b)=>a+b,0)+60);
     const top=bottom+height;
     nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[-240,bottom+height/2,0],count:layer.companies.length});

@@ -1158,5 +1158,13 @@
   "Calculation details": "计算详情",
   "Latest cached closing price × SEC reported shares outstanding.": "最新缓存收盘价 × SEC 披露的流通在外股份总数。",
   "Share count as of": "股份数量截至",
-  "A supported share count and cached closing price are required.": "需要可用的股份数量和缓存收盘价。"
+  "A supported share count and cached closing price are required.": "需要可用的股份数量和缓存收盘价。",
+  "Rankings are coming soon": "排行榜即将开放",
+  "Individual calls stay visible on company pages and in Investment ideas.": "每条观点仍会显示在公司页面和“投资观点”中。",
+  "Browse investment ideas": "浏览投资观点",
+  "How scores work": "得分计算方式",
+  "Score": "得分",
+  "Score: each public call is scored from −1000 to +1000 on its return since entry (1000 × tanh(return ÷ 30%)). An analyst's score averages those call scores, adjusts for win rate, and is scaled down until they have about 10 calls. Open and settled calls both count.": "得分说明：每条公开观点按建仓以来的收益计分，范围为 −1000 至 +1000（1000 × tanh(收益 ÷ 30%)）。分析师得分为各条观点得分的平均值，并按胜率调整；观点数量不足约 10 条时会按比例折减。进行中和已结算的观点都会计入。",
+  "Company search": "公司搜索",
+  "Search any listed company by name or ticker, or start from a company on the AI map.": "按名称或股票代码搜索上市公司，或从 AI 图谱中的公司开始。"
 }

@@ -1,5 +1,6 @@
 import { loadKnowledgeGraph } from "../knowledge-graph/service";
 import { usMapTickers } from "../knowledge-graph/us-companies";
+import { cnMapCompanies } from "../knowledge-graph/cn-companies";
 import { predictionInstrument, type PredictionMarket } from "./instrument";
 
 export async function loadEodPriceUniverse(input: {
@@ -7,13 +8,15 @@ export async function loadEodPriceUniverse(input: {
 }, loadGraph = loadKnowledgeGraph) {
   const base = input.manualTickers.length ? input.manualTickers : input.predictionTickers;
   let mapTickers: string[] = [];
-  // Explicit manual repairs keep their requested scope. Every ordinary US price
-  // run includes the full live map, independently of prediction pagination.
-  if (input.market === "US" && input.loadPrices && !input.manualTickers.length) {
-    mapTickers = usMapTickers(await loadGraph());
-    if (!mapTickers.length) throw new Error("No US map companies found; refusing to skip EOD map coverage");
-    const invalid = mapTickers.filter(ticker => predictionInstrument(ticker)?.market !== "US");
-    if (invalid.length) throw new Error(`Unsupported US map price symbols: ${invalid.join(", ")}`);
+  // Explicit manual repairs keep their requested scope. Every ordinary price run
+  // includes the market's full live map, independently of prediction pagination
+  // (A-share market caps are calculated from these stored closes).
+  if (input.loadPrices && !input.manualTickers.length) {
+    const graph = await loadGraph();
+    mapTickers = input.market === "US" ? usMapTickers(graph) : cnMapCompanies(graph);
+    if (!mapTickers.length) throw new Error(`No ${input.market} map companies found; refusing to skip EOD map coverage`);
+    const invalid = mapTickers.filter(ticker => predictionInstrument(ticker)?.market !== input.market);
+    if (invalid.length) throw new Error(`Unsupported ${input.market} map price symbols: ${invalid.join(", ")}`);
   }
   return { requestedTickers: [...new Set([...base, ...mapTickers].map(t => t.trim().toUpperCase()).filter(Boolean))].sort(), mapTickers };
 }

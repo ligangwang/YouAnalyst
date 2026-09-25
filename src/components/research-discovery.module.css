@@ -20,3 +20,10 @@
 .share input { display: block; max-width: 100%; width: 440px; margin-top: 8px; color: #e7f2fa; background: #102b3b; padding: 8px; }
 @media(max-width:700px) { .grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .section { margin: 16px 8px; padding: 16px; } }
 @media(max-width:420px) { .grid { grid-template-columns: 1fr; } }
+.dives { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,420px),1fr)); gap: 16px; }
+.dive { padding: 16px; border: 1px solid #254455; border-radius: 12px; min-width: 0; }
+.dive h3 { font-size: 1.15rem; margin: 0 0 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 10px 0; }
+.chips li { padding: 3px 8px; border: 1px solid #3d6577; border-radius: 999px; font-size: .85rem; }
+.sources { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; font-size: .9rem; }
+.card { min-width: 0; overflow-wrap: anywhere; }

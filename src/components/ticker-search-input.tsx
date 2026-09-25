@@ -23,6 +23,7 @@ type TickerSearchInputProps = {
   value: string;
   onChange: (value: string) => void;
   onSelectSuggestion?: (item: SearchSuggestion) => void;
+  onResults?: (query: string, items: SearchSuggestion[]) => void;
   error?: string | null;
   hideLabel?: boolean;
   label?: string;
@@ -53,6 +54,7 @@ export function TickerSearchInput({
   value,
   onChange,
   onSelectSuggestion,
+  onResults,
   error,
   hideLabel = false,
   label = "Ticker",
@@ -63,6 +65,14 @@ export function TickerSearchInput({
   const ui = useUiText();
   const listboxId = useId();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // The value a chosen suggestion wrote into the input. Searching it again would reopen the list
+  // over the form's submit button, so the next tap would pick the suggestion instead of submitting.
+  const chosenQuery = useRef<string | null>(null);
+  const onResultsRef = useRef(onResults);
+  useEffect(() => {
+    onResultsRef.current = onResults;
+  });
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -71,7 +81,7 @@ export function TickerSearchInput({
   const query = value.trim().replace(/^\$/, "");
 
   useEffect(() => {
-    if (query.length === 0) {
+    if (query.length === 0 || chosenQuery.current === query) {
       return;
     }
 
@@ -89,6 +99,7 @@ export function TickerSearchInput({
             throw new Error(payload.error ?? "Unable to search tickers.");
           }
           setSuggestions(payload.items ?? []);
+          onResultsRef.current?.(query, payload.items ?? []);
           setOpen(true);
           setActiveIndex(-1);
         })
@@ -127,10 +138,13 @@ export function TickerSearchInput({
   }, []);
 
   function selectSuggestion(item: SearchSuggestion) {
-    onChange(item.market === "CN_A" ? item.id : item.symbol);
+    const nextValue = item.market === "CN_A" ? item.id : item.symbol;
+    chosenQuery.current = nextValue.trim().replace(/^\$/, "");
+    onChange(nextValue);
     onSelectSuggestion?.(item);
     setOpen(false);
     setActiveIndex(-1);
+    inputRef.current?.focus();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -180,10 +194,12 @@ export function TickerSearchInput({
         {ui(label)}
       </label>
       <input
+        ref={inputRef}
         id="ticker-search"
         value={value}
         onChange={(event) => {
           const nextValue = normalizeTypedTicker(event.target.value);
+          chosenQuery.current = null;
           onChange(nextValue);
           if (nextValue.trim().length === 0) {
             setSuggestions([]);
@@ -230,6 +246,8 @@ export function TickerSearchInput({
               role="option"
               aria-selected={activeIndex === index}
               onMouseEnter={() => setActiveIndex(index)}
+              // Keep focus in the input so Enter still submits after a pointer choice.
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => selectSuggestion(item)}
               className={`grid w-full gap-0.5 px-3 py-2 text-left text-sm ${
                 activeIndex === index ? "bg-cyan-500/15" : "hover:bg-white/5"

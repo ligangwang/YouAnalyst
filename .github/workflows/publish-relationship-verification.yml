@@ -1,0 +1,126 @@
+name: Publish reviewed relationship verification
+# Two separate runs. A dry run plans every change read-only and uploads the preview with its SHA-256.
+# After reviewing that run's summary and any BLOCKED links, dispatch `write` with the dry run's run ID
+# and SHA-256. The write only publishes that exact preview and runs behind the production
+# environment's required reviewers.
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: dry-run (read-only preview) or write (publish a reviewed dry run)
+        type: choice
+        options: [dry-run, write]
+        default: dry-run
+        required: true
+      preview_run_id:
+        description: "write only: run ID of the reviewed dry run"
+        type: string
+        required: false
+      preview_sha256:
+        description: "write only: preview SHA-256 shown in that dry run's summary"
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: global-ai-research-publication
+  cancel-in-progress: false
+jobs:
+  dry-run:
+    if: github.ref == 'refs/heads/main' && inputs.operation == 'dry-run'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test tests/relationship-verification.test.ts tests/compute-research.test.ts tests/global-research.test.ts
+      - run: npx tsx scripts/publish-relationship-verification.ts --validate
+      - name: Check source links (BLOCKED links must be opened manually before approving a write)
+        run: |
+          set -o pipefail
+          npx tsx scripts/publish-relationship-verification.ts --check-links | tee relationship-verification-links.txt
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - run: npx tsx scripts/publish-relationship-verification.ts --dry-run
+      - name: Summarise the preview
+        run: |
+          set -euo pipefail
+          {
+            echo "Preview SHA-256: \`$(sha256sum relationship-verification-preview.json | cut -d' ' -f1)\` (run ID \`${GITHUB_RUN_ID}\`)"
+            echo
+            echo "To publish exactly this preview, dispatch this workflow with operation \`write\` and these two values."
+            echo
+            cat relationship-verification-summary.md
+            echo
+            echo '## Source links'
+            echo '```'
+            cat relationship-verification-links.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: relationship-verification-preview
+          path: |
+            relationship-verification-preview.json
+            relationship-verification-summary.md
+            relationship-verification-links.txt
+          if-no-files-found: error
+
+  write:
+    if: github.ref == 'refs/heads/main' && inputs.operation == 'write'
+    runs-on: ubuntu-latest
+    # Required reviewers on the production environment approve this job before it starts.
+    environment: production
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      PREVIEW_RUN_ID: ${{ inputs.preview_run_id }}
+      PREVIEW_SHA256: ${{ inputs.preview_sha256 }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Require a successful dry run of this workflow on main
+        run: |
+          set -euo pipefail
+          [[ "$PREVIEW_RUN_ID" =~ ^[0-9]+$ && "$PREVIEW_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "preview_run_id and preview_sha256 are required for write" >&2; exit 1; }
+          run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${PREVIEW_RUN_ID}" --jq '[.path, .head_branch, .event, .conclusion] | join(" ")')"
+          [[ "$run" == ".github/workflows/publish-relationship-verification.yml main workflow_dispatch success" ]] || { echo "Run ${PREVIEW_RUN_ID} is not a successful dry run of this workflow on main: $run" >&2; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsx --test tests/relationship-verification.test.ts tests/compute-research.test.ts tests/global-research.test.ts
+      - run: npx tsx scripts/publish-relationship-verification.ts --validate
+      - uses: actions/download-artifact@v4
+        with:
+          name: relationship-verification-preview
+          run-id: ${{ inputs.preview_run_id }}
+          github-token: ${{ github.token }}
+      - name: Refuse any preview other than the reviewed one
+        run: echo "${PREVIEW_SHA256}  relationship-verification-preview.json" | sha256sum --check --strict
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      # Re-plans in one transaction and refuses if the batch, identities, company records or any relationship changed.
+      - run: npx tsx scripts/publish-relationship-verification.ts --write
+      - run: cat relationship-verification-written.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: relationship-verification-result
+          path: |
+            relationship-verification-written.json
+            relationship-verification-written.md
+          if-no-files-found: ignore

@@ -1,6 +1,7 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { KnowledgeGraph } from "./model";
 import { graphFromMarket, RELATIONSHIP_COLLECTION, type MarketCompany, type MarketRelationship } from "./market-store";
+import { attachCnMarketCaps } from "./cn-market-caps";
 let cached: { graph: KnowledgeGraph; expires: number; revision: string } | undefined;
 let pending: { promise: Promise<KnowledgeGraph>; revision: string } | undefined;
 export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
@@ -45,6 +46,11 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
       }
     } catch (error) {
       console.error("Graph market cap summaries unavailable", error);
+    }
+    try {
+      await attachCnMarketCaps(db, graph);
+    } catch (error) {
+      console.error("A-share market cap summaries unavailable", error);
     }
     if (!graph.nodes.some(n => n.kind === "COMPANY")) throw new Error("Graph company directory unavailable");
     cached = { graph, expires: Date.now() + 300_000, revision };

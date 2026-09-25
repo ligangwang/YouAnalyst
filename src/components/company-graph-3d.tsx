@@ -10,6 +10,7 @@ import { layout3D } from "@/lib/knowledge-graph/layout-3d";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
+import { useWheelZoomGate, WheelZoomHint } from "./wheel-zoom-gate";
 import styles from "./ai-knowledge-graph.module.css";
 
 import { marketCapScale, marketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
@@ -55,6 +56,9 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const projected = useMemo(() => new Vector3(), []);
   const [hovered, setHovered] = useState("");
   const [hoveredEdge, setHoveredEdge] = useState("");
+  // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
+  // rather than relying on the geometry swap to invalidate.
+  useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
   const displayedEdge=activeEdge||hoveredEdge;
   const edgeEndpoints=useMemo(()=>new Set(layout.edges.filter(e=>e.id===displayedEdge).flatMap(e=>[e.source,e.target])),[layout,displayedEdge]);
   const sectorMembers = useMemo(() => new Set(layout.nodes.filter(n => companySector(n).id === sectorFocus).map(n => n.id)), [layout, sectorFocus]);
@@ -262,8 +266,9 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     placeEdges();
 
   });
+  // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
+    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
@@ -284,6 +289,7 @@ function GraphUnavailable() {
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
   const [supported, setSupported] = useState<boolean | null>(null);
+  const [wheelGateRef, wheelHint] = useWheelZoomGate();
   useEffect(() => {
     let active = true;
     void Promise.resolve().then(() => {
@@ -300,9 +306,10 @@ export default function CompanyGraph3D(props: Props) {
   const fallback = <GraphUnavailable />;
   if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
   if (!supported) return fallback;
-  return <div className={styles.canvas3d}>
+  return <div ref={wheelGateRef} className={styles.canvas3d}>
+    <WheelZoomHint hint={wheelHint}/>
     <RenderBoundary fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
     <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>
-    <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
+    <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · Ctrl + 滚轮／双指缩放")}</p>
   </div>;
 }

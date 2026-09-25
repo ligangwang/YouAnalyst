@@ -178,6 +178,8 @@
 .filterNotice { color:#afc4d8; font-size:13px; }
 .viewContent { min-width:0; }
 .viewContent [hidden] { display:none; }
+.structureStack { display:grid; }
+.structureStack > * + * { border-top:1px solid #26334a; }
 .tableScroll { overflow:auto; max-height: min(75vh,850px); min-height:400px; background:#091420; }
 .companyTable { border-collapse:separate; border-spacing:0; width:100%; text-align:left; font-size:13px; }
 .companyTable caption { text-align:left; padding:16px; color:#9fb6c9; font-size:12px; }
@@ -210,6 +212,9 @@
 .structureBranch li small { display:block; margin:5px 0 0 22px; color:#8fabbc; font-size:11px; }
 @media(max-width:800px) {
  .viewTabs { width:100%; flex-wrap:nowrap; }.viewTabs button { flex:1; padding:10px 6px; font-size:12px; }
+ /* A compact title block, so the first view of a phone screen reaches the content below the tabs. */
+ main.page { padding-top:14px; }main.page .header { margin-bottom:12px; }main.page .header .eyebrow { display:none; }main.page .header h1 { font-size:24px; margin:0 0 2px; }main.page .header p:not(.eyebrow) { font-size:13px; margin:0; line-height:1.45; }
+ main.page .viewTabs { margin-bottom:12px; padding:4px; }main.page .viewTabs button { min-height:40px; padding:6px 4px; line-height:1.2; }
  .sharedFilters label { flex:1; }.sharedFilters select { width:100%; max-width:none; }.sharedFilters .controls { flex-basis:100%; max-width:none; }
  .structure { padding:16px; }.structureBranches { grid-template-columns:1fr; }
  .withDetail:not([data-view="graph"]) .detail { position:fixed; inset:auto 0 0; z-index:80; max-height:70dvh; overflow:auto; border:1px solid #36536a; border-radius:20px 20px 0 0; box-shadow:0 -12px 40px #0009; padding-bottom:calc(24px + env(safe-area-inset-bottom)); }

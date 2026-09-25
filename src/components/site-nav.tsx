@@ -10,6 +10,7 @@ import { unlocalizedPath } from "@/lib/i18n/urls";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
+import { rankingsOpen } from "@/lib/community";
 
 const navigationChinese: Record<string, string> = {"My ideas":"我的观点","Performance comparison":"表现对比","Publish an idea":"发布观点","Following":"我的关注","AI Map":"AI 图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Investment ideas":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
 function useNavText() { const { chinese } = useLocale(); return (value: string) => chinese ? navigationChinese[value] ?? value : value; }
@@ -111,12 +112,29 @@ const secondaryNavItems = [
   { href: "/daily/calls", label: "Top Calls" },
   { href: "/how-it-works", label: "How it works" },
 ];
+let rankingsStatus: Promise<boolean> | undefined;
+/** Rankings stay out of the navigation until enough analysts are ranked (see MIN_RANKED_ANALYSTS). */
+function useRankingsOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    rankingsStatus ??= fetch("/api/leaderboard/status")
+      .then(response => response.ok ? response.json() : null)
+      .then((payload: { rankedAnalysts?: unknown } | null) => rankingsOpen(payload?.rankedAnalysts))
+      .catch(() => false);
+    void rankingsStatus.then(value => { if (!cancelled) setOpen(value); });
+    return () => { cancelled = true; };
+  }, []);
+  return open;
+}
+
 function MoreMenu({ admin = false }: { admin?: boolean }) {
   const t = useNavText();
+  const showRankings = useRankingsOpen();
   return <details className="relative" onKeyDown={event => { if(event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}>
-    <summary className="cursor-pointer rounded-lg px-3 py-3 text-sm">{t("More")}</summary>
+    <summary className="flex cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-lg px-1 py-3 text-sm min-[360px]:px-2 sm:px-3 [&::-webkit-details-marker]:hidden">{t("More")}<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg></summary>
     <div className="absolute right-0 z-50 mt-2 grid max-h-[70vh] w-56 overflow-y-auto rounded-xl border border-white/15 bg-slate-950 p-2 shadow-xl" onClick={event => { if((event.target as HTMLElement).closest("a")) event.currentTarget.closest("details")?.removeAttribute("open"); }}>
-      {[...secondaryNavItems, ...(admin ? [{href:"/admin",label:"Admin"}] : [])].map(item => <Link key={item.href} href={item.href} className="rounded-lg px-3 py-3 text-sm text-slate-200 hover:bg-white/10">{t(item.label)}</Link>)}
+      {[...secondaryNavItems.filter(item => showRankings || item.href !== "/leaderboard"), ...(admin ? [{href:"/admin",label:"Admin"}] : [])].map(item => <Link key={item.href} href={item.href} className="rounded-lg px-3 py-3 text-sm text-slate-200 hover:bg-white/10">{t(item.label)}</Link>)}
     </div>
   </details>;
 }
@@ -222,9 +240,12 @@ export function SiteNav() {
           </div>
         </div>
 
-        <nav aria-label={ui("Mobile navigation")} className="mt-2 flex flex-wrap items-center gap-1 text-sm text-slate-200 lg:hidden">
-          {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="whitespace-nowrap rounded-lg px-2 py-3">{t(item.label)}</Link>)}
-          <div className="ml-auto"><MoreMenu admin={showAdminLink} /></div>
+        {/* One line: More stays beside the primary links instead of wrapping; on the narrowest phones the links scroll. */}
+        <nav aria-label={ui("Mobile navigation")} className="mt-1 flex items-center text-sm text-slate-200 lg:hidden">
+          <div className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] min-[360px]:gap-0.5 min-[400px]:gap-1">
+            {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="shrink-0 whitespace-nowrap rounded-lg px-1 py-3 max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
+          </div>
+          <div className="ml-auto shrink-0"><MoreMenu admin={showAdminLink} /></div>
         </nav>
       </div>
       <PreferenceError />
