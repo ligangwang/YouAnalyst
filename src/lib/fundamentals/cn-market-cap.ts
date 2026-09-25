@@ -14,6 +14,7 @@ export type CnShareCount = {
   // `date` is the day this structure took effect (the earliest price it applies to);
   // `asOf` is the latest day the sources confirmed it is still current.
   date: string; asOf: string; fetchedAt: string; sourceUrl: string; sourceType: string; changeReason: string | null;
+  secondarySource?: { sourceUrl: string; date: string; hShares: number };
   listing: { hCode: string | null; bCode: string | null; sourceUrl: string; sourceType: string };
   exchangeCheck: { domesticShares: number | null; date: string | null; sourceUrl: string | null; sourceType: string | null; status: string };
 };
@@ -159,6 +160,9 @@ const EXCLUDED = /提示性公告|预案|草案|方案的公告|问询|法律意
 
 export function classifyAnnouncement(title: string): { kind: CnActionKind; settleDays: number } | null {
   const text = title.replace(/<[^>]*>/g, "");
+  // Creditor notices precede a proposed capital reduction; they do not prove
+  // cancellation has taken effect. A later completion notice is still checked.
+  if (/通知债权人/.test(text) && !/注销完成|完成注销/.test(text)) return null;
   if (EXCLUDED.test(text) && !/实施|完成|结果|上市公告书/.test(text)) return null;
   const match = ACTIONS.find(([, pattern]) => pattern.test(text));
   return match ? { kind: match[0], settleDays: match[2] } : null;
@@ -191,7 +195,20 @@ export function combineShareCount(input: { structure: CninfoStructure; listing: 
   if (listing.bCode && structure.bShares <= 0) return { reason: "b_share_count_unavailable" };
   // The exchange snapshot is at least as new as the issuer structure; a mismatch
   // means one side has not caught up with a change yet.
-  if (exchange && Math.abs(exchange.domesticShares - (structure.aShares + structure.bShares)) > exchange.tolerance) return { reason: "exchange_share_count_mismatch" };
+  if (exchange && Math.abs(exchange.domesticShares - (structure.aShares + structure.bShares)) > exchange.tolerance) {
+    // SSE is the listing exchange and dates its domestic count. CNInfo can lag
+    // option exercises. Use the newer dated SSE count, retaining CNInfo's H
+    // component and source separately. Never promote an undated/rounded SZSE list.
+    if (exchange.sourceType !== "sse_share_structure" || exchange.date <= structure.date
+      || exchange.date > input.today || structure.bShares !== 0 || listing.bCode
+      || exchange.aTradableShares === null) return { reason: "exchange_share_count_mismatch" };
+    return { aShares:exchange.domesticShares,aTradableShares:exchange.aTradableShares,bShares:0,
+      hShares:structure.hShares || null,totalShares:exchange.domesticShares+structure.hShares,
+      date:exchange.date,asOf:input.today,fetchedAt:input.fetchedAt,sourceUrl:exchange.sourceUrl,sourceType:"sse_share_structure",
+      secondarySource:{sourceUrl:structure.sourceUrl,date:structure.date,hShares:structure.hShares},changeReason:"newer_exchange_share_count",
+      listing:{hCode:listing.hCode,bCode:listing.bCode,sourceUrl:listing.sourceUrl,sourceType:listing.sourceType},
+      exchangeCheck:{domesticShares:exchange.domesticShares,date:exchange.date,sourceUrl:exchange.sourceUrl,sourceType:exchange.sourceType,status:"newer_exchange_count"} };
+  }
   return { aShares: structure.aShares, aTradableShares: structure.aTradableShares, bShares: structure.bShares,
     hShares: structure.hShares > 0 ? structure.hShares : null, totalShares: structure.totalShares,
     date: structure.date, asOf: input.today, fetchedAt: input.fetchedAt, sourceUrl: structure.sourceUrl, sourceType: structure.sourceType,
@@ -207,7 +224,17 @@ export function actionSettled(count: Pick<CnShareCount, "asOf" | "date">, event:
 }
 // Events that have taken effect by `onOrBefore` but may not be in the stored count.
 export function pendingActions(count: Pick<CnShareCount, "asOf" | "date">, check: CnActionCheck | null, onOrBefore: string) {
-  return (check?.events ?? []).filter(event => (event.effectiveDate ?? event.date) <= onOrBefore && !actionSettled(count, event));
+  return (check?.events ?? []).filter(event => !reviewedNonCapitalChange(event)
+    && !(/通知债权人/.test(event.title) && !/注销完成|完成注销/.test(event.title))
+    && (event.effectiveDate ?? event.date) <= onOrBefore && !actionSettled(count, event));
+}
+
+// Verified disclosure says the repurchased shares remain in the repurchase
+// account for employee incentives: issued capital is unchanged. Match the exact
+// disclosure, not every buyback (some do cancel shares).
+function reviewedNonCapitalChange(event: CnCorporateAction) {
+  return event.url === "https://static.cninfo.com.cn/finalpage/2026-09-21/1225575075.PDF"
+    && event.date === "2026-09-21" && event.title === "关于股份回购实施结果暨股份变动的公告";
 }
 
 export function shareRefreshDue(count: CnShareCount | null, check: CnActionCheck | null, today: string) {

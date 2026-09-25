@@ -100,19 +100,33 @@ test("A+H companies use A-share close × all issued shares and require the H-sha
   const structure = structureOf(jcetStructure);
   assert.deepEqual(combineShareCount({ structure, listing: listing("00981"), exchange: null, exchangeStatus: "unreachable", fetchedAt: "", today: TODAY }), { reason: "h_share_count_unavailable" });
   assert.deepEqual(combineShareCount({ structure, listing: null, exchange: null, exchangeStatus: "unreachable", fetchedAt: "", today: TODAY }), { reason: "listing_identity_unavailable" });
-  // The exchange's own domestic count must agree with the issuer structure.
+  // A newer dated exchange count supersedes the lagging domestic component.
   const exchange = parseSseShareStructure(sse({ TOTAL_DOMESTIC_VOL: "254800.00", A_UNLIMIT_VOL: "200081.79" }), "");
   assert.ok(!sourceFailed(exchange));
-  assert.deepEqual(combineShareCount({ structure: structureOf(smicStructure), listing: listing("00981"), exchange, exchangeStatus: "matched", fetchedAt: "", today: TODAY }), { reason: "exchange_share_count_mismatch" });
+  const updated = combineShareCount({ structure: structureOf(smicStructure), listing: listing("00981"), exchange, exchangeStatus: "matched", fetchedAt: "", today: TODAY });
+  assert.ok(!sourceFailed(updated));
+  assert.equal(updated.totalShares,2_548_000_000+6_014_488_603);
+  assert.equal(updated.secondarySource?.hShares,6_014_488_603);
+  for (const invalid of [{...exchange,date:"2026-09-10"},{...exchange,date:"2026-09-26"},{...exchange,sourceType:"szse_a_share_list"}]) {
+    assert.deepEqual(combineShareCount({structure:structureOf(smicStructure),listing:listing("00981"),exchange:invalid,exchangeStatus:"matched",fetchedAt:"",today:TODAY}),{reason:"exchange_share_count_mismatch"});
+  }
+  assert.equal(calculateCnMarketCap({id:"XSHG:688981",count:updated,check:check(),price:price(100,"2026-09-23"),latestSession:TODAY,fx,now:NOW}).reason,"share_count_newer_than_price");
 });
 
 test("share-change announcements are classified; cash-only dividends are resolved away", () => {
+  const repurchase={date:"2026-09-21",settleBy:"2026-09-26",kind:"buyback_cancellation" as const,title:"关于股份回购实施结果暨股份变动的公告",url:"https://static.cninfo.com.cn/finalpage/2026-09-21/1225575075.PDF"};
+  const basis={date:"2026-09-08",asOf:"2026-09-25"};
+  assert.equal(pendingActions(basis,check([repurchase]),TODAY).length,0);
+  assert.equal(pendingActions(basis,check([{...repurchase,url:"https://example.com/different-cancellation.pdf"}]),TODAY).length,1);
+  assert.equal(pendingActions(basis,check([{...repurchase,title:"回购注销部分限制性股票减少注册资本通知债权人的公告"}]),TODAY).length,0);
   assert.equal(classifyAnnouncement("关于股份回购实施结果暨股份变动的公告")?.kind, "buyback_cancellation");
   assert.equal(classifyAnnouncement("<em>中芯国际</em>发行股份购买资产暨关联交易实施情况暨新增股份上市公告书")?.kind, "placement");
   assert.equal(classifyAnnouncement("2026年半年度权益分派实施公告")?.kind, "distribution");
   assert.equal(classifyAnnouncement("2025年年度权益分派及资本公积金转增股本实施公告")?.kind, "bonus_or_conversion");
   assert.equal(classifyAnnouncement("关于限制性股票激励计划归属结果暨股份上市的公告")?.kind, "share_change");
   assert.equal(classifyAnnouncement("关于回购股份方案的公告"), null);
+  assert.equal(classifyAnnouncement("关于回购注销部分限制性股票减少注册资本通知债权人的公告"),null);
+  assert.equal(classifyAnnouncement("关于回购注销完成暨通知债权人的公告")?.kind,"buyback_cancellation");
   assert.equal(classifyAnnouncement("2026年半年度报告"), null);
   const events = parseCninfoAnnouncements({ announcements: [
     { secCode: "600584", announcementTitle: "<em>江苏长电科技股份有限公司</em>2026年半年度权益分派实施公告", announcementTime: Date.parse("2026-09-17T16:00:00Z"), adjunctUrl: "finalpage/2026-09-18/1225570357.PDF" },

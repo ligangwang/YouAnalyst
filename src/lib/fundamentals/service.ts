@@ -2,12 +2,14 @@ import { getAdminFirestore } from "../firebase/admin";
 import { maintenanceError } from "../maintenance-log";
 import type { CompanyFundamentals } from "./model";
 import type { DocumentData } from "firebase-admin/firestore";
+import { reviewedDomesticIssuers } from "./domestic-share-counts";
 
 export const FUNDAMENTALS_COLLECTION = "company_fundamentals";
 export const validFundamentalsTicker = (ticker: string) => /^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker);
 type Database = ReturnType<typeof getAdminFirestore>;
 export const needsShareMetadataUpgrade = (stored?: DocumentData) => Boolean(stored?.value
-  && (!stored.value.shareAssessment || (stored.value.report?.form === "20-F" && stored.value.shareAssessment.version !== 3))
+  && (!stored.value.shareAssessment || ((stored.value.report?.form === "20-F"
+    || Object.values(reviewedDomesticIssuers).some(issuer => issuer.cik === Number(stored.value.report?.cik))) && stored.value.shareAssessment.version !== 4))
   && (!stored.outcome || stored.outcome === "ready"));
 
 // The existing cache document doubles as a durable, deduplicated request record.

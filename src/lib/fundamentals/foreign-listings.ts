@@ -13,6 +13,10 @@ export type ReviewedShareCount = { shares: number; date: string; filed: string; 
 // These are NOT perpetual overrides: the normal 365-day freshness check applies.
 // Preserve the actual observation date, never the date this file was edited.
 export const reviewedForeignShareCounts: Readonly<Record<string, ReviewedShareCount>> = {
+  // March ownership disclosure: exclude reserved unvested awards. Borrowed ADS
+  // shares and convertible preferred are already excluded from the stated total.
+  GDS: {shares:1_603_020_903-48_718_352,date:"2026-03-31",filed:"2026-04-29",tag:"reviewed:ordinary_shares_excluding_reserved_awards",
+    sourceUrl:"https://www.sec.gov/Archives/edgar/data/1526125/000110465926051006/gds-20251231x20f.htm"},
   BIDU: {shares:2_197_993_760+524_020_320,date:"2025-12-31",filed:"2026-03-17",tag:"reviewed:class_a_plus_b_outstanding",
     sourceUrl:"https://www.sec.gov/Archives/edgar/data/1329099/000119312526109289/R1.htm"},
   ASML: {shares:384_100_000,date:"2026-06-28",filed:"2026-07-15",tag:"reviewed:outstanding_shares_millions",

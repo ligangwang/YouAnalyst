@@ -6,6 +6,7 @@ import type {CompanyFacts} from "../../src/lib/fundamentals/model";
 import {createMaintenanceLog} from "../../src/lib/maintenance-log";
 import {verifiedForeignListings,reviewedForeignShareCounts,foreignOutstandingTags} from "../../src/lib/fundamentals/foreign-listings";
 import {needsShareMetadataUpgrade} from "../../src/lib/fundamentals/service";
+import {reviewedDomesticIssuers} from "../../src/lib/fundamentals/domestic-share-counts";
 const row={val:1000,end:"2026-08-01",filed:"2026-08-05",form:"10-Q",accn:"0000000001-26-000001"};
 const facts:CompanyFacts={cik:1,facts:{dei:{EntityCommonStockSharesOutstanding:{units:{shares:[row,{...row,end:"2025-01-01",val:999}]}}}}};
 const now=new Date("2026-09-21T21:00:00Z");
@@ -15,7 +16,7 @@ test("uses latest instantaneous outstanding shares, not weighted-average EPS sha
  assert.equal(assessment().basis?.shares,1000);
  assert.equal(assessment().basis?.date,"2026-08-01");
  assert.equal(calculateMarketCap(assessment(),price,"ABC",now).value,25000);
- const absent={cik:1,facts:{"us-gaap":{WeightedAverageNumberOfDilutedSharesOutstanding:{units:{shares:[row]}}}}};
+ const absent={cik:1,facts:{"us-gaap":{WeightedAverageNumberOfDilutedSharesOutstanding:{units:{shares:[{...row,end:"2026-01-01",filed:"2026-01-05"}]}}}}};
  assert.equal(assessShares(absent,"ABC",["ABC"],"10-K").basis,null);
 });
 test("foreign listings, multiple tickers, ambiguous shares and later split events fail closed",()=>{
@@ -93,13 +94,30 @@ test("foreign share metadata refreshes once after deployment, without bypassing 
  assert(needsShareMetadataUpgrade(stored));
  assert(needsShareMetadataUpgrade({...stored,value:{...stored.value,shareAssessment:{...stored.value.shareAssessment,version:2}}}));
  assert(!needsShareMetadataUpgrade({...stored,outcome:"retry"}));
- assert(!needsShareMetadataUpgrade({...stored,value:{...stored.value,shareAssessment:{...stored.value.shareAssessment,version:3}}}));
+ assert(!needsShareMetadataUpgrade({...stored,value:{...stored.value,shareAssessment:{...stored.value.shareAssessment,version:4}}}));
 });
 
 test("cached foreign ratios cannot transfer to a different symbol or bypass ratio verification",()=>{
  const basis={shares:8000,date:"2026-08-01",filed:"2026-08-05",sourceUrl:"https://www.sec.gov/",tag:"reviewed",listing:verifiedForeignListings.BABA};
  assert.equal(calculateMarketCap({basis,reason:null},price,"ABC",now).reason,"foreign_listing_requires_verified_share_ratio");
  assert.equal(calculateMarketCap({basis:{...basis,listing:{...basis.listing,ordinarySharesPerUnit:1}},reason:null},{...price,ticker:"BABA"},"BABA",now).reason,"foreign_listing_requires_verified_share_ratio");
+});
+
+test("reviewed domestic common equity excludes preferred listings and keeps source dates",()=>{
+ for(const [ticker,issuer] of Object.entries(reviewedDomesticIssuers)) {
+  const f:CompanyFacts={cik:issuer.cik,facts:{dei:{EntityCommonStockSharesOutstanding:{units:{shares:[{...row,end:"2026-01-01",filed:"2026-01-05"}]}}}}};
+  const a=assessShares(f,ticker,[ticker,ticker+'-P'],"10-K","2026-09-25");
+  assert(a.basis,ticker);
+  assert(!Object.hasOwn(a.basis,"listing")); // Firestore rejects undefined fields.
+  assert.equal(assessShares(f,ticker+'-P',[ticker,ticker+'-P'],"10-K","2026-09-25").basis,null);
+  assert.equal(assessShares({...f,cik:1},ticker,[ticker],"10-K").reason,"issuer_identity_mismatch");
+  if(issuer.count){assert.equal(a.basis.date,issuer.count.date);assert.equal(a.basis.shares,issuer.count.shares);}
+  assert(needsShareMetadataUpgrade({value:{report:{form:"10-K",cik:issuer.cik},shareAssessment:{version:3}},outcome:"ready"}));
+  assert(!needsShareMetadataUpgrade({value:{report:{form:"10-K",cik:issuer.cik},shareAssessment:{version:4}},outcome:"ready"}));
+ }
+ const gds=assessShares({cik:1526125,facts:{}},"GDS",["GDS","GDHLF"],"20-F","2026-09-25");
+ assert.equal(gds.basis?.shares,1_554_302_551);
+ assert.equal(gds.basis?.date,"2026-03-31");
 });
 test("batch recalculates fresh SEC caches using newest stored EOD date without fetching providers, and isolates write failures",async(t)=>{
  t.mock.method(console,"info",()=>{});t.mock.method(console,"error",()=>{});
