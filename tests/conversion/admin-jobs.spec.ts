@@ -147,3 +147,23 @@ test("admin starts the A-share fundamentals job from its own Run now button",asy
  expect(posts).toEqual(["/api/admin/jobs/cn-fundamentals"]);
  expect(history).toContain("cnFundamentals");
 });
+
+test("admin starts the private valuation job from its own Run now button",async({page})=>{
+ await page.addInitScript(()=>{window.authScenario={signedIn:true};});
+ const posts:string[]=[];const history:string[]=[];
+ await page.route("**/*",route=>{
+  const url=new URL(route.request().url());
+  if(url.pathname==="/api/admin/me")return route.fulfill({json:{isAdmin:true}});
+  if(url.pathname.startsWith("/api/admin/jobs/")){expect(route.request().method()).toBe("POST");posts.push(url.pathname);return route.fulfill({status:202,json:{ok:true,operation:"operations/private"}});}
+  if(url.pathname==="/api/admin/jobs"){history.push(url.searchParams.get("job")!);return route.fulfill({json:{records:[],nextPageToken:null}});}
+  return route.fulfill({contentType:"text/html",body:html});
+ });
+ await page.goto(origin);
+ await page.getByLabel("Job",{exact:true}).selectOption("privateValuations");
+ await expect(page.getByText("Monthly, day 1 at 9 AM New York")).toBeVisible();
+ await expect(page.getByRole("button",{name:"Run SEC fundamentals now",exact:true})).toHaveCount(0);
+ await page.getByRole("button",{name:"Run private valuation check now",exact:true}).click();
+ await expect(page.getByRole("status").filter({hasText:"Run requested."})).toBeVisible();
+ expect(posts).toEqual(["/api/admin/jobs/private-valuations"]);
+ expect(history).toContain("privateValuations");
+});

@@ -9,6 +9,7 @@ import { scheduledJobs } from "./model";
 
 // Manually runnable Cloud Run workers and the lease document each one holds.
 const workers = {
+  privateValuations: { lease: "_private_valuation_worker", label: "Private company valuations", event: "admin_private_valuations_job" },
   fundamentals: { lease: "_worker", label: "SEC fundamentals", event: "admin_sec_job" },
   cnFundamentals: { lease: "_cn_worker", label: "A-share fundamentals", event: "admin_cn_fundamentals_job" },
 } as const;

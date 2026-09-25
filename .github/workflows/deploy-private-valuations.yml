@@ -1,0 +1,40 @@
+name: Deploy private valuation job
+on:
+  workflow_dispatch:
+concurrency:
+  group: deploy-private-valuations-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: us-central1
+      # Web app runtime account granted run.invoker on the job; read from the
+      # deployed web service when unset.
+      WEB_RUNTIME_SERVICE_ACCOUNT: ${{ vars.WEB_RUNTIME_SERVICE_ACCOUNT }}
+      CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      # Validate IAM inputs (job name, shared and web app accounts) before
+      # building or changing anything; later steps reuse the resolved account.
+      - name: Check maintenance job IAM inputs
+        run: |
+          web_account="$(bash scripts/lib/maintenance-job-iam.sh --check refresh-private-valuations-production)"
+          echo "WEB_RUNTIME_SERVICE_ACCOUNT=$web_account" >> "$GITHUB_ENV"
+      - name: Build fundamentals image
+        run: |
+          image="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/ifindata/sec-fundamentals:$GITHUB_SHA"
+          bash scripts/build-fundamentals.sh "$image"
+          echo "FUNDAMENTALS_IMAGE=$image" >> "$GITHUB_ENV"
+      # Creates a monthly Cloud Scheduler job; deployment does not execute the worker.
+      - name: Deploy worker and monthly schedule
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: bash scripts/deploy-private-valuations.sh

@@ -107,6 +107,7 @@ test("dry run prints mutating commands without running them", () => {
 for (const [script, job, env] of [
   ["deploy-sec-fundamentals.sh", "refresh-sec-fundamentals-production", { FUNDAMENTALS_IMAGE: "image", SEC_USER_AGENT: "ua" }],
   ["deploy-cn-fundamentals.sh", "refresh-cn-fundamentals-production", { FUNDAMENTALS_IMAGE: "image" }],
+  ["deploy-private-valuations.sh", "refresh-private-valuations-production", { FUNDAMENTALS_IMAGE: "image" }],
   ["deploy-directory-sync.sh", "sync-cni-directory-production", { DIRECTORY_SYNC_IMAGE: "image" }],
 ] as const) {
   test(`${script} grants run.invoker on ${job} to the scheduler and web accounts`, () => {
@@ -162,7 +163,7 @@ test("directory workflow validates first, then updates the image, then applies I
   assert.match(grants(result.calls)[1], new RegExp(`serviceAccount:${web} `));
 });
 
-for (const file of [".github/workflows/deploy-sec-fundamentals.yml", ".github/workflows/deploy-cn-fundamentals.yml"]) {
+for (const file of [".github/workflows/deploy-sec-fundamentals.yml", ".github/workflows/deploy-cn-fundamentals.yml", ".github/workflows/deploy-private-valuations.yml"]) {
   test(`${file} makes no gcloud changes when the web account lookup fails`, () => {
     const result = runWorkflow(file, { FAKE_WEB_SA: "", FUNDAMENTALS_IMAGE: "image", SEC_USER_AGENT: "ua" });
     assert.notEqual(result.status, 0);
