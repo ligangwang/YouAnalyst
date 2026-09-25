@@ -14,12 +14,12 @@ declare global {
 
 // Allowlisted properties only. No raw searches, email, account IDs, quotations or URLs.
 // Queue before Google's script loads; do not install a second gtag or send page views.
-export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) {
-  if (typeof window === "undefined") return;
+export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}, onComplete?: () => void) {
+  if (typeof window === "undefined") { onComplete?.(); return; }
   try {
     const meta = document.querySelector('meta[name="youanalyst-analytics"]');
-    if (meta?.getAttribute("content") !== "enabled") return;
-    if (document.cookie.split(";").some(value => value.trim() === "youanalyst_analytics_opt_out=1")) return;
+    if (meta?.getAttribute("content") !== "enabled") { onComplete?.(); return; }
+    if (document.cookie.split(";").some(value => value.trim() === "youanalyst_analytics_opt_out=1")) { onComplete?.(); return; }
     if (event === "industry_graph_view") {
       try { window.sessionStorage.setItem("youanalyst:graph-visit", String(Date.now())); } catch { /* Optional attribution. */ }
     }
@@ -28,7 +28,7 @@ export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) 
       const visit = Number(window.sessionStorage.getItem("youanalyst:graph-visit"));
       graphOrigin = visit > 0 && Date.now() >= visit && Date.now() - visit < 30 * 60_000;
     } catch { /* Storage may be disabled. */ }
-    const payload = { ...params, graph_origin: graphOrigin ? "yes" : "no", surface: "youanalyst", graph_version: "v2" };
+    const payload = { ...params, ...(onComplete ? { event_callback: onComplete, event_timeout: 500 } : {}), graph_origin: graphOrigin ? "yes" : "no", surface: "youanalyst", graph_version: "v2" };
     if (typeof window.gtag === "function") window.gtag("event", event, payload);
     else {
       window.dataLayer = window.dataLayer || [];
@@ -41,7 +41,7 @@ export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) 
       }
       enqueue("event", event, payload);
     }
-  } catch { /* Analytics must never interrupt product actions. */ }
+  } catch { onComplete?.(); /* Analytics must never interrupt product actions. */ }
 }
 
 // Same-browser, different-day return within seven days. No account or follow list is stored.
