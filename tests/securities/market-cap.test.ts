@@ -43,7 +43,7 @@ test("verified ADS ratios divide ordinary share counts, including TAL's three AD
 
 test("foreign facts use audited outstanding concepts, permit known secondary symbols and reject wrong identities",()=>{
  const listing=verifiedForeignListings.BABA;
- const f:CompanyFacts={cik:listing.cik,facts:{dei:{EntityCommonStockSharesOutstanding:{units:{shares:[{...row,form:"20-F",val:100}]}}},"us-gaap":{CommonStockSharesOutstanding:{units:{shares:[{...row,form:"20-F"}]}}}}};
+ const f:CompanyFacts={cik:listing.cik,facts:{dei:{EntityCommonStockSharesOutstanding:{units:{shares:[{...row,end:"2026-09-01",filed:"2026-09-05",form:"20-F",val:100}]}}},"us-gaap":{CommonStockSharesOutstanding:{units:{shares:[{...row,end:"2026-09-01",filed:"2026-09-05",form:"20-F"}]}}}}};
  const a=assessShares(f,"BABA",["BABA","BABAF"],"20-F","2026-09-25");
  assert.equal(a.basis?.shares,1000);
  assert.equal(a.basis?.listing?.ordinarySharesPerUnit,8);
@@ -51,7 +51,7 @@ test("foreign facts use audited outstanding concepts, permit known secondary sym
  assert.equal(assessShares(f,"BABA",["BABAF"],"20-F").basis,null);
  assert.equal(assessShares(f,"BABA",["BABA"],"40-F").basis,null);
  delete f.facts!["us-gaap"];
- assert.equal(assessShares(f,"BABA",["BABA"],"20-F").reason,"missing_outstanding_shares");
+ assert.equal(assessShares(f,"BABA",["BABA"],"20-F","2026-08-01").reason,"missing_outstanding_shares");
 });
 
 test("reviewed disclosures keep dates, exclude treasury, expire, and yield to newer SEC outstanding facts",()=>{

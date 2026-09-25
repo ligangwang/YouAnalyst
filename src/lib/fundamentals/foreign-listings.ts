@@ -15,6 +15,8 @@ export type ReviewedShareCount = { shares: number; date: string; filed: string; 
 export const reviewedForeignShareCounts: Readonly<Record<string, ReviewedShareCount>> = {
   ASML: {shares:384_100_000,date:"2026-06-28",filed:"2026-07-15",tag:"reviewed:outstanding_shares_millions",
     sourceUrl:"https://www.sec.gov/Archives/edgar/data/937966/000162828026048235/statutoryinterimreport20.htm"},
+  BABA: {shares:19_884_988_918,date:"2026-08-31",filed:"2026-09-04",tag:"reviewed:issued_shares_excluding_treasury",
+    sourceUrl:"https://www.sec.gov/Archives/edgar/data/1577552/000110465926105208/tm2624818d1_ex99-1.htm"},
   GFS: {shares:557_418_603,date:"2026-09-11",filed:"2026-09-15",tag:"reviewed:ordinary_shares_outstanding",
     sourceUrl:"https://www.sec.gov/Archives/edgar/data/1709048/000170904826000239/globalfoundriesincf-3asr.htm"},
   // A + B outstanding; treasury and non-outstanding C shares excluded.
@@ -24,9 +26,8 @@ export const reviewedForeignShareCounts: Readonly<Record<string, ReviewedShareCo
     sourceUrl:"https://www.sec.gov/Archives/edgar/data/1499620/000110465926073410/tal-20260228x20f.htm"},
   TSM: {shares:25_932_370_000,date:"2026-06-30",filed:"2026-08-14",tag:"reviewed:issued_paid_common_shares_thousands",
     sourceUrl:"https://www.sec.gov/Archives/edgar/data/1046179/000104617926000541/a2026q2consolidatedreport-.htm"},
-  // Includes voting Class C ordinary shares; excludes treasury and reserved ADSs.
-  VNET: {shares:1_677_368_135+30_721_723+60_000,date:"2026-03-31",filed:"2026-04-16",tag:"reviewed:class_a_plus_b_plus_c_outstanding",
-    sourceUrl:"https://ir.vnet.com/static-files/66edba7b-c48d-44ff-8a3c-95bc94b6abe2"},
+  VNET: {shares:1_708_970_760,date:"2026-06-30",filed:"2026-09-21",tag:"reviewed:total_ordinary_shares_outstanding",
+    sourceUrl:"https://www.sec.gov/Archives/edgar/data/1508475/000110465926109028/tm2625821d1_ex99-1.htm"},
 };
 
 // Only use reviewed entity-wide outstanding concepts. Never sum arbitrary

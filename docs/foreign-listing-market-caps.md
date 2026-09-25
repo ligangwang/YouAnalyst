@@ -23,8 +23,8 @@ does not update their dates. Newer approved SEC facts replace them. The existing
 180-day expiry and split checks apply to all observations, including the backfill.
 
 Read-only replay of SEC data retrieved on 2026-09-25 produced usable share bases for
-ARM, ASML, BABA, GFS, NBIS, TAL, TSM and VNET. BABA and VNET use March 31 observations
-and will expire at the 180-day limit unless newer counts are reviewed. BIDU and GDS
+ARM, ASML, BABA, GFS, NBIS, TAL, TSM and VNET. BABA's August monthly return and
+VNET's September disclosure replace the older March observations. BIDU and GDS
 remain unavailable: their current entity-wide eligible counts have not been verified.
 Do not clear those statuses using weighted averages or totals mixing dates/classes.
 
