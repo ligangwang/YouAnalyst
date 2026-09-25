@@ -16,7 +16,7 @@ test("uses latest instantaneous outstanding shares, not weighted-average EPS sha
  assert.equal(assessment().basis?.shares,1000);
  assert.equal(assessment().basis?.date,"2026-08-01");
  assert.equal(calculateMarketCap(assessment(),price,"ABC",now).value,25000);
- const absent={cik:1,facts:{"us-gaap":{WeightedAverageNumberOfDilutedSharesOutstanding:{units:{shares:[{...row,end:"2026-01-01",filed:"2026-01-05"}]}}}}};
+ const absent={cik:1,facts:{"us-gaap":{WeightedAverageNumberOfDilutedSharesOutstanding:{units:{shares:[row]}}}}};
  assert.equal(assessShares(absent,"ABC",["ABC"],"10-K").basis,null);
 });
 test("foreign listings, multiple tickers, ambiguous shares and later split events fail closed",()=>{

@@ -117,6 +117,9 @@ test("share-change announcements are classified; cash-only dividends are resolve
   const repurchase={date:"2026-09-21",settleBy:"2026-09-26",kind:"buyback_cancellation" as const,title:"关于股份回购实施结果暨股份变动的公告",url:"https://static.cninfo.com.cn/finalpage/2026-09-21/1225575075.PDF"};
   const basis={date:"2026-09-08",asOf:"2026-09-25"};
   assert.equal(pendingActions(basis,check([repurchase]),TODAY).length,0);
+  const prefixed=parseCninfoAnnouncements({announcements:[{secCode:"301308",announcementTitle:"<em>江波龙</em>：关于股份回购实施结果暨股份变动的公告",announcementTime:Date.parse("2026-09-21T00:00:00Z"),adjunctUrl:"finalpage/2026-09-21/1225575075.PDF"}]},"301308");
+  assert.ok(!sourceFailed(prefixed));
+  assert.equal(pendingActions(basis,check(prefixed),TODAY).length,0);
   assert.equal(pendingActions(basis,check([{...repurchase,url:"https://example.com/different-cancellation.pdf"}]),TODAY).length,1);
   assert.equal(pendingActions(basis,check([{...repurchase,title:"回购注销部分限制性股票减少注册资本通知债权人的公告"}]),TODAY).length,0);
   assert.equal(classifyAnnouncement("关于股份回购实施结果暨股份变动的公告")?.kind, "buyback_cancellation");

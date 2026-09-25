@@ -234,7 +234,7 @@ export function pendingActions(count: Pick<CnShareCount, "asOf" | "date">, check
 // disclosure, not every buyback (some do cancel shares).
 function reviewedNonCapitalChange(event: CnCorporateAction) {
   return event.url === "https://static.cninfo.com.cn/finalpage/2026-09-21/1225575075.PDF"
-    && event.date === "2026-09-21" && event.title === "关于股份回购实施结果暨股份变动的公告";
+    && event.date === "2026-09-21";
 }
 
 export function shareRefreshDue(count: CnShareCount | null, check: CnActionCheck | null, today: string) {
