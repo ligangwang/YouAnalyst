@@ -26,6 +26,10 @@ test("RSS discovery filters old rounds and new proposals remain review candidate
   const rss = `<rss><item><title><![CDATA[New funding round]]></title><link>https://openai.com/index/new-round</link><pubDate>Tue, 01 Sep 2026 12:00:00 GMT</pubDate></item><item><title>Old funding round</title><link>https://openai.com/index/old-round</link><pubDate>Sun, 01 Mar 2026 12:00:00 GMT</pubDate></item></rss>`;
   assert.deepEqual(discoverFundingLinks(rss, "https://openai.com/news/rss.xml", "https://openai.com/index/known", "2026-03-31"), ["https://openai.com/index/new-round"]);
 });
+test("RSS detects financing in descriptions even when the headline is generic", () => {
+  const rss = `<rss><item><title><![CDATA[Our next phase]]></title><description><![CDATA[We closed a new funding round.]]></description><link>https://openai.com/index/next-phase</link><pubDate>Tue, 01 Sep 2026 12:00:00 GMT</pubDate></item></rss>`;
+  assert.deepEqual(discoverFundingLinks(rss, "https://openai.com/news/rss.xml", "https://openai.com/index/known", "2026-03-31"), ["https://openai.com/index/next-phase"]);
+});
 test("blocked articles do not become verified just because RSS is accessible", async () => {
   const result = await checkPrivateValuation("ORG:OPENAI", now, async url => {
     if (url.endsWith("rss.xml")) return "<rss><item><title>Product</title></item></rss>";

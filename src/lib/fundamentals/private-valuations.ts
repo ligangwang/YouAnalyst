@@ -75,7 +75,8 @@ export function discoverFundingLinks(html: string, newsUrl: string, knownUrl: st
       if (Number.isFinite(date) && date <= Date.parse(after + "T23:59:59Z")) return [];
       const url = item.match(/<link>(.*?)<\/link>/i)?.[1];
       const title = item.match(/<title>([\s\S]*?)<\/title>/i)?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "");
-      return url && title ? [`<a href="${url}">${title}</a>`] : [];
+      const description = item.match(/<description>([\s\S]*?)<\/description>/i)?.[1]?.replace(/<!\[CDATA\[|\]\]>/g, "") ?? "";
+      return url && title ? [`<a href="${url}">${title} ${plainSource(description)}</a>`] : [];
     }).join(" ");
   }
   for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
