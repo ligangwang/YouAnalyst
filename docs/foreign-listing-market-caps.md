@@ -28,11 +28,12 @@ ARM, ASML, BABA, GFS, NBIS, TAL, TSM and VNET. BABA's August monthly return and
 VNET's September disclosure replace the older March observations. BIDU now uses
 its 2025 annual-report cover: 2,197,993,760 Class A + 524,020,320 Class B shares,
 as of 2025-12-31, filed 2026-03-17. This dated estimate is eligible under the
-365-day limit. GDS remains unavailable pending verification of its eligible count.
-Do not clear those statuses using weighted averages or totals mixing dates/classes.
+365-day limit. GDS now uses the reviewed March 31 annual-report disclosure after
+excluding reserved share awards; see `public-market-cap-coverage.md`.
+Do not substitute weighted averages or unverified totals mixing dates/classes.
 
 After deployment, run **Deploy SEC fundamentals job** to update the worker image
 if it has not already been deployed, then run SEC fundamentals maintenance.
-Version 3 assessments make the batch upgrade existing foreign assessments once;
+Version 4 assessments make the batch upgrade existing reviewed assessments once;
 retry cooldowns remain in force. Inspect per-ticker `market_cap_calculated` logs
 and `marketCap.reason`, not just the job's overall success status.
