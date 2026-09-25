@@ -18,15 +18,15 @@ test('private valuations display currency, qualifier, date and source in list an
  await page.goto('http://graph.test/map?lang=en');
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
  const mistral=page.locator('[data-list-company="ORG:MISTRAL-AI"]');
- await expect(mistral).toContainText(/>.*EUR.*21B/);
- await expect(mistral).toContainText('Private valuation · post-money');
+ await expect(mistral).toContainText('> €21B');
+ await expect(mistral.getByRole('link')).toHaveAttribute('title', /Private valuation · post-money/);
  await expect(mistral).toContainText('2026-09-08');
- await expect(mistral.getByRole('link',{name:'Source',exact:true})).toHaveAttribute('href',fixture.nodes.find(n=>n.id==='ORG:MISTRAL-AI')!.privateValuation!.sourceUrl);
+ await expect(mistral.getByRole('link')).toHaveAttribute('href',fixture.nodes.find(n=>n.id==='ORG:MISTRAL-AI')!.privateValuation!.sourceUrl);
  const openai=page.locator('[data-list-company="ORG:OPENAI"]');
- await expect(openai).toContainText(/USD.*852B/);
- await expect(openai).toContainText('Automated recheck unavailable');
+ await expect(openai.getByRole('link')).toHaveText('$852B');
+ await expect(openai.getByRole('link')).toHaveAttribute('title', /Automated recheck unavailable/);
  await openai.getByRole('button').click();
- await expect(page.getByRole('complementary',{name:'Company details'}).locator('[data-private-valuation]')).toContainText(/USD.*852B/);
+ await expect(page.getByRole('complementary',{name:'Company details'}).locator('[data-private-valuation]')).toContainText('$852B');
 });
 // A plain wheel scrolls the page over 3D canvases; Ctrl + wheel (and trackpad pinch) zooms them.
 async function zoomWheel(page: Page, deltaY: number) {
