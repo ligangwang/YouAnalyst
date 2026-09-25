@@ -10,6 +10,24 @@ import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+test('private valuations display currency, qualifier, date and source in list and details', async ({page}) => {
+ const fixture:KnowledgeGraph={...graph,nodes:[...graph.nodes.filter(n=>n.kind==='STAGE'),
+   {id:'ORG:MISTRAL-AI',kind:'COMPANY',name:'Mistral AI',market:'GLOBAL',listingStatus:'PRIVATE',order:0,stageIds:['compute'],privateValuation:{value:21e9,currency:'EUR',qualifier:'greater_than',valuationDate:'2026-09-08',basis:'post_money',sourceUrl:'https://mistral.ai/news/mistral-makes-sovereign-open-weight-ai-to-frontier/',reviewedAt:'2026-09-25',verification:'source_checked',reviewPending:false}},
+   {id:'ORG:OPENAI',kind:'COMPANY',name:'OpenAI',market:'GLOBAL',listingStatus:'PRIVATE',order:1,stageIds:['compute'],privateValuation:{value:852e9,currency:'USD',qualifier:'exact',valuationDate:'2026-03-31',basis:'post_money',sourceUrl:'https://openai.com/index/accelerating-the-next-phase-ai/',reviewedAt:'2026-09-25',verification:'reviewed',reviewPending:true}}],relationships:[]};
+ await page.route('**/*',r=>new URL(r.request().url()).pathname==='/api/knowledge-graph'?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en');
+ await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ const mistral=page.locator('[data-list-company="ORG:MISTRAL-AI"]');
+ await expect(mistral).toContainText(/>.*EUR.*21B/);
+ await expect(mistral).toContainText('Private valuation · post-money');
+ await expect(mistral).toContainText('2026-09-08');
+ await expect(mistral.getByRole('link',{name:'Source',exact:true})).toHaveAttribute('href',fixture.nodes.find(n=>n.id==='ORG:MISTRAL-AI')!.privateValuation!.sourceUrl);
+ const openai=page.locator('[data-list-company="ORG:OPENAI"]');
+ await expect(openai).toContainText(/USD.*852B/);
+ await expect(openai).toContainText('Automated recheck unavailable');
+ await openai.getByRole('button').click();
+ await expect(page.getByRole('complementary',{name:'Company details'}).locator('[data-private-valuation]')).toContainText(/USD.*852B/);
+});
 // A plain wheel scrolls the page over 3D canvases; Ctrl + wheel (and trackpad pinch) zooms them.
 async function zoomWheel(page: Page, deltaY: number) {
   await page.keyboard.down("Control");
@@ -705,10 +723,10 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await page.getByLabel('Industry role',{exact:true}).selectOption('connectivity');
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
- await page.getByRole('button',{name:'Est. market cap (USD)',exact:true}).click();
+ await page.getByRole('button',{name:'Market value',exact:true}).click();
  await expect(page.locator('[data-list-company]').first()).toHaveAttribute('data-list-company','US:NVDA');
  await expect(page.locator('[data-list-company]').last()).toHaveAttribute('data-list-company','US:AAPL');
- await page.getByRole('button',{name:/Est. market cap/}).click();
+ await page.getByRole('button',{name:/Market value/}).click();
  await expect(page.locator('[data-list-company]').first()).toHaveAttribute('data-list-company','US:AMD');
  await expect(page.locator('[data-list-company]').last()).toHaveAttribute('data-list-company','US:AAPL');
  await page.getByLabel('Following only',{exact:true}).check();

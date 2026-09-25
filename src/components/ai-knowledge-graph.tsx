@@ -1,5 +1,6 @@
 "use client";
 
+import { PrivateValuationDisplay } from "./private-valuation";
 import { marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -187,6 +188,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
         <CompanyNameEditor key={`${company.id}-${locale}`} company={company} onSaved={updated => setGraph(previous => ({ ...previous, nodes: previous.nodes.map(node => node.id === updated.id ? { ...node, ...updated } : node) }))} />
         {company.symbol && <p className={styles.eyebrow}>{company.symbol}</p>}
         <p>{companyGeographyLabel(company, locale)}</p>
+        {company.privateValuation && <PrivateValuationDisplay valuation={company.privateValuation}/>}
         {company.marketCap && <p>{marketCapDescription(company.marketCap, locale)}</p>}
         <p>{company.summary}</p>
         <CompanyFollowButton companyId={company.id} /><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a>
