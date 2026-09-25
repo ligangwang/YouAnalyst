@@ -1,6 +1,20 @@
 import { trackEvent, trackFollowingVisit } from "./analytics";
 import { safeAuthDestination } from "./auth-continuation";
 
+// Count explicit clicks, not auth continuation/replays or successful saves.
+export function trackCompanyFollowIntent(onComplete?: () => void) {
+  trackEvent("company_follow_intent", { entry_point: "company_follow_button" }, onComplete);
+}
+
+// Give a queued tag time to send before a full-page redirect. The independent
+// timer also completes when Google's script never loads or is blocked.
+export function waitForCompanyFollowIntent(): Promise<void> {
+  return new Promise(resolve => {
+    const timer = setTimeout(resolve, 500);
+    trackCompanyFollowIntent(() => { clearTimeout(timer); resolve(); });
+  });
+}
+
 export function validFollowCompany(id: string): boolean {
   return /^(US:[A-Z0-9.-]{1,16}|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id);
 }

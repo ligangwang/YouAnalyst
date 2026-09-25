@@ -1,4 +1,4 @@
-type AnalyticsEvent = "research_share" | "company_follow" | "company_unfollow" | "company_event_open" | "company_evidence_view" | "company_event_map" | "following_return_7d" | "industry_graph_view" | "industry_graph_load" | "industry_graph_error" |
+type AnalyticsEvent = "research_share" | "company_follow_intent" | "company_follow" | "company_unfollow" | "company_event_open" | "company_evidence_view" | "company_event_map" | "following_return_7d" | "industry_graph_view" | "industry_graph_load" | "industry_graph_error" |
   "graph_search" | "graph_company_select" | "graph_expand" | "graph_filter" | "graph_evidence_open" |
   "graph_source_open" | "graph_view_change" | "graph_company_open" | "graph_predict_click" |
   "graph_feedback_click" | "graph_save_view" | "graph_discovery_open" | "graph_save_intent" | "graph_save_complete" | "graph_save_error" | "graph_saved_company_open" | "auth_view" | "auth_start" | "auth_cancel" | "auth_error" | "sign_up" | "login" | "prediction_publish";
@@ -14,12 +14,12 @@ declare global {
 
 // Allowlisted properties only. No raw searches, email, account IDs, quotations or URLs.
 // Queue before Google's script loads; do not install a second gtag or send page views.
-export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) {
-  if (typeof window === "undefined") return;
+export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}, onComplete?: () => void) {
+  if (typeof window === "undefined") { onComplete?.(); return; }
   try {
     const meta = document.querySelector('meta[name="youanalyst-analytics"]');
-    if (meta?.getAttribute("content") !== "enabled") return;
-    if (document.cookie.split(";").some(value => value.trim() === "youanalyst_analytics_opt_out=1")) return;
+    if (meta?.getAttribute("content") !== "enabled") { onComplete?.(); return; }
+    if (document.cookie.split(";").some(value => value.trim() === "youanalyst_analytics_opt_out=1")) { onComplete?.(); return; }
     if (event === "industry_graph_view") {
       try { window.sessionStorage.setItem("youanalyst:graph-visit", String(Date.now())); } catch { /* Optional attribution. */ }
     }
@@ -28,7 +28,7 @@ export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) 
       const visit = Number(window.sessionStorage.getItem("youanalyst:graph-visit"));
       graphOrigin = visit > 0 && Date.now() >= visit && Date.now() - visit < 30 * 60_000;
     } catch { /* Storage may be disabled. */ }
-    const payload = { ...params, graph_origin: graphOrigin ? "yes" : "no", surface: "youanalyst", graph_version: "v2" };
+    const payload = { ...params, ...(onComplete ? { event_callback: onComplete, event_timeout: 500 } : {}), graph_origin: graphOrigin ? "yes" : "no", surface: "youanalyst", graph_version: "v2" };
     if (typeof window.gtag === "function") window.gtag("event", event, payload);
     else {
       window.dataLayer = window.dataLayer || [];
@@ -41,7 +41,7 @@ export function trackEvent(event: AnalyticsEvent, params: AnalyticsParams = {}) 
       }
       enqueue("event", event, payload);
     }
-  } catch { /* Analytics must never interrupt product actions. */ }
+  } catch { onComplete?.(); /* Analytics must never interrupt product actions. */ }
 }
 
 // Same-browser, different-day return within seven days. No account or follow list is stored.
