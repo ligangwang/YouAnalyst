@@ -22,7 +22,14 @@ export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | 
           <p className="mt-1 text-sm text-slate-400"><UiText text={`As of ${marketCap!.priceDate}`} /></p>
           <details className="mt-2 text-xs leading-5 text-slate-400">
             <summary className="cursor-pointer text-cyan-200"><UiText text={"Calculation details"} /></summary>
-            <p className="mt-2"><UiText text={"Latest cached closing price × SEC reported shares outstanding."} /></p>
+            <p className="mt-2"><UiText text={marketCap!.shares!.listing
+              ? "Latest cached closing price × reported ordinary shares outstanding ÷ ordinary shares per US-listed unit."
+              : "Latest cached closing price × SEC reported shares outstanding."} /></p>
+            {marketCap!.shares!.listing && <p>
+              <UiText text={"Ordinary shares per US-listed unit: "} />
+              {marketCap!.shares!.listing!.ordinarySharesPerUnit === 1 / 3 ? "⅓" : marketCap!.shares!.listing!.ordinarySharesPerUnit}
+              {" · "}<a href={marketCap!.shares!.listing!.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-200 underline underline-offset-2"><UiText text={"Listing ratio source"} /> ↗</a>
+            </p>}
             <p><UiText text={"Share count as of "} />{marketCap!.shares!.date}</p>
             <a href={marketCap!.shares!.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-200 underline underline-offset-2"><UiText text={"Filed "} />{marketCap!.shares!.filed} ↗</a>
           </details>

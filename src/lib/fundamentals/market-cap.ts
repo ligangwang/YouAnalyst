@@ -3,25 +3,39 @@ import type { CompanyFacts } from "./model";
 import { FUNDAMENTALS_COLLECTION, validFundamentalsTicker } from "./service";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { readLatestUsPrices } from "../predictions/latest-eod";
+import { verifiedForeignListings, foreignOutstandingTags, reviewedForeignShareCounts, type VerifiedForeignListing } from "./foreign-listings";
 
-export type ShareBasis = { shares: number; date: string; filed: string; sourceUrl: string; tag: string };
-export type ShareAssessment = { basis: ShareBasis | null; reason: string | null };
+export type ShareBasis = { shares: number; date: string; filed: string; sourceUrl: string; tag: string; listing?: VerifiedForeignListing };
+export type ShareAssessment = { basis: ShareBasis | null; reason: string | null; version?: number };
 export type MarketCap = { status: "estimated" | "unavailable"; value: number | null; currency: "USD";
   priceDate: string | null; close: number | null; shares: ShareBasis | null; reason: string | null; calculatedAt: string };
 const date = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)
   && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0,10) === v;
 
 export function assessShares(facts: CompanyFacts, ticker: string, tickers: unknown, form: string, today = new Date().toISOString().slice(0,10)): ShareAssessment {
-  const unavailable = (reason: string): ShareAssessment => ({basis:null,reason});
+  const unavailable = (reason: string): ShareAssessment => ({basis:null,reason,version:2});
   // Companyfacts aggregates entity-wide data, not ADR ratios or share-class prices.
-  if (form !== "10-K") return unavailable("foreign_listing_requires_verified_share_ratio");
-  if (!Array.isArray(tickers) || tickers.length !== 1 || String(tickers[0]).replaceAll("-", ".") !== ticker.replaceAll("-", ".")) return unavailable("ambiguous_listing_or_share_classes");
-  const tag = "dei:EntityCommonStockSharesOutstanding";
-  const rows = facts.facts?.dei?.EntityCommonStockSharesOutstanding?.units?.shares ?? [];
+  const foreign = form !== "10-K";
+  const listing = foreign ? verifiedForeignListings[ticker] : undefined;
+  if (foreign && (!listing || listing.cik !== Number(facts.cik) || form !== "20-F")) return unavailable("foreign_listing_requires_verified_share_ratio");
+  if (!Array.isArray(tickers) || (!foreign && tickers.length !== 1) || !tickers.some(t => String(t).replaceAll("-", ".") === ticker.replaceAll("-", "."))) return unavailable("ambiguous_listing_or_share_classes");
+  const tags = foreign ? foreignOutstandingTags[ticker] ?? [] : ["dei:EntityCommonStockSharesOutstanding"];
+  const rows = tags.flatMap(tag => {
+    const [namespace, name] = tag.split(":");
+    return (facts.facts?.[namespace]?.[name]?.units?.shares ?? []).map(row => ({...row,tag}));
+  });
   const candidates = rows.filter(r => !r.start && date(r.end) && date(r.filed) && r.end <= today && r.filed <= today
-    && ["10-K","10-K/A","10-Q","10-Q/A"].includes(r.form ?? "") && /^\d{10}-\d{2}-\d{6}$/.test(r.accn ?? "")
+    && (foreign ? ["20-F","20-F/A","6-K","6-K/A"] : ["10-K","10-K/A","10-Q","10-Q/A"]).includes(r.form ?? "") && /^\d{10}-\d{2}-\d{6}$/.test(r.accn ?? "")
     && typeof r.val === "number" && Number.isSafeInteger(r.val) && r.val > 0)
     .sort((a,b)=>b.end!.localeCompare(a.end!) || b.filed!.localeCompare(a.filed!));
+  const reviewed = foreign ? reviewedForeignShareCounts[ticker] : undefined;
+  if (reviewed && reviewed.date <= today && reviewed.filed <= today
+    && (!candidates.length || reviewed.date > candidates[0].end!)) {
+    const laterSplit = Object.entries(facts.facts?.["us-gaap"] ?? {}).filter(([name])=>/StockSplit|StockSplits/.test(name))
+      .some(([,concept])=>Object.values(concept.units ?? {}).flat().some(r=>date(r.end) && r.end > reviewed.date && r.end <= today));
+    if (laterSplit) return unavailable("split_requires_updated_share_count");
+    return {basis:{...reviewed,listing},reason:null,version:2};
+  }
   if (!candidates.length) return unavailable("missing_outstanding_shares");
   const latest = candidates[0];
   if (new Set(candidates.filter(r=>r.end === latest.end && r.filed === latest.filed).map(r=>r.val)).size !== 1) return unavailable("ambiguous_outstanding_shares");
@@ -30,8 +44,9 @@ export function assessShares(facts: CompanyFacts, ticker: string, tickers: unkno
   const split = Object.entries(facts.facts?.["us-gaap"] ?? {}).filter(([name])=>/StockSplit|StockSplits/.test(name))
     .some(([,concept])=>Object.values(concept.units ?? {}).flat().some(r=>date(r.end) && r.end > latest.end! && r.end <= today));
   if (split) return unavailable("split_requires_updated_share_count");
-  return {basis:{shares:latest.val as number,date:latest.end!,filed:latest.filed!,tag,
-    sourceUrl:`https://www.sec.gov/Archives/edgar/data/${Number(facts.cik)}/${latest.accn!.replaceAll("-", "")}/${latest.accn}-index.html`},reason:null};
+  return {basis:{shares:latest.val as number,date:latest.end!,filed:latest.filed!,tag:latest.tag,
+    ...(listing ? {listing} : {}),
+    sourceUrl:`https://www.sec.gov/Archives/edgar/data/${Number(facts.cik)}/${latest.accn!.replaceAll("-", "")}/${latest.accn}-index.html`},reason:null,version:2};
 }
 
 export function calculateMarketCap(assessment: ShareAssessment | undefined, price: Record<string, unknown> | undefined, ticker: string, now = new Date()): MarketCap {
@@ -44,7 +59,14 @@ export function calculateMarketCap(assessment: ShareAssessment | undefined, pric
   if (!basis) return result;
   if (basis.date > price.tradingDate) return {...result,reason:"share_count_newer_than_price"};
   if (now.getTime()-Date.parse(basis.date) > 180*86_400_000) return {...result,reason:"stale_share_count"};
-  const value = price.close * basis.shares;
+  const ratio = basis.listing?.ordinarySharesPerUnit ?? 1;
+  if (basis.listing) {
+    const verified = verifiedForeignListings[ticker];
+    if (!verified || verified.cik !== basis.listing.cik || verified.ordinarySharesPerUnit !== ratio
+      || verified.sourceUrl !== basis.listing.sourceUrl) return {...result,reason:"foreign_listing_requires_verified_share_ratio"};
+  }
+  if (!Number.isFinite(ratio) || ratio <= 0 || !Number.isSafeInteger(basis.shares) || basis.shares <= 0) return {...result,reason:"invalid_calculation"};
+  const value = price.close * (basis.shares / ratio);
   if (!Number.isFinite(value) || value <= 0) return {...result,reason:"invalid_calculation"};
   return {...result,status:"estimated",value,reason:null};
 }
