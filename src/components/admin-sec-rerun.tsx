@@ -4,6 +4,9 @@ import {useAuth} from "@/components/providers/auth-provider";
 import {useLocale} from "./providers/locale-provider";
 
 const jobs = {
+  privateValuations: { endpoint: "/api/admin/jobs/private-valuations",
+    description: ["Check official sources for private companies in the graph. Verify reviewed valuations and find funding announcements to review. Valuations older than one year are flagged. Results and source links appear in run logs.","检查图谱中私人公司的官方来源，验证已审核估值并查找待审核融资公告。标记超过一年的估值。结果和来源链接见运行日志。"],
+    button: ["Run private valuation check now","立即检查私人公司估值"] },
   fundamentals: { endpoint: "/api/admin/jobs/sec",
     description: ["Refresh queued SEC fundamentals and recalculate market caps from the latest stored EOD prices. Fresh SEC data and provider cooldowns are respected. No trading date is needed.","刷新排队中的 SEC 财务数据，并使用最新已存储收盘价重新计算市值。保留新鲜缓存并遵守数据源冷却时间，无需选择交易日期。"],
     button: ["Run SEC fundamentals now","立即运行 SEC 财务任务"] },
