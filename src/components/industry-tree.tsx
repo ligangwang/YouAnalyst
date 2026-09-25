@@ -53,7 +53,8 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
     </div></header>
     <div ref={attachScene} className={styles.scene} data-industry-tree={vertical?'vertical':'3d'}>
       <WheelZoomHint hint={wheelHint}/>
-      {active&&seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene paused={!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback}/></Suspense>}
+      {/* Preserve initialized renderers across tabs; hidden trees pause without recreating WebGL contexts. */}
+      {seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene paused={!active||!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback}/></Suspense>}
       {unavailable&&<div className={styles.fallback}><p role="alert">{text('3D is unavailable on this device. Browse the same tree below.','此设备暂时无法显示三维场景，可使用下方层级树。')}</p>{layers.map(l=><details key={l.id} open={open.includes(l.id)}><summary onClick={e=>{e.preventDefault();toggle(l.id);}}>{text(l.en,l.zh)} · {l.companies.length}</summary>{l.branches.map(b=><details key={b.id} open={open.includes(b.id)}><summary onClick={e=>{e.preventDefault();toggle(b.id);}}>{text(b.en,b.zh)} · {b.companies.length}</summary>{b.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)}</button>)}</details>)}</details>)}</div>}
       {active&&showCard&&company&&<TreeCompanyCard key={company.id} reveal={revealCard} company={company} color={layers.find(l=>l.companies.some(c=>c.id===company.id))?.color??'#7dd3fc'} onClose={()=>onSelect('')}/>}
     </div>

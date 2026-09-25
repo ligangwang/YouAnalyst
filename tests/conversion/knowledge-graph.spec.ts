@@ -699,6 +699,8 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();await tree.scrollIntoViewIfNeeded();
  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(tree.locator('[data-tree-company="US:NVDA"]')).toHaveCount(2);
+ // Keep the initialized renderer across tab switches instead of creating another WebGL context.
+ await tree.locator('canvas').evaluate(canvas=>canvas.setAttribute('data-test-renderer','original'));
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
  await page.getByLabel('Industry role',{exact:true}).selectOption('connectivity');
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
@@ -712,6 +714,7 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await page.getByLabel('Following only',{exact:true}).check();
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();await tree.scrollIntoViewIfNeeded();
+ await expect(tree.locator('canvas')).toHaveAttribute('data-test-renderer','original');
  await expect(tree.locator('[data-tree-company="US:AMD"]').first()).toBeVisible();
  await expect(page.getByLabel('Following only',{exact:true})).toBeHidden();
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
