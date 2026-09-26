@@ -10,14 +10,15 @@ import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalLimb
 // joined by a soft growth ring. Every segment sends its own branches outward;
 // the applications crown sits on top. Colours blend only near each seam, so a
 // layer reads as one band while the trunk still reads as one living thing.
-const segments=40;
+const segments=20;
+const sides=6;
 const TRUNK_HALF_WIDTH=100;
 const SEAM_BLEND=60;
 type Kind='trunk'|'fiber'|'root'|'ring'|'branch'|'twig';
 type Attach='trunk'|'root'|'crown';
 type RGBA=[number,number,number,number];
-export type Strand={from:string;to:string;kind:Kind;width:[number,number];offset:number;color:(t:number)=>RGBA;layer?:string;branch?:string;end?:[number,number];attach?:Attach;stem?:number};
-type XY={x:number;y:number};
+export type Strand={from:string;to:string;kind:Kind;width:[number,number];offset:number;color:(t:number)=>RGBA;layer?:string;branch?:string;end?:[number,number];attach?:Attach;stem?:number;azimuth?:number;pivotX?:number};
+type XY={x:number;y:number;z?:number};
 
 // Half-width of the trunk at a height fraction: a flared base settling into a
 // steady taper that still carries weight up to the crown.
@@ -87,14 +88,14 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
   }
   // Draw order: limbs tuck in behind the trunk so they appear to grow out of
   // it; roots spill over the trunk base; crown branches and twigs sit on top.
-  return [...limbs,...trunk,...roots,...crown,...twigs];
+  return [...limbs,...trunk,...roots,...crown,...twigs].map(s=>({...s,azimuth:byId.get(s.to)?.azimuth,pivotX:byId.get(s.to)?.pivotX}));
 }
 
 export function verticalTreeStrandGeometries(strands:Strand[],focus:string){
   return [0,1].map(glow=>{
     // The glow is two half-ribbons per segment whose outer edge is transparent,
     // so halos fade softly instead of ending in a hard band.
-    const per=glow?12:6;
+    const per=glow?12:6*sides;
     const geometry=new BufferGeometry();
     geometry.setAttribute('position',new Float32BufferAttribute(new Float32Array(strands.length*segments*per*3),3));
     const colors=new Float32Array(strands.length*segments*per*4);
@@ -106,7 +107,7 @@ export function verticalTreeStrandGeometries(strands:Strand[],focus:string){
         // Vertex order matches the position writer. Main: p+, p-, q+, p-, q-, q+.
         // Glow: p, p+, q, p+, q+, q then the same on the minus side (edge alpha 0).
         const order=glow?[[p,1],[p,0],[q,1],[p,0],[q,0],[q,1],[p,1],[p,0],[q,1],[p,0],[q,0],[q,1]] as const:[[p,1],[p,1],[q,1],[p,1],[q,1],[q,1]] as const;
-        order.forEach(([c,edge],v)=>colors.set([c[0],c[1],c[2],c[3]*dim*glowAlpha*edge],((index*segments+step)*per+v)*4));
+        for(let face=0;face<(glow?1:sides);face++)order.forEach(([c,edge],v)=>colors.set([c[0],c[1],c[2],c[3]*dim*glowAlpha*edge],((index*segments+step)*per+face*order.length+v)*4));
       }
     });
     geometry.setAttribute('color',new Float32BufferAttribute(colors,4));
@@ -139,10 +140,10 @@ export function verticalTreeDust(nodes:TreePoint[]){
   return geometry;
 }
 
-type Curve={ax:number;ay:number;c1x:number;c1y:number;c2x:number;c2y:number;bx:number;by:number;h0:number;h1:number};
+type Curve={ax:number;ay:number;az?:number;c1x:number;c1y:number;c2x:number;c2y:number;bx:number;by:number;bz?:number;h0:number;h1:number};
 const cubic=(c:Curve,t:number,out:Vector3)=>{
   const u=1-t;
-  return out.set(u*u*u*c.ax+3*u*u*t*c.c1x+3*u*t*t*c.c2x+t*t*t*c.bx,u*u*u*c.ay+3*u*u*t*c.c1y+3*u*t*t*c.c2y+t*t*t*c.by,-4);
+  return out.set(u*u*u*c.ax+3*u*u*t*c.c1x+3*u*t*t*c.c2x+t*t*t*c.bx,u*u*u*c.ay+3*u*u*t*c.c1y+3*u*t*t*c.c2y+t*t*t*c.by,(c.az??0)+((c.bz??0)-(c.az??0))*ease(t)-4);
 };
 // Limbs taper smoothly from the trunk to a fine tip.
 const limbHalf=(c:Curve,t:number)=>c.h1+(c.h0-c.h1)*Math.pow(1-t,1.5);
@@ -157,7 +158,10 @@ export function createStrandWriter(){
     const tx=(y:number)=>verticalTrunkX(y,top);
     limbs.clear();
     strands.forEach((strand,index)=>{
-      const source=positionOf(strand.from),target=positionOf(strand.to);if(!source||!target)return;
+      const worldSource=positionOf(strand.from),worldTarget=positionOf(strand.to);if(!worldSource||!worldTarget)return;
+      const angle=strand.azimuth??0,pivot=strand.pivotX??0;
+      const local=(v:XY)=>({x:pivot+(v.x-pivot)*Math.cos(angle)-(v.z??0)*Math.sin(angle),y:v.y,z:(v.x-pivot)*Math.sin(angle)+(v.z??0)*Math.cos(angle)});
+      const source=local(worldSource),target=local(worldTarget);
       let curve:Curve|undefined;
       if(strand.kind==='branch'){
         const bx=target.x,by=target.y;
@@ -171,7 +175,7 @@ export function createStrandWriter(){
         }else if(strand.attach==='root'){ax=(Math.sign(bx)||1)*40;ay=-40;h0=strand.width[0];}
         else {ax=0;ay=strand.stem??top+20;h0=strand.width[0];}
         const [c1x,c1y,c2x,c2y]=verticalLimbControls(ax,ay,bx,by);
-        curve={ax,ay,bx,by,c1x,c1y,c2x,c2y,h0,h1:strand.width[1]};
+        curve={ax,ay,bx,by,bz:target.z,c1x,c1y,c2x,c2y,h0,h1:strand.width[1]};
         limbs.set(strand.to,curve);
       }else if(strand.kind==='twig'){
         // Twigs leave their limb where the leaf hangs, not all from its tip.
@@ -182,10 +186,10 @@ export function createStrandWriter(){
           cubic(limb,along,on);
           const dx=target.x-on.x,dy=target.y-on.y;
           const h0=Math.max(.8,limbHalf(limb,along)*.5);
-          curve={ax:on.x,ay:on.y,bx:target.x,by:target.y,c1x:on.x+dx*.25+cx*.06,c1y:on.y+dy*.25+cy*.06,c2x:target.x-dx*.3,c2y:target.y-dy*.3,h0,h1:strand.width[1]};
+          curve={ax:on.x,ay:on.y,az:on.z+4,bx:target.x,by:target.y,bz:target.z,c1x:on.x+dx*.25+cx*.06,c1y:on.y+dy*.25+cy*.06,c2x:target.x-dx*.3,c2y:target.y-dy*.3,h0,h1:strand.width[1]};
         }else{
           const dx=target.x-source.x,dy=target.y-source.y;
-          curve={ax:source.x,ay:source.y,bx:target.x,by:target.y,c1x:source.x+dx*.22,c1y:source.y+dy*.15,c2x:target.x-dx*.35,c2y:target.y,h0:strand.width[0],h1:strand.width[1]};
+          curve={ax:source.x,ay:source.y,az:source.z,bx:target.x,by:target.y,bz:target.z,c1x:source.x+dx*.22,c1y:source.y+dy*.15,c2x:target.x-dx*.35,c2y:target.y,h0:strand.width[0],h1:strand.width[1]};
         }
       }
       const end=strand.end;
@@ -223,9 +227,14 @@ export function createStrandWriter(){
         geometries.forEach((g,glow)=>{
           const pos=g.getAttribute('position');
           if(!glow){
-            const nx=normalP.x*wp,ny=normalP.y*wp,qx=normalQ.x*wq,qy=normalQ.y*wq,base=(index*segments+step)*6;
-            pos.setXYZ(base,p.x+nx,p.y+ny,p.z);pos.setXYZ(base+1,p.x-nx,p.y-ny,p.z);pos.setXYZ(base+2,q.x+qx,q.y+qy,q.z);
-            pos.setXYZ(base+3,p.x-nx,p.y-ny,p.z);pos.setXYZ(base+4,q.x-qx,q.y-qy,q.z);pos.setXYZ(base+5,q.x+qx,q.y+qy,q.z);
+            // An elliptical tube gives the trunk and every limb volume from oblique viewpoints.
+            const base=(index*segments+step)*6*sides;
+            for(let face=0;face<sides;face++){
+              const a=face*2*Math.PI/sides,b=(face+1)*2*Math.PI/sides;
+              const write=(i:number,v:Vector3,n:Vector3,w:number,angle:number)=>pos.setXYZ(base+face*6+i,v.x+n.x*w*Math.cos(angle),v.y+n.y*w*Math.cos(angle),v.z+w*.65*Math.sin(angle));
+              write(0,p,normalP,wp,a);write(1,p,normalP,wp,b);write(2,q,normalQ,wq,a);
+              write(3,p,normalP,wp,b);write(4,q,normalQ,wq,b);write(5,q,normalQ,wq,a);
+            }
             return;
           }
           const k=strand.kind==='trunk'?1.5:2.6,base=(index*segments+step)*12;
@@ -236,6 +245,18 @@ export function createStrandWriter(){
           }
         });
       }
+    });
+    // Rotate each finished limb (including its leaves' twigs) out of its local plane.
+    strands.forEach((s,index)=>{
+      if(s.azimuth===undefined)return;
+      const c=Math.cos(s.azimuth),sin=Math.sin(s.azimuth),pivot=s.pivotX??0;
+      geometries.forEach((g,glow)=>{
+        const pos=g.getAttribute('position'),count=segments*(glow?12:6*sides),start=index*count;
+        for(let i=start;i<start+count;i++){
+          const x=pos.getX(i)-pivot,z=pos.getZ(i);
+          pos.setXYZ(i,pivot+x*c+z*sin,pos.getY(i),-x*sin+z*c);
+        }
+      });
     });
     geometries.forEach(g=>{g.getAttribute('position').needsUpdate=true;});
   };
@@ -301,7 +322,7 @@ export const VERTICAL_LEAF_VEIN=leafVein();
 // by a stable per-company jitter so a canopy looks grown rather than stamped.
 // Size follows market cap within readable limits.
 export function verticalLeafPose(node:TreePoint,parent:TreePoint|undefined,capScale=1,top=1){
-  const [x,y]=node.position,[px,py]=parent?.position??[0,0];
+  const [x,y]=node.planar??node.position,[px,py]=parent?.planar??parent?.position??[0,0];
   const jitter=verticalJitter(node.id,7)-.5;
   let angle=Math.atan2(y-py,x-px);
   if(parent?.kind==='branch'){

@@ -184,7 +184,8 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
  const stack=trunks.slice(1,-1);
  assert(stack.every(n=>Math.abs(n.position[0])<80&&n.span&&n.position[1]>n.span[0]&&n.position[1]<n.span[1]));
  assert(stack.every((n,i)=>!i||n.span![0]===stack[i-1].span![1]));
- const all=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
+ // Check growth rules in each limb's own plane; the rendered limbs wrap around the trunk.
+ const all=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en').map(n=>({...n,position:n.planar??n.position}));
  assert(all.slice(1).every(n=>n.position[1]>all[0].position[1]),'expanded Energy roots stay above the whole-tree title');
  assert.equal(new Set(all.filter(n=>n.company).map(n=>n.company!.id)).size,new Set(layers.flatMap(l=>l.companies.map(c=>c.id))).size);
  assert.equal(new Set(all.map(n=>n.id)).size,all.length);

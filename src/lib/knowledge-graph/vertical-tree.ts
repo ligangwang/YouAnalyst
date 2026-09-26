@@ -23,7 +23,7 @@ export function verticalJitter(id:string,salt=0){
 // Where a limb leaves the trunk. Branch tips carry `stem`, the height they grow
 // from; roots and the crown have fixed attachment points.
 export function verticalBranchOrigin(branch:TreePoint,top:number):[number,number]{
-  const side=Math.sign(branch.position[0])||1,stem=branch.stem??0;
+  const side=Math.sign((branch.planar??branch.position)[0])||1,stem=branch.stem??0;
   if(ROOT_LAYERS.has(branch.layer??''))return [side*40,-40];
   if(branch.layer===CROWN_LAYER)return [0,stem];
   return [verticalTrunkX(stem,top)+side*30,stem];
@@ -63,7 +63,8 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       let position:[number,number,number];
       if(ROOT_LAYERS.has(layer.id)){
         // Roots carry no leaves: energy companies are nodules sitting on the root strand itself.
-        const [x,y]=verticalLimbPoint(origin,[bx,by],.3+.65*(j+.35+.3*wobble)/companies.length);
+        const t=.3+.65*(j+.35+.3*wobble)/companies.length;
+        const [x,y]=verticalLimbPoint(origin,[bx,by],t);
         position=[x,y,0];
       }else{
         // Leaves start past the limb's middle and run beyond its tip, fanning wider towards the end,
@@ -131,6 +132,19 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   for(const branch of nodes)if(branch.kind==='branch'&&branch.stem!==undefined&&!ROOT_LAYERS.has(branch.layer!)&&branch.layer!==CROWN_LAYER){
     const shift=verticalTrunkX(branch.stem,top);
     for(const n of nodes)if(n===branch||n.parent===branch.id)n.position[0]+=shift;
+  }
+  // A golden-angle spiral grows limbs around the full trunk, not just its left
+  // and right edges. Preserve each limb's local plane for its curved wood and leaves.
+  const branchOrder=layers.flatMap(l=>l.branches.map(b=>b.id));
+  for(const branch of nodes.filter(n=>n.kind==='branch')){
+    const [pivotX]=verticalBranchOrigin(branch,top);
+    const side=Math.sign(branch.position[0]-pivotX)||1;
+    const azimuth=branchOrder.indexOf(branch.id)*Math.PI*(3-Math.sqrt(5))-(side<0?Math.PI:0);
+    for(const node of nodes.filter(n=>n===branch||n.parent===branch.id)){
+      node.planar=[...node.position];node.azimuth=azimuth;node.pivotX=pivotX;
+      const radial=node.position[0]-pivotX;
+      node.position=[pivotX+radial*Math.cos(azimuth),node.position[1],-radial*Math.sin(azimuth)];
+    }
   }
   return nodes;
 }

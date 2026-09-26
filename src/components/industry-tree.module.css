@@ -5,7 +5,7 @@
 .actions { display:flex; gap:6px; flex-shrink:0; }
 .actions button { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border:1px solid #355368; background:#0c1c29; color:#bfe8f7; border-radius:10px; cursor:pointer; }
 .actions button:hover,.actions button:focus-visible { background:#16384a; border-color:#5f93ad; }
-.scene { height: min(78vh,850px); min-height:560px; position:relative; touch-action:auto; }
+.scene { height: min(78vh,850px); min-height:560px; position:relative; isolation:isolate; overflow:hidden; touch-action:auto; }
 .node { display:flex; align-items:center; gap:7px; border:1px solid transparent; border-radius:8px; padding:5px 8px; line-height:1.35; background:#081523e8; text-align:left; white-space:nowrap; cursor:pointer; transition:opacity .2s,background .2s; transform-origin:0 0; }
 .node strong { display:flex; align-items:center; gap:6px; font-weight:500; }
 .node:hover,.node:focus-visible,.node[aria-pressed='true'] { background:#173e52; border-color:currentColor; outline:none; }
