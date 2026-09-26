@@ -8,6 +8,58 @@ import { graphFromMarket, type MarketCompany, type MarketRelationship } from "..
 import { layoutVerticalTree, verticalBranchOrigin, verticalLimbPoint } from '../src/lib/knowledge-graph/vertical-tree';
 import { industryTree, layoutIndustryTree, type TreePoint } from '../src/lib/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
+import { createIntroCamera, createIntroOrbit } from '../src/lib/knowledge-graph/intro-orbit';
+
+test('intro camera glides closer before easing into rotation', () => {
+  const advance = createIntroCamera(1000, 480, () => .25);
+  let previousDistance = 1000;
+  let last = { distance: 1000, azimuth: 0, polar: 0 };
+  for (let frame = 1; frame <= 240; frame++) {
+    last = advance(.05, Math.PI / 2);
+    assert(last.distance <= previousDistance);
+    assert(last.distance >= 480);
+    // Approach cannot jump more than 0.7% of its starting distance per frame.
+    assert(previousDistance - last.distance < 7);
+    if (frame <= 159) {
+      assert.equal(Math.abs(last.azimuth), 0);
+      assert.equal(Math.abs(last.polar), 0);
+    }
+    if (frame === 1) assert(1000 - last.distance < .01);
+    if (frame === 161) {
+      assert.equal(last.distance, 480);
+      assert(Math.abs(last.azimuth) < .000001);
+    }
+    previousDistance = last.distance;
+  }
+  assert.equal(last.distance, 480);
+  assert(Math.abs(last.azimuth) > .001);
+});
+
+test('intro orbit covers every side and varied elevations without camera jumps', () => {
+  for (const random of [() => 0, () => .499, () => .999]) {
+    const advance = createIntroOrbit(random);
+    let azimuth = 0, polar = Math.PI / 2;
+    let minPolar = polar, maxPolar = polar;
+    const sides = new Set<number>();
+    for (let frame = 0; frame < 600 * 20; frame++) {
+      const step = advance(.05, polar);
+      assert(Math.abs(step.azimuth) <= 2.3 * Math.PI / 180 * .05);
+      assert(Math.abs(step.polar) <= 1.2 * Math.PI / 180 * .05);
+      azimuth += step.azimuth;
+      polar += step.polar;
+      minPolar = Math.min(minPolar, polar);
+      maxPolar = Math.max(maxPolar, polar);
+      sides.add(Math.floor(((azimuth % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 2)));
+      assert(polar >= 55 * Math.PI / 180 && polar <= 125 * Math.PI / 180);
+    }
+    assert.equal(sides.size, 4);
+    assert(minPolar < 85 * Math.PI / 180);
+    assert(maxPolar > 95 * Math.PI / 180);
+    const resumed = advance(60, polar);
+    assert(Math.abs(resumed.azimuth) <= 2.3 * Math.PI / 180 * .05);
+    assert(Math.abs(resumed.polar) <= 1.2 * Math.PI / 180 * .05);
+  }
+});
 
 const graphs: Graph[] = ["ai-us", "ai-cn-a"].map(id => JSON.parse(readFileSync(new URL(`../data/ai-supply-chain/${id}.json`, import.meta.url), "utf8")));
 test('five-layer tree retains every company and distinguishes models from cloud infrastructure',()=>{

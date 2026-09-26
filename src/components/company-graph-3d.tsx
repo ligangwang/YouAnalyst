@@ -7,6 +7,7 @@ import { CameraControls, Html } from "@react-three/drei";
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, type Mesh } from "three";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
+import { createIntroCamera } from "@/lib/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
@@ -31,13 +32,14 @@ void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,
 const fragment = `varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis);if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
-function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector }: Props) {
+function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector, introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
   const { text, locale } = useLocale();
   const edgeElements = useRef(new Map<string, HTMLButtonElement>());
   const arrowElements = useRef(new Map<string, Mesh>());
   const sectorElements = useRef(new Map<string, HTMLButtonElement>());
   const layout = useMemo(() => layout3D(graph), [graph]);
   const controls = useRef<CameraControls>(null);
+  const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
   const preserveLabelPlacements = useRef(false);
   const cameraMoving = useRef(false);
   const labelPlacements = useRef(new WeakMap<HTMLElement, number>());
@@ -45,13 +47,14 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const lastLabelView = useRef<number[]>([]);
   const companyScales = useRef(new WeakMap<HTMLElement, number>());
   const reducedMotion = useRef(false);
+  const { size, camera, invalidate, gl } = useThree();
   useEffect(()=>{
     const media=window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update=()=>{reducedMotion.current=media.matches;};
+    const update=()=>{reducedMotion.current=media.matches;invalidate();};
     update();media.addEventListener("change",update);
-    return ()=>media.removeEventListener("change",update);
-  },[]);
-  const { size, camera, invalidate, gl } = useThree();
+    document.addEventListener("visibilitychange", update);
+    return ()=>{media.removeEventListener("change",update);document.removeEventListener("visibilitychange",update);};
+  },[invalidate]);
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const projected = useMemo(() => new Vector3(), []);
   const [hovered, setHovered] = useState("");
@@ -103,6 +106,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const c = controls.current; if (!c) return;
     // Evidence selection and panel resizing must not reset the user's orbit or zoom.
     const previous=lastCameraRequest.current;
+    if (previous && (previous.request !== cameraRequest || previous.reset !== reset)) introOrbitRef.current = false;
     if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset)return;
     lastCameraRequest.current={layout,request:cameraRequest,reset};
     // Only an explicit new view may rearrange labels after the user has explored it.
@@ -115,9 +119,11 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const d = n ? Math.max(150, layout.radius * .8) : sector ? radius / Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,size.width/size.height))) * 1.1 : fitDistance;
     const x = n?.x ?? sector?.x ?? 0, y = n?.y ?? sector?.y ?? 0, z = n?.z ?? sector?.z ?? 0;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    void c.setLookAt(x + d*.2, y + d*.12, z + d, x, y, z, !reduced);
+    // Establish the opening shot immediately; the introduction owns its slow dolly.
+    const opening = !previous && introOrbitRef.current && !n && !sector;
+    void c.setLookAt(x + d*.2, y + d*.12, z + d, x, y, z, !reduced && !opening);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest]);
+  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef]);
   const degree = useMemo(() => {
     const counts = new Map<string,number>();
     layout.edges.forEach(e=>{counts.set(e.source,(counts.get(e.source)??0)+1);counts.set(e.target,(counts.get(e.target)??0)+1);});
@@ -149,6 +155,15 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
+    // A gentle introduction only: never compete with a focused company or user input.
+    if (selected || activeEdge || sectorFocus) introOrbitRef.current = false;
+    if (introOrbitRef.current && !reducedMotion.current && controls.current && !document.hidden) {
+      introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.35, fitDistance * .48));
+      const step = introPath.current(delta, controls.current.polarAngle);
+      void controls.current.dollyTo(step.distance, false);
+      void controls.current.rotate(step.azimuth, step.polar, false);
+      invalidate();
+    }
     // Preserve the user's spatial context during AND after orbit, pan, or zoom.
     // Camera rest must not move or hide a company they were tracking to avoid overlap.
     const holdLabels = preserveLabelPlacements.current || cameraMoving.current;
@@ -288,6 +303,8 @@ function GraphUnavailable() {
 }
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
+  const introOrbitRef = useRef(true);
+  const stopIntroOrbit = () => { introOrbitRef.current = false; };
   const [supported, setSupported] = useState<boolean | null>(null);
   const [wheelGateRef, wheelHint] = useWheelZoomGate();
   useEffect(() => {
@@ -306,9 +323,9 @@ export default function CompanyGraph3D(props: Props) {
   const fallback = <GraphUnavailable />;
   if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
   if (!supported) return fallback;
-  return <div ref={wheelGateRef} className={styles.canvas3d}>
+  return <div ref={wheelGateRef} className={styles.canvas3d} onPointerDownCapture={stopIntroOrbit} onWheelCapture={stopIntroOrbit} onKeyDownCapture={stopIntroOrbit} onFocusCapture={stopIntroOrbit}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
+    <RenderBoundary fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · Ctrl + 滚轮／双指缩放")}</p>
   </div>;

@@ -7,7 +7,7 @@ export function companySectors(company: Pick<GraphNode, 'stageIds'>) {
   return matches.length ? matches : [OTHER_SECTOR];
 }
 export type IndustryView = 'table' | 'tree' | 'graph';
-export const INDUSTRY_VIEWS: readonly IndustryView[] = ['table', 'tree', 'graph'];
+export const INDUSTRY_VIEWS: readonly IndustryView[] = ['graph', 'tree', 'table'];
 export const isIndustryView = (value: unknown): value is IndustryView => INDUSTRY_VIEWS.includes(value as IndustryView);
 // The vertical tree used to be its own tab; it now leads the merged industry-structure page,
 // so old links and saved preferences for 'vertical' open that page.
