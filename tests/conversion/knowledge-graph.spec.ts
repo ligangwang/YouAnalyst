@@ -10,6 +10,54 @@ import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+test('company table paginates globally sorted results and restores browsing state', async ({page}) => {
+ const fixture:KnowledgeGraph={...graph,relationships:[],nodes:Array.from({length:61},(_,i)=>({
+   id:`US:PAGE${i+1}`,kind:'COMPANY',name:`Company ${String(i+1).padStart(3,'0')}`,symbol:`PAGE${i+1}`,market:'US',order:i,stageIds:['compute'],
+   ...(i===60?{}:{marketCap:{value:(i+1)*1e9,currency:'USD' as const,priceDate:'2026-09-25'}})
+ }))};
+ await page.route('**/*',r=>new URL(r.request().url()).pathname==='/api/knowledge-graph'?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=table');
+ const rows=page.locator('[data-list-company]');
+ const pagination=page.getByRole('navigation',{name:'Company list pagination'});
+ await expect(rows).toHaveCount(50);
+ await expect(pagination).toContainText('Showing 1–50 of 61 companies');
+ await expect(pagination.getByRole('button',{name:'Previous',exact:true})).toBeDisabled();
+ await pagination.getByRole('button',{name:'Next',exact:true}).click();
+ await expect(rows).toHaveCount(11);
+ await expect(rows.first()).toHaveAttribute('data-list-company','US:PAGE51');
+ await expect(pagination.getByRole('button',{name:'Next',exact:true})).toBeDisabled();
+ await rows.first().getByRole('button').click();
+ await page.getByRole('button',{name:'Clear selection',exact:true}).click();
+ await expect(pagination).toContainText('Page 2 / 2');
+ await page.getByLabel('Rows per page').selectOption('25');
+ await expect(rows).toHaveCount(25);
+ await expect(pagination).toContainText('Page 1 / 3');
+ await page.getByRole('button',{name:'Market value',exact:true}).click();
+ await expect(rows.first()).toHaveAttribute('data-list-company','US:PAGE60');
+ await pagination.getByRole('button',{name:'Next',exact:true}).click();
+ await page.getByLabel('Listing market',{exact:true}).selectOption('US');
+ await expect(pagination).toContainText('Page 1 / 3');
+ await pagination.getByRole('button',{name:'Next',exact:true}).click();
+ await page.goto('http://graph.test/profile?lang=en');
+ await page.goBack();
+ await expect(pagination).toContainText('Page 2 / 3');
+ await expect(page.getByLabel('Listing market',{exact:true})).toHaveValue('US');
+ await expect(rows.first()).toHaveAttribute('data-list-company','US:PAGE35');
+ await pagination.getByRole('button',{name:'Next',exact:true}).click();
+ await expect(rows.last()).toHaveAttribute('data-list-company','US:PAGE61');
+ await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('Company 001');
+ await expect(rows).toHaveCount(1);
+ await expect(pagination).toContainText('Page 1 / 1');
+ await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('no such company');
+ await expect(page.getByText('No matching companies.',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Clear filters',exact:true}).click();
+ await page.getByLabel('Rows per page').selectOption('100');
+ await expect(rows).toHaveCount(61);
+ await page.goto('http://graph.test/map?lang=en&view=table&page=-1&pageSize=oops');
+ await expect(rows).toHaveCount(50);
+ await expect(pagination).toContainText('Page 1 / 2');
+ await page.screenshot({path:`output/table-pagination-${test.info().project.name}.png`,fullPage:true});
+});
 test('private valuations display currency, qualifier, date and source in list and details', async ({page}) => {
  const fixture:KnowledgeGraph={...graph,nodes:[...graph.nodes.filter(n=>n.kind==='STAGE'),
    {id:'ORG:MISTRAL-AI',kind:'COMPANY',name:'Mistral AI',market:'GLOBAL',listingStatus:'PRIVATE',order:0,stageIds:['compute'],privateValuation:{value:21e9,currency:'EUR',qualifier:'greater_than',valuationDate:'2026-09-08',basis:'post_money',sourceUrl:'https://mistral.ai/news/mistral-makes-sovereign-open-weight-ai-to-frontier/',reviewedAt:'2026-09-25',verification:'source_checked',reviewPending:false}},
