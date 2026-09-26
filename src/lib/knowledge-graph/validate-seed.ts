@@ -43,4 +43,3 @@ export function validateGraph(input: unknown): asserts input is Graph {
   const members = g.relationships.filter(e => e.type === "PARTICIPATES_IN").length;
   assert(g.coverage.companyCount === g.nodes.filter(n => n.kind === "COMPANY").length && g.coverage.stageCount === g.nodes.filter(n => n.kind === "STAGE").length && g.coverage.stageMembershipCount === members && g.coverage.businessRelationshipCount === g.relationships.length - members, "Incorrect coverage counts");
 }
-
