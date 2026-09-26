@@ -25,8 +25,9 @@ test('parallel release preparation cannot deploy and both environments require t
   assert.equal(build.needs, undefined);
   assert.equal(build.if, "github.event_name == 'push' || github.event_name == 'workflow_dispatch'");
   assert.equal(build.env.GIT_SHA, '${{ github.sha }}');
-  assert.equal(build.env.APP_ENVIRONMENT, build.environment);
-  assert.equal(build.env.NEXT_PUBLIC_APP_ENVIRONMENT, build.environment);
+  assert.equal(build.environment.deployment, false);
+  assert.equal(build.env.APP_ENVIRONMENT, build.environment.name);
+  assert.equal(build.env.NEXT_PUBLIC_APP_ENVIRONMENT, build.environment.name);
   assert(build.steps.some((s: { run?: string }) => s.run?.includes('node scripts/prepare-release.mjs')));
   assert(!build.steps.some((s: { uses?: string; run?: string }) => /google-github-actions|gcloud|deploy:/.test(`${s.uses} ${s.run}`)));
   assert.equal(build.outputs['artifact-id'], '${{ steps.release.outputs.artifact-id }}');

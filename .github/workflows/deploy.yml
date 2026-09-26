@@ -144,7 +144,9 @@ jobs:
   build-release:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    environment: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.environment == 'production') && 'production' || 'staging' }}
+    environment:
+      name: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.environment == 'production') && 'production' || 'staging' }}
+      deployment: false
     outputs:
       artifact-id: ${{ steps.release.outputs.artifact-id }}
     env:
