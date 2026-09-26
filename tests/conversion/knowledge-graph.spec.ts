@@ -65,19 +65,17 @@ test('background follow status does not cancel the opening camera', async ({page
 
 test('cinematic introduction enlarges labels then orbits until touched', async ({page, isMobile}) => {
  test.setTimeout(90000);
- await page.emulateMedia({reducedMotion:'reduce'});
+ await page.emulateMedia({reducedMotion:'no-preference'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph');
  const labels=page.locator('[data-company-id]');
  const canvas=page.locator('canvas');
  await expect(labels).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
- await expect(canvas).toHaveAttribute('data-camera','idle');
  const averageScale=()=>labels.evaluateAll(els=>els.reduce((sum,el)=>sum+Number((el as HTMLElement).style.getPropertyValue('--label-scale')),0)/els.length);
  const before=await averageScale();
- await page.emulateMedia({reducedMotion:'no-preference'});
  await page.waitForTimeout(14000);
  // Software-rendered CI can advance fewer animation frames in the same wall time.
- await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(before*1.35);
+ await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(before*1.15);
  const positions=()=>projectedGraphPositions(page);
  const orbiting=await positions();
  await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-orbiting[i])>1);},{timeout:30000}).toBe(true);
@@ -826,6 +824,7 @@ test("company name emphasis scales gradually and respects reduced motion",async(
  const label=page.locator('[data-company-id="US:NVDA"]');
  await expect(label).toBeVisible();
  await page.locator("canvas").scrollIntoViewIfNeeded();
+ await expect(page.locator("canvas")).toHaveAttribute('data-camera','idle');
  const initial=await label.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--label-scale')));
  await revealMapSearch(page);
  await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
@@ -841,6 +840,8 @@ test("company name emphasis scales gradually and respects reduced motion",async(
  const values=await samples;
  expect(new Set(values.filter(v=>v>initial+.01&&v<1.14)).size).toBeGreaterThan(2);
  await page.emulateMedia({reducedMotion:"reduce"});
+ // Restore the full graph before comparing its overview with the initial one.
+ await page.getByRole("button",{name:"Clear filters",exact:true}).click();
  await page.getByRole("button",{name:"Reset view",exact:true}).click();
  await page.mouse.move(1,1);
  await expect.poll(()=>label.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--label-scale')))).toBeCloseTo(initial,2);

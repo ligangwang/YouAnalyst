@@ -123,7 +123,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Establish the opening shot immediately; the introduction owns its slow dolly.
     const opening = !previous && introOrbitRef.current && !n && !sector;
-    const distance = opening ? d * 1.4 : d;
+    const distance = opening && !reduced ? d * 1.4 : d;
     void c.setLookAt(x + distance*.2, y + distance*.12, z + distance, x, y, z, !reduced && !opening);
     invalidate();
   }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef]);
