@@ -43,7 +43,7 @@ transition rather than commands to run during deployment. Current primary-call
 selection is available in My predictions.
 
 1. Read all groups and predictions; identify the confirmed comparison by document ID.
-2. Produce a private dry-run report using `planPublishingMigration`. Stop on ownership
+2. The retired planner produced a private dry-run report, stopping on ownership
    mismatches or privacy discrepancies. Report duplicate active user/company calls;
    preserve them and let the owner select the primary call for future articles in My predictions.
 3. Deploy compatible readers and publishing handlers before archiving grouping records.
@@ -56,7 +56,7 @@ selection is available in My predictions.
 
 The owner approved the `posts` collection. The dry run found 30 predictions in nine
 legacy groups, with one NVDA vs AMD comparison and two distinct active AMD calls.
-`--apply-groups` archives only grouping metadata and leaves every prediction untouched.
-A canceled HIMS call without a group remains unchanged. Full primary selection can be
-performed in My predictions or supplied explicitly with `--primary=ID --apply`.
+The retired runner's group-only mode archived grouping metadata and left every
+prediction untouched. A canceled HIMS call without a group remained unchanged.
+Current primary selection is performed in My predictions.
 Migration snapshots contain private records and must remain in the uncommitted output folder.

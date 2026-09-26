@@ -8,7 +8,7 @@ Company IDs are `US:NVDA`, `XSHG:688041`, etc. Relationship IDs are canonical so
 
 `aiGraph` contains publication status, sector IDs, bilingual sector labels, membership evidence, display order, and the research date. Sector membership is editorial classification, not a commercial relationship. Business edges preserve documented versus announced status. The API includes public AI members and their directly connected public companies; unclassified neighbors appear under Related companies. Drafts and withdrawn relationships are excluded.
 
-The JSON files are reviewed seed inputs. `scripts/import-ai-knowledge-graphs.ts --write` imports them into the shared collections atomically and preserves existing editorial changes on replay. It does not create a separate graph collection.
+The JSON files are historical reviewed seed inputs and remain covered by read-only validation tests. The one-time seed importer and its Action have been retired. For new relationship research on existing companies, use the [research ingestion API](../../docs/research-ingestion.md). Company editorial changes use the current admin tools and reviewed publication workflows.
 
 The legacy graph migration is complete and its script has been removed. Deployments now read the shared stores directly. Historical migration code is retained in Git at commit `df65762`; see the [completed migration and recovery record](../../docs/company-collection-rename.md) before planning any restore.
 
