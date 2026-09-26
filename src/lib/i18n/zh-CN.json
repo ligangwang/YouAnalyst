@@ -1169,5 +1169,5 @@
   "Score": "得分",
   "Score: each public call is scored from −1000 to +1000 on its return since entry (1000 × tanh(return ÷ 30%)). An analyst's score averages those call scores, adjusts for win rate, and is scaled down until they have about 10 calls. Open and settled calls both count.": "得分说明：每条公开观点按建仓以来的收益计分，范围为 −1000 至 +1000（1000 × tanh(收益 ÷ 30%)）。分析师得分为各条观点得分的平均值，并按胜率调整；观点数量不足约 10 条时会按比例折减。进行中和已结算的观点都会计入。",
   "Company search": "公司搜索",
-  "Search any listed company by name or ticker, or start from a company on the AI map.": "按名称或股票代码搜索上市公司，或从 AI 图谱中的公司开始。"
+  "Search companies by name or ticker.": "按名称或股票代码搜索公司。"
 }

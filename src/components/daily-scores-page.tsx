@@ -399,7 +399,7 @@ export function DailyScoresPage({
               <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400"><UiText text={"today"} /></p>
               <p className="mt-1 text-xs text-slate-400">{scoreText(callOfTheDay.dailyScoreChange)}<UiText text={" score today"} /></p>
               {callOfTheDay.dailyReturnChange !== null && returnText(callOfTheDay.returnSinceEntry) && callOfTheDay.returnSinceEntry !== callOfTheDay.dailyReturnChange ? (
-                <p className="mt-1 text-xs text-slate-500">{returnText(callOfTheDay.returnSinceEntry)}<UiText text={" since entry"} /></p>
+                <p className="mt-1 text-xs text-slate-500"><span className={returnTone(callOfTheDay.returnSinceEntry)}>{returnText(callOfTheDay.returnSinceEntry)}</span><UiText text={" since entry"} /></p>
               ) : null}
             </div>
           </div>

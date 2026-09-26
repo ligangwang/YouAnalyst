@@ -41,7 +41,7 @@ export default function CompaniesPage() {
       <section className="w-full">
         <div className="mx-auto max-w-3xl text-center">
           <h1 className="text-2xl font-semibold text-slate-50 sm:text-3xl"><UiText text={"Company search"} /></h1>
-          <p className="mt-2 text-sm text-slate-400"><UiText text={"Search any listed company by name or ticker, or start from a company on the AI map."} /></p>
+          <p className="mt-2 text-sm text-slate-400"><UiText text={"Search companies by name or ticker."} /></p>
         </div>
 
         <CompanySearchCard />
