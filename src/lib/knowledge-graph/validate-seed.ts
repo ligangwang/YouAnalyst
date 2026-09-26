@@ -1,12 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
-import { pathToFileURL } from "node:url";
-import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import assert from "node:assert/strict";
-import { combineGraphs, type KnowledgeGraph } from "../src/lib/knowledge-graph/model";
-import { RELATIONSHIP_COLLECTION, relationshipId, type GraphMembership } from "../src/lib/knowledge-graph/market-store";
-import { companyFields } from "../src/lib/market-companies/model";
 
 type Source = { id: string; url: string; title: string; retrievedAt: string; sourceDate: string | null };
 type Node = { id: string; kind: "STAGE" | "COMPANY"; market?: string; symbol?: string; name?: string; stageIds?: string[]; sourceIds?: string[] };
@@ -51,48 +43,3 @@ export function validateGraph(input: unknown): asserts input is Graph {
   const members = g.relationships.filter(e => e.type === "PARTICIPATES_IN").length;
   assert(g.coverage.companyCount === g.nodes.filter(n => n.kind === "COMPANY").length && g.coverage.stageCount === g.nodes.filter(n => n.kind === "STAGE").length && g.coverage.stageMembershipCount === members && g.coverage.businessRelationshipCount === g.relationships.length - members, "Incorrect coverage counts");
 }
-
-export function graphVersion(g: Graph) {
-  const sha256 = createHash("sha256").update(JSON.stringify(g)).digest("hex");
-  return { versionId: `${g.asOf}-${sha256.slice(0, 16)}`, sha256 };
-}
-
-
-export async function importGraphs(db: Firestore, graphs: Graph[]) {
-  assert(graphs.length === 2 && new Set(graphs.map(g => g.id)).size === 2, "Both markets are required");
-  graphs.forEach(validateGraph);
-  const combined = combineGraphs(graphs as unknown as (KnowledgeGraph & { id: string; language: string })[]);
-  const companies = combined.nodes.filter(n => n.kind === "COMPANY");
-  const edges = combined.relationships.filter(e => e.type !== "PARTICIPATES_IN");
-  const companyRefs = companies.map(n => db.collection("companies").doc(n.id));
-  const edgeRefs = edges.map(e => db.collection(RELATIONSHIP_COLLECTION).doc(relationshipId(e.source,e.target,e.type)));
-  // Publish both markets atomically. Existing reviewed profiles and relationship edits win on replay.
-  await db.runTransaction(async tx => {
-    const previous = await tx.getAll(...companyRefs, ...edgeRefs);
-    companies.forEach((n,i) => {
-      const current = previous[i].data() ?? {};
-      const memberships = combined.relationships.filter(e => e.type === "PARTICIPATES_IN" && e.source === n.id);
-      const sourceIds = new Set([...(n.sourceIds ?? []), ...memberships.flatMap(e => e.sourceIds)]);
-      const sources = combined.sources.filter(s => sourceIds.has(s.id));
-      const profile = { name:n.name, symbol:n.symbol, description:n.summary ?? "", source:sources[0]?.url ?? "", sourceLabel:sources[0]?.title ?? "", ...current };
-      const inGraph: GraphMembership = { status:"PUBLISHED", stageIds:n.stageIds ?? [], stages:combined.nodes.filter(s => s.kind === "STAGE" && n.stageIds?.includes(s.id.slice(6))), memberships, sources, order:n.order, asOf:combined.asOf };
-      tx.set(companyRefs[i], {...profile, status:current.status ?? "DIRECTORY", ...companyFields(n.id,profile), inGraph:current.inGraph ?? current.aiGraph ?? inGraph}, {merge:true});
-    });
-    edges.forEach((e,i) => {
-      const current = previous[companies.length+i].data();
-      const evidence = [...(current?.evidence ?? []), ...combined.sources.filter(s => e.sourceIds.includes(s.id)).map(s => ({...s,summary:e.summary}))];
-      tx.set(edgeRefs[i], { ...e, status:"PUBLISHED", ...(!current ? { publishedAt: new Date().toISOString() } : {}), topic:"AI", asOf:combined.asOf, ...current, id:edgeRefs[i].id,
-        evidence:evidence.filter((s,i) => evidence.findIndex(other => other.url === s.url && other.title === s.title) === i) });
-    });
-  });
-  return graphs.map(g => ({ id:g.id, ...graphVersion(g), companyCount:g.coverage.companyCount, relationshipCount:g.coverage.businessRelationshipCount, sourceCount:g.sources.length }));
-}
-async function main() {
-  const graphs = await Promise.all(["ai-us", "ai-cn-a"].map(async id => JSON.parse(await readFile(new URL(`../data/ai-supply-chain/${id}.json`, import.meta.url), "utf8"))));
-  graphs.forEach(validateGraph);
-  if (process.argv.includes("--dry-run")) { console.log(JSON.stringify(graphs.map(g => ({ id: g.id, ...graphVersion(g), ...g.coverage })), null, 2)); return; }
-  assert(process.argv.includes("--write") && process.env.GCP_PROJECT_ID, "Use --write with GCP_PROJECT_ID, or --dry-run");
-  initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
-  console.log(JSON.stringify(await importGraphs(getFirestore(), graphs), null, 2));
-}
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(error => { console.error(error instanceof Error ? error.message : "Graph import failed"); process.exitCode = 1; });

@@ -35,10 +35,15 @@ Existing prediction thesis text remains readable without copying it into new pos
 No new comparison collection is proposed: retain the existing watchlists documents
 for comparison membership and archived legacy metadata.
 
-## Migration sequence
+## Historical migration sequence
+
+The one-time publishing migration runner and watchlist backfill Action have been
+retired. Their source remains in Git history; the steps below document the old
+transition rather than commands to run during deployment. Current primary-call
+selection is available in My predictions.
 
 1. Read all groups and predictions; identify the confirmed comparison by document ID.
-2. Produce a private dry-run report using `planPublishingMigration`. Stop on ownership
+2. The retired planner produced a private dry-run report, stopping on ownership
    mismatches or privacy discrepancies. Report duplicate active user/company calls;
    preserve them and let the owner select the primary call for future articles in My predictions.
 3. Deploy compatible readers and publishing handlers before archiving grouping records.
@@ -51,7 +56,7 @@ for comparison membership and archived legacy metadata.
 
 The owner approved the `posts` collection. The dry run found 30 predictions in nine
 legacy groups, with one NVDA vs AMD comparison and two distinct active AMD calls.
-`--apply-groups` archives only grouping metadata and leaves every prediction untouched.
-A canceled HIMS call without a group remains unchanged. Full primary selection can be
-performed in My predictions or supplied explicitly with `--primary=ID --apply`.
+The retired runner's group-only mode archived grouping metadata and left every
+prediction untouched. A canceled HIMS call without a group remained unchanged.
+Current primary selection is performed in My predictions.
 Migration snapshots contain private records and must remain in the uncommitted output folder.

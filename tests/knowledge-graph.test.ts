@@ -1,10 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import type { Firestore } from "firebase-admin/firestore";
-import { validateGraph, graphVersion, importGraphs, type Graph } from "../scripts/import-ai-knowledge-graphs";
+import { validateGraph, type Graph } from "../src/lib/knowledge-graph/validate-seed";
 
-import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../src/lib/knowledge-graph/market-store";
+import { graphFromMarket, type MarketCompany } from "../src/lib/knowledge-graph/market-store";
 import { layoutVerticalTree, verticalBranchOrigin, verticalLimbPoint } from '../src/lib/knowledge-graph/vertical-tree';
 import { industryTree, layoutIndustryTree, type TreePoint } from '../src/lib/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
@@ -126,51 +125,6 @@ test("rejects broken evidence, cross-market endpoints, and commercial stage edge
     (g: Graph) => { g.relationships.find(e => e.type === "PLANNED_ADOPTER_OF")!.commercialStatus = "DOCUMENTED"; },
   ]) { const copy = structuredClone(graphs[0]); mutation(copy); assert.throws(() => validateGraph(copy)); }
 });
-test("version hash is reproducible and changes with research content", () => {
-  assert.deepEqual(graphVersion(graphs[0]), graphVersion(structuredClone(graphs[0])));
-  const copy = structuredClone(graphs[0]); copy.title += " revised";
-  assert.notEqual(graphVersion(copy).versionId, graphVersion(graphs[0]).versionId);
-});
-
-
-function fakeDb() {
-  const records = new Map<string, Record<string, unknown>>(); let fail = true;
-  type Ref = { id:string; path:string };
-  const snapshot=(ref:Ref)=>({exists:records.has(ref.path),data:()=>records.get(ref.path)});
-  const db = {
-    collection:(name:string)=>({doc:(id:string)=>({id,path:name+"/"+id})}),
-    runTransaction:async(callback:(tx:unknown)=>Promise<void>)=>{
-      const writes:{ref:Ref;data:Record<string,unknown>}[]=[];
-      await callback({getAll:async(...refs:Ref[])=>refs.map(snapshot),set:(ref:Ref,data:Record<string,unknown>)=>writes.push({ref,data})});
-      if(fail)throw Error("Simulated transaction interruption");
-      for(const {ref,data} of writes) records.set(ref.path,{...records.get(ref.path),...data});
-    },
-  } as unknown as Firestore;
-  return {db,records,resume:()=>{fail=false;}};
-}
-test("atomic master import preserves both markets, evidence, publication state and reviewed edits on replay",async()=>{
-  const f=fakeDb();
-  await assert.rejects(importGraphs(f.db,graphs),/Simulated/);
-  assert.equal(f.records.size,0);
-  f.resume();
-  await importGraphs(f.db,graphs);
-  const companies=[...f.records].filter(([p])=>p.startsWith("companies/")).map(([p,d])=>({...d,id:p.split("/")[1]}) as MarketCompany);
-  const edges=[...f.records].filter(([p])=>p.startsWith("company_relationships/")).map(([p,d])=>({...d,id:p.split("/")[1]}) as MarketRelationship);
-  const map=graphFromMarket(companies,edges);
-  assert.equal(map.nodes.filter(n=>n.kind==="COMPANY").length,129);
-  assert.equal(map.relationships.filter(e=>e.type!=="PARTICIPATES_IN").length,31);
-  for(const g of graphs)for(const source of g.sources)assert(map.sources.some(s=>s.url===source.url&&s.title===source.title),source.id);
-  assert(map.nodes.find(n=>n.id==="stage:compute")?.labels?.["zh-CN"]);
-  const companyPath="companies/US:NVDA", old=f.records.get(companyPath)!;
-  f.records.set(companyPath,{...old,name:"Reviewed NVIDIA",description:"Reviewed description"});
-  const edgePath=[...f.records.keys()].find(p=>p.startsWith("company_relationships/"))!;
-  f.records.set(edgePath,{...f.records.get(edgePath),status:"WITHDRAWN"});
-  const count=f.records.size;
-  await importGraphs(f.db,graphs);
-  assert.equal(f.records.size,count);
-  assert.equal(f.records.get(companyPath)?.name,"Reviewed NVIDIA");
-  assert.equal(f.records.get(edgePath)?.status,"WITHDRAWN");
-});
 test("new published master relationships bring in public neighbors; drafts, missing endpoints and unrelated companies stay out",()=>{
   const seed={id:"US:NVDA",name:"NVIDIA",status:"PUBLISHED",aiGraph:{status:"PUBLISHED",stageIds:["compute"],stages:[{id:"stage:compute",kind:"STAGE",order:1}],sources:[],memberships:[],order:1,asOf:"2026-09-11"}} as MarketCompany;
   const evidence=[{id:"report",url:"https://example.com/report",title:"Report",sourceDate:null,summary:"Supplies hardware"}];
@@ -183,16 +137,11 @@ test("new published master relationships bring in public neighbors; drafts, miss
 });
 
 
-test("generic graph membership takes precedence and legacy import preserves reviewed metadata", async () => {
+test("generic graph membership takes precedence over legacy metadata", async () => {
  const membership = {status:"PUBLISHED" as const,stageIds:["energy"],stages:[],memberships:[],sources:[],order:9,asOf:"2026-09-20"};
  const company = {id:"US:NVDA",name:"NVIDIA",status:"PUBLISHED",inGraph:membership,aiGraph:{...membership,stageIds:["compute"]}};
  assert.deepEqual(graphFromMarket([company],[]).nodes.find(n=>n.id === company.id)?.stageIds,["energy"]);
- const f=fakeDb(); f.resume();
- f.records.set("companies/US:NVDA",{name:"Reviewed NVIDIA",status:"DIRECTORY",aiGraph:membership});
- await importGraphs(f.db,graphs);
- assert.deepEqual(f.records.get("companies/US:NVDA")?.inGraph,membership);
- assert(f.records.get("companies/US:AMD")?.inGraph);
- assert.equal(f.records.get("companies/US:AMD")?.aiGraph,undefined);
+
 });
 
 
