@@ -41,5 +41,8 @@ test('tour eases from the overview, holds readable closeups and clamps delayed f
   for(let i=0;i<520;i++)tour(.05);
   assert.deepEqual(tour(.05).target,stops[1]);
   const a=createTreeTour(start,stops,1,()=>.5),b=createTreeTour(start,stops,1,()=>.5);
-  assert.deepEqual(a(100),b(.05));
+  assert.deepEqual(a(100),b(.25));
+  const slow=createTreeTour(start,stops,1,()=>.5);
+  for(let i=0;i<65;i++)slow(.2);
+  assert.deepEqual(slow(0).target,stops[0],'a 5fps renderer reaches the close-up in the same twelve seconds');
 });

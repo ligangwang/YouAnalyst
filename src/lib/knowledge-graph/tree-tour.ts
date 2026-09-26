@@ -36,7 +36,9 @@ export function createTreeTour(start:TreeShot, stops:Point[], aspect:number, ran
   };
   let to=shot(stops[0]??start.target);
   return (delta:number):TreeShot=>{
-    elapsed+=Math.max(0,Math.min(.05,delta));
+    // Keep the slow tour near wall-clock speed on low-frame-rate phones/software
+    // renderers. Hidden scenes are paused; cap resume gaps to a quarter second.
+    elapsed+=Math.max(0,Math.min(.25,delta));
     // Slow approach, then a short hold to read the company names.
     const duration=index===0?12:20,hold=5;
     const t=ease(Math.min(1,elapsed/duration));
