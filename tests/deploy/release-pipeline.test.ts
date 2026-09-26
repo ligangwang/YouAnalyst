@@ -8,6 +8,7 @@ const workflow = require('js-yaml').load(readFileSync('.github/workflows/deploy.
 
 test('all browser shards and authentication must pass the stable release gate', () => {
   const shard = workflow.jobs['browser-shard'];
+  assert.equal(shard.if, "github.event_name == 'pull_request' && github.event.pull_request.draft == false");
   assert.deepEqual(shard.strategy.matrix.shard, [1, 2, 3, 4]);
   assert.equal(shard.strategy['fail-fast'], false);
   assert(shard.steps.some((s: { run?: string }) => s.run?.includes('--shard=${{ matrix.shard }}/4')));
@@ -18,6 +19,14 @@ test('all browser shards and authentication must pass the stable release gate', 
   assert.match(gate.if, /^always\(\)/);
   assert.equal(gate.steps[0].env.SHARD_RESULT, '${{ needs.browser-shard.result }}');
   assert.equal(gate.steps[0].run, 'test "$SHARD_RESULT" = success');
+  assert.equal(gate.steps[0].if, "github.event_name == 'pull_request'");
+  const proof = gate.steps.find((s: { uses?: string }) => s.uses === 'actions/upload-artifact@v4');
+  assert.equal(proof.if, "github.event_name == 'pull_request'");
+  assert.equal(proof.with.name, 'browser-verified-${{ steps.tree.outputs.sha }}');
+  const reuse = gate.steps.find((s: { uses?: string }) => s.uses === 'actions/github-script@v7');
+  assert.equal(reuse.if, "github.event_name != 'pull_request'");
+  assert.equal(reuse.env.RELEASE_TREE, '${{ steps.tree.outputs.sha }}');
+  assert.match(reuse.with.script, /verifyBrowserCoverage/);
 });
 
 test('parallel release preparation cannot deploy and both environments require the checked artifact', () => {
@@ -40,5 +49,6 @@ test('parallel release preparation cannot deploy and both environments require t
     const release = deploy.steps.find((s: { run?: string }) => s.run === `npm run deploy:${target}`);
     assert.equal(release.env.PREBUILT_RELEASE, '1');
     assert.equal(release.env.VERIFIED_COMMIT, '${{ github.sha }}');
+    assert(deploy.steps.some((s: { run?: string }) => s.run === 'npm run smoke:test'));
   }
 });
