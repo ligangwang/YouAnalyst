@@ -27,10 +27,10 @@ class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNod
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; varying vec3 vColor; varying float vEmphasis;
-void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*(emphasis>1.?1.5:1.);}`;
-const fragment = `varying vec3 vColor; varying float vEmphasis;
-void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis);if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
+const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; varying float vDepth; varying vec3 vColor; varying float vEmphasis;
+void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;vDepth=emphasis>1.?1.:clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*(emphasis>1.?1.5:1.);}`;
+const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis;
+void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
 function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector, introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
   const { text, locale } = useLocale();
@@ -38,6 +38,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const arrowElements = useRef(new Map<string, Mesh>());
   const sectorElements = useRef(new Map<string, HTMLButtonElement>());
   const layout = useMemo(() => layout3D(graph), [graph]);
+  const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius}}), [layout.radius]);
   const controls = useRef<CameraControls>(null);
   const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
   const preserveLabelPlacements = useRef(false);
@@ -122,7 +123,8 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Establish the opening shot immediately; the introduction owns its slow dolly.
     const opening = !previous && introOrbitRef.current && !n && !sector;
-    void c.setLookAt(x + d*.2, y + d*.12, z + d, x, y, z, !reduced && !opening);
+    const distance = opening && !reduced ? d * 1.4 : d;
+    void c.setLookAt(x + distance*.2, y + distance*.12, z + distance, x, y, z, !reduced && !opening);
     invalidate();
   }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef]);
   const degree = useMemo(() => {
@@ -159,7 +161,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     // A gentle introduction only: never compete with a focused company or user input.
     if (selected || activeEdge || sectorFocus) introOrbitRef.current = false;
     if (introOrbitRef.current && !reducedMotion.current && controls.current && !document.hidden) {
-      introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.35, fitDistance * .48));
+      introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.35, fitDistance * .9));
       const step = introPath.current(delta, controls.current.polarAngle);
       void controls.current.dollyTo(step.distance, false);
       void controls.current.rotate(step.azimuth, step.polar, false);
@@ -210,7 +212,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     };
     const target=controls.current?.getTarget(new Vector3()) ?? new Vector3();
     const close=camera.position.distanceTo(target)<fitDistance*.68;
-    const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.15,fitDistance*.4/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
+    const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.15,fitDistance*.55/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
     // Write all font sizes first, then measure the actual rendered labels in one batch.
     let scalesSettling=false;
     // Ease the actual font dimensions, so collision measurement follows what is rendered.
@@ -286,7 +288,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   return <>
     <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
-      <shaderMaterial vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
+      <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
     <lineSegments geometry={lines} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
     {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><button aria-label={`${text("Focus sector", "聚焦产业")}: ${text(sector.en,sector.zh)}`} aria-pressed={sectorFocus===sector.id} onClick={()=>onSelectSector?.(sector.id)} ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden",pointerEvents:"auto",opacity:selected || (sectorFocus && sector.id !== sectorFocus) ? .25 : 1}}><span className={styles.sectorName}>{text(sector.en,sector.zh)}</span></button></Html>)}

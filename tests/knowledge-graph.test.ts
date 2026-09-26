@@ -8,6 +8,30 @@ import { layoutVerticalTree, verticalBranchOrigin, verticalLimbPoint } from '../
 import { industryTree, layoutIndustryTree, type TreePoint } from '../src/lib/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 import { createIntroCamera, createIntroOrbit } from '../src/lib/knowledge-graph/intro-orbit';
+import { layout3D } from '../src/lib/knowledge-graph/layout-3d';
+import { combineGraphs } from '../src/lib/knowledge-graph/model';
+import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';
+
+test('3D companies fill a stable ball with interior nodes and real connections', () => {
+  const graph = combineGraphs(graphs as unknown as (KnowledgeGraph & {id:string;language:string})[]);
+  const before = structuredClone(graph);
+  const layout = layout3D(graph);
+  assert.deepEqual(graph, before);
+  assert.equal(layout.nodes.length, 129);
+  const radii = layout.nodes.map(n => Math.hypot(n.x,n.y,n.z) / layout.radius);
+  assert(radii.filter(r => r < .65).length > 25, 'interior companies, not just a shell');
+  assert(radii.filter(r => r > .85).length > 35, 'outer nodes define the ball');
+  const spans = (['x','y','z'] as const).map(axis => Math.max(...layout.nodes.map(n=>n[axis]))-Math.min(...layout.nodes.map(n=>n[axis])));
+  assert(Math.max(...spans)/Math.min(...spans) < 1.2, 'round on every axis');
+  assert.equal(new Set(layout.nodes.map(n=>`${n.x>=0},${n.y>=0},${n.z>=0}`)).size,8);
+  assert.deepEqual(layout3D({...graph,nodes:[...graph.nodes].reverse()}).nodes,layout.nodes);
+  assert.deepEqual(layout.edges,graph.relationships.filter(e=>e.type!=='PARTICIPATES_IN'));
+  for(const count of [0,1,2]) {
+    const small=layout3D({...graph,nodes:graph.nodes.filter(n=>n.kind==='COMPANY').slice(0,count)});
+    assert(small.radius>0 && small.nodes.every(n=>[n.x,n.y,n.z].every(Number.isFinite)));
+    assert(small.edges.every(e=>small.nodes.some(n=>n.id===e.source)&&small.nodes.some(n=>n.id===e.target)));
+  }
+});
 
 test('intro camera glides closer before easing into rotation', () => {
   const advance = createIntroCamera(1000, 480, () => .25);

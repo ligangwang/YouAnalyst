@@ -77,7 +77,8 @@ test('cinematic introduction enlarges labels then orbits until touched', async (
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.waitForTimeout(14000);
  // Software-rendered CI can advance fewer animation frames in the same wall time.
- await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(before*1.35);
+ // Reduced motion starts already fitted; enabling motion completes the gentle dolly.
+ await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(before*1.05);
  const positions=()=>projectedGraphPositions(page);
  const orbiting=await positions();
  await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-orbiting[i])>1);},{timeout:30000}).toBe(true);
@@ -826,6 +827,7 @@ test("company name emphasis scales gradually and respects reduced motion",async(
  const label=page.locator('[data-company-id="US:NVDA"]');
  await expect(label).toBeVisible();
  await page.locator("canvas").scrollIntoViewIfNeeded();
+ await expect(page.locator("canvas")).toHaveAttribute('data-camera','idle');
  const initial=await label.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--label-scale')));
  await revealMapSearch(page);
  await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
@@ -841,6 +843,8 @@ test("company name emphasis scales gradually and respects reduced motion",async(
  const values=await samples;
  expect(new Set(values.filter(v=>v>initial+.01&&v<1.14)).size).toBeGreaterThan(2);
  await page.emulateMedia({reducedMotion:"reduce"});
+ // Restore the full graph before comparing its overview with the initial one.
+ await page.getByRole("button",{name:"Clear filters",exact:true}).click();
  await page.getByRole("button",{name:"Reset view",exact:true}).click();
  await page.mouse.move(1,1);
  await expect.poll(()=>label.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--label-scale')))).toBeCloseTo(initial,2);
