@@ -723,7 +723,7 @@ test("sector names scale with zoom and focus a 3D cluster",async({page})=>{
  await expect(page.getByRole("button",{name:"Reset view",exact:true})).toBeVisible();
 });
 
-test("selected relationship label has priority and company fonts stay compact",async({page})=>{
+test("selected relationship label has priority and company details remain readable",async({page})=>{
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
@@ -734,7 +734,11 @@ test("selected relationship label has priority and company fonts stay compact",a
  await expect(page.getByRole("button",{name:"DELL Integrates technology from NVDA",exact:true})).toBeVisible();
  await expect(page.getByRole("button",{name:"NVIDIA · NVDA",exact:true})).toBeVisible();
  const largest=await page.locator('button[class*="label3d"] strong').evaluateAll(els=>Math.max(...els.map(el=>parseFloat(getComputedStyle(el).fontSize))));
- expect(largest).toBeLessThanOrEqual(14);
+ expect(largest).toBeLessThanOrEqual(18);
+ const selectedDetails=page.locator('[data-company-id="US:NVDA"]');
+ await expect(selectedDetails).toBeVisible();
+ expect(await selectedDetails.locator("strong").evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
+ expect(await selectedDetails.locator("span").evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(14);
  await page.locator("canvas").scrollIntoViewIfNeeded();
  await page.screenshot({path:`output/cluster-labels-${test.info().project.name}.png`});
 });
@@ -874,7 +878,7 @@ test("company name emphasis scales gradually and respects reduced motion",async(
  }));
  await page.getByRole("region",{name:"Search results",exact:true}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
  const values=await samples;
- expect(new Set(values.filter(v=>v>initial+.01&&v<1.14)).size).toBeGreaterThan(2);
+ expect(new Set(values.filter(v=>v>initial+.01&&v<1.49)).size).toBeGreaterThan(2);
  await page.emulateMedia({reducedMotion:"reduce"});
  // Restore the full graph before comparing its overview with the initial one.
  await page.getByRole("button",{name:"Clear filters",exact:true}).click();
