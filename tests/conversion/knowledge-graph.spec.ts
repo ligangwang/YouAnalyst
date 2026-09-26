@@ -21,6 +21,16 @@ async function revealListFilters(page:Page) {
  if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+async function projectedGraphPositions(page: Page) {
+ // Drei's outer Html wrapper holds the projected node position. Label bounds also
+ // include font-size easing and collision offsets, which can settle after camera sleep.
+ return page.locator('[data-company-id]').evaluateAll(els=>els.flatMap(el=>{
+   const transform=el.parentElement!.parentElement!.style.transform;
+   if(!transform.includes('translate3d')) throw new Error('Missing projected graph position');
+   const matrix=new DOMMatrixReadOnly(transform);
+   return [matrix.m41,matrix.m42];
+ }));
+}
 test('cinematic introduction enlarges labels then orbits until touched', async ({page, isMobile}) => {
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -36,7 +46,7 @@ test('cinematic introduction enlarges labels then orbits until touched', async (
  await page.waitForTimeout(14000);
  // Software-rendered CI can advance fewer animation frames in the same wall time.
  await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(before*1.35);
- const positions=()=>labels.evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return [b.x,b.y];}).flat());
+ const positions=()=>projectedGraphPositions(page);
  const orbiting=await positions();
  await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-orbiting[i])>1);},{timeout:30000}).toBe(true);
  await page.screenshot({path:`output/cinematic-graph-${test.info().project.name}.png`});
@@ -44,8 +54,6 @@ test('cinematic introduction enlarges labels then orbits until touched', async (
  if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
  else await page.mouse.click(bounds.x+10,bounds.y+10);
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
- // Label font sizes finish their existing easing just after the camera stops.
- await page.waitForTimeout(700);
  const stopped=await positions();
  await page.waitForTimeout(600);
  expect(await positions()).toEqual(stopped);
@@ -57,7 +65,7 @@ test('intro orbit respects reduced motion and stops after chart interaction', as
  const canvas=page.locator('canvas');
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:20000});
  await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
- const positions=()=>page.locator('[data-company-id]').evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return [b.x,b.y];}).flat());
+ const positions=()=>projectedGraphPositions(page);
  const still=await positions();
  expect(still.length).toBeGreaterThan(0);
  await page.waitForTimeout(500);
@@ -71,7 +79,6 @@ test('intro orbit respects reduced motion and stops after chart interaction', as
    await page.mouse.down();await page.mouse.up();
  }
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
- await page.waitForTimeout(700);
  const stopped=await positions();
  await page.waitForTimeout(600);
  expect(await positions()).toEqual(stopped);
@@ -87,10 +94,9 @@ test('filtering from external graph search stops the intro and reframes results'
  const label=page.locator('[data-company-id="US:NVDA"]');
  await expect(page.locator('[data-company-id]')).toHaveCount(1);
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
- await page.waitForTimeout(700);
- const stopped=await label.boundingBox();
+ const stopped=await projectedGraphPositions(page);
  await page.waitForTimeout(600);
- expect(await label.boundingBox()).toEqual(stopped);
+ expect(await projectedGraphPositions(page)).toEqual(stopped);
  await expect(label).toBeVisible();
 });
 
