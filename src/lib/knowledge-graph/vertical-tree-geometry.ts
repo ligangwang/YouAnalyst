@@ -79,7 +79,6 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
     const tint=new Color(n.color),light=mix(tint,'#ffffff',.35);
     if(n.kind==='branch'){
       const parent=byId.get(n.parent);
-      if(parent===energy&&nodes.some(c=>c.kind==='company'&&c.parent===n.id))continue;
       const attach:Attach=parent===energy?'root':parent===crownLayer?'crown':'trunk';
       const base=attach==='trunk'?trunkColor(Math.min(1,Math.max(0,(n.stem??n.position[1])/top))):attach==='root'?bark(gold.getStyle()):bark(crownLayer.color);
       // Bark near the trunk, lightening only towards the tip, so limbs read as wood rather than light pipes.

@@ -30,6 +30,7 @@ test('tree has depth, connected 3D wood and a complete deterministic company iti
   assert.equal(companyRoots.length,energyCompanies.length,'every energy company has its own root');
   assert.equal(plan.filter(s=>s.kind==='company'&&s.layer==='energy').length,energyCompanies.length,'the tour visits each separate root');
   assert(companyRoots.every(s=>s.from==='energy'),'company roots grow from the base, not from another company');
+  for(const branch of branches.filter(n=>n.layer==='energy'))assert(strands.some(s=>s.from==='energy'&&s.to===branch.id),'expanded Energy categories retain their connector');
   for(let i=0;i<energyCompanies.length;i++)for(let j=i+1;j<energyCompanies.length;j++){
     assert(Math.hypot(...energyCompanies[i].position.map((v,axis)=>v-energyCompanies[j].position[axis]))>700,'energy companies spread around the trunk');
   }
