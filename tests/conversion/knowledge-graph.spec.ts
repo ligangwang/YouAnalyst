@@ -9,7 +9,38 @@ import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sect
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
+async function revealMapSearch(page:Page) {
+ const graphTab=page.getByRole('tab',{name:/^(Relationship graph|关系图谱)$/});
+ if(await graphTab.getAttribute('aria-selected')!=='true') return;
+ const button=page.getByRole('button',{name:/^(Find company|查找公司)$/});
+ await expect(button).toBeVisible();
+ if(await button.getAttribute('aria-expanded')==='false') await button.click();
+}
+async function revealListFilters(page:Page) {
+ const button=page.getByRole('button',{name:/^(Filters|筛选)/});
+ if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
+}
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+test('compact map controls keep list filters out of the graph', async ({page}) => {
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph&listingMarket=CN_A&following=1');
+ await expect(page.locator('canvas')).toBeVisible();
+ await expect(page.getByText('EXPLORE',{exact:true})).toHaveCount(0);
+ await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveText('List');
+ await expect(page.getByRole('tab',{name:'Industry structure',exact:true})).toHaveText('Structure');
+ await expect(page.getByLabel('Listing market',{exact:true})).toBeHidden();
+ await expect(page.locator('[data-company-id]')).toHaveCount(graph.nodes.filter(n=>n.kind==='COMPANY').length);
+ await page.getByLabel('About the AI Industry Map').click();
+ await expect(page.getByText('Explore AI stocks, companies, and supply-chain relationships.',{exact:true})).toBeVisible();
+ await page.getByLabel('About the AI Industry Map').click();
+ await expect(page.getByRole('group',{name:'Colors by primary AI sector'})).toBeHidden();
+ await revealMapSearch(page);
+ await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('no such company');
+ await expect(page.getByRole('region',{name:'Search results'}).getByText('No matching companies.',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Clear filters',exact:true}).click();
+ await expect(page.locator('[data-company-id]')).toHaveCount(graph.nodes.filter(n=>n.kind==='COMPANY').length);
+ await page.screenshot({path:`output/compact-map-${test.info().project.name}.png`,fullPage:true});
+});
 test('company table paginates globally sorted results and restores browsing state', async ({page}) => {
  const fixture:KnowledgeGraph={...graph,relationships:[],nodes:Array.from({length:61},(_,i)=>({
    id:`US:PAGE${i+1}`,kind:'COMPANY',name:`Company ${String(i+1).padStart(3,'0')}`,symbol:`PAGE${i+1}`,market:'US',order:i,stageIds:['compute'],
@@ -35,19 +66,23 @@ test('company table paginates globally sorted results and restores browsing stat
  await page.getByRole('button',{name:'Market value',exact:true}).click();
  await expect(rows.first()).toHaveAttribute('data-list-company','US:PAGE60');
  await pagination.getByRole('button',{name:'Next',exact:true}).click();
+ await revealListFilters(page);
  await page.getByLabel('Listing market',{exact:true}).selectOption('US');
  await expect(pagination).toContainText('Page 1 / 3');
  await pagination.getByRole('button',{name:'Next',exact:true}).click();
  await page.goto('http://graph.test/profile?lang=en');
  await page.goBack();
  await expect(pagination).toContainText('Page 2 / 3');
+ await revealListFilters(page);
  await expect(page.getByLabel('Listing market',{exact:true})).toHaveValue('US');
  await expect(rows.first()).toHaveAttribute('data-list-company','US:PAGE35');
  await pagination.getByRole('button',{name:'Next',exact:true}).click();
  await expect(rows.last()).toHaveAttribute('data-list-company','US:PAGE61');
+ await revealMapSearch(page);
  await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('Company 001');
  await expect(rows).toHaveCount(1);
  await expect(pagination).toContainText('Page 1 / 1');
+ await revealMapSearch(page);
  await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('no such company');
  await expect(page.getByText('No matching companies.',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
@@ -208,6 +243,7 @@ test("admin edits a company name in place and stale edits show a conflict", asyn
    return route.fulfill({contentType:"text/html",body:html});
  });
  await page.goto("http://graph.test/map?account&lang=zh-CN");
+ await revealMapSearch(page);
  await page.getByRole("textbox",{name:"搜索公司",exact:true}).fill("TSM");
  await page.getByRole("region",{name:"搜索结果"}).getByRole("button",{name:"台积公司 · TSM",exact:true}).click();
  await page.getByRole("button",{name:"修改显示名",exact:true}).click();
@@ -290,6 +326,7 @@ test("graph renders, orbits and resets without extra controls", async ({ page })
   await page.mouse.move(bounds.x + bounds.width*.4,bounds.y + bounds.height*.65);
   await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width*.7,bounds.y + bounds.height*.8,{steps:12}); await page.mouse.up();
   await expect.poll(async () => Math.abs((await label.boundingBox())!.x - before!.x)).toBeGreaterThan(2);
+ await revealMapSearch(page);
   await page.getByRole("textbox", {name:"Search companies"}).fill("688041");
   await page.getByRole("region", {name:"Search results"}).getByRole("button", {name:"海光信息 · 688041",exact:true}).click();
   await expect(page.getByRole("heading", { name: "海光信息",exact:true })).toBeVisible();
@@ -324,6 +361,7 @@ test("global search and company research links work in Chinese", async ({page}) 
   await page.goto("http://graph.test/map?lang=zh-CN");
   await expect(page.locator('span[role="status"]')).toContainText("129");
   await expect(page.getByRole("button", { name: /^(美股|A 股|全球及非上市)$/ })).toHaveCount(0);
+  await revealMapSearch(page);
   await page.getByRole("textbox",{name:"搜索公司"}).fill("NVDA");
   await page.getByRole("region", {name:/Search results|搜索结果/}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
   await expect(page.getByRole("heading",{name:"NVIDIA",exact:true})).toBeVisible();
@@ -351,6 +389,7 @@ test("global company details remain available with legacy market filters", async
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: globalGraph }) : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("http://graph.test/map?lang=en&graphMarkets=GLOBAL");
   await expect(page.locator('span[role="status"]')).toContainText("130 companies");
+ await revealMapSearch(page);
   await page.getByRole("textbox", { name: "Search companies" }).fill("Independent Lab");
   await page.getByRole("region", {name:"Search results"}).getByRole("button", { name: /Independent Lab/ }).click();
   await expect(page.getByRole("complementary")).toContainText("France · Private");
@@ -380,10 +419,10 @@ for (const language of ["en", "zh-CN"]) test(`sector legend replaces discovery c
   await expect(toggle).toHaveAttribute("aria-expanded","false");
   await expect(page.getByText(language==="en"?"Tap a line for relationship evidence":"点按连线查看关系依据",{exact:true})).toBeVisible();
  }else{
-  await expect(toggle).toBeHidden();
+  await expect(toggle).toHaveAttribute("aria-expanded","false");
   await expect(page.getByText(language==="en"?"Hover a line to preview · Click for evidence":"悬停连线预览关系 · 点击查看依据",{exact:true})).toBeVisible();
  }
- async function revealSectors(){if(compact)await toggle.click();}
+ async function revealSectors(){await toggle.click();}
  const sector = page.getByRole("button",{name:language === "en" ? "AI compute" : "AI 算力",exact:true,includeHidden:true});
  await revealSectors();
  await sector.click();
@@ -404,6 +443,7 @@ test("opening relationship evidence preserves the current company",async({page})
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
+ await revealMapSearch(page);
  await page.getByRole("textbox",{name:"Search companies"}).fill("NVDA");
  await page.getByRole("region", {name:/Search results|搜索结果/}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
  await page.getByRole("button",{name:"Clear filters",exact:true}).click();
@@ -432,6 +472,7 @@ for (const language of ["en", "zh-CN"]) test(`company browser focuses graph and 
   await page.route("**/*",route=>route.request().url().includes("/api/knowledge-graph")?route.fulfill({json:graph}):route.fulfill({contentType:"text/html",body:html}));
   await page.goto(`http://graph.test/map?lang=${language}`);
   await expect(page.locator("canvas")).toBeVisible();
+ await revealMapSearch(page);
   const search=page.getByRole("textbox",{name:language==="en"?"Search companies":"搜索公司",exact:true});
   await search.fill("NVDA");
   await expect(page.locator('span[role="status"]')).toHaveText(language==="en"?"1 companies · 0 documented connections":"1 家公司 · 0 项已收录关系");
@@ -453,6 +494,7 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await expect(page.locator("canvas")).toBeVisible();
   await expect.poll(()=>page.locator('button[class*="label3d"]:visible').count()).toBeGreaterThan(2);
   await page.screenshot({path:`output/map-readable-${testInfo.project.name}.png`});
+ await revealMapSearch(page);
   await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
   await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
   await expect(page.getByRole("complementary")).toBeVisible();
@@ -532,6 +574,7 @@ test("selected relationship label has priority and company fonts stay compact",a
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
+ await revealMapSearch(page);
  await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
  await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
  await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
@@ -551,6 +594,7 @@ for(const language of ["en","zh-CN"]) test(`company names and cross-language sea
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:localized}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto(`http://graph.test/map?lang=${language}`);
+ await revealMapSearch(page);
  const search=page.getByRole("textbox",{name:language==="en"?"Search companies":"搜索公司",exact:true});
  for(const query of ["NVIDIA","英伟达","辉达"]){
   await search.fill(query);
@@ -566,6 +610,7 @@ test("relationship labels always have a visible company endpoint",async({page})=
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
+ await revealMapSearch(page);
  await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
  await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
  await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
@@ -663,6 +708,7 @@ test("company name emphasis scales gradually and respects reduced motion",async(
  await expect(label).toBeVisible();
  await page.locator("canvas").scrollIntoViewIfNeeded();
  const initial=await label.evaluate(el=>parseFloat((el as HTMLElement).style.getPropertyValue('--label-scale')));
+ await revealMapSearch(page);
  await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
  await page.emulateMedia({reducedMotion:"no-preference"});
  const samples=page.evaluate(()=>new Promise<number[]>(resolve=>{
@@ -741,7 +787,9 @@ test('three views default to graph, share filters and selection, and remember pr
  await expect(page.getByRole('textbox',{name:'Search companies',exact:true})).toBeHidden();
  await expect(page.getByRole('region',{name:'AI companies and supply chain',exact:true})).toHaveCount(0);
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ await revealListFilters(page);
  await page.getByLabel('Listing market',{exact:true}).selectOption('US');
+ await revealMapSearch(page);
  await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('NVDA');
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
  await page.locator('[data-list-company="US:NVDA"] button').click();
@@ -772,6 +820,7 @@ test('three views support multi-role membership, sorting with unknown caps last,
  // Keep the initialized renderer across tab switches instead of creating another WebGL context.
  await tree.locator('canvas').evaluate(canvas=>canvas.setAttribute('data-test-renderer','original'));
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ await revealListFilters(page);
  await page.getByLabel('Industry role',{exact:true}).selectOption('connectivity');
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
@@ -781,6 +830,7 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await page.getByRole('button',{name:/Market value/}).click();
  await expect(page.locator('[data-list-company]').first()).toHaveAttribute('data-list-company','US:AMD');
  await expect(page.locator('[data-list-company]').last()).toHaveAttribute('data-list-company','US:AAPL');
+ await revealListFilters(page);
  await page.getByLabel('Following only',{exact:true}).check();
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();await tree.scrollIntoViewIfNeeded();
@@ -788,8 +838,10 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await expect(tree.locator('[data-tree-company="US:AMD"]').first()).toBeVisible();
  await expect(page.getByLabel('Following only',{exact:true})).toBeHidden();
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ await revealListFilters(page);
  await expect(page.getByLabel('Following only',{exact:true})).toBeChecked();
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
+ await revealMapSearch(page);
  await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('no-such-company');
  await expect(page.getByText('No matching companies.',{exact:true}).first()).toBeVisible();
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
@@ -1014,7 +1066,7 @@ test('three views industry structure stacks the vertical tree above the horizont
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph');
- await expect(page.getByRole('tab')).toHaveText(['Company list','Industry structure','Relationship graph']);
+ await expect(page.getByRole('tab')).toHaveText(['List','Structure','Graph']);
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
  await expect(page.getByRole('tab',{name:'Industry structure',exact:true})).toHaveAttribute('aria-selected','true');
  const v=page.getByRole('region',{name:'Vertical tree',exact:true}),h=page.getByRole('region',{name:'Horizontal tree',exact:true});

@@ -20,7 +20,7 @@ function countryName(country: string | undefined, locale: string) {
   return country && flagCountries.has(country) ? new Intl.DisplayNames([locale], { type: "region" }).of(country) : undefined;
 }
 
-type Props = { cameraRequest: number; sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { hideReset?: boolean; cameraRequest: number; sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -309,7 +309,7 @@ export default function CompanyGraph3D(props: Props) {
   return <div ref={wheelGateRef} className={styles.canvas3d}>
     <WheelZoomHint hint={wheelHint}/>
     <RenderBoundary fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props}/></Canvas></RenderBoundary>
-    <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>
+    {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · Ctrl + 滚轮／双指缩放")}</p>
   </div>;
 }
