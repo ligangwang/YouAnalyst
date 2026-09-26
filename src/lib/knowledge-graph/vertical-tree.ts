@@ -146,5 +146,14 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       node.position=[pivotX+radial*Math.cos(azimuth),node.position[1],-radial*Math.sin(azimuth)];
     }
   }
+  // Energy companies share a category, not a physical root. Give each company
+  // an independent root around the trunk while retaining its semantic parent.
+  const energyCompanies=nodes.filter(n=>n.kind==='company'&&ROOT_LAYERS.has(n.layer??'')).sort((a,b)=>a.id.localeCompare(b.id));
+  energyCompanies.forEach((node,i)=>{
+    const azimuth=Math.PI/6+i*2*Math.PI/energyCompanies.length;
+    const reach=480+100*verticalJitter(node.id,11),depth=-240-100*verticalJitter(node.id,12);
+    node.planar=[reach,depth,0];node.azimuth=azimuth;node.pivotX=0;
+    node.position=[reach*Math.cos(azimuth),depth,-reach*Math.sin(azimuth)];
+  });
   return nodes;
 }

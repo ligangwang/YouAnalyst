@@ -84,6 +84,8 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
       // Bark near the trunk, lightening only towards the tip, so limbs read as wood rather than light pipes.
       const strand:Strand={from:n.parent,to:n.id,kind:'branch',width:[attach==='trunk'?0:12,1.6],offset:0,attach,end:parent?.span,stem:n.stem,layer:n.layer,branch:n.branch,color:t=>rgba(mix(base,light,.75*ease(t)),.97)};
       (attach==='trunk'?limbs:crown).push(strand);
+    }else if(n.kind==='company'&&energy&&n.layer===energy.id){
+      roots.push({from:energy.id,to:n.id,kind:'branch',attach:'root',width:[12,1.6],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(bark(gold.getStyle()),light,.75*ease(t)),.97)});
     }else if(n.layer!==energy?.id)twigs.push({from:n.parent,to:n.id,kind:'twig',width:[1.2,.35],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(light,tint,t),.75-.35*t)});
   }
   // Draw order: limbs tuck in behind the trunk so they appear to grow out of
