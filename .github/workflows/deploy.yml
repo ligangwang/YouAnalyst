@@ -94,9 +94,13 @@ jobs:
       - name: Verify industry graph projection
         run: npm run test:industry
 
-  verify-browser:
+  browser-shard:
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -108,14 +112,101 @@ jobs:
         run: npx playwright install --with-deps --only-shell chromium
 
       - name: Verify domain-only email authentication
+        if: matrix.shard == 1
         run: npm run test:auth
 
       - name: Verify user journeys
-        run: npm run test:conversion
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/conversion/report.json
+        run: npm run test:conversion -- --shard=${{ matrix.shard }}/4 --reporter=line,json
+
+      - name: Save browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failures-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: test-results/conversion
+          retention-days: 7
+
+  # Keep one stable required check; every shard must pass, including auth on shard 1.
+  verify-browser:
+    if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
+    needs: [browser-shard]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all browser shards
+        env:
+          SHARD_RESULT: ${{ needs.browser-shard.result }}
+        run: test "$SHARD_RESULT" = success
+
+  # Compile the environment-specific artifact while checks run. Only deployment
+  # waits for verification; preparing this artifact cannot alter the live service.
+  build-release:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.environment == 'production') && 'production' || 'staging' }}
+    outputs:
+      artifact-id: ${{ steps.release.outputs.artifact-id }}
+    env:
+      GIT_SHA: ${{ github.sha }}
+      APP_ENVIRONMENT: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.environment == 'production') && 'production' || 'staging' }}
+      NEXT_PUBLIC_APP_ENVIRONMENT: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && inputs.environment == 'production') && 'production' || 'staging' }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      FINNHUB_API_URL: ${{ vars.FINNHUB_API_URL }}
+      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+      TWELVE_DATA_API_URL: ${{ vars.TWELVE_DATA_API_URL }}
+      EODHD_API_TOKEN: ${{ secrets.EODHD_API_TOKEN }}
+      EODHD_API_URL: ${{ vars.EODHD_API_URL }}
+      EODHD_BULK_EOD_BUCKET: ${{ vars.EODHD_BULK_EOD_BUCKET }}
+      INTERNAL_API_TOKEN: ${{ secrets.INTERNAL_API_TOKEN }}
+      AI_ANALYST_USER_ID: ${{ vars.AI_ANALYST_USER_ID }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      COMPANY_GRAPH_QUEUE_BATCH_SIZE: ${{ vars.COMPANY_GRAPH_QUEUE_BATCH_SIZE }}
+      ENABLE_PRO_FEATURES: ${{ vars.ENABLE_PRO_FEATURES }}
+      ENABLE_BILLING: ${{ vars.ENABLE_BILLING }}
+      PRO_BILLING_BYPASS: ${{ vars.PRO_BILLING_BYPASS }}
+      GOOGLE_ANALYTICS_ID: ${{ vars.GOOGLE_ANALYTICS_ID }}
+      NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
+      NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Cache release compilation
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-release-${{ env.APP_ENVIRONMENT }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-release-${{ env.APP_ENVIRONMENT }}-${{ hashFiles('package-lock.json') }}-
+      - name: Build and check release artifact
+        run: |
+          npm run build
+          node scripts/prepare-release.mjs
+          tar -czf release.tar.gz .release
+      - name: Save checked release
+        id: release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ env.APP_ENVIRONMENT }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: release.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
   deploy-staging:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/dev') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
-    needs: [verify, verify-browser]
+    needs: [verify, verify-browser, build-release]
     runs-on: ubuntu-latest
     environment: staging
     env:
@@ -162,21 +253,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Cache release compilation
-        uses: actions/cache@v4
+      - name: Download checked release
+        uses: actions/download-artifact@v4
         with:
-          path: .next/cache
-          key: ${{ runner.os }}-release-staging-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-release-staging-${{ hashFiles('package-lock.json') }}-
+          artifact-ids: ${{ needs.build-release.outputs.artifact-id }}
+          path: .release-artifact
+          merge-multiple: true
 
-      - name: Build and check release artifact
-        env:
-          GIT_SHA: ${{ github.sha }}
-          APP_ENVIRONMENT: staging
-          NEXT_PUBLIC_APP_ENVIRONMENT: staging
-        run: |
-          npm run build
-          node scripts/prepare-release.mjs
+      - name: Restore checked release
+        run: tar -xzf .release-artifact/release.tar.gz
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -367,7 +452,7 @@ jobs:
 
   deploy-production:
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
-    needs: [verify, verify-browser]
+    needs: [verify, verify-browser, build-release]
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -414,21 +499,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Cache release compilation
-        uses: actions/cache@v4
+      - name: Download checked release
+        uses: actions/download-artifact@v4
         with:
-          path: .next/cache
-          key: ${{ runner.os }}-release-production-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-release-production-${{ hashFiles('package-lock.json') }}-
+          artifact-ids: ${{ needs.build-release.outputs.artifact-id }}
+          path: .release-artifact
+          merge-multiple: true
 
-      - name: Build and check release artifact
-        env:
-          GIT_SHA: ${{ github.sha }}
-          APP_ENVIRONMENT: production
-          NEXT_PUBLIC_APP_ENVIRONMENT: production
-        run: |
-          npm run build
-          node scripts/prepare-release.mjs
+      - name: Restore checked release
+        run: tar -xzf .release-artifact/release.tar.gz
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
