@@ -75,6 +75,23 @@ test('intro orbit respects reduced motion and stops after chart interaction', as
  expect(await positions()).toEqual(stopped);
 });
 
+test('filtering from external graph search stops the intro and reframes results', async ({page}) => {
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ const canvas=page.locator('canvas');
+ await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
+ await revealMapSearch(page);
+ await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('NVDA');
+ const label=page.locator('[data-company-id="US:NVDA"]');
+ await expect(page.locator('[data-company-id]')).toHaveCount(1);
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ await page.waitForTimeout(700);
+ const stopped=await label.boundingBox();
+ await page.waitForTimeout(600);
+ expect(await label.boundingBox()).toEqual(stopped);
+ await expect(label).toBeVisible();
+});
+
 test('compact map controls keep list filters out of the graph', async ({page}) => {
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph&listingMarket=CN_A&following=1');

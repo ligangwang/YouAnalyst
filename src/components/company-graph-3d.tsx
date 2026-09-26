@@ -106,7 +106,8 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const c = controls.current; if (!c) return;
     // Evidence selection and panel resizing must not reset the user's orbit or zoom.
     const previous=lastCameraRequest.current;
-    if (previous && (previous.request !== cameraRequest || previous.reset !== reset)) introOrbitRef.current = false;
+    // Search/filter controls live outside the canvas; a new layout cancels its old flight too.
+    if (previous && (previous.layout !== layout || previous.request !== cameraRequest || previous.reset !== reset)) introOrbitRef.current = false;
     if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset)return;
     lastCameraRequest.current={layout,request:cameraRequest,reset};
     // Only an explicit new view may rearrange labels after the user has explored it.
