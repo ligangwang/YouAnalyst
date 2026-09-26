@@ -209,7 +209,7 @@ export function SiteNav() {
               <Image
                 src="/youanalyst-logo.svg"
                 alt="YouAnalyst"
-                width={156}
+                width={176}
                 height={40}
                 priority
                 className="hidden h-10 w-auto lg:block"
