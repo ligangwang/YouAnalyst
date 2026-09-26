@@ -236,7 +236,7 @@ jobs:
           retention-days: 7
 
   deploy-staging:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/dev') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'staging')
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/dev') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')) }}
     needs: [verify, verify-browser, build-release]
     runs-on: ubuntu-latest
     environment: staging
@@ -482,7 +482,7 @@ jobs:
         run: npm run smoke:test
 
   deploy-production:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    if: ${{ !cancelled() && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')) }}
     needs: [verify, verify-browser, build-release]
     runs-on: ubuntu-latest
     environment: production
