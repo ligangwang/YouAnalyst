@@ -21,6 +21,77 @@ async function revealListFilters(page:Page) {
  if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+test('cinematic introduction enlarges labels then orbits until touched', async ({page, isMobile}) => {
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ const labels=page.locator('[data-company-id]');
+ const canvas=page.locator('canvas');
+ await expect(labels).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
+ await expect(canvas).toHaveAttribute('data-camera','idle');
+ const averageScale=()=>labels.evaluateAll(els=>els.reduce((sum,el)=>sum+Number((el as HTMLElement).style.getPropertyValue('--label-scale')),0)/els.length);
+ const before=await averageScale();
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await page.waitForTimeout(14000);
+ expect(await averageScale()).toBeGreaterThan(before*1.35);
+ const positions=()=>labels.evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return [b.x,b.y];}).flat());
+ const orbiting=await positions();
+ await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-orbiting[i])>1);}).toBe(true);
+ await page.screenshot({path:`output/cinematic-graph-${test.info().project.name}.png`});
+ const bounds=(await canvas.boundingBox())!;
+ if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
+ else await page.mouse.click(bounds.x+10,bounds.y+10);
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ // Label font sizes finish their existing easing just after the camera stops.
+ await page.waitForTimeout(700);
+ const stopped=await positions();
+ await page.waitForTimeout(600);
+ expect(await positions()).toEqual(stopped);
+});
+test('intro orbit respects reduced motion and stops after chart interaction', async ({page, isMobile}) => {
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ const canvas=page.locator('canvas');
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:20000});
+ await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
+ const positions=()=>page.locator('[data-company-id]').evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return [b.x,b.y];}).flat());
+ const still=await positions();
+ expect(still.length).toBeGreaterThan(0);
+ await page.waitForTimeout(500);
+ expect(await positions()).toEqual(still);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-still[i])>1);}).toBe(true);
+ const bounds=(await canvas.boundingBox())!;
+ if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
+ else {
+   await page.mouse.move(bounds.x+10,bounds.y+10);
+   await page.mouse.down();await page.mouse.up();
+ }
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ await page.waitForTimeout(700);
+ const stopped=await positions();
+ await page.waitForTimeout(600);
+ expect(await positions()).toEqual(stopped);
+});
+
+test('filtering from external graph search stops the intro and reframes results', async ({page}) => {
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ const canvas=page.locator('canvas');
+ await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
+ await revealMapSearch(page);
+ await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('NVDA');
+ const label=page.locator('[data-company-id="US:NVDA"]');
+ await expect(page.locator('[data-company-id]')).toHaveCount(1);
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ await page.waitForTimeout(700);
+ const stopped=await label.boundingBox();
+ await page.waitForTimeout(600);
+ expect(await label.boundingBox()).toEqual(stopped);
+ await expect(label).toBeVisible();
+});
+
 test('compact map controls keep list filters out of the graph', async ({page}) => {
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph&listingMarket=CN_A&following=1');
@@ -770,6 +841,8 @@ test('three views default to graph, share filters and selection, and remember pr
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  const tree=page.getByRole('region',{name:'Horizontal tree',exact:true});
  await page.goto('http://graph.test/map?lang=en');
+ await expect(page.getByRole('tab')).toHaveText(['Graph','Structure','List']);
+ expect(await page.evaluate(()=>localStorage.getItem('ya-industry-view'))).toBeNull();
  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();await tree.scrollIntoViewIfNeeded();
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','true');
@@ -807,6 +880,11 @@ test('three views default to graph, share filters and selection, and remember pr
  await page.screenshot({path:'output/three-views-tree-'+test.info().project.name+'.png',fullPage:true});
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
  await page.screenshot({path:'output/three-views-table-'+test.info().project.name+'.png',fullPage:true});
+ for(const name of ['Industry structure','Relationship graph']) {
+   await page.getByRole('tab',{name,exact:true}).click();
+   await page.goto('http://graph.test/map?lang=en');
+   await expect(page.getByRole('tab',{name,exact:true})).toHaveAttribute('aria-selected','true');
+ }
 });
 
 test('three views support multi-role membership, sorting with unknown caps last, follows and empty results', async ({page}) => {
@@ -856,7 +934,7 @@ test('three views explicit relationship links open graph and tabs support keyboa
  const tab=page.getByRole('tab',{name:'Relationship graph',exact:true});
  await expect(tab).toHaveAttribute('aria-selected','true');
  await tab.focus();await page.keyboard.press('Home');
- await expect(page.getByRole('tab',{name:'Company list',exact:true})).toBeFocused();
+ await expect(tab).toBeFocused();
  await page.keyboard.press('ArrowRight');
  await expect(page.getByRole('tab',{name:'Industry structure',exact:true})).toHaveAttribute('aria-selected','true');
 });
@@ -1066,7 +1144,7 @@ test('three views industry structure stacks the vertical tree above the horizont
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph');
- await expect(page.getByRole('tab')).toHaveText(['List','Structure','Graph']);
+ await expect(page.getByRole('tab')).toHaveText(['Graph','Structure','List']);
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
  await expect(page.getByRole('tab',{name:'Industry structure',exact:true})).toHaveAttribute('aria-selected','true');
  const v=page.getByRole('region',{name:'Vertical tree',exact:true}),h=page.getByRole('region',{name:'Horizontal tree',exact:true});
@@ -1115,12 +1193,12 @@ test('three views industry structure stacks the vertical tree above the horizont
  await page.screenshot({path:'output/vertical-tree-all-'+test.info().project.name+'.png',fullPage:true});
  const tab=(name:string)=>page.getByRole('tab',{name,exact:true});
  await tab('Industry structure').focus();
- await page.keyboard.press('ArrowRight');await expect(tab('Relationship graph')).toHaveAttribute('aria-selected','true');await expect(tab('Relationship graph')).toBeFocused();
- await page.keyboard.press('ArrowRight');await expect(tab('Company list')).toHaveAttribute('aria-selected','true');
- await page.keyboard.press('ArrowLeft');await expect(tab('Relationship graph')).toHaveAttribute('aria-selected','true');
- await page.keyboard.press('Home');await expect(tab('Company list')).toHaveAttribute('aria-selected','true');
+ await page.keyboard.press('ArrowRight');await expect(tab('Company list')).toHaveAttribute('aria-selected','true');await expect(tab('Company list')).toBeFocused();
+ await page.keyboard.press('ArrowRight');await expect(tab('Relationship graph')).toHaveAttribute('aria-selected','true');
+ await page.keyboard.press('ArrowLeft');await expect(tab('Company list')).toHaveAttribute('aria-selected','true');
+ await page.keyboard.press('Home');await expect(tab('Relationship graph')).toHaveAttribute('aria-selected','true');
  await page.keyboard.press('ArrowRight');await expect(tab('Industry structure')).toHaveAttribute('aria-selected','true');
- await page.keyboard.press('End');await expect(tab('Relationship graph')).toHaveAttribute('aria-selected','true');
+ await page.keyboard.press('End');await expect(tab('Company list')).toHaveAttribute('aria-selected','true');
  expect(errors).toEqual([]);
 });
 
