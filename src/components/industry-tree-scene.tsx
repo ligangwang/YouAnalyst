@@ -137,6 +137,12 @@ function Scene(props:TreeSceneProps){
       group.position.lerp(vector,amount);
       group.scale.lerp(vector.setScalar(scale),amount);
       group.visible=group.scale.x>.002;
+      // Keep distant root nodules easy to select on phones even when their
+      // visible spheres shrink to a few pixels in the whole-tree view.
+      if(props.vertical&&target.node.company&&target.node.layer==='energy'){
+        const hit=group.children.find(child=>child.userData.rootHitTarget);
+        if(hit)hit.scale.setScalar(Math.max(Number(hit.userData.minimumRadius),state.camera.position.distanceTo(group.position)*2*Math.tan(Math.PI/8)/size.height*10));
+      }
       const label=labels.current.get(target.node.id);
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
@@ -228,6 +234,7 @@ function Scene(props:TreeSceneProps){
         </group></group>:<>
         <mesh {...pick}><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
         <mesh {...pick}><sphereGeometry args={[look.glowRadius||radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.glow} depthWrite={false} blending={AdditiveBlending}/></mesh>
+        {props.vertical&&node.company&&node.layer==='energy'&&<mesh {...pick} userData={{rootHitTarget:true,minimumRadius:look.glowRadius||radius*2}}><sphereGeometry args={[1,12,8]}/><meshBasicMaterial transparent opacity={0} depthWrite={false}/></mesh>}
         </>}
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
         {visible&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left&&!centered?styles.labelLeft:undefined}><button
