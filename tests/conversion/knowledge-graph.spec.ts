@@ -356,6 +356,10 @@ test("global company details remain available with legacy market filters", async
   await expect(page.getByRole("complementary")).toContainText("France · Private");
   await expect(page.getByRole("link", { name: "Company profile →" })).toHaveAttribute("href", "/company/ORG%3ALAB");
   await page.reload();
+  await expect(page.getByRole("textbox", {name:"Search companies"})).toHaveValue("Independent Lab");
+  await expect(page.locator('span[role="status"]')).toContainText("1 companies");
+  await expect(page.getByRole("complementary")).toContainText("France · Private");
+  await page.getByRole("button", {name:"Clear filters",exact:true}).click();
   await expect(page.locator('span[role="status"]')).toContainText("130 companies");
   await expect(page.getByRole("button", { name: /^(US stocks|A-shares|Global & private)$/ })).toHaveCount(0);
 });
