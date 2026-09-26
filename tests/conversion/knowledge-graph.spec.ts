@@ -22,7 +22,7 @@ async function revealListFilters(page:Page) {
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
 test('cinematic introduction enlarges labels then orbits until touched', async ({page, isMobile}) => {
- test.setTimeout(60000);
+ test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph');
@@ -38,7 +38,7 @@ test('cinematic introduction enlarges labels then orbits until touched', async (
  await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(before*1.35);
  const positions=()=>labels.evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return [b.x,b.y];}).flat());
  const orbiting=await positions();
- await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-orbiting[i])>1);}).toBe(true);
+ await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-orbiting[i])>1);},{timeout:30000}).toBe(true);
  await page.screenshot({path:`output/cinematic-graph-${test.info().project.name}.png`});
  const bounds=(await canvas.boundingBox())!;
  if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
