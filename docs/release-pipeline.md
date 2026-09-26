@@ -1,12 +1,13 @@
 # Release pipeline
 
 Pull requests run lint, types, unit tests, a Next.js build, standalone packaging
-checks, and browser journeys. Branch releases repeat the source and browser
-checks, then build once inside the approved deployment job using that
-environment's public Firebase and site settings.
+checks, and browser journeys across four runners. Branch releases repeat source
+checks and build the environment-specific release in parallel. They reuse PR
+browser coverage only when the tested Git tree exactly matches the release.
+Coverage records expire after 90 days; unmatched trees need fresh PR checks.
 
 Domain-only email authentication is a required release invariant. The required
-`verify-browser` job runs `test:auth` for every pull request and release. These
+`verify-browser` gate requires `test:auth` on every pull request (browser shard 1). These
 tests cover signup, login, session restoration, and token refresh through the
 website origin, rejecting external browser requests. The server-side Firebase
 proxy checks run in the same gate. Both deployment jobs depend on this job;
@@ -28,9 +29,10 @@ caches are separate for staging and production. Browser tests install only the
 Chromium headless shell they use.
 
 New commits cancel superseded pull-request checks, but do not cancel a running
-branch deployment or migration. Production environment approval and live smoke
-tests remain required. The company master initializer remains before rollout;
-after its one-time migration, its completion marker makes it a short check.
+branch deployment. Deployment requires successful source checks, exact-tree PR
+browser coverage, release packaging checks, and the target environment's rules.
+Live smoke tests still run after rollout. Retired company initializers, graph
+seed imports and watchlist migration Actions are not part of deployment.
 
 The workflow reports Cloud Build/rollout duration separately from maintenance
 and post-deployment checks. Compare the commit timestamp with the deployed

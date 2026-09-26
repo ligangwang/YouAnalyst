@@ -35,7 +35,12 @@ Existing prediction thesis text remains readable without copying it into new pos
 No new comparison collection is proposed: retain the existing watchlists documents
 for comparison membership and archived legacy metadata.
 
-## Migration sequence
+## Historical migration sequence
+
+The one-time publishing migration runner and watchlist backfill Action have been
+retired. Their source remains in Git history; the steps below document the old
+transition rather than commands to run during deployment. Current primary-call
+selection is available in My predictions.
 
 1. Read all groups and predictions; identify the confirmed comparison by document ID.
 2. Produce a private dry-run report using `planPublishingMigration`. Stop on ownership
