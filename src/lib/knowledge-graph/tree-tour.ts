@@ -23,24 +23,51 @@ export function treeTourStops(nodes: TreePoint[]): Point[] {
   return stops.sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
 }
 
-export function createTreeTour(start:TreeShot, stops:Point[], aspect:number, random:()=>number=Math.random){
+export type TreeTourStop = { target: Point; distance: number; duration: number; hold: number; kind: 'company'|'overview'|'transfer'; layer: string };
+
+// Keep layer membership explicit: leaves from adjacent layers can overlap in height.
+// Pull back first, travel along the trunk at that wider distance, then approach
+// the next company. The final transfer descends to Energy and the plan repeats.
+export function treeTourPlan(nodes:TreePoint[], aspect:number):TreeTourStop[]{
+  const layers=nodes.filter(n=>n.kind==='layer').sort((a,b)=>a.position[1]-b.position[1]||a.id.localeCompare(b.id));
+  const distance=Math.max(1000,Math.min(1650,1050/Math.sqrt(Math.max(.4,aspect))));
+  const plan:TreeTourStop[]=[];
+  for(let i=0;i<layers.length;i++){
+    const layer=layers[i],next=layers[(i+1)%layers.length];
+    const stops=treeTourStops(nodes.filter(n=>n.layer===layer.id));
+    for(const target of stops.length?stops:[layer.position]){
+      plan.push({target,distance,duration:20,hold:5,kind:'company',layer:layer.id});
+    }
+    // Frame the connecting trunk and neighboring layer anchors, without returning
+    // to the initial whole-tree fit. The longer return gets a slightly wider view.
+    const gap=Math.abs(next.position[1]-layer.position[1]);
+    const wide=Math.max(distance*2.1,(gap*.55+400)/Math.tan(Math.PI/8));
+    plan.push({target:[0,layer.position[1],0],distance:wide,duration:12,hold:3,kind:'overview',layer:layer.id});
+    plan.push({target:[0,next.position[1],0],distance:wide,duration:i===layers.length-1?20:14,hold:2,kind:'transfer',layer:next.id});
+  }
+  return plan;
+}
+
+export function createTreeTour(start:TreeShot, stops:TreeTourStop[], random:()=>number=Math.random){
+  if(!stops.length)return ()=>start;
   let elapsed=0,index=0,from=start;
   const direction=random()<.5?-1:1;
   let fromYaw=Math.atan2(start.position[0]-start.target[0],start.position[2]-start.target[2]);
   let toYaw=fromYaw+direction*.35;
   // Keep circling in one direction while climbing through the canopy.
-  const shot=(target:Point):TreeShot=>{
-    const yaw=toYaw,pitch=(random()-.5)*.14;
-    const distance=Math.max(1000,Math.min(1650,1050/Math.sqrt(Math.max(.4,aspect))));
+  const shot=(stop:TreeTourStop):TreeShot=>{
+    const {target,distance}=stop;
+    const yaw=toYaw,pitch=stop.kind==='company'?(random()-.5)*.14:0;
     return {target,position:[target[0]+Math.sin(yaw)*distance,target[1]+pitch*distance,target[2]+Math.cos(yaw)*distance]};
   };
-  let to=shot(stops[0]??start.target);
+  let to=shot(stops[0]);
   return (delta:number):TreeShot=>{
     // Keep the slow tour near wall-clock speed on low-frame-rate phones/software
     // renderers. Hidden scenes are paused; cap resume gaps to a quarter second.
     elapsed+=Math.max(0,Math.min(.25,delta));
     // Slow approach, then a short hold to read the company names.
-    const duration=index===0?12:20,hold=5;
+    const stop=stops[index%stops.length];
+    const duration=index===0?12:stop.duration,hold=stop.hold;
     const t=ease(Math.min(1,elapsed/duration));
     const target=mix(from.target,to.target,t);
     const fromRadius=Math.hypot(from.position[0]-from.target[0],from.position[2]-from.target[2]);
@@ -49,7 +76,10 @@ export function createTreeTour(start:TreeShot, stops:Point[], aspect:number, ran
     const lift=(from.position[1]-from.target[1])*(1-t)+(to.position[1]-to.target[1])*t;
     const current={target,position:[target[0]+Math.sin(yaw)*radius,target[1]+lift,target[2]+Math.cos(yaw)*radius] as Point};
     if(elapsed>=duration+hold){
-      elapsed=0;from=to;fromYaw=toYaw;toYaw+=direction*(.5+random()*.15);index++;to=shot(stops[index%Math.max(1,stops.length)]??start.target);
+      elapsed-=duration+hold;from=to;fromYaw=toYaw;index++;
+      const next=stops[index%stops.length];
+      toYaw+=direction*(next.kind==='company'?.5+random()*.15:.12);
+      to=shot(next);
     }
     return current;
   };

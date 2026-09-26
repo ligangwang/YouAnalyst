@@ -12,7 +12,7 @@ import { layoutVerticalTree, VERTICAL_ROOT_REACH, VERTICAL_ROOT_DEPTH } from '@/
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
-import { createTreeTour, treeTourStops } from '@/lib/knowledge-graph/tree-tour';
+import { createTreeTour, treeTourPlan } from '@/lib/knowledge-graph/tree-tour';
 
 export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
@@ -114,7 +114,7 @@ function Scene(props:TreeSceneProps){
     const position:[number,number,number]=[center.x+distance*(props.vertical?0:.1),center.y,z+distance];
     const target:[number,number,number]=[center.x,center.y,z];
     void c.setLookAt(...position,...target,!reduced.current&&!props.tour.current);
-    flight.current=createTreeTour({position,target},treeTourStops(nodes),size.width/size.height);
+    flight.current=createTreeTour({position,target},treeTourPlan(nodes,size.width/size.height));
     invalidate();
   },[nodes,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
