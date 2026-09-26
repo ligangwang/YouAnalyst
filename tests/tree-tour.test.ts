@@ -17,13 +17,22 @@ test('tree has depth, connected 3D wood and a complete deterministic company iti
   assert.equal(new Set(branches.map(n=>`${n.position[0]>=0},${n.position[2]>=0}`)).size,4,'branches surround all sides of the trunk');
   assert.equal(new Set(companies.map(n=>`${n.position[0]>=0},${n.position[2]>=0}`)).size,4,'leaves fill the canopy around the trunk');
   const stops=treeTourStops(nodes);
-  assert.equal(stops.length,layers.reduce((sum,l)=>sum+l.branches.reduce((s,b)=>s+Math.ceil(b.companies.length/4),0),0));
+  assert.equal(stops.length,layers.reduce((sum,l)=>sum+l.branches.reduce((s,b)=>s+(l.id==='energy'?b.companies.length:Math.ceil(b.companies.length/4)),0),0));
   assert.deepEqual(treeTourStops([...nodes].reverse()),stops);
   const plan=treeTourPlan(nodes,1);
   assert.deepEqual(treeTourPlan([...nodes].reverse(),1),plan);
   assert.deepEqual([...new Set(plan.filter(s=>s.kind==='company').map(s=>s.layer))],layers.map(l=>l.id));
   assert.equal(plan.filter(s=>s.kind==='company').length,stops.length,'all company groups remain in the tour');
   const strands=verticalTreeStrands(nodes),geometries=verticalTreeStrandGeometries(strands,'');
+  const energyCompanies=companies.filter(n=>n.layer==='energy');
+  assert.equal(energyCompanies.length,3);
+  const companyRoots=strands.filter(s=>s.attach==='root'&&energyCompanies.some(n=>n.id===s.to));
+  assert.equal(companyRoots.length,energyCompanies.length,'every energy company has its own root');
+  assert.equal(plan.filter(s=>s.kind==='company'&&s.layer==='energy').length,energyCompanies.length,'the tour visits each separate root');
+  assert(companyRoots.every(s=>s.from==='energy'),'company roots grow from the base, not from another company');
+  for(let i=0;i<energyCompanies.length;i++)for(let j=i+1;j<energyCompanies.length;j++){
+    assert(Math.hypot(...energyCompanies[i].position.map((v,axis)=>v-energyCompanies[j].position[axis]))>700,'energy companies spread around the trunk');
+  }
   createStrandWriter()(strands,geometries,id=>{const p=nodes.find(n=>n.id===id)?.position;return p?{x:p[0],y:p[1],z:p[2]}:undefined;},nodes.filter(n=>n.kind==='layer').map(n=>n.position[1]));
   const positions=geometries[0].getAttribute('position');
   assert(Array.from(positions.array).every(Number.isFinite));

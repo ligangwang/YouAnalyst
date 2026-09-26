@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { validateGraph, type Graph } from "../src/lib/knowledge-graph/validate-seed";
 
 import { graphFromMarket, type MarketCompany } from "../src/lib/knowledge-graph/market-store";
-import { layoutVerticalTree, verticalBranchOrigin, verticalLimbPoint } from '../src/lib/knowledge-graph/vertical-tree';
+import { layoutVerticalTree, verticalBranchOrigin } from '../src/lib/knowledge-graph/vertical-tree';
 import { industryTree, layoutIndustryTree, type TreePoint } from '../src/lib/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 import { createIntroCamera, createIntroOrbit } from '../src/lib/knowledge-graph/intro-orbit';
@@ -217,14 +217,12 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
      const children=all.filter(n=>n.parent===branch.id);
      const parent=all.find(n=>n.id===branch.id)!;
      const [ox,oy]=verticalBranchOrigin(parent,top),dx=parent.position[0]-ox,dy=parent.position[1]-oy,length=Math.hypot(dx,dy);
-     assert(children.every(n=>Math.sign(n.position[0])===Math.sign(parent.position[0])));
      assert.equal(new Set(children.map(n=>n.position.join(','))).size,children.length);
      if(layer.id==='energy'){
-       // Roots carry no leaves: energy companies are nodules sitting on the root strand itself.
-       const curve=Array.from({length:201},(_,i)=>verticalLimbPoint([ox,oy],[parent.position[0],parent.position[1]],i/200));
-       for(const n of children)assert(Math.min(...curve.map(([x,y])=>Math.hypot(x-n.position[0],y-n.position[1])))<4,`${n.id} sits on its root`);
+       assert(children.every(n=>n.position[1]<0),'independent company roots stay underground');
        continue;
      }
+     assert(children.every(n=>Math.sign(n.position[0])===Math.sign(parent.position[0])));
      // Leaves spread over the outer part of their limb and out past its tip, fanning wider
      // towards the end instead of bunching against the trunk.
      const offsets:number[]=[];

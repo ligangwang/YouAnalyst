@@ -11,7 +11,7 @@ export function treeTourStops(nodes: TreePoint[]): Point[] {
   const companies=nodes.filter(n=>n.kind==='company');
   const candidates=companies.length?companies:nodes.filter(n=>n.kind==='branch');
   const groups=new Map<string,TreePoint[]>();
-  for(const node of candidates){const key=node.branch??node.id;groups.set(key,[...(groups.get(key)??[]),node]);}
+  for(const node of candidates){const key=node.layer==='energy'?node.id:node.branch??node.id;groups.set(key,[...(groups.get(key)??[]),node]);}
   const stops:Point[]=[];
   for(const group of groups.values()){
     group.sort((a,b)=>a.position[1]-b.position[1]||a.id.localeCompare(b.id));
