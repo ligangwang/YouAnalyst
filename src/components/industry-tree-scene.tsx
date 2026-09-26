@@ -41,6 +41,8 @@ function Scene(props:TreeSceneProps){
   },[props.paused,invalidate]);
   const groups=useRef(new Map<string,Group>());
   const labels=useRef(new Map<string,HTMLButtonElement>());
+  const collisionLabels=useRef(new Set<string>());
+  const lastCollision=useRef(-Infinity);
   // Labels mount after the frame that placed them; redraw once they settle so their scale is applied.
   const labelsSettled=useRef<number|undefined>(undefined);
   useEffect(()=>()=>window.clearTimeout(labelsSettled.current),[]);
@@ -48,6 +50,7 @@ function Scene(props:TreeSceneProps){
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
   const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
+  useEffect(()=>{collisionLabels.current.clear();lastCollision.current=-Infinity;invalidate();},[nodes,props.selected,props.focus,invalidate]);
   const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
   const targets=useMemo(()=>{
     const visible=new Map(nodes.map(n=>[n.id,n]));
@@ -117,6 +120,8 @@ function Scene(props:TreeSceneProps){
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
     let moving=false;
+    const checkCollisions=props.vertical&&performance.now()-lastCollision.current>=200;
+    if(checkCollisions)collisionLabels.current.clear();
     const touring=props.tour.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
     gl.domElement.setAttribute('data-tour',touring?'playing':props.tour.current?'paused':'stopped');
     if(touring&&flight.current&&controls.current){
@@ -136,7 +141,7 @@ function Scene(props:TreeSceneProps){
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        const compact=props.vertical&&(target.node.kind==='company'?htmlScale<.65:htmlScale<.72);
+        const compact=props.vertical&&((target.node.kind==='company'?htmlScale<.65:htmlScale<.72)||collisionLabels.current.has(target.node.id));
         if(compact){
           // A compact dot replaces the label: centre it on the node instead of beside it.
           const px=htmlScale*size.height/1100,offset=(target.node.kind==='company'?16:22)*px;
@@ -151,24 +156,32 @@ function Scene(props:TreeSceneProps){
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
     }
-    if(props.vertical){
+    if(checkCollisions){
       // Around a real canopy, foreground and rear leaves can project onto one
       // another. Keep nearby names readable and use dots for competing labels.
       const target=controls.current?.getTarget(new Vector3())??new Vector3();
+      const distances=new Map(nodes.map(n=>[n.id,(n.position[0]-target.x)**2+(n.position[1]-target.y)**2+(n.position[2]-target.z)**2]));
       const ordered=[...nodes].sort((a,b)=>Number(b.company?.id===props.selected)-Number(a.company?.id===props.selected)
         ||Number(b.kind==='layer'||b.kind==='root')-Number(a.kind==='layer'||a.kind==='root')
-        ||new Vector3(...a.position).distanceToSquared(target)-new Vector3(...b.position).distanceToSquared(target));
+        ||distances.get(a.id)!-distances.get(b.id)!);
+      // Read all bounds together before changing any collision state. Cache the
+      // result between passes so the cinematic frame loop avoids forced layouts.
+      const bounds=new Map(ordered.flatMap(node=>{
+        const el=labels.current.get(node.id);
+        return el&&el.dataset.compact!=='true'?[[node.id,el.getBoundingClientRect()] as const]:[];
+      }));
       const occupied:DOMRect[]=[];
       for(const node of ordered){
-        const el=labels.current.get(node.id);if(!el||el.dataset.compact==='true')continue;
-        const box=el.getBoundingClientRect();
+        const box=bounds.get(node.id);if(!box)continue;
         if(node.kind==='company'||node.kind==='branch'){
           if(occupied.some(r=>box.left<r.right+5&&box.right>r.left-5&&box.top<r.bottom+5&&box.bottom>r.top-5)){
-            el.dataset.compact='true';continue;
+            collisionLabels.current.add(node.id);continue;
           }
         }
         occupied.push(box);
       }
+      for(const id of collisionLabels.current)labels.current.get(id)?.setAttribute('data-compact','true');
+      lastCollision.current=performance.now();
     }
     const positions=geometry.getAttribute('position');
     edges.forEach((edge,i)=>{

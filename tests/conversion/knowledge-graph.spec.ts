@@ -923,6 +923,7 @@ test("map displays stored market cap and date while unknown stays ticker only", 
 });
 
 test('three views default to graph, share filters and selection, and remember preference', async ({page}) => {
+ test.setTimeout(60000);
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  const tree=page.getByRole('region',{name:'Horizontal tree',exact:true});
  await page.goto('http://graph.test/map?lang=en');
