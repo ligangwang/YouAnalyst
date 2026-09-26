@@ -10,6 +10,7 @@ import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { IndustryCompanyTable } from "./industry-company-views";
+import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 import { companySectors, INDUSTRY_VIEWS, LEGACY_VERTICAL_VIEW, parseIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
 import { IndustryStructure } from "./industry-tree";
 import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
@@ -40,9 +41,12 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     return defaultView;
   }, () => defaultView);
   const viewId = useId();
-  const [marketFilter, setMarketFilter] = useState("all");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [onlyFollowed, setOnlyFollowed] = useState(false);
+  const marketFilter = useIndustryBrowseParam('listingMarket', 'all');
+  const setMarketFilter = (value: string) => updateIndustryBrowse({listingMarket:value}, true);
+  const roleFilter = useIndustryBrowseParam('role');
+  const setRoleFilter = (value: string) => updateIndustryBrowse({role:value}, true);
+  const onlyFollowed = useIndustryBrowseParam('following') === '1';
+  const setOnlyFollowed = (value: boolean) => updateIndustryBrowse({following:value?'1':''}, true);
   const follows = useCompanyFollows();
   function changeView(next: IndustryView) {
     try { localStorage.setItem("ya-industry-view", next); } catch { /* URL still preserves the selection. */ }
@@ -71,7 +75,8 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const [graph, setGraph] = useState(EMPTY);
   const [status, setStatus] = useState("loading");
   const [retry, setRetry] = useState(0);
-  const [query, setQuery] = useState(initialQuery);
+  const query = useIndustryBrowseParam('q', '', initialQuery);
+  const setQuery = (value: string) => updateIndustryBrowse({q:value}, true);
   const [selected, setSelected] = useState(initialCompany ? (initialCompany.includes(":") ? initialCompany.toUpperCase() : `US:${initialCompany.toUpperCase()}`) : "");
   useEffect(() => {
     const controller = new AbortController();
@@ -155,12 +160,12 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     <div hidden={treeView}><div className={styles.sharedFilters}>
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
-      <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => { const value = e.target.value; setQuery(value); const url = new URL(window.location.href); if (value) url.searchParams.set("q", value); else url.searchParams.delete("q"); window.history.replaceState(null, "", url); }}/>
+      <input aria-label={text("Search companies", "搜索公司")} placeholder={text("Search companies or tickers…", "搜索公司或股票代码…")} value={query} onChange={e => setQuery(e.target.value)}/>
     </div>
     <label>{text("Listing market", "上市市场")}<select aria-label={text("Listing market", "上市市场")} value={marketFilter} onChange={e=>setMarketFilter(e.target.value)}><option value="all">{text("All markets", "全部市场")}</option><option value="US">{text("US-listed", "美股")}</option><option value="CN_A">{text("China A-shares", "A股")}</option><option value="GLOBAL">{text("Other / private", "其他／非上市")}</option></select></label>
     <label>{text("Industry role", "产业环节")}<select aria-label={text("Industry role", "产业环节")} value={roleFilter} onChange={e=>setRoleFilter(e.target.value)}><option value="">{text("All roles", "全部环节")}</option>{[...GRAPH_SECTORS,OTHER_SECTOR].filter(s=>sectorIds.has(s.id)||scoped.nodes.some(n=>n.kind==='COMPANY'&&companySectors(n).some(role=>role.id===s.id))).map(s=><option key={s.id} value={s.id}>{text(s.en,s.zh)}</option>)}</select></label>
     <label className={styles.followFilter}><input type="checkbox" checked={onlyFollowed} onChange={e=>setOnlyFollowed(e.target.checked)}/>{text("Following only", "仅看关注")}</label>
-    {(query || marketFilter!=='all' || roleFilter || onlyFollowed) && <button className={styles.filterReset} onClick={()=>{setQuery('');setMarketFilter('all');setRoleFilter('');setOnlyFollowed(false);const url=new URL(window.location.href);url.searchParams.delete('q');window.history.replaceState(null,'',url);}}>{text("Clear filters", "清除筛选")}</button>}
+    {(query || marketFilter!=='all' || roleFilter || onlyFollowed) && <button className={styles.filterReset} onClick={()=>updateIndustryBrowse({q:'',listingMarket:'',role:'',following:''},true)}>{text("Clear filters", "清除筛选")}</button>}
     </div>
     {onlyFollowed && !follows.user && <p className={styles.filterNotice}>{text("Sign in and follow companies to use this filter.", "登录并关注公司后，可使用此筛选。")}</p>}
     {onlyFollowed && follows.user && !follows.ready && <p className={styles.filterNotice} role="status">{follows.error?<button onClick={()=>void follows.refresh()}>{text("Could not load follows. Retry", "关注列表加载失败，重试")}</button>:text("Loading followed companies…", "正在加载关注公司…")}</p>}
