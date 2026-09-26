@@ -21,6 +21,39 @@ async function revealListFilters(page:Page) {
  if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+test('tree camera tour approaches companies and stops on interaction',async({page})=>{
+ test.setTimeout(90000);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.getByRole('region',{name:'Vertical tree',exact:true}),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tour','paused');
+ await expect(tree.locator('[data-tree-company]').first()).toBeAttached();
+ const positions=()=>tree.locator('[data-tree-company]').evaluateAll(els=>els.slice(0,8).map(e=>e.parentElement?.parentElement?.parentElement?.style.transform));
+ await expect.poll(async()=>(await positions()).every(p=>p?.includes('translate3d'))).toBe(true);
+ const initial=await positions();
+ await page.waitForTimeout(400);
+ expect(await positions()).toEqual(initial);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect(canvas).toHaveAttribute('data-tour','playing');
+ await expect.poll(positions).not.toEqual(initial);
+ await page.waitForTimeout(14000);
+ await page.screenshot({path:`output/tree-tour-${test.info().project.name}.png`});
+ await expect(tree.locator('[data-tree-company][data-compact="false"]').first()).toBeVisible({timeout:45000});
+ await page.screenshot({path:`output/tree-tour-${test.info().project.name}.png`});
+ const bounds=(await canvas.boundingBox())!;
+ await page.mouse.click(bounds.x+8,bounds.y+8);
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+ await page.waitForTimeout(400);
+ const stopped=await positions();
+ await page.waitForTimeout(600);
+ expect(await positions()).toEqual(stopped);
+ await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+});
 async function projectedGraphPositions(page: Page) {
  // Drei's outer Html wrapper holds the projected node position. Label bounds also
  // include font-size easing and collision offsets, which can settle after camera sleep.
@@ -890,6 +923,7 @@ test("map displays stored market cap and date while unknown stays ticker only", 
 });
 
 test('three views default to graph, share filters and selection, and remember preference', async ({page}) => {
+ test.setTimeout(60000);
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  const tree=page.getByRole('region',{name:'Horizontal tree',exact:true});
  await page.goto('http://graph.test/map?lang=en');
@@ -1361,7 +1395,9 @@ test('three views vertical defaults to expanded and preserves zoom and pan when 
  await expect(node).toBeVisible();
  await canvas.scrollIntoViewIfNeeded();
  const box=(await canvas.boundingBox())!;
- const position=()=>page.evaluate(()=>{const n=document.querySelector('[data-tree-company="US:NVDA"]')!.getBoundingClientRect(),f=document.querySelector('[data-industry-tree="vertical"]')!.getBoundingClientRect();return {x:n.right-f.x,y:n.y-f.y};});
+ // Measure the projected node anchor: hovering/selecting a compact marker can
+ // expand its label without moving the camera or the underlying company.
+ const position=()=>node.evaluate(el=>{const m=new DOMMatrixReadOnly(el.parentElement!.parentElement!.parentElement!.style.transform);return {x:m.m41,y:m.m42};});
  const initial=await position();
  await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);await zoomWheel(page,-120);
  await page.mouse.move(box.x+box.width*.12,box.y+box.height*.8);await page.mouse.down();await page.mouse.move(box.x+box.width*.18,box.y+box.height*.78,{steps:12});await page.mouse.up();

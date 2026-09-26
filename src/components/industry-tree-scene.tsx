@@ -12,8 +12,9 @@ import { layoutVerticalTree, VERTICAL_ROOT_REACH, VERTICAL_ROOT_DEPTH } from '@/
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
+import { createTreeTour, treeTourStops } from '@/lib/knowledge-graph/tree-tour';
 
-export type TreeSceneProps={paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
+export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
   state={failed:false};
@@ -24,15 +25,24 @@ class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{fa
 function Scene(props:TreeSceneProps){
   const {locale,text}=useLocale();
   const {size,invalidate,gl}=useThree();
-  const {onUnavailable}=props;
+  const {onUnavailable,tour:tourRef}=props;
   useEffect(()=>{const canvas=gl.domElement;const lost=()=>onUnavailable();canvas.addEventListener("webglcontextlost",lost);return ()=>canvas.removeEventListener("webglcontextlost",lost);},[gl,onUnavailable]);
   // Leaves set a pointer cursor on hover; never leave it behind when the scene goes away.
   useEffect(()=>()=>{gl.domElement.style.cursor='';},[gl]);
   // Redraw on resume so changes made while scrolled away (e.g. a selection in the other tree) appear.
   useEffect(()=>{if(!props.paused)invalidate();},[props.paused,invalidate]);
   const controls=useRef<CameraControls>(null);
+  const flight=useRef<ReturnType<typeof createTreeTour>|null>(null);
+  useEffect(()=>{if(props.selected||props.focus)tourRef.current=false;},[props.selected,props.focus,tourRef]);
+  useEffect(()=>{
+    const resume=()=>{if(!document.hidden&&!props.paused)invalidate();};
+    document.addEventListener('visibilitychange',resume);
+    return ()=>document.removeEventListener('visibilitychange',resume);
+  },[props.paused,invalidate]);
   const groups=useRef(new Map<string,Group>());
   const labels=useRef(new Map<string,HTMLButtonElement>());
+  const collisionLabels=useRef(new Set<string>());
+  const lastCollision=useRef(-Infinity);
   // Labels mount after the frame that placed them; redraw once they settle so their scale is applied.
   const labelsSettled=useRef<number|undefined>(undefined);
   useEffect(()=>()=>window.clearTimeout(labelsSettled.current),[]);
@@ -40,6 +50,7 @@ function Scene(props:TreeSceneProps){
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
   const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
+  useEffect(()=>{collisionLabels.current.clear();lastCollision.current=-Infinity;invalidate();},[nodes,props.selected,props.focus,invalidate]);
   const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
   const targets=useMemo(()=>{
     const visible=new Map(nodes.map(n=>[n.id,n]));
@@ -99,12 +110,25 @@ function Scene(props:TreeSceneProps){
         pad=Math.max(80,rootLabel*2*distance*Math.tan(Math.PI/8)/size.height);
       }
     }
-    void c.setLookAt(center.x+distance*(props.vertical?0:.1),center.y,distance,center.x,center.y,0,!reduced.current);
+    const z=props.focus?fitting.reduce((sum,n)=>sum+n.position[2],0)/fitting.length:0;
+    const position:[number,number,number]=[center.x+distance*(props.vertical?0:.1),center.y,z+distance];
+    const target:[number,number,number]=[center.x,center.y,z];
+    void c.setLookAt(...position,...target,!reduced.current&&!props.tour.current);
+    flight.current=createTreeTour({position,target},treeTourStops(nodes),size.width/size.height);
     invalidate();
-  },[nodes,props.focus,props.request,props.vertical,size.width,size.height,invalidate]);
+  },[nodes,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
     let moving=false;
+    const checkCollisions=props.vertical&&performance.now()-lastCollision.current>=200;
+    if(checkCollisions)collisionLabels.current.clear();
+    const touring=props.tour.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
+    gl.domElement.setAttribute('data-tour',touring?'playing':props.tour.current?'paused':'stopped');
+    if(touring&&flight.current&&controls.current){
+      const shot=flight.current(delta);
+      void controls.current.setLookAt(...shot.position,...shot.target,false);
+      moving=true;
+    }
     for(const target of targets){
       const group=groups.current.get(target.node.id);if(!group)continue;
       vector.set(...target.position);
@@ -117,7 +141,7 @@ function Scene(props:TreeSceneProps){
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        const compact=props.vertical&&(target.node.kind==='company'?htmlScale<1.05:htmlScale<.72);
+        const compact=props.vertical&&((target.node.kind==='company'?htmlScale<.65:htmlScale<.72)||collisionLabels.current.has(target.node.id));
         if(compact){
           // A compact dot replaces the label: centre it on the node instead of beside it.
           const px=htmlScale*size.height/1100,offset=(target.node.kind==='company'?16:22)*px;
@@ -131,6 +155,33 @@ function Scene(props:TreeSceneProps){
         if(props.vertical)label.dataset.compact=String(compact);
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
+    }
+    if(checkCollisions){
+      // Around a real canopy, foreground and rear leaves can project onto one
+      // another. Keep nearby names readable and use dots for competing labels.
+      const target=controls.current?.getTarget(new Vector3())??new Vector3();
+      const distances=new Map(nodes.map(n=>[n.id,(n.position[0]-target.x)**2+(n.position[1]-target.y)**2+(n.position[2]-target.z)**2]));
+      const ordered=[...nodes].sort((a,b)=>Number(b.company?.id===props.selected)-Number(a.company?.id===props.selected)
+        ||Number(b.kind==='layer'||b.kind==='root')-Number(a.kind==='layer'||a.kind==='root')
+        ||distances.get(a.id)!-distances.get(b.id)!);
+      // Read all bounds together before changing any collision state. Cache the
+      // result between passes so the cinematic frame loop avoids forced layouts.
+      const bounds=new Map(ordered.flatMap(node=>{
+        const el=labels.current.get(node.id);
+        return el&&el.dataset.compact!=='true'?[[node.id,el.getBoundingClientRect()] as const]:[];
+      }));
+      const occupied:DOMRect[]=[];
+      for(const node of ordered){
+        const box=bounds.get(node.id);if(!box)continue;
+        if(node.kind==='company'||node.kind==='branch'){
+          if(occupied.some(r=>box.left<r.right+5&&box.right>r.left-5&&box.top<r.bottom+5&&box.bottom>r.top-5)){
+            collisionLabels.current.add(node.id);continue;
+          }
+        }
+        occupied.push(box);
+      }
+      for(const id of collisionLabels.current)labels.current.get(id)?.setAttribute('data-compact','true');
+      lastCollision.current=performance.now();
     }
     const positions=geometry.getAttribute('position');
     edges.forEach((edge,i)=>{
@@ -146,7 +197,7 @@ function Scene(props:TreeSceneProps){
   });
   return <>
     <CameraControls ref={controls} makeDefault
-      mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
+      mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.3}/>
     {props.vertical?<VerticalTreeBranches nodes={nodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
@@ -170,11 +221,11 @@ function Scene(props:TreeSceneProps){
         onPointerOut:()=>{gl.domElement.style.cursor='';},
       }:{};
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(visible?1:0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
-        {leaf?<group rotation={[0,0,leaf.angle]}>
+        {leaf?<group rotation={[0,node.azimuth??0,0]}><group rotation={[0,0,leaf.angle]}>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.3,leaf.width*1.5,1]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.07} depthWrite={false} blending={AdditiveBlending}/></mesh>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,1]} {...pick}><meshBasicMaterial vertexColors color={leaf.tint} side={DoubleSide} transparent opacity={dim?.12:.96}/></mesh>
           <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.length,1]} position={[0,0,.2]}><meshBasicMaterial color="#f4fbff" transparent opacity={dim?.05:.45}/></mesh>
-        </group>:<>
+        </group></group>:<>
         <mesh {...pick}><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
         <mesh {...pick}><sphereGeometry args={[look.glowRadius||radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.glow} depthWrite={false} blending={AdditiveBlending}/></mesh>
         </>}
