@@ -98,14 +98,18 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   }, [graph, allowedRelationshipIds]);
   // Keep tree layout inputs stable when opening/closing a company card or following.
   const treeCompanies = useMemo(() => scoped.nodes.filter(n => n.kind === 'COMPANY'), [scoped.nodes]);
+  // Follow status refreshes asynchronously (and on window focus). It does not
+  // filter the graph, so it must not replace its layout and cancel the camera.
+  const graphVisible = useMemo(() => filterGraph(scoped, ["US", "CN_A", "GLOBAL"], query), [scoped, query]);
   const visible = useMemo(() => {
     if (view === "tree") return scoped;
+    if (view === "graph") return graphVisible;
     const filtered = filterGraph(scoped, ["US", "CN_A", "GLOBAL"], query);
-    const companies = filtered.nodes.filter(n => n.kind === "COMPANY" && (view === "graph" || marketFilter === "all" || n.market === marketFilter) && (view === "graph" || !roleFilter || companySectors(n).some(s => s.id === roleFilter)) && (view === "graph" || !onlyFollowed || follows.ids.includes(n.id)));
+    const companies = filtered.nodes.filter(n => n.kind === "COMPANY" && (marketFilter === "all" || n.market === marketFilter) && (!roleFilter || companySectors(n).some(s => s.id === roleFilter)) && (!onlyFollowed || follows.ids.includes(n.id)));
     const ids = new Set(companies.map(n => n.id));
     const stages = new Set(companies.flatMap(n => n.stageIds ?? []).map(id => "stage:" + id));
     return {...filtered, nodes:[...filtered.nodes.filter(n => n.kind === "STAGE" && stages.has(n.id)), ...companies], relationships:filtered.relationships.filter(e => ids.has(e.source) && (ids.has(e.target) || stages.has(e.target)))};
-  }, [scoped, query, marketFilter, roleFilter, onlyFollowed, follows.ids, view]);
+  }, [scoped, graphVisible, query, marketFilter, roleFilter, onlyFollowed, follows.ids, view]);
   const companies = visible.nodes.filter(n => n.kind === "COMPANY");
   const matches = useMemo(() => filterGraph(visible, ["US", "CN_A", "GLOBAL"], query).nodes.filter(n => n.kind === "COMPANY"), [visible, query]);
   const [browseQuery, setBrowseQuery] = useState("");

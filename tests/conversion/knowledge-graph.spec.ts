@@ -31,6 +31,38 @@ async function projectedGraphPositions(page: Page) {
    return [matrix.m41,matrix.m42];
  }));
 }
+test('background follow status does not cancel the opening camera', async ({page}) => {
+ test.setTimeout(45000);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ let releaseFollows!: () => void;
+ const followsReady = new Promise<void>(resolve => { releaseFollows = resolve; });
+ await page.route('**/*', async route => {
+   const url = new URL(route.request().url());
+   if(url.pathname === '/api/knowledge-graph') return route.fulfill({json:graph});
+   if(url.pathname === '/api/map-follows') {
+     await followsReady;
+     return route.fulfill({json:{companyIds:['US:NVDA']}});
+   }
+   return route.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto('http://graph.test/map?account&lang=en&view=graph');
+ const canvas=page.locator('canvas');
+ await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
+ await expect(canvas).toHaveAttribute('data-camera','idle');
+ const response=page.waitForResponse('**/api/map-follows');
+ releaseFollows();
+ await (await response).finished();
+ // Let React apply the follow response while motion is disabled, so a camera
+ // reframe cannot be mistaken for the introduction starting.
+ await page.waitForTimeout(500);
+ const before=await projectedGraphPositions(page);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect.poll(async()=>{
+   const after=await projectedGraphPositions(page);
+   return after.some((v,i)=>Math.abs(v-before[i])>1);
+ },{timeout:15000}).toBe(true);
+});
+
 test('cinematic introduction enlarges labels then orbits until touched', async ({page, isMobile}) => {
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
