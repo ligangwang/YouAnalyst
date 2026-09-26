@@ -30,6 +30,11 @@ const subscribeView = (notify: () => void) => {
   return () => { window.removeEventListener("storage", notify); window.removeEventListener("popstate", notify); window.removeEventListener("industry-view-changed", notify); };
 };
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
+function ViewIcon({ view }: { view: IndustryView }) {
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+    {view === "table" ? <><path d="M9 5h12M9 12h12M9 19h12" /><path d="M3 5h1M3 12h1M3 19h1" /></> : view === "tree" ? <><rect x="9" y="2" width="6" height="5" rx="1" /><path d="M12 7v5M5 17v-5h14v5" /><rect x="2" y="17" width="6" height="5" rx="1" /><rect x="16" y="17" width="6" height="5" rx="1" /></> : <><path d="m6 7 10-2M6 7l5 11M18 5l-7 13" /><circle cx="5" cy="6" r="3" /><circle cx="19" cy="4" r="3" /><circle cx="11" cy="19" r="3" /></>}
+  </svg>;
+}
 export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", introduction, allowedRelationshipIds }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; introduction?: React.ReactNode; allowedRelationshipIds?: string[] }) {
   const { text, locale } = useLocale();
   const defaultView: IndustryView = "graph";
@@ -155,9 +160,9 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const Container = allowedRelationshipIds ? "section" : "main";
   const Heading = allowedRelationshipIds ? "h2" : "h1";
   return <><Container className={styles.page}>
-    <header className={styles.header}><div className={styles.titleRow}><Heading>{text("AI Industry Map", "AI 产业图谱")}</Heading><details className={styles.mapHelp}><summary aria-label={text('About the AI Industry Map','关于 AI 产业图谱')}>ⓘ</summary><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></details></div>
+    <header className={styles.header}><div className={styles.titleRow}><div className={styles.thesisPicker}><label htmlFor={viewId+'-thesis'}>{text('Thesis','投资主题')}</label><Heading className={styles.mapHeading}>{text("AI Industry Map", "AI 产业图谱")}</Heading><select id={viewId+'-thesis'} defaultValue="ai" aria-label={text('Investment thesis','投资主题')}><option value="ai">AI</option></select></div><details className={styles.mapHelp}><summary aria-label={text('About the AI Industry Map','关于 AI 产业图谱')}>ⓘ</summary><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></details></div>
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
-      {([['table','Company list','公司列表'],['tree','Industry structure','产业结构'],['graph','Relationship graph','关系图谱']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" aria-label={text(en,zh)} id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}>{text(id==='table'?'List':id==='tree'?'Structure':'Graph',id==='table'?'列表':id==='tree'?'结构':'关系图')}</button>)}
+      {([['table','Company list','公司列表'],['tree','Industry structure','产业结构'],['graph','Relationship graph','关系图谱']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" aria-label={text(en,zh)} id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}><ViewIcon view={id} />{text(id==='table'?'List':id==='tree'?'Structure':'Graph',id==='table'?'列表':id==='tree'?'结构':'关系图')}</button>)}
     </div></header>
     <div hidden={view!=='table'}><div className={styles.sharedFilters}>
     <div className={styles.controls}>

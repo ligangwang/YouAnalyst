@@ -33,13 +33,13 @@ export function CompanyResearchOverview({ company, fundamentals, graph }: { comp
         {company.inMap && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}
       </nav>
     </header>
+    {fundamentals}
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <section id="company-information" className="scroll-mt-24 py-6">      <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-4 text-sm">
         {facts.map(([label, value]) => <div key={label}><dt className="text-slate-400"><UiText text={label} /></dt><dd className="mt-1 font-medium text-slate-100">{value}</dd></div>)}
       </dl>
       {company.listingUpdatedAt && <p className="mt-3 text-xs text-slate-400"><UiText text={"Listing data synced "} />{company.listingUpdatedAt.slice(0, 10)}.</p>}
 <CompanyProfileDetails profile={company.profile} /></section>
-    {fundamentals}
       {company.listingStatus !== "PRIVATE" && <CompanyCallActions ticker={company.ticker} />}
     {!graph && company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker}<UiText text={" suppliers, customers and partners"} /></h2>
