@@ -22,6 +22,7 @@ async function revealListFilters(page:Page) {
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
 test('cinematic introduction enlarges labels then orbits until touched', async ({page, isMobile}) => {
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph');
@@ -33,7 +34,8 @@ test('cinematic introduction enlarges labels then orbits until touched', async (
  const before=await averageScale();
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.waitForTimeout(14000);
- expect(await averageScale()).toBeGreaterThan(before*1.35);
+ // Software-rendered CI can advance fewer animation frames in the same wall time.
+ await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(before*1.35);
  const positions=()=>labels.evaluateAll(els=>els.map(el=>{const b=el.getBoundingClientRect();return [b.x,b.y];}).flat());
  const orbiting=await positions();
  await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-orbiting[i])>1);}).toBe(true);
@@ -93,6 +95,7 @@ test('filtering from external graph search stops the intro and reframes results'
 });
 
 test('compact map controls keep list filters out of the graph', async ({page}) => {
+ await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph&listingMarket=CN_A&following=1');
  await expect(page.locator('canvas')).toBeVisible();
@@ -100,7 +103,7 @@ test('compact map controls keep list filters out of the graph', async ({page}) =
  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveText('List');
  await expect(page.getByRole('tab',{name:'Industry structure',exact:true})).toHaveText('Structure');
  await expect(page.getByLabel('Listing market',{exact:true})).toBeHidden();
- await expect(page.locator('[data-company-id]')).toHaveCount(graph.nodes.filter(n=>n.kind==='COMPANY').length);
+ await expect(page.locator('[data-company-id]')).toHaveCount(graph.nodes.filter(n=>n.kind==='COMPANY').length,{timeout:20000});
  await page.getByLabel('About the AI Industry Map').click();
  await expect(page.getByText('Explore AI stocks, companies, and supply-chain relationships.',{exact:true})).toBeVisible();
  await page.getByLabel('About the AI Industry Map').click();
@@ -243,6 +246,7 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
   await page.goto("http://graph.test/map?lang=en");
   const canvas=page.locator("canvas"), labels=page.locator('[data-source]:visible');
   await expect(canvas).toBeVisible();
+  await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
   await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
   await expect(labels).toHaveCount(0);
   if(sectorFocused){
@@ -252,6 +256,7 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
     await expect.poll(()=>page.locator('[data-sector-emphasis="member"]').count()).toBeGreaterThan(0);
   }
   await canvas.scrollIntoViewIfNeeded();
+  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
   const box=(await canvas.boundingBox())!;
   const layout=layout3D(graph);
   const members=layout.nodes.filter(n=>companySector(n).id==="compute");
@@ -265,7 +270,8 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
     const a=layout.nodes.find(n=>n.id===edge.source)!,b=layout.nodes.find(n=>n.id===edge.target)!;
     const p=new Vector3(a.x,a.y,a.z).lerp(new Vector3(b.x,b.y,b.z),.55).project(camera);
     const x=box.x+(p.x+1)*box.width/2,y=box.y+(1-p.y)*box.height/2;
-    await page.mouse.move(x,y);await page.waitForTimeout(60);
+    await page.mouse.move(5,5);await expect(labels).toHaveCount(0);
+    await page.mouse.move(x,y);await page.waitForTimeout(100);
     if(await labels.count()){hit={x,y};break;}
   }
   expect(hit).toBeDefined();
@@ -379,6 +385,7 @@ test("star layout retains isolated companies and only draws recorded company edg
   expect(layoutCompanies(graph)).toEqual(layout);
 });
 test("graph renders, orbits and resets without extra controls", async ({ page }) => {
+  await page.emulateMedia({reducedMotion:'reduce'});
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: graph }) : route.fulfill({ contentType: "text/html", body: html }));
@@ -386,6 +393,7 @@ test("graph renders, orbits and resets without extra controls", async ({ page })
   await expect(page.getByRole("button", { name: /^(2D|3D|Fit|Zoom in|Zoom out|Rotate left|Rotate right)$/ })).toHaveCount(0);
   await expect(page.getByRole("link", {name:"Filing explorer",exact:true})).toHaveCount(0);
   await expect(page.locator("canvas")).toBeVisible();
+  await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
 
   await expect(page.getByRole("button", { name: "NVIDIA · NVDA", exact:true })).toBeVisible();
   await page.screenshot({fullPage:true,path:`output/graph-3d-${test.info().project.name}.png`});
