@@ -20,7 +20,12 @@ export async function refreshCnAnnual(options:{db:Firestore;companies:string[];d
   for(let i=0;i<entries.length;i++){
     if(clock()+65000>options.deadline||result.failed>=3){result.deferred=entries.length-i;break;}
     const {id,stored}=entries[i],ref=collection.doc(id);
-    if(Number(stored.cnAnnualStatus?.retryAfter??0)>clock()){result.skipped++;continue;}
+    if(Number(stored.cnAnnualStatus?.retryAfter??0)>clock()){
+      // An unresolved provider error must remain visible across Cloud Run retries.
+      if(stored.cnAnnualStatus?.outcome==='retry')result.failed++;
+      else result.skipped++;
+      continue;
+    }
     try{
       const annual=await (options.fetch??fetchCnAnnual)(id);
       if(annual.companyId!==id)throw new Error('Annual report company mismatch');
