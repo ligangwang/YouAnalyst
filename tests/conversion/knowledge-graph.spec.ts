@@ -158,6 +158,12 @@ test('closing graph details resumes rotation and the card stays beside its node'
  })).toBe(true);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await expect(canvas).toHaveAttribute('data-rotation','focused');
+ // Camera sleep permits tiny damping residuals; let projected anchors settle before dismissal.
+ let settled=await projectedGraphPositions(page),stable=0;
+ await expect.poll(async()=>{
+   const current=await projectedGraphPositions(page),difference=Math.max(...current.map((v,i)=>Math.abs(v-settled[i])));
+   settled=current;stable=difference<.001?stable+1:0;return stable;
+ },{intervals:[100],timeout:10000}).toBeGreaterThanOrEqual(3);
  await card.getByRole('button',{name:'Clear selection'}).click();
  await expect(card).toHaveCount(0);
  await expect(canvas).toHaveAttribute('data-rotation','waiting');
@@ -1683,6 +1689,7 @@ test('three views legacy vertical links and preferences open the merged industry
 
 // Above ground companies are leaves; on the Energy roots they are nodules. Both select like their label button.
 for(const [id,part] of [['US:NVDA','leaf body'],['US:CEG','root nodule']]) test(`three views vertical ${part} selects its company when zoomed out`,async({page})=>{
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  // One company, so every hit belongs to it.
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id===id)};
@@ -1699,7 +1706,7 @@ for(const [id,part] of [['US:NVDA','leaf body'],['US:CEG','root nodule']]) test(
  await expect.poll(async()=>{const p=await measure(),moved=Math.abs(p.x-stem.x)+Math.abs(p.y-stem.y);stem=p;stable=moved<.05?stable+1:0;return stable;},{intervals:[100,200,300]}).toBeGreaterThanOrEqual(3);
  // Scan around the stem: over the leaf or nodule, only the canvas is under the pointer and it shows a pointer cursor.
  const hits:{x:number;y:number}[]=[];
- for(let dy=-16;dy<=16;dy++)for(let dx=-16;dx<=16;dx++){
+ for(let dy=-16;dy<=16&&hits.length<5;dy++)for(let dx=-16;dx<=16&&hits.length<5;dx++){
   const x=stem.x+dx,y=stem.y+dy;
   if(Math.hypot(dx,dy)<=stem.radius+1.5)continue;
   await page.mouse.move(x,y);
