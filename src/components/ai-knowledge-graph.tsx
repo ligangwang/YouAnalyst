@@ -144,12 +144,13 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     if (id) url.searchParams.set("company", id); else url.searchParams.delete("company");
     window.history.replaceState(null, "", url);
   }
-  const nodeSelection=useRef({selected,closing:cardDismiss.closing,selectCompany});
-  useLayoutEffect(()=>{nodeSelection.current={selected,closing:cardDismiss.closing,selectCompany};});
+  const nodeSelection=useRef({selected,tree:cardHost.tree,closing:cardDismiss.closing,selectCompany});
+  useLayoutEffect(()=>{nodeSelection.current={selected,tree:cardHost.tree,closing:cardDismiss.closing,selectCompany};});
   function selectNode(id: string, fromTree?: "vertical"|"horizontal") {
     // Canvas/Html roots can commit later than the card; always use its current selection.
     const current=nodeSelection.current;
-    current.selectCompany(id === current.selected&&!current.closing ? "" : id, fromTree);
+    const sameCard=!fromTree||fromTree===current.tree;
+    current.selectCompany(id === current.selected&&sameCard&&!current.closing ? "" : id, fromTree);
   }
   function resetGraphView() {
     cardDismiss.cancel();
