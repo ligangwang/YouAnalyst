@@ -40,6 +40,9 @@
 .vertical .scene {height:min(90vh,1100px);min-height:780px;}
 .vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 23px color-mix(in srgb,currentColor,transparent 68%),inset 0 0 16px color-mix(in srgb,currentColor,transparent 85%);background:#071727ee;}
 .vertical .branch {border-radius:16px;}
+/* The frame loop fades text before shrinking its hit target; never display:none mid-fade. */
+.vertical .branch,.vertical .company {transition:background .2s;}
+.vertical .branch[data-label-visible='false']:not([data-label-opacity]),.vertical .company[data-label-visible='false']:not([data-label-opacity]) {opacity:0;}
 .labelLeft {transform:translateX(-100%);}
 .labelLeft .node {transform-origin:100% 0;}
 /* A compact branch is a small knot on the wood; the 12px box stays as its click target. */
