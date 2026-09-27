@@ -5,6 +5,7 @@ set -euo pipefail
 export GCP_REGION="${GCP_REGION:-us-central1}"
 case "${1:-}" in
   all) targets=(sec-fundamentals cn-fundamentals private-valuations directory) ;;
+  fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations) ;;
   sec-fundamentals|cn-fundamentals|private-valuations|directory) targets=("$1") ;;
   *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations or directory' >&2; exit 1 ;;
 esac

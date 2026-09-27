@@ -43,6 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       indexes: ${{ steps.schema.outputs.indexes }}
+      workers: ${{ steps.worker-changes.outputs.workers }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,6 +69,12 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Detect background worker changes
+        id: worker-changes
+        env:
+          BASE_SHA: ${{ github.event.before }}
+        run: node scripts/background-job-changes.mjs
 
       - name: Cache Next.js build
         uses: actions/cache@v4
@@ -725,3 +732,31 @@ jobs:
           PLAYWRIGHT_EXPECT_STAGING_BANNER: "0"
           PLAYWRIGHT_AUTH_BEARER_TOKEN: ${{ steps.production-smoke-token.outputs.token }}
         run: npm run smoke:test
+
+  deploy-background-jobs:
+    needs: [verify, deploy-production]
+    if: github.ref == 'refs/heads/main' && needs.deploy-production.result == 'success' && needs.verify.outputs.workers != 'none'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    concurrency:
+      group: deploy-background-jobs-production
+      cancel-in-progress: false
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: us-central1
+      WEB_RUNTIME_SERVICE_ACCOUNT: ${{ vars.WEB_RUNTIME_SERVICE_ACCOUNT }}
+      CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      GIT_SHA: ${{ github.sha }}
+      TARGET_JOB: ${{ needs.verify.outputs.workers }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy changed background workers
+        run: bash scripts/deploy-background-jobs.sh "$TARGET_JOB"
