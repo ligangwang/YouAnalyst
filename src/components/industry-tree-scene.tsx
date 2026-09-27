@@ -292,7 +292,7 @@ function Scene(props:TreeSceneProps){
         const group=groups.current.get(node.id),dimensions=labelSizes.current.get(el);
         if(!group||!dimensions)return [];
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        if(htmlScale<(node.kind==='company'?.65:.72))return [];
+        if(htmlScale<(node.kind==='company'?.65:.72)&&!(labelFades.current.get(el)?.level))return [];
         const left=node.position[0]<0,scale=node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1;
         vector.copy(group.position);vector.x+=(left?-1:1)*(node.kind==='company'?16:22)*group.scale.x;
         vector.project(state.camera);
@@ -304,6 +304,7 @@ function Scene(props:TreeSceneProps){
         const el=labels.current.get(node.id),box=bounds.get(node.id),fade=el&&labelFades.current.get(el);
         return box&&fade&&!fade.visible&&fade.level>0?[{id:node.id,box,retiring:true}]:[];
       });
+      const previousCollisions=new Set(collisionLabels.current);
       collisionLabels.current.clear();
       for(const node of ordered){
         const box=bounds.get(node.id);if(!box)continue;
@@ -315,6 +316,7 @@ function Scene(props:TreeSceneProps){
         }
         occupied.push({id:node.id,box});
       }
+      if(previousCollisions.size!==collisionLabels.current.size||[...previousCollisions].some(id=>!collisionLabels.current.has(id)))moving=true;
       lastCollision.current=now;
     }
     const positions=geometry.getAttribute('position');
