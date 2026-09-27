@@ -217,6 +217,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
       if(companyGap!==undefined){
         // Keep the label mounted while CSS fades it out; hidden names must not
         // intercept clicks or keyboard focus during that transition.
+        if(!visible && document.activeElement===element)element.blur();
         element.dataset.visible=String(visible);
         element.tabIndex=visible?0:-1;
         element.setAttribute("aria-hidden",String(!visible));
