@@ -115,7 +115,34 @@ test('cinematic introduction and reset replay approach and rotation until touche
  const averageScale=()=>labels.evaluateAll(els=>els.reduce((sum,el)=>sum+Number((el as HTMLElement).style.getPropertyValue('--label-scale')),0)/els.length);
  const before=await averageScale();
  await page.emulateMedia({reducedMotion:'no-preference'});
- await page.waitForTimeout(14000);
+ // Watch the automatic camera, not just a user drag: labels used to change
+ // sides abruptly here when collision priority changed during the orbit.
+ const stability=await page.evaluate(()=>new Promise<{sideChanges:string[];earlyReturns:string[];samples:number}>(resolve=>{
+   const sides=new Map<string,string>(),visibility=new Map<string,boolean>(),exits=new Map<string,number>();
+   const sideChanges=new Set<string>(),earlyReturns=new Set<string>(),start=performance.now();
+   let samples=0;
+   const sample=()=>{
+     const now=performance.now();samples++;
+     document.querySelectorAll<HTMLElement>('[data-company-id]').forEach(el=>{
+       const id=el.dataset.companyId!,x=el.style.getPropertyValue('--label-offset-x'),y=el.style.getPropertyValue('--label-offset-y');
+       if(x && y){
+         const side=`${Math.sign(parseFloat(x))}:${Math.sign(parseFloat(y))}`;
+         if(sides.has(id) && sides.get(id)!==side)sideChanges.add(id);
+         sides.set(id,side);
+       }
+       const shown=el.dataset.visible==='true',wasShown=visibility.get(id);
+       if(wasShown===true && !shown)exits.set(id,now);
+       if(wasShown===false && shown && exits.has(id) && now-exits.get(id)!<1100)earlyReturns.add(id);
+       visibility.set(id,shown);
+     });
+     if(now-start>=14000)resolve({sideChanges:[...sideChanges],earlyReturns:[...earlyReturns],samples});
+     else setTimeout(sample,100);
+   };
+   sample();
+ }));
+ expect(stability.samples).toBeGreaterThan(10);
+ expect(stability.sideChanges).toEqual([]);
+ expect(stability.earlyReturns).toEqual([]);
  // Software-rendered CI can advance fewer animation frames in the same wall time.
  // Reduced motion starts already fitted; enabling motion completes the gentle dolly.
  await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(before*1.05);
