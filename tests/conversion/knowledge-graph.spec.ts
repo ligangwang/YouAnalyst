@@ -25,6 +25,7 @@ for (const view of ['graph','vertical','horizontal'] as const) test(`clicking th
  await card.getByRole('button',{name:view==='graph'?'Clear selection':'Close company details',exact:true}).click();await expect(card).toHaveCount(0);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(card).toBeVisible();
+ if(view!=='graph')await expect(node).toHaveAttribute('aria-pressed','true');
  await expect(card).toHaveCSS('animation-duration','0.18s');
  const exit=await card.evaluate(el=>new Promise<string>(resolve=>{
    // A busy renderer may not paint before the short exit completes; observe the
@@ -36,6 +37,9 @@ for (const view of ['graph','vertical','horizontal'] as const) test(`clicking th
    (el.querySelector('button[aria-label="Clear selection"],button[aria-label="Close company details"]') as HTMLButtonElement).click();
  }));
  expect(exit).toBe('0.14s');await expect(card).toHaveCount(0);
+ // The card and canvas labels commit through separate React roots. Finish the
+ // prior close in both before starting the rapid-reopen scenario below.
+ if(view!=='graph')await expect(node).toHaveAttribute('aria-pressed','false');
  // A new activation while closing must cancel the delayed unmount.
  await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(card).toBeVisible();
  if(view!=='graph')await expect(node).toHaveAttribute('aria-pressed','true');

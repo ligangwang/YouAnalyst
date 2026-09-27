@@ -735,7 +735,7 @@ jobs:
 
   deploy-background-jobs:
     needs: [verify, deploy-production]
-    if: github.ref == 'refs/heads/main' && needs.deploy-production.result == 'success' && needs.verify.outputs.workers != 'none'
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.verify.result == 'success' && needs.deploy-production.result == 'success' && needs.verify.outputs.workers != 'none' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 60
