@@ -171,7 +171,8 @@ test('cinematic introduction and reset replay approach and rotation until touche
    await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-moving[i])>1);},{timeout:15000}).toBe(true);
  }
 });
-test('intro orbit respects reduced motion and stops after chart interaction', async ({page, isMobile}) => {
+test('graph resumes gently from the user view after release and respects reduced motion', async ({page, isMobile}) => {
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph');
@@ -186,16 +187,55 @@ test('intro orbit respects reduced motion and stops after chart interaction', as
  await page.emulateMedia({reducedMotion:'no-preference'});
  await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-still[i])>1);}).toBe(true);
  const bounds=(await canvas.boundingBox())!;
- if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
- else {
-   await page.mouse.move(bounds.x+10,bounds.y+10);
-   await page.mouse.down();await page.mouse.up();
- }
+ // A held drag must remain stopped even beyond the idle delay.
+ await page.mouse.move(bounds.x+10,bounds.y+10);
+ await page.mouse.down();
+ await page.mouse.move(bounds.x+60,bounds.y+35,{steps:8});
+ await expect(canvas).toHaveAttribute('data-rotation','paused');
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
- const stopped=await positions();
+ const held=await positions();
+ await page.waitForTimeout(2300);
+ expect(await positions()).toEqual(held);
+ await expect(canvas).toHaveAttribute('data-rotation','paused');
+ await page.mouse.up();
+ await expect(canvas).toHaveAttribute('data-rotation','waiting');
+ const released=await positions();
+ const distance=Number(await canvas.getAttribute('data-camera-distance'));
+ const target=await canvas.getAttribute('data-camera-target');
  await page.waitForTimeout(600);
- expect(await positions()).toEqual(stopped);
+ expect(await positions()).toEqual(released);
+ await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
+ await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-released[i])>1);},{timeout:10000}).toBe(true);
+ expect(Number(await canvas.getAttribute('data-camera-distance'))).toBeCloseTo(distance,5);
+ expect(await canvas.getAttribute('data-camera-target')).toBe(target);
+ // Resume must preserve a deliberate zoom and a new pan target as well.
+ await page.mouse.move(bounds.x+10,bounds.y+10);
+ await zoomWheel(page,-120);
+ await page.mouse.down({button:'right'});
+ await page.mouse.move(bounds.x+45,bounds.y+30,{steps:6});
+ await page.mouse.up({button:'right'});
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ const zoomed=Number(await canvas.getAttribute('data-camera-distance'));
+ const panned=await canvas.getAttribute('data-camera-target');
+ expect(zoomed).toBeLessThan(distance);
+ expect(panned).not.toBe(target);
+ await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
+ await page.waitForTimeout(600);
+ expect(Number(await canvas.getAttribute('data-camera-distance'))).toBeCloseTo(zoomed,5);
+ expect(await canvas.getAttribute('data-camera-target')).toBe(panned);
+ // Real touch and mouse input both stop a resumed orbit and can restart it again.
+ if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
+ else await page.mouse.click(bounds.x+10,bounds.y+10);
+ await expect(canvas).toHaveAttribute('data-rotation','waiting');
+ await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
  await page.emulateMedia({reducedMotion:'reduce'});
+ if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
+ else await page.mouse.click(bounds.x+10,bounds.y+10);
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ const reduced=await positions();
+ await page.waitForTimeout(2300);
+ await expect(canvas).toHaveAttribute('data-rotation','reduced');
+ expect(await positions()).toEqual(reduced);
  await page.getByRole('button',{name:'Reset view',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
  const resetStill=await positions();
@@ -712,6 +752,15 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
   await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
   await expect(page.getByRole("complementary")).toBeVisible();
+  await page.emulateMedia({reducedMotion:"no-preference"});
+  const canvas=page.locator('canvas');
+  const bounds=(await canvas.boundingBox())!;
+  await page.mouse.click(bounds.x+10,bounds.y+10);
+  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+  const focused=await projectedGraphPositions(page);
+  await page.waitForTimeout(2300);
+  await expect(canvas).toHaveAttribute('data-rotation','focused');
+  expect(await projectedGraphPositions(page)).toEqual(focused);
   await page.mouse.move(5,5);
   const labels=page.locator('button[class*="edgeLabel3d"]:visible');
   await expect(labels).toHaveCount(0);
@@ -719,6 +768,10 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await expect(labels).toHaveCount(1);
   await labels.first().click();
   await expect(page.getByRole("region",{name:"Selected connection"})).toBeVisible();
+  const connection=await projectedGraphPositions(page);
+  await page.waitForTimeout(2300);
+  await expect(canvas).toHaveAttribute('data-rotation','focused');
+  expect(await projectedGraphPositions(page)).toEqual(connection);
 });
 
 
