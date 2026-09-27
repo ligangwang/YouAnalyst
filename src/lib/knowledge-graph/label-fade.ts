@@ -7,13 +7,13 @@ export function createLabelFade(now:number):LabelFade {
 
 // Finish an exit before allowing a label back; brief collision gaps must not flash names.
 export function advanceLabelFade(state:LabelFade, wanted:boolean, now:number, reduced=false){
-  const elapsed=Math.max(0,now-state.last);state.last=now;
+  let elapsed=Math.max(0,now-state.last);state.last=now;
   if(reduced){state.level=wanted?1:0;state.visible=wanted;state.clearSince=null;}
   else {
-    if(!wanted){state.visible=false;state.clearSince=null;}
+    if(!wanted){if(state.visible)elapsed=0;state.visible=false;state.clearSince=null;}
     else if(!state.visible&&state.level===0){
       state.clearSince??=now;
-      if(now-state.clearSince>=LABEL_CLEAR_MS){state.visible=true;state.clearSince=null;}
+      if(now-state.clearSince>=LABEL_CLEAR_MS){state.visible=true;state.clearSince=null;elapsed=0;}
     }
     state.level=Math.max(0,Math.min(1,state.level+(state.visible?1:-1)*elapsed/LABEL_FADE_MS));
   }
