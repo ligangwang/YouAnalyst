@@ -13,8 +13,10 @@ import { CompanyResearchPanel } from "./company-research-panel";
 import { CompanyProfileDetails } from "./company-profile-details";
 import { ChinaMarketCap } from "./china-market-cap";
 import type { PublicCnMarketCap } from "@/lib/fundamentals/cn-service";
+import type { CnAnnual } from '@/lib/fundamentals/cn-annual';
+import { ChinaAnnualFinancials } from './china-annual-financials';
 
-export function ChinaCompanyPage({ company, marketCap = null }: { company: ChinaCompany; marketCap?: PublicCnMarketCap | null }) {
+export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale=false }: { company: ChinaCompany; marketCap?: PublicCnMarketCap | null; annual?:CnAnnual|null;stale?:boolean }) {
   const { text, locale } = useLocale();
   return <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
     <Link href="/companies" className="text-sm text-cyan-200 hover:underline">{text("Search companies", "搜索公司")} →</Link>
@@ -26,6 +28,7 @@ export function ChinaCompanyPage({ company, marketCap = null }: { company: China
 
     </header>
     {company.listingStatus !== "PRIVATE" && <ChinaMarketCap data={marketCap} />}
+    {company.listingStatus !== "PRIVATE" && <ChinaAnnualFinancials annual={annual} stale={stale}/>}
     <CompanyResearchPanel companyId={company.id} />
     <CompanyPosts ticker={company.id} />
     <section id="company-information" className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-6 sm:p-8">

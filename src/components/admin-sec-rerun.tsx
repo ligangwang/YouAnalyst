@@ -11,8 +11,8 @@ const jobs = {
     description: ["Refresh queued SEC fundamentals and recalculate market caps from the latest stored EOD prices. Fresh SEC data and provider cooldowns are respected. No trading date is needed.","刷新排队中的 SEC 财务数据，并使用最新已存储收盘价重新计算市值。保留新鲜缓存并遵守数据源冷却时间，无需选择交易日期。"],
     button: ["Run SEC fundamentals now","立即运行 SEC 财务任务"] },
   cnFundamentals: { endpoint: "/api/admin/jobs/cn-fundamentals",
-    description: ["Check A-share corporate actions, refresh share counts older than 7 days, and recalculate market caps from the latest stored China EOD prices. Provider cooldowns are respected. No trading date is needed.","检查 A 股股本变动公告，刷新超过 7 天的股本数据，并使用最新已存储的 A 股收盘价重新计算市值。遵守数据源冷却时间，无需选择交易日期。"],
-    button: ["Run A-share fundamentals now","立即运行 A 股股本与市值任务"] },
+    description: ["Refresh annual revenue and net income attributable to the parent through AKShare for all Shanghai and Shenzhen A-share companies on the published map, including newly added companies. Also check corporate actions, refresh share counts, and recalculate market caps from stored China EOD prices. Fresh caches and provider cooldowns are respected; failed requests keep existing data, and deferred companies resume on a later run. No trading date is needed.","通过 AKShare 刷新已发布图谱中所有沪深 A 股公司的年度营收和归母净利润，自动包含新加入的公司。同时检查股本变动、刷新股本并使用已存储收盘价重算市值。保留新鲜缓存并遵守数据源冷却时间；获取失败保留旧数据，未完成公司在后续运行继续处理。无需选择交易日期。"],
+    button: ["Run A-share fundamentals now","立即运行 A 股财务与市值任务"] },
 } as const;
 
 export function AdminSecRerun({onBusy,onComplete,job="fundamentals"}:{onBusy:(busy:boolean)=>void;onComplete:()=>void;job?:keyof typeof jobs}) {

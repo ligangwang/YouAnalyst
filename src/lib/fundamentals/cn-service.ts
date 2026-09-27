@@ -3,6 +3,7 @@ import { maintenanceError } from "../maintenance-log";
 import { FUNDAMENTALS_COLLECTION } from "./service";
 import { CN_COMPANY_ID } from "../knowledge-graph/cn-companies";
 import { isoDate, type CnMarketCap } from "./cn-market-cap";
+import type { CnAnnual } from './cn-annual';
 
 // What an A-share company page shows. Page reads never contact providers.
 export type PublicCnMarketCap = {
@@ -37,4 +38,18 @@ export async function loadCnMarketCap(id: string): Promise<PublicCnMarketCap | n
     console.error(JSON.stringify({ severity: "ERROR", message: "fundamentals: cn_market_cap_read_failed", company: id, error: maintenanceError(error) }));
     return null;
   }
+}
+
+export async function readCnFundamentals(id:string,db:ReturnType<typeof getAdminFirestore>,now=Date.now()){
+  if(!CN_COMPANY_ID.test(id))return null;
+  const doc=await db.collection(FUNDAMENTALS_COLLECTION).doc(id).get();
+  if(!doc.exists)return null;
+  const stored=doc.get('cnAnnual') as CnAnnual|undefined;
+  const annual=stored?.version===1&&stored.companyId===id&&Array.isArray(stored.metrics)?stored:null;
+  return {marketCap:publicCnMarketCap(doc.get('marketCap')),annual,metrics:annual?.metrics??[],
+    stale:Boolean(annual&&now-Date.parse(annual.fetchedAt)>3*86400000)};
+}
+export async function loadCnFundamentals(id:string){
+  try{return await readCnFundamentals(id,getAdminFirestore());}
+  catch(error){console.error(JSON.stringify({severity:'ERROR',message:'fundamentals: cn_read_failed',company:id,error:maintenanceError(error)}));return null;}
 }

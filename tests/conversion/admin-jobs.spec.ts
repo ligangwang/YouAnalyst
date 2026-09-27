@@ -135,11 +135,13 @@ test("admin starts the A-share fundamentals job from its own Run now button",asy
   const url=new URL(route.request().url());
   if(url.pathname==="/api/admin/me")return route.fulfill({json:{isAdmin:true}});
   if(url.pathname.startsWith("/api/admin/jobs/")){expect(route.request().method()).toBe("POST");posts.push(url.pathname);return route.fulfill({status:202,json:{ok:true,operation:"operations/cn"}});}
-  if(url.pathname==="/api/admin/jobs"){history.push(url.searchParams.get("job")!);return route.fulfill({json:{records:[],nextPageToken:null}});}
+  if(url.pathname==="/api/admin/jobs"){history.push(url.searchParams.get("job")!);return route.fulfill({json:{records:[{id:"cn-run",startedAt:"2026-09-27T12:00:00Z",status:"Succeeded",summary:{annual:{updated:60,skipped:2,failed:0,deferred:0}}}],nextPageToken:null}});}
   return route.fulfill({contentType:"text/html",body:html});
  });
  await page.goto(origin);
  await page.getByLabel("Job",{exact:true}).selectOption("cnFundamentals");
+ await expect(page.getByText(/Refresh annual revenue and net income attributable to the parent through AKShare/)).toBeVisible();
+ await expect(page.getByText(/annual financials:.*"updated":60/)).toBeVisible();
  await expect(page.getByText("Weekdays, 9:30 AM New York (after China EOD)")).toBeVisible();
  await expect(page.getByRole("button",{name:"Run SEC fundamentals now",exact:true})).toHaveCount(0);
  await page.getByRole("button",{name:"Run A-share fundamentals now",exact:true}).click();

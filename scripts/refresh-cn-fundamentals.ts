@@ -7,6 +7,7 @@ import { CN_WORKER_DOC, cnRunFailed, refreshCnFundamentals } from "../src/lib/fu
 import { createCnRequester, createCnSources } from "../src/lib/fundamentals/cn-sources";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
+import { refreshCnAnnual } from "../src/lib/fundamentals/cn-annual-worker";
 
 // Usage: refresh-cn-fundamentals [--dry-run] [--companies=XSHG:600584,XSHE:000063]
 // --dry-run fetches and prints share counts, prices, FX and market caps without any Firestore write.
@@ -34,14 +35,16 @@ async function main() {
     if (!mapCompanies.length) throw new Error("No A-share map companies found; refusing an incomplete run");
     const companies = subset ?? mapCompanies;
     log.emit("INFO", "companies_selected", { companies: companies.length, mapCompanies: mapCompanies.length, subset: Boolean(subset) });
+    log.stage("annual_financials");
+    const annual=await refreshCnAnnual({db,companies,log,dryRun,deadline:Math.min(deadline-6*60_000,Date.now()+6*60_000)});
     const requester = createCnRequester({ context: { runId: log.runId, job: "refresh-cn-fundamentals" } });
     const result = await refreshCnFundamentals({ db, log, sources: createCnSources(requester), companies, deadline, dryRun,
       blockedHosts: requester.blockedHosts, print: line => console.log(line) });
-    if (!dryRun) await lease.set({ lastRunAt: new Date().toISOString(), result }, { merge: true });
+    if (!dryRun) await lease.set({ lastRunAt: new Date().toISOString(), result: {...result,annual} }, { merge: true });
     // Provider/format failures keep old data and exit non-zero above a small
     // threshold; validated unavailable outcomes (e.g. missing H shares) do not.
-    const failed = cnRunFailed(result);
-    log.emit(failed ? "ERROR" : "INFO", "run_completed", result);
+    const failed = cnRunFailed(result)||annual.failed>0||annual.deferred>0;
+    log.emit(failed ? "ERROR" : "INFO", "run_completed", {...result,annual});
     if (failed) throw new Error("A-share fundamentals refresh failed or is incomplete; see run summary");
   } finally {
     if (!dryRun) await releaseMaintenanceLease(lease, log.runId);
