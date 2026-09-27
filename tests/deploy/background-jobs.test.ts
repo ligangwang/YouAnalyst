@@ -39,6 +39,12 @@ test('directory-only deploy avoids shared build and schedule changes',()=>{
   assert.equal(r.calls.match(/builds submit/g)?.length,1);
   assert.match(r.calls,/cloudbuild.directory-sync.yaml/);assert.doesNotMatch(r.calls,/scheduler jobs/);
 });
+test('financial changes build once for all three workers and skip directory',()=>{
+  const r=run('fundamentals');assert.equal(r.status,0,r.stderr);
+  assert.equal(r.calls.match(/builds submit/g)?.length,1);
+  assert.equal(r.calls.match(/run jobs deploy/g)?.length,3);
+  assert.doesNotMatch(r.calls,/run jobs update|cloudbuild.directory-sync.yaml/);
+});
 test('invalid selection or missing IAM/SEC configuration fails before mutations',()=>{
   for(const [target,extra] of [['bad',{}],['all',{SEC_USER_AGENT:''}],['directory',{WEB_SA:''}]] as [string,Record<string,string>][]) {
     const r=run(target,extra);assert.notEqual(r.status,0);

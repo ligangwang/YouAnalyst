@@ -2,7 +2,7 @@
 
 The **Private company valuations** entry in `/admin/jobs` offers a manual **Run private valuation check now** button. It runs independently of SEC and A-share jobs, with its own lease and admin-only dispatch. Monthly Cloud Scheduler execution is at 09:00 America/New_York on day 1.
 
-Deploy the web app and run the **Deploy background jobs** (`private-valuations`) GitHub Actions workflow from the reviewed release. The workflow builds the shared maintenance image, creates the worker, grants the existing scheduler and web identities invocation access, and creates the monthly schedule enabled. Existing schedules retain their paused/enabled state. Deployment itself does not execute the worker.
+The main production release workflow automatically deploys this worker when its code or shared dependencies change. The workflow builds the shared maintenance image, creates the worker, grants the existing scheduler and web identities invocation access, and creates the monthly schedule enabled. Existing schedules retain their paused/enabled state. Deployment itself does not execute the worker.
 
 Local commands (ADC and `GCP_PROJECT_ID` required except for sources-only):
 

@@ -1,9 +1,8 @@
 # Deployments and admin tasks
 
-GitHub Actions has two entry points:
+GitHub Actions has one entry point: **Deploy to Cloud Run** (`deploy.yml`). It runs PR checks, deploys the website, then updates affected background workers after a successful production release on `main`.
 
-- **Deploy to Cloud Run** (`deploy.yml`): PR checks and website releases.
-- **Deploy background jobs** (`deploy-background-jobs.yml`): manual worker-code deployment from `main`, protected by the production environment. Select `all`, `sec-fundamentals`, `cn-fundamentals`, `private-valuations`, or `directory`.
+Worker changes are detected from the pushed commit range. Financial worker changes rebuild their shared image once; directory changes rebuild the directory image. Shared library, dependency or deployment-helper changes update both images. UI-only changes skip workers. A manual production release or an unavailable comparison baseline updates all workers, which also provides a recovery path after a failed worker deployment. Staging releases never deploy production workers.
 
 Deployment validates selected jobs' IAM configuration before building. The three financial workers share one build per dispatch; directory uses a separate image. Jobs deploy immutable image digests. Deployments serialize through one concurrency group and never execute maintenance. Existing schedules retain their enabled/paused state; the A-share script creates new schedules paused. Directory deployment updates an existing worker and IAM without changing its schedule. Initial directory setup still uses `scripts/deploy-directory-sync.sh`.
 
