@@ -9,6 +9,53 @@ import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sect
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
+for (const view of ['graph','vertical','horizontal'] as const) test(`clicking the selected ${view} node toggles its detail card`,async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto(`http://graph.test/map?lang=en&view=${view==='graph'?'graph':'tree'}`);
+ const scope=view==='graph'?page.locator('[data-graph-view="graph"]'):page.locator(`[data-industry-section="${view}"]`);
+ const node=view==='graph'?page.locator('[data-company-id="US:NVDA"]'):scope.locator('[data-tree-company="US:NVDA"]').first();
+ if(view==='horizontal'){await scope.scrollIntoViewIfNeeded();await scope.locator('[data-tree-node="chips/compute"]').click();}
+ const card=page.locator('aside[data-node-card="US:NVDA"]');
+ await node.click();await expect(card).toBeVisible();await expect(page).toHaveURL(/company=US%3ANVDA/);
+ await node.click();await expect(card).toHaveCount(0);expect(new URL(page.url()).searchParams.has('company')).toBe(false);
+ await node.click();await expect(card).toBeVisible();
+ await expect(card).toHaveCSS('animation-name','none');
+ await card.getByRole('button',{name:view==='graph'?'Clear selection':'Close company details',exact:true}).click();await expect(card).toHaveCount(0);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(card).toBeVisible();
+ await expect(card).toHaveCSS('animation-duration','0.18s');
+ const exit=await card.evaluate(el=>new Promise<string>(resolve=>{
+   // A busy renderer may not paint before the short exit completes; observe the
+   // committed closing style rather than requiring a compositor event.
+   const observer=new MutationObserver(()=>{
+     if(el.getAttribute('data-closing')==='true'){observer.disconnect();resolve(getComputedStyle(el).animationDuration);}
+   });
+   observer.observe(el,{attributes:true,attributeFilter:['data-closing']});
+   (el.querySelector('button[aria-label="Clear selection"],button[aria-label="Close company details"]') as HTMLButtonElement).click();
+ }));
+ expect(exit).toBe('0.14s');await expect(card).toHaveCount(0);
+ // A new activation while closing must cancel the delayed unmount.
+ await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(card).toBeVisible();
+ if(view!=='graph')await expect(node).toHaveAttribute('aria-pressed','true');
+ await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(card).toHaveAttribute('data-closing','true');
+ // The tree canvas uses a separate React root; allow its handlers to receive the closing state.
+ await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+ await node.evaluate((el:HTMLButtonElement)=>el.click());
+ await page.waitForTimeout(200);await expect(card).toBeVisible();await expect(card).toHaveAttribute('data-closing','false');
+ if(view==='graph'){
+   await card.evaluate(el=>{
+     (el.querySelector('button[aria-label="Clear selection"]') as HTMLButtonElement).click();
+     requestAnimationFrame(()=>{
+       const canvas=document.querySelector('canvas')!,r=canvas.getBoundingClientRect();
+       canvas.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+2,clientY:r.top+2}));
+     });
+   });
+   await expect(card).toHaveCount(0);
+ }
+});
+
 async function expectGraphEmphasis(label: Locator, expected: number) {
  // A culled label fades to zero; its emphasis must still be restored when it returns.
  await expect.poll(()=>label.evaluate((el, expected)=>{

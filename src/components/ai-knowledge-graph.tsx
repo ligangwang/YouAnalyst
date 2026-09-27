@@ -3,7 +3,7 @@
 import { PrivateValuationDisplay } from "./private-valuation";
 import { marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocale } from "./providers/locale-provider";
 import { companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { companyPageUrl } from "@/lib/market-companies/routes";
@@ -24,6 +24,8 @@ import { relationshipVerification, verificationLabel } from "@/lib/knowledge-gra
 import { trackEvent } from "@/lib/analytics";
 import styles from "./ai-knowledge-graph.module.css";
 import { useNodeCardPosition } from './use-node-card-position';
+import { useCardDismiss } from './use-card-dismiss';
+import cardFade from './card-fade.module.css';
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
 const subscribeView = (notify: () => void) => {
@@ -122,7 +124,13 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const detailCard=useNodeCardPosition(company?.id??'','graph',view==='graph'&&Boolean(company));
   const relations = company ? scoped.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
   const label = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n?.kind === "STAGE" ? text(n.labels?.en ?? n.label ?? id, n.labels?.["zh-CN"] ?? n.label ?? id) : n ? companyName(n,locale) : id; };
+  const cardDismiss=useCardDismiss();
   function selectCompany(id: string, fromTree?: "vertical"|"horizontal") {
+    if(!id&&selected){cardDismiss.dismiss(()=>applyCompanySelection('',fromTree));return;}
+    cardDismiss.cancel();
+    applyCompanySelection(id,fromTree);
+  }
+  function applyCompanySelection(id: string, fromTree?: "vertical"|"horizontal") {
     setCardHost(fromTree ? {tree:fromTree,reveal:false} : {tree:"vertical",reveal:true});
     if(id)setCameraRequest(value=>value+1);
     setSelected(id);
@@ -136,8 +144,17 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     if (id) url.searchParams.set("company", id); else url.searchParams.delete("company");
     window.history.replaceState(null, "", url);
   }
+  const nodeSelection=useRef({selected,tree:cardHost.tree,closing:cardDismiss.closing,selectCompany});
+  useLayoutEffect(()=>{nodeSelection.current={selected,tree:cardHost.tree,closing:cardDismiss.closing,selectCompany};});
+  function selectNode(id: string, fromTree?: "vertical"|"horizontal") {
+    // Canvas/Html roots can commit later than the card; always use its current selection.
+    const current=nodeSelection.current;
+    const sameCard=!fromTree||fromTree===current.tree;
+    current.selectCompany(id === current.selected&&sameCard&&!current.closing ? "" : id, fromTree);
+  }
   function resetGraphView() {
-    selectCompany("");
+    cardDismiss.cancel();
+    applyCompanySelection("");
     setQuery("");
     setBrowseQuery("");
     setSearchExpanded(false);
@@ -147,6 +164,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   function openConnection(id: string, reached?: string) {
     if(!id){setActiveEdge("");return;}
     const edge = graph.relationships.find(e => e.id === id); if (!edge || edge.type === "PARTICIPATES_IN") return;
+    cardDismiss.cancel();
     const nextCompany=reached ?? (selected===edge.source||selected===edge.target?selected:edge.source);
     setSelected(nextCompany);
     setCardHost({tree:"vertical",reveal:true});
@@ -166,7 +184,8 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   }
   function toggleSector(id: string) {
     const next = sectorFocus === id ? "" : id;
-    selectCompany("");
+    cardDismiss.cancel();
+    applyCompanySelection("");
     if(next)setCameraRequest(value=>value+1);
     setSectorFocus(next);
     setSectorsExpanded(false);
@@ -207,12 +226,12 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       {/* One industry-structure page: the vertical tree leads, the horizontal tree follows. Selection is shared. */}
       <div hidden={view!=='tree'} className={styles.structureStack}>
-        <IndustryStructure vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectCompany(id,"vertical")} showCard={cardHost.tree==="vertical"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
-        <IndustryStructure active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectCompany(id,"horizontal")} showCard={cardHost.tree==="horizontal"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
+        <IndustryStructure vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectNode(id,"vertical")} closing={cardDismiss.closing} showCard={cardHost.tree==="vertical"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
+        <IndustryStructure active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectNode(id,"horizontal")} closing={cardDismiss.closing} showCard={cardHost.tree==="horizontal"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
       </div>
-      {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectCompany} reset={reset} onReset={resetGraphView}/></Suspense>}
+      {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectNode} reset={reset} onReset={resetGraphView}/></Suspense>}
       </div>
-      {company && !treeView && <aside ref={detailCard} className={styles.detail} aria-label={text("Company details", "公司详情")} onKeyDown={e=>{if(e.key==='Escape')selectCompany('');}}>
+      {company && !treeView && <aside ref={detailCard} className={`${styles.detail} ${cardFade.card}`} data-closing={cardDismiss.closing} inert={cardDismiss.closing} aria-label={text("Company details", "公司详情")} onKeyDown={e=>{if(e.key==='Escape')selectCompany('');}}>
         <div className={styles.detailHeader}>
           <span className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</span>
           <button className={styles.clear} onClick={() => selectCompany("")} aria-label={text("Clear selection", "取消选择")}>×</button>
