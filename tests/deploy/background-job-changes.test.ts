@@ -10,11 +10,12 @@ test('website-only changes skip workers and worker inputs select their images',(
   assert.equal(backgroundJobTarget(['scripts/fetch-cn-annual.py']),'fundamentals');
   assert.equal(backgroundJobTarget(['scripts/download-cni-directory.py']),'directory');
   assert.equal(backgroundJobTarget(['Dockerfile.directory-sync','scripts/refresh-sec-fundamentals.ts']),'all');
-  for(const p of ['src/lib/maintenance-lease.ts','package-lock.json','scripts/lib/maintenance-job-iam.sh','scripts/build-fundamentals.sh']) assert.equal(backgroundJobTarget([p]),'all');
+  for(const p of ['src/lib/maintenance-lease.ts','package-lock.json','.dockerignore','.gcloudignore','scripts/lib/maintenance-job-iam.sh','scripts/build-fundamentals.sh']) assert.equal(backgroundJobTarget([p]),'all');
 });
 test('worker release waits for successful production release and uses detected targets',()=>{
   const workflow=require('js-yaml').load(readFileSync('.github/workflows/deploy.yml','utf8'));
   const job=workflow.jobs['deploy-background-jobs'];
+  assert.match(workflow.jobs['deploy-production'].if,/github.ref == 'refs\/heads\/main'/);
   assert.deepEqual(job.needs,['verify','deploy-production']);
   assert.match(job.if,/refs\/heads\/main/);assert.match(job.if,/deploy-production.result == 'success'/);
   assert.match(job.if,/workers != 'none'/);

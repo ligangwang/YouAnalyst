@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 export function backgroundJobTarget(paths) {
   let financial = false, directory = false;
   for (const path of paths) {
-    if (/^(src\/lib\/|scripts\/lib\/)/.test(path) || /^(package(-lock)?\.json|tsconfig\.json|\.gcloudignore)$/.test(path)
+    if (/^(src\/lib\/|scripts\/lib\/)/.test(path) || /^(package(-lock)?\.json|tsconfig\.json|\.gcloudignore|\.dockerignore)$/.test(path)
       || ['scripts/deploy-background-jobs.sh','scripts/build-fundamentals.sh','scripts/background-job-changes.mjs'].includes(path)) {
       financial = directory = true;
     } else if (/^(Dockerfile\.fundamentals|cloudbuild\.fundamentals\.yaml|scripts\/(refresh-(sec-fundamentals|cn-fundamentals|private-valuations)\.ts|deploy-(sec-fundamentals|cn-fundamentals|private-valuations)\.sh|fetch-cn-annual\.py|akshare-requirements\.txt))$/.test(path)) {
