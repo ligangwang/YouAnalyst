@@ -10,15 +10,16 @@ import { CompanyCountryFlag } from './company-country-flag';
 import { CompanyFollowButton } from './company-follow-button';
 import { useLocale } from './providers/locale-provider';
 import styles from './industry-tree.module.css';
+import { useNodeCardPosition } from './use-node-card-position';
 
 type Snapshot = Pick<CompanyFundamentals,'metrics'|'marketCap'|'report'|'stale'>;
 export function TreeCompanyCard({company,color,onClose,reveal=false}:{company:GraphNode;color:string;onClose:()=>void;reveal?:boolean}) {
   const {locale,text}=useLocale();
   const [result,setResult]=useState<{data:Snapshot|null;error?:boolean}|null>(null);
   const close=useRef<HTMLButtonElement>(null);
-  const card=useRef<HTMLElement>(null);
+  const card=useNodeCardPosition(company.id,'tree');
   // A card opened from outside the tree (list, graph, links) may sit below the fold; bring it into view.
-  useEffect(()=>{if(reveal)card.current?.scrollIntoView({block:'nearest'});},[reveal,company.id]);
+  useEffect(()=>{if(reveal)card.current?.scrollIntoView({block:'nearest'});},[reveal,company.id,card]);
   useEffect(()=>{
     close.current?.focus({preventScroll:true});
     if(!company.id.startsWith('US:')) return;
