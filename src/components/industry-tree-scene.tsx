@@ -12,7 +12,7 @@ import { layoutVerticalTree, VERTICAL_ROOT_REACH, VERTICAL_ROOT_DEPTH } from '@/
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
-import { createTreeTour, treeTourPlan } from '@/lib/knowledge-graph/tree-tour';
+import { createTreeTour, treeTourPlan, treeTourFromView } from '@/lib/knowledge-graph/tree-tour';
 
 export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
@@ -35,6 +35,7 @@ function Scene(props:TreeSceneProps){
   const flight=useRef<ReturnType<typeof createTreeTour>|null>(null);
   const resumePending=useRef(false);
   const resumeReady=useRef(false);
+  const skipLayer=useRef<string|undefined>(undefined);
   const idleTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const scheduleResume=useRef<()=>void>(()=>{});
   useEffect(()=>{
@@ -43,7 +44,7 @@ function Scene(props:TreeSceneProps){
     if(!surface)return;
     const pointers=new Set<number>(),keys=new Set<string>();
     const clear=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;resumeReady.current=false;};
-    const pause=()=>{tourRef.current=false;resumePending.current=true;clear();invalidate();};
+    const pause=()=>{tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
     const schedule=()=>{
       clear();
       if(pointers.size||keys.size||document.hidden)return;
@@ -87,7 +88,12 @@ function Scene(props:TreeSceneProps){
       idleTimer.current=null;resumeReady.current=false;
     }else if(resumePending.current)scheduleResume.current();
   },[props.paused]);
-  useEffect(()=>{if(props.selected||props.focus)tourRef.current=false;},[props.selected,props.focus,tourRef]);
+  const lastSelection=useRef(props.selected);
+  useEffect(()=>{
+    if(props.selected)tourRef.current=false;
+    else if(lastSelection.current&&props.vertical){resumePending.current=true;scheduleResume.current();}
+    lastSelection.current=props.selected;
+  },[props.selected,props.vertical,tourRef]);
   useEffect(()=>{
     const resume=()=>{if(!document.hidden&&!props.paused)invalidate();};
     document.addEventListener('visibilitychange',resume);
@@ -104,6 +110,7 @@ function Scene(props:TreeSceneProps){
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
   const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
+  const plan=useMemo(()=>treeTourPlan(nodes,size.width/size.height,new Set(props.open)),[nodes,props.open,size.width,size.height]);
   useEffect(()=>{collisionLabels.current.clear();lastCollision.current=-Infinity;invalidate();},[nodes,props.selected,props.focus,invalidate]);
   const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
   const targets=useMemo(()=>{
@@ -132,8 +139,13 @@ function Scene(props:TreeSceneProps){
     const update=()=>{reduced.current=media.matches;invalidate();};update();media.addEventListener('change',update);
     return ()=>media.removeEventListener('change',update);
   },[invalidate]);
+  const lastFit=useRef<{request:number;vertical?:boolean}|null>(null);
   useEffect(()=>{
     const c=controls.current;if(!c)return;
+    const previous=lastFit.current;
+    lastFit.current={request:props.request,vertical:props.vertical};
+    // Expanding/collapsing a vertical layer changes the itinerary, never the user's camera.
+    if(props.vertical&&previous?.vertical&&previous.request===props.request)return;
     let fitting=props.focus?nodes.filter(n=>n.id===props.focus||n.layer===props.focus||n.branch===props.focus):nodes;
     if(!fitting.length)fitting=nodes;
     const xs=fitting.map(n=>n.position[0]),ys=fitting.map(n=>n.position[1]);
@@ -168,23 +180,37 @@ function Scene(props:TreeSceneProps){
     const position:[number,number,number]=[center.x+distance*(props.vertical?0:.1),center.y,z+distance];
     const target:[number,number,number]=[center.x,center.y,z];
     void c.setLookAt(...position,...target,!reduced.current&&!props.tour.current);
-    flight.current=createTreeTour({position,target},treeTourPlan(nodes,size.width/size.height));
+    flight.current=createTreeTour({position,target},plan);
     invalidate();
-  },[nodes,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate]);
+  },[nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate]);
+  const previousPlan=useRef(plan);
+  useEffect(()=>{
+    const previous=previousPlan.current;previousPlan.current=plan;
+    if(!props.vertical||previous===plan)return;
+    const destination=flight.current?.destination()?.layer;
+    skipLayer.current=destination&&!plan.some(stop=>stop.layer===destination)?destination:undefined;
+    tourRef.current=false;resumePending.current=plan.length>0;resumeReady.current=false;
+    if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
+    if(plan.length)scheduleResume.current();else flight.current=null;
+    invalidate();
+  },[plan,props.vertical,invalidate,tourRef]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
     let moving=false;
     const checkCollisions=props.vertical&&performance.now()-lastCollision.current>=200;
     if(checkCollisions)collisionLabels.current.clear();
-    const touring=props.tour.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
+    const touring=props.tour.current&&plan.length>0&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
     let resumed=false;
-    if(props.vertical&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&flight.current&&controls.current){
-      // Rebase at release, after manual damping settles, while retaining the tour's destination.
-      flight.current(0,{position:controls.current.getPosition(new Vector3(),false).toArray(),target:controls.current.getTarget(new Vector3(),false).toArray()});
+    if(props.vertical&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
+      const start={position:controls.current.getPosition(new Vector3(),false).toArray(),target:controls.current.getTarget(new Vector3(),false).toArray()};
+      flight.current=createTreeTour(start,treeTourFromView(plan,start,nodes,skipLayer.current));
+      skipLayer.current=undefined;
       resumePending.current=false;resumeReady.current=false;tourRef.current=true;resumed=true;
       moving=true;
     }
     gl.domElement.setAttribute('data-tour',touring||resumed?'playing':props.tour.current?'paused':'stopped');
+    gl.domElement.setAttribute('data-tour-layer',flight.current?.destination()?.layer??'');
+    gl.domElement.setAttribute('data-tour-open-layers',[...new Set(plan.map(stop=>stop.layer))].join(','));
     if(touring&&flight.current&&controls.current){
       const shot=flight.current(delta);
       void controls.current.setLookAt(...shot.position,...shot.target,false);
