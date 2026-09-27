@@ -249,7 +249,9 @@ function Scene(props:TreeSceneProps){
           let fade=labelFades.current.get(label);
           if(!fade){fade=createLabelFade(now);labelFades.current.set(label,fade);}
           const threshold=target.node.kind==='company'?.65:.72;
-          const intentional=label.matches(':hover,:focus');
+          // Pin the selected label's shape: a card following its bounds must not
+          // move back and forth as the card covers/uncover its hover target.
+          const intentional=Boolean(props.selected&&target.node.company?.id===props.selected)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
           const wanted=intentional||(htmlScale>=threshold+(fade.visible?0:.04)&&!collisionLabels.current.has(target.node.id));
           const previous=fade.level;
           const result=advanceLabelFade(fade,wanted,now,reduced.current);
