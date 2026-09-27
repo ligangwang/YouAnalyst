@@ -272,12 +272,13 @@ test('graph resumes gently from the user view after release and respects reduced
  await zoomWheel(page,-120);
  await page.mouse.down({button:'right'});
  await page.mouse.move(bounds.x+45,bounds.y+30,{steps:6});
- await page.mouse.up({button:'right'});
+ // Keep the pointer held while damping settles; release starts the idle deadline.
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
  const zoomed=Number(await canvas.getAttribute('data-camera-distance'));
  const panned=await canvas.getAttribute('data-camera-target');
  expect(zoomed).toBeLessThan(distance);
  expect(panned).not.toBe(target);
+ await page.mouse.up({button:'right'});
  await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
  await page.waitForTimeout(600);
  expect(Number(await canvas.getAttribute('data-camera-distance'))).toBeCloseTo(zoomed,5);
@@ -628,14 +629,28 @@ test("graph renders, orbits and resets without extra controls", async ({ page })
 
   await expect(page.getByRole("button", { name: "NVIDIA · NVDA", exact:true })).toBeVisible();
   await page.screenshot({fullPage:true,path:`output/graph-3d-${test.info().project.name}.png`});
-  const label = page.getByRole("button", { name: "NVIDIA · NVDA", exact:true });
-  await page.locator("canvas").scrollIntoViewIfNeeded();
-  const before = await label.boundingBox();
-  await page.locator("canvas").scrollIntoViewIfNeeded();
-  const bounds = (await page.locator("canvas").boundingBox())!;
-  await page.mouse.move(bounds.x + bounds.width*.4,bounds.y + bounds.height*.65);
-  await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width*.7,bounds.y + bounds.height*.8,{steps:12}); await page.mouse.up();
-  await expect.poll(async () => Math.abs((await label.boundingBox())!.x - before!.x)).toBeGreaterThan(2);
+  const canvas=page.locator('canvas');
+  await canvas.scrollIntoViewIfNeeded();
+  const before=await projectedGraphPositions(page);
+  const bounds=(await canvas.boundingBox())!;
+  // Start on the canvas itself: a company label can intercept a fixed drag coordinate.
+  const start=await canvas.evaluate(el=>{
+    const b=el.getBoundingClientRect();
+    for(const y of [.1,.5,.9])for(const x of [.05,.25,.75,.95]){
+      const p={x:b.x+b.width*x,y:b.y+b.height*y};
+      if(document.elementFromPoint(p.x,p.y)===el)return p;
+    }
+    throw new Error('No unobstructed canvas drag point');
+  });
+  const direction=start.x<bounds.x+bounds.width/2?1:-1;
+  await page.mouse.move(start.x,start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x+direction*Math.min(120,bounds.width*.3),start.y,{steps:12});
+  await page.mouse.up();
+  await expect.poll(async()=>{
+    const after=await projectedGraphPositions(page);
+    return Math.max(...after.map((v,i)=>Math.abs(v-before[i])));
+  }).toBeGreaterThan(2);
  await revealMapSearch(page);
   await page.getByRole("textbox", {name:"Search companies"}).fill("688041");
   await page.getByRole("region", {name:"Search results"}).getByRole("button", {name:"海光信息 · 688041",exact:true}).click();
