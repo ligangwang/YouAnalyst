@@ -163,7 +163,9 @@ test('closing graph details resumes rotation and the card stays beside its node'
  await expect(canvas).toHaveAttribute('data-rotation','waiting');
  const before=await projectedGraphPositions(page);
  await page.waitForTimeout(500);
- expect(await projectedGraphPositions(page)).toEqual(before);
+ // Allow sub-pixel projection settling while checking the full two-second pause.
+ expect(Math.max(...(await projectedGraphPositions(page)).map((v,i)=>Math.abs(v-before[i])))).toBeLessThan(.05);
+ await expect(canvas).toHaveAttribute('data-rotation','waiting');
  await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
  await expect.poll(async()=>{const after=await projectedGraphPositions(page);return after.some((v,i)=>Math.abs(v-before[i])>.1);},{timeout:10000}).toBe(true);
 });
@@ -191,11 +193,21 @@ test('tree layer changes preserve the camera and navigation skips closed layers'
  const collapsed=await pose();
  await page.waitForTimeout(2300);
  expect(await pose()).toEqual(collapsed);
+ // Observe in the page: on a slow mobile renderer, a click can return after resumption.
+ await canvas.evaluate(el=>{
+   el.removeAttribute('data-reopened-pose');
+   const observer=new MutationObserver(()=>{
+     if(el.getAttribute('data-tour')==='playing'){
+       el.setAttribute('data-reopened-pose',[el.getAttribute('data-camera-position'),el.getAttribute('data-camera-target')].join(','));observer.disconnect();
+     }
+   });
+   observer.observe(el,{attributes:true,attributeFilter:['data-tour']});
+ });
  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
- await page.waitForTimeout(400);
- expect(await pose()).toEqual(collapsed);
  await canvas.scrollIntoViewIfNeeded();
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ const reopened=(await canvas.getAttribute('data-reopened-pose'))!.split(',').map(Number),previous=collapsed.split(',').map(Number);
+ expect(Math.max(...reopened.map((v,i)=>Math.abs(v-previous[i])))).toBeLessThan(.01);
  await expect.poll(pose,{timeout:10000}).not.toEqual(collapsed);
  // The card must win hit testing over projected Html node labels.
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -858,9 +870,18 @@ test("opening relationship evidence preserves the current company",async({page})
  const anchor=page.locator('[data-company-id="US:TSM"]');
  const projection=()=>anchor.evaluate(el=>el.parentElement!.parentElement!.style.transform);
  const initial=await projection();
- await page.mouse.move(bounds.x+bounds.width*.45,bounds.y+bounds.height*.65);
+ const start=await canvas.evaluate(el=>{
+   const b=el.getBoundingClientRect();
+   for(const y of [.1,.5,.9])for(const x of [.05,.25,.75,.95]){
+     const p={x:b.x+b.width*x,y:b.y+b.height*y};
+     if(document.elementFromPoint(p.x,p.y)===el)return p;
+   }
+   throw new Error('No unobstructed canvas drag point');
+ });
+ const direction=start.x<bounds.x+bounds.width/2?1:-1;
+ await page.mouse.move(start.x,start.y);
  await page.mouse.down();
- await page.mouse.move(bounds.x+bounds.width*.6,bounds.y+bounds.height*.7,{steps:12});
+ await page.mouse.move(start.x+direction*Math.min(120,bounds.width*.3),start.y,{steps:12});
  await page.mouse.up();
  await expect.poll(projection).not.toBe(initial);
  await page.waitForTimeout(800);
