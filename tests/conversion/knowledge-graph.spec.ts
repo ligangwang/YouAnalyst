@@ -28,7 +28,7 @@ async function revealListFilters(page:Page) {
  if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
-test('tree camera tour approaches companies and stops on interaction',async({page})=>{
+test('tree camera tour pauses on hold and resumes from the released view',async({page,isMobile})=>{
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
@@ -50,16 +50,75 @@ test('tree camera tour approaches companies and stops on interaction',async({pag
  await expect(tree.locator('[data-tree-company][data-compact="false"]').first()).toBeVisible({timeout:45000});
  await page.screenshot({path:`output/tree-tour-${test.info().project.name}.png`});
  const bounds=(await canvas.boundingBox())!;
- await page.mouse.click(bounds.x+8,bounds.y+8);
+ const pose=()=>canvas.evaluate(el=>[...(el.getAttribute('data-camera-position')??'').split(','),...(el.getAttribute('data-camera-target')??'').split(',')].map(Number));
+ await page.mouse.move(bounds.x+8,bounds.y+8);
+ await page.mouse.down({button:'right'});
+ await page.mouse.move(bounds.x+58,bounds.y+28,{steps:8});
  await expect(canvas).toHaveAttribute('data-tour','stopped');
- await page.waitForTimeout(400);
- const stopped=await positions();
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ const held=await pose();
+ expect(held).toHaveLength(6);
+ expect(held.every(Number.isFinite)).toBe(true);
+ await page.waitForTimeout(2300);
+ expect(await pose()).toEqual(held);
+ await page.mouse.up({button:'right'});
  await page.waitForTimeout(600);
- expect(await positions()).toEqual(stopped);
+ expect(await pose()).toEqual(held);
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ await expect.poll(pose,{timeout:10000}).not.toEqual(held);
+ // Pan and zoom, then observe the first resumed frame in the page itself.
+ await page.mouse.move(bounds.x+8,bounds.y+8);
+ await zoomWheel(page,-120);
+ await page.mouse.down();
+ await page.mouse.move(bounds.x+38,bounds.y+28,{steps:6});
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ const manual=await pose();
+ expect(manual).not.toEqual(held);
+ await canvas.evaluate(el=>{
+   el.removeAttribute('data-first-resumed-pose');
+   const observer=new MutationObserver(()=>{
+     if(el.getAttribute('data-tour')==='playing'){
+       el.setAttribute('data-first-resumed-pose',[el.getAttribute('data-camera-position'),el.getAttribute('data-camera-target')].join(','));observer.disconnect();
+     }
+   });
+   observer.observe(el,{attributes:true,attributeFilter:['data-tour']});
+ });
+ await page.mouse.up();
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ const first=(await canvas.getAttribute('data-first-resumed-pose'))!.split(',').map(Number);
+ expect(Math.max(...first.map((v,i)=>Math.abs(v-manual[i])))).toBeLessThan(.01);
+ await expect.poll(pose,{timeout:10000}).not.toEqual(manual);
+ // Mobile touch and mouse click both pause an already resumed tour.
+ if(isMobile)await page.touchscreen.tap(bounds.x+8,bounds.y+8);
+ else await page.mouse.click(bounds.x+8,bounds.y+8);
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ await page.waitForTimeout(2300);
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();
  await canvas.scrollIntoViewIfNeeded();
  await expect(canvas).toHaveAttribute('data-tour','stopped');
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const returnedBounds=(await canvas.boundingBox())!;
+ if(isMobile)await page.touchscreen.tap(returnedBounds.x+8,returnedBounds.y+8);
+ else await page.mouse.click(returnedBounds.x+8,returnedBounds.y+8);
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ const reduced=await pose();
+ await page.waitForTimeout(2300);
+ expect(await pose()).toEqual(reduced);
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+ // A selected company must keep an otherwise ready-to-resume tour paused.
+ const company=tree.locator('[data-tree-company="US:NVDA"]').first();
+ await company.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(company).toHaveAttribute('aria-pressed','true');
+ await canvas.scrollIntoViewIfNeeded();
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ const selected=await pose();
+ await page.waitForTimeout(2300);
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+ expect(await pose()).toEqual(selected);
+
 });
 async function projectedGraphPositions(page: Page) {
  // Drei's outer Html wrapper holds the projected node position. Label bounds also
