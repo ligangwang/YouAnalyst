@@ -7,7 +7,7 @@ import { CameraControls, Html } from "@react-three/drei";
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, type Mesh } from "three";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
-import { createIntroCamera } from "@/lib/knowledge-graph/intro-orbit";
+import { createIntroCamera, createIntroOrbit } from "@/lib/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
@@ -41,6 +41,10 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius}}), [layout.radius]);
   const controls = useRef<CameraControls>(null);
   const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
+  const resumedOrbit = useRef<ReturnType<typeof createIntroOrbit> | null>(null);
+  const resumeElapsed = useRef(0);
+  const resumeAt = useRef<number | null>(null);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const preserveLabelPlacements = useRef(false);
   const labelPlacements = useRef(new WeakMap<HTMLElement, number>());
   const labelVisibility = useRef(new WeakMap<HTMLElement, boolean>());
@@ -51,8 +55,65 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const reducedMotion = useRef(false);
   const { size, camera, invalidate, gl } = useThree();
   useEffect(()=>{
+    const surface=gl.domElement.closest('[data-graph-interaction]');
+    if(!surface)return;
+    const pointers=new Set<number>(),keys=new Set<string>();
+    const clearTimer=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;};
+    const pause=()=>{
+      introOrbitRef.current=false;
+      resumedOrbit.current=null;resumeElapsed.current=0;resumeAt.current=null;
+      preserveLabelPlacements.current=true;
+      clearTimer();invalidate();
+    };
+    const schedule=()=>{
+      clearTimer();
+      if(pointers.size || keys.size)return;
+      resumeAt.current=performance.now()+2000;
+      idleTimer.current=setTimeout(()=>{
+        idleTimer.current=null;
+        // The demand renderer needs a frame that can actually start the orbit.
+        resumeAt.current=performance.now();
+        invalidate();
+      },2000);
+      invalidate();
+    };
+    const down=(event:Event)=>{pointers.add((event as PointerEvent).pointerId);pause();};
+    const up=(event:PointerEvent)=>{if(pointers.delete(event.pointerId))schedule();};
+    const wheel=()=>{pause();schedule();};
+    const keydown=(event:Event)=>{keys.add((event as KeyboardEvent).code);pause();};
+    const keyup=(event:KeyboardEvent)=>{if(keys.delete(event.code))schedule();};
+    const focus=()=>{pause();schedule();};
+    const blur=()=>{if(pointers.size || keys.size){pointers.clear();keys.clear();pause();schedule();}};
+    const visibility=()=>{
+      if(document.hidden){if(resumeAt.current!==null)clearTimer();blur();}
+      else if(resumeAt.current!==null){resumeElapsed.current=0;schedule();}
+    };
+    surface.addEventListener('pointerdown',down,true);
+    surface.addEventListener('wheel',wheel,{capture:true,passive:true});
+    surface.addEventListener('keydown',keydown,true);
+    surface.addEventListener('focusin',focus,true);
+    // Releases outside the canvas and cancelled multi-touch gestures must also resume.
+    window.addEventListener('pointerup',up,true);
+    window.addEventListener('pointercancel',up,true);
+    window.addEventListener('keyup',keyup,true);
+    window.addEventListener('blur',blur);
+    document.addEventListener('visibilitychange',visibility);
+    return ()=>{
+      clearTimer();
+      surface.removeEventListener('pointerdown',down,true);
+      surface.removeEventListener('wheel',wheel,true);
+      surface.removeEventListener('keydown',keydown,true);
+      surface.removeEventListener('focusin',focus,true);
+      window.removeEventListener('pointerup',up,true);
+      window.removeEventListener('pointercancel',up,true);
+      window.removeEventListener('keyup',keyup,true);
+      window.removeEventListener('blur',blur);
+      document.removeEventListener('visibilitychange',visibility);
+    };
+  },[gl,invalidate,introOrbitRef]);
+  useEffect(()=>{
     const media=window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update=()=>{reducedMotion.current=media.matches;invalidate();};
+    const update=()=>{reducedMotion.current=media.matches;resumeElapsed.current=0;invalidate();};
     update();media.addEventListener("change",update);
     document.addEventListener("visibilitychange", update);
     return ()=>{media.removeEventListener("change",update);document.removeEventListener("visibilitychange",update);};
@@ -122,6 +183,9 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     }
     if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset)return;
     lastCameraRequest.current={layout,request:cameraRequest,reset};
+    // Search, focus, and Reset own their camera request; discard any old idle restart.
+    resumeAt.current=null;resumedOrbit.current=null;resumeElapsed.current=0;
+    if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
     // Only an explicit new camera request may choose new label sides.
     labelPlacements.current=new WeakMap();
     labelVisibility.current=new WeakMap();
@@ -174,15 +238,37 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
-    // A gentle introduction only: never compete with a focused company or user input.
-    if (selected || activeEdge || sectorFocus) introOrbitRef.current = false;
-    if (introOrbitRef.current && !reducedMotion.current && controls.current && !document.hidden) {
+    const focused=Boolean(selected || activeEdge || sectorFocus);
+    if (focused) introOrbitRef.current = false;
+    let rotation='paused';
+    if(focused)rotation='focused';
+    else if(reducedMotion.current)rotation='reduced';
+    else if(document.hidden)rotation='hidden';
+    else if (introOrbitRef.current && controls.current) {
+      rotation='intro';
       // Move into a detail view before orbiting; keep the camera outside the node cloud.
       introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.2, fitDistance * .42));
       const step = introPath.current(delta, controls.current.polarAngle);
       void controls.current.dollyTo(step.distance, false);
       void controls.current.rotate(step.azimuth, step.polar, false);
       invalidate();
+    } else if(resumeAt.current!==null && controls.current){
+      rotation='waiting';
+      if(performance.now()>=resumeAt.current){
+        rotation='resumed';
+        resumedOrbit.current??=createIntroOrbit();
+        resumeElapsed.current+=Math.max(0,Math.min(delta,.05));
+        const t=Math.min(1,resumeElapsed.current/2),gain=t*t*(3-2*t);
+        const step=resumedOrbit.current(Math.min(delta,.05)*gain,controls.current.polarAngle);
+        // Relative rotation preserves the user's angle, distance, and panned target.
+        void controls.current.rotate(step.azimuth,step.polar,false);
+        invalidate();
+      }
+    }
+    gl.domElement.dataset.rotation=rotation;
+    if(controls.current){
+      gl.domElement.dataset.cameraDistance=String(controls.current.distance);
+      gl.domElement.dataset.cameraTarget=controls.current.getTarget(projected).toArray().join(',');
     }
     // Preserve the user's spatial context during AND after orbit, pan, or zoom.
     // Camera rest must not move or hide a company they were tracking to avoid overlap.
@@ -363,7 +449,6 @@ function GraphUnavailable() {
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
   const introOrbitRef = useRef(true);
-  const stopIntroOrbit = () => { introOrbitRef.current = false; };
   const [supported, setSupported] = useState<boolean | null>(null);
   const [wheelGateRef, wheelHint] = useWheelZoomGate();
   useEffect(() => {
@@ -382,7 +467,7 @@ export default function CompanyGraph3D(props: Props) {
   const fallback = <GraphUnavailable />;
   if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
   if (!supported) return fallback;
-  return <div ref={wheelGateRef} className={styles.canvas3d} onPointerDownCapture={stopIntroOrbit} onWheelCapture={stopIntroOrbit} onKeyDownCapture={stopIntroOrbit} onFocusCapture={stopIntroOrbit}>
+  return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction>
     <WheelZoomHint hint={wheelHint}/>
     <RenderBoundary fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
