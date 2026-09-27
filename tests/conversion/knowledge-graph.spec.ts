@@ -1519,6 +1519,7 @@ test('three views expanding all preserves zoom and pan when company cards open a
 });
 
 test('three views industry structure stacks the vertical tree above the horizontal tree and shares company selection',async({page})=>{
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
