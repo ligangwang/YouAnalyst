@@ -22,7 +22,7 @@ export async function loadJobHistory(input: { job: JobId; view: HistoryView; pag
   const region = process.env.GCP_REGION || "us-central1";
   const source = job.worker
     ? `resource.type="cloud_run_job" resource.labels.job_name=${q(job.worker)}`
-    : `resource.type="cloud_run_revision" jsonPayload.job=${q(job.logJob)} jsonPayload.market=${q("market" in job ? job.market : "")}`;
+    : `resource.type="cloud_run_revision" jsonPayload.job=${q(job.logJob)} ${"market" in job ? `jsonPayload.market=${q(job.market)}` : ""}`;
   const listLogs = (filter: string, pageToken?: string, pageSize = 20) => request<LogPage>("https://logging.googleapis.com/v2/entries:list", {
     resourceNames: [`projects/${project}`], filter, orderBy: "timestamp desc", pageSize, ...(pageToken ? { pageToken } : {}),
   });
@@ -37,9 +37,10 @@ export async function loadJobHistory(input: { job: JobId; view: HistoryView; pag
     }
     return { entries, incomplete: Boolean(pageToken) };
   };
+  if (input.view === "scheduler" && !job.scheduler) return {records: [], nextPageToken: null};
   if (input.view !== "runs") {
     let filter = source;
-    if (input.view === "scheduler") filter = `resource.type="cloud_scheduler_job" resource.labels.job_id=${q(job.scheduler)}`;
+    if (input.view === "scheduler" && job.scheduler) filter = `resource.type="cloud_scheduler_job" resource.labels.job_id=${q(job.scheduler)}`;
     else if (input.job === "fundamentals" && input.view === "errors" && !input.execution) {
       filter = `(${source} OR ((resource.type="cloud_run_revision" OR resource.type="cloud_run_job") jsonPayload.event="sec_request_failed"))`;
     }
@@ -88,7 +89,7 @@ export async function loadJobHistory(input: { job: JobId; view: HistoryView; pag
     }), nextPageToken: page.nextPageToken || null, warning };
   }
 
-  const page = await listLogs(`${source} jsonPayload.message="daily-eod-maintenance: run_started"`, input.pageToken);
+  const page = await listLogs(`${source} jsonPayload.message=${q(`${job.logJob}: run_started`)}`, input.pageToken);
   const starts = page.entries ?? [];
   const ids = starts.map(s => s.jsonPayload?.runId).filter((id): id is string => typeof id === "string");
   // Run IDs are not indexed by default in Logging. Bound the scan with its indexed

@@ -221,7 +221,7 @@ imports are safe to replay. No new Firestore collection is used.
 
 Verify a successful execution and its source snapshot before retiring the old
 GitHub schedule. Cancel any waiting old workflow runs during the cutover.
-The replacement GitHub `Deploy directory sync job` workflow is manual and deploys
+The replacement GitHub `Deploy background jobs` (`directory`) workflow is manual and deploys
 an image only; it never performs the directory import.
 
 ### Maintenance service accounts
@@ -285,7 +285,7 @@ gcloud run jobs add-iam-policy-binding refresh-cn-fundamentals-production \
   --region us-central1 --member "serviceAccount:$web_sa" --role roles/run.invoker
 ```
 
-The next run of the **Deploy A-share fundamentals job** workflow applies the same
+The next run of the **Deploy background jobs** (`cn-fundamentals`) workflow applies the same
 binding.
 
 ### SEC fundamentals queue
@@ -328,7 +328,7 @@ CNY/USD market caps in existing `company_fundamentals/{XSHG|XSHE:code}`
 documents (see docs/company-fundamentals.md). It uses the same image as the SEC
 job (`Dockerfile.fundamentals` bundles both workers) and runs
 `node dist/refresh-cn-fundamentals.cjs`. Provision it with the manual
-**Deploy A-share fundamentals job** workflow (`scripts/deploy-cn-fundamentals.sh`),
+**Deploy background jobs** (`cn-fundamentals`) workflow (`scripts/deploy-cn-fundamentals.sh`),
 which needs only `GCP_PROJECT_ID` and the built image: no API keys (FX and prices
 are read from Firestore). It uses the shared maintenance accounts, and invocation
 (scheduler and web app) is scoped to the job.
@@ -441,7 +441,7 @@ multi-class support requires verified share ratios/class coverage.
 The job reserves two minutes of its existing deadline for these cache-only
 calculations. Per-company failures are logged, and terminal summaries include
 estimated/unavailable/failed counts and incomplete status. Deployment requires
-both the web release and the manual `Deploy SEC fundamentals job` workflow; the
+both the web release and the manual `Deploy background jobs` (`sec-fundamentals`) workflow; the
 next scheduled execution populates the new fields as SEC snapshots refresh.
 
 The Scheduled Jobs admin page also offers **Run SEC fundamentals now**. Its

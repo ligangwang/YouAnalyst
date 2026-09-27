@@ -9,6 +9,7 @@ import { scheduledJobs } from "./model";
 
 // Manually runnable Cloud Run workers and the lease document each one holds.
 const workers = {
+  directory: { lease: "CN_A_CNI", label: "China company directory", event: "admin_directory_job" },
   privateValuations: { lease: "_private_valuation_worker", label: "Private company valuations", event: "admin_private_valuations_job" },
   fundamentals: { lease: "_worker", label: "SEC fundamentals", event: "admin_sec_job" },
   cnFundamentals: { lease: "_cn_worker", label: "A-share fundamentals", event: "admin_cn_fundamentals_job" },
@@ -16,7 +17,7 @@ const workers = {
 export type WorkerJob = keyof typeof workers;
 
 export async function reserveWorkerDispatch(db: ReturnType<typeof getAdminFirestore>, uid: string, now = Date.now(), job: WorkerJob = "fundamentals") {
-  const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(workers[job].lease);
+  const ref = db.collection(job === "directory" ? "directory_syncs" : FUNDAMENTALS_COLLECTION).doc(workers[job].lease);
   // Separate from the execution lease: the worker must still acquire its own lock.
   const accepted = await db.runTransaction(async tx => {
     const current = (await tx.get(ref)).data();

@@ -1,47 +1,28 @@
-# GitHub Actions and admin jobs
+# Deployments and admin tasks
 
-Routine job execution and history are available at `/admin/jobs`:
+GitHub Actions has two entry points:
 
-- US and China EOD maintenance: rerun a selected date and inspect results.
-- SEC fundamentals, A-share financials and private valuations: run using
-  the job's admin controls and inspect results.
-- China company directory: inspect history; execution remains in Cloud Scheduler
-  and Cloud Run, with no admin rerun button.
+- **Deploy to Cloud Run** (`deploy.yml`): PR checks and website releases.
+- **Deploy background jobs** (`deploy-background-jobs.yml`): manual worker-code deployment from `main`, protected by the production environment. Select `all`, `sec-fundamentals`, `cn-fundamentals`, `private-valuations`, or `directory`.
 
-The remaining GitHub Actions serve these purposes:
+Deployment validates selected jobs' IAM configuration before building. The three financial workers share one build per dispatch; directory uses a separate image. Jobs deploy immutable image digests. Deployments serialize through one concurrency group and never execute maintenance. Existing schedules retain their enabled/paused state; the A-share script creates new schedules paused. Directory deployment updates an existing worker and IAM without changing its schedule. Initial directory setup still uses `scripts/deploy-directory-sync.sh`.
 
-| Workflow | Purpose |
+## Admin Tasks
+
+Use `/admin/jobs` for routine operations:
+
+| Task | Controls |
 | --- | --- |
-| `deploy.yml` | PR verification, website builds and deployment |
-| `deploy-sec-fundamentals.yml` | Deploy the SEC worker and schedule |
-| `deploy-cn-fundamentals.yml` | Deploy the A-share worker and schedule |
-| `deploy-private-valuations.yml` | Deploy the private valuation worker and schedule |
-| `deploy-directory-sync.yml` | Update the directory worker and IAM |
-| `ticker-sync-manual.yml` | Ticker catalog sync; no equivalent admin control |
+| US / China EOD | Rerun a selected date |
+| SEC / A-share fundamentals | Run background refresh |
+| Private valuations | Run background check |
+| China directory | Run background import |
+| Ticker catalog | Preview or sync, with country, currency, types and optional limit |
 
-Worker deployment updates the code used by admin jobs; it does not run the
-maintenance job. Existing scheduler enabled/paused states remain unchanged by
-this workflow cleanup.
+All controls enforce administrator authorization on the server. Directory dispatch uses the existing `directory_syncs/CN_A_CNI` document and honors the import lease. Ticker sync uses `directory_syncs/TICKER_CATALOG` for its execution lease; no new collection is created. History and errors come from Cloud Logging; worker status comes from Cloud Run executions.
 
-## Retired launchers
+Ticker preview does not write catalog records. Ticker sync runs during the HTTP request; keep the page open until results appear. A failed or interrupted request can have committed some batches: inspect history before retrying. The provider request has a 30-second timeout. Ticker sync has no schedule. Admin controls use the current web environment. Existing internal maintenance APIs remain available for deliberate operations; advanced EOD recomputation and cross-date roll-forward remain outside the admin UI.
 
-The duplicate EOD launcher is removed. Admin reruns intentionally do not expose
-its advanced recomputation, ticker overrides or cross-date roll-forward options.
-Those operations remain in the authenticated internal EOD API for deliberate
-maintenance; they have not been added to the admin UI.
+## Retired operations
 
-The fixed-batch company identity review and six publication launchers (identities,
-names, profiles, compute research, global research and relationship verification)
-are removed, together with the A-share source probe launcher. Their underlying
-scripts, reviewed data and tests remain available for maintenance. They are not
-all equivalent to admin controls; routine company and industry research uses the
-admin research pages. Reusing a retained publication script requires fresh review
-of the batch, evidence and live preview before any write.
-
-Workflow removals take effect in GitHub after merging to the default branch.
-Historical workflow runs are retained.
-
-AI analyst generation and its draft approval/rejection UI and APIs have been
-retired. Historical published AI calls retain their identity labels, and existing
-usage records remain available. Company and industry research review is separate
-and remains supported.
+Separate worker deployment Actions, ticker-sync and EOD launchers, fixed-batch publication/review Actions and the source-probe Action are retired. Publication scripts, historical data and tests remain for reviewed maintenance. AI analyst generation and draft-review APIs/UI are retired; historical call labels and usage records remain. Company/industry research review continues through existing admin tools. Historical GitHub runs are retained.

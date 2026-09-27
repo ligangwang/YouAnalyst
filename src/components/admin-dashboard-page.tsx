@@ -205,7 +205,7 @@ export function AdminDashboardPage() {
       </div>
 
       <Link href="/admin/jobs" className="mb-6 block rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4 text-cyan-200">
-        {ui("Scheduled jobs")}
+        {ui("Tasks")}
       </Link>
 
       <section className="mb-6 grid gap-3 sm:grid-cols-3">

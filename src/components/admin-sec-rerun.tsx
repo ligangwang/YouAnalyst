@@ -4,6 +4,7 @@ import {useAuth} from "@/components/providers/auth-provider";
 import {useLocale} from "./providers/locale-provider";
 
 const jobs = {
+  directory: { endpoint: "/api/admin/jobs/directory", description: ["Import the latest official CNI company directory. Existing research and editorial data are preserved.","导入最新官方 CNI 公司目录，保留已有研究和编辑内容。"], button: ["Run directory sync now","立即同步公司目录"] },
   privateValuations: { endpoint: "/api/admin/jobs/private-valuations",
     description: ["Check official sources for private companies in the graph. Verify reviewed valuations and find funding announcements to review. Valuations older than one year are flagged. Results and source links appear in run logs.","检查图谱中私人公司的官方来源，验证已审核估值并查找待审核融资公告。标记超过一年的估值。结果和来源链接见运行日志。"],
     button: ["Run private valuation check now","立即检查私人公司估值"] },

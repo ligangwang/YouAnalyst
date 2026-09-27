@@ -4,17 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "@/components/providers/locale-provider";
+import { AdminTickerSync } from "./admin-ticker-sync";
 import { AdminEodRerun } from "./admin-eod-rerun";
 import { AdminSecRerun } from "./admin-sec-rerun";
 import { scheduledJobs, type JobId, type HistoryView, type JobHistoryPage, type JobRecord } from "@/lib/admin-jobs/model";
 
 const button = "rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40";
-const chineseNames = { privateValuations: "私人公司估值", fundamentals: "SEC 财务数据", cnFundamentals: "A 股财务与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
+const chineseNames = { tickers: "股票目录", privateValuations: "私人公司估值", fundamentals: "SEC 财务数据", cnFundamentals: "A 股财务与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
 const statusLabels: Record<string, string> = { Succeeded: "成功", Failed: "失败", Cancelled: "已取消", Starting: "启动中", Running: "运行中", Unknown: "未知", "No completion recorded": "无完成记录", "Completed with errors": "完成但有错误", "Delivery started": "开始触发", "Delivery failed": "触发失败", Delivered: "已送达" };
 function date(value: string) { return value ? new Date(value).toLocaleString() : "—"; }
 function summary(record: JobRecord): string {
   const fields = record.summary;
-  const counts = ["processed", "failed", "remaining", "companies", "count", "created", "updated", "unchanged"]
+  const counts = ["processed", "failed", "remaining", "companies", "count", "created", "updated", "unchanged", "attemptedWrites", "written"]
     .filter(key => typeof fields[key] === "number").map(key => `${key}: ${fields[key]}`);
   if (fields.priceLoad) counts.push(`prices: ${JSON.stringify(fields.priceLoad)}`);
   if (fields.fx) counts.push(`FX: ${JSON.stringify(fields.fx)}`);
@@ -65,7 +66,7 @@ export function AdminJobsPage() {
   const activeJob = scheduledJobs[query.job];
   return <main className="mx-auto w-full max-w-6xl px-4 py-8 text-slate-100">
     <Link href="/admin" className="text-sm text-cyan-300">{text("← Admin dashboard", "← 管理面板")}</Link>
-    <h1 className="mt-4 text-3xl font-semibold">{text("Scheduled jobs", "定时任务")}</h1>
+    <h1 className="mt-4 text-3xl font-semibold">{text("Tasks", "任务")}</h1>
     <p className="mt-2 text-sm text-slate-400">{text("Review run status, results and errors. Log history is retained for 30 days. Times below use your local timezone.", "查看运行状态、结果和错误。日志保留 30 天。下方时间使用您的本地时区。")}</p>
     <div className="my-6 flex flex-wrap items-end gap-3">
       <label className="grid gap-2 text-sm">{text("Job", "任务")}
@@ -78,9 +79,10 @@ export function AdminJobsPage() {
       <p className="py-2 text-sm text-slate-400">{activeJob.schedule}</p>
     </div>
     {(query.job === "us" || query.job === "china") && <AdminEodRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
-    {(query.job === "fundamentals" || query.job === "cnFundamentals" || query.job === "privateValuations") && <AdminSecRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
+    {(query.job === "fundamentals" || query.job === "cnFundamentals" || query.job === "privateValuations" || query.job === "directory") && <AdminSecRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
+    {query.job === "tickers" && <AdminTickerSync onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     <nav aria-label={text("Job history views", "任务历史视图")} className="mb-4 flex flex-wrap gap-2">
-      {([ ["runs", "Runs", "运行记录"], ["errors", "Errors & warnings", "错误和警告"], ["scheduler", "Scheduler deliveries", "调度触发记录"] ] as const).map(([view, en, zh]) =>
+      {([ ["runs", "Runs", "运行记录"], ["errors", "Errors & warnings", "错误和警告"], ["scheduler", "Scheduler deliveries", "调度触发记录"] ] as const).filter(([view]) => view !== "scheduler" || activeJob.scheduler).map(([view, en, zh]) =>
         <button key={view} onClick={() => changeView(view)} aria-pressed={query.view === view && !query.run} className={`${button} ${query.view === view && !query.run ? "border-cyan-400 bg-cyan-950 text-cyan-100" : ""}`}>{text(en, zh)}</button>)}
     </nav>
     {query.run && <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
