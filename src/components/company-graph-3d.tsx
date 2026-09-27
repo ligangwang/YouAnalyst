@@ -231,12 +231,14 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
             if(!visible)invalidate();
           }
         } else labelClearSince.current.delete(element);
-        if(saved===true && !visible)labelFadeUntil.current.set(element,now+fadeMs);
       }
       if(companyGap!==undefined)labelVisibility.current.set(element,visible);
       // An intentional hover may reveal this name without altering the saved layout.
       if(exploring && reveal && offset)visible=true;
       if(companyGap!==undefined){
+        // Track the rendered state too: a hover reveal deliberately does not
+        // alter saved collision visibility, but its exit still needs a reservation.
+        if(fadeMs && element.dataset.visible==="true" && !visible)labelFadeUntil.current.set(element,now+fadeMs);
         // Keep the label mounted while CSS fades it out; hidden names must not
         // intercept clicks or keyboard focus during that transition.
         if(!visible && document.activeElement===element)element.blur();
