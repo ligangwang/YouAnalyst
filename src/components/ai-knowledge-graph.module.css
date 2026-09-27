@@ -152,15 +152,15 @@
 }
 
 /* Keep the full map as context while a company and its direct relationships are in focus. */
-.label3d[data-company-focus="background"] { opacity:.18; }
-.label3d[data-company-focus="connected"], .label3d[data-company-focus="selected"] { opacity:1; }
-.label3d[data-company-focus="background"]:focus-visible, .label3d[data-company-focus="background"]:hover, .label3d[data-company-focus="background"][data-highlighted="true"] { opacity:1; }
+.label3d[data-company-focus="background"] { --label-emphasis:.18; }
+.label3d[data-company-focus="connected"], .label3d[data-company-focus="selected"] { --label-emphasis:1; }
+.label3d[data-company-focus="background"]:focus-visible, .label3d[data-company-focus="background"]:hover, .label3d[data-company-focus="background"][data-highlighted="true"] { --label-emphasis:1; }
 
 /* Sector focus retains the whole map while emphasizing members and their direct connections. */
-.label3d[data-sector-emphasis="dimmed"] { opacity:.18; }
-.label3d[data-sector-emphasis="connected"] { opacity:.85; }
-.label3d[data-sector-emphasis="member"] { opacity:1; }
-.label3d[data-sector-emphasis]:focus-visible, .label3d[data-sector-emphasis]:hover, .label3d[data-sector-emphasis][data-highlighted="true"] { opacity:1; }
+.label3d[data-sector-emphasis="dimmed"] { --label-emphasis:.18; }
+.label3d[data-sector-emphasis="connected"] { --label-emphasis:.85; }
+.label3d[data-sector-emphasis="member"] { --label-emphasis:1; }
+.label3d[data-sector-emphasis]:focus-visible, .label3d[data-sector-emphasis]:hover, .label3d[data-sector-emphasis][data-highlighted="true"] { --label-emphasis:1; }
 
 .companyFlag { display:inline-block; width:calc(14px * var(--label-scale, 1)); height:calc(10px * var(--label-scale, 1)); margin-right:calc(4px * var(--label-scale, 1)); object-fit:fill; vertical-align:-.05em; border-radius:1px; }
 
@@ -274,4 +274,12 @@
  .filterOptions label { flex-direction:column; align-items:stretch; }
  .graphTools .interactionHint { flex-basis:100%; margin:0; order:1; }
  .graphSearch input { font-size:16px; }
+}
+
+/* Let names dissolve as rotation changes the available label space. Visibility
+   waits for fade-out, while pointer and keyboard access stop immediately. */
+.label3d { opacity:0; visibility:hidden; pointer-events:none; transition:opacity 480ms ease, visibility 0s linear 480ms; }
+.label3d[data-visible="true"] { opacity:var(--label-emphasis,1); visibility:visible; pointer-events:auto; transition-delay:0s; }
+@media (prefers-reduced-motion:reduce) {
+  .label3d { transition:none; }
 }
