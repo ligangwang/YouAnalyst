@@ -278,7 +278,7 @@
 
 /* Let names dissolve as rotation changes the available label space. Visibility
    waits for fade-out, while pointer and keyboard access stop immediately. */
-.label3d { opacity:0; visibility:hidden; pointer-events:none; transition:opacity 480ms ease, visibility 0s linear 480ms; }
+.label3d { opacity:0; visibility:hidden; pointer-events:none; transition:opacity 1.2s ease, visibility 0s linear 1.2s; }
 .label3d[data-visible="true"] { opacity:var(--label-emphasis,1); visibility:visible; pointer-events:auto; transition-delay:0s; }
 @media (prefers-reduced-motion:reduce) {
   .label3d { transition:none; }
