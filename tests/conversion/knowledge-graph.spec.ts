@@ -289,7 +289,8 @@ test("every sector dims unrelated names and restores the full map on toggle", as
   await page.route("**/*", r => r.request().url().includes("/api/knowledge-graph") ? r.fulfill({json:graph}) : r.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en");
   const layout = layout3D(graph);
-  await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
+  // Match the other full-graph readiness check: each HTML label mounts in a separate React root.
+  await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length,{timeout:20_000});
   const revealSectors = async () => {
     const toggle = page.getByRole("button", {name:/^Sectors/});
     if (await toggle.isVisible()) await toggle.click();
@@ -1015,7 +1016,8 @@ test('three views support multi-role membership, sorting with unknown caps last,
  await page.getByRole('button',{name:'Clear filters',exact:true}).click();
  await page.getByRole('tab',{name:'Industry structure',exact:true}).click();await tree.scrollIntoViewIfNeeded();
  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
- await expect(tree.locator('[data-tree-company="US:AMD"]').first()).toBeVisible();
+ // Wait for the remounted 3D labels after clearing the empty search.
+ await expect(tree.locator('[data-tree-company="US:AMD"]').first()).toBeVisible({timeout:20_000});
 });
 
 test('three views explicit relationship links open graph and tabs support keyboard', async ({page}) => {
