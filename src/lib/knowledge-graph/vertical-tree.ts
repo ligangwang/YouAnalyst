@@ -109,7 +109,7 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
     // own part of the trunk while the tips lean up into the canopy.
     const perSide=Math.ceil(layer.branches.length/2);
     const step=125;
-    const height=expanded?Math.max(360,perSide*step+200):400;
+    const height=Math.max(360,perSide*step+200);
     const y=bottom+height/2;
     nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,y,0],count:layer.companies.length,span:[bottom,bottom+height]});
     if(expanded)layer.branches.forEach((branch,i)=>{
@@ -157,3 +157,4 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   });
   return nodes;
 }
+
