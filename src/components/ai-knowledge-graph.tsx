@@ -161,9 +161,9 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     setReset(value => value + 1);
   }
   function openConnection(id: string, reached?: string) {
-    cardDismiss.cancel();
     if(!id){setActiveEdge("");return;}
     const edge = graph.relationships.find(e => e.id === id); if (!edge || edge.type === "PARTICIPATES_IN") return;
+    cardDismiss.cancel();
     const nextCompany=reached ?? (selected===edge.source||selected===edge.target?selected:edge.source);
     setSelected(nextCompany);
     setCardHost({tree:"vertical",reveal:true});

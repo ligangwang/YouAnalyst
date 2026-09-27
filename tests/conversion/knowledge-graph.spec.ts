@@ -39,6 +39,16 @@ for (const view of ['graph','vertical','horizontal'] as const) test(`clicking th
  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
  await node.evaluate((el:HTMLButtonElement)=>el.click());
  await page.waitForTimeout(200);await expect(card).toBeVisible();await expect(card).toHaveAttribute('data-closing','false');
+ if(view==='graph'){
+   await card.evaluate(el=>{
+     (el.querySelector('button[aria-label="Clear selection"]') as HTMLButtonElement).click();
+     requestAnimationFrame(()=>{
+       const canvas=document.querySelector('canvas')!,r=canvas.getBoundingClientRect();
+       canvas.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+2,clientY:r.top+2}));
+     });
+   });
+   await expect(card).toHaveCount(0);
+ }
 });
 
 async function expectGraphEmphasis(label: Locator, expected: number) {
