@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTreeTour, treeTourStops, treeTourPlan, type TreeTourStop } from '../src/lib/knowledge-graph/tree-tour';
+import { createTreeTour, treeTourStops, treeTourPlan, treeTourFromView, type TreeTourStop } from '../src/lib/knowledge-graph/tree-tour';
 import type { TreePoint } from '../src/lib/knowledge-graph/industry-tree';
 import { industryTree } from '../src/lib/knowledge-graph/industry-tree';
 import { layoutVerticalTree } from '../src/lib/knowledge-graph/vertical-tree';
@@ -62,20 +62,39 @@ test('tour eases from the overview, holds readable closeups and clamps delayed f
   assert.deepEqual(slow(0).target,stops[0].target,'a 5fps renderer reaches the close-up in the same twelve seconds');
 });
 
-test('tour resumes from a manually changed view without jumping or restarting the itinerary',()=>{
-  const start={position:[0,1000,6000] as [number,number,number],target:[0,1000,0] as [number,number,number]};
-  const stops:TreeTourStop[]=[[200,500,100],[-300,1200,-200]].map(target=>({target:target as [number,number,number],distance:1050,duration:20,hold:5,kind:'company',layer:'energy'}));
-  const tour=createTreeTour(start,stops,()=>.5);
-  for(let i=0;i<80;i++)tour(.25); // Already travelling to the second company group.
-  const manual={position:[-2400,1700,-1800] as [number,number,number],target:[400,1300,250] as [number,number,number]};
-  assert.deepEqual(tour(0,manual),manual,'the resume frame uses the exact released camera');
-  const next=tour(.05);
-  assert(Math.hypot(...next.position.map((v,i)=>v-manual.position[i]))<.01,'restart eases from rest');
-  assert(Math.hypot(...next.target.map((v,i)=>v-manual.target[i]))<.01,'panned target does not snap back');
-  for(let i=0;i<80;i++)tour(.25);
-  assert.deepEqual(tour(0).target,stops[1].target,'continues the current leg instead of returning to the first company');
-  const again={position:[200,900,2800] as [number,number,number],target:[-100,800,90] as [number,number,number]};
-  assert.deepEqual(tour(0,again),again,'a second interaction also rebases the flight');
+test('a manual view selects nearby companies and skips closed layers without a camera jump',()=>{
+  const node=(id:string,y:number):TreePoint=>({id,kind:'layer',label:id,color:'#fff',position:[0,y,0],span:[y-400,y+400]});
+  const nodes=[node('energy',0),node('chips',1000),node('models',2000)];
+  const stops:TreeTourStop[]=nodes.flatMap(n=>[-300,300].map(x=>({target:[x,n.position[1],0] as [number,number,number],distance:1050,duration:20,hold:5,kind:'company' as const,layer:n.id})));
+  const manual={position:[-2400,2300,-1800] as [number,number,number],target:[280,2000,100] as [number,number,number]};
+  const nearby=treeTourFromView(stops,manual,nodes);
+  assert.equal(nearby[0].layer,'models','honor a pan to an upper layer');
+  assert.equal(nearby[0].target[0],300,'choose the company near the panned target');
+  const tour=createTreeTour(manual,nearby,()=>.5);
+  const first=tour(0);
+  assert(Math.hypot(...first.position.map((v,i)=>v-manual.position[i]))<1e-8);
+  assert.deepEqual(first.target,manual.target);
+  assert(Math.hypot(...tour(.05).position.map((v,i)=>v-manual.position[i]))<.01,'ease toward the new company without snapping');
+  for(let i=0;i<52;i++)tour(.25);
+  assert.deepEqual(tour(0).target,nearby[0].target);
+  const onlyLower=stops.filter(s=>s.layer!=='models');
+  assert.equal(treeTourFromView(onlyLower,manual,nodes,'models')[0].layer,'energy','wrap smoothly to the next open layer after the crown');
+  const mid={...manual,target:[0,1000,0] as [number,number,number]};
+  assert.equal(treeTourFromView(stops.filter(s=>s.layer!=='chips'),mid,nodes)[0].layer,'models','skip the closed layer at the current position');
+  assert.deepEqual(treeTourFromView([],manual,nodes),[]);
+});
+
+test('collapsed layers leave the tour and preserve the positions of other layers',()=>{
+  const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
+  const open=new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);
+  const before=layoutVerticalTree(layers,open,'en');
+  const closed=layers[1].id;open.delete(closed);
+  const after=layoutVerticalTree(layers,open,'en');
+  for(const n of after.filter(n=>n.layer!==closed))assert.deepEqual(n.position,before.find(p=>p.id===n.id)!.position);
+  assert(!treeTourPlan(after,1,open).some(stop=>stop.layer===closed));
+  assert.deepEqual(treeTourPlan(before,1,new Set(['root'])),[],'all layers closed stops navigation');
+  open.add(closed);
+  assert(treeTourPlan(before,1,open).some(stop=>stop.layer===closed),'reopening returns the layer to the itinerary');
 });
 
 test('layer tour pulls back, travels along the trunk, approaches the next layer and loops',()=>{
@@ -103,3 +122,4 @@ test('layer tour pulls back, travels along the trunk, approaches the next layer 
   assert.deepEqual(createTreeTour(start,[])(.25),start);
   assert.equal(treeTourPlan([nodes[0]],1)[0].layer,'energy','collapsed layers still receive a stop');
 });
+
