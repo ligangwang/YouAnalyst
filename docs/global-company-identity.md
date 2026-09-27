@@ -28,10 +28,11 @@ stock-prediction picker.
 
 ## Identity review before publication
 
-The manual **Review global company identities** workflow reads the current
-`companies` directory and compares `global-company-proposals.json` against it.
-It publishes a JSON artifact; it does not write Firestore data. It also reports
-overlaps between proposals in the same batch.
+The retained `scripts/review-company-identities.ts` maintenance script reads the
+current `companies` directory and compares `global-company-proposals.json`
+against it. It writes local review output without changing Firestore and reports
+overlaps between proposals in the same batch. Its fixed-batch GitHub Actions
+launcher has been retired. Routine research is available in the admin pages.
 
 Exact IDs and official identifiers can identify an existing record. Multiple
 matches, conflicting identifiers/country, names, and domains require review.
@@ -62,11 +63,14 @@ active; retain announcement/source dates and review changes explicitly.
 
 ## Publish a reviewed batch
 
-The manual **Publish reviewed global AI research** workflow runs only from
-main, using the production environment. First choose `preview` to inspect
-resolved company IDs and canonical relationship IDs. Choose `write` after
-reviewing the data PR. Both operations recheck current identities; all writes
-are atomic and use only `companies` and `company_relationships`.
+The fixed-batch GitHub Actions publication launcher has been retired. For an
+explicitly reviewed maintenance batch, the retained
+`scripts/publish-global-ai-research.ts` script supports `--validate`, `--preview`
+and `--write`. Preview and write require `GCP_PROJECT_ID` and application default
+credentials. Use reviewed code and inspect the preview's resolved company IDs
+and canonical relationship IDs before writing. Both operations recheck current
+identities; all writes are atomic and use only `companies` and
+`company_relationships`.
 
 The publisher preserves existing profile values and editorial decisions,
 including withdrawn relationships, and deduplicates appended evidence.

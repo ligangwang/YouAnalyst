@@ -200,7 +200,7 @@ export function AdminDashboardPage() {
 
       <div className="mb-6 max-w-3xl">
         <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Admin dashboard"} /></h1>
-        <p className="mt-2 text-sm text-slate-300"><UiText text={"Manage AI analyst drafts and review user feedback from one place."} /></p>
+        <p className="mt-2 text-sm text-slate-300"><UiText text={"Manage company research, scheduled jobs, and user feedback."} /></p>
         {error ? <p className="mt-3 text-sm text-rose-300">{<UiText text={error} />}</p> : null}
       </div>
 
@@ -254,15 +254,6 @@ export function AdminDashboardPage() {
           <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"Company Graph"} /></p>
           <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Generate requested graphs"} /></h2>
           <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Review queued tickers and generate focused SEC supply-chain graphs one at a time."} /></p>
-        </Link>
-
-        <Link
-          href="/admin/ai-analyst"
-          className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"
-        >
-          <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"AI Analyst"} /></p>
-          <h2 className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100"><UiText text={"Review generated drafts"} /></h2>
-          <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Approve or reject AI-generated calls before they appear in the public feed."} /></p>
         </Link>
 
         <Link

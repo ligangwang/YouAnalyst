@@ -1,13 +1,3 @@
-export function getAiAnalystUserId(): string {
-  const userId = process.env.AI_ANALYST_USER_ID?.trim();
-
-  if (!userId) {
-    throw new Error("Missing AI_ANALYST_USER_ID");
-  }
-
-  return userId;
-}
-
 export function getOpenAiApiKey(): string {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
 

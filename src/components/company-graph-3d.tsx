@@ -454,14 +454,32 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   </>;
 }
 
-function GraphUnavailable() {
+function ContextRecovery({onLost}:{onLost:(lost:boolean)=>void}) {
+  const {gl,invalidate}=useThree();
+  useEffect(()=>{
+    const canvas=gl.domElement;
+    const lost=(event:Event)=>{event.preventDefault();onLost(true);};
+    const restored=()=>{onLost(false);invalidate();};
+    canvas.addEventListener('webglcontextlost',lost);
+    canvas.addEventListener('webglcontextrestored',restored);
+    return ()=>{
+      canvas.removeEventListener('webglcontextlost',lost);
+      canvas.removeEventListener('webglcontextrestored',restored);
+    };
+  },[gl,invalidate,onLost]);
+  return null;
+}
+function GraphUnavailable({onRetry}:{onRetry:()=>void}) {
   const { text } = useLocale();
-  return <div role="alert" className={styles.empty}>{text("This browser cannot display the 3D graph. Open “Explore AI stocks, companies and the supply chain” below to continue researching.", "此浏览器暂时无法显示 3D 图谱。点击下方“探索 AI 公司与产业链”即可打开公司列表，继续研究。")}</div>;
+  return <div role="alert" className={styles.empty}>{text("This browser cannot display the 3D graph. Open “Explore AI stocks, companies and the supply chain” below to continue researching.", "此浏览器暂时无法显示 3D 图谱。点击下方“探索 AI 公司与产业链”即可打开公司列表，继续研究。")} <button onClick={onRetry}>{text('Reload 3D','重新加载 3D')}</button></div>;
 }
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
   const introOrbitRef = useRef(true);
   const [supported, setSupported] = useState<boolean | null>(null);
+  const [contextLost,setContextLost]=useState(false);
+  const [attempt,setAttempt]=useState(0);
+  const retry=()=>{setContextLost(false);setSupported(null);setAttempt(value=>value+1);};
   const [wheelGateRef, wheelHint] = useWheelZoomGate();
   useEffect(() => {
     let active = true;
@@ -475,13 +493,14 @@ export default function CompanyGraph3D(props: Props) {
       if (active) setSupported(available);
     });
     return () => { active = false; };
-  }, []);
-  const fallback = <GraphUnavailable />;
+  }, [attempt]);
+  const fallback = <GraphUnavailable onRetry={retry}/>;
   if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
   if (!supported) return fallback;
-  return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction>
+  return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction data-context-lost={contextLost}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop="demand" dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback} onCreated={({gl}) => { gl.domElement.addEventListener("webglcontextlost", () => setSupported(false), {once:true}); }}><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
+    {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · Ctrl + 滚轮／双指缩放")}</p>
   </div>;

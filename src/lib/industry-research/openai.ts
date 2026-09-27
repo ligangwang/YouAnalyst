@@ -1,4 +1,4 @@
-import { getOpenAiApiKey, getOpenAiModel } from "../ai-analyst/runtime";
+import { getOpenAiApiKey, getOpenAiModel } from "../openai-runtime";
 import { INDUSTRY_SEGMENTS } from "../industry-graph/catalog";
 import { MAX_COMPANIES, MAX_RELATIONSHIPS, record, text } from "./model";
 import type { ResearchTopic } from "./taxonomy";
