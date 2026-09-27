@@ -107,8 +107,18 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const c = controls.current; if (!c) return;
     // Evidence selection and panel resizing must not reset the user's orbit or zoom.
     const previous=lastCameraRequest.current;
-    // Search/filter controls live outside the canvas; a new layout cancels its old flight too.
-    if (previous && (previous.layout !== layout || previous.request !== cameraRequest || previous.reset !== reset)) introOrbitRef.current = false;
+    const restarting = previous !== null && previous.reset !== reset;
+    if (restarting) {
+      // Replay from the opening shot, including a fresh approach timer and label layout.
+      introOrbitRef.current = true;
+      introPath.current = null;
+      labelPlacements.current = new WeakMap();
+      labelVisibility.current = new WeakMap();
+      companyScales.current = new WeakMap();
+    } else if (previous && (previous.layout !== layout || previous.request !== cameraRequest)) {
+      // Searching or focusing a company still cancels the automatic flight.
+      introOrbitRef.current = false;
+    }
     if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset)return;
     lastCameraRequest.current={layout,request:cameraRequest,reset};
     // Only an explicit new view may rearrange labels after the user has explored it.
@@ -122,7 +132,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const x = n?.x ?? sector?.x ?? 0, y = n?.y ?? sector?.y ?? 0, z = n?.z ?? sector?.z ?? 0;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Establish the opening shot immediately; the introduction owns its slow dolly.
-    const opening = !previous && introOrbitRef.current && !n && !sector;
+    const opening = (!previous || restarting) && introOrbitRef.current && !n && !sector;
     const distance = opening && !reduced ? d * 1.4 : d;
     void c.setLookAt(x + distance*.2, y + distance*.12, z + distance, x, y, z, !reduced && !opening);
     invalidate();

@@ -96,8 +96,8 @@ test('background follow status does not cancel the opening camera', async ({page
  },{timeout:15000}).toBe(true);
 });
 
-test('cinematic introduction enlarges labels then orbits until touched', async ({page, isMobile}) => {
- test.setTimeout(90000);
+test('cinematic introduction and reset replay approach and rotation until touched', async ({page, isMobile}) => {
+ test.setTimeout(150000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph');
@@ -123,6 +123,19 @@ test('cinematic introduction enlarges labels then orbits until touched', async (
  const stopped=await positions();
  await page.waitForTimeout(600);
  expect(await positions()).toEqual(stopped);
+ await canvas.evaluate(el=>el.setAttribute('data-test-renderer','original'));
+ // Repeating reset catches reuse of an already-completed intro timer.
+ for (let replay=0;replay<2;replay++) {
+   const closeScale=await averageScale();
+   await page.getByRole('button',{name:'Reset view',exact:true}).click();
+   await expect(canvas).toHaveAttribute('data-test-renderer','original');
+   await expect.poll(averageScale).toBeLessThan(closeScale*.85);
+   const wideScale=await averageScale();
+   await page.waitForTimeout(14000);
+   await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(wideScale*1.15);
+   const moving=await positions();
+   await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-moving[i])>1);},{timeout:15000}).toBe(true);
+ }
 });
 test('intro orbit respects reduced motion and stops after chart interaction', async ({page, isMobile}) => {
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -148,6 +161,12 @@ test('intro orbit respects reduced motion and stops after chart interaction', as
  const stopped=await positions();
  await page.waitForTimeout(600);
  expect(await positions()).toEqual(stopped);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.getByRole('button',{name:'Reset view',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ const resetStill=await positions();
+ await page.waitForTimeout(600);
+ expect(await positions()).toEqual(resetStill);
 });
 
 test('filtering from external graph search stops the intro and reframes results', async ({page}) => {
@@ -486,6 +505,9 @@ test("graph renders, orbits and resets without extra controls", async ({ page })
   await expect(page.getByRole("heading", { name: "海光信息",exact:true })).toBeVisible();
   await page.getByRole("button", { name:"Reset view",exact:true }).click();
   await expect(page.getByRole("complementary")).toHaveCount(0);
+  await expect(page.locator("[data-company-id]")).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
+  expect(new URL(page.url()).searchParams.has("q")).toBe(false);
+  expect(new URL(page.url()).searchParams.has("company")).toBe(false);
   await expect(page.locator("canvas")).toBeVisible();
   expect(errors).toEqual([]);
 });
