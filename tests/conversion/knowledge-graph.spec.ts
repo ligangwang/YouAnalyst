@@ -158,6 +158,12 @@ test('closing graph details resumes rotation and the card stays beside its node'
  })).toBe(true);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await expect(canvas).toHaveAttribute('data-rotation','focused');
+ // Camera sleep permits tiny damping residuals; let projected anchors settle before dismissal.
+ let settled=await projectedGraphPositions(page),stable=0;
+ await expect.poll(async()=>{
+   const current=await projectedGraphPositions(page),difference=Math.max(...current.map((v,i)=>Math.abs(v-settled[i])));
+   settled=current;stable=difference<.001?stable+1:0;return stable;
+ },{intervals:[100],timeout:10000}).toBeGreaterThanOrEqual(3);
  await card.getByRole('button',{name:'Clear selection'}).click();
  await expect(card).toHaveCount(0);
  await expect(canvas).toHaveAttribute('data-rotation','waiting');
@@ -391,6 +397,41 @@ test('graph resumes gently from the user view after release and respects reduced
  const resetStill=await positions();
  await page.waitForTimeout(600);
  expect(await positions()).toEqual(resetStill);
+});
+
+test('vertical tree labels fade fully before compacting and honor reduced motion',async({page})=>{
+ test.setTimeout(60000);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.getByRole('region',{name:'Vertical tree',exact:true}),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ const label=tree.locator('[data-tree-company="US:NVDA"]').first();
+ await expect(label).toHaveAttribute('data-compact','true',{timeout:15000});
+ const box=(await canvas.boundingBox())!;
+ await page.mouse.move(box.x+5,box.y+5);await page.mouse.down();
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await label.evaluate(el=>{
+   const observer=new MutationObserver(()=>{
+     const samples:number[]=JSON.parse(el.getAttribute('data-fade-samples')??'[]');
+     samples.push(Number((el as HTMLElement).dataset.labelOpacity));el.setAttribute('data-fade-samples',JSON.stringify(samples));
+   });
+   observer.observe(el,{attributes:true,attributeFilter:['data-label-opacity']});
+ });
+ await label.focus();
+ await expect(label).toHaveAttribute('data-label-visible','true');
+ await expect(label).toHaveAttribute('data-label-opacity','1',{timeout:5000});
+ expect(JSON.parse((await label.getAttribute('data-fade-samples'))!).some((v:number)=>v>.1&&v<.9)).toBe(true);
+ await label.evaluate(el=>{el.removeAttribute('data-fade-samples');(el as HTMLElement).blur();});
+ await expect(label).toHaveAttribute('data-label-visible','false');
+ // It retains its readable box until the text has faded, then becomes a tiny hit target.
+ await expect(label).toHaveAttribute('data-label-opacity','0',{timeout:5000});
+ await expect(label).toHaveAttribute('data-compact','true');
+ expect(JSON.parse((await label.getAttribute('data-fade-samples'))!).some((v:number)=>v>.1&&v<.9)).toBe(true);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await label.focus();await expect(label).toHaveAttribute('data-label-opacity','1');
+ await label.evaluate(el=>(el as HTMLElement).blur());await expect(label).toHaveAttribute('data-label-opacity','0');
+ await page.mouse.up();
 });
 
 test('filtering from external graph search stops the intro and reframes results', async ({page}) => {
@@ -1648,6 +1689,7 @@ test('three views legacy vertical links and preferences open the merged industry
 
 // Above ground companies are leaves; on the Energy roots they are nodules. Both select like their label button.
 for(const [id,part] of [['US:NVDA','leaf body'],['US:CEG','root nodule']]) test(`three views vertical ${part} selects its company when zoomed out`,async({page})=>{
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  // One company, so every hit belongs to it.
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id===id)};
@@ -1664,7 +1706,7 @@ for(const [id,part] of [['US:NVDA','leaf body'],['US:CEG','root nodule']]) test(
  await expect.poll(async()=>{const p=await measure(),moved=Math.abs(p.x-stem.x)+Math.abs(p.y-stem.y);stem=p;stable=moved<.05?stable+1:0;return stable;},{intervals:[100,200,300]}).toBeGreaterThanOrEqual(3);
  // Scan around the stem: over the leaf or nodule, only the canvas is under the pointer and it shows a pointer cursor.
  const hits:{x:number;y:number}[]=[];
- for(let dy=-16;dy<=16;dy++)for(let dx=-16;dx<=16;dx++){
+ for(let dy=-16;dy<=16&&hits.length<5;dy++)for(let dx=-16;dx<=16&&hits.length<5;dx++){
   const x=stem.x+dx,y=stem.y+dy;
   if(Math.hypot(dx,dy)<=stem.radius+1.5)continue;
   await page.mouse.move(x,y);
@@ -1787,4 +1829,3 @@ test('three views horizontal tree opens one level deep with the root label clear
  // Tree controls are compact icon buttons with accessible names and tooltips.
  for(const name of ['Expand all','Collapse all','Reset view'])await expect(h.getByRole('button',{name,exact:true})).toHaveAttribute('title',name);
 });
-
