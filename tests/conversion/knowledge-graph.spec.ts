@@ -163,11 +163,12 @@ test('closing graph details resumes rotation and the card stays beside its node'
  await expect(canvas).toHaveAttribute('data-rotation','waiting');
  const before=await projectedGraphPositions(page);
  await page.waitForTimeout(500);
- // Allow sub-pixel projection settling while checking the full two-second pause.
- expect(Math.max(...(await projectedGraphPositions(page)).map((v,i)=>Math.abs(v-before[i])))).toBeLessThan(.05);
+ // Html projection can settle by fractions of a CSS pixel after camera rest.
+ // Reject a visible jump while the rotation state independently verifies the pause.
+ expect(Math.max(...(await projectedGraphPositions(page)).map((v,i)=>Math.abs(v-before[i])))).toBeLessThan(.5);
  await expect(canvas).toHaveAttribute('data-rotation','waiting');
  await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
- await expect.poll(async()=>{const after=await projectedGraphPositions(page);return after.some((v,i)=>Math.abs(v-before[i])>.1);},{timeout:10000}).toBe(true);
+ await expect.poll(async()=>{const after=await projectedGraphPositions(page);return after.some((v,i)=>Math.abs(v-before[i])>1);},{timeout:10000}).toBe(true);
 });
 
 test('tree layer changes preserve the camera and navigation skips closed layers',async({page})=>{
@@ -1528,7 +1529,8 @@ test('three views industry structure stacks the vertical tree above the horizont
  const v=page.getByRole('region',{name:'Vertical tree',exact:true}),h=page.getByRole('region',{name:'Horizontal tree',exact:true});
  await expect(v.getByRole('heading',{name:'Vertical tree'})).toBeVisible();
  expect((await v.boundingBox())!.y).toBeLessThan((await h.boundingBox())!.y);
- await expect(v.locator('[data-tree-kind="layer"]')).toHaveCount(5);
+ // The lazy WebGL scene mounts labels incrementally on software renderers.
+ await expect(v.locator('[data-tree-kind="layer"]')).toHaveCount(5,{timeout:15000});
  const root=(await v.locator('[data-tree-node="root"]').boundingBox())!;
  const apps=(await v.locator('[data-tree-node="applications"]').boundingBox())!;
  const energy=(await v.locator('[data-tree-node="energy"]').boundingBox())!;
