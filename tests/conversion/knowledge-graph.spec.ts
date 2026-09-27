@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Locator } from "@playwright/test";
 import { build } from "esbuild";
 import { PerspectiveCamera, Vector3 } from "three";
 import us from "../../data/ai-supply-chain/ai-us.json";
@@ -9,6 +9,13 @@ import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sect
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
+async function expectGraphEmphasis(label: Locator, expected: number) {
+ // A culled label fades to zero; its emphasis must still be restored when it returns.
+ await expect.poll(()=>label.evaluate((el, expected)=>{
+   const style=getComputedStyle(el), visible=(el as HTMLElement).dataset.visible==='true';
+   return [Number(style.getPropertyValue('--label-emphasis')||1),Number(style.opacity)===(visible?expected:0)];
+ },expected)).toEqual([expected,true]);
+}
 async function revealMapSearch(page:Page) {
  const graphTab=page.getByRole('tab',{name:/^(Relationship graph|关系图谱)$/});
  if(await graphTab.getAttribute('aria-selected')!=='true') return;
@@ -324,14 +331,18 @@ test("every sector dims unrelated names and restores the full map on toggle", as
     await page.mouse.move(0,0);
     await expect(button).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[data-sector-emphasis="member"]')).toHaveCount(members.size);
-    const opacities = await page.locator("[data-company-id]").evaluateAll(elements => elements.map(el => ({id:el.getAttribute("data-company-id")!, opacity:getComputedStyle(el).opacity})));
-    for (const node of opacities) expect(node.opacity, `${sector.en}: ${node.id}`).toBe(members.has(node.id) ? "1" : related.has(node.id) ? "0.85" : "0.18");
+    const opacities = await page.locator("[data-company-id]").evaluateAll(elements => elements.map(el => ({id:el.getAttribute("data-company-id")!, visible:(el as HTMLElement).dataset.visible==="true", emphasis:Number(getComputedStyle(el).getPropertyValue("--label-emphasis")||1), opacity:Number(getComputedStyle(el).opacity)})));
+    for (const node of opacities) {
+      const emphasis=members.has(node.id)?1:related.has(node.id)?.85:.18;
+      expect(node.emphasis,`${sector.en}: ${node.id}`).toBe(emphasis);
+      expect(node.opacity,`${sector.en}: ${node.id}`).toBe(node.visible?emphasis:0);
+    }
     await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
     await revealSectors();
     await button.click();
     await page.mouse.move(0,0);
     await expect(page.locator("[data-sector-emphasis]")).toHaveCount(0);
-    expect(await page.locator("[data-company-id]").evaluateAll(elements => elements.every(el => getComputedStyle(el).opacity === "1"))).toBe(true);
+    expect(await page.locator("[data-company-id]").evaluateAll(elements => elements.every(el => Number(getComputedStyle(el).getPropertyValue("--label-emphasis")||1)===1 && Number(getComputedStyle(el).opacity)===((el as HTMLElement).dataset.visible==="true"?1:0)))).toBe(true);
   }
 });
 for(const sectorFocused of [false,true]) test(`line hover previews, click pins, and blank space clears (${sectorFocused?"sector":"overview"})`,async({page})=>{
@@ -916,15 +927,15 @@ test("company selection dims unrelated names and restores them on clear", async 
   await page.goto("http://graph.test/map?lang=en&company=US%3AAMD");
   const selected = page.locator('[data-company-id="US:AMD"]');
   await expect(selected).toHaveAttribute("data-company-focus", "selected");
-  await expect(selected).toHaveCSS("opacity", "1");
+  await expectGraphEmphasis(selected,1);
   const layout = layout3D(graph);
   const related = new Set(layout.edges.filter(e => e.source === "US:AMD" || e.target === "US:AMD").flatMap(e => [e.source,e.target]));
   const connected = layout.nodes.find(n => n.id !== "US:AMD" && related.has(n.id))!;
   const unrelated = layout.nodes.find(n => n.id !== "US:AMD" && !related.has(n.id))!;
-  await expect(page.locator(`[data-company-id="${connected.id}"]`)).toHaveCSS("opacity", "1");
+  await expectGraphEmphasis(page.locator(`[data-company-id="${connected.id}"]`),1);
   const background = page.locator(`[data-company-id="${unrelated.id}"]`);
   await expect(background).toHaveAttribute("data-company-focus", "background");
-  await expect(background).toHaveCSS("opacity", "0.18");
+  await expectGraphEmphasis(background,.18);
   await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
   const nextNode = page.locator('[data-company-focus="background"]:visible').first();
   const nextId = (await nextNode.getAttribute("data-company-id"))!;
@@ -932,10 +943,10 @@ test("company selection dims unrelated names and restores them on clear", async 
   await expect(page.locator(`[data-company-id="${nextId}"]`)).toHaveAttribute("data-company-focus", "selected");
   await page.mouse.move(0,0);
   await expect(selected).toHaveAttribute("data-company-focus", "background");
-  await expect(selected).toHaveCSS("opacity", "0.18");
+  await expectGraphEmphasis(selected,.18);
   await page.getByRole("button",{name:"Clear selection",exact:true}).click();
   await expect(page.locator("[data-company-focus]")).toHaveCount(0);
-  await expect(background).toHaveCSS("opacity", "1");
+  await expectGraphEmphasis(background,1);
 });
 
 test("map displays stored market cap and date while unknown stays ticker only", async ({page}) => {
