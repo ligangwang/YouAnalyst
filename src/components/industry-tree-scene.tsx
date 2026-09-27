@@ -13,6 +13,7 @@ import { VerticalTreeBranches } from './vertical-tree-branches';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
 import { createTreeTour, treeTourPlan, treeTourFromView } from '@/lib/knowledge-graph/tree-tour';
+import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/knowledge-graph/label-fade';
 
 export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
@@ -103,6 +104,8 @@ function Scene(props:TreeSceneProps){
   const labels=useRef(new Map<string,HTMLButtonElement>());
   const collisionLabels=useRef(new Set<string>());
   const lastCollision=useRef(-Infinity);
+  const labelFades=useRef(new WeakMap<HTMLButtonElement,LabelFade>());
+  const labelSizes=useRef(new WeakMap<HTMLButtonElement,{width:number;height:number}>());
   // Labels mount after the frame that placed them; redraw once they settle so their scale is applied.
   const labelsSettled=useRef<number|undefined>(undefined);
   useEffect(()=>()=>window.clearTimeout(labelsSettled.current),[]);
@@ -197,8 +200,8 @@ function Scene(props:TreeSceneProps){
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
     let moving=false;
-    const checkCollisions=props.vertical&&performance.now()-lastCollision.current>=200;
-    if(checkCollisions)collisionLabels.current.clear();
+    const now=performance.now();
+    const checkCollisions=props.vertical&&now-lastCollision.current>=200;
     const touring=props.tour.current&&plan.length>0&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
     let resumed=false;
     if(props.vertical&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
@@ -238,7 +241,26 @@ function Scene(props:TreeSceneProps){
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        const compact=props.vertical&&((target.node.kind==='company'?htmlScale<.65:htmlScale<.72)||collisionLabels.current.has(target.node.id));
+        let compact=false;
+        if(props.vertical){
+          // Cache the full label's dimensions before it becomes a compact hit target.
+          // Collision checks keep using these dimensions while the text is transparent.
+          if(label.dataset.compact!=='true'&&!labelSizes.current.has(label))labelSizes.current.set(label,{width:label.offsetWidth,height:label.offsetHeight});
+          let fade=labelFades.current.get(label);
+          if(!fade){fade=createLabelFade(now);labelFades.current.set(label,fade);}
+          const threshold=target.node.kind==='company'?.65:.72;
+          const intentional=label.matches(':hover,:focus-visible');
+          const wanted=intentional||(htmlScale>=threshold+(fade.visible?0:.04)&&!collisionLabels.current.has(target.node.id));
+          const previous=fade.level;
+          const result=advanceLabelFade(fade,wanted,now,reduced.current);
+          compact=fade.level===0&&!fade.visible;
+          label.style.opacity=String(result.opacity*(label.dataset.treeDimmed==='true'?.2:1));
+          label.style.pointerEvents=fade.visible||compact?'auto':'none';
+          label.dataset.labelVisible=String(fade.visible);
+          label.dataset.labelOpacity=String(result.opacity);
+          if(result.moving)moving=true;
+          if(previous>0&&compact){lastCollision.current=-Infinity;moving=true;}
+        }
         if(compact){
           // A compact dot replaces the label: centre it on the node instead of beside it.
           const px=htmlScale*size.height/1100,offset=(target.node.kind==='company'?16:22)*px;
@@ -265,20 +287,35 @@ function Scene(props:TreeSceneProps){
       // result between passes so the cinematic frame loop avoids forced layouts.
       const bounds=new Map(ordered.flatMap(node=>{
         const el=labels.current.get(node.id);
-        return el&&el.dataset.compact!=='true'?[[node.id,el.getBoundingClientRect()] as const]:[];
+        if(!el)return [];
+        if(node.kind!=='company'&&node.kind!=='branch')return [[node.id,el.getBoundingClientRect()] as const];
+        const group=groups.current.get(node.id),dimensions=labelSizes.current.get(el);
+        if(!group||!dimensions)return [];
+        const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
+        if(htmlScale<(node.kind==='company'?.65:.72))return [];
+        const left=node.position[0]<0,scale=node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1;
+        vector.copy(group.position);vector.x+=(left?-1:1)*(node.kind==='company'?16:22)*group.scale.x;
+        vector.project(state.camera);
+        const width=dimensions.width*scale,height=dimensions.height*scale;
+        const x=(vector.x+1)*size.width/2,y=(1-vector.y)*size.height/2;
+        return [[node.id,new DOMRect(x-(left?width:0),y,width,height)] as const];
       }));
-      const occupied:DOMRect[]=[];
+      const occupied:{id:string;box:DOMRect;retiring?:boolean}[]=ordered.flatMap(node=>{
+        const el=labels.current.get(node.id),box=bounds.get(node.id),fade=el&&labelFades.current.get(el);
+        return box&&fade&&!fade.visible&&fade.level>0?[{id:node.id,box,retiring:true}]:[];
+      });
+      collisionLabels.current.clear();
       for(const node of ordered){
         const box=bounds.get(node.id);if(!box)continue;
         if(node.kind==='company'||node.kind==='branch'){
-          if(occupied.some(r=>box.left<r.right+5&&box.right>r.left-5&&box.top<r.bottom+5&&box.bottom>r.top-5)){
+          const el=labels.current.get(node.id),fade=el&&labelFades.current.get(el);
+          if(occupied.some(({id,box:r,retiring})=>id!==node.id&&!(retiring&&fade?.visible)&&box.left<r.right+5&&box.right>r.left-5&&box.top<r.bottom+5&&box.bottom>r.top-5)){
             collisionLabels.current.add(node.id);continue;
           }
         }
-        occupied.push(box);
+        occupied.push({id:node.id,box});
       }
-      for(const id of collisionLabels.current)labels.current.get(id)?.setAttribute('data-compact','true');
-      lastCollision.current=performance.now();
+      lastCollision.current=now;
     }
     const positions=geometry.getAttribute('position');
     edges.forEach((edge,i)=>{
@@ -330,9 +367,10 @@ function Scene(props:TreeSceneProps){
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
         {visible&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left&&!centered?styles.labelLeft:undefined}><button
           ref={el=>{if(el){labels.current.set(node.id,el);window.clearTimeout(labelsSettled.current);labelsSettled.current=window.setTimeout(invalidate,120);}else labels.current.delete(node.id);}}
-          className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,opacity:dim ? .2 : 1,pointerEvents:'auto',...(node.company?{'--cap':capScale}:{})} as CSSProperties}
+          className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,...(props.vertical&&(node.kind==='company'||node.kind==='branch')?{}:{opacity:dim ? .2 : 1}),pointerEvents:'auto',...(node.company?{'--cap':capScale}:{})} as CSSProperties}
           data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
-          data-compact={props.vertical&&(node.kind==='company'||node.kind==='branch')?true:undefined}
+          data-compact={props.vertical&&(node.kind==='company'||node.kind==='branch')?false:undefined}
+          data-label-visible={props.vertical&&(node.kind==='company'||node.kind==='branch')?false:undefined}
           aria-label={props.vertical&&(node.company||node.kind==='branch')?[node.label,node.company?.symbol].filter(Boolean).join(' '):undefined}
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
