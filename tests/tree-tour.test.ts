@@ -62,6 +62,22 @@ test('tour eases from the overview, holds readable closeups and clamps delayed f
   assert.deepEqual(slow(0).target,stops[0].target,'a 5fps renderer reaches the close-up in the same twelve seconds');
 });
 
+test('tour resumes from a manually changed view without jumping or restarting the itinerary',()=>{
+  const start={position:[0,1000,6000] as [number,number,number],target:[0,1000,0] as [number,number,number]};
+  const stops:TreeTourStop[]=[[200,500,100],[-300,1200,-200]].map(target=>({target:target as [number,number,number],distance:1050,duration:20,hold:5,kind:'company',layer:'energy'}));
+  const tour=createTreeTour(start,stops,()=>.5);
+  for(let i=0;i<80;i++)tour(.25); // Already travelling to the second company group.
+  const manual={position:[-2400,1700,-1800] as [number,number,number],target:[400,1300,250] as [number,number,number]};
+  assert.deepEqual(tour(0,manual),manual,'the resume frame uses the exact released camera');
+  const next=tour(.05);
+  assert(Math.hypot(...next.position.map((v,i)=>v-manual.position[i]))<.01,'restart eases from rest');
+  assert(Math.hypot(...next.target.map((v,i)=>v-manual.target[i]))<.01,'panned target does not snap back');
+  for(let i=0;i<80;i++)tour(.25);
+  assert.deepEqual(tour(0).target,stops[1].target,'continues the current leg instead of returning to the first company');
+  const again={position:[200,900,2800] as [number,number,number],target:[-100,800,90] as [number,number,number]};
+  assert.deepEqual(tour(0,again),again,'a second interaction also rebases the flight');
+});
+
 test('layer tour pulls back, travels along the trunk, approaches the next layer and loops',()=>{
   const node=(id:string,kind:TreePoint['kind'],y:number,layer=id):TreePoint=>({id,kind,layer,label:id,color:'#fff',position:[kind==='company'?300:0,y,0]});
   // Company heights overlap: ownership, rather than height, must determine order.
