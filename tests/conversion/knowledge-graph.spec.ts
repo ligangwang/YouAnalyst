@@ -393,6 +393,41 @@ test('graph resumes gently from the user view after release and respects reduced
  expect(await positions()).toEqual(resetStill);
 });
 
+test('vertical tree labels fade fully before compacting and honor reduced motion',async({page})=>{
+ test.setTimeout(60000);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.getByRole('region',{name:'Vertical tree',exact:true}),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ const label=tree.locator('[data-tree-company="US:NVDA"]').first();
+ await expect(label).toHaveAttribute('data-compact','true',{timeout:15000});
+ const box=(await canvas.boundingBox())!;
+ await page.mouse.move(box.x+5,box.y+5);await page.mouse.down();
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await label.evaluate(el=>{
+   const observer=new MutationObserver(()=>{
+     const samples:number[]=JSON.parse(el.getAttribute('data-fade-samples')??'[]');
+     samples.push(Number((el as HTMLElement).dataset.labelOpacity));el.setAttribute('data-fade-samples',JSON.stringify(samples));
+   });
+   observer.observe(el,{attributes:true,attributeFilter:['data-label-opacity']});
+ });
+ await label.focus();
+ await expect(label).toHaveAttribute('data-label-visible','true');
+ await expect(label).toHaveAttribute('data-label-opacity','1',{timeout:5000});
+ expect(JSON.parse((await label.getAttribute('data-fade-samples'))!).some((v:number)=>v>.1&&v<.9)).toBe(true);
+ await label.evaluate(el=>{el.removeAttribute('data-fade-samples');(el as HTMLElement).blur();});
+ await expect(label).toHaveAttribute('data-label-visible','false');
+ // It retains its readable box until the text has faded, then becomes a tiny hit target.
+ await expect(label).toHaveAttribute('data-label-opacity','0',{timeout:5000});
+ await expect(label).toHaveAttribute('data-compact','true');
+ expect(JSON.parse((await label.getAttribute('data-fade-samples'))!).some((v:number)=>v>.1&&v<.9)).toBe(true);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await label.focus();await expect(label).toHaveAttribute('data-label-opacity','1');
+ await label.evaluate(el=>(el as HTMLElement).blur());await expect(label).toHaveAttribute('data-label-opacity','0');
+ await page.mouse.up();
+});
+
 test('filtering from external graph search stops the intro and reframes results', async ({page}) => {
  // Keep two spatial reference points: a lone centered node cannot reveal an orbit.
  const fixture={...graph,nodes:graph.nodes.map(n=>n.id==='US:AMD'?{...n,name:'NVDA supplier AMD'}:n)};
@@ -1787,4 +1822,3 @@ test('three views horizontal tree opens one level deep with the root label clear
  // Tree controls are compact icon buttons with accessible names and tooltips.
  for(const name of ['Expand all','Collapse all','Reset view'])await expect(h.getByRole('button',{name,exact:true})).toHaveAttribute('title',name);
 });
-
