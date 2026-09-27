@@ -11,6 +11,6 @@ This reviewed batch covers the 132 company IDs on the live global AI map on Sept
 
 Financial report dates describe reporting periods and publication dates separately. This is a dated source review, not an ongoing update subscription. Existing business descriptions, company identity, country, listing details, graph membership and relationships remain unchanged.
 
-## Publication
+## Retired publication procedure
 
-`scripts/publish-company-profiles.ts --validate` checks the committed batch without credentials. The **Publish reviewed company profiles** workflow runs on `main` in the production environment. Run `preview` first, then `write` after checking the result. Both modes reread the exact existing IDs and names. Writes use a single transaction, update only `profile`, and reject missing/renamed/non-public companies or a newer existing profile/report. No new Firestore collection is created.
+This fixed-batch publication operation is retired. The former GitHub Actions launcher is no longer available. The data, scripts and validation tests are retained as historical maintenance material, not an active publication runbook. Use the current admin research tools for routine work. Reusing this batch requires a newly reviewed operational procedure covering authentication, current evidence, preview approval, before-images, write consistency and post-write verification; do not treat the old batch review as authorization to republish. See [Actions and admin jobs](../../docs/github-actions.md).

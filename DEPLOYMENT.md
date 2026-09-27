@@ -360,8 +360,10 @@ admin page lists its executions and offers **Run A-share fundamentals now**
 (admin-only POST `/api/admin/jobs/cn-fundamentals`, with the same 2-minute
 dispatch guard as the SEC button, stored on `_cn_worker`).
 
-The read-only **Probe A-share share-count sources** workflow re-checks source
-reachability and parsing from a GitHub-hosted runner for any list of codes.
+The source-probe Action is retired. To check reachability and parsing from an
+appropriate network, run `npx tsx scripts/probe-cn-share-sources.ts "301308,600519"`
+from the repository with dependencies installed. It needs no credentials and
+does not write Firestore.
 
 ### EOD and directory diagnostics
 
