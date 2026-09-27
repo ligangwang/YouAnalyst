@@ -27,7 +27,12 @@ for (const view of ['graph','vertical','horizontal'] as const) test(`clicking th
  await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(card).toBeVisible();
  await expect(card).toHaveCSS('animation-duration','0.18s');
  const exit=await card.evaluate(el=>new Promise<string>(resolve=>{
-   el.addEventListener('animationstart',()=>resolve(getComputedStyle(el).animationDuration),{once:true});
+   // A busy renderer may not paint before the short exit completes; observe the
+   // committed closing style rather than requiring a compositor event.
+   const observer=new MutationObserver(()=>{
+     if(el.getAttribute('data-closing')==='true'){observer.disconnect();resolve(getComputedStyle(el).animationDuration);}
+   });
+   observer.observe(el,{attributes:true,attributeFilter:['data-closing']});
    (el.querySelector('button[aria-label="Clear selection"],button[aria-label="Close company details"]') as HTMLButtonElement).click();
  }));
  expect(exit).toBe('0.14s');await expect(card).toHaveCount(0);
