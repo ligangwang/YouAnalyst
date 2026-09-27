@@ -33,6 +33,60 @@ function Scene(props:TreeSceneProps){
   useEffect(()=>{if(!props.paused)invalidate();},[props.paused,invalidate]);
   const controls=useRef<CameraControls>(null);
   const flight=useRef<ReturnType<typeof createTreeTour>|null>(null);
+  const resumePending=useRef(false);
+  const resumeReady=useRef(false);
+  const idleTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  const scheduleResume=useRef<()=>void>(()=>{});
+  useEffect(()=>{
+    if(!props.vertical)return;
+    const surface=gl.domElement.closest('[data-industry-section]');
+    if(!surface)return;
+    const pointers=new Set<number>(),keys=new Set<string>();
+    const clear=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;resumeReady.current=false;};
+    const pause=()=>{tourRef.current=false;resumePending.current=true;clear();invalidate();};
+    const schedule=()=>{
+      clear();
+      if(pointers.size||keys.size||document.hidden)return;
+      idleTimer.current=setTimeout(()=>{idleTimer.current=null;resumeReady.current=true;invalidate();},2000);
+      invalidate();
+    };
+    scheduleResume.current=schedule;
+    const down=(event:Event)=>{pointers.add((event as PointerEvent).pointerId);pause();};
+    const up=(event:PointerEvent)=>{if(pointers.delete(event.pointerId))schedule();};
+    const wheel=()=>{pause();schedule();};
+    const keydown=(event:Event)=>{keys.add((event as KeyboardEvent).code);pause();};
+    const keyup=(event:KeyboardEvent)=>{if(keys.delete(event.code))schedule();};
+    const focus=()=>{pause();schedule();};
+    const blur=()=>{if(pointers.size||keys.size){pointers.clear();keys.clear();pause();schedule();}};
+    const visibility=()=>{if(document.hidden){clear();blur();}else if(resumePending.current)schedule();};
+    surface.addEventListener('pointerdown',down,true);
+    surface.addEventListener('wheel',wheel,{capture:true,passive:true});
+    surface.addEventListener('keydown',keydown,true);
+    surface.addEventListener('focusin',focus,true);
+    window.addEventListener('pointerup',up,true);
+    window.addEventListener('pointercancel',up,true);
+    window.addEventListener('keyup',keyup,true);
+    window.addEventListener('blur',blur);
+    document.addEventListener('visibilitychange',visibility);
+    return ()=>{
+      clear();scheduleResume.current=()=>{};
+      surface.removeEventListener('pointerdown',down,true);
+      surface.removeEventListener('wheel',wheel,true);
+      surface.removeEventListener('keydown',keydown,true);
+      surface.removeEventListener('focusin',focus,true);
+      window.removeEventListener('pointerup',up,true);
+      window.removeEventListener('pointercancel',up,true);
+      window.removeEventListener('keyup',keyup,true);
+      window.removeEventListener('blur',blur);
+      document.removeEventListener('visibilitychange',visibility);
+    };
+  },[gl,invalidate,props.vertical,tourRef]);
+  useEffect(()=>{
+    if(props.paused){
+      if(idleTimer.current!==null)clearTimeout(idleTimer.current);
+      idleTimer.current=null;resumeReady.current=false;
+    }else if(resumePending.current)scheduleResume.current();
+  },[props.paused]);
   useEffect(()=>{if(props.selected||props.focus)tourRef.current=false;},[props.selected,props.focus,tourRef]);
   useEffect(()=>{
     const resume=()=>{if(!document.hidden&&!props.paused)invalidate();};
@@ -123,11 +177,22 @@ function Scene(props:TreeSceneProps){
     const checkCollisions=props.vertical&&performance.now()-lastCollision.current>=200;
     if(checkCollisions)collisionLabels.current.clear();
     const touring=props.tour.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
-    gl.domElement.setAttribute('data-tour',touring?'playing':props.tour.current?'paused':'stopped');
+    let resumed=false;
+    if(props.vertical&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&flight.current&&controls.current){
+      // Rebase at release, after manual damping settles, while retaining the tour's destination.
+      flight.current(0,{position:controls.current.getPosition(new Vector3()).toArray(),target:controls.current.getTarget(new Vector3()).toArray()});
+      resumePending.current=false;resumeReady.current=false;tourRef.current=true;resumed=true;
+      moving=true;
+    }
+    gl.domElement.setAttribute('data-tour',touring||resumed?'playing':props.tour.current?'paused':'stopped');
     if(touring&&flight.current&&controls.current){
       const shot=flight.current(delta);
       void controls.current.setLookAt(...shot.position,...shot.target,false);
       moving=true;
+    }
+    if(controls.current){
+      gl.domElement.dataset.cameraPosition=controls.current.getPosition(vector).toArray().join(',');
+      gl.domElement.dataset.cameraTarget=controls.current.getTarget(vector).toArray().join(',');
     }
     for(const target of targets){
       const group=groups.current.get(target.node.id);if(!group)continue;
@@ -202,7 +267,7 @@ function Scene(props:TreeSceneProps){
     if(moving)invalidate();
   });
   return <>
-    <CameraControls ref={controls} makeDefault
+    <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.dataset.camera='moving';}} onSleep={()=>{gl.domElement.dataset.camera='idle';invalidate();}}
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.3}/>
     {props.vertical?<VerticalTreeBranches nodes={nodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
