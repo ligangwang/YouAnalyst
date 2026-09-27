@@ -199,6 +199,12 @@ function Scene(props:TreeSceneProps){
   },[plan,props.vertical,invalidate,tourRef]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
+    // Html labels have independent React roots. Keep their accessible selection
+    // in sync even when an older label commit lands after the scene update.
+    for(const label of labels.current.values()){
+      const company=label.getAttribute('data-tree-company');
+      if(company){const pressed=String(company===props.selected);if(label.getAttribute('aria-pressed')!==pressed)label.setAttribute('aria-pressed',pressed);}
+    }
     let moving=false;
     const now=performance.now();
     const checkCollisions=props.vertical&&now-lastCollision.current>=200;
