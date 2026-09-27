@@ -180,7 +180,7 @@ function Scene(props:TreeSceneProps){
     let resumed=false;
     if(props.vertical&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&flight.current&&controls.current){
       // Rebase at release, after manual damping settles, while retaining the tour's destination.
-      flight.current(0,{position:controls.current.getPosition(new Vector3()).toArray(),target:controls.current.getTarget(new Vector3()).toArray()});
+      flight.current(0,{position:controls.current.getPosition(new Vector3(),false).toArray(),target:controls.current.getTarget(new Vector3(),false).toArray()});
       resumePending.current=false;resumeReady.current=false;tourRef.current=true;resumed=true;
       moving=true;
     }
@@ -191,8 +191,8 @@ function Scene(props:TreeSceneProps){
       moving=true;
     }
     if(controls.current){
-      gl.domElement.dataset.cameraPosition=controls.current.getPosition(vector).toArray().join(',');
-      gl.domElement.dataset.cameraTarget=controls.current.getTarget(vector).toArray().join(',');
+      gl.domElement.setAttribute('data-camera-position',controls.current.getPosition(vector,false).toArray().join(','));
+      gl.domElement.setAttribute('data-camera-target',controls.current.getTarget(vector,false).toArray().join(','));
     }
     for(const target of targets){
       const group=groups.current.get(target.node.id);if(!group)continue;
@@ -267,7 +267,7 @@ function Scene(props:TreeSceneProps){
     if(moving)invalidate();
   });
   return <>
-    <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.dataset.camera='moving';}} onSleep={()=>{gl.domElement.dataset.camera='idle';invalidate();}}
+    <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.setAttribute('data-camera','moving');}} onSleep={()=>{gl.domElement.setAttribute('data-camera','idle');invalidate();}}
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.3}/>
     {props.vertical?<VerticalTreeBranches nodes={nodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
