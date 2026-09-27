@@ -278,7 +278,7 @@ function clampLimit(value: number | undefined): number | undefined {
 
 async function fetchTwelveDataStocks(): Promise<{ providerCount: number; stocks: TwelveDataStock[] }> {
   const url = getTwelveDataStocksUrl();
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
 
   if (!response.ok) {
     throw new Error(`Twelve Data stocks request failed with HTTP ${response.status}`);

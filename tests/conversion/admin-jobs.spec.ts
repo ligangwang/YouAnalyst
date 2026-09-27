@@ -6,6 +6,36 @@ import tailwind from "@tailwindcss/postcss";
 
 const origin = "http://admin-jobs.test";
 let html: string;
+
+test("directory and ticker controls share task history and preview does not request writes", async ({page}) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const requests: {path:string;body:Record<string,unknown>|null}[]=[];
+  await page.route('**/*',route=>{
+    const request=route.request(),url=new URL(request.url());
+    if(request.isNavigationRequest())return route.fulfill({contentType:'text/html',body:html});
+    if(url.pathname==='/api/admin/me')return route.fulfill({json:{isAdmin:true}});
+    if(url.pathname==='/api/admin/jobs')return route.fulfill({json:{records:[],nextPageToken:null}});
+    if(request.method()==='POST') {
+      const body=request.postData()?request.postDataJSON():null;requests.push({path:url.pathname,body});
+      return route.fulfill({json:{ok:true,operation:'op',dryRun:body?.dryRun,written:body?.dryRun?0:12}});
+    }
+    return route.abort();
+  });
+  await page.goto(origin);
+  await page.getByRole('combobox',{name:'Job',exact:true}).selectOption('directory');
+  await page.getByRole('button',{name:'Run directory sync now'}).click();
+  await expect.poll(()=>requests.length).toBe(1);
+  expect(requests[0].path).toBe('/api/admin/jobs/directory');
+  await page.getByRole('combobox',{name:'Job',exact:true}).selectOption('tickers');
+  await expect(page.getByRole('button',{name:'Scheduler deliveries'})).toHaveCount(0);
+  await page.getByLabel('Limit (blank for all)',{exact:true}).fill('12');
+  await page.getByRole('button',{name:'Preview ticker sync'}).click();
+  await expect(page.getByText('Preview complete. No catalog changes written.',{exact:true})).toBeVisible();
+  expect(requests[1].body).toMatchObject({dryRun:true,limit:12,country:'United States',currency:'USD'});
+  await page.getByRole('button',{name:'Sync ticker catalog now'}).click();
+  await expect(page.getByText('Ticker sync completed.',{exact:true})).toBeVisible();
+  expect(requests[2].body?.dryRun).toBe(false);
+});
 test.beforeAll(async () => {
   const bundled = await build({
     stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client";
@@ -35,7 +65,7 @@ test("admin can page through runs and errors, inspect details and change job wit
     return route.abort();
   });
   await page.goto(origin);
-  await expect(page.getByRole("heading", { name: "Scheduled jobs" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
   await expect(page.getByText("Succeeded", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Previous", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Next", exact: true }).click();

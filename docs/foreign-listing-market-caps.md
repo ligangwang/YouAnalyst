@@ -32,7 +32,7 @@ as of 2025-12-31, filed 2026-03-17. This dated estimate is eligible under the
 excluding reserved share awards; see `public-market-cap-coverage.md`.
 Do not substitute weighted averages or unverified totals mixing dates/classes.
 
-After deployment, run **Deploy SEC fundamentals job** to update the worker image
+After deployment, run **Deploy background jobs** (`sec-fundamentals`) to update the worker image
 if it has not already been deployed, then run SEC fundamentals maintenance.
 Version 4 assessments make the batch upgrade existing reviewed assessments once;
 retry cooldowns remain in force. Inspect per-ticker `market_cap_calculated` logs

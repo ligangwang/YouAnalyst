@@ -6,7 +6,7 @@ set -euo pipefail
 # Poll the build API instead of streaming the default logs bucket, which the
 # deployment identity may not be permitted to read.
 build_id="$(gcloud builds submit . --project "$GCP_PROJECT_ID" \
-  --config cloudbuild.fundamentals.yaml --substitutions "_IMAGE=$1" \
+  --config "${2:-cloudbuild.fundamentals.yaml}" --substitutions "_IMAGE=$1" \
   --async --format='value(id)')"
 if [[ -z "$build_id" ]]; then
   echo "ERROR: Cloud Build returned no build ID." >&2
