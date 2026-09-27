@@ -49,7 +49,7 @@ export function treeTourPlan(nodes:TreePoint[], aspect:number):TreeTourStop[]{
 }
 
 export function createTreeTour(start:TreeShot, stops:TreeTourStop[], random:()=>number=Math.random){
-  if(!stops.length)return ()=>start;
+  if(!stops.length)return (_delta:number,resume?:TreeShot)=>{if(resume)start=resume;return start;};
   let elapsed=0,index=0,from=start;
   const direction=random()<.5?-1:1;
   let fromYaw=Math.atan2(start.position[0]-start.target[0],start.position[2]-start.target[2]);
@@ -61,7 +61,15 @@ export function createTreeTour(start:TreeShot, stops:TreeTourStop[], random:()=>
     return {target,position:[target[0]+Math.sin(yaw)*distance,target[1]+pitch*distance,target[2]+Math.cos(yaw)*distance]};
   };
   let to=shot(stops[0]);
-  return (delta:number):TreeShot=>{
+  return (delta:number,resume?:TreeShot):TreeShot=>{
+    if(resume){
+      // Continue this itinerary leg from the user's actual view, never its old camera pose.
+      from=resume;elapsed=0;
+      fromYaw=Math.atan2(from.position[0]-from.target[0],from.position[2]-from.target[2]);
+      toYaw=fromYaw+direction*.35;
+      to=shot(stops[index%stops.length]);
+      return from;
+    }
     // Keep the slow tour near wall-clock speed on low-frame-rate phones/software
     // renderers. Hidden scenes are paused; cap resume gaps to a quarter second.
     elapsed+=Math.max(0,Math.min(.25,delta));
