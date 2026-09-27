@@ -28,8 +28,9 @@ export type TreeTourStop = { target: Point; distance: number; duration: number; 
 // Keep layer membership explicit: leaves from adjacent layers can overlap in height.
 // Pull back first, travel along the trunk at that wider distance, then approach
 // the next company. The final transfer descends to Energy and the plan repeats.
-export function treeTourPlan(nodes:TreePoint[], aspect:number):TreeTourStop[]{
-  const layers=nodes.filter(n=>n.kind==='layer').sort((a,b)=>a.position[1]-b.position[1]||a.id.localeCompare(b.id));
+export function treeTourPlan(nodes:TreePoint[], aspect:number, open?:ReadonlySet<string>):TreeTourStop[]{
+  if(open&&!open.has('root'))return [];
+  const layers=nodes.filter(n=>n.kind==='layer'&&(!open||open.has(n.id))).sort((a,b)=>a.position[1]-b.position[1]||a.id.localeCompare(b.id));
   const distance=Math.max(1000,Math.min(1650,1050/Math.sqrt(Math.max(.4,aspect))));
   const plan:TreeTourStop[]=[];
   for(let i=0;i<layers.length;i++){
@@ -48,8 +49,28 @@ export function treeTourPlan(nodes:TreePoint[], aspect:number):TreeTourStop[]{
   return plan;
 }
 
+// Start in the user's current layer, or the next open layer above it (wrapping at the crown).
+// Only the itinerary changes here; the camera will ease from its untouched current pose.
+export function treeTourFromView(plan:TreeTourStop[], view:TreeShot, nodes:TreePoint[], skipLayer?:string):TreeTourStop[]{
+  if(!plan.length)return [];
+  const layers=nodes.filter(n=>n.kind==='layer').sort((a,b)=>a.position[1]-b.position[1]);
+  const y=view.target[1];
+  const distance=(n:TreePoint)=>n.span?Math.max(n.span[0]-y,0,y-n.span[1]):Math.abs(n.position[1]-y);
+  let current=layers.reduce((best,n,i)=>distance(n)<distance(layers[best])?i:best,0);
+  if(skipLayer){const index=layers.findIndex(n=>n.id===skipLayer);if(index>=0)current=(index+1)%layers.length;}
+  let layer=plan[0].layer;
+  for(let offset=0;offset<layers.length;offset++){
+    const candidate=layers[(current+offset)%layers.length].id;
+    if(plan.some(stop=>stop.kind==='company'&&stop.layer===candidate)){layer=candidate;break;}
+  }
+  const candidates=plan.map((stop,index)=>({stop,index})).filter(({stop})=>stop.kind==='company'&&stop.layer===layer);
+  const squared=(stop:TreeTourStop)=>stop.target.reduce((sum,v,i)=>sum+(v-view.target[i])**2,0);
+  const index=candidates.reduce((best,candidate)=>squared(candidate.stop)<squared(best.stop)?candidate:best,candidates[0])?.index??0;
+  return [...plan.slice(index),...plan.slice(0,index)];
+}
+
 export function createTreeTour(start:TreeShot, stops:TreeTourStop[], random:()=>number=Math.random){
-  if(!stops.length)return (_delta:number,resume?:TreeShot)=>{if(resume)start=resume;return start;};
+  if(!stops.length)return Object.assign((delta:number)=>{void delta;return start;},{destination:()=>undefined});
   let elapsed=0,index=0,from=start;
   const direction=random()<.5?-1:1;
   let fromYaw=Math.atan2(start.position[0]-start.target[0],start.position[2]-start.target[2]);
@@ -61,15 +82,7 @@ export function createTreeTour(start:TreeShot, stops:TreeTourStop[], random:()=>
     return {target,position:[target[0]+Math.sin(yaw)*distance,target[1]+pitch*distance,target[2]+Math.cos(yaw)*distance]};
   };
   let to=shot(stops[0]);
-  return (delta:number,resume?:TreeShot):TreeShot=>{
-    if(resume){
-      // Continue this itinerary leg from the user's actual view, never its old camera pose.
-      from=resume;elapsed=0;
-      fromYaw=Math.atan2(from.position[0]-from.target[0],from.position[2]-from.target[2]);
-      toYaw=fromYaw+direction*.35;
-      to=shot(stops[index%stops.length]);
-      return from;
-    }
+  const advance=(delta:number):TreeShot=>{
     // Keep the slow tour near wall-clock speed on low-frame-rate phones/software
     // renderers. Hidden scenes are paused; cap resume gaps to a quarter second.
     elapsed+=Math.max(0,Math.min(.25,delta));
@@ -91,4 +104,5 @@ export function createTreeTour(start:TreeShot, stops:TreeTourStop[], random:()=>
     }
     return current;
   };
+  return Object.assign(advance,{destination:()=>stops[index%stops.length]});
 }

@@ -118,7 +118,12 @@ test('tree camera tour pauses on hold and resumes from the released view',async(
  await page.waitForTimeout(2300);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  expect(await pose()).toEqual(selected);
-
+ await tree.getByRole('button',{name:'Close company details',exact:true}).click();
+ await expect(tree.getByRole('dialog',{name:'Company details'})).toHaveCount(0);
+ await page.waitForTimeout(500);
+ expect(await pose()).toEqual(selected);
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ await expect.poll(pose,{timeout:10000}).not.toEqual(selected);
 });
 async function projectedGraphPositions(page: Page) {
  // Drei's outer Html wrapper holds the projected node position. Label bounds also
@@ -130,6 +135,91 @@ async function projectedGraphPositions(page: Page) {
    return [matrix.m41,matrix.m42];
  }));
 }
+
+test('closing graph details resumes rotation and the card stays beside its node',async({page})=>{
+ test.setTimeout(45000);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ const canvas=page.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ const node=page.locator('[data-company-id="US:NVDA"]');
+ await node.evaluate((el:HTMLButtonElement)=>el.click());
+ const card=page.locator('[data-node-card="US:NVDA"]');
+ await expect(card).toBeVisible();
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ await expect.poll(()=>card.evaluate(el=>{
+   const c=el.getBoundingClientRect(),n=document.querySelector('[data-company-id="US:NVDA"]')!.getBoundingClientRect();
+   return Math.hypot(Math.max(n.left-c.right,c.left-n.right,0),Math.max(n.top-c.bottom,c.top-n.bottom,0));
+ })).toBeLessThan(30);
+ expect(await card.evaluate(el=>{
+   const r=el.getBoundingClientRect();
+   return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&el.contains(document.elementFromPoint(r.left+20,r.top+20));
+ })).toBe(true);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect(canvas).toHaveAttribute('data-rotation','focused');
+ await card.getByRole('button',{name:'Clear selection'}).click();
+ await expect(card).toHaveCount(0);
+ await expect(canvas).toHaveAttribute('data-rotation','waiting');
+ const before=await projectedGraphPositions(page);
+ await page.waitForTimeout(500);
+ // Html projection can settle by fractions of a CSS pixel after camera rest.
+ // Reject a visible jump while the rotation state independently verifies the pause.
+ expect(Math.max(...(await projectedGraphPositions(page)).map((v,i)=>Math.abs(v-before[i])))).toBeLessThan(.5);
+ await expect(canvas).toHaveAttribute('data-rotation','waiting');
+ await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
+ await expect.poll(async()=>{const after=await projectedGraphPositions(page);return after.some((v,i)=>Math.abs(v-before[i])>1);},{timeout:10000}).toBe(true);
+});
+
+test('tree layer changes preserve the camera and navigation skips closed layers',async({page})=>{
+ test.setTimeout(45000);
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.getByRole('region',{name:'Vertical tree',exact:true}),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-camera','idle');
+ const pose=()=>canvas.evaluate(el=>[el.getAttribute('data-camera-position'),el.getAttribute('data-camera-target')].join(','));
+ const initial=await pose();
+ await tree.locator('[data-tree-kind="layer"][data-tree-node="energy"]').evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(canvas).not.toHaveAttribute('data-tour-open-layers',/energy/);
+ expect(await pose()).toEqual(initial);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ await expect(canvas).toHaveAttribute('data-tour-layer','chips');
+ await expect.poll(pose,{timeout:10000}).not.toEqual(initial);
+ await tree.getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-tour-open-layers','');
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+ const collapsed=await pose();
+ await page.waitForTimeout(2300);
+ expect(await pose()).toEqual(collapsed);
+ // Observe in the page: on a slow mobile renderer, a click can return after resumption.
+ await canvas.evaluate(el=>{
+   el.removeAttribute('data-reopened-pose');
+   const observer=new MutationObserver(()=>{
+     if(el.getAttribute('data-tour')==='playing'){
+       el.setAttribute('data-reopened-pose',[el.getAttribute('data-camera-position'),el.getAttribute('data-camera-target')].join(','));observer.disconnect();
+     }
+   });
+   observer.observe(el,{attributes:true,attributeFilter:['data-tour']});
+ });
+ await tree.getByRole('button',{name:'Expand all',exact:true}).click();
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ const reopened=(await canvas.getAttribute('data-reopened-pose'))!.split(',').map(Number),previous=collapsed.split(',').map(Number);
+ expect(Math.max(...reopened.map((v,i)=>Math.abs(v-previous[i])))).toBeLessThan(.01);
+ await expect.poll(pose,{timeout:10000}).not.toEqual(collapsed);
+ // The card must win hit testing over projected Html node labels.
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await tree.locator('[data-tree-company="US:GEV"]').first().evaluate((el:HTMLButtonElement)=>el.click());
+ const card=tree.getByRole('dialog',{name:'Company details'});
+ await expect(card).toHaveAttribute('data-node-card','US:GEV');
+ expect(await card.evaluate(el=>{
+   const r=el.getBoundingClientRect();
+   return [30,r.height/2,r.height-30].every(y=>el.contains(document.elementFromPoint(r.left+r.width/2,r.top+y)));
+ })).toBe(true);
+});
 test('background follow status does not cancel the opening camera', async ({page}) => {
  test.setTimeout(45000);
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -781,9 +871,18 @@ test("opening relationship evidence preserves the current company",async({page})
  const anchor=page.locator('[data-company-id="US:TSM"]');
  const projection=()=>anchor.evaluate(el=>el.parentElement!.parentElement!.style.transform);
  const initial=await projection();
- await page.mouse.move(bounds.x+bounds.width*.45,bounds.y+bounds.height*.65);
+ const start=await canvas.evaluate(el=>{
+   const b=el.getBoundingClientRect();
+   for(const y of [.1,.5,.9])for(const x of [.05,.25,.75,.95]){
+     const p={x:b.x+b.width*x,y:b.y+b.height*y};
+     if(document.elementFromPoint(p.x,p.y)===el)return p;
+   }
+   throw new Error('No unobstructed canvas drag point');
+ });
+ const direction=start.x<bounds.x+bounds.width/2?1:-1;
+ await page.mouse.move(start.x,start.y);
  await page.mouse.down();
- await page.mouse.move(bounds.x+bounds.width*.6,bounds.y+bounds.height*.7,{steps:12});
+ await page.mouse.move(start.x+direction*Math.min(120,bounds.width*.3),start.y,{steps:12});
  await page.mouse.up();
  await expect.poll(projection).not.toBe(initial);
  await page.waitForTimeout(800);
@@ -1420,6 +1519,7 @@ test('three views expanding all preserves zoom and pan when company cards open a
 });
 
 test('three views industry structure stacks the vertical tree above the horizontal tree and shares company selection',async({page})=>{
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
@@ -1430,7 +1530,8 @@ test('three views industry structure stacks the vertical tree above the horizont
  const v=page.getByRole('region',{name:'Vertical tree',exact:true}),h=page.getByRole('region',{name:'Horizontal tree',exact:true});
  await expect(v.getByRole('heading',{name:'Vertical tree'})).toBeVisible();
  expect((await v.boundingBox())!.y).toBeLessThan((await h.boundingBox())!.y);
- await expect(v.locator('[data-tree-kind="layer"]')).toHaveCount(5);
+ // The lazy WebGL scene mounts labels incrementally on software renderers.
+ await expect(v.locator('[data-tree-kind="layer"]')).toHaveCount(5,{timeout:15000});
  const root=(await v.locator('[data-tree-node="root"]').boundingBox())!;
  const apps=(await v.locator('[data-tree-node="applications"]').boundingBox())!;
  const energy=(await v.locator('[data-tree-node="energy"]').boundingBox())!;
@@ -1686,3 +1787,4 @@ test('three views horizontal tree opens one level deep with the root label clear
  // Tree controls are compact icon buttons with accessible names and tooltips.
  for(const name of ['Expand all','Collapse all','Reset view'])await expect(h.getByRole('button',{name,exact:true})).toHaveAttribute('title',name);
 });
+

@@ -45,6 +45,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const resumeElapsed = useRef(0);
   const resumeAt = useRef<number | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleResume=useRef<()=>void>(()=>{});
   const preserveLabelPlacements = useRef(false);
   const labelPlacements = useRef(new WeakMap<HTMLElement, number>());
   const labelVisibility = useRef(new WeakMap<HTMLElement, boolean>());
@@ -78,6 +79,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
       invalidate();
     };
     const down=(event:Event)=>{pointers.add((event as PointerEvent).pointerId);pause();};
+    scheduleResume.current=schedule;
     const up=(event:PointerEvent)=>{if(pointers.delete(event.pointerId))schedule();};
     const wheel=()=>{pause();schedule();};
     const keydown=(event:Event)=>{keys.add((event as KeyboardEvent).code);pause();};
@@ -99,6 +101,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     window.addEventListener('blur',blur);
     document.addEventListener('visibilitychange',visibility);
     return ()=>{
+      scheduleResume.current=()=>{};
       clearTimer();
       surface.removeEventListener('pointerdown',down,true);
       surface.removeEventListener('wheel',wheel,true);
@@ -207,6 +210,15 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     void c.setLookAt(x + distance*.2, y + distance*.12, z + distance, x, y, z, !reduced && !opening);
     invalidate();
   }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef]);
+  const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
+  useEffect(()=>{
+    const focused=Boolean(selected||activeEdge||sectorFocus),previous=lastFocus.current;
+    lastFocus.current={focused,reset};
+    if(previous.focused&&!focused&&previous.reset===reset){
+      introOrbitRef.current=false;resumedOrbit.current=null;resumeElapsed.current=0;
+      scheduleResume.current();
+    }
+  },[selected,activeEdge,sectorFocus,reset,introOrbitRef]);
   const degree = useMemo(() => {
     const counts = new Map<string,number>();
     layout.edges.forEach(e=>{counts.set(e.source,(counts.get(e.source)??0)+1);counts.set(e.target,(counts.get(e.target)??0)+1);});

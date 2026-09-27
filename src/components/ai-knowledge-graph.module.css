@@ -283,3 +283,9 @@
 @media (prefers-reduced-motion:reduce) {
   .label3d { transition:none; }
 }
+
+
+/* Company details stay beside the selected node above the isolated WebGL scene. */
+.workspace[data-view="graph"] { position:relative; isolation:isolate; grid-template-columns:minmax(0,1fr); }
+.workspace[data-view="graph"] > .detail { position:absolute; z-index:60; width:min(360px,calc(100% - 20px)); min-height:0; max-height:65vh; padding:16px; border:1px solid #36536a; border-radius:16px; box-shadow:0 14px 42px #0009; overscroll-behavior:contain; }
+.workspace[data-view="graph"] .detailHeader { position:sticky; top:-16px; z-index:1; background:#0b1520; padding:8px 0; }
