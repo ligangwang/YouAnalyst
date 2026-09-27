@@ -44,12 +44,12 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
   function toggle(id:string){
     const closing=open.includes(id);
     setOpen(current=>closing?current.filter(key=>key!==id):[...current,id]);
-    setFocus(closing||id==='root'?'':id);setRequest(n=>n+1);
+    if(!vertical){setFocus(closing||id==='root'?'':id);setRequest(n=>n+1);}
   }
   return <section className={`${styles.tree} ${vertical?styles.vertical:''}`} aria-labelledby={headingId} data-industry-section={vertical?'vertical':'horizontal'}>
     <header className={styles.toolbar}><div><h2 id={headingId}>{vertical?text('Vertical tree','垂直树状图'):text('Horizontal tree','水平树状图')}</h2><p>{companies.length} {text('unique companies · Five layers','家去重公司 · 五层产业结构')}</p></div><div className={styles.actions}>
-      <IconButton label={text('Expand all','全部展开')} onClick={()=>{setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);setFocus('');setRequest(n=>n+1);}}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></IconButton>
-      <IconButton label={text('Collapse all','全部折叠')} onClick={()=>{setOpen([]);setFocus('');setRequest(n=>n+1);}}><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></IconButton>
+      <IconButton label={text('Expand all','全部展开')} onClick={()=>{setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);setFocus('');if(!vertical)setRequest(n=>n+1);}}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></IconButton>
+      <IconButton label={text('Collapse all','全部折叠')} onClick={()=>{setOpen([]);setFocus('');if(!vertical)setRequest(n=>n+1);}}><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></IconButton>
       <IconButton label={text('Reset view','复位视角')} onClick={()=>{setFocus('');setRequest(n=>n+1);}}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4v4h4"/></IconButton>
     </div></header>
     <div ref={attachScene} className={styles.scene} data-industry-tree={vertical?'vertical':'3d'}>
@@ -62,3 +62,4 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
     <footer className={styles.hint}>{vertical&&<span>{text('Touch to pause · The tour resumes after 2 seconds of inactivity · Selected companies stay still · Right-drag to orbit','触摸暂停 · 停止操作两秒后继续巡视 · 选中公司时保持静止 · 右键拖动环绕查看')}</span>}{text('Click nodes to expand / collapse · Drag to pan · Ctrl + scroll or pinch to zoom · Scroll or swipe up and down to move the page','点击节点展开／收起 · 拖动平移 · Ctrl + 滚轮或双指缩放 · 滚动或上下滑动可移动页面')}<span>{text('Energy → Chips → Infrastructure → Models → Applications · Companies can span layers','自底向上：能源 → 芯片 → 基础设施 → 模型 → 应用 · 公司可跨层')}</span></footer>
   </section>;
 }
+
