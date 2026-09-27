@@ -19,10 +19,6 @@ Scope: AMD, NVIDIA, Intel, Broadcom and Marvell. This is the first curated relat
 
 Samsung Electronics, UMC, SPIL, KYEC, Sanmina, Tongfu ATMP joint ventures, HUMAIN, Cerebras, Hugging Face, Red Hat, Cohere and IBM require matching against the broader company directory before proposing new nodes. Do not equate a joint venture with its listed parent or Red Hat technology with IBM chip procurement. These candidates are not included in this batch's 29 edges.
 
-## Operation
+## Retired publication procedure
 
-Run `npx tsx --test tests/compute-research.test.ts` and `npx tsx scripts/publish-compute-research.ts --validate` locally. The main-only **Publish reviewed AI compute research** workflow authenticates using the existing production identity and collection permissions.
-
-The workflow previews all changes, uploads the complete affected relationship before-images, writes in one transaction only if the preview still matches, then checks that another run proposes zero changes. Repeated runs merge sources by URL and facts by content/source URLs. Preview/write/verify JSON artifacts provide the actual outcome. Restore only reviewed affected documents from the before-images if rollback is needed; never rerun a broad seed import as rollback.
-
-Refresh `/api/knowledge-graph` after its five-minute in-process and HTTP caches expire and check all candidate pairs, status labels and evidence links. No application redeployment is required for these database records.
+This fixed-batch publication operation is retired. The former GitHub Actions launcher is no longer available. The data, scripts and validation tests are retained as historical maintenance material, not an active publication runbook. Use the current admin research tools for routine work. Reusing this batch requires a newly reviewed operational procedure covering authentication, current evidence, preview approval, before-images, write consistency and post-write verification; do not treat the old batch review as authorization to republish. See [Actions and admin jobs](../../docs/github-actions.md).

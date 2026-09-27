@@ -37,22 +37,6 @@ Not included: Fabrinet is named in NVIDIA's 10-K, but `US:FN` has no public dire
 
 Each source's `summary` paraphrases the cited passage so reviewers can check it. It is **not a verbatim quote**. For new company identities the summary is stored in the company's graph sources as `excerpt` with `excerptKind: "EDITORIAL_SUMMARY"`. Relationship evidence stores only title, link and dates. No page displays these summaries as a quotation.
 
-## Operation
+## Retired publication procedure
 
-The **Publish reviewed relationship verification** workflow runs from main by manual dispatch only. It takes two separate runs.
-
-1. **Local checks.** Run `npx tsx --test tests/relationship-verification.test.ts` and `npx tsx scripts/publish-relationship-verification.ts --validate`.
-2. **`dry-run`.** This run is read-only:
-   - `--check-links` fails on dead links. It lists links that block automated requests as `BLOCKED`.
-   - `--dry-run` plans all company and relationship changes in read-only transactions.
-   - The run summary shows the change table (action, display status before → after, commercial status, facts marked or added, new sources), the link report and the **preview SHA-256**.
-   - The preview is uploaded as an artifact.
-   - Open any `BLOCKED` links manually before approving a write.
-3. **`write`.** Dispatch it with the dry run's **run ID and preview SHA-256**.
-   - The job runs behind the production environment's required reviewers.
-   - It accepts only a successful dry run of this workflow on main, and only a preview whose SHA-256 matches.
-   - `--write` re-plans everything in one transaction. It refuses if the batch, company identity resolution, any affected company record or any relationship document changed since the dry run.
-   - Company identities and relationships are written in that same transaction, so a refused or failed write leaves production unchanged.
-   - It then re-plans and asserts that nothing is left to change.
-
-Existing editorial status wins. A withdrawn or duplicate relationship fails the run for review instead of being republished.
+This fixed-batch publication operation is retired. The former GitHub Actions launcher is no longer available. The data, scripts and validation tests are retained as historical maintenance material, not an active publication runbook. Use the current admin research tools for routine work. Reusing this batch requires a newly reviewed operational procedure covering authentication, current evidence, preview approval, before-images, write consistency and post-write verification; do not treat the old batch review as authorization to republish. See [Actions and admin jobs](../../docs/github-actions.md).

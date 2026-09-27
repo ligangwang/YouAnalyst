@@ -1,6 +1,6 @@
 import { canonicalRelationship, normalizeResearch, record, text, type ResearchResult } from "./model";
 import { validChinaId } from "./china";
-import { getOpenAiModel } from "../ai-analyst/runtime";
+import { getOpenAiModel } from "../openai-runtime";
 
 export function chinaConnectionsRequest(industry: string, candidates: { id: string; name: string }[]) {
   const str = { type: "string" };

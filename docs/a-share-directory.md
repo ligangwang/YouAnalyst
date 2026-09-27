@@ -2,7 +2,7 @@
 
 Three independent operations:
 
-1. `.github/workflows/sync-company-directory.yml` imports the newest official CNI classification snapshot weekly or on manual dispatch. It is independent of website deployment; source outages cannot block releases. Production environment approvals still apply. Dispatch the first import after merging. It does not invoke OpenAI.
+1. Cloud Scheduler triggers the `sync-cni-directory-production` Cloud Run job weekly to import the newest official CNI classification snapshot. View its history in `/admin/jobs`; this job has no admin rerun button. `.github/workflows/deploy-directory-sync.yml` updates the worker image and IAM without executing an import. Imports are independent of website deployment and do not invoke OpenAI.
 2. `/admin/company-research` processes up to five pending identities at a time. Each company has an independent background response, draft, failure and explicit retry. Keep the queue open to refresh results automatically, or return and refresh. Starting new companies is admin initiated in this first version. Each company consumes one of the shared 100 research requests per UTC day; imports and refreshes do not. Inspect provider usage before retrying uncertain startup failures or timeouts.
 3. `/admin/industry-research` retains US industry connection research and uses imported CNI industries for A-share connections. Relationships require searched evidence and admin review. Industry membership never creates a relationship. Both markets use `company_relationships` with market-qualified company IDs. Published connections participate in the shared AI map.
 

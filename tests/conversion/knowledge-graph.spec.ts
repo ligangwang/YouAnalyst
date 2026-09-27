@@ -56,6 +56,34 @@ for (const view of ['graph','vertical','horizontal'] as const) test(`clicking th
  }
 });
 
+test('graph restores repeated WebGL context loss and can reload without losing selection',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ const canvas=page.locator('canvas'),node=page.locator('[data-company-id="US:NVDA"]');
+ await node.click();await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
+ await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>{
+   el.dataset.originalCanvas='true';el.loss=el.getContext('webgl2')!.getExtension('WEBGL_lose_context')!;
+   if(!el.loss)throw Error('WEBGL_lose_context required for recovery regression');
+ });
+ const status=page.getByRole('status').filter({hasText:'3D rendering was interrupted'});
+ for(let i=0;i<2;i++){
+   await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>el.loss!.loseContext());
+   await expect(status).toBeVisible();await expect(canvas).toHaveCount(1);
+   await expect(page.getByRole('alert')).toHaveCount(0);
+   await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>el.loss!.restoreContext());
+   await expect(status).toHaveCount(0);await expect(canvas).toHaveAttribute('data-original-canvas','true');
+   await expect.poll(()=>canvas.evaluate((el:HTMLCanvasElement)=>el.getContext('webgl2')!.isContextLost())).toBe(false);
+   await expect(node).toHaveAttribute('data-company-focus','selected');
+ }
+ await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>el.loss!.loseContext());
+ await expect(status).toBeVisible();await status.getByRole('button',{name:'Reload 3D'}).click();
+ await expect(status).toHaveCount(0);await expect(canvas).not.toHaveAttribute('data-original-canvas','true');
+ await expect(node).toHaveAttribute('data-company-focus','selected');
+ await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
+});
+
 async function expectGraphEmphasis(label: Locator, expected: number) {
  // A culled label fades to zero; its emphasis must still be restored when it returns.
  await expect.poll(()=>label.evaluate((el, expected)=>{
@@ -859,7 +887,10 @@ test("devices without WebGL keep the directory collapsed until requested", async
   await expect(directory.locator("li")).toHaveCount(0);
   await directory.locator("summary").click();
   await expect(directory.locator("li").first()).toBeVisible();
-  await expect(page.getByRole("button", {name:/2D|3D/})).toHaveCount(0);
+  await expect(page.getByRole("button", {name:/^(2D|3D)$/})).toHaveCount(0);
+  await page.getByRole('button',{name:'Reload 3D'}).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.locator('canvas')).toHaveCount(0);
 });
 
 test("global search and company research links work in Chinese", async ({page}) => {

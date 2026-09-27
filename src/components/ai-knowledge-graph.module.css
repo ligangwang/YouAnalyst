@@ -60,6 +60,9 @@
 .sectorLegend i, .sectorBadge i { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
 .canvas3d { position: relative; isolation: isolate; height: min(72vh, 800px); min-height: 520px; background: radial-gradient(ellipse at 35% 35%, #102333, #060c19 70%); overflow: hidden; touch-action: none; }
+.canvas3d[data-context-lost=true] { z-index: 70; }
+.contextRecovery { position:absolute; z-index:80; top:12px; left:12px; right:12px; padding:14px; border:1px solid #36536a; border-radius:12px; background:#0b1829; color:#d9e5ef; }
+.contextRecovery button,.empty button { padding:8px 12px; margin:4px; border:1px solid #719aaa; border-radius:8px; cursor:pointer; color:#c6f2ff; }
 .label3d { display: flex; flex-direction: column; gap: 3px; transform: translateY(20px); border: 0; padding: 3px; background: transparent; color: #ecf6ff; text-align: center; width: 112px; text-shadow: 0 1px 5px #020611, 0 0 4px #020611; }
 .label3d strong { font-size: 12px; font-weight: 500; }
 .label3d span { color: #abc2d6; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

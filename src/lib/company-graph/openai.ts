@@ -1,4 +1,4 @@
-import { getOpenAiApiKey, getOpenAiModel } from "@/lib/ai-analyst/runtime";
+import { getOpenAiApiKey, getOpenAiModel } from "@/lib/openai-runtime";
 import {
   COMPANY_GRAPH_EDGE_DIRECTIONS,
   COMPANY_GRAPH_RELATIONSHIP_TYPES,

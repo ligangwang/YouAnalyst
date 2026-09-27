@@ -54,7 +54,7 @@ Phase 1 of A-share fundamentals adds official share counts and an estimated mark
 | Share-changing announcements | cninfo `new/hisAnnouncement/query` (org IDs from `new/information/topSearch/query`) | Reachable |
 | Bonus/conversion ratios and ex-dates | cninfo `data20/companyOverview/getCompanyHisDividend` (`F007V` plan, `F020D` ex-date) | Reachable |
 
-The sandbox used for development blocks all Chinese hosts, so these checks ran through the read-only **Probe A-share share-count sources** workflow (`scripts/probe-cn-share-sources.ts`, no credentials, no Firestore). Cloud Run (`us-central1`) is also a US network; run the dry run below before the first real run to confirm reachability from there.
+The sandbox used for development blocks all Chinese hosts, so these checks ran through the read-only **Probe A-share share-count sources** workflow (`scripts/probe-cn-share-sources.ts`, no credentials, no Firestore). That Action is now retired; with repository dependencies installed, use `npx tsx scripts/probe-cn-share-sources.ts "301308,600519"` from a suitable network (no credentials or database writes). Cloud Run (`us-central1`) is also a US network; run the dry run below before the first real run to confirm reachability from there.
 
 ## Share counts
 
