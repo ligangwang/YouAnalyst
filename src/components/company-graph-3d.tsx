@@ -42,9 +42,10 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   const controls = useRef<CameraControls>(null);
   const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
   const preserveLabelPlacements = useRef(false);
-  const cameraMoving = useRef(false);
   const labelPlacements = useRef(new WeakMap<HTMLElement, number>());
   const labelVisibility = useRef(new WeakMap<HTMLElement, boolean>());
+  const labelFadeUntil = useRef(new WeakMap<HTMLElement, number>());
+  const labelClearSince = useRef(new WeakMap<HTMLElement, number>());
   const lastLabelView = useRef<number[]>([]);
   const companyScales = useRef(new WeakMap<HTMLElement, number>());
   const reducedMotion = useRef(false);
@@ -121,6 +122,11 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     }
     if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset)return;
     lastCameraRequest.current={layout,request:cameraRequest,reset};
+    // Only an explicit new camera request may choose new label sides.
+    labelPlacements.current=new WeakMap();
+    labelVisibility.current=new WeakMap();
+    labelFadeUntil.current=new WeakMap();
+    labelClearSince.current=new WeakMap();
     // Only an explicit new view may rearrange labels after the user has explored it.
     preserveLabelPlacements.current=false;
     lastLabelView.current=[];
@@ -180,36 +186,52 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     }
     // Preserve the user's spatial context during AND after orbit, pan, or zoom.
     // Camera rest must not move or hide a company they were tracking to avoid overlap.
-    const holdLabels = preserveLabelPlacements.current || cameraMoving.current;
+    const now=performance.now();
+    // Matches the 1.2s CSS fade. Keep retiring labels' space until it completes.
+    const fadeMs=reducedMotion.current?0:1200;
     const view=[...camera.matrixWorld.elements,...camera.projectionMatrix.elements,size.width,size.height];
     const viewChanged=view.some((value,index)=>value!==lastLabelView.current[index]);
     lastLabelView.current=view;
-    const occupied: {x:number;y:number;w:number;h:number}[]=[];
+    const occupied: {x:number;y:number;w:number;h:number;owner?:HTMLElement;retiring?:boolean}[]=[];
     const place=(element:HTMLElement, x:number,y:number,z:number, eligible:boolean, width:number,height:number, companyGap?:number, reveal=false) => {
       projected.set(x,y,z).project(camera);
       const px=(projected.x+1)*size.width/2,py=(1-projected.y)*size.height/2;
       const gap=companyGap??0;
       const offsets=companyGap!==undefined?[[0,height/2+gap],[0,-height/2-gap],[width/2+gap,0],[-width/2-gap,0],[width/2+gap,height/2+gap],[-width/2-gap,height/2+gap],[width/2+gap,-height/2-gap],[-width/2-gap,-height/2-gap]]:[[0,0]];
       const previous=companyGap!==undefined?labelPlacements.current.get(element):undefined;
+      const saved=companyGap!==undefined?labelVisibility.current.get(element):undefined;
       const ordered=previous!==undefined && previous>=0?[previous,...offsets.map((_,i)=>i).filter(i=>i!==previous)]:offsets.map((_,i)=>i);
       const inView=eligible && projected.z>-1 && projected.z<1;
       const fits=(i:number)=>{
         const [dx,dy]=offsets[i];
         const cx=px+dx,cy=py+dy;
-        return cx-width/2>2 && cx+width/2<size.width-2 && cy-height/2>2 && cy+height/2<size.height-32 && !occupied.some(p=>Math.abs(cx-p.x)<(width+p.w)/2+3 && Math.abs(cy-p.y)<(height+p.h)/2+2);
+        return cx-width/2>2 && cx+width/2<size.width-2 && cy-height/2>2 && cy+height/2<size.height-32 && !occupied.some(p=>p.owner!==element && !(p.retiring && saved===true) && Math.abs(cx-p.x)<(width+p.w)/2+3 && Math.abs(cy-p.y)<(height+p.h)/2+2);
       };
       const exploring=preserveLabelPlacements.current && companyGap!==undefined;
       // Exploration changes visibility, never the label's side. Hidden labels get a
       // stable default anchor too, so reappearing labels cannot switch sides.
-      const choice=exploring?(previous!==undefined && previous>=0?previous:0):holdLabels && previous!==undefined && previous>=0?previous:ordered.find(fits);
+      const choice=companyGap!==undefined && previous!==undefined && previous>=0?previous:exploring?0:ordered.find(fits)??(companyGap!==undefined?0:undefined);
       // Previously hidden companies can appear as space enters view; once placed, keep their side.
-      if(companyGap!==undefined && (!holdLabels || previous===undefined || previous<0))labelPlacements.current.set(element,choice??-1);
+      if(companyGap!==undefined && previous===undefined)labelPlacements.current.set(element,choice??0);
       const offset=inView && choice!==undefined && choice>=0?offsets[choice]:undefined;
-      let visible=Boolean(offset) && px>-width && px<size.width+width && py>-height && py<size.height+height;
+      let visible=Boolean(offset) && px>-width && px<size.width+width && py>-height && py<size.height+height && fits(choice!);
       if(exploring){
-        const saved=labelVisibility.current.get(element);
         // Rest, damping notifications, hover, and font easing cannot reshuffle visibility.
-        visible=!viewChanged && saved!==undefined?saved:visible && fits(choice!);
+        visible=!viewChanged && saved!==undefined && !labelClearSince.current.has(element)?saved:visible;
+      }
+      if(companyGap!==undefined && fadeMs){
+        // Finish an exit before re-entering, then require a continuously clear
+        // gap. Brief collision-boundary changes must not reverse a fade.
+        if(saved===false && visible){
+          if((labelFadeUntil.current.get(element)??0)>now)visible=false;
+          else {
+            const clearSince=labelClearSince.current.get(element)??now;
+            labelClearSince.current.set(element,clearSince);
+            visible=now-clearSince>=220;
+            if(!visible)invalidate();
+          }
+        } else labelClearSince.current.delete(element);
+        if(saved===true && !visible)labelFadeUntil.current.set(element,now+fadeMs);
       }
       if(companyGap!==undefined)labelVisibility.current.set(element,visible);
       // An intentional hover may reveal this name without altering the saved layout.
@@ -222,9 +244,11 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
         element.tabIndex=visible?0:-1;
         element.setAttribute("aria-hidden",String(!visible));
       } else element.style.visibility=visible?"visible":"hidden";
-      if(offset && visible){
+      const retiring=companyGap!==undefined && !visible && fadeMs>0 && (labelFadeUntil.current.get(element)??0)>now;
+      if(retiring)invalidate();
+      if(offset && (visible || retiring)){
         if(companyGap!==undefined){element.style.setProperty("--label-offset-x",`${offset[0]}px`);element.style.setProperty("--label-offset-y",`${offset[1]}px`);}
-        occupied.push({x:px+offset[0],y:py+offset[1],w:width,h:height});
+        occupied.push({x:px+offset[0],y:py+offset[1],w:width,h:height,owner:element,retiring});
       }
       return visible;
     };
@@ -252,7 +276,19 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
       sectorElements.current.get(sector.id)?.style.setProperty("--label-scale",String(Math.max(.7,Math.min(1,fitDistance*.7/Math.max(1,distance)))));
     }
     const measurements=new Map([...labelElements.current.values(),...edgeElements.current.values(),...sectorElements.current.values()].map(element=>[element,{width:element.offsetWidth,height:element.offsetHeight}]));
-    const candidates=[...layout.nodes].sort((a,b)=>Number(b.id===selected||b.id===hovered)-Number(a.id===selected||a.id===hovered)||Number(edgeEndpoints.has(b.id))-Number(edgeEndpoints.has(a.id))||Number(sectorMembers.has(b.id))-Number(sectorMembers.has(a.id))||Number(connected.has(b.id))-Number(connected.has(a.id))||((close?((camera.position.x-a.x)**2+(camera.position.y-a.y)**2+(camera.position.z-a.z)**2)-((camera.position.x-b.x)**2+(camera.position.y-b.y)**2+(camera.position.z-b.z)**2):0))||(degree.get(b.id)??0)-(degree.get(a.id)??0));
+    // Reserve exits before admitting any new labels, regardless of depth order.
+    if(fadeMs)for(const n of layout.nodes){
+      const element=labelElements.current.get(n.id);
+      if(!element || labelVisibility.current.get(element)!==false || (labelFadeUntil.current.get(element)??0)<=now)continue;
+      invalidate();
+      projected.set(n.x,n.y,n.z).project(camera);
+      if(projected.z<=-1 || projected.z>=1)continue;
+      const {width,height}=measurements.get(element)!;
+      const dx=parseFloat(element.style.getPropertyValue("--label-offset-x"))||0,dy=parseFloat(element.style.getPropertyValue("--label-offset-y"))||0;
+      occupied.push({x:(projected.x+1)*size.width/2+dx,y:(1-projected.y)*size.height/2+dy,w:width,h:height,owner:element,retiring:true});
+    }
+    const wasVisible=(id:string)=>{const element=labelElements.current.get(id);return Boolean(element && labelVisibility.current.get(element));};
+    const candidates=[...layout.nodes].sort((a,b)=>Number(b.id===selected||b.id===hovered)-Number(a.id===selected||a.id===hovered)||Number(edgeEndpoints.has(b.id))-Number(edgeEndpoints.has(a.id))||Number(sectorMembers.has(b.id))-Number(sectorMembers.has(a.id))||Number(connected.has(b.id))-Number(connected.has(a.id))||Number(wasVisible(b.id))-Number(wasVisible(a.id))||((close?((camera.position.x-a.x)**2+(camera.position.y-a.y)**2+(camera.position.z-a.z)**2)-((camera.position.x-b.x)**2+(camera.position.y-b.y)**2+(camera.position.z-b.z)**2):0))||(degree.get(b.id)??0)-(degree.get(a.id)??0));
 
     const visibleCompanies=new Set<string>();
     const placedEdges=new Set<string>();
@@ -304,7 +340,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   });
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{cameraMoving.current=true;gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{cameraMoving.current=false;invalidate();}} onSleep={()=>{cameraMoving.current=false;gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
+    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
