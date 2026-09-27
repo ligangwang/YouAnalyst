@@ -760,7 +760,8 @@ test("selected relationships stay readable and evidence remains actionable", asy
   const focused=await projectedGraphPositions(page);
   await page.waitForTimeout(2300);
   await expect(canvas).toHaveAttribute('data-rotation','focused');
-  expect(await projectedGraphPositions(page)).toEqual(focused);
+  // Drei may finish a sub-pixel label update after the camera settles.
+  expect(Math.max(...(await projectedGraphPositions(page)).map((v,i)=>Math.abs(v-focused[i])))).toBeLessThan(.1);
   await page.mouse.move(5,5);
   const labels=page.locator('button[class*="edgeLabel3d"]:visible');
   await expect(labels).toHaveCount(0);
@@ -771,7 +772,7 @@ test("selected relationships stay readable and evidence remains actionable", asy
   const connection=await projectedGraphPositions(page);
   await page.waitForTimeout(2300);
   await expect(canvas).toHaveAttribute('data-rotation','focused');
-  expect(await projectedGraphPositions(page)).toEqual(connection);
+  expect(Math.max(...(await projectedGraphPositions(page)).map((v,i)=>Math.abs(v-connection[i])))).toBeLessThan(.1);
 });
 
 
