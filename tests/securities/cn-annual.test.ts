@@ -55,6 +55,9 @@ test('provider failures preserve last report, retry later, and dry runs never wr
   const annual=parse([row]),state=database({cnAnnual:annual});
   const result=await refreshCnAnnual({db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('provider offline');}});
   assert.equal(result.failed,1);assert.deepEqual(state.docs.get(id)?.cnAnnual,annual);
+  const retry=await refreshCnAnnual({db:state.db,companies:[id],deadline:now.getTime()+120000,log,now:()=>now.getTime(),fetch:async()=>{throw new Error('cooldown must prevent fetch');}});
+  assert.equal(retry.failed,1);assert.equal(retry.skipped,0);
+  assert.deepEqual(state.docs.get(id)?.cnAnnual,annual);
   const dry=database();
   await refreshCnAnnual({db:dry.db,companies:[id],deadline:now.getTime()+120000,log,dryRun:true,now:()=>now.getTime(),fetch:async()=>annual,print:()=>{}});
   assert.equal(dry.writes.length,0);
