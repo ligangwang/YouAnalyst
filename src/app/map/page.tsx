@@ -7,7 +7,7 @@ import { ResearchDiscovery } from "@/components/research-discovery";
 export const dynamic = "force-dynamic";
 type MapSearchParams = { event?: string | string[]; relationship?: string | string[]; company?: string | string[]; market?: string | string[]; q?: string | string[]; view?: string | string[] };
 export async function generateMetadata(): Promise<Metadata> {
-  return localizedMetadata({ title: "AI Industry Map: AI Stocks & Companies | YouAnalyst", description: "Explore AI stocks, companies, and supply-chain relationships across US and China A-share markets.", alternates: { canonical: "/" } });
+  return localizedMetadata({ title: "AI Industry Map: AI Stocks & Companies | YouAnalyst", description: "Visual intelligence for investment research. Explore AI stocks, companies, and supply-chain relationships across US and China A-share markets.", alternates: { canonical: "/" } });
 }
 export default async function Home({ searchParams }: { searchParams: Promise<MapSearchParams> }) {
   const { company, view, q, event, relationship } = await searchParams;

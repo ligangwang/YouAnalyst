@@ -161,7 +161,8 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     // A gentle introduction only: never compete with a focused company or user input.
     if (selected || activeEdge || sectorFocus) introOrbitRef.current = false;
     if (introOrbitRef.current && !reducedMotion.current && controls.current && !document.hidden) {
-      introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.35, fitDistance * .9));
+      // Move into a detail view before orbiting; keep the camera outside the node cloud.
+      introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.2, fitDistance * .42));
       const step = introPath.current(delta, controls.current.polarAngle);
       void controls.current.dollyTo(step.distance, false);
       void controls.current.rotate(step.azimuth, step.polar, false);
@@ -212,14 +213,14 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     };
     const target=controls.current?.getTarget(new Vector3()) ?? new Vector3();
     const close=camera.position.distanceTo(target)<fitDistance*.68;
-    const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.15,fitDistance*.55/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
+    const labelScale=(x:number,y:number,z:number)=>Math.max(.45,Math.min(1.5,fitDistance*.65/Math.max(1,Math.hypot(camera.position.x-x,camera.position.y-y,camera.position.z-z))));
     // Write all font sizes first, then measure the actual rendered labels in one batch.
     let scalesSettling=false;
     // Ease the actual font dimensions, so collision measurement follows what is rendered.
     const blend=1-Math.exp(-Math.min(delta,.05)/.12);
     for(const n of layout.nodes){
       const element=labelElements.current.get(n.id);if(!element)continue;
-      const targetScale=n.id===selected||n.id===hovered?1.15:labelScale(n.x,n.y,n.z);
+      const targetScale=n.id===selected||n.id===hovered?1.5:labelScale(n.x,n.y,n.z);
       const previous=companyScales.current.get(element)??targetScale;
       const next=reducedMotion.current?targetScale:previous+(targetScale-previous)*blend;
       const scale=Math.abs(next-targetScale)<.001?targetScale:next;
