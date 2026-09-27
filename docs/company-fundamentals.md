@@ -25,6 +25,20 @@ jsonPayload.event="sec_request_failed"
 
 Filter further with `jsonPayload.status=429`, `jsonPayload.ticker="AMD"`, `jsonPayload.cik="0000002488"`, `jsonPayload.kind="timeout"` or a `jsonPayload.runId` from the failed job. Request failures remain in Cloud Logging even when a later retry clears the company's latest error in Firestore. Retention follows the project's log bucket policy.
 
+# A-share annual financials through AKShare
+
+Admin → Scheduled jobs → **A-share financials and market caps** provides the existing Run now action and run/error history. It processes every Shanghai/Shenzhen A-share company selected from the published map on each run, automatically including newly added companies. Annual updated/skipped/failed/deferred counts appear alongside share-count and market-cap results. The existing weekday 09:30 America/New_York schedule is unchanged.
+
+The existing China fundamentals worker fetches annual consolidated income statements through AKShare 1.18.97 (`stock_profit_sheet_by_yearly_em`, Eastmoney). Full IDs map to provider symbols, for example `XSHE:301308` to `SZ301308`. `OPERATE_INCOME` is annual revenue and `PARENT_NETPROFIT` is net income attributable to the parent; both are stored in CNY yuan. Interim reports, future disclosures, mismatched securities, unsupported currencies, missing values and ambiguous revisions are rejected. Zero and negative profits are valid.
+
+The existing `company_fundamentals/{fullCompanyId}` document stores `cnAnnual` (report period, announcement/update dates, source link, fetch time and metrics) and `cnAnnualStatus` (last check, retry time and outcome). No collection is added. Fetch failures preserve the previously published financials. The API accepts full A-share IDs and reads this cache without provider calls or SEC queue writes. Both the map company card and company page display the reporting year, attributable-profit label and AKShare/Eastmoney attribution; a cache older than three days is marked stale.
+
+Annual refresh gets at most six minutes of the existing eighteen-minute worker budget, with a sixty-second subprocess limit per company. Successful checks wait one day, failures six hours. Least recently checked companies run first so a later run resumes deferred work; three failures stop the annual batch. Failed or deferred annual work makes the execution non-zero, while the share-count and market-cap phase still runs. Dry runs print annual snapshots without writing them.
+
+`Dockerfile.fundamentals` installs the pinned Python requirements in `/opt/akshare` and sets `AKSHARE_PYTHON`. For local use, install `scripts/akshare-requirements.txt` in a virtual environment and set `AKSHARE_PYTHON` to its Python executable. Deploy the updated maintenance image as well as the website, then execute the existing China job to populate the initial cache. Website deployment alone does not populate financials.
+
+Live provider checks on 2026-09-27 returned Longsys (`301308`) FY2025 revenue CNY 22,766,169,990.55 and attributable profit CNY 1,423,298,162.88 (announced 2026-04-28), and SMIC (`688981`) FY2025 revenue CNY 67,323,192,000 and attributable profit CNY 5,040,734,000. These development checks did not write production data.
+
 # A-share share counts and market caps
 
 Phase 1 of A-share fundamentals adds official share counts and an estimated market cap for every Shanghai (`XSHG:`) and Shenzhen (`XSHE:`) company on the map (about 62). It mirrors the SEC design: `cnMapCompanies(graph)` selects companies from the same published graph the website renders, `refresh-cn-fundamentals-production` owns share counts, and market caps are recalculated from stored prices without provider calls. The CNI directory sync and the China EOD job do not collect share counts.

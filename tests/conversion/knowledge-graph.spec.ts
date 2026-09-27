@@ -1497,6 +1497,34 @@ test('three views application siblings share a vertical column and remain inside
  await page.screenshot({path:'output/tree-siblings-'+test.info().project.name+'.png',fullPage:true});
 });
 
+test('A-share snapshot loads cached close and annual attributable profit with the full company ID',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='XSHG:688981')};
+ const requests:string[]=[];
+ await page.route('**/*',r=>{
+  const url=new URL(r.request().url());
+  if(url.pathname==='/api/company-fundamentals'){
+   requests.push(url.searchParams.get('ticker')??'');
+   return r.fulfill({json:{data:{marketCap:{close:100,currency:'CNY',priceDate:'2026-09-25'},annual:{end:'2025-12-31',filed:'2026-03-27',sourceUrl:'https://emweb.securities.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index?type=web&code=sh688981#lrb-0'},metrics:[{label:'Revenue',value:2000000000,unit:'CNY',start:'2025-01-01',end:'2025-12-31'},{label:'Net income attributable to parent',value:-100000000,unit:'CNY',start:'2025-01-01',end:'2025-12-31'}]}}});
+  }
+  return url.pathname==='/api/knowledge-graph'?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html});
+ });
+ for(const lang of ['en','zh-CN']){
+  await page.goto(`http://graph.test/map?lang=${lang}&view=tree`);
+  const tree=page.locator('[data-industry-section="horizontal"]');await tree.scrollIntoViewIfNeeded();
+  await tree.locator('[data-tree-node="chips/foundry"]').click();
+  await tree.locator('[data-tree-company="XSHG:688981"]').first().click();
+  const card=page.getByRole('dialog');
+  await expect(card).toContainText('100 CNY');
+  await expect(card).toContainText(lang==='en'?'Annual net income attributable to parent':'年度归母净利润');
+  await expect(card).toContainText(lang==='en'?'-100M CNY':'-1亿 CNY');
+  await expect(card).toContainText('2025-01-01 → 2025-12-31');
+  await expect(card).toContainText('2026-03-27');
+  await expect(card).not.toContainText('SEC');
+ }
+ expect(requests).toEqual(['XSHG:688981','XSHG:688981']);
+});
+
 test('three views company snapshot stays inside the canvas and closes without losing the tree',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};

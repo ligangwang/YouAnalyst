@@ -1,11 +1,14 @@
 import { getAdminFirestore } from '@/lib/firebase/admin';
 import { requestCompanyFundamentals, validFundamentalsTicker } from '@/lib/fundamentals/service';
 import { maintenanceError } from '@/lib/maintenance-log';
+import { CN_COMPANY_ID } from '@/lib/knowledge-graph/cn-companies';
+import { readCnFundamentals } from '@/lib/fundamentals/cn-service';
 
 export async function GET(request: Request) {
   const ticker = new URL(request.url).searchParams.get('ticker') ?? '';
-  if (!validFundamentalsTicker(ticker)) return Response.json({error:'Invalid ticker'}, {status:400});
+  if (!validFundamentalsTicker(ticker)&&!CN_COMPANY_ID.test(ticker)) return Response.json({error:'Invalid ticker'}, {status:400});
   try {
+    if(CN_COMPANY_ID.test(ticker))return Response.json({data:await readCnFundamentals(ticker,getAdminFirestore())},{headers:{'Cache-Control':'public, max-age=60, s-maxage=300'}});
     // Serve the existing cache; missing/stale records join the daily worker queue.
     // Visitor requests never call SEC.
     const data = await requestCompanyFundamentals(ticker, getAdminFirestore());
