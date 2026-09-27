@@ -10,12 +10,13 @@ import { CompanyCountryFlag } from './company-country-flag';
 import { CompanyFollowButton } from './company-follow-button';
 import { useLocale } from './providers/locale-provider';
 import styles from './industry-tree.module.css';
+import cardFade from './card-fade.module.css';
 import { useNodeCardPosition } from './use-node-card-position';
 import { CN_COMPANY_ID } from '@/lib/knowledge-graph/cn-companies';
 import type { CnAnnual } from '@/lib/fundamentals/cn-annual';
 
 type Snapshot = Pick<CompanyFundamentals,'metrics'|'marketCap'|'stale'> & {annual?:CnAnnual|null};
-export function TreeCompanyCard({company,color,onClose,reveal=false}:{company:GraphNode;color:string;onClose:()=>void;reveal?:boolean}) {
+export function TreeCompanyCard({company,color,onClose,reveal=false,closing=false}:{company:GraphNode;color:string;onClose:()=>void;reveal?:boolean;closing?:boolean}) {
   const {locale,text}=useLocale();
   const [result,setResult]=useState<{data:Snapshot|null;error?:boolean}|null>(null);
   const close=useRef<HTMLButtonElement>(null);
@@ -37,7 +38,7 @@ export function TreeCompanyCard({company,color,onClose,reveal=false}:{company:Gr
   const number=(value:number|null|undefined,unit?:string|null)=>typeof value==='number'&&Number.isFinite(value)
     ? `${new Intl.NumberFormat(locale,{notation:'compact',maximumFractionDigits:2}).format(value)} ${unit??''}`
     : text('Unavailable','暂无');
-  return <aside ref={card} role="dialog" aria-modal="false" aria-label={text('Company details','公司详情')} className={styles.companyCard}
+  return <aside ref={card} role="dialog" aria-modal="false" aria-label={text('Company details','公司详情')} className={`${styles.companyCard} ${cardFade.card}`} data-closing={closing} inert={closing}
     style={{'--card-accent':color} as CSSProperties} onPointerDown={e=>e.stopPropagation()} onWheel={e=>e.stopPropagation()}
     onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape')onClose();}}>
     <header className={styles.cardHeader}><span>{text('Company snapshot','公司基本面')}</span><button ref={close} aria-label={text('Close company details','关闭公司详情')} onClick={onClose}>×</button></header>

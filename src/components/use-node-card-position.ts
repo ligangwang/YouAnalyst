@@ -23,7 +23,7 @@ export function useNodeCardPosition(companyId:string, kind:'graph'|'tree', enabl
         if(right>left&&bottom>top){
           const width=Math.min(360,right-left),maxHeight=Math.min(520,(bottom-top)*.72);
           element.style.width=`${width}px`;element.style.maxHeight=`${maxHeight}px`;
-          const height=Math.min(element.offsetHeight,maxHeight);
+          let height=Math.min(element.offsetHeight,maxHeight);
           const attr=kind==='tree'?'data-tree-company':'data-company-id';
           const labels=[...host.querySelectorAll<HTMLElement>(`[${attr}]`)].filter(el=>el.getAttribute(attr)===companyId);
           const boxes=labels.map(el=>el.getBoundingClientRect());
@@ -33,7 +33,15 @@ export function useNodeCardPosition(companyId:string, kind:'graph'|'tree', enabl
             const cx=(node.left+node.right)/2,cy=(node.top+node.bottom)/2;
             if(node.right+12+width<=right){x=node.right+12;y=cy-height/2;}
             else if(node.left-12-width>=left){x=node.left-12-width;y=cy-height/2;}
-            else {x=cx-width/2;y=node.bottom+12+height<=bottom?node.bottom+12:node.top-12-height;}
+            else {
+              // On narrow screens keep the selected label tappable: let the card
+              // scroll in the larger space above/below it instead of covering it.
+              const below=Math.max(0,bottom-node.bottom-12),above=Math.max(0,node.top-12-top);
+              const placeBelow=height<=below||(height>above&&below>=above);
+              const available=placeBelow?below:above;
+              if(available>0&&height>available){height=available;element.style.maxHeight=`${available}px`;}
+              x=cx-width/2;y=placeBelow?node.bottom+12:node.top-12-height;
+            }
           }
           element.style.left=`${Math.max(left,Math.min(right-width,x))-origin.left}px`;
           element.style.top=`${Math.max(top,Math.min(bottom-height,y))-origin.top}px`;
