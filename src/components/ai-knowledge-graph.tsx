@@ -167,6 +167,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   function toggleSector(id: string) {
     const next = sectorFocus === id ? "" : id;
     selectCompany("");
+    if(next)setCameraRequest(value=>value+1);
     setSectorFocus(next);
     setSectorsExpanded(false);
   }
