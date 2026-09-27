@@ -314,7 +314,7 @@ function Scene(props:TreeSceneProps){
             collisionLabels.current.add(node.id);continue;
           }
         }
-        occupied.push({id:node.id,box});
+        if(!occupied.some(entry=>entry.id===node.id))occupied.push({id:node.id,box});
       }
       if(previousCollisions.size!==collisionLabels.current.size||[...previousCollisions].some(id=>!collisionLabels.current.has(id)))moving=true;
       lastCollision.current=now;
@@ -377,6 +377,7 @@ function Scene(props:TreeSceneProps){
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
+          onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
           onClick={()=>node.company?props.onSelect(node.company.id):props.onToggle(node.id)}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}</small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
