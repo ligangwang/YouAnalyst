@@ -285,6 +285,7 @@ function Scene(props:TreeSceneProps){
         ||distances.get(a.id)!-distances.get(b.id)!);
       // Read all bounds together before changing any collision state. Cache the
       // result between passes so the cinematic frame loop avoids forced layouts.
+      const canvasBounds=gl.domElement.getBoundingClientRect();
       const bounds=new Map(ordered.flatMap(node=>{
         const el=labels.current.get(node.id);
         if(!el)return [];
@@ -292,12 +293,13 @@ function Scene(props:TreeSceneProps){
         const group=groups.current.get(node.id),dimensions=labelSizes.current.get(el);
         if(!group||!dimensions)return [];
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
-        if(htmlScale<(node.kind==='company'?.65:.72)&&!(labelFades.current.get(el)?.level))return [];
+        const fade=labelFades.current.get(el),threshold=(node.kind==='company'?.65:.72)+(fade?.visible?0:.04);
+        if(htmlScale<threshold&&!fade?.level)return [];
         const left=node.position[0]<0,scale=node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1;
         vector.copy(group.position);vector.x+=(left?-1:1)*(node.kind==='company'?16:22)*group.scale.x;
         vector.project(state.camera);
         const width=dimensions.width*scale,height=dimensions.height*scale;
-        const x=(vector.x+1)*size.width/2,y=(1-vector.y)*size.height/2;
+        const x=canvasBounds.left+(vector.x+1)*size.width/2,y=canvasBounds.top+(1-vector.y)*size.height/2;
         return [[node.id,new DOMRect(x-(left?width:0),y,width,height)] as const];
       }));
       const occupied:{id:string;box:DOMRect;retiring?:boolean}[]=ordered.flatMap(node=>{
