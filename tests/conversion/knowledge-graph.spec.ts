@@ -1648,3 +1648,89 @@ test('navigation: hierarchy pause preserves progress through the current stop',a
  await page.getByRole('button',{name:'Resume tour',exact:true}).click();
  await expect(page.locator('[data-hierarchy-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:4000});
 });
+
+
+for(const closeWith of ['cross','node'] as const)test(`navigation: hierarchy resumes the same stop after closing a company with ${closeWith}`,async({page})=>{
+ test.setTimeout(60000);
+ await navigationFixture(page,'hierarchy');
+ await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ const scene=page.locator('[data-industry-tree="hierarchy"]');
+ const companies=scene.locator('[data-tree-company]');
+ await expect(companies.first()).toBeAttached({timeout:22000});
+ // Approach the end of the company-group transition before inspecting it.
+ await page.waitForTimeout(8000);
+ await companies.first().evaluate((el:HTMLButtonElement)=>el.click());
+ const card=page.getByRole('dialog',{name:'Company details'});
+ await expect(card).toBeVisible();
+ await expect(scene).toHaveAttribute('data-tour','paused');
+ await expect(page.getByRole('button',{name:'Pause tour',exact:true})).toBeVisible();
+ const svg=scene.locator('svg');
+ const held=await svg.getAttribute('viewBox');
+ await page.waitForTimeout(500);
+ expect(await svg.getAttribute('viewBox')).toBe(held);
+ if(closeWith==='cross'){
+  // Switching the selected company must preserve the original tour progress too.
+  await companies.nth(1).evaluate((el:HTMLButtonElement)=>el.click());
+  await expect(companies.nth(1)).toHaveAttribute('aria-pressed','true');
+  await card.getByRole('button',{name:'Close company details',exact:true}).click();
+ }else await companies.first().evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(card).toHaveCount(0);
+ await expect(scene).toHaveAttribute('data-tour','running');
+ // The remaining transition plus reading hold fits within seven seconds at 2x;
+ // restarting this company stop would take another 12.5 seconds.
+ await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:7000});
+});
+
+test('navigation: closing a hierarchy card respects an explicit Pause choice',async({page})=>{
+ await navigationFixture(page,'hierarchy');
+ await page.getByRole('button',{name:'Expand all',exact:true}).click();
+ const scene=page.locator('[data-industry-tree="hierarchy"]');
+ const node=scene.locator('[data-tree-company]').first();
+ const card=page.getByRole('dialog',{name:'Company details'});
+ for(const pauseDuringCard of [false,true]){
+  if(pauseDuringCard)await page.getByRole('button',{name:'Resume tour',exact:true}).click();
+  await node.evaluate((el:HTMLButtonElement)=>el.click());
+  await expect(card).toBeVisible();
+  if(pauseDuringCard)await page.getByRole('button',{name:'Pause tour',exact:true}).click();
+  await card.getByRole('button',{name:'Close company details',exact:true}).click();
+  await expect(card).toHaveCount(0);
+  await expect(scene).toHaveAttribute('data-tour','paused');
+  await expect(page.getByRole('button',{name:'Resume tour',exact:true})).toBeVisible();
+ }
+});
+
+
+test('navigation: hierarchy parent toggles redirect the running tour and respect explicit pause',async({page})=>{
+ await navigationFixture(page,'hierarchy');
+ const scene=page.locator('[data-industry-tree="hierarchy"]');
+ const activate=async(id:string)=>scene.locator(`[data-hierarchy-node="${id}"]`).evaluate((el:HTMLButtonElement)=>el.click());
+ await activate('chips');
+ await activate('chips/compute');
+ await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect(scene).toHaveAttribute('data-tour','running');
+ await expect(scene.locator('[data-hierarchy-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
+ const svg=scene.locator('svg'),before=await svg.getAttribute('viewBox');
+ await expect.poll(()=>svg.getAttribute('viewBox')).not.toBe(before);
+ await activate('chips/compute');
+ await expect(scene.locator('[data-hierarchy-node="chips/compute"]')).toHaveAttribute('aria-expanded','false');
+ await expect(scene.locator('[data-hierarchy-node="chips/memory"]')).toHaveAttribute('aria-expanded','true');
+ await activate('chips');
+ await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','false');
+ await expect(scene.locator('[data-hierarchy-node="infrastructure"]')).toHaveAttribute('aria-expanded','true');
+ await expect(scene).toHaveAttribute('data-tour','running');
+ await page.getByRole('button',{name:'Pause tour',exact:true}).click();
+ await activate('chips');
+ await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true');
+ await expect(scene).toHaveAttribute('data-tour','paused');
+ await page.getByRole('button',{name:'Resume tour',exact:true}).click();
+ await expect(scene).toHaveAttribute('data-tour','running');
+ // The root has no next sibling: leave it collapsed until the user reopens it.
+ await activate('root');
+ await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveCount(0);
+ await page.waitForTimeout(300);
+ await expect(scene.locator('[data-hierarchy-node="root"]')).toHaveAttribute('aria-expanded','false');
+ await activate('root');
+ await expect(scene).toHaveAttribute('data-tour','running');
+});

@@ -124,7 +124,7 @@ test('layer tour pulls back, travels along the trunk, approaches the next layer 
 });
 
 
-import { hierarchyTourPlan } from '../src/lib/knowledge-graph/hierarchy-tour';
+import { hierarchyTourPlan, hierarchyTourIndex } from '../src/lib/knowledge-graph/hierarchy-tour';
 import { createIntroOrbit } from '../src/lib/knowledge-graph/intro-orbit';
 import { tourDelta } from '../src/lib/knowledge-graph/tour-motion';
 
@@ -157,4 +157,25 @@ test('tour clock and speed multipliers are consistent at 5, 20 and 60 fps',()=>{
       result.shot.position.forEach((v,i)=>assert(Math.abs(v-results[0].shot.position[i])<1e-8));
     }
   }
+});
+
+
+test('hierarchy parent redirects visit children, skip every closed group and wrap safely',()=>{
+ const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
+ const plan=hierarchyTourPlan(layers,1000,400);
+ for(const layer of layers){
+  const start=hierarchyTourIndex(plan,layer.id,true);
+  assert.equal(plan[start].focus,layer.id);
+  const next=hierarchyTourIndex(plan,layer.id,false);
+  assert(!plan[next].open.includes(layer.id));
+  for(const branch of layer.branches){
+   const child=hierarchyTourIndex(plan,branch.id,true);
+   assert.equal(plan[child].focus,branch.id);
+   assert(plan[child].members?.length);
+   const after=hierarchyTourIndex(plan,branch.id,false);
+   assert(!plan[after].open.includes(branch.id));
+  }
+ }
+ assert.equal(hierarchyTourIndex(plan,layers.at(-1)!.id,false),0);
+ assert.equal(hierarchyTourIndex(plan,'root',true),0);
 });
