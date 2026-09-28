@@ -38,7 +38,7 @@ export function fundamentalsVersion(value: Record<string, unknown> | null | unde
 }
 const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/pubsub"] });
 export async function publishFundamentalsMessage(topic: string, message: FundamentalsRequest | FundamentalsUpdate) {
-  const project = process.env.GCP_PROJECT_ID;
+  const project = process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   if (!project || !/^[A-Za-z][A-Za-z0-9._~+%-]{2,254}$/.test(topic)) throw new Error("Pub/Sub project/topic missing or invalid");
   const client = await auth.getClient();
   const result = await client.request<{ messageIds: string[] }>({

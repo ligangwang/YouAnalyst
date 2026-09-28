@@ -35,6 +35,8 @@ test('all workers build one shared image and one directory image without executi
   assert.equal(r.calls.match(/run jobs deploy/g)?.length,3);
   assert.equal(r.calls.match(/run jobs update/g)?.length,1);
   assert.doesNotMatch(r.calls,/run jobs execute/);assert.match(r.calls,/--image example\/image@sha256:abcdef/);
+  assert.match(r.calls,/pubsub topics add-iam-policy-binding sec-fundamentals-requests .*--member serviceAccount:web@demo.iam.gserviceaccount.com --role roles\/pubsub.publisher/);
+  assert.doesNotMatch(r.calls,/pubsub topics add-iam-policy-binding sec-fundamentals-(updates|dead-letter) .*--member serviceAccount:web@demo.iam.gserviceaccount.com/);
 });
 test('directory-only deploy avoids shared build and schedule changes',()=>{
   const r=run('directory');assert.equal(r.status,0,r.stderr);

@@ -4,6 +4,8 @@ set -euo pipefail
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE}"
 : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"
 region="${GCP_REGION:-us-central1}"
+source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
+web_runtime="$(web_runtime_service_account)"
 runtime="directory-sync-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com"
 invoker="directory-sync-scheduler@$GCP_PROJECT_ID.iam.gserviceaccount.com"
 service=sec-fundamentals-subscriber
@@ -24,6 +26,8 @@ done
 for topic in "$request" "$result"; do
   gcloud pubsub topics add-iam-policy-binding "$topic" --project "$GCP_PROJECT_ID" --member "serviceAccount:$runtime" --role roles/pubsub.publisher --quiet >/dev/null
 done
+# Public page reads may enqueue work, but may not publish results or manage topics.
+gcloud pubsub topics add-iam-policy-binding "$request" --project "$GCP_PROJECT_ID" --member "serviceAccount:$web_runtime" --role roles/pubsub.publisher --quiet >/dev/null
 # Bounded retention keeps published results available before further consumers
 # are introduced; a pull subscription preserves dead letters for inspection.
 for pair in "$result:sec-fundamentals-updates-audit" "$dead:sec-fundamentals-dead-letter-audit"; do

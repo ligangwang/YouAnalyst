@@ -8,17 +8,7 @@ import { assessShares } from "./market-cap";
 
 const DAY = 86_400_000;
 let identities: { expires: number; value: Promise<Map<string, string>> } | null = null;
-let requestQueue = Promise.resolve();
-
-// One globally leased worker processes companies sequentially and spaces all
-// fundamentals SEC requests, including narrative downloads, by 500 ms.
-async function secTurn() {
-  const turn = requestQueue.then(() => new Promise<void>(resolve => setTimeout(resolve, 500)));
-  requestQueue = turn.catch(() => undefined);
-  await turn;
-}
 async function secJson<T>(url: string): Promise<T> {
-  await secTurn();
   return secRequest(url, {
     headers: { "user-agent": process.env.SEC_USER_AGENT?.trim() || "YouAnalyst/1.0 (https://youanalyst.com)", accept: "application/json" },
     cache: "no-store", signal: AbortSignal.timeout(12_000),
@@ -80,7 +70,6 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
         const section = await db.collection("sec_filing_sections").doc(`${report.accession}_item1`).get();
         if (typeof section.get("text") === "string") excerpt = businessExcerpt(section.get("text"));
         if (!excerpt) {
-          await secTurn();
           const sections = await (dependencies?.readSections ?? fetchLatest10KSections)(cik, { accessionNumber: report.accession, filingDate: report.filed, reportDate: report.end, primaryDocument: report.url.split("/").pop()!, filingUrl: report.url }, AbortSignal.timeout(12_000));
           excerpt = businessExcerpt(sections.find(item => item.id === "item1")?.text ?? "");
         }

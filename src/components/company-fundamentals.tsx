@@ -14,7 +14,7 @@ export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | 
     && Number.isFinite(marketCap.value) && marketCap.value > 0 && marketCap.priceDate && marketCap.shares;
   return <section aria-labelledby="company-fundamentals" className="border-b border-white/15 py-6">
     <h2 id="company-fundamentals" className="scroll-mt-24 text-xl font-semibold text-cyan-100"><UiText text={"Business and financials"} /></h2>
-    {!data ? <p className="mt-3 text-sm text-slate-400"><UiText text={"SEC fundamentals are not available for this company right now. Financial data is updated daily."} /></p> : <>
+    {!data ? <p className="mt-3 text-sm text-slate-400"><UiText text={"SEC fundamentals are not available yet. Missing data is requested in the background where coverage is available."} /></p> : <>
       <div className="my-4 rounded-xl border border-white/10 bg-slate-900/40 p-4">
         <p className="text-sm text-slate-300"><UiText text={"Estimated market cap"} /></p>
         <p className="mt-2 text-2xl font-semibold text-white"><UiText text={hasMarketCap ? displayValue(marketCap!.value, marketCap!.currency) : "Unavailable"} /></p>
@@ -52,7 +52,7 @@ export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | 
           </>}</dd>
         </div>)}
       </dl>
-      <p className="mt-3 text-xs leading-5 text-slate-400"><UiText text={"Source: SEC Company Facts. Checked "} />{data.fetchedAt.slice(0, 10)}<UiText text={". Updates run daily in the background. Missing or ambiguous figures are left unavailable."} /></p>
+      <p className="mt-3 text-xs leading-5 text-slate-400"><UiText text={"Source: SEC Company Facts. Checked "} />{data.fetchedAt.slice(0, 10)}<UiText text={". Data is refreshed in the background. Missing or ambiguous figures are left unavailable."} /></p>
       {data.stale && <p className="mt-2 text-xs text-amber-200"><UiText text={"Showing a previously fetched snapshot. A recent refresh has not completed."} /></p>}
     </>}
   </section>;
