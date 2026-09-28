@@ -1,62 +1,29 @@
 "use client";
-
-import { useEffect, useRef } from 'react';
-
-// Keep an overlay beside its projected node, inside the visible part of the scene.
-export function useNodeCardPosition(companyId:string, kind:'graph'|'tree', enabled=true){
-  const card=useRef<HTMLElement>(null);
-  useEffect(()=>{
-    const element=card.current;if(!element||!enabled)return;
-    const host=element.closest<HTMLElement>(kind==='tree'?'[data-industry-tree]':'[data-view="graph"]');
-    if(!host)return;
-    let frame=0;
-    const place=()=>{
-      if(!element.isConnected)return;
-      const scene=kind==='tree'?host:host.querySelector<HTMLElement>('[data-graph-interaction]');
-      const bounds=scene?.getBoundingClientRect(),origin=host.getBoundingClientRect();
-      if(bounds&&bounds.width&&bounds.height){
-        const viewport=window.visualViewport;
-        const left=Math.max(bounds.left,viewport?.offsetLeft??0)+10;
-        const top=Math.max(bounds.top,viewport?.offsetTop??0)+10;
-        const right=Math.min(bounds.right,(viewport?.offsetLeft??0)+(viewport?.width??innerWidth))-10;
-        const bottom=Math.min(bounds.bottom,(viewport?.offsetTop??0)+(viewport?.height??innerHeight))-10;
-        if(right>left&&bottom>top){
-          const width=Math.min(360,right-left),maxHeight=Math.min(520,(bottom-top)*.72);
-          element.style.width=`${width}px`;element.style.maxHeight=`${maxHeight}px`;
-          let height=Math.min(element.offsetHeight,maxHeight);
-          const attr=kind==='tree'?'data-tree-company':'data-company-id';
-          const labels=[...host.querySelectorAll<HTMLElement>(`[${attr}]`)].filter(el=>el.getAttribute(attr)===companyId);
-          const boxes=labels.map(el=>el.getBoundingClientRect());
-          const node=boxes.find(b=>b.right>=left&&b.left<=right&&b.bottom>=top&&b.top<=bottom);
-          let x=left+(right-left-width)/2,y=top+(bottom-top-height)/2;
-          if(node){
-            const cx=(node.left+node.right)/2,cy=(node.top+node.bottom)/2;
-            if(node.right+12+width<=right){x=node.right+12;y=cy-height/2;}
-            else if(node.left-12-width>=left){x=node.left-12-width;y=cy-height/2;}
-            else {
-              // On narrow screens keep the selected label tappable: let the card
-              // scroll in the larger space above/below it instead of covering it.
-              const below=Math.max(0,bottom-node.bottom-12),above=Math.max(0,node.top-12-top);
-              const placeBelow=height<=below||(height>above&&below>=above);
-              const available=placeBelow?below:above;
-              if(available>0&&height>available){height=available;element.style.maxHeight=`${available}px`;}
-              x=cx-width/2;y=placeBelow?node.bottom+12:node.top-12-height;
-            }
-          }
-          element.style.left=`${Math.max(left,Math.min(right-width,x))-origin.left}px`;
-          element.style.top=`${Math.max(top,Math.min(bottom-height,y))-origin.top}px`;
-          element.style.right='auto';element.style.bottom='auto';
-          element.setAttribute('data-node-card',companyId);
-        }
-      }
-      frame=requestAnimationFrame(place);
-    };
-    place();
-    return ()=>{
-      cancelAnimationFrame(frame);
-      for(const property of ['left','top','right','bottom','width','max-height'])element.style.removeProperty(property);
-      element.removeAttribute('data-node-card');
-    };
-  },[companyId,kind,enabled]);
-  return card;
+import {useEffect,useRef} from 'react';
+// Dock at the chart edge. Manual positioning survives changes to the selection.
+export function useNodeCardPosition(companyId:string,kind:'graph'|'tree',enabled=true){
+ const card=useRef<HTMLElement>(null),position=useRef<{x:number;y:number}|null>(null);
+ useEffect(()=>{
+  const el=card.current;if(!el||!enabled)return;
+  const host=el.closest<HTMLElement>(kind==='tree'?'[data-industry-tree]':'[data-view="graph"]');if(!host)return;
+  let frame=0,drag:{id:number;x:number;y:number;left:number;top:number}|null=null;
+  const place=()=>{
+   const r=host.getBoundingClientRect(),width=Math.min(340,r.width-24),height=r.width<=800?200:Math.min(520,innerHeight*.55,r.height-24);
+   el.style.width=`${Math.max(160,width)}px`;el.style.maxHeight=`${Math.max(100,height)}px`;
+   const left=Math.max(12,-r.left+12),right=Math.max(left,Math.min(r.width-width-12,innerWidth-r.left-width-12));
+   const top=Math.max(12,-r.top+12),bottom=Math.max(top,Math.min(r.height-el.offsetHeight-12,innerHeight-r.top-el.offsetHeight-12));
+   const p=position.current??{x:right,y:r.width<=800?bottom:top};
+   el.style.left=`${Math.max(left,Math.min(right,p.x))}px`;el.style.top=`${Math.max(top,Math.min(bottom,p.y))}px`;
+   el.style.right='auto';el.style.bottom='auto';el.dataset.nodeCard=companyId;
+   frame=requestAnimationFrame(place);
+  };
+  const down=(e:PointerEvent)=>{if(e.button!==0||!(e.target instanceof Element)||!e.target.closest('[data-card-drag]')||e.target.closest('button,a,input,select'))return;
+   e.preventDefault();e.stopPropagation();drag={id:e.pointerId,x:e.clientX,y:e.clientY,left:parseFloat(el.style.left)||0,top:parseFloat(el.style.top)||0};el.setPointerCapture(e.pointerId);};
+  const move=(e:PointerEvent)=>{if(!drag||e.pointerId!==drag.id)return;e.preventDefault();position.current={x:drag.left+e.clientX-drag.x,y:drag.top+e.clientY-drag.y};};
+  const up=(e:PointerEvent)=>{if(drag?.id===e.pointerId){drag=null;if(el.hasPointerCapture(e.pointerId))el.releasePointerCapture(e.pointerId);}};
+  const key=(e:KeyboardEvent)=>{if(!(e.target instanceof Element)||!e.target.matches('[data-card-drag]'))return;const d=({ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]} as Record<string,number[]>)[e.key];if(d){e.preventDefault();position.current={x:(parseFloat(el.style.left)||0)+d[0],y:(parseFloat(el.style.top)||0)+d[1]};}};
+  el.addEventListener('pointerdown',down);el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('keydown',key);place();
+  return()=>{cancelAnimationFrame(frame);el.removeEventListener('pointerdown',down);el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);el.removeEventListener('keydown',key);delete el.dataset.nodeCard;};
+ },[companyId,kind,enabled]);
+ return card;
 }

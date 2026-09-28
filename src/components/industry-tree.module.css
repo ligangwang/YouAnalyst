@@ -53,3 +53,6 @@
 .vertical .company[data-compact='true']:not(:hover):not(:focus-visible) strong,.vertical .company[data-compact='true']:not(:hover):not(:focus-visible) small {display:none;}
 @media(max-width:800px){.vertical .scene {height:calc(100svh - 190px);min-height:340px;max-height:720px;}}
 
+
+.scene:has(>aside) > div:has(canvas){width:calc(100% - 364px)!important}
+@media(max-width:800px){.scene:has(>aside)>div:has(canvas){width:100%!important;height:calc(100% - 220px)!important}}

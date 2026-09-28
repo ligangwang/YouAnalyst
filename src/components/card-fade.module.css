@@ -3,3 +3,5 @@
 @keyframes card-in { from { opacity:0; } to { opacity:1; } }
 @keyframes card-out { from { opacity:1; } to { opacity:0; } }
 @media (prefers-reduced-motion:reduce) { .card,.card[data-closing="true"] { animation:none; } }
+
+.card [data-card-drag]{cursor:grab;touch-action:none;user-select:none}.card [data-card-drag]:active{cursor:grabbing}.card [data-card-drag]:focus-visible{outline:2px solid #7dd3fc}

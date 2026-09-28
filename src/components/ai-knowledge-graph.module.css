@@ -165,7 +165,6 @@
 .label3d[data-sector-emphasis="member"] { --label-emphasis:1; }
 .label3d[data-sector-emphasis]:focus-visible, .label3d[data-sector-emphasis]:hover, .label3d[data-sector-emphasis][data-highlighted="true"] { --label-emphasis:1; }
 
-.companyFlag { display:inline-block; width:calc(14px * var(--label-scale, 1)); height:calc(10px * var(--label-scale, 1)); margin-right:calc(4px * var(--label-scale, 1)); object-fit:fill; vertical-align:-.05em; border-radius:1px; }
 
 /* Shared industry workspace */
 .viewTabs { display:flex; gap:4px; flex-wrap:wrap; padding:5px; margin-bottom:20px; width:fit-content; border:1px solid #304557; border-radius:14px; background:#091420; }
@@ -288,7 +287,13 @@
 }
 
 
-/* Company details stay beside the selected node above the isolated WebGL scene. */
+/* Company details remain above the isolated WebGL scene. */
 .workspace[data-view="graph"] { position:relative; isolation:isolate; grid-template-columns:minmax(0,1fr); }
 .workspace[data-view="graph"] > .detail { position:absolute; z-index:60; width:min(360px,calc(100% - 20px)); min-height:0; max-height:65vh; padding:16px; border:1px solid #36536a; border-radius:16px; box-shadow:0 14px 42px #0009; overscroll-behavior:contain; }
 .workspace[data-view="graph"] .detailHeader { position:sticky; top:-16px; z-index:1; background:#0b1520; padding:8px 0; }
+
+/* Reserve an edge lane for the docked card; dragging remains an explicit override. */
+.workspace[data-view="graph"].withDetail .viewContent{padding-right:364px}
+@media(max-width:800px){.workspace[data-view="graph"].withDetail .viewContent{padding-right:0;padding-bottom:220px}}
+
+@media(max-width:800px){.workspace[data-view="graph"].withDetail .canvas3d{height:max(240px,calc(62vh - 220px));min-height:240px}}

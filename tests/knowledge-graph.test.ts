@@ -240,3 +240,12 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
  assert.deepEqual(layoutVerticalTree(layers,new Set(['root']),'zh-CN'),initial);
  assert.equal(layoutVerticalTree(layers,new Set(),'en').length,1);
 });
+
+test('tour speed scales movement while long frames stay bounded',()=>{
+ const slow=createIntroOrbit(()=>.5),fast=createIntroOrbit(()=>.5);
+ assert(Math.abs(fast(.02,Math.PI/2,2).azimuth/slow(.02,Math.PI/2,.5).azimuth-4)<1e-9);
+ const one=createIntroCamera(1000,500,()=>.5),two=createIntroCamera(1000,500,()=>.5);
+ let normal=1000,quick=1000;
+ for(let i=0;i<80;i++){normal=one(.05,Math.PI/2,1).distance;quick=two(.05,Math.PI/2,2).distance;}
+ assert(quick<normal);assert.equal(quick,500);
+});
