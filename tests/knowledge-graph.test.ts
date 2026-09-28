@@ -11,6 +11,42 @@ import { createIntroCamera, createIntroOrbit } from '../src/lib/knowledge-graph/
 import { layout3D } from '../src/lib/knowledge-graph/layout-3d';
 import { combineGraphs } from '../src/lib/knowledge-graph/model';
 import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';
+import { graphNodeMarketCapLabel } from '../src/lib/knowledge-graph/market-cap';
+import { fitSelectionCamera } from '../src/lib/knowledge-graph/selection-camera';
+import { PerspectiveCamera, Vector3 } from 'three';
+
+test('selection camera tightly frames the neighborhood in wide and narrow viewports outside the ball', () => {
+  const points = [{x:-240,y:-160,z:80},{x:260,y:180,z:-100},{x:60,y:30,z:180}];
+  for (const [width,height] of [[1200,700],[360,500]]) {
+    for (const direction of [new Vector3(0,0,1),new Vector3(1,.4,1).normalize()]) {
+      const {position,target}=fitSelectionCamera(points,direction,width,height,200);
+      assert(position.length()>=230-1e-8);
+      const camera=new PerspectiveCamera(45,width/height,.1,10000);
+      camera.position.copy(position);camera.lookAt(target);camera.updateMatrixWorld();
+      const projected=points.map(p=>new Vector3(p.x,p.y,p.z).project(camera));
+      const usableX=1-2*Math.min(110,width*.15)/width;
+      const usableY=1-2*Math.min(65,height*.15)/height;
+      assert(projected.every(p=>Math.abs(p.x)<=usableX+1e-8&&Math.abs(p.y)<=usableY+1e-8&&p.z<1));
+      assert(projected.some(p=>Math.abs(Math.abs(p.x)-usableX)<1e-8||Math.abs(Math.abs(p.y)-usableY)<1e-8), 'fit reaches a padded boundary rather than adding excess distance');
+    }
+  }
+});
+
+test('isolated selections respect the zoom minimum as well as the ball boundary', () => {
+  const {position,target}=fitSelectionCamera([{x:0,y:0,z:190}],new Vector3(0,0,1),1200,700,200);
+  assert(position.distanceTo(target)>=230-1e-8);
+  assert(position.length()>=230-1e-8);
+});
+
+test('graph node values prefer recorded local currency and explicitly label USD fallback', () => {
+  const cap = {value: 10e9, currency: 'USD' as const, priceDate: '2026-09-25'};
+  const local = {...cap, local: {value: 70e9, currency: 'CNY' as const, rateDate: '2026-09-25'}};
+  assert.equal(graphNodeMarketCapLabel(local, 'en'), '¥70B CNY');
+  assert.equal(graphNodeMarketCapLabel(local, 'zh-CN'), '¥700亿 CNY');
+  assert.equal(graphNodeMarketCapLabel(cap, 'en'), '$10B USD');
+  assert.equal(graphNodeMarketCapLabel({...local, local: {...local.local, value: NaN}}, 'en'), '$10B USD');
+  assert.equal(graphNodeMarketCapLabel(undefined, 'en'), '');
+});
 
 test('3D companies fill a stable ball with interior nodes and real connections', () => {
   const graph = combineGraphs(graphs as unknown as (KnowledgeGraph & {id:string;language:string})[]);

@@ -633,18 +633,20 @@ test("every sector dims unrelated names and restores the full map on toggle", as
     await page.mouse.move(0,0);
     await expect(button).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[data-sector-emphasis="member"]')).toHaveCount(members.size);
+    await expect(async()=>{
     const opacities = await page.locator("[data-company-id]").evaluateAll(elements => elements.map(el => ({id:el.getAttribute("data-company-id")!, visible:(el as HTMLElement).dataset.visible==="true", emphasis:Number(getComputedStyle(el).getPropertyValue("--label-emphasis")||1), opacity:Number(getComputedStyle(el).opacity)})));
     for (const node of opacities) {
       const emphasis=members.has(node.id)?1:related.has(node.id)?.85:.18;
       expect(node.emphasis,`${sector.en}: ${node.id}`).toBe(emphasis);
       expect(node.opacity,`${sector.en}: ${node.id}`).toBe(node.visible?emphasis:0);
     }
+    }).toPass({timeout:5000});
     await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
     await revealSectors();
     await button.click();
     await page.mouse.move(0,0);
     await expect(page.locator("[data-sector-emphasis]")).toHaveCount(0);
-    expect(await page.locator("[data-company-id]").evaluateAll(elements => elements.every(el => Number(getComputedStyle(el).getPropertyValue("--label-emphasis")||1)===1 && Number(getComputedStyle(el).opacity)===((el as HTMLElement).dataset.visible==="true"?1:0)))).toBe(true);
+    await expect.poll(()=>page.locator("[data-company-id]").evaluateAll(elements => elements.every(el => Number(getComputedStyle(el).getPropertyValue("--label-emphasis")||1)===1 && Number(getComputedStyle(el).opacity)===((el as HTMLElement).dataset.visible==="true"?1:0)))).toBe(true);
   }
 });
 for(const sectorFocused of [false,true]) test(`line hover previews, click pins, and blank space clears (${sectorFocused?"sector":"overview"})`,async({page})=>{
@@ -680,7 +682,8 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
     const x=box.x+(p.x+1)*box.width/2,y=box.y+(1-p.y)*box.height/2;
     await page.mouse.move(5,5);await expect(labels).toHaveCount(0);
     await page.mouse.move(x,y);await page.waitForTimeout(100);
-    if(await labels.count()){hit={x,y};break;}
+    // Hover can reveal a company label over this segment. Use an exposed line hit.
+    if(await labels.count()&&await page.evaluate(({x,y})=>document.elementFromPoint(x,y)?.tagName==='CANVAS',{x,y})){hit={x,y};break;}
   }
   expect(hit).toBeDefined();
   await expect(labels).toHaveCount(1);
@@ -1029,6 +1032,10 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await expect.poll(()=>canvas.evaluate(el=>Math.abs((el as HTMLCanvasElement).height-el.getBoundingClientRect().height*Math.min(devicePixelRatio,1.5)))).toBeLessThan(2);
   await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
   await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+  await page.locator('[data-view="graph"]').evaluate(async el=>{await Promise.all(el.getAnimations({subtree:true}).filter(a=>a instanceof CSSTransition).map(a=>a.finished.catch(()=>{})));});
+  await expect.poll(()=>canvas.evaluate(el=>Math.max(Math.abs((el as HTMLCanvasElement).width-el.getBoundingClientRect().width*Math.min(devicePixelRatio,1.5)),Math.abs((el as HTMLCanvasElement).height-el.getBoundingClientRect().height*Math.min(devicePixelRatio,1.5))))).toBeLessThan(2);
+  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
   const focused=await projectedGraphPositions(page);
   await page.waitForTimeout(2300);
   await expect(canvas).toHaveAttribute('data-rotation','focused');
@@ -1308,7 +1315,7 @@ test("map displays stored market cap and date while unknown stays ticker only", 
   await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:valued}):r.fulfill({contentType:'text/html',body:html}));
   await page.goto('http://graph.test/map?lang=en');
   const label=page.locator('[data-company-id="US:NVDA"]');
-  await expect(label.locator('span')).toHaveText('NVDA · $1.25T');
+  await expect(label.locator('span')).toHaveText('NVDA · $1.25T USD');
   await expect(label).toHaveAttribute('title', /Estimated market cap: \$1.25T USD · As of 2026-09-21/);
   await expect(page.locator('[data-company-id="US:AAPL"] span')).toHaveText('AAPL');
 });

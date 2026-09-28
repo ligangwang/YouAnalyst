@@ -7,6 +7,7 @@ import { CameraControls, Html } from "@react-three/drei";
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, LineSegments, type Intersection, type Raycaster, type Mesh, type MeshBasicMaterial } from "three";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
+import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
 import { createIntroCamera, createIntroOrbit } from "@/lib/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
@@ -15,7 +16,7 @@ import { useLocale } from "./providers/locale-provider";
 import { useWheelZoomGate, WheelZoomHint } from "./wheel-zoom-gate";
 import styles from "./ai-knowledge-graph.module.css";
 
-import { marketCapScale, marketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
+import { marketCapScale, graphNodeMarketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 
 const lineTint = new Color("#829ead");
 const highlightedLineTint = new Color("#8fb9af");
@@ -136,7 +137,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
   // rather than relying on the geometry swap to invalidate.
   useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
-  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges)])), [layout, selected, activeEdge, showAllEdges]);
+  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, hovered)])), [layout, selected, activeEdge, showAllEdges, hovered]);
   const displayedEdge=activeEdge||((edgeTargets.get(hoveredEdge) ?? 0) > 0 ? hoveredEdge : "");
   useEffect(()=>{invalidate();},[edgeTargets,invalidate]);
   const edgeEndpoints=useMemo(()=>new Set(layout.edges.filter(e=>e.id===displayedEdge).flatMap(e=>[e.source,e.target])),[layout,displayedEdge]);
@@ -196,10 +197,10 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     const c = controls.current; if (!c) return;
     // Evidence selection and panel resizing must not reset the user's orbit or zoom.
     const previous=lastCameraRequest.current;
-    if(selected&&!lastSelected.current&&!savedView.current)savedView.current={position:c.getPosition(new Vector3()),target:c.getTarget(new Vector3())};
+    if(selected&&!lastSelected.current&&!savedView.current)savedView.current={position:c.getPosition(new Vector3(),false),target:c.getTarget(new Vector3(),false)};
     if(!selected&&lastSelected.current&&savedView.current&&previous?.reset===reset){
       const saved=savedView.current;savedView.current=null;lastSelected.current='';restoredView.current=true;
-      c.smoothTime=.8/navigation.speed;void c.setLookAt(...saved.position.toArray(),...saved.target.toArray(),!reducedMotion.current);invalidate();return;
+      c.smoothTime=(reducedMotion.current?.15:.8)/navigation.speed;void c.setLookAt(...saved.position.toArray(),...saved.target.toArray(),true);invalidate();return;
     }
     lastSelected.current=selected;
     if(selected||previous?.layout!==layout||previous.request!==cameraRequest||previous.reset!==reset)restoredView.current=false;
@@ -235,18 +236,19 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     const radius=sector?Math.max(80,...members.map(n=>Math.hypot(n.x-sector.x,n.y-sector.y,n.z-sector.z))):0;
     const neighbors=n?layout.nodes.filter(v=>v.id===selected||connected.has(v.id)):[];
     const center=neighbors.length?new Vector3(...(["x","y","z"] as const).map(axis=>neighbors.reduce((sum,v)=>sum+v[axis],0)/neighbors.length) as [number,number,number]):null;
-    const selectionRadius=center?Math.max(90,...neighbors.map(v=>new Vector3(v.x,v.y,v.z).distanceTo(center))):0;
-    const d = n ? Math.max(layout.radius*1.3,selectionRadius/Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,size.width/size.height)))*1.3) : sector ? radius / Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,size.width/size.height))) * 1.1 : fitDistance;
+    const d = sector ? radius / Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,size.width/size.height))) * 1.1 : fitDistance;
     const x = center?.x ?? sector?.x ?? 0, y = center?.y ?? sector?.y ?? 0, z = center?.z ?? sector?.z ?? 0;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Establish the opening shot immediately; the introduction owns its slow dolly.
     const opening = (!previous || restarting) && introOrbitRef.current && !n && !sector;
     const distance = opening && !reduced ? d * 1.4 : d;
     const direction=restarting?new Vector3(0,0,1):c.getPosition(new Vector3()).sub(c.getTarget(new Vector3())).normalize();
-    const position=new Vector3(x,y,z).addScaledVector(direction,distance);
-    if(position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
+    const fitted=n?fitSelectionCamera(neighbors,direction,size.width,size.height,layout.radius):null;
+    const position=fitted?.position??new Vector3(x,y,z).addScaledVector(direction,distance);
+    const target=fitted?.target??new Vector3(x,y,z);
+    if(!fitted&&position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
     c.smoothTime=.8/navigation.speed;
-    void c.setLookAt(...position.toArray(),x,y,z,!reduced&&!opening);
+    void c.setLookAt(...position.toArray(),...target.toArray(),!reduced&&!opening);
     invalidate();
   }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, navigation.speed]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
@@ -323,7 +325,8 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       material.opacity = (edgeFades.current.get(edge.id) ?? 0) * (edge.id === displayedEdge ? .8 : .6 * depthOpacity(depth));
     }
     const focused=Boolean(selected || activeEdge || sectorFocus);
-    if(controls.current&&camera.position.length()<layout.radius*1.12){const p=camera.position.clone();if(!p.length())p.z=1;p.setLength(layout.radius*1.15);const t=controls.current.getTarget(new Vector3());void controls.current.setLookAt(...p.toArray(),...t.toArray(),false);}
+    // Correct unsafe destinations smoothly; never teleport the rendered camera mid-return.
+    if(controls.current){const p=controls.current.getPosition(new Vector3());if(p.length()<layout.radius*1.12){if(!p.length())p.z=1;p.setLength(layout.radius*1.15);const t=controls.current.getTarget(new Vector3());void controls.current.setLookAt(...p.toArray(),...t.toArray(),true);}}
     gl.domElement.dataset.ballRadius=String(layout.radius);
     gl.domElement.dataset.cameraPosition=camera.position.toArray().join(',');
     if (focused) introOrbitRef.current = false;
@@ -351,7 +354,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
         // Return the automatic orbit to the ball center with a gentle transition.
         void controls.current.moveTo(0,0,0,true);
         if(controls.current.distance<fitDistance*.9)void controls.current.dollyTo(fitDistance*.9,true);
-        void controls.current.rotate(step.azimuth,step.polar,false);
+        void controls.current.rotate(step.azimuth,step.polar,true);
         invalidate();
       }
     }
@@ -528,7 +531,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#829ead" transparent depthWrite={false} opacity={0}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>
     </group>)}
-    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, marketCapLabel(n.marketCap)].filter(Boolean).join(" · ")}</span></button></Html>)}
+    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setHovered(n.id); }} onPointerLeave={() => setHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span></button></Html>)}
   </>;
 }
 

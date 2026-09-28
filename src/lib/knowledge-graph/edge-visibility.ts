@@ -1,8 +1,9 @@
 type Edge = { id: string; source: string; target: string };
 
-export function edgeOpacity(edge: Edge, selected: string, activeEdge: string, showAll: boolean) {
+export function edgeOpacity(edge: Edge, selected: string, activeEdge: string, showAll: boolean, hovered = "") {
   if (edge.id === activeEdge) return .65;
   if (selected && (edge.source === selected || edge.target === selected)) return .28;
+  if (hovered && (edge.source === hovered || edge.target === hovered)) return .28;
   return showAll ? .07 : 0;
 }
 
