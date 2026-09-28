@@ -1467,6 +1467,8 @@ test('navigation: cards dock away from graph nodes and can be dragged with point
  const box=(await handle.boundingBox())!;await page.mouse.move(box.x+20,box.y+10);await page.mouse.down();await page.mouse.move(box.x+20,box.y+(test.info().project.name==='mobile'?-55:75),{steps:6});await page.mouse.up();
  await expect.poll(async()=> (await card.boundingBox())!.y).not.toBe(before.y);
  const after=(await card.boundingBox())!;expect(after.x).toBeGreaterThanOrEqual(0);expect(after.y).toBeGreaterThanOrEqual(0);
+ await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ await expect(page.getByRole('complementary',{name:'Company details'})).not.toHaveAttribute('style',/left:|top:|width:|max-height:/);
 });
 for(const view of ['graph','tree','hierarchy'])test(`navigation: plain wheel zooms ${view} without scrolling the page`,async({page})=>{
  await navigationFixture(page,view);
