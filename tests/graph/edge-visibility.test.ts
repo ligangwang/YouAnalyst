@@ -1,0 +1,34 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { edgeOpacity, fadeEdge } from "../../src/lib/knowledge-graph/edge-visibility";
+
+const edges = [
+  { id: "out", source: "a", target: "b" },
+  { id: "in", source: "c", target: "a" },
+  { id: "other", source: "c", target: "d" },
+];
+
+test("overview is empty; selection reveals incoming and outgoing relationships only", () => {
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", false)), [0, 0, 0]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "", false)), [.5, .5, 0]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "isolated", "", false)), [0, 0, 0]);
+});
+
+test("all-connections mode and evidence selection remain available", () => {
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", true)), [.12, .12, .12]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "out", true)), [.85, .5, .12]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "other", false)), [0, 0, .85]);
+});
+
+test("transitions settle, reverse continuously, and respect reduced motion", () => {
+  const first = fadeEdge(0, .5, 1 / 60, false);
+  assert(first > 0 && first < .5);
+  assert(fadeEdge(first, 0, 1 / 60, false) < first);
+  let value = 0;
+  for (let frame = 0; frame < 24; frame++) value = fadeEdge(value, .5, 1 / 60, false);
+  assert.equal(value, .5);
+  for (let frame = 0; frame < 24; frame++) value = fadeEdge(value, 0, 1 / 60, false);
+  assert.equal(value, 0);
+  assert.equal(fadeEdge(0, .5, 0, true), .5);
+  assert.equal(fadeEdge(.5, 0, 0, true), 0);
+});
