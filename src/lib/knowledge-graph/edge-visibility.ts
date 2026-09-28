@@ -1,9 +1,9 @@
 type Edge = { id: string; source: string; target: string };
 
 export function edgeOpacity(edge: Edge, selected: string, activeEdge: string, showAll: boolean) {
-  if (edge.id === activeEdge) return .85;
-  if (selected && (edge.source === selected || edge.target === selected)) return .5;
-  return showAll ? .12 : 0;
+  if (edge.id === activeEdge) return .65;
+  if (selected && (edge.source === selected || edge.target === selected)) return .28;
+  return showAll ? .07 : 0;
 }
 
 // Settle in about 300ms; reversing selection continues from the rendered value.

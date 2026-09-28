@@ -10,14 +10,14 @@ const edges = [
 
 test("overview is empty; selection reveals incoming and outgoing relationships only", () => {
   assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", false)), [0, 0, 0]);
-  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "", false)), [.5, .5, 0]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "", false)), [.28, .28, 0]);
   assert.deepEqual(edges.map(e => edgeOpacity(e, "isolated", "", false)), [0, 0, 0]);
 });
 
 test("all-connections mode and evidence selection remain available", () => {
-  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", true)), [.12, .12, .12]);
-  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "out", true)), [.85, .5, .12]);
-  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "other", false)), [0, 0, .85]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", true)), [.07, .07, .07]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "out", true)), [.65, .28, .07]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "other", false)), [0, 0, .65]);
 });
 
 test("transitions settle, reverse continuously, and respect reduced motion", () => {
