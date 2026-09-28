@@ -14,6 +14,7 @@ import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
 import { useWheelZoomGate, WheelZoomHint } from "./wheel-zoom-gate";
+import { safeGraphOrbitStep } from "./graph-orbit-step";
 import styles from "./ai-knowledge-graph.module.css";
 
 import { marketCapScale, graphNodeMarketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
@@ -50,10 +51,13 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   const controls = useRef<CameraControls>(null);
   const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
   const resumedOrbit = useRef<ReturnType<typeof createIntroOrbit> | null>(null);
+  const resumedDirection = useRef(1);
   const resumeElapsed = useRef(0);
   const resumeAt = useRef<number | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scheduleResume=useRef<()=>void>(()=>{});
+  const returningView=useRef(false);
+  const returnRequest=useRef(0);
   const preserveLabelPlacements = useRef(false);
   const labelPlacements = useRef(new WeakMap<HTMLElement, number>());
   const labelVisibility = useRef(new WeakMap<HTMLElement, boolean>());
@@ -69,6 +73,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     const pointers=new Set<number>(),keys=new Set<string>();
     const clearTimer=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;};
     const pause=()=>{
+      returningView.current=false;returnRequest.current++;
       introOrbitRef.current=false;
       resumedOrbit.current=null;resumeElapsed.current=0;resumeAt.current=null;
       preserveLabelPlacements.current=true;
@@ -199,8 +204,15 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     if(selected&&!lastSelected.current&&!savedView.current)savedView.current={position:c.getPosition(new Vector3(),false),target:c.getTarget(new Vector3(),false)};
     if(!selected&&lastSelected.current&&savedView.current&&previous?.reset===reset){
       const saved=savedView.current;savedView.current=null;lastSelected.current='';restoredView.current=true;
-      c.smoothTime=(reducedMotion.current?.15:.8)/navigation.speed;void c.setLookAt(...saved.position.toArray(),...saved.target.toArray(),true);invalidate();return;
+      const request=++returnRequest.current;returningView.current=true;
+      c.smoothTime=(reducedMotion.current?.15:.8)/navigation.speed;
+      void c.setLookAt(...saved.position.toArray(),...saved.target.toArray(),true).then(()=>{
+        if(returnRequest.current!==request)return;
+        returningView.current=false;scheduleResume.current();invalidate();
+      });
+      invalidate();return;
     }
+    if(selected||previous?.layout!==layout||previous.request!==cameraRequest||previous.reset!==reset){returningView.current=false;returnRequest.current++;}
     lastSelected.current=selected;
     if(selected||previous?.layout!==layout||previous.request!==cameraRequest||previous.reset!==reset)restoredView.current=false;
     if(previous?.reset!==reset)savedView.current=null;
@@ -334,6 +346,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     else if(navigation.paused)rotation='paused';
     else if(reducedMotion.current)rotation='reduced';
     else if(document.hidden)rotation='hidden';
+    else if(returningView.current)rotation='returning';
     else if (introOrbitRef.current && controls.current) {
       rotation='intro';
       // Move into a detail view before orbiting; keep the camera outside the node cloud.
@@ -350,10 +363,12 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
         resumeElapsed.current+=Math.max(0,Math.min(delta,.05))*navigation.speed;
         const t=Math.min(1,resumeElapsed.current/2),gain=t*t*(3-2*t);
         const step=resumedOrbit.current(Math.min(delta,.05)*gain,controls.current.polarAngle,navigation.speed);
-        // Return the automatic orbit to the ball center with a gentle transition.
-        void controls.current.moveTo(0,0,0,true);
-        if(controls.current.distance<fitDistance*.9)void controls.current.dollyTo(fitDistance*.9,true);
-        void controls.current.rotate(step.azimuth,step.polar,true);
+        // Resume around the user's chosen target at their chosen distance.
+        // Only selection framing or an explicit Reset may replace that view.
+        const safeStep=safeGraphOrbitStep(controls.current.getPosition(new Vector3()),controls.current.getTarget(new Vector3()),
+          {azimuth:step.azimuth*resumedDirection.current,polar:step.polar},layout.radius*1.2);
+        if(safeStep.reversed){resumedDirection.current*=-1;resumeElapsed.current=0;}
+        void controls.current.rotate(safeStep.azimuth,safeStep.polar,true);
         invalidate();
       }
     }
