@@ -30,8 +30,16 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
   const {text,locale}=useLocale();
   const company=companies.find(c=>c.id===selected);
   const layers=useMemo(()=>industryTree(companies),[companies]);
-  // The vertical tree opens fully; the horizontal one opens one level deep so its layers show their branches.
-  const [open,setOpen]=useState<string[]>(()=>vertical?['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]:['root',...layers.map(l=>l.id)]);
+  // The automatic tree grows upward from the roots. Reduced motion shows the complete tree.
+  const [open,setOpen]=useState<string[]>(()=>vertical?['root']:['root',...layers.map(l=>l.id)]);
+  useEffect(()=>{
+    if(!vertical)return;
+    const media=matchMedia('(prefers-reduced-motion: reduce)');let live=true;
+    const update=()=>{if(live&&media.matches)setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);};
+    queueMicrotask(update);media.addEventListener('change',update);
+    return()=>{live=false;media.removeEventListener('change',update);};
+  },[vertical,layers]);
+  const revealLayer=useCallback((id:string)=>{const layer=layers.find(l=>l.id===id);if(layer)setOpen(current=>[...new Set([...current,'root',id,...layer.branches.map(b=>b.id)])]);},[layers]);
   const [focus,setFocus]=useState('');
   const [request,setRequest]=useState(0);
   const [unavailable,setUnavailable]=useState(false);
@@ -55,7 +63,7 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
     <div ref={attachScene} className={styles.scene} data-industry-tree={vertical?'vertical':'3d'}>
       <WheelZoomHint hint={wheelHint}/>
       {/* Preserve initialized renderers across tabs; hidden trees pause without recreating WebGL contexts. */}
-      {seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene tour={tour} paused={!active||!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback}/></Suspense>}
+      {seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene tour={tour} paused={!active||!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onRevealLayer={revealLayer} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback}/></Suspense>}
       {unavailable&&<div className={styles.fallback}><p role="alert">{text('3D is unavailable on this device. Browse the same tree below.','此设备暂时无法显示三维场景，可使用下方层级树。')}</p>{layers.map(l=><details key={l.id} open={open.includes(l.id)}><summary onClick={e=>{e.preventDefault();toggle(l.id);}}>{text(l.en,l.zh)} · {l.companies.length}</summary>{l.branches.map(b=><details key={b.id} open={open.includes(b.id)}><summary onClick={e=>{e.preventDefault();toggle(b.id);}}>{text(b.en,b.zh)} · {b.companies.length}</summary>{b.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)}</button>)}</details>)}</details>)}</div>}
       {active&&showCard&&company&&<TreeCompanyCard closing={closing} key={company.id} reveal={revealCard} company={company} color={layers.find(l=>l.companies.some(c=>c.id===company.id))?.color??'#7dd3fc'} onClose={()=>onSelect('')}/>}
     </div>

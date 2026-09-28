@@ -123,3 +123,38 @@ test('layer tour pulls back, travels along the trunk, approaches the next layer 
   assert.equal(treeTourPlan([nodes[0]],1)[0].layer,'energy','collapsed layers still receive a stop');
 });
 
+
+import { hierarchyTourPlan } from '../src/lib/knowledge-graph/hierarchy-tour';
+import { createIntroOrbit } from '../src/lib/knowledge-graph/intro-orbit';
+import { tourDelta } from '../src/lib/knowledge-graph/tour-motion';
+
+test('hierarchy groups cover every company at desktop and phone sizes without individual stops',()=>{
+  const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
+  for(const width of [390,1200]){
+    const plan=hierarchyTourPlan(layers,width,600);
+    for(const layer of layers)for(const branch of layer.branches){
+      const groups=plan.filter(stop=>stop.focus===branch.id&&stop.members);
+      assert.deepEqual(new Set(groups.flatMap(stop=>stop.members!)),new Set(branch.companies.map(c=>branch.id+'/'+c.id)));
+      if(branch.companies.length>1)assert(groups.every(stop=>stop.members!.length>1));
+      assert(groups.every(stop=>stop.members!.length<=6));
+    }
+  }
+});
+
+test('tour clock and speed multipliers are consistent at 5, 20 and 60 fps',()=>{
+  const start={position:[0,0,2000] as [number,number,number],target:[0,0,0] as [number,number,number]};
+  const stops:TreeTourStop[]=[{target:[400,200,0],distance:1000,duration:20,hold:5,kind:'company',layer:'energy'}];
+  for(const speed of [.5,1,1.5,2]){
+    const results=[5,20,60].map(fps=>{
+      const tree=createTreeTour(start,stops,()=>.5),orbit=createIntroOrbit(()=>.5);
+      let shot=start,azimuth=0,elapsed=0;
+      for(let i=0;i<fps*4;i++){shot=tree(1/fps,speed);azimuth+=orbit(1/fps,Math.PI/2,speed).azimuth;elapsed+=tourDelta(1/fps,speed);}
+      return {shot,azimuth,elapsed};
+    });
+    for(const result of results){
+      assert(Math.abs(result.elapsed-4*speed)<1e-8);
+      assert(Math.abs(result.azimuth-results[0].azimuth)<1e-8);
+      result.shot.position.forEach((v,i)=>assert(Math.abs(v-results[0].shot.position[i])<1e-8));
+    }
+  }
+});

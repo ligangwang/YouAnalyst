@@ -1,5 +1,6 @@
 "use client";
 
+import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {useNavigationSettings} from "./navigation-settings";
@@ -360,9 +361,9 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       if(performance.now()>=resumeAt.current){
         rotation='resumed';
         resumedOrbit.current??=createIntroOrbit();
-        resumeElapsed.current+=Math.max(0,Math.min(delta,.05))*navigation.speed;
+        resumeElapsed.current+=tourDelta(delta,navigation.speed);
         const t=Math.min(1,resumeElapsed.current/2),gain=t*t*(3-2*t);
-        const step=resumedOrbit.current(Math.min(delta,.05)*gain,controls.current.polarAngle,navigation.speed);
+        const step=resumedOrbit.current(tourDelta(delta)*gain,controls.current.polarAngle,navigation.speed);
         // Resume around the user's chosen target at their chosen distance.
         // Only selection framing or an explicit Reset may replace that view.
         const safeStep=safeGraphOrbitStep(controls.current.getPosition(new Vector3()),controls.current.getTarget(new Vector3()),

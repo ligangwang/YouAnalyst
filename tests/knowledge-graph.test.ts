@@ -95,18 +95,18 @@ test('intro camera glides closer before easing into rotation', () => {
   const advance = createIntroCamera(1000, 480, () => .25);
   let previousDistance = 1000;
   let last = { distance: 1000, azimuth: 0, polar: 0 };
-  for (let frame = 1; frame <= 240; frame++) {
+  for (let frame = 1; frame <= 320; frame++) {
     last = advance(.05, Math.PI / 2);
     assert(last.distance <= previousDistance);
     assert(last.distance >= 480);
     // Approach cannot jump more than 0.7% of its starting distance per frame.
     assert(previousDistance - last.distance < 7);
-    if (frame <= 159) {
+    if (frame <= 239) {
       assert.equal(Math.abs(last.azimuth), 0);
       assert.equal(Math.abs(last.polar), 0);
     }
     if (frame === 1) assert(1000 - last.distance < .01);
-    if (frame === 161) {
+    if (frame === 241) {
       assert.equal(last.distance, 480);
       assert(Math.abs(last.azimuth) < .000001);
     }
@@ -137,8 +137,8 @@ test('intro orbit covers every side and varied elevations without camera jumps',
     assert(minPolar < 85 * Math.PI / 180);
     assert(maxPolar > 95 * Math.PI / 180);
     const resumed = advance(60, polar);
-    assert(Math.abs(resumed.azimuth) <= 2.3 * Math.PI / 180 * .05);
-    assert(Math.abs(resumed.polar) <= 1.2 * Math.PI / 180 * .05);
+    assert(Math.abs(resumed.azimuth) <= 2.3 * Math.PI / 180 * .25);
+    assert(Math.abs(resumed.polar) <= 1.2 * Math.PI / 180 * .25);
   }
 });
 
@@ -304,6 +304,6 @@ test('tour speed scales movement while long frames stay bounded',()=>{
  assert(Math.abs(fast(.02,Math.PI/2,2).azimuth/slow(.02,Math.PI/2,.5).azimuth-4)<1e-9);
  const one=createIntroCamera(1000,500,()=>.5),two=createIntroCamera(1000,500,()=>.5);
  let normal=1000,quick=1000;
- for(let i=0;i<80;i++){normal=one(.05,Math.PI/2,1).distance;quick=two(.05,Math.PI/2,2).distance;}
- assert(quick<normal);assert.equal(quick,500);
+ for(let i=0;i<120;i++){normal=one(.05,Math.PI/2,1).distance;quick=two(.05,Math.PI/2,2).distance;}
+ assert(quick<normal);assert(Math.abs(quick-500)<1e-8);
 });

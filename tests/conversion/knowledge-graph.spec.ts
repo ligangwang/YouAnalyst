@@ -1608,3 +1608,43 @@ test('navigation: hierarchy clears previous company financials when selection ch
  await page.locator('[data-hierarchy-node="chips/compute/ORG:LAB"]').evaluate((el:HTMLButtonElement)=>el.click());
  await expect(card).toContainText('Independent Lab');await expect(card).not.toContainText('123 USD');await expect(card).not.toContainText('2B USD');await expect(card.locator('dd')).toHaveText(['Unavailable','Unavailable','Unavailable']);
 });
+
+
+test('navigation: tree grows from roots into the next layer before visiting its companies',async({page})=>{
+ test.setTimeout(75000);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
+ await expect(tree.locator('[data-tree-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:15000});
+ await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','false');
+ const start=await canvas.getAttribute('data-camera-target');
+ await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:50000});
+ await expect(tree.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
+ expect(await canvas.getAttribute('data-camera-target')).not.toBe(start);
+ await page.getByRole('button',{name:'Pause tour',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-tour','paused');
+ const held=await canvas.getAttribute('data-camera-target');
+ await page.waitForTimeout(400);
+ expect(await canvas.getAttribute('data-camera-target')).toBe(held);
+});
+
+
+test('navigation: hierarchy pause preserves progress through the current stop',async({page})=>{
+ await navigationFixture(page,'hierarchy');
+ await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ // The root stop takes 7.5 seconds at 2x. Pause near its end, then ensure
+ // resume uses the remaining time instead of restarting the entire stop.
+ await page.waitForTimeout(6000);
+ await page.getByRole('button',{name:'Pause tour',exact:true}).click();
+ const svg=page.locator('[data-industry-tree="hierarchy"] svg');
+ const held=await svg.getAttribute('viewBox');
+ await page.waitForTimeout(500);
+ expect(await svg.getAttribute('viewBox')).toBe(held);
+ await page.getByRole('button',{name:'Resume tour',exact:true}).click();
+ await expect(page.locator('[data-hierarchy-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:4000});
+});
