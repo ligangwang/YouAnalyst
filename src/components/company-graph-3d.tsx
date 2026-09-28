@@ -27,7 +27,7 @@ function countryName(country: string | undefined, locale: string) {
   return country && flagCountries.has(country) ? new Intl.DisplayNames([locale], { type: "region" }).of(country) : undefined;
 }
 
-type Props = { showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -38,14 +38,13 @@ void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,
 const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
-function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector, introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
+function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
   const { text, locale } = useLocale();
   const navigation=useNavigationSettings();
   const edgeElements = useRef(new Map<string, HTMLButtonElement>());
   const edgeFades = useRef(new Map<string, number>());
   const linePoint = useMemo(() => new Vector3(), []);
   const arrowElements = useRef(new Map<string, Mesh>());
-  const sectorElements = useRef(new Map<string, HTMLButtonElement>());
   const layout = useMemo(() => layout3D(graph), [graph]);
   const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius}}), [layout.radius]);
   const controls = useRef<CameraControls>(null);
@@ -452,11 +451,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     }
     if(scalesSettling)invalidate();
     for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===displayedEdge?1:labelScale(edge.x,edge.y,edge.z)));
-    for(const sector of sectors){
-      const distance=Math.hypot(camera.position.x-sector.x,camera.position.y-sector.y,camera.position.z-sector.z);
-      sectorElements.current.get(sector.id)?.style.setProperty("--label-scale",String(Math.max(.7,Math.min(1,fitDistance*.7/Math.max(1,distance)))));
-    }
-    const measurements=new Map([...labelElements.current.values(),...edgeElements.current.values(),...sectorElements.current.values()].map(element=>[element,{width:element.offsetWidth,height:element.offsetHeight}]));
+    const measurements=new Map([...labelElements.current.values(),...edgeElements.current.values()].map(element=>[element,{width:element.offsetWidth,height:element.offsetHeight}]));
     // Reserve exits before admitting any new labels, regardless of depth order.
     if(fadeMs)for(const n of layout.nodes){
       const element=labelElements.current.get(n.id);
@@ -494,14 +489,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     }
     };
 
-    const placeSectors=()=>{
-    for(const sector of sectors){
-      const element=sectorElements.current.get(sector.id);if(!element)continue;
-      const {width,height}=measurements.get(element)!;
-      place(element,sector.x,sector.y,sector.z,true,width,height);
-    }
-    };
-    let sectorsPlaced=false;
+    let edgesPlaced=false;
     let shown=0;
     for(const n of candidates){
       const element=labelElements.current.get(n.id);if(!element)continue;
@@ -512,9 +500,8 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       const pointDiameter=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*(emphasis>1?1.5:1);
       const gap=pointDiameter/(2*gl.getPixelRatio())+3;
       if(place(element,n.x,n.y,n.z,true,width,height,gap,n.id===hovered)){shown++;visibleCompanies.add(n.id);}
-      if(shown===1&&!sectorsPlaced){placeEdges(true);placeEdges();placeSectors();sectorsPlaced=true;}
+      if(shown===1&&!edgesPlaced){placeEdges(true);placeEdges();edgesPlaced=true;}
     }
-    if(!sectorsPlaced)placeSectors();
     placeEdges(true);
     placeEdges();
 
@@ -526,7 +513,6 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
     <lineSegments geometry={lines} raycast={raycastEdges} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent depthWrite={false}/></lineSegments>
-    {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><button aria-label={`${text("Focus sector", "聚焦产业")}: ${text(sector.en,sector.zh)}`} aria-pressed={sectorFocus===sector.id} onClick={()=>onSelectSector?.(sector.id)} ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden",pointerEvents:"auto",opacity:selected || (sectorFocus && sector.id !== sectorFocus) ? .25 : 1}}><span className={styles.sectorName}>{text(sector.en,sector.zh)}</span></button></Html>)}
     {edgeLabels.map(edge=><group key={edge.id}>
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#829ead" transparent depthWrite={false} opacity={0}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>

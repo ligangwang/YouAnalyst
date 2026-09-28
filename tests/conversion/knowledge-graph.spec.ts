@@ -1103,18 +1103,15 @@ test("unclassified companies have their own spatial anchor",()=>{
  expect([related.ax,related.ay,related.az]).not.toEqual([semiconductor.ax,semiconductor.ay,semiconductor.az]);
 });
 
-test("sector names scale with zoom and focus a 3D cluster",async({page})=>{
- await page.emulateMedia({reducedMotion:"reduce"});
- await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
- await page.goto("http://graph.test/map?lang=en");
- const sectors=page.getByRole("button",{name:/^Focus sector:/});
- await expect.poll(()=>sectors.count()).toBeGreaterThan(0);
- const firstName=await sectors.first().getAttribute("aria-label");
- const sector=page.getByRole("button",{name:firstName!,exact:true});
- const initial=await sector.evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+test("graph omits floating sector names while toolbar sectors still focus companies",async({page})=>{
+ await navigationFixture(page);
+ await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length);
+ await expect(page.getByRole('button',{name:/^Focus sector:/})).toHaveCount(0);
+ await page.getByRole('button',{name:/^Sectors/}).click();
+ const sector=page.getByRole('button',{name:'AI compute',exact:true,includeHidden:true});
  await sector.click();
- await expect.poll(()=>page.locator(`button[aria-label="${firstName}"]`).evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(initial);
- await expect(page.getByRole("button",{name:"Reset view",exact:true})).toBeVisible();
+ await expect(sector).toHaveAttribute('aria-pressed','true');
+ await expect.poll(()=>page.locator('[data-sector-emphasis="member"]').count()).toBeGreaterThan(0);
 });
 
 test("selected relationship label has priority and company details remain readable",async({page})=>{
