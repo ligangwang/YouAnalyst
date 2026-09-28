@@ -190,6 +190,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
   const savedView=useRef<{position:Vector3;target:Vector3}|null>(null);
   const lastSelected=useRef("");
+  const restoredView=useRef(false);
   const lastCameraRequest=useRef<{layout:typeof layout;request:number;reset:number;width:number;height:number}|null>(null);
   useEffect(() => {
     const c = controls.current; if (!c) return;
@@ -197,10 +198,11 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     const previous=lastCameraRequest.current;
     if(selected&&!lastSelected.current&&!savedView.current)savedView.current={position:c.getPosition(new Vector3()),target:c.getTarget(new Vector3())};
     if(!selected&&lastSelected.current&&savedView.current&&previous?.reset===reset){
-      const saved=savedView.current;savedView.current=null;lastSelected.current='';
+      const saved=savedView.current;savedView.current=null;lastSelected.current='';restoredView.current=true;
       c.smoothTime=.8/navigation.speed;void c.setLookAt(...saved.position.toArray(),...saved.target.toArray(),!reducedMotion.current);invalidate();return;
     }
     lastSelected.current=selected;
+    if(selected||previous?.layout!==layout||previous.request!==cameraRequest||previous.reset!==reset)restoredView.current=false;
     if(previous?.reset!==reset)savedView.current=null;
     const restarting = previous !== null && previous.reset !== reset;
     if (restarting) {
@@ -214,7 +216,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       // Searching or focusing a company still cancels the automatic flight.
       introOrbitRef.current = false;
     }
-    if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset&&(!selected||(previous.width===size.width&&previous.height===size.height)))return;
+    if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset&&(restoredView.current||(previous.width===size.width&&previous.height===size.height)))return;
     lastCameraRequest.current={layout,request:cameraRequest,reset,width:size.width,height:size.height};
     // Search, focus, and Reset own their camera request; discard any old idle restart.
     resumeAt.current=null;resumedOrbit.current=null;resumeElapsed.current=0;
@@ -240,7 +242,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     // Establish the opening shot immediately; the introduction owns its slow dolly.
     const opening = (!previous || restarting) && introOrbitRef.current && !n && !sector;
     const distance = opening && !reduced ? d * 1.4 : d;
-    const direction=c.getPosition(new Vector3()).sub(c.getTarget(new Vector3())).normalize();
+    const direction=restarting?new Vector3(0,0,1):c.getPosition(new Vector3()).sub(c.getTarget(new Vector3())).normalize();
     const position=new Vector3(x,y,z).addScaledVector(direction,distance);
     if(position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
     c.smoothTime=.8/navigation.speed;

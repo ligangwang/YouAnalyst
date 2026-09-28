@@ -1024,6 +1024,11 @@ test("selected relationships stay readable and evidence remains actionable", asy
   // Blank clicks now clear the selected company; keep focus while testing evidence.
   await page.mouse.move(5,5);
   await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+  // The mobile card resizes the canvas. Wait for R3F's backing buffer and Html
+  // projection to catch up before testing that a focused camera stays still.
+  await expect.poll(()=>canvas.evaluate(el=>Math.abs((el as HTMLCanvasElement).height-el.getBoundingClientRect().height*Math.min(devicePixelRatio,1.5)))).toBeLessThan(2);
+  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
   const focused=await projectedGraphPositions(page);
   await page.waitForTimeout(2300);
   await expect(canvas).toHaveAttribute('data-rotation','focused');
