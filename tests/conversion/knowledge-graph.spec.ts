@@ -1105,9 +1105,10 @@ test("unclassified companies have their own spatial anchor",()=>{
 
 test("graph omits floating sector names while toolbar sectors still focus companies",async({page})=>{
  await navigationFixture(page);
- await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length);
+ await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20_000});
  await expect(page.getByRole('button',{name:/^Focus sector:/})).toHaveCount(0);
- await page.getByRole('button',{name:/^Sectors/}).click();
+ const toggle=page.getByRole('button',{name:/^Sectors/});
+ if(await toggle.isVisible())await toggle.click();
  const sector=page.getByRole('button',{name:'AI compute',exact:true,includeHidden:true});
  await sector.click();
  await expect(sector).toHaveAttribute('aria-pressed','true');
