@@ -8,6 +8,7 @@ import {CompanyCountryFlag} from './company-country-flag';
 import {marketCapLabel} from '@/lib/knowledge-graph/market-cap';
 import {TreeCompanyCard} from './tree-company-card';
 import styles from './industry-hierarchy.module.css';
+import {useNodePresence} from './use-node-presence';
 import { hierarchyTourPlan, hierarchyTourIndex } from '@/lib/knowledge-graph/hierarchy-tour';
 import { tourDelta, tourEase } from '@/lib/knowledge-graph/tour-motion';
 type Node={id:string;parent?:string;x:number;y:number;label:string;color:string;company?:GraphNode};
@@ -15,6 +16,7 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
  const {text,locale}=useLocale(),{speed,paused}=useNavigationSettings();
  const layers=useMemo(()=>industryTree(companies),[companies]);
  const [open,setOpen]=useState<string[]>(['root']);
+ const [revealedLayers,setRevealedLayers]=useState<string[]>([]);
  const [view,setView]=useState({x:440,y:260,zoom:.8});
  const viewport=useRef<HTMLDivElement>(null),shot=useRef({x:440,y:260,zoom:.8}),elapsed=useRef(0),index=useRef(0),drag=useRef<{x:number;y:number;vx:number;vy:number}|null>(null);
  const autoShot=useRef(true);
@@ -22,9 +24,10 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
  const pointers=useRef(new Map<number,{x:number;y:number}>()),pinch=useRef<{distance:number;zoom:number}|null>(null);
  const [size,setSize]=useState({width:1000,height:600});
  useEffect(()=>{const el=viewport.current;if(!el)return;const observer=new ResizeObserver(([e])=>{setSize({width:e.contentRect.width,height:e.contentRect.height});if(!initialized.current){initialized.current=true;autoShot.current=false;shot.current={x:300,y:300,zoom:Math.min(.8,e.contentRect.width/650,e.contentRect.height/650)};}});observer.observe(el);return()=>observer.disconnect();},[]);
+ useEffect(()=>{let live=true;const media=matchMedia('(prefers-reduced-motion: reduce)');const update=()=>{if(live&&media.matches)setRevealedLayers(layers.map(l=>l.id));};queueMicrotask(update);media.addEventListener('change',update);return()=>{live=false;media.removeEventListener('change',update);};},[layers]);
  const nodes=useMemo(()=>{
   const result:Node[]=[{id:'root',x:30,y:260,label:text('AI industry chain','AI 产业链'),color:'#7dd3fc'}];let row=30;
-  if(open.includes('root'))for(const layer of layers){
+  if(open.includes('root'))for(const layer of layers.filter(l=>revealedLayers.includes(l.id))){
    const start=row;result.push({id:layer.id,parent:'root',x:330,y:row,label:text(layer.en,layer.zh),color:layer.color});
    if(open.includes(layer.id))for(const branch of layer.branches){
     result.push({id:branch.id,parent:layer.id,x:630,y:row,label:text(branch.en,branch.zh),color:layer.color});
@@ -34,7 +37,9 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
    row=Math.max(row,start+112);
   }
   return result;
- },[layers,open,text,locale]);
+ },[layers,open,revealedLayers,text,locale]);
+ const presence=useNodePresence(nodes,speed);
+ const renderedNodes=presence.map(entry=>entry.node);
  useEffect(()=>{
   const id=manualFocus.current;if(!id)return;const node=nodes.find(n=>n.id===id);if(!node)return;
   const children=nodes.filter(n=>n.parent===id),ys=[node.y,...children.map(n=>n.y)],min=Math.min(...ys),max=Math.max(...ys);
@@ -50,7 +55,7 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
    if(running){autoShot.current=true;
     const stop=latest.current.plan[index.current%latest.current.plan.length];
     const key=String(index.current)+':'+stop.focus+':'+(stop.members?.join(',')??'');
-    if(transition.current?.key!==key){transition.current={key,from:{...latest.current.view}};elapsed.current=0;setOpen(stop.open);}
+    if(transition.current?.key!==key){transition.current={key,from:{...latest.current.view}};elapsed.current=0;setOpen(v=>[...new Set([...v,...stop.open])]);setRevealedLayers(v=>[...new Set([...v,...stop.open.filter(id=>id!=='root'&&!id.includes('/'))])]);}
     const node=latest.current.nodes.find(n=>n.id===stop.focus);
     const context=stop.members?latest.current.nodes.filter(n=>stop.members!.includes(n.id)):node?[node,...latest.current.nodes.filter(n=>n.parent===node.id)]:[];
     // Wait for expansion to commit before starting the camera clock.
@@ -91,13 +96,13 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
   if(selected)onSelect('');
  };
  return <section aria-label={text('Company hierarchy','公司层级图')} data-industry-section="hierarchy">
-  <div className={styles.tools}><button onClick={()=>{autoShot.current=false;transition.current=null;setNavigationPaused(true);setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);}}>{text('Expand all','全部展开')}</button><button onClick={()=>{autoShot.current=false;transition.current=null;setNavigationPaused(true);setOpen(['root']);shot.current={x:440,y:260,zoom:.7};}}>{text('Collapse all','全部折叠')}</button><button onClick={()=>{index.current=0;elapsed.current=0;transition.current=null;setOpen(['root']);shot.current={x:440,y:260,zoom:.8};}}>{text('Reset view','复位视角')}</button></div>
+  <div className={styles.tools}><button onClick={()=>{autoShot.current=false;transition.current=null;setNavigationPaused(true);setRevealedLayers(layers.map(l=>l.id));setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);}}>{text('Expand all','全部展开')}</button><button onClick={()=>{autoShot.current=false;transition.current=null;setNavigationPaused(true);setOpen(['root']);shot.current={x:440,y:260,zoom:.7};}}>{text('Collapse all','全部折叠')}</button><button onClick={()=>{index.current=0;elapsed.current=0;transition.current=null;setOpen(['root']);shot.current={x:440,y:260,zoom:.8};}}>{text('Reset view','复位视角')}</button></div>
   <div ref={viewport} className={styles.scene} data-industry-tree="hierarchy" data-tour={paused||selected||!open.includes('root')?'paused':'running'}
    onPointerDown={e=>{if((e.target as Element).closest('button,aside'))return;autoShot.current=false;transition.current=null;setNavigationPaused(true);pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.current.size===2){const [a,b]=[...pointers.current.values()];pinch.current={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:view.zoom};drag.current=null;}else drag.current={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};e.currentTarget.setPointerCapture(e.pointerId);}}
    onPointerMove={e=>{if(pointers.current.has(e.pointerId))pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.current.size===2&&pinch.current){const [a,b]=[...pointers.current.values()];const next={...view,zoom:Math.max(.12,Math.min(2.5,pinch.current.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.current.distance)))};shot.current=next;setView(next);return;}const d=drag.current;if(d){const next={...view,x:d.vx-(e.clientX-d.x)/view.zoom,y:d.vy-(e.clientY-d.y)/view.zoom};shot.current=next;setView(next);}}} onPointerUp={e=>{pointers.current.delete(e.pointerId);drag.current=null;pinch.current=null;}} onPointerCancel={e=>{pointers.current.delete(e.pointerId);drag.current=null;pinch.current=null;}}>
    <svg width="100%" height="100%" viewBox={`${view.x-chartWidth/view.zoom/2} ${view.y-chartHeight/view.zoom/2} ${chartWidth/view.zoom} ${chartHeight/view.zoom}`} aria-label={text('Expandable company hierarchy','可展开公司层级图')}>
-    {nodes.filter(n=>n.parent).map(n=>{const p=nodes.find(v=>v.id===n.parent)!;return <path key={n.id} d={`M${p.x+220},${p.y+32} C${p.x+260},${p.y+32} ${n.x-40},${n.y+32} ${n.x},${n.y+32}`} fill="none" stroke={n.color} opacity=".4"/>;})}
-    {nodes.map(n=><foreignObject key={n.id} x={n.x} y={n.y} width="240" height="76"><button className={styles.node} style={{borderColor:n.color,animationDuration:`${1.6/speed}s`}} aria-expanded={n.company?undefined:open.includes(n.id)} aria-pressed={n.company?selected===n.company.id:undefined} data-hierarchy-node={n.id} data-tree-company={n.company?.id} title={n.label} onClick={()=>toggle(n)}>{n.company&&<CompanyCountryFlag country={n.company.country} locale={locale}/>} {n.label}<small>{n.company?[n.company.symbol,marketCapLabel(n.company.marketCap)].filter(Boolean).join(" · "):open.includes(n.id)?'−':'+'}</small></button></foreignObject>)}
+    {presence.filter(e=>e.node.parent).map(({node:n,exiting})=>{const p=renderedNodes.find(v=>v.id===n.parent);if(!p)return null;return <path className={exiting?styles.exiting:styles.entering} style={{animationDuration:`${.8/speed}s`}} key={n.id} d={`M${p.x+220},${p.y+32} C${p.x+260},${p.y+32} ${n.x-40},${n.y+32} ${n.x},${n.y+32}`} fill="none" stroke={n.color} opacity=".4"/>;})}
+    {presence.map(({node:n,exiting})=><foreignObject className={exiting?styles.exiting:styles.entering} style={{x:n.x,y:n.y,transitionDuration:`${.8/speed}s`,animationDuration:`${.8/speed}s`,pointerEvents:exiting?'none':undefined}} key={n.id} x={n.x} y={n.y} width="240" height="76"><button className={styles.node} style={{borderColor:n.color,animationDuration:`${1.6/speed}s`}} aria-expanded={n.company?undefined:open.includes(n.id)} aria-pressed={n.company?selected===n.company.id:undefined} disabled={exiting} data-exiting={exiting} data-hierarchy-node={n.id} data-tree-company={n.company?.id} title={n.label} onClick={()=>toggle(n)}>{n.company&&<CompanyCountryFlag country={n.company.country} locale={locale}/>} {n.label}<small>{n.company?[n.company.symbol,marketCapLabel(n.company.marketCap)].filter(Boolean).join(" · "):open.includes(n.id)?'−':'+'}</small></button></foreignObject>)}
    </svg>
    {company&&<TreeCompanyCard key={company.id} company={company} color="#7dd3fc" closing={closing} onClose={()=>onSelect('')}/>}
   </div><p>{text('Drag to pan · Scroll or pinch to zoom · Pan or zoom to pause the tour','拖动平移 · 滚轮或双指缩放 · 平移或缩放时暂停巡视')}</p>
