@@ -633,18 +633,20 @@ test("every sector dims unrelated names and restores the full map on toggle", as
     await page.mouse.move(0,0);
     await expect(button).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator('[data-sector-emphasis="member"]')).toHaveCount(members.size);
+    await expect(async()=>{
     const opacities = await page.locator("[data-company-id]").evaluateAll(elements => elements.map(el => ({id:el.getAttribute("data-company-id")!, visible:(el as HTMLElement).dataset.visible==="true", emphasis:Number(getComputedStyle(el).getPropertyValue("--label-emphasis")||1), opacity:Number(getComputedStyle(el).opacity)})));
     for (const node of opacities) {
       const emphasis=members.has(node.id)?1:related.has(node.id)?.85:.18;
       expect(node.emphasis,`${sector.en}: ${node.id}`).toBe(emphasis);
       expect(node.opacity,`${sector.en}: ${node.id}`).toBe(node.visible?emphasis:0);
     }
+    }).toPass({timeout:5000});
     await expect(page.locator("[data-company-id]")).toHaveCount(layout.nodes.length);
     await revealSectors();
     await button.click();
     await page.mouse.move(0,0);
     await expect(page.locator("[data-sector-emphasis]")).toHaveCount(0);
-    expect(await page.locator("[data-company-id]").evaluateAll(elements => elements.every(el => Number(getComputedStyle(el).getPropertyValue("--label-emphasis")||1)===1 && Number(getComputedStyle(el).opacity)===((el as HTMLElement).dataset.visible==="true"?1:0)))).toBe(true);
+    await expect.poll(()=>page.locator("[data-company-id]").evaluateAll(elements => elements.every(el => Number(getComputedStyle(el).getPropertyValue("--label-emphasis")||1)===1 && Number(getComputedStyle(el).opacity)===((el as HTMLElement).dataset.visible==="true"?1:0)))).toBe(true);
   }
 });
 for(const sectorFocused of [false,true]) test(`line hover previews, click pins, and blank space clears (${sectorFocused?"sector":"overview"})`,async({page})=>{

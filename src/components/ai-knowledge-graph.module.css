@@ -300,6 +300,7 @@
 /* Animate the space released by the card as the camera returns to its saved view. */
 .workspace[data-view="graph"] .viewContent{transition:padding .35s ease}
 .workspace[data-view="graph"] .canvas3d{transition:height .35s ease,min-height .35s ease}
+.workspace[data-view="graph"].withDetail .viewContent,.workspace[data-view="graph"].withDetail .canvas3d{transition:none}
 @media(prefers-reduced-motion:reduce){
  .workspace[data-view="graph"] .viewContent,.workspace[data-view="graph"] .canvas3d{transition-duration:.1s}
 }
