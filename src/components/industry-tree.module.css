@@ -56,3 +56,9 @@
 
 .scene:has(>aside) > div:has(canvas){width:calc(100% - 364px)!important}
 @media(max-width:800px){.scene:has(>aside)>div:has(canvas){width:100%!important;height:calc(100% - 220px)!important}}
+
+@keyframes nodeEnter{from{opacity:0}to{opacity:1}}
+@keyframes nodeExit{from{opacity:1}to{opacity:0}}
+
+.entering{animation:nodeEnter .8s ease both}.exiting{animation:nodeExit .8s ease both;pointer-events:none}
+@media(prefers-reduced-motion:reduce){.entering,.exiting{animation:none}}

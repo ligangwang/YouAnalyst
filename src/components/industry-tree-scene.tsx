@@ -13,6 +13,7 @@ import { layoutVerticalTree, VERTICAL_ROOT_REACH, VERTICAL_ROOT_DEPTH } from '@/
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
+import {useNodePresence} from './use-node-presence';
 import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
 import { createTreeTour, treeTourPlan, treeTourFromView } from '@/lib/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/knowledge-graph/label-fade';
@@ -125,24 +126,28 @@ function Scene(props:TreeSceneProps){
   const particles=useRef(new Map<string,Mesh>());
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
-  const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
+  const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale).filter(n=>!props.vertical||!growing||n.kind==='root'||props.open.includes(n.layer??n.id)),[props.layers,props.open,locale,layout,props.vertical,growing]);
+  const presence=useNodePresence(nodes,navigation.speed);
+  const renderedNodes=useMemo(()=>presence.map(entry=>entry.node),[presence]);
+  const present=useMemo(()=>new Map(presence.map(entry=>[entry.node.id,entry])),[presence]);
+  useEffect(()=>{invalidate();},[presence,invalidate]);
   useEffect(()=>{collisionLabels.current.clear();lastCollision.current=-Infinity;invalidate();},[nodes,props.selected,props.focus,invalidate]);
   const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
   const fullPlan=useMemo(()=>treeTourPlan(all,size.width/size.height),[all,size.width,size.height]);
   const visiblePlan=useMemo(()=>treeTourPlan(nodes,size.width/size.height,new Set(props.open)),[nodes,props.open,size.width,size.height]);
   const plan=growing?fullPlan:visiblePlan;
   const targets=useMemo(()=>{
-    const visible=new Map(nodes.map(n=>[n.id,n]));
+    const visible=new Map(presence.filter(entry=>!entry.exiting).map(entry=>[entry.node.id,entry.node]));
     const catalog=new Map(all.map(n=>[n.id,n]));
     return all.map(n=>{
       let ancestor:TreePoint|undefined=n;
       while(ancestor&&!visible.has(ancestor.id))ancestor=ancestor.parent?catalog.get(ancestor.parent):undefined;
-      return {node:n,visible:visible.get(n.id),position:visible.get(n.id)?.position??visible.get(ancestor?.id??'root')!.position};
+      return {node:n,visible:visible.get(n.id),position:visible.get(n.id)?.position??visible.get(ancestor?.id??'root')?.position??all[0].position};
     });
-  },[nodes,all]);
+  },[presence,all]);
   const edges=useMemo(()=>all.filter(n=>n.parent),[all]);
   const allById=useMemo(()=>new Map(all.map(n=>[n.id,n])),[all]);
-  const trunkTop=useMemo(()=>Math.max(1,...nodes.filter(n=>n.kind==='layer').map(n=>n.position[1])),[nodes]);
+  const trunkTop=useMemo(()=>Math.max(1,...all.filter(n=>n.kind==='layer').map(n=>n.position[1])),[all]);
   const flowing=useMemo(()=>nodes.filter(n=>!props.vertical&&n.parent&&props.focus&&(n.layer===props.focus||n.branch===props.focus)).slice(0,6),[nodes,props.focus,props.vertical]);
   const geometry=useMemo(()=>{
     const g=new BufferGeometry();g.setAttribute('position',new Float32BufferAttribute(new Float32Array(edges.length*6),3));
@@ -258,6 +263,18 @@ function Scene(props:TreeSceneProps){
       group.position.lerp(vector,amount);
       group.scale.lerp(vector.setScalar(scale),amount);
       group.visible=group.scale.x>.002;
+      const alpha=Number(group.userData.presenceAlpha??0),step=tourDelta(delta,navigation.speed)/.8;
+      group.userData.presenceAlpha=reduced.current?scale:Math.max(0,Math.min(1,alpha+(scale?step:-step)));
+      group.traverse(child=>{
+        if(!('material' in child))return;
+        const materials=Array.isArray((child as Mesh).material)?(child as Mesh).material:[(child as Mesh).material];
+        for(const material of materials as import('three').Material[]){
+          const state=material.userData.treeFade as {base:number;last:number}|undefined;
+          const base=!state||material.opacity!==state.last?material.opacity:state.base;
+          material.opacity=base*group.userData.presenceAlpha;
+          material.userData.treeFade={base,last:material.opacity};
+        }
+      });
       // Keep distant root nodules easy to select on phones even when their
       // visible spheres shrink to a few pixels in the whole-tree view.
       if(props.vertical&&target.node.company&&target.node.layer==='energy'){
@@ -366,7 +383,7 @@ function Scene(props:TreeSceneProps){
     <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.setAttribute('data-camera','moving');}} onSleep={()=>{gl.domElement.setAttribute('data-camera','idle');invalidate();}}
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
-    {props.vertical?<VerticalTreeBranches nodes={nodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
+    {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
       const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
@@ -387,7 +404,7 @@ function Scene(props:TreeSceneProps){
         onPointerOver:(event:ThreeEvent<PointerEvent>)=>{event.stopPropagation();gl.domElement.style.cursor='pointer';},
         onPointerOut:()=>{gl.domElement.style.cursor='';},
       }:{};
-      return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(visible?1:0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
+      return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         {leaf?<group rotation={[0,node.azimuth??0,0]}><group rotation={[0,0,leaf.angle]}>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.3,leaf.width*1.5,1]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.07} depthWrite={false} blending={AdditiveBlending}/></mesh>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,1]} {...pick}><meshBasicMaterial vertexColors color={leaf.tint} side={DoubleSide} transparent opacity={dim?.12:.96}/></mesh>
@@ -398,10 +415,10 @@ function Scene(props:TreeSceneProps){
         {props.vertical&&node.company&&node.layer==='energy'&&<mesh {...pick} userData={{rootHitTarget:true,minimumRadius:look.glowRadius||radius*2}}><sphereGeometry args={[1,12,8]}/><meshBasicMaterial transparent opacity={0} depthWrite={false}/></mesh>}
         </>}
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
-        {visible&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={left&&!centered?styles.labelLeft:undefined}><button
+        {present.has(node.id)&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={`${left&&!centered?styles.labelLeft:''} ${present.get(node.id)?.exiting?styles.exiting:styles.entering}`} style={{animationDuration:`${.8/navigation.speed}s`}}><button
           ref={el=>{if(el){labels.current.set(node.id,el);window.clearTimeout(labelsSettled.current);labelsSettled.current=window.setTimeout(invalidate,120);}else labels.current.delete(node.id);}}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,...(props.vertical&&(node.kind==='company'||node.kind==='branch')?{}:{opacity:dim ? .2 : 1}),pointerEvents:'auto',...(node.company?{'--cap':capScale}:{})} as CSSProperties}
-          data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
+          disabled={!visible} data-exiting={present.get(node.id)?.exiting} data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
           data-compact={props.vertical&&(node.kind==='company'||node.kind==='branch')?false:undefined}
           data-label-visible={props.vertical&&(node.kind==='company'||node.kind==='branch')?false:undefined}
           aria-label={props.vertical&&(node.company||node.kind==='branch')?[node.label,node.company?.symbol].filter(Boolean).join(' '):undefined}

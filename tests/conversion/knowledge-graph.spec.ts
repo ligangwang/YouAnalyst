@@ -1619,17 +1619,29 @@ test('navigation: tree grows from roots into the next layer before visiting its 
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
  await expect(tree.locator('[data-tree-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:15000});
- await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','false');
+ await expect(tree.locator('[data-tree-node="chips"]')).toHaveCount(0);
  const start=await canvas.getAttribute('data-camera-target');
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:50000});
  await expect(tree.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
- await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveCount(0);
  expect(await canvas.getAttribute('data-camera-target')).not.toBe(start);
  await page.getByRole('button',{name:'Pause tour',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour','paused');
  const held=await canvas.getAttribute('data-camera-target');
  await page.waitForTimeout(400);
  expect(await canvas.getAttribute('data-camera-target')).toBe(held);
+ const company=tree.locator('[data-tree-company="US:NVDA"]');
+ await expect(company).toHaveCount(1);
+ await tree.screenshot({path:test.info().outputPath('tree-progressive.png')});
+ const disabledOnExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
+   const observer=new MutationObserver(()=>{
+     if(el.getAttribute('data-exiting')==='true'){observer.disconnect();resolve((el as HTMLButtonElement).disabled);}
+   });
+   observer.observe(el,{attributes:true});
+   (document.querySelector('[data-tree-node="chips"]') as HTMLButtonElement).click();
+ }));
+ expect(disabledOnExit).toBe(true);
+ await expect(company).toHaveCount(0);
 });
 
 
@@ -1733,4 +1745,35 @@ test('navigation: hierarchy parent toggles redirect the running tour and respect
  await expect(scene.locator('[data-hierarchy-node="root"]')).toHaveAttribute('aria-expanded','false');
  await activate('root');
  await expect(scene).toHaveAttribute('data-tour','running');
+});
+
+
+test('navigation: hierarchy reveals from root and keeps earlier branches open',async({page})=>{
+ test.setTimeout(70000);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:CEG','US:NVDA'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=hierarchy');
+ const root=page.locator('[data-hierarchy-node="root"]'),energy=page.locator('[data-hierarchy-node="energy"]');
+ await expect(root).toBeVisible();
+ await expect(energy).toHaveCount(0);
+ await expect(energy).toHaveAttribute('aria-expanded','true',{timeout:15000});
+ const company=page.locator('[data-tree-company="US:CEG"]');
+ await expect(company).toHaveCount(1,{timeout:15000});
+ await expect(page.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:30000});
+ await expect(energy).toHaveAttribute('aria-expanded','true');
+ await expect(company).toHaveCount(1);
+ await page.locator('[data-industry-tree="hierarchy"]').screenshot({path:test.info().outputPath('hierarchy-progressive.png')});
+ await page.getByRole('button',{name:'Pause tour',exact:true}).click();
+ // Manual collapse must finish its exit even while automatic navigation is paused.
+ await energy.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(company).toHaveAttribute('data-exiting','true');
+ await expect(company).toBeDisabled();
+ await expect(company).toHaveCount(0);
+ await energy.evaluate((el:HTMLButtonElement)=>el.click());
+ const branch=page.locator('[data-hierarchy-node^="energy/"]').first();
+ await expect(branch).toHaveCount(1);
+ await branch.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(company).toHaveCount(1);
 });

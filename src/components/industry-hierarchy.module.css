@@ -9,3 +9,11 @@
 @media(max-width:800px){.scene:has(>aside)>svg{width:100%;height:calc(100% - 220px)}}
 
 .tools button{background:#0e2130;color:#d9edf5;border:1px solid #315165;border-radius:10px;padding:8px 12px;min-height:40px;cursor:pointer}.tools button:focus-visible{outline:2px solid #7dd3fc}
+
+.entering{animation:nodeEnter .8s ease both}.exiting{animation:nodeExit .8s ease both;pointer-events:none}
+@keyframes nodeEnter{from{opacity:0}to{opacity:1}}
+@keyframes nodeExit{from{opacity:1}to{opacity:0}}
+@media(prefers-reduced-motion:reduce){.entering,.exiting{animation:none}}
+
+.scene foreignObject{transition-property:x,y;transition-timing-function:ease}
+@media(prefers-reduced-motion:reduce){.scene foreignObject{transition:none}}
