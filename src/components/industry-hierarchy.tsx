@@ -26,18 +26,19 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
  useEffect(()=>{const el=viewport.current;if(!el)return;const observer=new ResizeObserver(([e])=>{setSize({width:e.contentRect.width,height:e.contentRect.height});if(!initialized.current){initialized.current=true;autoShot.current=false;shot.current={x:300,y:300,zoom:Math.min(.8,e.contentRect.width/650,e.contentRect.height/650)};}});observer.observe(el);return()=>observer.disconnect();},[]);
  useEffect(()=>{let live=true;const media=matchMedia('(prefers-reduced-motion: reduce)');const update=()=>{if(live&&media.matches)setRevealedLayers(layers.map(l=>l.id));};queueMicrotask(update);media.addEventListener('change',update);return()=>{live=false;media.removeEventListener('change',update);};},[layers]);
  const nodes=useMemo(()=>{
-  const result:Node[]=[{id:'root',x:30,y:260,label:text('AI industry chain','AI 产业链'),color:'#7dd3fc'}];let row=30;
+  const label=(en:string,zh:string)=>locale==='zh-CN'?zh:en;
+  const result:Node[]=[{id:'root',x:30,y:260,label:label('AI industry chain','AI 产业链'),color:'#7dd3fc'}];let row=30;
   if(open.includes('root'))for(const layer of layers.filter(l=>revealedLayers.includes(l.id))){
-   const start=row;result.push({id:layer.id,parent:'root',x:330,y:row,label:text(layer.en,layer.zh),color:layer.color});
+   const start=row;result.push({id:layer.id,parent:'root',x:330,y:row,label:label(layer.en,layer.zh),color:layer.color});
    if(open.includes(layer.id))for(const branch of layer.branches){
-    result.push({id:branch.id,parent:layer.id,x:630,y:row,label:text(branch.en,branch.zh),color:layer.color});
+    result.push({id:branch.id,parent:layer.id,x:630,y:row,label:label(branch.en,branch.zh),color:layer.color});
     if(open.includes(branch.id))for(const company of branch.companies){result.push({id:branch.id+'/'+company.id,parent:branch.id,x:930,y:row,label:companyName(company,locale),color:layer.color,company});row+=88;}
     else row+=100;
    }
    row=Math.max(row,start+112);
   }
   return result;
- },[layers,open,revealedLayers,text,locale]);
+ },[layers,open,revealedLayers,locale]);
  const presence=useNodePresence(nodes,speed);
  const renderedNodes=presence.map(entry=>entry.node);
  useEffect(()=>{
