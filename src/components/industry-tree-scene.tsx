@@ -409,7 +409,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else props.onToggle(node.id);}}>
+          onClick={event=>{event.stopPropagation();setGrowing(false);if(node.company)props.onSelect(node.company.id);else props.onToggle(node.id);}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}</small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}
