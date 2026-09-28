@@ -967,10 +967,10 @@ for (const language of ["en", "zh-CN"]) test(`sector legend replaces discovery c
  const compact=(page.viewportSize()?.width??1280)<=800;
  if(compact){
   await expect(toggle).toHaveAttribute("aria-expanded","false");
-  await expect(page.getByText(language==="en"?"Tap a company to explore its connections":"点击公司，探索产业关联",{exact:true})).toBeVisible();
+  await expect(page.getByText(language==="en"?"Tap a company to explore its connections":"点击公司，探索产业关联",{exact:true}).filter({visible:true})).toBeVisible();
  }else{
   await expect(toggle).toHaveAttribute("aria-expanded","false");
-  await expect(page.getByText(language==="en"?"Click a company to explore its connections":"点击公司，探索产业关联",{exact:true})).toBeVisible();
+  await expect(page.getByText(language==="en"?"Click a company to explore its connections":"点击公司，探索产业关联",{exact:true}).filter({visible:true})).toBeVisible();
  }
  async function revealSectors(){await toggle.click();}
  const sector = page.getByRole("button",{name:language === "en" ? "AI compute" : "AI 算力",exact:true,includeHidden:true});
