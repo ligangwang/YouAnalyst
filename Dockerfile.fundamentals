@@ -7,6 +7,7 @@ COPY src ./src
 COPY scripts ./scripts
 # Shared maintenance image; each deployed job selects its worker command.
 RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-sec-fundamentals.cjs \
+  && node_modules/.bin/esbuild scripts/serve-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-sec-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/refresh-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-cn-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/refresh-private-valuations.ts --bundle --platform=node --packages=external --outfile=dist/refresh-private-valuations.cjs \
   && npm prune --omit=dev

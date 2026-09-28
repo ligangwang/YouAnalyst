@@ -76,6 +76,21 @@ export function calculateMarketCap(assessment: ShareAssessment | undefined, pric
 }
 
 // Recalculate all cached/requested companies without making any provider calls.
+export async function refreshCompanyMarketCaps(db: Firestore, log: MaintenanceLog, tickers: string[]) {
+  const result = { processed: 0, failed: 0 };
+  if (!tickers.length) return result;
+  const prices = await readLatestUsPrices(db, tickers);
+  for (const ticker of tickers) {
+    try {
+      const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
+      const value = (await ref.get()).data()?.value;
+      await ref.set({ marketCap: calculateMarketCap(value?.shareAssessment, prices.get(ticker), ticker) }, { merge: true });
+      result.processed++;
+    } catch (error) { result.failed++; log.emit("ERROR", "market_cap_failed", { ticker, error: maintenanceError(error) }); }
+  }
+  return result;
+}
+
 export async function refreshCachedMarketCaps(db: Firestore, log: MaintenanceLog, deadline: number) {
   const result = {processed:0,estimated:0,unavailable:0,failed:0,incomplete:false};
   let cursor: string | undefined;

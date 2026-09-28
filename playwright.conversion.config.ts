@@ -5,7 +5,9 @@ export default defineConfig({
   testDir: "./tests/conversion",
   outputDir: "./test-results/conversion",
   fullyParallel: true,
-  workers: 2,
+  // Four CI shards already run independently. One renderer per runner avoids
+  // software-WebGL startup and animation timing contention between fixtures.
+  workers: process.env.CI ? 1 : 2,
   use: { serviceWorkers: "block" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },

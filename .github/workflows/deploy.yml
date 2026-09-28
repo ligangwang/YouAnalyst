@@ -760,3 +760,9 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
       - name: Deploy changed background workers
         run: bash scripts/deploy-background-jobs.sh "$TARGET_JOB"
+      - name: Verify SEC Pub/Sub delivery with cached companies
+        if: ${{ env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'sec-fundamentals' }}
+        run: >-
+          gcloud run jobs execute refresh-sec-fundamentals-production
+          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
+          --update-env-vars FUNDAMENTALS_VERIFY_ONLY=1 --wait --quiet

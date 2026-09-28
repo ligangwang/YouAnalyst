@@ -10,7 +10,7 @@ import { AdminSecRerun } from "./admin-sec-rerun";
 import { scheduledJobs, type JobId, type HistoryView, type JobHistoryPage, type JobRecord } from "@/lib/admin-jobs/model";
 
 const button = "rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40";
-const chineseNames = { tickers: "股票目录", privateValuations: "私人公司估值", fundamentals: "SEC 财务数据", cnFundamentals: "A 股财务与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
+const chineseNames = { tickers: "股票目录", privateValuations: "私人公司估值", fundamentals: "SEC 财务数据", fundamentalsBatches: "SEC 财务批次", cnFundamentals: "A 股财务与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
 const statusLabels: Record<string, string> = { Succeeded: "成功", Failed: "失败", Cancelled: "已取消", Starting: "启动中", Running: "运行中", Unknown: "未知", "No completion recorded": "无完成记录", "Completed with errors": "完成但有错误", "Delivery started": "开始触发", "Delivery failed": "触发失败", Delivered: "已送达" };
 function date(value: string) { return value ? new Date(value).toLocaleString() : "—"; }
 function summary(record: JobRecord): string {
@@ -81,6 +81,7 @@ export function AdminJobsPage() {
     {(query.job === "us" || query.job === "china") && <AdminEodRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     {(query.job === "fundamentals" || query.job === "cnFundamentals" || query.job === "privateValuations" || query.job === "directory") && <AdminSecRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     {query.job === "tickers" && <AdminTickerSync onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
+    {query.job === "fundamentals" && <p className="mb-4 text-sm text-slate-400">{text("A successful publisher run means batches were queued. Select SEC fundamentals batches to inspect processing outcomes.", "发布任务成功表示批次已排队。请选择 SEC 财务批次查看处理结果。")}</p>}
     <nav aria-label={text("Job history views", "任务历史视图")} className="mb-4 flex flex-wrap gap-2">
       {([ ["runs", "Runs", "运行记录"], ["errors", "Errors & warnings", "错误和警告"], ["scheduler", "Scheduler deliveries", "调度触发记录"] ] as const).filter(([view]) => view !== "scheduler" || activeJob.scheduler).map(([view, en, zh]) =>
         <button key={view} onClick={() => changeView(view)} aria-pressed={query.view === view && !query.run} className={`${button} ${query.view === view && !query.run ? "border-cyan-400 bg-cyan-950 text-cyan-100" : ""}`}>{text(en, zh)}</button>)}

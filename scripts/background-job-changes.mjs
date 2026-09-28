@@ -6,6 +6,7 @@ import {pathToFileURL} from 'node:url';
 export function backgroundJobTarget(paths) {
   let financial = false, directory = false;
   for (const path of paths) {
+    if (['scripts/serve-sec-fundamentals.ts', 'scripts/deploy-sec-pubsub.sh'].includes(path)) { financial = true; continue; }
     if (/^(src\/lib\/|scripts\/lib\/)/.test(path) || /^(package(-lock)?\.json|tsconfig\.json|\.gcloudignore|\.dockerignore)$/.test(path)
       || ['.github/workflows/deploy.yml','scripts/deploy-background-jobs.sh','scripts/build-fundamentals.sh','scripts/background-job-changes.mjs'].includes(path)) {
       financial = directory = true;
