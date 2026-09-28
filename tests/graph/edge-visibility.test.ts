@@ -20,6 +20,14 @@ test("all-connections mode and evidence selection remain available", () => {
   assert.deepEqual(edges.map(e => edgeOpacity(e, "", "other", false)), [0, 0, .65]);
 });
 
+test("hover previews both directions and leaving restores selection or overview", () => {
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", false, "a")), [.28, .28, 0]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", false, "")), [0, 0, 0]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "", false, "d")), [.28, .28, .28]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "", false, "")), [.28, .28, 0]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "out", true, "c")), [.65, .28, .28]);
+});
+
 test("transitions settle, reverse continuously, and respect reduced motion", () => {
   const first = fadeEdge(0, .5, 1 / 60, false);
   assert(first > 0 && first < .5);

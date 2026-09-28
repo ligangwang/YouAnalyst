@@ -200,12 +200,11 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const Heading = allowedRelationshipIds ? "h2" : "h1";
   return <><Container className={styles.page}>
     <header className={styles.header}><div className={styles.mapIdentity}><div className={styles.titleRow}><div className={styles.thesisPicker}><label htmlFor={viewId+'-thesis'}>{text('Thesis','投资主题')}</label><Heading className={styles.mapHeading}>{text("AI Industry Map", "AI 产业图谱")}</Heading><select id={viewId+'-thesis'} defaultValue="ai" aria-label={text('Investment thesis','投资主题')}><option value="ai">AI</option></select></div><details className={styles.mapHelp}><summary aria-label={text('About the AI Industry Map','关于 AI 产业图谱')}>ⓘ</summary><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></details></div>
-      {!allowedRelationshipIds && <p className={styles.mapTagline}>{text("Visual intelligence for investment research", "以可视化洞察赋能投资研究")}</p>}
     </div>
+    {view!=="table"&&<NavigationSettings/>}
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
       {([['graph','Relationship graph','关系图谱'],['tree','Industry tree','产业树'],['hierarchy','Company hierarchy','公司层级图'],['table','Company list','公司列表']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" aria-label={text(en,zh)} id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}><ViewIcon view={id} />{text(id==='table'?'List':id==='tree'?'Tree':id==='hierarchy'?'Hierarchy':'Graph',id==='table'?'列表':id==='tree'?'树状图':id==='hierarchy'?'层级图':'关系图')}</button>)}
     </div></header>
-    {view!=="table"&&<NavigationSettings/>}
     <div hidden={view!=='table'}><div className={styles.sharedFilters}>
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>

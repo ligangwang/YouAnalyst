@@ -23,6 +23,14 @@ export function cnyLabel(value: number, locale: string): string {
   const [divisor, unit] = value >= 1e12 ? [1e12, "万亿"] : value >= 1e8 ? [1e8, "亿"] : [1e4, "万"];
   return "¥" + new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value / divisor) + unit;
 }
+// Prefer the recorded local amount; never infer a listing currency from country.
+export function graphNodeMarketCapLabel(cap: GraphMarketCap | undefined, locale: string): string {
+  const local = cap?.local;
+  const localLabel = local && cnyLabel(local.value, locale);
+  if (localLabel) return `${localLabel} ${local.currency}`;
+  const usd = marketCapLabel(cap);
+  return usd ? `${usd} USD` : "";
+}
 export function marketCapDescription(cap: GraphMarketCap | undefined, locale: string): string {
   if (!marketCapLabel(cap)) return "";
   const zh = locale === "zh-CN";
