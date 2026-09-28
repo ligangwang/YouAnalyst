@@ -14,6 +14,14 @@ function fixture(responses: unknown[]) {
   };
   return { request, calls };
 }
+test("fundamentals batch history exposes completed and remaining counts from subscriber logs", async () => {
+  const f = fixture([{ entries: [{ timestamp: "2026-09-27T00:00:00Z", jsonPayload: { runId: "batch-attempt" } }] },
+    { entries: [{ jsonPayload: { runId: "batch-attempt", message: "sec-fundamentals-batch: run_completed", requested: 20, completed: 20, remaining: 0 } }] }]);
+  const page = await loadJobHistory({ job: "fundamentalsBatches", view: "runs" }, f.request, "test-project");
+  assert.equal(page.records[0].status, "Succeeded");
+  assert.equal(page.records[0].summary.completed, 20);
+  assert.match(JSON.stringify(f.calls[0].data), /sec-fundamentals-batch/);
+});
 test("worker history uses bounded provider pagination and authoritative execution status", async () => {
   const f = fixture([{ executions: [
     { name: "jobs/fundamentals/executions/e1", createTime: "2026-09-21T00:00:00Z", completionTime: "2026-09-21T00:01:00Z", conditions: [{ type: "Completed", state: "CONDITION_FAILED", message: "Container failed" }] },

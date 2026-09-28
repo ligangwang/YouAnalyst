@@ -12,7 +12,9 @@ function run(target:string,extra:Record<string,string>={}) {
       gcloud() {
         echo "$*" >> "$CALLS"
         case "$*" in
+          "run services describe sec-fundamentals-subscriber"*) echo https://subscriber.example.run.app ;;
           "run services describe"*) echo "$WEB_SA" ;;
+          "projects describe"*) echo 123456789 ;;
           "run jobs describe"*) echo directory-sync-runtime@demo.iam.gserviceaccount.com ;;
           "builds submit"*) echo build-id ;;
           "builds describe"*) echo SUCCESS ;;
@@ -44,6 +46,15 @@ test('financial changes build once for all three workers and skip directory',()=
   assert.equal(r.calls.match(/builds submit/g)?.length,1);
   assert.equal(r.calls.match(/run jobs deploy/g)?.length,3);
   assert.doesNotMatch(r.calls,/run jobs update|cloudbuild.directory-sync.yaml/);
+});
+test('SEC deployment creates private bounded subscriber before switching the publisher',()=>{
+  const r=run('sec-fundamentals');assert.equal(r.status,0,r.stderr);
+  assert.match(r.calls,/run deploy sec-fundamentals-subscriber.*--no-allow-unauthenticated.*--min-instances 0 --max-instances 1.*--concurrency 1/);
+  assert.match(r.calls,/--push-auth-service-account directory-sync-scheduler@demo.iam.gserviceaccount.com/);
+  assert.match(r.calls,/--ack-deadline 600.*--dead-letter-topic sec-fundamentals-dead-letter/);
+  assert.match(r.calls,/subscriptions add-iam-policy-binding sec-fundamentals-worker.*roles\/pubsub.subscriber/);
+  assert.match(r.calls,/FUNDAMENTALS_REQUEST_TOPIC=sec-fundamentals-requests/);
+  assert.ok(r.calls.indexOf('run deploy sec-fundamentals-subscriber') < r.calls.indexOf('run jobs deploy refresh-sec-fundamentals-production'));
 });
 test('invalid selection or missing IAM/SEC configuration fails before mutations',()=>{
   for(const [target,extra] of [['bad',{}],['all',{SEC_USER_AGENT:''}],['directory',{WEB_SA:''}]] as [string,Record<string,string>][]) {

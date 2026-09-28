@@ -18,6 +18,8 @@ function fakeGcloud() {
   writeFileSync(path.join(dir, "gcloud"), `#!/usr/bin/env bash
 echo "$*" >> "$GCLOUD_LOG"
 case "$*" in
+  "run services describe sec-fundamentals-subscriber"*) echo https://subscriber.example.run.app ;;
+  "projects describe"*) echo 123456789 ;;
   "run services describe"*) printf '%s\\n' "\${FAKE_WEB_SA-}" ;;
   "run jobs describe"*) printf '%s\\n' "\${FAKE_JOB_SA-}" ;;
   "scheduler jobs describe"*) exit 1 ;;
