@@ -758,6 +758,8 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: beta
       - name: Deploy changed background workers
         run: bash scripts/deploy-background-jobs.sh "$TARGET_JOB"
       - name: Verify SEC Pub/Sub delivery with cached companies
