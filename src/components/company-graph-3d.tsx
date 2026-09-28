@@ -17,6 +17,10 @@ import styles from "./ai-knowledge-graph.module.css";
 
 import { marketCapScale, marketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 
+const lineTint = new Color("#829ead");
+const highlightedLineTint = new Color("#8fb9af");
+const focusedLineTint = new Color("#bdd7e2");
+
 const flagCountries = new Set(["CA", "CN", "FR", "GB", "IE", "NL", "SG", "TW", "US"]);
 function countryName(country: string | undefined, locale: string) {
   return country && flagCountries.has(country) ? new Intl.DisplayNames([locale], { type: "region" }).of(country) : undefined;
@@ -36,6 +40,8 @@ void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;
 function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector, introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
   const { text, locale } = useLocale();
   const edgeElements = useRef(new Map<string, HTMLButtonElement>());
+  const edgeFades = useRef(new Map<string, number>());
+  const linePoint = useMemo(() => new Vector3(), []);
   const arrowElements = useRef(new Map<string, Mesh>());
   const sectorElements = useRef(new Map<string, HTMLButtonElement>());
   const layout = useMemo(() => layout3D(graph), [graph]);
@@ -153,8 +159,10 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     const g = new BufferGeometry(), p: number[] = [], c: number[] = [], edgeIds: string[] = [];
     layout.edges.forEach(e => {
       const a = positions.get(e.source)!, b = positions.get(e.target)!;
-      const color = new Color("#dcefff");
-      const parts = e.commercialStatus === "ANNOUNCED" ? 16 : 1;
+      const color = lineTint;
+      const length = Math.hypot(b.x-a.x, b.y-a.y, b.z-a.z);
+      // Similar short dashes on every relationship, rather than eight long fragments.
+      const parts = e.commercialStatus === "ANNOUNCED" ? Math.max(2, Math.ceil(length / 8) * 2) : 1;
       for (let i = 0; i < parts; i++) {
         if (parts > 1 && i % 2) continue;
         edgeIds.push(e.id);
@@ -262,18 +270,27 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
-    const colors = lines.getAttribute("color");
+    const colors = lines.getAttribute("color"), positions = lines.getAttribute("position");
     let fading = false, colorsChanged = false;
+    for (const edge of layout.edges) {
+      const target = edgeTargets.get(edge.id) ?? 0;
+      const next = fadeEdge(edgeFades.current.get(edge.id) ?? 0, target, delta, reducedMotion.current);
+      edgeFades.current.set(edge.id, next);
+      if (Math.abs(next - target) > .0001) fading = true;
+    }
+    const centerDepth = -linePoint.set(0,0,0).applyMatrix4(camera.matrixWorldInverse).z;
+    const depthOpacity = (depth: number) => Math.max(.35, Math.min(1, .75 + (centerDepth-depth) / (2*layout.radius)));
     for (let segment = 0; segment < lines.userData.edgeIds.length; segment++) {
       const id = lines.userData.edgeIds[segment];
-      const target = edgeTargets.get(id) ?? 0;
-      const current = colors.getW(segment * 2);
-      const next = fadeEdge(current, target, delta, reducedMotion.current);
-      if (Math.abs(next - target) > .0001) fading = true;
-      const tint = new Color(id === displayedEdge ? "#ffffff" : highlightedEdges?.includes(id) ? "#c7ffed" : "#dcefff");
-      if (Math.abs(next - current) > .000001 || Math.abs(colors.getX(segment * 2) - tint.r) > .000001 || Math.abs(colors.getY(segment * 2) - tint.g) > .000001) {
-        for (const vertex of [segment * 2, segment * 2 + 1]) colors.setXYZW(vertex, tint.r, tint.g, tint.b, next);
-        colorsChanged = true;
+      const opacity = edgeFades.current.get(id) ?? 0;
+      const tint = id === displayedEdge ? focusedLineTint : highlightedEdges?.includes(id) ? highlightedLineTint : lineTint;
+      for (const vertex of [segment * 2, segment * 2 + 1]) {
+        const depth = -linePoint.fromBufferAttribute(positions,vertex).applyMatrix4(camera.matrixWorldInverse).z;
+        const alpha = opacity * (id === displayedEdge ? 1 : depthOpacity(depth));
+        if (Math.abs(colors.getW(vertex)-alpha) > .000001 || Math.abs(colors.getX(vertex)-tint.r) > .000001 || Math.abs(colors.getY(vertex)-tint.g) > .000001) {
+          colors.setXYZW(vertex,tint.r,tint.g,tint.b,alpha);
+          colorsChanged = true;
+        }
       }
     }
     if (colorsChanged) colors.needsUpdate = true;
@@ -282,7 +299,8 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       const arrow = arrowElements.current.get(edge.id);
       if (!arrow) continue;
       const material = arrow.material as MeshBasicMaterial;
-      material.opacity = fadeEdge(material.opacity, edgeTargets.get(edge.id) ?? 0, delta, reducedMotion.current);
+      const depth = -linePoint.copy(edge.arrow).applyMatrix4(camera.matrixWorldInverse).z;
+      material.opacity = (edgeFades.current.get(edge.id) ?? 0) * (edge.id === displayedEdge ? .8 : .6 * depthOpacity(depth));
     }
     const focused=Boolean(selected || activeEdge || sectorFocus);
     if (focused) introOrbitRef.current = false;
@@ -478,10 +496,10 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
-    <lineSegments geometry={lines} raycast={raycastEdges} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent depthWrite={false} blending={AdditiveBlending}/></lineSegments>
+    <lineSegments geometry={lines} raycast={raycastEdges} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent depthWrite={false}/></lineSegments>
     {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><button aria-label={`${text("Focus sector", "聚焦产业")}: ${text(sector.en,sector.zh)}`} aria-pressed={sectorFocus===sector.id} onClick={()=>onSelectSector?.(sector.id)} ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden",pointerEvents:"auto",opacity:selected || (sectorFocus && sector.id !== sectorFocus) ? .25 : 1}}><span className={styles.sectorName}>{text(sector.en,sector.zh)}</span></button></Html>)}
     {edgeLabels.map(edge=><group key={edge.id}>
-      {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#dcefff" transparent depthWrite={false} blending={AdditiveBlending} opacity={0}/></mesh>}
+      {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#829ead" transparent depthWrite={false} opacity={0}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>
     </group>)}
     {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{n.country && flagCountries.has(n.country) && <Image className={styles.companyFlag} src={`/flags/${n.country.toLowerCase()}.svg`} width={14} height={10} unoptimized loading="eager" alt="" aria-hidden="true" />}{companyName(n,locale)}</strong><span>{[n.symbol, marketCapLabel(n.marketCap)].filter(Boolean).join(" · ")}</span></button></Html>)}
@@ -533,7 +551,7 @@ export default function CompanyGraph3D(props: Props) {
   if (!supported) return fallback;
   return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction data-context-lost={contextLost}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · Ctrl + 滚轮／双指缩放")}</p>
