@@ -32,6 +32,12 @@ test('selection camera tightly frames the neighborhood in wide and narrow viewpo
   }
 });
 
+test('isolated selections respect the zoom minimum as well as the ball boundary', () => {
+  const {position,target}=fitSelectionCamera([{x:0,y:0,z:190}],new Vector3(0,0,1),1200,700,200);
+  assert(position.distanceTo(target)>=230-1e-8);
+  assert(position.length()>=230-1e-8);
+});
+
 test('graph node values prefer recorded local currency and explicitly label USD fallback', () => {
   const cap = {value: 10e9, currency: 'USD' as const, priceDate: '2026-09-25'};
   const local = {...cap, local: {value: 70e9, currency: 'CNY' as const, rateDate: '2026-09-25'}};

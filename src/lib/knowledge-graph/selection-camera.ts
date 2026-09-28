@@ -19,7 +19,8 @@ export function fitSelectionCamera(points: {x:number;y:number;z:number}[], direc
   const tanX = tanY*width/height;
   const usableX = Math.max(.5,1-2*Math.min(110,width*.15)/width);
   const usableY = Math.max(.5,1-2*Math.min(65,height*.15)/height);
-  let distance = Math.max(1,...projected.map(p => p.z-z+Math.max(Math.abs(p.x-x)/(tanX*usableX),Math.abs(p.y-y)/(tanY*usableY))));
+  // Match CameraControls.minDistance so the next wheel/pinch does not jump outward.
+  let distance = Math.max(ballRadius*1.15,1,...projected.map(p => p.z-z+Math.max(Math.abs(p.x-x)/(tanX*usableX),Math.abs(p.y-y)/(tanY*usableY))));
   // Stay outside the ball without changing the viewing direction or fitted bounds.
   const along = target.dot(backward);
   const discriminant = along*along + (ballRadius*1.15)**2 - target.lengthSq();
