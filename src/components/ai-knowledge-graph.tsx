@@ -238,7 +238,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D showAllEdges={showAllEdges} hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} onSelectSector={toggleSector} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectNode} reset={reset} onReset={resetGraphView}/></Suspense>}
       </div>
       {company && !treeView && <aside ref={detailCard} className={`${styles.detail} ${cardFade.card}`} data-closing={cardDismiss.closing} inert={cardDismiss.closing} aria-label={text("Company details", "公司详情")} onKeyDown={e=>{if(e.key==='Escape')selectCompany('');}}>
-        <div className={styles.detailHeader} data-card-drag tabIndex={0} aria-label={text("Move company card","移动公司卡片")}>
+        <div className={styles.detailHeader} data-card-drag={view==='graph'?true:undefined} tabIndex={view==='graph'?0:undefined} aria-label={view==='graph'?text("Move company card","移动公司卡片"):undefined}>
           <span className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</span>
           <button className={styles.clear} onClick={() => selectCompany("")} aria-label={text("Clear selection", "取消选择")}>×</button>
         </div>

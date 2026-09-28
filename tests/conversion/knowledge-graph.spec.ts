@@ -1469,6 +1469,7 @@ test('navigation: cards dock away from graph nodes and can be dragged with point
  const after=(await card.boundingBox())!;expect(after.x).toBeGreaterThanOrEqual(0);expect(after.y).toBeGreaterThanOrEqual(0);
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
  await expect(page.getByRole('complementary',{name:'Company details'})).not.toHaveAttribute('style',/left:|top:|width:|max-height:/);
+ await expect(page.locator('[data-card-drag]')).toHaveCount(0);
 });
 for(const view of ['graph','tree','hierarchy'])test(`navigation: plain wheel zooms ${view} without scrolling the page`,async({page})=>{
  await navigationFixture(page,view);
@@ -1548,4 +1549,21 @@ test('navigation: touch can drag a card and pinch the 2D hierarchy',async({page,
  await client.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-65,y,id:0},{x:x+65,y,id:1}]});
  await client.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await expect(svg).not.toHaveAttribute('viewBox',initial!);await client.detach();
+});
+
+
+test('navigation: hierarchy clears previous company financials when selection changes',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture:KnowledgeGraph={...graph,nodes:[...graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA'),{id:'ORG:LAB',kind:'COMPANY',name:'Independent Lab',market:'GLOBAL',country:'FR',stageIds:['compute'],order:999,sourceIds:[]}]};
+ await page.route('**/*',r=>{
+  const url=new URL(r.request().url());
+  if(url.pathname==='/api/knowledge-graph')return r.fulfill({json:fixture});
+  if(url.pathname==='/api/company-fundamentals')return r.fulfill({json:{data:{marketCap:{close:123,currency:'USD'},metrics:[{label:'Revenue',value:2000000000,unit:'USD'}]}}});
+  return r.fulfill({contentType:'text/html',body:html});
+ });
+ await page.goto('http://graph.test/map?lang=en&view=hierarchy');await page.getByRole('button',{name:'Expand all',exact:true}).click();
+ await page.locator('[data-hierarchy-node="chips/compute/US:NVDA"]').evaluate((el:HTMLButtonElement)=>el.click());
+ const card=page.getByRole('dialog',{name:'Company details'});await expect(card).toContainText('123 USD');await expect(card).toContainText('2B USD');
+ await page.locator('[data-hierarchy-node="chips/compute/ORG:LAB"]').evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(card).toContainText('Independent Lab');await expect(card).not.toContainText('123 USD');await expect(card).not.toContainText('2B USD');await expect(card.locator('dd')).toHaveText(['Unavailable','Unavailable','Unavailable']);
 });

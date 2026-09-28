@@ -81,7 +81,7 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
     {nodes.filter(n=>n.parent).map(n=>{const p=nodes.find(v=>v.id===n.parent)!;return <path key={n.id} d={`M${p.x+220},${p.y+32} C${p.x+260},${p.y+32} ${n.x-40},${n.y+32} ${n.x},${n.y+32}`} fill="none" stroke={n.color} opacity=".4"/>;})}
     {nodes.map(n=><foreignObject key={n.id} x={n.x} y={n.y} width="240" height="76"><button className={styles.node} style={{borderColor:n.color,animationDuration:`${1.6/speed}s`}} aria-expanded={n.company?undefined:open.includes(n.id)} aria-pressed={n.company?selected===n.company.id:undefined} data-hierarchy-node={n.id} data-tree-company={n.company?.id} title={n.label} onClick={()=>toggle(n)}>{n.company&&<CompanyCountryFlag country={n.company.country} locale={locale}/>} {n.label}<small>{n.company?[n.company.symbol,marketCapLabel(n.company.marketCap)].filter(Boolean).join(" · "):open.includes(n.id)?'−':'+'}</small></button></foreignObject>)}
    </svg>
-   {company&&<TreeCompanyCard company={company} color="#7dd3fc" closing={closing} onClose={()=>onSelect('')}/>}
+   {company&&<TreeCompanyCard key={company.id} company={company} color="#7dd3fc" closing={closing} onClose={()=>onSelect('')}/>}
   </div><p>{text('Drag to pan · Scroll or pinch to zoom · Interact to pause the tour','拖动平移 · 滚轮或双指缩放 · 操作时暂停巡视')}</p>
  </section>;
 }
