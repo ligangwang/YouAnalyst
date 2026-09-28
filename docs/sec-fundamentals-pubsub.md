@@ -1,5 +1,33 @@
 # SEC fundamentals batch processing
 
+Company page and API reads also publish pending companies after returning the
+cached response. A transaction on the existing company document reserves a
+five-minute dispatch window, so parallel visitors share one request. Failed
+publication retains pending work and permits retry after 30 seconds. A stable
+batch ID allows redelivery without repeating completed work. The scheduled
+publisher remains a fallback. The web runtime requires publisher permission on
+the request topic only; `deploy-sec-pubsub.sh` provisions that binding.
+
+Cached fundamentals remain in server-rendered HTML. Missing/stale pages poll the
+cache every five seconds for at most twelve attempts, skipping hidden tabs.
+An empty first crawl can still see no financials until background work completes;
+this does not guarantee indexing on that first visit.
+
+All SEC transports, including filing downloads, use the shared Firestore gate
+`company_fundamentals/_sec_request_budget`. It permits one request at a time,
+then waits 200 ms after completion: at most five requests/second across replicas
+and jobs, with lower throughput when SEC responses are slow. Each call has a
+12-second deadline including queue wait; abandoned gate leases expire after
+30 seconds. Firestore failure prevents outgoing requests. HTTP 403 pauses the
+gate for at least ten minutes and 429 for at least one minute; a longer
+Retry-After extends the cooldown. Existing worker backoff may be longer.
+Automatic HTTP redirects are disabled to avoid unbudgeted requests.
+
+Roll out both the website and every SEC-calling worker using the same Firestore
+project before claiming the global limit is active. Old revisions bypass the
+new gate. Pub/Sub topics, subscriber delivery and publisher IAM must be working
+for prompt visit-triggered refreshes; an app-only deployment is insufficient.
+
 The existing daily 21:00 America/New_York job and admin Run now action seed
 the existing company queue, publish batches of up to 20 ticker identifiers,
 and recalculate cached market caps from stored EOD prices. Publisher success

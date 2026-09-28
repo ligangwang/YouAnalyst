@@ -1,7 +1,34 @@
-import { test } from "node:test";
+import { beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { secRequest, withSecRequestContext } from "../../src/lib/sec-request";
 import { fetchLatest10K, fetchLatest10KSections, resolveSecCompanyByTicker } from "../../src/lib/company-graph/sec";
+
+import { secBudget } from "../../src/lib/sec-budget";
+
+beforeEach(() => {
+  mock.method(secBudget, "run", async (signal: AbortSignal, work: (cooldown: (ms: number) => void) => Promise<unknown>) => {
+    signal.throwIfAborted();
+    return work(() => {});
+  });
+});
+
+test("budget failure prevents fetch and provider limits propagate to the shared gate", async t => {
+  t.mock.method(console, "error", () => {});
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+    calls++;
+    assert.equal(init.redirect, "error");
+    return new Response("", { status: 429, headers: { "retry-after": "120" } });
+  });
+  t.mock.method(secBudget, "run", async () => { throw new Error("gate unavailable"); });
+  await assert.rejects(secRequest(url, {}, json), /gate unavailable/);
+  assert.equal(calls, 0);
+  let pause = 0;
+  t.mock.method(secBudget, "run", async (_signal: AbortSignal, work: (cooldown: (ms: number) => void) => Promise<unknown>) => work(ms => { pause = ms; }));
+  await assert.rejects(secRequest(url, {}, json), { code: 429 });
+  assert.equal(calls, 1);
+  assert.equal(pause, 120_000);
+});
 
 const url = "https://data.sec.gov/api/xbrl/companyfacts/CIK0000002488.json";
 const json = (response: Response) => response.json();
