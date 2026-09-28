@@ -102,7 +102,9 @@ jobs:
         run: npm run test:industry
 
   browser-shard:
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    # Test the exact checkout on releases too; sequential merges can change the
+    # source tree after a PR's browser checks have passed.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -145,7 +147,6 @@ jobs:
       actions: read
     steps:
       - name: Require all browser shards
-        if: github.event_name == 'pull_request'
         env:
           SHARD_RESULT: ${{ needs.browser-shard.result }}
         run: test "$SHARD_RESULT" = success
@@ -163,17 +164,6 @@ jobs:
           path: browser-tree.txt
           overwrite: true
           retention-days: 90
-      - name: Require PR coverage for this exact source tree
-        if: github.event_name != 'pull_request'
-        uses: actions/github-script@v7
-        env:
-          RELEASE_TREE: ${{ steps.tree.outputs.sha }}
-        with:
-          script: |
-            const { pathToFileURL } = require('node:url');
-            const { verifyBrowserCoverage } = await import(pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/verify-browser-coverage.mjs`).href);
-            const run = await verifyBrowserCoverage({github, context, tree: process.env.RELEASE_TREE});
-            core.info(`Browser coverage verified by PR run ${run.id}: ${run.html_url}`);
 
   # Compile the environment-specific artifact while checks run. Only deployment
   # waits for verification; preparing this artifact cannot alter the live service.
