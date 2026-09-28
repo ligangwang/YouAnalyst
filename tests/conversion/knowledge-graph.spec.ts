@@ -1631,3 +1631,20 @@ test('navigation: tree grows from roots into the next layer before visiting its 
  await page.waitForTimeout(400);
  expect(await canvas.getAttribute('data-camera-target')).toBe(held);
 });
+
+
+test('navigation: hierarchy pause preserves progress through the current stop',async({page})=>{
+ await navigationFixture(page,'hierarchy');
+ await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ // The root stop takes 7.5 seconds at 2x. Pause near its end, then ensure
+ // resume uses the remaining time instead of restarting the entire stop.
+ await page.waitForTimeout(6000);
+ await page.getByRole('button',{name:'Pause tour',exact:true}).click();
+ const svg=page.locator('[data-industry-tree="hierarchy"] svg');
+ const held=await svg.getAttribute('viewBox');
+ await page.waitForTimeout(500);
+ expect(await svg.getAttribute('viewBox')).toBe(held);
+ await page.getByRole('button',{name:'Resume tour',exact:true}).click();
+ await expect(page.locator('[data-hierarchy-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:4000});
+});
