@@ -1,16 +1,17 @@
+import { TOUR_MOTION, tourDelta, tourEase } from './tour-motion';
 const DEG = Math.PI / 180;
-const smoothstep = (t: number) => Math.max(0, Math.min(1, t * t * t * (t * (t * 6 - 15) + 10)));
+const smoothstep = tourEase;
 
 export function createIntroCamera(startDistance: number, closeDistance: number, random: () => number = Math.random) {
   const orbit = createIntroOrbit(random);
   let elapsed = 0;
   return (delta: number, polar: number, speed = 1) => {
-    const dt = Math.max(0, Math.min(delta, .05)) * speed;
+    const dt = tourDelta(delta, speed);
     elapsed += dt;
-    // Eight seconds to approach, then four seconds to ease into the orbit.
+    // Use the same approach duration and easing as the other charts.
     // Quintic easing starts and ends with zero velocity and acceleration.
-    const approach = smoothstep(Math.min(1, elapsed / 8));
-    const orbitGain = smoothstep(Math.max(0, Math.min(1, (elapsed - 8) / 4)));
+    const approach = smoothstep(Math.min(1, elapsed / TOUR_MOTION.approach));
+    const orbitGain = smoothstep(Math.max(0, Math.min(1, (elapsed - TOUR_MOTION.approach) / 4)));
     const step = orbit(dt / speed * orbitGain, polar, speed);
     return {
       ...step,
@@ -23,14 +24,14 @@ export function createIntroCamera(startDistance: number, closeDistance: number, 
 // viewpoints. An unconstrained random walk can linger on the same side forever.
 export function createIntroOrbit(random: () => number = Math.random) {
   const direction = random() < .5 ? -1 : 1;
-  const azimuthSpeed = direction * (1.7 + random() * .6) * DEG;
+  const azimuthSpeed = direction * (TOUR_MOTION.degreesPerSecond + (random() - .5) * .6) * DEG;
   let above = random() < .5;
   let remaining = 0;
   let targetPolar = Math.PI / 2;
 
   return (delta: number, polar: number, speed = 1) => {
     // Background tabs and slow frames must not cause sudden camera jumps.
-    const dt = Math.max(0, Math.min(delta, .05)) * speed;
+    const dt = tourDelta(delta, speed);
     remaining -= dt;
     if (remaining <= 0) {
       targetPolar = (above ? 55 + random() * 25 : 100 + random() * 25) * DEG;

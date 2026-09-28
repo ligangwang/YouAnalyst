@@ -1,8 +1,9 @@
+import { TOUR_MOTION, tourDelta, tourEase } from './tour-motion';
 import type { TreePoint } from './industry-tree';
 
 type Point = [number, number, number];
 export type TreeShot = { target: Point; position: Point };
-const ease = (t: number) => t*t*t*(t*(t*6-15)+10);
+const ease = tourEase;
 const mix = (a: Point, b: Point, t: number): Point => a.map((v,i)=>v+(b[i]-v)*t) as Point;
 
 // Visit every visible company in small neighbouring groups, rather than letting
@@ -37,13 +38,13 @@ export function treeTourPlan(nodes:TreePoint[], aspect:number, open?:ReadonlySet
     const layer=layers[i],next=layers[(i+1)%layers.length];
     const stops=treeTourStops(nodes.filter(n=>n.layer===layer.id));
     for(const target of stops.length?stops:[layer.position]){
-      plan.push({target,distance,duration:20,hold:5,kind:'company',layer:layer.id});
+      plan.push({target,distance,duration:TOUR_MOTION.group,hold:TOUR_MOTION.hold,kind:'company',layer:layer.id});
     }
     // Frame the connecting trunk and neighboring layer anchors, without returning
     // to the initial whole-tree fit. The longer return gets a slightly wider view.
     const gap=Math.abs(next.position[1]-layer.position[1]);
     const wide=Math.max(distance*2.1,(gap*.55+400)/Math.tan(Math.PI/8));
-    plan.push({target:[0,layer.position[1],0],distance:wide,duration:12,hold:3,kind:'overview',layer:layer.id});
+    plan.push({target:[0,layer.position[1],0],distance:wide,duration:TOUR_MOTION.overview,hold:TOUR_MOTION.overviewHold,kind:'overview',layer:layer.id});
     plan.push({target:[0,next.position[1],0],distance:wide,duration:i===layers.length-1?20:14,hold:2,kind:'transfer',layer:next.id});
   }
   return plan;
@@ -82,13 +83,13 @@ export function createTreeTour(start:TreeShot, stops:TreeTourStop[], random:()=>
     return {target,position:[target[0]+Math.sin(yaw)*distance,target[1]+pitch*distance,target[2]+Math.cos(yaw)*distance]};
   };
   let to=shot(stops[0]);
-  const advance=(delta:number):TreeShot=>{
+  const advance=(delta:number,speed=1):TreeShot=>{
     // Keep the slow tour near wall-clock speed on low-frame-rate phones/software
     // renderers. Hidden scenes are paused; cap resume gaps to a quarter second.
-    elapsed+=Math.max(0,Math.min(.25,delta));
+    elapsed+=tourDelta(delta,speed);
     // Slow approach, then a short hold to read the company names.
     const stop=stops[index%stops.length];
-    const duration=index===0?12:stop.duration,hold=stop.hold;
+    const duration=index===0?TOUR_MOTION.approach:stop.duration,hold=stop.hold;
     const t=ease(Math.min(1,elapsed/duration));
     const target=mix(from.target,to.target,t);
     const fromRadius=Math.hypot(from.position[0]-from.target[0],from.position[2]-from.target[2]);
@@ -99,7 +100,7 @@ export function createTreeTour(start:TreeShot, stops:TreeTourStop[], random:()=>
     if(elapsed>=duration+hold){
       elapsed-=duration+hold;from=to;fromYaw=toYaw;index++;
       const next=stops[index%stops.length];
-      toYaw+=direction*(next.kind==='company'?.5+random()*.15:.12);
+      toYaw+=direction*(next.kind==='company'?TOUR_MOTION.degreesPerSecond*Math.PI/180*next.duration*(.85+random()*.3):.12);
       to=shot(next);
     }
     return current;
