@@ -699,6 +699,10 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
   }
   await canvas.scrollIntoViewIfNeeded();
   await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+  const allConnections=page.getByRole("button",{name:/^All connections/});
+  await expect(allConnections).toHaveAttribute("aria-pressed","false");
+  await allConnections.click();
+  await expect(allConnections).toHaveAttribute("aria-pressed","true");
   const box=(await canvas.boundingBox())!;
   const layout=layout3D(graph);
   const members=layout.nodes.filter(n=>companySector(n).id==="compute");
@@ -727,6 +731,11 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
   await page.mouse.click(current.x+5,current.y+5);
   await expect(labels).toHaveCount(0);
   await expect(page.getByRole("region",{name:"Selected connection",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("complementary")).toHaveCount(0);
+  await allConnections.click();
+  await expect(allConnections).toHaveAttribute("aria-pressed","false");
+  await page.mouse.move(hit!.x,hit!.y);
+  await expect(labels).toHaveCount(0);
 });
 let html: string;
 test("event deep link opens source evidence beside the selected company", async ({page}) => {
@@ -958,10 +967,10 @@ for (const language of ["en", "zh-CN"]) test(`sector legend replaces discovery c
  const compact=(page.viewportSize()?.width??1280)<=800;
  if(compact){
   await expect(toggle).toHaveAttribute("aria-expanded","false");
-  await expect(page.getByText(language==="en"?"Tap a line for relationship evidence":"点按连线查看关系依据",{exact:true})).toBeVisible();
+  await expect(page.getByText(language==="en"?"Tap a company to explore its connections":"点击公司，探索产业关联",{exact:true}).filter({visible:true})).toBeVisible();
  }else{
   await expect(toggle).toHaveAttribute("aria-expanded","false");
-  await expect(page.getByText(language==="en"?"Hover a line to preview · Click for evidence":"悬停连线预览关系 · 点击查看依据",{exact:true})).toBeVisible();
+  await expect(page.getByText(language==="en"?"Click a company to explore its connections":"点击公司，探索产业关联",{exact:true}).filter({visible:true})).toBeVisible();
  }
  async function revealSectors(){await toggle.click();}
  const sector = page.getByRole("button",{name:language === "en" ? "AI compute" : "AI 算力",exact:true,includeHidden:true});
@@ -1050,8 +1059,8 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await expect(page.getByRole("complementary")).toBeVisible();
   await page.emulateMedia({reducedMotion:"no-preference"});
   const canvas=page.locator('canvas');
-  const bounds=(await canvas.boundingBox())!;
-  await page.mouse.click(bounds.x+10,bounds.y+10);
+  // Blank clicks now clear the selected company; keep focus while testing evidence.
+  await page.mouse.move(5,5);
   await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
   const focused=await projectedGraphPositions(page);
   await page.waitForTimeout(2300);

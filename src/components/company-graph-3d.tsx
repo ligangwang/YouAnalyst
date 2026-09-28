@@ -4,8 +4,9 @@ import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import Image from "next/image";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { CameraControls, Html } from "@react-three/drei";
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, type Mesh } from "three";
+import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, LineSegments, type Intersection, type Raycaster, type Mesh, type MeshBasicMaterial } from "three";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
+import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
 import { createIntroCamera, createIntroOrbit } from "@/lib/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
@@ -21,7 +22,7 @@ function countryName(country: string | undefined, locale: string) {
   return country && flagCountries.has(country) ? new Intl.DisplayNames([locale], { type: "region" }).of(country) : undefined;
 }
 
-type Props = { hideReset?: boolean; cameraRequest: number; sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; onSelectSector?: (id: string) => void; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -32,7 +33,7 @@ void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,
 const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
-function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector, introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
+function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector, introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
   const { text, locale } = useLocale();
   const edgeElements = useRef(new Map<string, HTMLButtonElement>());
   const arrowElements = useRef(new Map<string, Mesh>());
@@ -128,7 +129,9 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
   // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
   // rather than relying on the geometry swap to invalidate.
   useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
-  const displayedEdge=activeEdge||hoveredEdge;
+  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges)])), [layout, selected, activeEdge, showAllEdges]);
+  const displayedEdge=activeEdge||((edgeTargets.get(hoveredEdge) ?? 0) > 0 ? hoveredEdge : "");
+  useEffect(()=>{invalidate();},[edgeTargets,invalidate]);
   const edgeEndpoints=useMemo(()=>new Set(layout.edges.filter(e=>e.id===displayedEdge).flatMap(e=>[e.source,e.target])),[layout,displayedEdge]);
   const sectorMembers = useMemo(() => new Set(layout.nodes.filter(n => companySector(n).id === sectorFocus).map(n => n.id)), [layout, sectorFocus]);
   const sectorConnected = useMemo(() => new Set(layout.edges.filter(e => sectorMembers.has(e.source) || sectorMembers.has(e.target)).flatMap(e => [e.source, e.target])), [layout, sectorMembers]);
@@ -150,16 +153,25 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     const g = new BufferGeometry(), p: number[] = [], c: number[] = [], edgeIds: string[] = [];
     layout.edges.forEach(e => {
       const a = positions.get(e.source)!, b = positions.get(e.target)!;
-      const color = new Color(e.id === displayedEdge ? "#ffffff" : selected && e.source !== selected && e.target !== selected ? "#14232e" : highlightedEdges?.includes(e.id) ? "#7ef4cb" : e.source === selected || e.target === selected ? "#9ee9ff" : selected ? "#14232e" : sectorFocus ? sectorMembers.has(e.source) || sectorMembers.has(e.target) ? "#9ee9ff" : "#101b25" : "#294557");
+      const color = new Color("#dcefff");
       const parts = e.commercialStatus === "ANNOUNCED" ? 16 : 1;
       for (let i = 0; i < parts; i++) {
         if (parts > 1 && i % 2) continue;
         edgeIds.push(e.id);
-        for (const t of [i / parts, (i + 1) / parts]) { p.push(a.x + (b.x-a.x)*t, a.y+(b.y-a.y)*t, a.z+(b.z-a.z)*t); c.push(...color.toArray()); }
+        for (const t of [i / parts, (i + 1) / parts]) { p.push(a.x + (b.x-a.x)*t, a.y+(b.y-a.y)*t, a.z+(b.z-a.z)*t); c.push(...color.toArray(), 0); }
       }
     });
-    g.setAttribute("position", new Float32BufferAttribute(p, 3)); g.setAttribute("color", new Float32BufferAttribute(c, 3)); g.userData.edgeIds = edgeIds; return g;
-  }, [layout, selected, displayedEdge, highlightedEdges, sectorFocus, sectorMembers]);
+    g.setAttribute("position", new Float32BufferAttribute(p, 3)); g.setAttribute("color", new Float32BufferAttribute(c, 4)); g.userData.edgeIds = edgeIds; return g;
+  }, [layout]);
+  // Invisible or retiring edges must not intercept blank-space clicks.
+  function raycastEdges(this: LineSegments, raycaster: Raycaster, intersections: Intersection[]) {
+    const hits: Intersection[] = [];
+    LineSegments.prototype.raycast.call(this, raycaster, hits);
+    for (const hit of hits) {
+      const index = hit.index;
+      if (index !== undefined && (edgeTargets.get(lines.userData.edgeIds[Math.floor(index / 2)]) ?? 0) > 0 && lines.getAttribute("color").getW(index) > .01) intersections.push(hit);
+    }
+  }
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => lines.dispose(), [lines]);
   const sectors = useMemo(() => [...new Set(layout.nodes.map(n=>companySector(n).id))].map(id=>{
@@ -250,6 +262,28 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
+    const colors = lines.getAttribute("color");
+    let fading = false, colorsChanged = false;
+    for (let segment = 0; segment < lines.userData.edgeIds.length; segment++) {
+      const id = lines.userData.edgeIds[segment];
+      const target = edgeTargets.get(id) ?? 0;
+      const current = colors.getW(segment * 2);
+      const next = fadeEdge(current, target, delta, reducedMotion.current);
+      if (Math.abs(next - target) > .0001) fading = true;
+      const tint = new Color(id === displayedEdge ? "#ffffff" : highlightedEdges?.includes(id) ? "#c7ffed" : "#dcefff");
+      if (Math.abs(next - current) > .000001 || Math.abs(colors.getX(segment * 2) - tint.r) > .000001 || Math.abs(colors.getY(segment * 2) - tint.g) > .000001) {
+        for (const vertex of [segment * 2, segment * 2 + 1]) colors.setXYZW(vertex, tint.r, tint.g, tint.b, next);
+        colorsChanged = true;
+      }
+    }
+    if (colorsChanged) colors.needsUpdate = true;
+    if (fading) invalidate();
+    for (const edge of edgeLabels) {
+      const arrow = arrowElements.current.get(edge.id);
+      if (!arrow) continue;
+      const material = arrow.material as MeshBasicMaterial;
+      material.opacity = fadeEdge(material.opacity, edgeTargets.get(edge.id) ?? 0, delta, reducedMotion.current);
+    }
     const focused=Boolean(selected || activeEdge || sectorFocus);
     if (focused) introOrbitRef.current = false;
     let rotation='paused';
@@ -396,7 +430,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     for(const edge of [...edgeLabels].sort((a,b)=>Number(b.id===activeEdge)-Number(a.id===activeEdge))){
       if((edge.id===activeEdge)!==onlyActive || placedEdges.has(edge.id))continue;
       const element=edgeElements.current.get(edge.id);if(!element)continue;
-      const endpointVisible=edge.id===displayedEdge && (visibleCompanies.has(edge.source)||visibleCompanies.has(edge.target));
+      const endpointVisible=(edgeTargets.get(edge.id) ?? 0) > 0 && edge.id===displayedEdge && (visibleCompanies.has(edge.source)||visibleCompanies.has(edge.target));
       const {width,height}=measurements.get(element)!;
       let visible=false;
       if(edge.id===displayedEdge && endpointVisible){const [x,y]=activeLabelPosition(edge);element.style.visibility="visible";occupied.push({x,y,w:width,h:height});visible=true;}
@@ -408,7 +442,7 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
         // Keep the direction marker at most seven screen pixels tall when zooming in.
         const worldUnitsPerPixel=2*Math.max(0,depth)/(size.height*camera.projectionMatrix.elements[5]);
         arrow.scale.setScalar(Math.min(1,7*worldUnitsPerPixel/3.5));
-        arrow.visible=depth>0;
+        arrow.visible=depth>0 && (arrow.material as MeshBasicMaterial).opacity > .001;
       }
     }
     };
@@ -444,10 +478,10 @@ function Scene({ cameraRequest, graph, selected, onSelect, reset, activeEdge, hi
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
-    <lineSegments geometry={lines} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent opacity={.8}/></lineSegments>
+    <lineSegments geometry={lines} raycast={raycastEdges} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent depthWrite={false} blending={AdditiveBlending}/></lineSegments>
     {sectors.map(sector=><Html key={sector.id} position={[sector.x,sector.y,sector.z]} center style={{pointerEvents:"none"}}><button aria-label={`${text("Focus sector", "聚焦产业")}: ${text(sector.en,sector.zh)}`} aria-pressed={sectorFocus===sector.id} onClick={()=>onSelectSector?.(sector.id)} ref={el=>{if(el){sectorElements.current.set(sector.id,el);invalidate();}else sectorElements.current.delete(sector.id);}} className={styles.sector3d} style={{color:sector.color,visibility:"hidden",pointerEvents:"auto",opacity:selected || (sectorFocus && sector.id !== sectorFocus) ? .25 : 1}}><span className={styles.sectorName}>{text(sector.en,sector.zh)}</span></button></Html>)}
     {edgeLabels.map(edge=><group key={edge.id}>
-      {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#a8e8ef" transparent opacity={isBackgroundEdge(edge) ? .06 : .8}/></mesh>}
+      {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#dcefff" transparent depthWrite={false} blending={AdditiveBlending} opacity={0}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>
     </group>)}
     {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{n.country && flagCountries.has(n.country) && <Image className={styles.companyFlag} src={`/flags/${n.country.toLowerCase()}.svg`} width={14} height={10} unoptimized loading="eager" alt="" aria-hidden="true" />}{companyName(n,locale)}</strong><span>{[n.symbol, marketCapLabel(n.marketCap)].filter(Boolean).join(" · ")}</span></button></Html>)}
@@ -499,9 +533,10 @@ export default function CompanyGraph3D(props: Props) {
   if (!supported) return fallback;
   return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction data-context-lost={contextLost}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.target instanceof HTMLCanvasElement)props.onSelectEdge?.("");}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:false, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · Ctrl + 滚轮／双指缩放")}</p>
   </div>;
 }
+
