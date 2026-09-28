@@ -417,7 +417,7 @@ test('graph resumes gently from the user view after release and respects reduced
  await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:5000});
  await page.waitForTimeout(600);
  expect(Number(await canvas.getAttribute('data-camera-distance'))).toBeCloseTo(zoomed,5);
- await expect.poll(async()=>{const values=(await canvas.getAttribute('data-camera-target'))!.split(',').map(Number);return Math.hypot(...values);}).toBeLessThan(.1);
+ expect(await canvas.getAttribute('data-camera-target')).toBe(panned);
  // Real touch and mouse input both stop a resumed orbit and can restart it again.
  if(isMobile) await page.touchscreen.tap(bounds.x+10,bounds.y+10);
  else await page.mouse.click(bounds.x+10,bounds.y+10);
@@ -1465,6 +1465,37 @@ test('navigation: graph selection frames direct connections outside the ball and
  const visible=await page.evaluate(ids=>{const canvas=document.querySelector('canvas')!.getBoundingClientRect();return [...document.querySelectorAll<HTMLElement>('[data-company-id]')].filter(el=>ids.includes(el.dataset.companyId!)).every(el=>{const r=el.getBoundingClientRect();return r.right>=canvas.left&&r.left<=canvas.right&&r.bottom>=canvas.top&&r.top<=canvas.bottom;});},connections);expect(visible).toBe(true);
  await card.getByRole('button',{name:'Clear selection',exact:true}).click();
  await expect.poll(pose).toBe(before);
+});
+test('navigation: zoomed and panned graph returns from selection before resuming at the user distance',async({page})=>{
+ test.setTimeout(60000);
+ await navigationFixture(page);
+ const canvas=page.locator('canvas');
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
+ await page.getByRole('button',{name:'Pause tour',exact:true}).click();
+ const box=(await canvas.boundingBox())!;
+ const original=Number(await canvas.getAttribute('data-camera-distance'));
+ await page.mouse.move(box.x+12,box.y+12);await zoomWheel(page,-400);
+ await page.mouse.down({button:'right'});await page.mouse.move(box.x+32,box.y+24,{steps:6});await page.mouse.up({button:'right'});
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
+ const pose=()=>canvas.evaluate(el=>({position:el.dataset.cameraPosition!.split(',').map(Number),target:el.dataset.cameraTarget!.split(',').map(Number),distance:Number(el.dataset.cameraDistance)}));
+ const saved=await pose();expect(saved.distance).toBeLessThan(original*.8);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ for(const id of ['US:NVDA','US:AMD']){
+  await page.locator(`[data-company-id="${id}"]`).evaluate((el:HTMLButtonElement)=>el.click());
+  await expect(page.locator(`[data-node-card="${id}"]`)).toBeVisible();
+ }
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
+ // Enable navigation while selection still holds the camera; closing alone must
+ // restore the saved view and then resume, without requiring a second user action.
+ await page.getByRole('button',{name:'Resume tour',exact:true}).click();
+ await page.locator('[data-node-card="US:AMD"]').getByRole('button',{name:'Clear selection',exact:true}).click();
+ await expect.poll(async()=>{const current=await pose();return Math.hypot(...current.position.map((v,i)=>v-saved.position[i]));},{timeout:15000}).toBeLessThan(.1);
+ await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:10000});
+ await page.waitForTimeout(3000);
+ const resumed=await pose();
+ expect(resumed.distance).toBeCloseTo(saved.distance,2);
+ expect(Math.hypot(...resumed.target.map((v,i)=>v-saved.target[i]))).toBeLessThan(.01);
+ expect(Math.hypot(...resumed.position.map((v,i)=>v-saved.position[i]))).toBeGreaterThan(.1);
 });
 test('navigation: cards dock away from graph nodes and can be dragged with pointer or keyboard',async({page})=>{
  await navigationFixture(page);await page.locator('[data-company-id="US:NVDA"]').evaluate((el:HTMLButtonElement)=>el.click());
