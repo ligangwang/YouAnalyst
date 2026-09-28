@@ -5,7 +5,7 @@ import { validFundamentalsTicker } from "./service";
 export const MAX_BATCH_COMPANIES = 20;
 export type FundamentalsRequest = {
   version: 1; type: "fundamentals.refresh.requested"; batchId: string;
-  companyIds: string[]; reason: "scheduled_or_manual" | "filing"; requestedAt: string;
+  companyIds: string[]; reason: "scheduled_or_manual" | "filing" | "verification"; requestedAt: string;
 };
 export type FundamentalsUpdate = {
   version: 1; type: "fundamentals.updated"; eventId: string; batchId: string;
@@ -18,7 +18,7 @@ export function parseFundamentalsRequest(value: unknown): FundamentalsRequest {
     || !Array.isArray(v.companyIds) || !v.companyIds.length || v.companyIds.length > MAX_BATCH_COMPANIES
     || !v.companyIds.every(t => typeof t === "string" && validFundamentalsTicker(t))
     || new Set(v.companyIds).size !== v.companyIds.length
-    || !["scheduled_or_manual", "filing"].includes(String(v.reason))
+    || !["scheduled_or_manual", "filing", "verification"].includes(String(v.reason))
     || typeof v.requestedAt !== "string" || !Number.isFinite(Date.parse(v.requestedAt))) {
     throw new Error("Invalid fundamentals batch request");
   }

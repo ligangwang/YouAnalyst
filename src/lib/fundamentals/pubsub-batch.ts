@@ -77,7 +77,8 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
         const company = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
         const stored = (await company.get()).data();
         const fresh = stored?.outcome === "ready" && stored?.pending !== true
-          && Number(stored.refreshAfter) > Date.now() && !needsShareMetadataUpgrade(stored);
+          && (request.reason === "verification" || (Number(stored.refreshAfter) > Date.now() && !needsShareMetadataUpgrade(stored)));
+        if (request.reason === "verification" && (!fresh || !stored?.value)) throw new Error("Verification requires an existing cached company");
         if (!fresh && Number((await worker.get()).get("providerRetryAfter") ?? 0) > Date.now()) break;
         if (!ledger.progress[ticker]) {
           ledger.progress[ticker] = { before: fundamentalsVersion(stored?.value) };
@@ -129,16 +130,15 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
 }
 
 // A bounded deployment probe goes through the real topic, IAM and subscriber.
-// Reuses fresh cached companies, so it does not force provider requests or invent
+// Reuses cached companies, so it does not force provider requests or invent
 // financial data. This is explicitly invoked, never run during ordinary jobs.
 export async function verifyFundamentalsDelivery(db: Firestore, runId: string,
   publish: (request: FundamentalsRequest) => Promise<unknown>, log: MaintenanceLog) {
   const page = await db.collection(FUNDAMENTALS_COLLECTION).where("outcome", "==", "ready").limit(100).get();
-  const companyIds = page.docs.filter(d => validFundamentalsTicker(d.id) && d.data().pending !== true
-    && Number(d.data().refreshAfter) > Date.now() + 15 * 60_000 && !needsShareMetadataUpgrade(d.data())).slice(0, 2).map(d => d.id);
-  if (companyIds.length < 2) throw new Error("Need two fresh cached companies for safe Pub/Sub delivery verification");
+  const companyIds = page.docs.filter(d => validFundamentalsTicker(d.id) && d.data().pending !== true && d.data().value).slice(0, 2).map(d => d.id);
+  if (companyIds.length < 2) throw new Error("Need two cached companies for safe Pub/Sub delivery verification");
   const request: FundamentalsRequest = { version: 1, type: "fundamentals.refresh.requested", batchId: digest({ probe: runId }),
-    companyIds, reason: "scheduled_or_manual", requestedAt: new Date().toISOString() };
+    companyIds, reason: "verification", requestedAt: new Date().toISOString() };
   await publish(request);
   const deadline = Date.now() + 12 * 60_000;
   while (Date.now() < deadline) {

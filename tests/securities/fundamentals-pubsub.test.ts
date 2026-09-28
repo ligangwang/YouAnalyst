@@ -99,6 +99,12 @@ test("SEC provider blocks stop other companies and respect persisted cooldown", 
   await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, f.publish, f), /incomplete/);
   assert.equal(f.calls.length, 0);
 });
+test("delivery verification reuses stale cached data even during an SEC cooldown", async () => {
+  const f = fixture({ AMD: { outcome: "ready", pending: false, refreshAfter: 0, value: { metrics: { revenue: 10 } } },
+    _worker: { providerRetryAfter: Date.now() + 3600000 } });
+  const result = await processFundamentalsBatch({ ...request(["AMD"]), reason: "verification" }, f.db, f.log, f.publish, f);
+  assert.equal(result.completed, 1); assert.equal(f.calls.length, 0); assert.equal(f.events.length, 0);
+});
 test("leased worker and exhausted time budget leave work unacknowledged", async () => {
   const f = fixture({ _worker: { leaseExpiresAtMs: Date.now() + 60000 } });
   await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, f.publish, f), /busy/);

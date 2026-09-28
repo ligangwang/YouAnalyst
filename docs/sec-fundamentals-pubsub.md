@@ -57,3 +57,8 @@ request, and republish it unchanged to the request topic. The ledger resumes
 unfinished companies and any pending result publication. An ordinary scheduled
 or manual run also republishes eligible pending companies in new batches.
 Batch ledgers are retained for recovery in this initial release.
+
+The post-deployment probe uses reason=verification with two existing cached
+companies. It verifies authenticated delivery, validation, checkpointing and
+completion without fetching SEC data, even when caches have aged past their
+refresh time. It never emits an artificial fundamentals.updated event.
