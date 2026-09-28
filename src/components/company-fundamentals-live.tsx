@@ -13,9 +13,10 @@ export function CompanyFundamentalsLive({ ticker, initialData }: { ticker: strin
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>, attempts = 0;
     const poll = async () => {
-      if (controller.signal.aborted || ++attempts > 12) return;
+      if (controller.signal.aborted || attempts >= 12) return;
       try {
         if (!document.hidden) {
+          attempts++;
           const response = await fetch(`/api/company-fundamentals?ticker=${encodeURIComponent(ticker)}&view=company`, {
             signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]), cache: "no-store",
           });
