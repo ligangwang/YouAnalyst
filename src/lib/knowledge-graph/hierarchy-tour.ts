@@ -22,3 +22,14 @@ export function hierarchyTourPlan(layers: TreeLayer[], width: number, height: nu
   }
   return plan;
 }
+
+// Opening visits this parent's children; closing skips its complete subtree,
+// including all company groups, and wraps after the final parent.
+export function hierarchyTourIndex(plan: HierarchyStop[], parent: string, expanded: boolean): number {
+  const first = plan.findIndex(stop => stop.focus === parent);
+  if (first < 0 || parent === 'root') return 0;
+  if (expanded) return first;
+  let next = first + 1;
+  while (next < plan.length && plan[next].open.includes(parent)) next++;
+  return next % plan.length;
+}
