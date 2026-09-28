@@ -1,8 +1,8 @@
 "use client";
 
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Image from "next/image";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import {useNavigationSettings} from "./navigation-settings";
 import { CameraControls, Html } from "@react-three/drei";
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, LineSegments, type Intersection, type Raycaster, type Mesh, type MeshBasicMaterial } from "three";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
@@ -39,6 +39,7 @@ void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;
 
 function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", onSelectSector, introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
   const { text, locale } = useLocale();
+  const navigation=useNavigationSettings();
   const edgeElements = useRef(new Map<string, HTMLButtonElement>());
   const edgeFades = useRef(new Map<string, number>());
   const linePoint = useMemo(() => new Vector3(), []);
@@ -187,11 +188,22 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     return { ...companySector(members[0]), x:members.reduce((v,n)=>v+n.x,0)/members.length, y:members.reduce((v,n)=>v+n.y,0)/members.length, z:members.reduce((v,n)=>v+n.z,0)/members.length };
   }),[layout]);
   const fitDistance = layout.radius / Math.sin(Math.atan(Math.tan(Math.PI / 8) * Math.min(1, size.width / size.height))) * 1.15;
-  const lastCameraRequest=useRef<{layout:typeof layout;request:number;reset:number}|null>(null);
+  const savedView=useRef<{position:Vector3;target:Vector3}|null>(null);
+  const lastSelected=useRef("");
+  const restoredView=useRef(false);
+  const lastCameraRequest=useRef<{layout:typeof layout;request:number;reset:number;width:number;height:number}|null>(null);
   useEffect(() => {
     const c = controls.current; if (!c) return;
     // Evidence selection and panel resizing must not reset the user's orbit or zoom.
     const previous=lastCameraRequest.current;
+    if(selected&&!lastSelected.current&&!savedView.current)savedView.current={position:c.getPosition(new Vector3()),target:c.getTarget(new Vector3())};
+    if(!selected&&lastSelected.current&&savedView.current&&previous?.reset===reset){
+      const saved=savedView.current;savedView.current=null;lastSelected.current='';restoredView.current=true;
+      c.smoothTime=.8/navigation.speed;void c.setLookAt(...saved.position.toArray(),...saved.target.toArray(),!reducedMotion.current);invalidate();return;
+    }
+    lastSelected.current=selected;
+    if(selected||previous?.layout!==layout||previous.request!==cameraRequest||previous.reset!==reset)restoredView.current=false;
+    if(previous?.reset!==reset)savedView.current=null;
     const restarting = previous !== null && previous.reset !== reset;
     if (restarting) {
       // Replay from the opening shot, including a fresh approach timer and label layout.
@@ -204,8 +216,8 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       // Searching or focusing a company still cancels the automatic flight.
       introOrbitRef.current = false;
     }
-    if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset)return;
-    lastCameraRequest.current={layout,request:cameraRequest,reset};
+    if(previous?.layout===layout && previous.request===cameraRequest && previous.reset===reset&&(restoredView.current||(previous.width===size.width&&previous.height===size.height)))return;
+    lastCameraRequest.current={layout,request:cameraRequest,reset,width:size.width,height:size.height};
     // Search, focus, and Reset own their camera request; discard any old idle restart.
     resumeAt.current=null;resumedOrbit.current=null;resumeElapsed.current=0;
     if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
@@ -221,15 +233,22 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     const sector=sectors.find(s=>s.id===sectorFocus);
     const members=sector?layout.nodes.filter(n=>companySector(n).id===sector.id):[];
     const radius=sector?Math.max(80,...members.map(n=>Math.hypot(n.x-sector.x,n.y-sector.y,n.z-sector.z))):0;
-    const d = n ? Math.max(150, layout.radius * .8) : sector ? radius / Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,size.width/size.height))) * 1.1 : fitDistance;
-    const x = n?.x ?? sector?.x ?? 0, y = n?.y ?? sector?.y ?? 0, z = n?.z ?? sector?.z ?? 0;
+    const neighbors=n?layout.nodes.filter(v=>v.id===selected||connected.has(v.id)):[];
+    const center=neighbors.length?new Vector3(...(["x","y","z"] as const).map(axis=>neighbors.reduce((sum,v)=>sum+v[axis],0)/neighbors.length) as [number,number,number]):null;
+    const selectionRadius=center?Math.max(90,...neighbors.map(v=>new Vector3(v.x,v.y,v.z).distanceTo(center))):0;
+    const d = n ? Math.max(layout.radius*1.3,selectionRadius/Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,size.width/size.height)))*1.3) : sector ? radius / Math.sin(Math.atan(Math.tan(Math.PI/8)*Math.min(1,size.width/size.height))) * 1.1 : fitDistance;
+    const x = center?.x ?? sector?.x ?? 0, y = center?.y ?? sector?.y ?? 0, z = center?.z ?? sector?.z ?? 0;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Establish the opening shot immediately; the introduction owns its slow dolly.
     const opening = (!previous || restarting) && introOrbitRef.current && !n && !sector;
     const distance = opening && !reduced ? d * 1.4 : d;
-    void c.setLookAt(x + distance*.2, y + distance*.12, z + distance, x, y, z, !reduced && !opening);
+    const direction=restarting?new Vector3(0,0,1):c.getPosition(new Vector3()).sub(c.getTarget(new Vector3())).normalize();
+    const position=new Vector3(x,y,z).addScaledVector(direction,distance);
+    if(position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
+    c.smoothTime=.8/navigation.speed;
+    void c.setLookAt(...position.toArray(),x,y,z,!reduced&&!opening);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef]);
+  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, navigation.speed]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
   useEffect(()=>{
     const focused=Boolean(selected||activeEdge||sectorFocus),previous=lastFocus.current;
@@ -239,6 +258,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       scheduleResume.current();
     }
   },[selected,activeEdge,sectorFocus,reset,introOrbitRef]);
+  useEffect(()=>{invalidate();},[navigation.paused,navigation.speed,invalidate]);
   const degree = useMemo(() => {
     const counts = new Map<string,number>();
     layout.edges.forEach(e=>{counts.set(e.source,(counts.get(e.source)??0)+1);counts.set(e.target,(counts.get(e.target)??0)+1);});
@@ -303,16 +323,20 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       material.opacity = (edgeFades.current.get(edge.id) ?? 0) * (edge.id === displayedEdge ? .8 : .6 * depthOpacity(depth));
     }
     const focused=Boolean(selected || activeEdge || sectorFocus);
+    if(controls.current&&camera.position.length()<layout.radius*1.12){const p=camera.position.clone();if(!p.length())p.z=1;p.setLength(layout.radius*1.15);const t=controls.current.getTarget(new Vector3());void controls.current.setLookAt(...p.toArray(),...t.toArray(),false);}
+    gl.domElement.dataset.ballRadius=String(layout.radius);
+    gl.domElement.dataset.cameraPosition=camera.position.toArray().join(',');
     if (focused) introOrbitRef.current = false;
     let rotation='paused';
     if(focused)rotation='focused';
+    else if(navigation.paused)rotation='paused';
     else if(reducedMotion.current)rotation='reduced';
     else if(document.hidden)rotation='hidden';
     else if (introOrbitRef.current && controls.current) {
       rotation='intro';
       // Move into a detail view before orbiting; keep the camera outside the node cloud.
-      introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.2, fitDistance * .42));
-      const step = introPath.current(delta, controls.current.polarAngle);
+      introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.3, fitDistance * .9));
+      const step = introPath.current(delta, controls.current.polarAngle, navigation.speed);
       void controls.current.dollyTo(step.distance, false);
       void controls.current.rotate(step.azimuth, step.polar, false);
       invalidate();
@@ -321,10 +345,12 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       if(performance.now()>=resumeAt.current){
         rotation='resumed';
         resumedOrbit.current??=createIntroOrbit();
-        resumeElapsed.current+=Math.max(0,Math.min(delta,.05));
+        resumeElapsed.current+=Math.max(0,Math.min(delta,.05))*navigation.speed;
         const t=Math.min(1,resumeElapsed.current/2),gain=t*t*(3-2*t);
-        const step=resumedOrbit.current(Math.min(delta,.05)*gain,controls.current.polarAngle);
-        // Relative rotation preserves the user's angle, distance, and panned target.
+        const step=resumedOrbit.current(Math.min(delta,.05)*gain,controls.current.polarAngle,navigation.speed);
+        // Return the automatic orbit to the ball center with a gentle transition.
+        void controls.current.moveTo(0,0,0,true);
+        if(controls.current.distance<fitDistance*.9)void controls.current.dollyTo(fitDistance*.9,true);
         void controls.current.rotate(step.azimuth,step.polar,false);
         invalidate();
       }
@@ -492,7 +518,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   });
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={45} maxDistance={fitDistance*3} smoothTime={.25} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
+    <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/navigation.speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
@@ -502,7 +528,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#829ead" transparent depthWrite={false} opacity={0}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>
     </group>)}
-    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{n.country && flagCountries.has(n.country) && <Image className={styles.companyFlag} src={`/flags/${n.country.toLowerCase()}.svg`} width={14} height={10} unoptimized loading="eager" alt="" aria-hidden="true" />}{companyName(n,locale)}</strong><span>{[n.symbol, marketCapLabel(n.marketCap)].filter(Boolean).join(" · ")}</span></button></Html>)}
+    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, marketCapLabel(n.marketCap)].filter(Boolean).join(" · ")}</span></button></Html>)}
   </>;
 }
 
@@ -554,7 +580,7 @@ export default function CompanyGraph3D(props: Props) {
     <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:10000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
-    <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Ctrl + scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · Ctrl + 滚轮／双指缩放")}</p>
+    <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
   </div>;
 }
 

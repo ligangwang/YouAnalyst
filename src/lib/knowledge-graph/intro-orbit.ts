@@ -4,14 +4,14 @@ const smoothstep = (t: number) => Math.max(0, Math.min(1, t * t * t * (t * (t * 
 export function createIntroCamera(startDistance: number, closeDistance: number, random: () => number = Math.random) {
   const orbit = createIntroOrbit(random);
   let elapsed = 0;
-  return (delta: number, polar: number) => {
-    const dt = Math.max(0, Math.min(delta, .05));
+  return (delta: number, polar: number, speed = 1) => {
+    const dt = Math.max(0, Math.min(delta, .05)) * speed;
     elapsed += dt;
     // Eight seconds to approach, then four seconds to ease into the orbit.
     // Quintic easing starts and ends with zero velocity and acceleration.
     const approach = smoothstep(Math.min(1, elapsed / 8));
     const orbitGain = smoothstep(Math.max(0, Math.min(1, (elapsed - 8) / 4)));
-    const step = orbit(dt * orbitGain, polar);
+    const step = orbit(dt / speed * orbitGain, polar, speed);
     return {
       ...step,
       distance: startDistance + (Math.min(startDistance, closeDistance) - startDistance) * approach,
@@ -28,9 +28,9 @@ export function createIntroOrbit(random: () => number = Math.random) {
   let remaining = 0;
   let targetPolar = Math.PI / 2;
 
-  return (delta: number, polar: number) => {
+  return (delta: number, polar: number, speed = 1) => {
     // Background tabs and slow frames must not cause sudden camera jumps.
-    const dt = Math.max(0, Math.min(delta, .05));
+    const dt = Math.max(0, Math.min(delta, .05)) * speed;
     remaining -= dt;
     if (remaining <= 0) {
       targetPolar = (above ? 55 + random() * 25 : 100 + random() * 25) * DEG;

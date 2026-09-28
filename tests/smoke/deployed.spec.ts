@@ -190,13 +190,12 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await page.getByRole("tab", { name: "Company list", exact: true }).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(Math.min(count,50));
   await expect(page.getByRole('navigation',{name:'Company list pagination'})).toContainText(`of ${count} companies`);
-  await page.getByRole("tab", { name: "Industry structure", exact: true }).click();
+  await page.getByRole("tab", { name: "Industry tree", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Vertical tree", exact: true })).toBeVisible();
   await expect(page.locator('[data-industry-tree="vertical"] canvas')).toBeVisible();
-  // The scene is lazy-mounted when its container enters the viewport. Scroll
-  // the scene itself into view instead of stopping at the toolbar above it.
-  await page.locator('[data-industry-tree="3d"]').scrollIntoViewIfNeeded();
-  await expect(page.locator('[data-industry-tree="3d"] canvas')).toBeVisible({timeout:15000});
+  await page.getByRole("tab", { name: "Company hierarchy", exact: true }).click();
+  await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible();
+  await expect(page.locator('[data-industry-tree="hierarchy"] canvas')).toHaveCount(0);
   await page.getByRole("tab", { name: "Relationship graph", exact: true }).click();
   await page.reload();
   await expect(page.locator('span[role="status"]')).toContainText(`${count} companies`);

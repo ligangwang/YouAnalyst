@@ -2,6 +2,7 @@
 
 import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import Image from 'next/image';
+import {useNavigationSettings} from "./navigation-settings";
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { CameraControls, CameraControlsImpl, Html } from '@react-three/drei';
 import { AdditiveBlending, BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Vector3, type Group, type Mesh } from 'three';
@@ -24,6 +25,7 @@ class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{fa
   render(){return this.state.failed?null:this.props.children;}
 }
 function Scene(props:TreeSceneProps){
+  const navigation=useNavigationSettings();
   const {locale,text}=useLocale();
   const {size,invalidate,gl}=useThree();
   const {onUnavailable,tour:tourRef}=props;
@@ -90,11 +92,19 @@ function Scene(props:TreeSceneProps){
     }else if(resumePending.current)scheduleResume.current();
   },[props.paused]);
   const lastSelection=useRef(props.selected);
+  const savedSelectionView=useRef<{position:Vector3;target:Vector3}|null>(null);
   useEffect(()=>{
-    if(props.selected)tourRef.current=false;
-    else if(lastSelection.current&&props.vertical){resumePending.current=true;scheduleResume.current();}
+    if(props.selected){
+      if(!lastSelection.current&&controls.current)savedSelectionView.current={position:controls.current.getPosition(new Vector3()),target:controls.current.getTarget(new Vector3())};
+      tourRef.current=false;
+    }
+    else if(lastSelection.current&&props.vertical){
+      const saved=savedSelectionView.current;savedSelectionView.current=null;
+      if(saved&&controls.current){controls.current.smoothTime=.8/navigation.speed;void controls.current.setLookAt(...saved.position.toArray(),...saved.target.toArray(),!reduced.current);}
+      resumePending.current=true;scheduleResume.current();
+    }
     lastSelection.current=props.selected;
-  },[props.selected,props.vertical,tourRef]);
+  },[props.selected,props.vertical,tourRef,navigation.speed]);
   useEffect(()=>{
     const resume=()=>{if(!document.hidden&&!props.paused)invalidate();};
     document.addEventListener('visibilitychange',resume);
@@ -197,6 +207,7 @@ function Scene(props:TreeSceneProps){
     if(plan.length)scheduleResume.current();else flight.current=null;
     invalidate();
   },[plan,props.vertical,invalidate,tourRef]);
+  useEffect(()=>{invalidate();},[navigation.paused,navigation.speed,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
     // Html labels have independent React roots. Keep their accessible selection
@@ -208,9 +219,9 @@ function Scene(props:TreeSceneProps){
     let moving=false;
     const now=performance.now();
     const checkCollisions=props.vertical&&now-lastCollision.current>=200;
-    const touring=props.tour.current&&plan.length>0&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
+    const touring=props.tour.current&&plan.length>0&&!props.selected&&!props.focus&&!props.paused&&!navigation.paused&&!reduced.current&&!document.hidden;
     let resumed=false;
-    if(props.vertical&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
+    if(props.vertical&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!navigation.paused&&!reduced.current&&!document.hidden&&controls.current){
       const start={position:controls.current.getPosition(new Vector3(),false).toArray(),target:controls.current.getTarget(new Vector3(),false).toArray()};
       flight.current=createTreeTour(start,treeTourFromView(plan,start,nodes,skipLayer.current));
       skipLayer.current=undefined;
@@ -221,7 +232,7 @@ function Scene(props:TreeSceneProps){
     gl.domElement.setAttribute('data-tour-layer',flight.current?.destination()?.layer??'');
     gl.domElement.setAttribute('data-tour-open-layers',[...new Set(plan.map(stop=>stop.layer))].join(','));
     if(touring&&flight.current&&controls.current){
-      const shot=flight.current(delta);
+      const shot=flight.current(Math.min(delta,.05)*navigation.speed);
       void controls.current.setLookAt(...shot.position,...shot.target,false);
       moving=true;
     }
@@ -233,7 +244,7 @@ function Scene(props:TreeSceneProps){
       const group=groups.current.get(target.node.id);if(!group)continue;
       vector.set(...target.position);
       const scale=target.visible?1:0;
-      const amount=reduced.current?1:1-Math.exp(-Math.min(delta,.05)*12);
+      const amount=reduced.current?1:1-Math.exp(-Math.min(delta,.05)*navigation.speed*12);
       group.position.lerp(vector,amount);
       group.scale.lerp(vector.setScalar(scale),amount);
       group.visible=group.scale.x>.002;
@@ -344,7 +355,7 @@ function Scene(props:TreeSceneProps){
   return <>
     <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.setAttribute('data-camera','moving');}} onSleep={()=>{gl.domElement.setAttribute('data-camera','idle');invalidate();}}
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
-      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.3}/>
+      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
     {props.vertical?<VerticalTreeBranches nodes={nodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
@@ -388,7 +399,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={()=>node.company?props.onSelect(node.company.id):props.onToggle(node.id)}>
+          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else props.onToggle(node.id);}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}</small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}

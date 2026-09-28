@@ -41,7 +41,7 @@ export function TreeCompanyCard({company,color,onClose,reveal=false,closing=fals
   return <aside ref={card} role="dialog" aria-modal="false" aria-label={text('Company details','公司详情')} className={`${styles.companyCard} ${cardFade.card}`} data-closing={closing} inert={closing}
     style={{'--card-accent':color} as CSSProperties} onPointerDown={e=>e.stopPropagation()} onWheel={e=>e.stopPropagation()}
     onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape')onClose();}}>
-    <header className={styles.cardHeader}><span>{text('Company snapshot','公司基本面')}</span><button ref={close} aria-label={text('Close company details','关闭公司详情')} onClick={onClose}>×</button></header>
+    <header className={styles.cardHeader} data-card-drag tabIndex={0} aria-label={text("Move company card","移动公司卡片")}><span>{text('Company snapshot','公司基本面')}</span><button ref={close} aria-label={text('Close company details','关闭公司详情')} onClick={onClose}>×</button></header>
     <div className={styles.cardBody}>
       <h3><CompanyCountryFlag country={company.country} locale={locale}/>{companyName(company,locale)}</h3>
       <p className={styles.cardTicker}>{company.symbol??text('Private / unlisted','非上市')}</p>
