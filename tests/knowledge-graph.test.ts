@@ -13,7 +13,29 @@ import { combineGraphs } from '../src/lib/knowledge-graph/model';
 import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';
 import { graphNodeMarketCapLabel } from '../src/lib/knowledge-graph/market-cap';
 import { fitSelectionCamera } from '../src/lib/knowledge-graph/selection-camera';
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, Spherical, Vector3 } from 'three';
+import { safeGraphOrbitStep } from '../src/components/graph-orbit-step';
+
+test('resumed orbits preserve a large panned pivot and distance without entering the ball', () => {
+  assert.deepEqual(safeGraphOrbitStep(new Vector3(0,0,115),new Vector3(),{azimuth:.001,polar:0},120),{azimuth:.001,polar:0,reversed:false});
+  for (const target of [new Vector3(190,0,0),new Vector3(-150,90,0),new Vector3(0,0,0)]) {
+    const position=target.clone().add(new Vector3(0,0,250));
+    const pivot=target.clone(),start=position.clone();
+    let direction=1,reversals=0;
+    for(let frame=0;frame<10000;frame++){
+      const step=safeGraphOrbitStep(position,target,{azimuth:.001*direction,polar:Math.sin(frame/500)*.0002},120);
+      if(step.reversed){direction*=-1;reversals++;}
+      const spherical=new Spherical().setFromVector3(position.clone().sub(target));
+      spherical.theta+=step.azimuth;spherical.phi+=step.polar;spherical.makeSafe();
+      position.setFromSpherical(spherical).add(target);
+      assert(position.length()>=120-1e-8);
+      assert(Math.abs(position.distanceTo(target)-250)<1e-7);
+      assert.deepEqual(target,pivot);
+    }
+    assert(position.distanceTo(start)>1);
+    if(target.length())assert(reversals>0);
+  }
+});
 
 test('selection camera tightly frames the neighborhood in wide and narrow viewports outside the ball', () => {
   const points = [{x:-240,y:-160,z:80},{x:260,y:180,z:-100},{x:60,y:30,z:180}];

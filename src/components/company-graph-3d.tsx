@@ -14,6 +14,7 @@ import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";
 import { useWheelZoomGate, WheelZoomHint } from "./wheel-zoom-gate";
+import { safeGraphOrbitStep } from "./graph-orbit-step";
 import styles from "./ai-knowledge-graph.module.css";
 
 import { marketCapScale, graphNodeMarketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
@@ -50,6 +51,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   const controls = useRef<CameraControls>(null);
   const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
   const resumedOrbit = useRef<ReturnType<typeof createIntroOrbit> | null>(null);
+  const resumedDirection = useRef(1);
   const resumeElapsed = useRef(0);
   const resumeAt = useRef<number | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -363,7 +365,10 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
         const step=resumedOrbit.current(Math.min(delta,.05)*gain,controls.current.polarAngle,navigation.speed);
         // Resume around the user's chosen target at their chosen distance.
         // Only selection framing or an explicit Reset may replace that view.
-        void controls.current.rotate(step.azimuth,step.polar,true);
+        const safeStep=safeGraphOrbitStep(controls.current.getPosition(new Vector3()),controls.current.getTarget(new Vector3()),
+          {azimuth:step.azimuth*resumedDirection.current,polar:step.polar},layout.radius*1.2);
+        if(safeStep.reversed){resumedDirection.current*=-1;resumeElapsed.current=0;}
+        void controls.current.rotate(safeStep.azimuth,safeStep.polar,true);
         invalidate();
       }
     }
