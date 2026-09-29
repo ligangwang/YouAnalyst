@@ -64,36 +64,64 @@ export function createTreeOverviewTour(start:TreeShot,stops:TreeTourStop[]) {
   },{destination:()=>stops[index]});
 }
 
-export const TREE_PRESENTATION = { overview: 4, reveal: 3, settle: 2, orbit: 60, ascent: 8, return: 30 } as const;
-export type TreePresentationFrame = {shot:TreeShot;phase:'overview'|'reveal'|'orbit'|'ascent'|'return';layer:string;revealLayers:string[];angle:number;elevation:number};
+export const TREE_PRESENTATION = { overview: 4, approach: 8, reveal: 3, company: 4, ascent: 6 } as const;
+export type TreePresentationFrame = {shot:TreeShot;phase:'overview'|'approach'|'reveal'|'orbit'|'ascent'|'descent';layer:string;companyId:string;revealLayers:string[];angle:number;elevation:number};
 
-// A fixed-distance orbit around the whole tree. The small change in elevation
-// gives each layer its own turn without ever aiming a close-up at the trunk.
-export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[]) {
+// One close camera distance throughout the visit. Every company gets an explicit
+// stop; a dense layer takes longer rather than silently skipping its companies.
+export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],nodes:TreePoint[]=[],aspect=1) {
   let elapsed=0;
-  const n=stops.length, growth=TREE_PRESENTATION.overview+n*TREE_PRESENTATION.reveal+TREE_PRESENTATION.settle;
-  const cycle=n*TREE_PRESENTATION.orbit+Math.max(0,n-1)*TREE_PRESENTATION.ascent+TREE_PRESENTATION.return;
-  const sample=():TreePresentationFrame=>{
-    const revealLayers=stops.filter((_,i)=>elapsed>=TREE_PRESENTATION.overview+i*TREE_PRESENTATION.reveal).map(s=>s.layer);
-    const base={shot:overview,phase:'overview' as TreePresentationFrame['phase'],layer:'',revealLayers,angle:0,elevation:0};
-    if(!n||elapsed<TREE_PRESENTATION.overview)return base;
-    if(elapsed<growth)return {...base,phase:'reveal',layer:stops[Math.min(n-1,Math.floor((elapsed-TREE_PRESENTATION.overview)/TREE_PRESENTATION.reveal))].layer};
-    let t=(elapsed-growth)%cycle,index=0,angle=0,elevation=0,phase:TreePresentationFrame['phase']='orbit';
-    const height=(i:number)=>n<2?0:i/(n-1)*.16;
-    for(;index<n;index++){
-      if(t<TREE_PRESENTATION.orbit){angle=index*Math.PI*2.25+2*Math.PI*ease(t/TREE_PRESENTATION.orbit);elevation=height(index);break;}
-      t-=TREE_PRESENTATION.orbit;
-      if(index<n-1){
-        if(t<TREE_PRESENTATION.ascent){const k=ease(t/TREE_PRESENTATION.ascent);angle=index*Math.PI*2.25+Math.PI*2+k*Math.PI*.25;elevation=height(index)+(height(index+1)-height(index))*k;phase='ascent';break;}
-        t-=TREE_PRESENTATION.ascent;
-      }
-    }
-    if(index===n){const k=ease(t/TREE_PRESENTATION.return);index=n-1;const endAngle=((n-1)*2.25+2)*Math.PI;angle=endAngle+(Math.ceil(endAngle/(Math.PI*2))*Math.PI*2-endAngle)*k;elevation=height(n-1)*(1-k);phase='return';}
-    const distance=overview.position[2]-overview.target[2],radius=distance*Math.cos(elevation);
-    const shot:TreeShot={target:overview.target,position:[overview.target[0]+radius*Math.sin(angle),overview.target[1]+distance*Math.sin(elevation),overview.target[2]+radius*Math.cos(angle)]};
-    return {...base,shot,phase,layer:stops[index].layer,angle,elevation};
+  const distance=Math.min((overview.position[2]-overview.target[2])*.55,Math.max(1000,1100/Math.sqrt(Math.max(.35,aspect))));
+  type Pose={target:Point;angle:number};
+  type Segment={from:Pose;to:Pose;duration:number;moveDuration:number;phase:TreePresentationFrame['phase'];layer:string;companyId:string;revealed:string[]};
+  const segments:Segment[]=[],revealed:string[]=[];
+  let pose:Pose={target:stops[0]?.target??overview.target,angle:0};
+  const add=(to:Pose,duration:number,phase:Segment['phase'],layer:string,companyId='')=>{
+    const moveDuration=phase==='reveal'?duration:Math.max(companyId?duration*.6:duration,Math.abs(to.angle-pose.angle)*1.875/.15,Math.hypot(...to.target.map((v,i)=>v-pose.target[i]))*1.875/300);
+    segments.push({from:pose,to,duration:moveDuration+(companyId?1.6:0),moveDuration,phase,layer,companyId,revealed:[...revealed]});pose=to;
   };
-  return Object.assign((delta:number,speed=1)=>{elapsed+=tourDelta(delta,speed);return sample();},{sample,reframe:(shot:TreeShot)=>{overview=shot;}});
+  const visitLayer=(layer:TreeTourStop,startAngle:number,phase:'ascent'|'descent',grow=false)=>{
+    if(grow)revealed.push(layer.layer);
+    if(pose.target!==layer.target||pose.angle!==startAngle)add({target:layer.target,angle:startAngle},TREE_PRESENTATION.ascent,phase,layer.layer);
+    if(grow)add(pose,TREE_PRESENTATION.reveal,'reveal',layer.layer);
+    const companies=nodes.filter(n=>n.kind==='company'&&n.layer===layer.layer).map(node=>({node,angle:((Math.atan2(node.position[0],node.position[2])-startAngle)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)})).sort((a,b)=>a.angle-b.angle||a.node.id.localeCompare(b.node.id));
+    for(const {node,angle} of companies)add({target:node.position,angle:startAngle+angle},TREE_PRESENTATION.company,'orbit',layer.layer,node.id);
+    if(companies.length||stops.length===1)add({target:layer.target,angle:startAngle+Math.PI*2},TREE_PRESENTATION.company,'orbit',layer.layer);
+  };
+  for(let i=0;i<stops.length;i++)visitLayer(stops[i],pose.angle+(i?Math.PI*.25:0),'ascent',true);
+  const total=segments.reduce((sum,s)=>sum+s.duration,0),introCount=segments.length;
+  const lastLayer=stops.at(-1)?.layer??'',loopStartAngle=pose.angle;
+  // A round trip adds one full transfer turn, so every loop joins at exactly
+  // the same crown pose without reversing rotation or resetting the camera.
+  const transferAngle=Math.PI/Math.max(1,stops.length-1);
+  for(let i=stops.length-2;i>=0;i--)visitLayer(stops[i],pose.angle+transferAngle,'descent');
+  for(let i=1;i<stops.length;i++)visitLayer(stops[i],pose.angle+transferAngle,'ascent');
+  if(stops.length===1)visitLayer(stops[0],pose.angle,'ascent');
+  const loopSegments=segments.splice(introCount);
+  const loopDuration=loopSegments.reduce((sum,s)=>sum+s.duration,0),loopAngle=pose.angle-loopStartAngle;
+  const closeShot=(p:Pose):TreeShot=>({target:p.target,position:[p.target[0]+distance*Math.sin(p.angle),p.target[1]+distance*.08,p.target[2]+distance*Math.cos(p.angle)]});
+  const first:Pose={target:stops[0]?.target??overview.target,angle:0};
+  const sample=():TreePresentationFrame=>{
+    const base={shot:overview,phase:'overview' as TreePresentationFrame['phase'],layer:'',companyId:'',revealLayers:[] as string[],angle:0,elevation:0};
+    if(!stops.length||elapsed<TREE_PRESENTATION.overview)return base;
+    let t=elapsed-TREE_PRESENTATION.overview;
+    if(t<TREE_PRESENTATION.approach){const k=ease(t/TREE_PRESENTATION.approach),close=closeShot(first);return {...base,phase:'approach',layer:stops[0].layer,shot:{position:mix(overview.position,close.position,k),target:mix(overview.target,close.target,k)}};}
+    t-=TREE_PRESENTATION.approach;
+    let list=segments,loops=0;
+    // After the first ascent, descend to the roots and ascend again at the same distance.
+    if(t>=total&&loopDuration){loops=Math.floor((t-total)/loopDuration);t=(t-total)%loopDuration;list=loopSegments;}
+    for(const segment of list){
+      if(t<segment.duration){
+        const k=ease(Math.min(1,t/segment.moveDuration));
+        const angle=segment.from.angle+(segment.to.angle-segment.from.angle)*k+loops*loopAngle;
+        const target=mix(segment.from.target,segment.to.target,k);
+        return {...base,shot:closeShot({target,angle}),phase:segment.phase,layer:segment.layer,companyId:segment.companyId,revealLayers:segment.revealed,angle,elevation:target[1]};
+      }
+      t-=segment.duration;
+    }
+    return {...base,shot:closeShot(pose),phase:'orbit',layer:lastLayer,revealLayers:[...revealed],angle:pose.angle,elevation:pose.target[1]};
+  };
+  return Object.assign((delta:number,speed=1)=>{elapsed+=tourDelta(delta,speed);return sample();},{sample,duration:()=>TREE_PRESENTATION.overview+TREE_PRESENTATION.approach+total,loopDuration:()=>loopDuration,reframe:(shot:TreeShot)=>{overview=shot;}});
 }
 
 // Keep layer membership explicit: leaves from adjacent layers can overlap in height.

@@ -1465,7 +1465,7 @@ test('navigation: blank clicks recover automatically without pause controls',asy
  await page.mouse.click(t.x+8,t.y+8);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
- await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true',{timeout:20000});
+ await expect(canvas).toHaveAttribute('data-tour-phase',/^(reveal|orbit)$/,{timeout:20000});
  await expect(page.getByRole('button',{name:/^(Pause tour|Resume tour)$/})).toHaveCount(0);
 });
 test('navigation: four distinct tabs persist selection and share speed',async({page})=>{
@@ -1651,7 +1651,7 @@ test('navigation: hierarchy clears previous company financials when selection ch
 });
 
 
-test('navigation: tree opens layers in a stable centered overview even at half speed',async({page})=>{
+test('navigation: tree approaches companies from the overview even at half speed',async({page})=>{
  test.setTimeout(75000);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','.5'));
@@ -1662,14 +1662,11 @@ test('navigation: tree opens layers in a stable centered overview even at half s
  await expect(tree.locator('[data-tree-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:15000});
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveCount(1);
  const start=await canvas.getAttribute('data-camera-target');
- await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:10000});
+ await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:30000});
  await expect(tree.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveCount(1);
- expect(await canvas.getAttribute('data-camera-target')).toBe(start);
+ await expect.poll(()=>canvas.getAttribute('data-camera-target')).not.toBe(start);
  await expect(canvas).toHaveAttribute('data-tour','playing');
- const held=await canvas.getAttribute('data-camera-target');
- await page.waitForTimeout(400);
- expect(await canvas.getAttribute('data-camera-target')).toBe(held);
  const company=tree.locator('[data-tree-company="US:NVDA"]');
  await expect(company).toHaveCount(1);
  await tree.screenshot({path:test.info().outputPath('tree-progressive.png')});
@@ -1728,8 +1725,8 @@ test('navigation: manual hierarchy stays put and cannot pause other charts',asyn
 });
 
 
-test('tree presentation orbits after growth and reset replays the introduction',async({page})=>{
- test.setTimeout(60000);
+test('tree approaches and visits companies before spiraling to the next layer',async({page})=>{
+ test.setTimeout(100000);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
  const fixture=graph;
@@ -1737,16 +1734,25 @@ test('tree presentation orbits after growth and reset replays the introduction',
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
  await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tour-phase','overview');
+ const distance=async()=>canvas.evaluate(el=>{const p=el.getAttribute('data-camera-position')!.split(',').map(Number),t=el.getAttribute('data-camera-target')!.split(',').map(Number);return Math.hypot(...p.map((v,i)=>v-t[i]));});
+ const wide=await distance();
  await expect(canvas).toHaveAttribute('data-tour-phase','orbit',{timeout:20000});
  await expect(canvas).toHaveAttribute('data-tour-layer','energy');
+ const close=await distance();expect(close).toBeLessThan(wide*.6);
  const start=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(start);
  await expect(tree.locator('[data-tree-kind="company"][data-tree-layer="energy"][data-label-visible="true"]').first()).toBeVisible({timeout:10000});
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
- await expect(canvas).toHaveAttribute('data-tour-phase',/^(overview|reveal)$/);
+ await expect(canvas).toHaveAttribute('data-tour-phase',/^(overview|approach)$/);
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
  await expect(canvas).toHaveAttribute('data-tour-phase','orbit',{timeout:20000});
- await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
+ await expect(canvas).toHaveAttribute('data-tour-company',/.+/);
+ await expect(canvas).toHaveAttribute('data-tour-layer','chips',{timeout:45000});
+ expect(Math.abs(await distance()-close)).toBeLessThan(.1);
+ await expect(canvas).toHaveAttribute('data-tour-company',/^chips\//,{timeout:20000});
+ await page.waitForTimeout(700);
  await tree.screenshot({path:test.info().outputPath('tree-presentation.png')});
  await tree.locator('[data-tree-company="US:CEG"]').evaluate((el:HTMLButtonElement)=>el.click());
  const card=page.locator('aside[data-node-card="US:CEG"]');

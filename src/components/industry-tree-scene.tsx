@@ -184,7 +184,7 @@ function Scene(props:TreeSceneProps){
         if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
       }
       const shot=treeOverviewShot(all,size.width,size.height);
-      if(restarting||!presentation.current)presentation.current=createTreePresentation(shot,fullPlan);
+      if(restarting||!presentation.current)presentation.current=createTreePresentation(shot,fullPlan,all,size.width/size.height);
       else presentation.current.reframe(shot);
       const current=presentation.current.sample().shot;
       void c.setLookAt(...current.position,...current.target,Boolean(previous)&&!reduced.current);
@@ -269,8 +269,10 @@ function Scene(props:TreeSceneProps){
       }
       moving=true;
     }
-    const visitingLayer=presentationFrame&&['orbit','ascent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
+    const visitingLayer=presentationFrame&&['orbit','ascent','descent','reveal'].includes(presentationFrame.phase)?presentationFrame.layer:'';
+    const visitingCompany=presentationFrame?.companyId??'';
     gl.domElement.setAttribute('data-tour-phase',presentationFrame?.phase??'manual');
+    gl.domElement.setAttribute('data-tour-company',visitingCompany);
     gl.domElement.setAttribute('data-user-positioned',String(userPositioned.current));
     gl.domElement.setAttribute('data-tour-layer',presentationFrame?.layer??flight.current?.destination()?.layer??'');
     gl.domElement.setAttribute('data-tour-open-layers',[...new Set(plan.map(stop=>stop.layer))].join(','));
@@ -318,7 +320,7 @@ function Scene(props:TreeSceneProps){
           const threshold=target.node.kind==='company'?.65:.72;
           // Pin the selected label's shape: a card following its bounds must not
           // move back and forth as the card covers/uncover its hover target.
-          const intentional=Boolean(props.selected&&target.node.company?.id===props.selected)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
+          const intentional=target.node.id===visitingCompany||Boolean(props.selected&&target.node.company?.id===props.selected)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
           const wanted=intentional||((target.node.layer===visitingLayer||htmlScale>=threshold+(fade.visible?0:.04))&&!collisionLabels.current.has(target.node.id));
           const previous=fade.level;
           const result=advanceLabelFade(fade,wanted,now,reduced.current);
@@ -326,6 +328,7 @@ function Scene(props:TreeSceneProps){
           label.style.opacity=String(result.opacity*(label.dataset.treeDimmed==='true'?.2:1));
           label.style.pointerEvents=fade.visible||compact?'auto':'none';
           label.dataset.labelVisible=String(fade.visible);
+          label.dataset.tourFocus=String(target.node.id===visitingCompany);
           label.dataset.labelOpacity=String(result.opacity);
           if(result.moving)moving=true;
           if(previous>0&&compact){lastCollision.current=-Infinity;moving=true;}
@@ -350,6 +353,7 @@ function Scene(props:TreeSceneProps){
       const target=controls.current?.getTarget(new Vector3())??new Vector3();
       const distances=new Map(nodes.map(n=>[n.id,new Vector3(...n.position).distanceToSquared(visitingLayer?state.camera.position:target)]));
       const ordered=[...nodes].sort((a,b)=>Number(b.company?.id===props.selected)-Number(a.company?.id===props.selected)
+        ||Number(b.id===visitingCompany)-Number(a.id===visitingCompany)
         ||Number(b.kind==='layer'||b.kind==='root')-Number(a.kind==='layer'||a.kind==='root')
         ||Number(b.layer===visitingLayer)-Number(a.layer===visitingLayer)
         ||distances.get(a.id)!-distances.get(b.id)!);
