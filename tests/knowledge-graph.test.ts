@@ -235,7 +235,7 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
  const trunks=initial.filter(n=>n.kind==='layer');
  // Energy -> chips -> infrastructure -> models -> applications, bottom to top.
  assert(trunks.every((n,i)=>n.parent==='root'&&(!i||n.position[1]>trunks[i-1].position[1])));
- assert.equal(trunks[0].id,'energy');assert(trunks[0].position[1]<0,'energy grows as roots below ground');
+ assert.equal(trunks[0].id,'energy');assert.equal(trunks[0].position[1],0,'Energy connects the underground roots at the trunk base');
  const crown=trunks.at(-1)!;
  assert.equal(crown.id,'applications');assert.equal(crown.position[0],0);
  // Trunk layers sit on the trunk as contiguous segments, each resting on the one below.
@@ -254,7 +254,7 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
  for(const [i,layer] of layers.entries()){
    const group=all.filter(n=>n.layer===layer.id);
    const node=group.find(n=>n.kind==='layer')!;
-   if(layer.id==='energy')assert(group.every(n=>n.position[1]<0),'energy stays underground');
+   if(layer.id==='energy')assert(group.every(n=>n.kind==='layer'?n.position[1]===0:n.position[1]<0),'Energy supply and its companies grow below the trunk-base Energy anchor');
    else if(layer.id==='applications')assert(group.filter(n=>n.kind!=='layer').every(n=>n.position[1]>node.position[1]),'application branches grow above the trunk tip');
    else {
      const branches=group.filter(n=>n.kind==='branch');
