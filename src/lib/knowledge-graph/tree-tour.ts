@@ -1,5 +1,6 @@
 import { TOUR_MOTION, tourDelta, tourEase } from './tour-motion';
 import type { TreePoint } from './industry-tree';
+import { VERTICAL_ROOT_REACH, VERTICAL_ROOT_DEPTH } from './vertical-tree';
 
 type Point = [number, number, number];
 export type TreeShot = { target: Point; position: Point };
@@ -25,6 +26,39 @@ export function treeTourStops(nodes: TreePoint[]): Point[] {
 }
 
 export type TreeTourStop = { target: Point; distance: number; duration: number; hold: number; kind: 'company'|'overview'|'transfer'; layer: string };
+
+// Frame the eventual canopy from the first frame, including front-facing leaves.
+// Growing a new layer must never trigger another fit or a close-up.
+export function treeOverviewShot(nodes:TreePoint[],width:number,height:number):TreeShot {
+  const xs=[-VERTICAL_ROOT_REACH,VERTICAL_ROOT_REACH,...nodes.map(n=>n.position[0])];
+  const ys=[-VERTICAL_ROOT_DEPTH,...nodes.map(n=>n.position[1])];
+  const target:Point=[(Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2,0];
+  const tanV=Math.tan(Math.PI/8)*Math.max(.2,(height-100)/height);
+  const tanH=Math.tan(Math.PI/8)*Math.max(120,width-100)/height;
+  const points:Point[]=[...nodes.map(n=>n.position),[-VERTICAL_ROOT_REACH,-VERTICAL_ROOT_DEPTH,0],[VERTICAL_ROOT_REACH,0,0]];
+  const distance=Math.max(500,...points.map(p=>Math.max((Math.abs(p[0]-target[0])+110)/tanH,(Math.abs(p[1]-target[1])+110)/tanV)+p[2]));
+  return {target,position:[target[0],target[1],distance]};
+}
+
+export function treeOverviewPlan(nodes:TreePoint[],open?:ReadonlySet<string>):TreeTourStop[] {
+  if(open&&!open.has('root'))return [];
+  return nodes.filter(n=>n.kind==='layer'&&(!open||open.has(n.id)))
+    .sort((a,b)=>a.position[1]-b.position[1])
+    .map(n=>({target:n.position,distance:0,duration:3,hold:0,kind:'overview',layer:n.id}));
+}
+
+// One layer every three shared tour seconds, independent of company count.
+// The camera stays where it is, including after a user's pan or zoom.
+export function createTreeOverviewTour(start:TreeShot,stops:TreeTourStop[]) {
+  let elapsed=0,index=0;
+  return Object.assign((delta:number,speed=1):TreeShot=>{
+    if(stops.length){
+      elapsed+=tourDelta(delta,speed);
+      while(elapsed>=stops[index].duration){elapsed-=stops[index].duration;index=(index+1)%stops.length;}
+    }
+    return start;
+  },{destination:()=>stops[index]});
+}
 
 // Keep layer membership explicit: leaves from adjacent layers can overlap in height.
 // Pull back first, travel along the trunk at that wider distance, then approach
@@ -59,12 +93,13 @@ export function treeTourFromView(plan:TreeTourStop[], view:TreeShot, nodes:TreeP
   const distance=(n:TreePoint)=>n.span?Math.max(n.span[0]-y,0,y-n.span[1]):Math.abs(n.position[1]-y);
   let current=layers.reduce((best,n,i)=>distance(n)<distance(layers[best])?i:best,0);
   if(skipLayer){const index=layers.findIndex(n=>n.id===skipLayer);if(index>=0)current=(index+1)%layers.length;}
+  const isVisit=(stop:TreeTourStop)=>stop.kind==='company'||!plan.some(s=>s.kind==='company');
   let layer=plan[0].layer;
   for(let offset=0;offset<layers.length;offset++){
     const candidate=layers[(current+offset)%layers.length].id;
-    if(plan.some(stop=>stop.kind==='company'&&stop.layer===candidate)){layer=candidate;break;}
+    if(plan.some(stop=>isVisit(stop)&&stop.layer===candidate)){layer=candidate;break;}
   }
-  const candidates=plan.map((stop,index)=>({stop,index})).filter(({stop})=>stop.kind==='company'&&stop.layer===layer);
+  const candidates=plan.map((stop,index)=>({stop,index})).filter(({stop})=>isVisit(stop)&&stop.layer===layer);
   const squared=(stop:TreeTourStop)=>stop.target.reduce((sum,v,i)=>sum+(v-view.target[i])**2,0);
   const index=candidates.reduce((best,candidate)=>squared(candidate.stop)<squared(best.stop)?candidate:best,candidates[0])?.index??0;
   return [...plan.slice(index),...plan.slice(0,index)];

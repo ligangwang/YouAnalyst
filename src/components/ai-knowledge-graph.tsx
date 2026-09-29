@@ -126,6 +126,11 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const [showAllEdges, setShowAllEdges] = useState(false);
   const company = scoped.nodes.find(n => n.id === selected && n.kind === "COMPANY");
   const detailCard=useNodeCardPosition(company?.id??'','graph',view==='graph'&&Boolean(company));
+  useLayoutEffect(()=>{
+    // A new company starts a new reading session; keep the card's dragged position.
+    const card=detailCard.current;
+    if(card){card.scrollTop=0;card.scrollLeft=0;}
+  },[company?.id,detailCard]);
   const relations = company ? scoped.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
   const label = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n?.kind === "STAGE" ? text(n.labels?.en ?? n.label ?? id, n.labels?.["zh-CN"] ?? n.label ?? id) : n ? companyName(n,locale) : id; };
   const cardDismiss=useCardDismiss();
@@ -201,7 +206,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   return <><Container className={styles.page}>
     <header className={styles.header}><div className={styles.mapIdentity}><div className={styles.titleRow}><div className={styles.thesisPicker}><label htmlFor={viewId+'-thesis'}>{text('Theme','投资主题')}</label><Heading className={styles.mapHeading}>{text("AI Industry Map", "AI 产业图谱")}</Heading><select id={viewId+'-thesis'} defaultValue="ai" aria-label={text('Investment theme','投资主题')}><option value="ai">AI</option></select></div><details className={styles.mapHelp}><summary aria-label={text('About the AI Industry Map','关于 AI 产业图谱')}>ⓘ</summary><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></details></div>
     </div>
-    {view!=="table"&&<NavigationSettings/>}
+    {(view==="graph"||view==="tree")&&<NavigationSettings/>}
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
       {([['graph','Relationship graph','关系图谱'],['tree','Industry tree','产业树'],['hierarchy','Company hierarchy','公司层级图'],['table','Company list','公司列表']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" aria-label={text(en,zh)} id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}><ViewIcon view={id} />{text(id==='table'?'List':id==='tree'?'Tree':id==='hierarchy'?'Hierarchy':'Graph',id==='table'?'列表':id==='tree'?'树状图':id==='hierarchy'?'层级图':'关系图')}</button>)}
     </div></header>

@@ -106,7 +106,7 @@ async function revealListFilters(page:Page) {
  if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
-test('tree camera tour pauses on hold and resumes from the released view',async({page,isMobile})=>{
+test('tree overview pauses on hold and preserves the released view',async({page,isMobile})=>{
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
@@ -122,10 +122,10 @@ test('tree camera tour pauses on hold and resumes from the released view',async(
  expect(await positions()).toEqual(initial);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await expect(canvas).toHaveAttribute('data-tour','playing');
- await expect.poll(positions).not.toEqual(initial);
+ expect(await positions()).toEqual(initial);
  await page.waitForTimeout(14000);
  await page.screenshot({path:`output/tree-tour-${test.info().project.name}.png`});
- await expect(tree.locator('[data-tree-company][data-compact="false"]').first()).toBeVisible({timeout:45000});
+
  await page.screenshot({path:`output/tree-tour-${test.info().project.name}.png`});
  // This test exercises camera controls; a leaf under the moving pointer must not select a company.
  await canvas.evaluate(el=>el.addEventListener('click',event=>event.stopPropagation()));
@@ -145,7 +145,7 @@ test('tree camera tour pauses on hold and resumes from the released view',async(
  await page.waitForTimeout(600);
  expect(await pose()).toEqual(held);
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
- await expect.poll(pose,{timeout:10000}).not.toEqual(held);
+ expect(await pose()).toEqual(held);
  // Pan and zoom, then observe the first resumed frame in the page itself.
  await page.mouse.move(bounds.x+8,bounds.y+8);
  await zoomWheel(page,-120);
@@ -167,7 +167,7 @@ test('tree camera tour pauses on hold and resumes from the released view',async(
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
  const first=(await canvas.getAttribute('data-first-resumed-pose'))!.split(',').map(Number);
  expect(Math.max(...first.map((v,i)=>Math.abs(v-manual[i])))).toBeLessThan(.01);
- await expect.poll(pose,{timeout:10000}).not.toEqual(manual);
+ expect(await pose()).toEqual(manual);
  // Mobile touch and mouse click both pause an already resumed tour.
  if(isMobile)await page.touchscreen.tap(bounds.x+8,bounds.y+8);
  else await page.mouse.click(bounds.x+8,bounds.y+8);
@@ -203,7 +203,7 @@ test('tree camera tour pauses on hold and resumes from the released view',async(
  await page.waitForTimeout(500);
  expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
- await expect.poll(pose,{timeout:10000}).not.toEqual(selected);
+ expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
 });
 async function projectedGraphPositions(page: Page) {
  // Drei's outer Html wrapper holds the projected node position. Label bounds also
@@ -232,7 +232,7 @@ test('tree layer changes preserve the camera and navigation skips closed layers'
  await page.emulateMedia({reducedMotion:'no-preference'});
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
  await expect(canvas).toHaveAttribute('data-tour-layer','chips');
- await expect.poll(pose,{timeout:10000}).not.toEqual(initial);
+ expect(await pose()).toEqual(initial);
  await tree.getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour-open-layers','');
  await expect(canvas).toHaveAttribute('data-tour','stopped');
@@ -254,7 +254,7 @@ test('tree layer changes preserve the camera and navigation skips closed layers'
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
  const reopened=(await canvas.getAttribute('data-reopened-pose'))!.split(',').map(Number),previous=collapsed.split(',').map(Number);
  expect(Math.max(...reopened.map((v,i)=>Math.abs(v-previous[i])))).toBeLessThan(.01);
- await expect.poll(pose,{timeout:10000}).not.toEqual(collapsed);
+ expect(await pose()).toEqual(collapsed);
  // The card must win hit testing over projected Html node labels.
  await page.emulateMedia({reducedMotion:'reduce'});
  await tree.locator('[data-tree-company="US:GEV"]').first().evaluate((el:HTMLButtonElement)=>el.click());
@@ -1419,6 +1419,51 @@ async function navigationFixture(page:Page,view='graph'){
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view='+view);
 }
+
+test('company card starts at the top when switching from Micron to NVIDIA',async({page})=>{
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture=structuredClone(graph);
+ for(const id of ['US:MU','US:NVDA'])fixture.nodes.find(n=>n.id===id)!.summary='Company research details. '.repeat(180);
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ const select=async(id:string)=>page.locator(`[data-company-id="${id}"]`).evaluate((el:HTMLButtonElement)=>el.click());
+ await select('US:MU');
+ const card=page.getByRole('complementary',{name:'Company details'});
+ await expect(card).toBeVisible();
+ await card.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+ await expect.poll(()=>card.evaluate(el=>el.scrollTop)).toBeGreaterThan(100);
+ await page.waitForTimeout(300);
+ expect(await card.evaluate(el=>el.scrollTop)).toBeGreaterThan(100);
+ await select('US:NVDA');
+ await expect(card.getByRole('heading',{name:'NVIDIA',exact:true})).toBeVisible();
+ await expect.poll(()=>card.evaluate(el=>el.scrollTop)).toBe(0);
+ await card.evaluate(el=>{el.scrollTop=el.scrollHeight;});
+ await expect.poll(()=>card.evaluate(el=>el.scrollTop)).toBeGreaterThan(100);
+ await select('US:MU');
+ await expect(card).toHaveAttribute('data-node-card','US:MU');
+ await expect.poll(()=>card.evaluate(el=>el.scrollTop)).toBe(0);
+});
+
+test('navigation: blank clicks recover automatically without pause controls',async({page})=>{
+ test.setTimeout(45000);
+ await navigationFixture(page);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect(page.getByRole('button',{name:/^(Pause tour|Resume tour)$/})).toHaveCount(0);
+ const graphCanvas=page.locator('canvas');
+ await graphCanvas.scrollIntoViewIfNeeded();
+ const b=(await graphCanvas.boundingBox())!;
+ await page.mouse.click(b.x+8,b.y+8);
+ await expect(graphCanvas).toHaveAttribute('data-rotation','resumed',{timeout:10000});
+ await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
+ await page.getByLabel('Tour speed',{exact:true}).selectOption('0.5');
+ const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ const t=(await canvas.boundingBox())!;
+ await page.mouse.click(t.x+8,t.y+8);
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true',{timeout:20000});
+ await expect(page.getByRole('button',{name:/^(Pause tour|Resume tour)$/})).toHaveCount(0);
+});
 test('navigation: four distinct tabs persist selection and share speed',async({page})=>{
  await navigationFixture(page);
  await expect(page.getByRole('tab')).toHaveText(['Graph','Tree','Hierarchy','List']);
@@ -1426,13 +1471,15 @@ test('navigation: four distinct tabs persist selection and share speed',async({p
  await page.getByRole('tab',{name:'Company hierarchy',exact:true}).click();
  await expect(page.locator('[data-industry-section="hierarchy"] svg')).toBeVisible();
  await expect(page.locator('[data-industry-section="hierarchy"] canvas')).toHaveCount(0);
- await expect(page.getByLabel('Tour speed',{exact:true})).toHaveValue('1.5');
+ await expect(page.getByLabel('Tour speed',{exact:true})).toHaveCount(0);
  await page.goto('http://graph.test/map?lang=en');
  await expect(page.getByRole('tab',{name:'Company hierarchy',exact:true})).toHaveAttribute('aria-selected','true');
- await expect(page.getByLabel('Tour speed',{exact:true})).toHaveValue('1.5');
+ await expect(page.getByLabel('Tour speed',{exact:true})).toHaveCount(0);
  await page.getByRole('tab',{name:'Company hierarchy',exact:true}).focus();await page.keyboard.press('ArrowRight');
  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toBeFocused();
  await page.keyboard.press('Home');await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toBeFocused();
+ await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
+ await expect(page.getByLabel('Tour speed',{exact:true})).toHaveValue('1.5');
 });
 test('navigation: hierarchy expands in 2D, selects and toggles company cards without WebGL',async({page})=>{
  await page.addInitScript(()=>{HTMLCanvasElement.prototype.getContext=()=>null;});
@@ -1446,14 +1493,6 @@ test('navigation: hierarchy expands in 2D, selects and toggles company cards wit
  await page.getByRole('button',{name:'Expand all',exact:true}).click();await expect(page.locator('[data-hierarchy-node="infrastructure/networking/US:NVDA"]')).toHaveCount(1);
  await page.screenshot({path:test.info().outputPath('hierarchy.png')});
  await page.getByRole('button',{name:'Collapse all',exact:true}).click();await expect(node).toHaveCount(0);
-});
-test('navigation: hierarchy tour expands, pauses and resumes at the chosen speed',async({page})=>{
- await navigationFixture(page,'hierarchy');await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
- await page.emulateMedia({reducedMotion:'no-preference'});
- await expect(page.locator('[data-hierarchy-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:12000});
- await page.getByRole('button',{name:'Pause tour',exact:true}).click();
- const scene=page.locator('[data-industry-tree="hierarchy"]');await expect(scene).toHaveAttribute('data-tour','paused');
- await page.getByRole('button',{name:'Resume tour',exact:true}).click();await expect(scene).toHaveAttribute('data-tour','running');
 });
 test('navigation: graph selection frames direct connections outside the ball and restores the camera',async({page})=>{
  await navigationFixture(page);const canvas=page.locator('canvas');await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
@@ -1471,7 +1510,6 @@ test('navigation: zoomed and panned graph returns from selection before resuming
  await navigationFixture(page);
  const canvas=page.locator('canvas');
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
- await page.getByRole('button',{name:'Pause tour',exact:true}).click();
  const box=(await canvas.boundingBox())!;
  const original=Number(await canvas.getAttribute('data-camera-distance'));
  await page.mouse.move(box.x+12,box.y+12);await zoomWheel(page,-400);
@@ -1485,9 +1523,8 @@ test('navigation: zoomed and panned graph returns from selection before resuming
   await expect(page.locator(`[data-node-card="${id}"]`)).toBeVisible();
  }
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
- // Enable navigation while selection still holds the camera; closing alone must
+ // Selection holds the camera; closing alone must
  // restore the saved view and then resume, without requiring a second user action.
- await page.getByRole('button',{name:'Resume tour',exact:true}).click();
  await page.locator('[data-node-card="US:AMD"]').getByRole('button',{name:'Clear selection',exact:true}).click();
  await expect.poll(async()=>{const current=await pose();return Math.hypot(...current.position.map((v,i)=>v-saved.position[i]));},{timeout:15000}).toBeLessThan(.1);
  await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:10000});
@@ -1610,23 +1647,22 @@ test('navigation: hierarchy clears previous company financials when selection ch
 });
 
 
-test('navigation: tree grows from roots into the next layer before visiting its companies',async({page})=>{
+test('navigation: tree opens layers in a stable centered overview even at half speed',async({page})=>{
  test.setTimeout(75000);
  await page.emulateMedia({reducedMotion:'no-preference'});
- await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
+ await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','.5'));
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
  await expect(tree.locator('[data-tree-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:15000});
- await expect(tree.locator('[data-tree-node="chips"]')).toHaveCount(0);
+ await expect(tree.locator('[data-tree-node="chips"]')).toHaveCount(1);
  const start=await canvas.getAttribute('data-camera-target');
- await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:50000});
+ await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:10000});
  await expect(tree.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
- await expect(tree.locator('[data-tree-node="applications"]')).toHaveCount(0);
- expect(await canvas.getAttribute('data-camera-target')).not.toBe(start);
- await page.getByRole('button',{name:'Pause tour',exact:true}).click();
- await expect(canvas).toHaveAttribute('data-tour','paused');
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveCount(1);
+ expect(await canvas.getAttribute('data-camera-target')).toBe(start);
+ await expect(canvas).toHaveAttribute('data-tour','playing');
  const held=await canvas.getAttribute('data-camera-target');
  await page.waitForTimeout(400);
  expect(await canvas.getAttribute('data-camera-target')).toBe(held);
@@ -1645,135 +1681,44 @@ test('navigation: tree grows from roots into the next layer before visiting its 
 });
 
 
-test('navigation: hierarchy pause preserves progress through the current stop',async({page})=>{
+
+test('navigation: manual hierarchy stays put and cannot pause other charts',async({page})=>{
+ test.setTimeout(45000);
  await navigationFixture(page,'hierarchy');
- await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
  await page.emulateMedia({reducedMotion:'no-preference'});
- // The root stop takes 3.75 seconds at the doubled 2x setting. Pause near its end, then ensure
- // resume uses the remaining time instead of restarting the entire stop.
- await page.waitForTimeout(3000);
- await page.getByRole('button',{name:'Pause tour',exact:true}).click();
- const svg=page.locator('[data-industry-tree="hierarchy"] svg');
- const held=await svg.getAttribute('viewBox');
- await page.waitForTimeout(500);
- expect(await svg.getAttribute('viewBox')).toBe(held);
- await page.getByRole('button',{name:'Resume tour',exact:true}).click();
- await expect(page.locator('[data-hierarchy-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:2000});
-});
-
-
-for(const closeWith of ['cross','node'] as const)test(`navigation: hierarchy resumes the same stop after closing a company with ${closeWith}`,async({page})=>{
- test.setTimeout(60000);
- await navigationFixture(page,'hierarchy');
- await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
- await page.emulateMedia({reducedMotion:'no-preference'});
- const scene=page.locator('[data-industry-tree="hierarchy"]');
- const companies=scene.locator('[data-tree-company]');
- await expect(companies.first()).toBeAttached({timeout:22000});
- // Approach the end of the company-group transition before inspecting it.
- await page.waitForTimeout(4000);
- await companies.first().evaluate((el:HTMLButtonElement)=>el.click());
- const card=page.getByRole('dialog',{name:'Company details'});
- await expect(card).toBeVisible();
- await expect(scene).toHaveAttribute('data-tour','paused');
- await expect(page.getByRole('button',{name:'Pause tour',exact:true})).toBeVisible();
- const svg=scene.locator('svg');
- const held=await svg.getAttribute('viewBox');
- await page.waitForTimeout(500);
- expect(await svg.getAttribute('viewBox')).toBe(held);
- if(closeWith==='cross'){
-  // Switching the selected company must preserve the original tour progress too.
-  await companies.nth(1).evaluate((el:HTMLButtonElement)=>el.click());
-  await expect(companies.nth(1)).toHaveAttribute('aria-pressed','true');
-  await card.getByRole('button',{name:'Close company details',exact:true}).click();
- }else await companies.first().evaluate((el:HTMLButtonElement)=>el.click());
- await expect(card).toHaveCount(0);
- await expect(scene).toHaveAttribute('data-tour','running');
- // The remaining transition plus reading hold fits within 3.5 seconds at doubled 2x;
- // restarting this company stop would take another 6.25 seconds.
- await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:3500});
-});
-
-test('navigation: closing a hierarchy card respects an explicit Pause choice',async({page})=>{
- await navigationFixture(page,'hierarchy');
- await page.getByRole('button',{name:'Expand all',exact:true}).click();
- const scene=page.locator('[data-industry-tree="hierarchy"]');
- const node=scene.locator('[data-tree-company]').first();
- const card=page.getByRole('dialog',{name:'Company details'});
- for(const pauseDuringCard of [false,true]){
-  if(pauseDuringCard)await page.getByRole('button',{name:'Resume tour',exact:true}).click();
-  await node.evaluate((el:HTMLButtonElement)=>el.click());
-  await expect(card).toBeVisible();
-  if(pauseDuringCard)await page.getByRole('button',{name:'Pause tour',exact:true}).click();
-  await card.getByRole('button',{name:'Close company details',exact:true}).click();
-  await expect(card).toHaveCount(0);
-  await expect(scene).toHaveAttribute('data-tour','paused');
-  await expect(page.getByRole('button',{name:'Resume tour',exact:true})).toBeVisible();
- }
-});
-
-
-test('navigation: hierarchy parent toggles redirect the running tour and respect explicit pause',async({page})=>{
- await navigationFixture(page,'hierarchy');
- const scene=page.locator('[data-industry-tree="hierarchy"]');
+ const scene=page.locator('[data-industry-tree="hierarchy"]'),svg=scene.locator('svg');
+ await expect(scene).toHaveAttribute('data-tour','manual');
+ await expect(page.getByLabel('Tour speed',{exact:true})).toHaveCount(0);
+ await expect(scene.locator('[data-tree-company]')).toHaveCount(0);
+ await scene.scrollIntoViewIfNeeded();
+ const b=(await scene.boundingBox())!;
+ await page.mouse.click(b.x+b.width-8,b.y+b.height-8);
+ const pose=await svg.getAttribute('viewBox');
+ await page.waitForTimeout(2300);
+ const after=(await svg.getAttribute('viewBox'))!.split(' ').map(Number);
+ expect(Math.max(...pose!.split(' ').map((v,i)=>Math.abs(Number(v)-after[i])))).toBeLessThan(.01);
+ await expect(scene.locator('[data-tree-company]')).toHaveCount(0);
  const activate=async(id:string)=>scene.locator(`[data-hierarchy-node="${id}"]`).evaluate((el:HTMLButtonElement)=>el.click());
+ await activate('chips');await activate('chips/compute');
+ const company=scene.locator('[data-tree-company="US:NVDA"]').first();
+ await expect(company).toBeAttached();
+ await activate('chips/compute/US:NVDA');
+ await expect(page.getByRole('dialog')).toBeVisible();
+ await page.getByRole('button',{name:'Close company details',exact:true}).click();
+ await expect(page.getByRole('dialog')).toHaveCount(0);
  await activate('chips');
- await activate('chips/compute');
- await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
- await page.emulateMedia({reducedMotion:'no-preference'});
- await expect(scene).toHaveAttribute('data-tour','running');
- await expect(scene.locator('[data-hierarchy-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
- const svg=scene.locator('svg'),before=await svg.getAttribute('viewBox');
- await expect.poll(()=>svg.getAttribute('viewBox')).not.toBe(before);
- await activate('chips/compute');
- await expect(scene.locator('[data-hierarchy-node="chips/compute"]')).toHaveAttribute('aria-expanded','false');
- await expect(scene.locator('[data-hierarchy-node="chips/memory"]')).toHaveAttribute('aria-expanded','true');
- await activate('chips');
- await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','false');
- await expect(scene.locator('[data-hierarchy-node="infrastructure"]')).toHaveAttribute('aria-expanded','true');
- await expect(scene).toHaveAttribute('data-tour','running');
- await page.getByRole('button',{name:'Pause tour',exact:true}).click();
- await activate('chips');
- await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true');
- await expect(scene).toHaveAttribute('data-tour','paused');
- await page.getByRole('button',{name:'Resume tour',exact:true}).click();
- await expect(scene).toHaveAttribute('data-tour','running');
- // The root has no next sibling: leave it collapsed until the user reopens it.
- await activate('root');
- await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveCount(0);
- await page.waitForTimeout(300);
- await expect(scene.locator('[data-hierarchy-node="root"]')).toHaveAttribute('aria-expanded','false');
- await activate('root');
- await expect(scene).toHaveAttribute('data-tour','running');
-});
-
-
-test('navigation: hierarchy reveals from root and keeps earlier branches open',async({page})=>{
- test.setTimeout(70000);
- await page.emulateMedia({reducedMotion:'no-preference'});
- await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
- const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:CEG','US:NVDA'].includes(n.id))};
- await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
- await page.goto('http://graph.test/map?lang=en&view=hierarchy');
- const root=page.locator('[data-hierarchy-node="root"]'),energy=page.locator('[data-hierarchy-node="energy"]');
- await expect(root).toBeVisible();
- await expect(energy).toHaveCount(0);
- await expect(energy).toHaveAttribute('aria-expanded','true',{timeout:15000});
- const company=page.locator('[data-tree-company="US:CEG"]');
- await expect(company).toHaveCount(1,{timeout:15000});
- await expect(page.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:30000});
- await expect(energy).toHaveAttribute('aria-expanded','true');
- await expect(company).toHaveCount(1);
- await page.locator('[data-industry-tree="hierarchy"]').screenshot({path:test.info().outputPath('hierarchy-progressive.png')});
- await page.getByRole('button',{name:'Pause tour',exact:true}).click();
- // Manual collapse must finish its exit even while automatic navigation is paused.
- await energy.evaluate((el:HTMLButtonElement)=>el.click());
- await expect(company).toHaveAttribute('data-exiting','true');
- await expect(company).toBeDisabled();
  await expect(company).toHaveCount(0);
- await energy.evaluate((el:HTMLButtonElement)=>el.click());
- const branch=page.locator('[data-hierarchy-node^="energy/"]').first();
- await expect(branch).toHaveCount(1);
- await branch.evaluate((el:HTMLButtonElement)=>el.click());
- await expect(company).toHaveCount(1);
+ await page.waitForTimeout(2300);
+ await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','false');
+ await scene.screenshot({path:test.info().outputPath('manual-hierarchy.png')});
+ await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
+ await expect(page.getByRole('button',{name:/^(Pause tour|Resume tour)$/})).toHaveCount(0);
+ const canvas=page.locator('canvas');
+ await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
+ const graphPose=await canvas.getAttribute('data-camera-position');
+ await expect.poll(()=>canvas.getAttribute('data-camera-position'),{timeout:15000}).not.toBe(graphPose);
+ await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
+ const treeCanvas=page.locator('[data-industry-tree="vertical"] canvas');
+ await treeCanvas.scrollIntoViewIfNeeded();
+ await expect(treeCanvas).toHaveAttribute('data-tour','playing');
 });

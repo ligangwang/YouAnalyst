@@ -42,7 +42,8 @@ void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;
 
 function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
   const { text, locale } = useLocale();
-  const navigation=useNavigationSettings();
+  // Graph uses the original baseline; the tree keeps its faster reveal cadence.
+  const {selectedSpeed:speed}=useNavigationSettings();
   const edgeElements = useRef(new Map<string, HTMLButtonElement>());
   const edgeFades = useRef(new Map<string, number>());
   const linePoint = useMemo(() => new Vector3(), []);
@@ -206,7 +207,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     if(!selected&&lastSelected.current&&savedView.current&&previous?.reset===reset){
       const saved=savedView.current;savedView.current=null;lastSelected.current='';restoredView.current=true;
       const request=++returnRequest.current;returningView.current=true;
-      c.smoothTime=(reducedMotion.current?.15:.8)/navigation.speed;
+      c.smoothTime=(reducedMotion.current?.15:.8)/speed;
       void c.setLookAt(...saved.position.toArray(),...saved.target.toArray(),true).then(()=>{
         if(returnRequest.current!==request)return;
         returningView.current=false;scheduleResume.current();invalidate();
@@ -259,10 +260,10 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     const position=fitted?.position??new Vector3(x,y,z).addScaledVector(direction,distance);
     const target=fitted?.target??new Vector3(x,y,z);
     if(!fitted&&position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
-    c.smoothTime=.8/navigation.speed;
+    c.smoothTime=.8/speed;
     void c.setLookAt(...position.toArray(),...target.toArray(),!reduced&&!opening);
     invalidate();
-  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, navigation.speed]);
+  }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
   useEffect(()=>{
     const focused=Boolean(selected||activeEdge||sectorFocus),previous=lastFocus.current;
@@ -272,7 +273,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       scheduleResume.current();
     }
   },[selected,activeEdge,sectorFocus,reset,introOrbitRef]);
-  useEffect(()=>{invalidate();},[navigation.paused,navigation.speed,invalidate]);
+  useEffect(()=>{invalidate();},[speed,invalidate]);
   const degree = useMemo(() => {
     const counts = new Map<string,number>();
     layout.edges.forEach(e=>{counts.set(e.source,(counts.get(e.source)??0)+1);counts.set(e.target,(counts.get(e.target)??0)+1);});
@@ -344,7 +345,6 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     if (focused) introOrbitRef.current = false;
     let rotation='paused';
     if(focused)rotation='focused';
-    else if(navigation.paused)rotation='paused';
     else if(reducedMotion.current)rotation='reduced';
     else if(document.hidden)rotation='hidden';
     else if(returningView.current)rotation='returning';
@@ -352,7 +352,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       rotation='intro';
       // Move into a detail view before orbiting; keep the camera outside the node cloud.
       introPath.current ??= createIntroCamera(controls.current.distance, Math.max(layout.radius * 1.3, fitDistance * .9));
-      const step = introPath.current(delta, controls.current.polarAngle, navigation.speed);
+      const step = introPath.current(delta, controls.current.polarAngle, speed);
       void controls.current.dollyTo(step.distance, false);
       void controls.current.rotate(step.azimuth, step.polar, false);
       invalidate();
@@ -361,9 +361,9 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       if(performance.now()>=resumeAt.current){
         rotation='resumed';
         resumedOrbit.current??=createIntroOrbit();
-        resumeElapsed.current+=tourDelta(delta,navigation.speed);
+        resumeElapsed.current+=tourDelta(delta,speed);
         const t=Math.min(1,resumeElapsed.current/2),gain=t*t*(3-2*t);
-        const step=resumedOrbit.current(tourDelta(delta)*gain,controls.current.polarAngle,navigation.speed);
+        const step=resumedOrbit.current(tourDelta(delta)*gain,controls.current.polarAngle,speed);
         // Resume around the user's chosen target at their chosen distance.
         // Only selection framing or an explicit Reset may replace that view.
         const safeStep=safeGraphOrbitStep(controls.current.getPosition(new Vector3()),controls.current.getTarget(new Vector3()),
@@ -524,7 +524,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   });
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
-    <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/navigation.speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
+    <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
       <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
