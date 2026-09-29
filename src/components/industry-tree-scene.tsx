@@ -129,7 +129,9 @@ function Scene(props:TreeSceneProps){
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
   const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
-  const presence=useNodePresence(nodes,navigation.speed);
+  // Mount the trunk and layer anchors before company leaves, even as lower layers grow.
+  const presenceNodes=useMemo(()=>props.vertical?[...nodes.filter(n=>n.kind==='root'||n.kind==='layer'),...nodes.filter(n=>n.kind!=='root'&&n.kind!=='layer')]:nodes,[nodes,props.vertical]);
+  const presence=useNodePresence(presenceNodes,navigation.speed,props.vertical?.04:.24);
   const renderedNodes=useMemo(()=>presence.map(entry=>entry.node),[presence]);
   const present=useMemo(()=>new Map(presence.map(entry=>[entry.node.id,entry])),[presence]);
   useEffect(()=>{invalidate();},[presence,invalidate]);
