@@ -1756,6 +1756,10 @@ test('tree presentation orbits after growth and reset replays the introduction',
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
  const resumed=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(resumed);
+ await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
+ await page.waitForTimeout(2200);
+ await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
 });
 
 

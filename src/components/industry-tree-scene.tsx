@@ -244,9 +244,9 @@ function Scene(props:TreeSceneProps){
     let moving=false;
     const now=performance.now();
     const checkCollisions=props.vertical&&now-lastCollision.current>=200;
-    const touring=props.tour.current&&plan.length>0&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
+    const touring=props.tour.current&&plan.length>0&&(!props.vertical||props.open.includes('root'))&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
     let resumed=false;
-    if(props.vertical&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
+    if(props.vertical&&props.open.includes('root')&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
       const start={position:controls.current.getPosition(new Vector3(),false).toArray(),target:controls.current.getTarget(new Vector3(),false).toArray()};
       const previousLayer=flight.current?.destination()?.layer;
       const continuation=skipLayer.current?-1:plan.findIndex(stop=>stop.layer===previousLayer);
