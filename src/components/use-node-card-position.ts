@@ -1,8 +1,12 @@
 "use client";
-import {useEffect,useRef} from 'react';
+import {useEffect,useLayoutEffect,useRef} from 'react';
 // Dock at the chart edge. Manual positioning survives changes to the selection.
 export function useNodeCardPosition(companyId:string,kind:'graph'|'tree',enabled=true){
  const card=useRef<HTMLElement>(null),position=useRef<{x:number;y:number}|null>(null);
+ useLayoutEffect(()=>{
+  // New company, new reading position; manual card placement remains unchanged.
+  const el=card.current;if(el){el.scrollTop=0;el.scrollLeft=0;}
+ },[companyId]);
  useEffect(()=>{
   const el=card.current;if(!el||!enabled)return;
   const host=el.closest<HTMLElement>(kind==='tree'?'[data-industry-tree]':'[data-view="graph"]');if(!host)return;

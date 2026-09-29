@@ -6,7 +6,7 @@ export type NodePresence<T>={node:T;exiting:boolean};
 // Keep removed nodes mounted for their exit, and introduce parents before leaves.
 // The same clock drives both charts, including speed and reduced motion. Automatic expansion is paused by the caller;
 // manual expansion must still finish when the tour is paused.
-export function useNodePresence<T extends {id:string}>(nodes:T[],speed:number){
+export function useNodePresence<T extends {id:string}>(nodes:T[],speed:number,entryInterval=.24){
  const [entries,setEntries]=useState<NodePresence<T>[]>([]);
  const records=useRef(new Map<string,{node:T;exitAt:number|null}>());
  const elapsed=useRef(0),nextEntry=useRef(.6);
@@ -30,8 +30,9 @@ export function useNodePresence<T extends {id:string}>(nodes:T[],speed:number){
      for(const node of pending){
       if(!media.matches&&clock<nextEntry.current)break;
       records.current.set(node.id,{node,exitAt:null});changed=true;
-      nextEntry.current=clock+.24;
+      nextEntry.current+=entryInterval;
      }
+     if(nodes.every(node=>records.current.has(node.id)))nextEntry.current=clock+entryInterval;
     }
     if(changed)setEntries([...records.current.values()].map(r=>({node:r.node,exiting:r.exitAt!==null})));
    }
@@ -42,6 +43,6 @@ export function useNodePresence<T extends {id:string}>(nodes:T[],speed:number){
   document.addEventListener('visibilitychange',resume);
   frame=requestAnimationFrame(tick);
   return()=>{cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',resume);};
- },[nodes,speed]);
+ },[nodes,speed,entryInterval]);
  return entries;
 }

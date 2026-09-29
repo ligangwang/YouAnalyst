@@ -9,13 +9,13 @@ import { AdditiveBlending, BufferGeometry, Color, DoubleSide, Float32BufferAttri
 import { layoutIndustryTree, type TreeLayer, type TreePoint } from '@/lib/knowledge-graph/industry-tree';
 import { marketCapDescription, marketCapLabel, marketCapScale } from '@/lib/knowledge-graph/market-cap';
 import { useLocale } from './providers/locale-provider';
-import { layoutVerticalTree, VERTICAL_ROOT_REACH, VERTICAL_ROOT_DEPTH } from '@/lib/knowledge-graph/vertical-tree';
+import { layoutVerticalTree } from '@/lib/knowledge-graph/vertical-tree';
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
 import {useNodePresence} from './use-node-presence';
 import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
-import { createTreeTour, treeTourPlan, treeTourFromView } from '@/lib/knowledge-graph/tree-tour';
+import { createTreeTour, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/knowledge-graph/label-fade';
 
 export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
@@ -39,6 +39,7 @@ function Scene(props:TreeSceneProps){
   const [growing,setGrowing]=useState(Boolean(props.vertical));
   const revealed=useRef(new Set<string>());
   const controls=useRef<CameraControls>(null);
+  const userPositioned=useRef(false);
   const flight=useRef<ReturnType<typeof createTreeTour>|null>(null);
   const resumePending=useRef(false);
   const resumeReady=useRef(false);
@@ -51,7 +52,7 @@ function Scene(props:TreeSceneProps){
     if(!surface)return;
     const pointers=new Set<number>(),keys=new Set<string>();
     const clear=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;resumeReady.current=false;};
-    const pause=()=>{setGrowing(false);tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
+    const pause=()=>{userPositioned.current=true;tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
     const schedule=()=>{
       clear();
       if(pointers.size||keys.size||document.hidden)return;
@@ -99,7 +100,8 @@ function Scene(props:TreeSceneProps){
   const savedSelectionView=useRef<{position:Vector3;target:Vector3}|null>(null);
   useEffect(()=>{
     if(props.selected){
-      if(!lastSelection.current&&controls.current)savedSelectionView.current={position:controls.current.getPosition(new Vector3()),target:controls.current.getTarget(new Vector3())};
+      userPositioned.current=true;
+      if(!lastSelection.current&&controls.current)savedSelectionView.current={position:controls.current.getPosition(new Vector3(),false),target:controls.current.getTarget(new Vector3(),false)};
       tourRef.current=false;
     }
     else if(lastSelection.current&&props.vertical){
@@ -126,15 +128,17 @@ function Scene(props:TreeSceneProps){
   const particles=useRef(new Map<string,Mesh>());
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
-  const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale).filter(n=>!props.vertical||!growing||n.kind==='root'||props.open.includes(n.layer??n.id)),[props.layers,props.open,locale,layout,props.vertical,growing]);
-  const presence=useNodePresence(nodes,navigation.speed);
+  const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
+  // Mount the trunk and layer anchors before company leaves, even as lower layers grow.
+  const presenceNodes=useMemo(()=>props.vertical?[...nodes.filter(n=>n.kind==='root'||n.kind==='layer'),...nodes.filter(n=>n.kind!=='root'&&n.kind!=='layer')]:nodes,[nodes,props.vertical]);
+  const presence=useNodePresence(presenceNodes,navigation.speed,props.vertical?.04:.24);
   const renderedNodes=useMemo(()=>presence.map(entry=>entry.node),[presence]);
   const present=useMemo(()=>new Map(presence.map(entry=>[entry.node.id,entry])),[presence]);
   useEffect(()=>{invalidate();},[presence,invalidate]);
   useEffect(()=>{collisionLabels.current.clear();lastCollision.current=-Infinity;invalidate();},[nodes,props.selected,props.focus,invalidate]);
   const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
-  const fullPlan=useMemo(()=>treeTourPlan(all,size.width/size.height),[all,size.width,size.height]);
-  const visiblePlan=useMemo(()=>treeTourPlan(nodes,size.width/size.height,new Set(props.open)),[nodes,props.open,size.width,size.height]);
+  const fullPlan=useMemo(()=>treeOverviewPlan(all),[all]);
+  const visiblePlan=useMemo(()=>treeOverviewPlan(nodes,new Set(props.open)),[nodes,props.open]);
   const plan=growing?fullPlan:visiblePlan;
   const targets=useMemo(()=>{
     const visible=new Map(presence.filter(entry=>!entry.exiting).map(entry=>[entry.node.id,entry.node]));
@@ -162,34 +166,29 @@ function Scene(props:TreeSceneProps){
     const update=()=>{reduced.current=media.matches;invalidate();};update();media.addEventListener('change',update);
     return ()=>media.removeEventListener('change',update);
   },[invalidate]);
-  const lastFit=useRef<{request:number;vertical?:boolean}|null>(null);
+  const lastFit=useRef<{request:number;vertical?:boolean;width:number;height:number}|null>(null);
   useEffect(()=>{
     const c=controls.current;if(!c)return;
     const previous=lastFit.current;
-    lastFit.current={request:props.request,vertical:props.vertical};
+    lastFit.current={request:props.request,vertical:props.vertical,width:size.width,height:size.height};
     // Expanding/collapsing a vertical layer changes the itinerary, never the user's camera.
-    if(props.vertical&&previous?.vertical&&previous.request===props.request)return;
+    if(props.vertical&&previous?.vertical&&previous.request===props.request&&(userPositioned.current||(previous.width===size.width&&previous.height===size.height)))return;
+    if(props.vertical){
+      const shot=treeOverviewShot(all,size.width,size.height);
+      void c.setLookAt(...shot.position,...shot.target,Boolean(previous)&&!reduced.current);
+      flight.current=createTreeOverviewTour(shot,plan);
+      invalidate();return;
+    }
     let fitting=props.focus?nodes.filter(n=>n.id===props.focus||n.layer===props.focus||n.branch===props.focus):nodes;
     if(!fitting.length)fitting=nodes;
-    if(props.vertical&&growing&&!reduced.current&&!previous){
-      fitting=nodes.filter(n=>n.id==='root'||n.id==='energy');
-    }
     const xs=fitting.map(n=>n.position[0]),ys=fitting.map(n=>n.position[1]);
-    if(props.vertical&&!props.focus){
-      xs.push(-VERTICAL_ROOT_REACH,VERTICAL_ROOT_REACH);ys.push(-VERTICAL_ROOT_DEPTH);
-    }
     // Labels extend to the right of their anchors. Reserve their projected width,
     // including on narrow screens, instead of centering only the node spheres.
     const reach=Math.max(240,340*1100/size.height);
     const center=new Vector3(0,(Math.min(...ys)+Math.max(...ys))/2,0);
     const halfH=Math.max(160,(Math.max(...ys)-Math.min(...ys))/2+80);
     let distance:number;
-    if(props.vertical){
-      // Fit the complete tree on phones as well. Zoom and pan reveal local detail.
-      const fitWidth=size.width-96;
-      distance=Math.max((Math.max(...ys)-Math.min(...ys)+100)/2*size.height/Math.max(100,size.height-84),(Math.max(...xs)-Math.min(...xs)+80)/2*size.height/Math.max(120,fitWidth))/Math.tan(Math.PI/8)*1.05;
-      center.x=(Math.min(...xs)+Math.max(...xs))/2;
-    }else{
+    {
       // The root's label sits left of its node at a fixed pixel size, so its world width depends
       // on the fitted distance: settle the two together.
       const rootLabel=fitting.some(n=>n.kind==='root')?(labels.current.get('root')?.offsetWidth||150)+40:0;
@@ -203,12 +202,12 @@ function Scene(props:TreeSceneProps){
       }
     }
     const z=props.focus?fitting.reduce((sum,n)=>sum+n.position[2],0)/fitting.length:0;
-    const position:[number,number,number]=[center.x+distance*(props.vertical?0:.1),center.y,z+distance];
+    const position:[number,number,number]=[center.x+distance*.1,center.y,z+distance];
     const target:[number,number,number]=[center.x,center.y,z];
     void c.setLookAt(...position,...target,!reduced.current&&!props.tour.current);
     flight.current=createTreeTour({position,target},plan);
     invalidate();
-  },[nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,growing]);
+  },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,growing]);
   const previousPlan=useRef(plan);
   useEffect(()=>{
     const previous=previousPlan.current;previousPlan.current=plan;
@@ -220,7 +219,7 @@ function Scene(props:TreeSceneProps){
     if(plan.length)scheduleResume.current();else flight.current=null;
     invalidate();
   },[plan,props.vertical,invalidate,tourRef]);
-  useEffect(()=>{invalidate();},[navigation.paused,navigation.speed,invalidate]);
+  useEffect(()=>{invalidate();},[navigation.speed,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
     // Html labels have independent React roots. Keep their accessible selection
@@ -232,11 +231,14 @@ function Scene(props:TreeSceneProps){
     let moving=false;
     const now=performance.now();
     const checkCollisions=props.vertical&&now-lastCollision.current>=200;
-    const touring=props.tour.current&&plan.length>0&&!props.selected&&!props.focus&&!props.paused&&!navigation.paused&&!reduced.current&&!document.hidden;
+    const touring=props.tour.current&&plan.length>0&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
     let resumed=false;
-    if(props.vertical&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!navigation.paused&&!reduced.current&&!document.hidden&&controls.current){
+    if(props.vertical&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
       const start={position:controls.current.getPosition(new Vector3(),false).toArray(),target:controls.current.getTarget(new Vector3(),false).toArray()};
-      flight.current=createTreeTour(start,treeTourFromView(plan,start,nodes,skipLayer.current));
+      const previousLayer=flight.current?.destination()?.layer;
+      const continuation=skipLayer.current?-1:plan.findIndex(stop=>stop.layer===previousLayer);
+      const itinerary=continuation<0?treeTourFromView(plan,start,nodes,skipLayer.current):[...plan.slice(continuation),...plan.slice(0,continuation)];
+      flight.current=createTreeOverviewTour(start,itinerary);
       skipLayer.current=undefined;
       resumePending.current=false;resumeReady.current=false;tourRef.current=true;resumed=true;
       moving=true;
@@ -248,7 +250,7 @@ function Scene(props:TreeSceneProps){
       const layer=flight.current.destination()?.layer;
       if(growing&&layer&&!revealed.current.has(layer)){revealed.current.add(layer);props.onRevealLayer(layer);}
       const shot=flight.current(delta,navigation.speed);
-      void controls.current.setLookAt(...shot.position,...shot.target,false);
+      if(!props.vertical)void controls.current.setLookAt(...shot.position,...shot.target,false);
       moving=true;
     }
     if(controls.current){
@@ -426,7 +428,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={event=>{event.stopPropagation();setGrowing(false);if(node.company)props.onSelect(node.company.id);else props.onToggle(node.id);}}>
+          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else {setGrowing(false);props.onToggle(node.id);}}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}</small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}

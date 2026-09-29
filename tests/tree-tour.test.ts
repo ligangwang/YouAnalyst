@@ -7,6 +7,30 @@ import { layoutVerticalTree } from '../src/lib/knowledge-graph/vertical-tree';
 import { createStrandWriter, verticalTreeStrands, verticalTreeStrandGeometries } from '../src/lib/knowledge-graph/vertical-tree-geometry';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 import graph from '../data/ai-supply-chain/ai-us.json';
+import { createTreeOverviewTour, treeOverviewPlan, treeOverviewShot } from '../src/lib/knowledge-graph/tree-tour';
+
+test('overview frames every layer and leaf on desktop and mobile without camera travel',()=>{
+  const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
+  const nodes=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
+  const plan=treeOverviewPlan(nodes);
+  assert.equal(plan.length,layers.length,'one stop per layer regardless of company count');
+  for(const [width,height] of [[1440,800],[390,650]]){
+    const shot=treeOverviewShot(nodes,width,height),tan=Math.tan(Math.PI/8);
+    for(const node of nodes){
+      const depth=shot.position[2]-node.position[2];
+      assert(depth>0);
+      assert(Math.abs(node.position[0]-shot.target[0])/depth/tan/(width/height)<.95,`${node.id} outside horizontal view`);
+      assert(Math.abs(node.position[1]-shot.target[1])/depth/tan<.95,`${node.id} outside vertical view`);
+    }
+    for(const selected of [.5,1,1.5,2]){
+      const tour=createTreeOverviewTour(shot,plan);
+      for(let layer=0;layer<plan.length;layer++){
+        assert.equal(tour.destination().layer,plan[layer].layer);
+        for(let frame=0;frame<Math.ceil(3.01/(.025*selected*2));frame++)assert.deepEqual(tour(.025,selected*2),shot);
+      }
+    }
+  }
+});
 
 test('tree has depth, connected 3D wood and a complete deterministic company itinerary',()=>{
   const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
