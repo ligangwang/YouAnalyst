@@ -1500,10 +1500,21 @@ test('navigation: zoomed and panned graph returns from selection before resuming
   await expect(page.locator(`[data-node-card="${id}"]`)).toBeVisible();
  }
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
- // Selection holds the camera; closing alone must
- // restore the saved view and then resume, without requiring a second user action.
+ // Capture the closest return on every renderer update: polling can miss
+ // the saved position once continuous rotation has already resumed.
+ await canvas.evaluate((el,savedPosition)=>{
+   let minimum=Infinity;
+   const observer=new MutationObserver(()=>{
+     const position=el.getAttribute('data-camera-position')!.split(',').map(Number);
+     minimum=Math.min(minimum,Math.hypot(...position.map((v,i)=>v-savedPosition[i])));
+     el.setAttribute('data-test-return-error',String(minimum));
+   });
+   observer.observe(el,{attributes:true,attributeFilter:['data-camera-position']});
+   Object.assign(el,{stopReturnObserver:()=>observer.disconnect()});
+ },saved.position);
  await page.locator('[data-node-card="US:AMD"]').getByRole('button',{name:'Clear selection',exact:true}).click();
- await expect.poll(async()=>{const current=await pose();return Math.hypot(...current.position.map((v,i)=>v-saved.position[i]));},{timeout:15000}).toBeLessThan(.1);
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-test-return-error')??Infinity),{timeout:15000}).toBeLessThan(.1);
+ await canvas.evaluate(el=>(el as HTMLElement & {stopReturnObserver:()=>void}).stopReturnObserver());
  await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:10000});
  await page.waitForTimeout(3000);
  const resumed=await pose();
@@ -1749,6 +1760,7 @@ test('manual hierarchy centers each parent vertically over its children after ex
 });
 
 test('navigation: collapsing a tree branch disables its fading companies',async({page})=>{
+ await page.clock.install();
  await accelerateTours(page,0);
  await page.emulateMedia({reducedMotion:'no-preference'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
@@ -1760,17 +1772,14 @@ test('navigation: collapsing a tree branch disables its fading companies',async(
  const company=tree.locator('[data-tree-node="chips/compute/US:NVDA"]');
  await expect(company).toBeEnabled();
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true');
- // Drei can replace an Html root while committing its exit. Observe the
- // subtree so the assertion follows the company, not a detached DOM instance.
- await tree.evaluate(el=>{
-   const selector='[data-tree-node="chips/compute/US:NVDA"][data-exiting="true"]';
-   const record=()=>{const node=el.querySelector<HTMLButtonElement>(selector);if(node)el.setAttribute('data-test-exit-disabled',String(node.disabled));};
-   const observer=new MutationObserver(record);
-   observer.observe(el,{subtree:true,childList:true,attributes:true,attributeFilter:['data-exiting','disabled']});
-   Object.assign(el,{stopExitObserver:()=>observer.disconnect()});
- });
+ // Step the animation clock so slower CI rendering cannot skip the exit
+ // commit between two real-time assertions.
+ await page.clock.pauseAt(new Date(Date.now()+100));
  await tree.locator('[data-tree-node="chips"]').evaluate((el:HTMLButtonElement)=>el.click());
- await expect(tree).toHaveAttribute('data-test-exit-disabled','true');
- await tree.evaluate(el=>(el as HTMLElement & {stopExitObserver:()=>void}).stopExitObserver());
+ await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','false');
+ await page.clock.runFor(80);
+ await expect(company).toHaveAttribute('data-exiting','true');
+ await expect(company).toBeDisabled();
+ await page.clock.runFor(1000);
  await expect(company).toHaveCount(0);
 });
