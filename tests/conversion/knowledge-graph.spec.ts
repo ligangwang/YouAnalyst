@@ -1726,3 +1726,64 @@ test('navigation: manual hierarchy stays put and cannot pause other charts',asyn
  await treeCanvas.scrollIntoViewIfNeeded();
  await expect(treeCanvas).toHaveAttribute('data-tour','playing');
 });
+
+
+test('tree presentation orbits after growth and reset replays the introduction',async({page})=>{
+ test.setTimeout(60000);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
+ const fixture=graph;
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tour-phase','orbit',{timeout:20000});
+ await expect(canvas).toHaveAttribute('data-tour-layer','energy');
+ const start=await canvas.getAttribute('data-camera-position');
+ await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(start);
+ await expect(tree.locator('[data-tree-kind="company"][data-tree-layer="energy"][data-label-visible="true"]').first()).toBeVisible({timeout:10000});
+ await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-tour-phase',/^(overview|reveal)$/);
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
+ await expect(canvas).toHaveAttribute('data-tour-phase','orbit',{timeout:20000});
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');
+ await tree.screenshot({path:test.info().outputPath('tree-presentation.png')});
+ await tree.locator('[data-tree-company="US:CEG"]').evaluate((el:HTMLButtonElement)=>el.click());
+ const card=page.locator('aside[data-node-card="US:CEG"]');
+ await expect(card).toBeVisible();
+ await card.dispatchEvent('wheel',{deltaY:400,bubbles:true});
+ await card.getByRole('button',{name:'Close company details',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
+ const resumed=await canvas.getAttribute('data-camera-position');
+ await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(resumed);
+ await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
+ await page.waitForTimeout(2200);
+ await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
+});
+
+
+test('manual hierarchy centers each parent vertically over its children after expand and collapse',async({page})=>{
+ await navigationFixture(page,'hierarchy');
+ const chart=page.locator('[data-industry-tree="hierarchy"]');
+ const center=async(parent:string,children:string[])=>{
+  const y=async(id:string)=>Number(await chart.locator(`[data-hierarchy-node="${id}"]`).evaluate(el=>el.closest('foreignObject')!.getAttribute('y')));
+  await expect.poll(async()=>Math.abs(await y(parent)-(await y(children[0])+await y(children.at(-1)!))/2)).toBeLessThan(.01);
+ };
+ const layers=['energy','chips','infrastructure','models','applications'];
+ await center('root',layers);
+ await chart.locator('[data-hierarchy-node="chips"]').click();
+ await expect.poll(()=>chart.locator('[data-hierarchy-node^="chips/"]').count()).toBeGreaterThan(1);
+ const branches=await chart.locator('[data-hierarchy-node^="chips/"]').evaluateAll(els=>els.map(el=>el.getAttribute('data-hierarchy-node')!));
+ expect(branches.length).toBeGreaterThan(1);
+ await center('chips',branches);await center('root',layers);
+ await chart.locator('[data-hierarchy-node="chips/compute"]').click();
+ await expect.poll(()=>chart.locator('[data-hierarchy-node^="chips/compute/"]').count()).toBeGreaterThan(1);
+ const companies=await chart.locator('[data-hierarchy-node^="chips/compute/"]').evaluateAll(els=>els.map(el=>el.getAttribute('data-hierarchy-node')!));
+ expect(companies.length).toBeGreaterThan(1);
+ await center('chips/compute',companies);await center('chips',branches);await center('root',layers);
+ await chart.locator('[data-hierarchy-node="chips/compute"]').click();
+ await expect(chart.locator('[data-hierarchy-node^="chips/compute/"]')).toHaveCount(0);
+ await center('chips',branches);await center('root',layers);
+ await chart.screenshot({path:test.info().outputPath('centered-hierarchy.png')});
+});

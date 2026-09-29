@@ -217,3 +217,52 @@ test('hierarchy parent redirects visit children, skip every closed group and wra
  assert.equal(hierarchyTourIndex(plan,layers.at(-1)!.id,false),0);
  assert.equal(hierarchyTourIndex(plan,'root',true),0);
 });
+
+
+import { createTreePresentation, TREE_PRESENTATION } from '../src/lib/knowledge-graph/tree-tour';
+import { PerspectiveCamera, Vector3 } from 'three';
+
+test('tree presentation grows bottom-up, circles every layer, ascends smoothly and returns without unwinding',()=>{
+ const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
+ const nodes=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
+ const plan=treeOverviewPlan(nodes);
+ for(const [width,height] of [[1440,800],[390,650]]){
+  const shot=treeOverviewShot(nodes,width,height),tour=createTreePresentation(shot,plan);
+  const camera=new PerspectiveCamera(45,width/height,1,100000);
+  assert.equal(tour.sample().phase,'overview');assert.equal(tour.sample().revealLayers.length,0);
+  const orbitLayers=new Set<string>(),reveals=new Set<string>();let previous=tour.sample(),angle=0,turn=0;
+  const seconds=TREE_PRESENTATION.overview+plan.length*3+2+plan.length*60+(plan.length-1)*8+TREE_PRESENTATION.return+1;
+  for(let i=0;i<seconds*20;i++){
+   const frame=tour(.05);
+   frame.revealLayers.forEach(layer=>reveals.add(layer));
+   if(frame.phase==='orbit')orbitLayers.add(frame.layer);
+   if(frame.phase==='orbit'&&previous.phase==='orbit'&&frame.layer===previous.layer)turn+=frame.angle-angle;
+   if(previous.phase==='orbit'&&frame.phase!=='orbit'){assert(turn>6.2,'a full circle before leaving a layer');turn=0;}
+   if(frame.phase==='ascent')assert(frame.elevation>=previous.elevation,'ascent never bobs down');
+   assert(Math.hypot(...frame.shot.position.map((v,j)=>v-previous.shot.position[j]))<150,`no camera jumps at ${i/20}s: ${previous.phase} -> ${frame.phase}, ${previous.angle} -> ${frame.angle}`);
+   if(i%20===0){
+    camera.position.set(...frame.shot.position);camera.lookAt(...frame.shot.target);camera.updateMatrixWorld();
+    for(const node of nodes){const p=new Vector3(...node.position).project(camera);assert(Math.abs(p.x)<.96&&Math.abs(p.y)<.96,`whole tree stays visible: ${node.id}`);}
+   }
+   previous=frame;angle=frame.angle;
+  }
+  assert.deepEqual([...reveals],plan.map(s=>s.layer));assert.deepEqual([...orbitLayers],plan.map(s=>s.layer));
+  assert.equal(tour.sample().phase,'orbit');assert.equal(tour.sample().layer,'energy');
+  assert.deepEqual(createTreePresentation(shot,plan).sample().revealLayers,[],'reset starts empty again');
+ }
+});
+
+test('presentation pacing respects every speed and frame rate',()=>{
+ const shot={position:[0,500,5000] as [number,number,number],target:[0,500,0] as [number,number,number]};
+ const plan:TreeTourStop[]=[{target:[0,0,0],layer:'energy',distance:0,kind:'overview',duration:3,hold:0}];
+ for(const speed of [.5,1,1.5,2]){
+  const frames=[5,20,60].map(fps=>{const tour=createTreePresentation(shot,plan);for(let i=0;i<fps*20;i++)tour(1/fps,speed);return tour.sample();});
+  frames.forEach(frame=>frame.shot.position.forEach((v,i)=>assert(Math.abs(v-frames[0].shot.position[i])<1e-7)));
+ }
+ const resizing=createTreePresentation(shot,plan);
+ for(let i=0;i<200;i++)resizing(.1);
+ const before=resizing.sample();resizing.reframe({...shot,position:[0,500,6000]});
+ assert.equal(resizing.sample().phase,before.phase);assert.equal(resizing.sample().angle,before.angle);
+ assert.deepEqual(resizing.sample().revealLayers,before.revealLayers);
+ assert(TREE_PRESENTATION.orbit>TREE_PRESENTATION.ascent);
+});

@@ -58,7 +58,7 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
     <header className={styles.toolbar}><div><h2 id={headingId}>{vertical?text('Vertical tree','垂直树状图'):text('Horizontal tree','水平树状图')}</h2><p>{companies.length} {text('unique companies · Five layers','家去重公司 · 五层产业结构')}</p></div><div className={styles.actions}>
       <IconButton label={text('Expand all','全部展开')} onClick={()=>{setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);setFocus('');if(!vertical)setRequest(n=>n+1);}}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></IconButton>
       <IconButton label={text('Collapse all','全部折叠')} onClick={()=>{setOpen([]);setFocus('');if(!vertical)setRequest(n=>n+1);}}><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></IconButton>
-      <IconButton label={text('Reset view','复位视角')} onClick={()=>{setFocus('');setRequest(n=>n+1);}}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4v4h4"/></IconButton>
+      <IconButton label={text('Reset view','复位视角')} onClick={()=>{setFocus('');if(vertical){setOpen(matchMedia('(prefers-reduced-motion: reduce)').matches?['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]:['root']);onSelect('');}setRequest(n=>n+1);}}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4v4h4"/></IconButton>
     </div></header>
     <div ref={attachScene} className={styles.scene} data-industry-tree={vertical?'vertical':'3d'}>
       <WheelZoomHint hint={wheelHint}/>
@@ -67,7 +67,7 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
       {unavailable&&<div className={styles.fallback}><p role="alert">{text('3D is unavailable on this device. Browse the same tree below.','此设备暂时无法显示三维场景，可使用下方层级树。')}</p>{layers.map(l=><details key={l.id} open={open.includes(l.id)}><summary onClick={e=>{e.preventDefault();toggle(l.id);}}>{text(l.en,l.zh)} · {l.companies.length}</summary>{l.branches.map(b=><details key={b.id} open={open.includes(b.id)}><summary onClick={e=>{e.preventDefault();toggle(b.id);}}>{text(b.en,b.zh)} · {b.companies.length}</summary>{b.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)}</button>)}</details>)}</details>)}</div>}
       {active&&showCard&&company&&<TreeCompanyCard closing={closing} key={company.id} reveal={revealCard} company={company} color={layers.find(l=>l.companies.some(c=>c.id===company.id))?.color??'#7dd3fc'} onClose={()=>onSelect('')}/>}
     </div>
-    <footer className={styles.hint}>{vertical&&<span>{text('Layers expand in the overview · Drag or zoom to explore · Right-drag to orbit','全景中逐层展开 · 拖动或缩放自由查看 · 右键拖动环绕查看')}</span>}{text('Click nodes to expand / collapse · Drag to pan · Scroll or pinch to zoom · Scroll or swipe up and down to move the page','点击节点展开／收起 · 拖动平移 · 滚轮或双指缩放 · 滚动或上下滑动可移动页面')}<span>{text('Energy → Chips → Infrastructure → Models → Applications · Companies can span layers','自底向上：能源 → 芯片 → 基础设施 → 模型 → 应用 · 公司可跨层')}</span></footer>
+    <footer className={styles.hint}>{vertical&&<span>{text('Grow from roots to canopy · Orbit each layer · Reset to replay','从根部逐层生长 · 每层环绕浏览 · 重置重新播放')}</span>}{text('Click nodes to expand / collapse · Drag to pan · Scroll or pinch to zoom · Scroll or swipe up and down to move the page','点击节点展开／收起 · 拖动平移 · 滚轮或双指缩放 · 滚动或上下滑动可移动页面')}<span>{text('Energy → Chips → Infrastructure → Models → Applications · Companies can span layers','自底向上：能源 → 芯片 → 基础设施 → 模型 → 应用 · 公司可跨层')}</span></footer>
   </section>;
 }
 
