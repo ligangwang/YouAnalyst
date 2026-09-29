@@ -11,6 +11,8 @@ import { marketCapDescription, marketCapLabel, marketCapScale } from '@/lib/know
 import { useLocale } from './providers/locale-provider';
 import { layoutVerticalTree } from '@/lib/knowledge-graph/vertical-tree';
 import { VerticalTreeBranches } from './vertical-tree-branches';
+import { TreeStarField } from './tree-star-field';
+import { TreeGalaxies } from './tree-galaxies';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
 import {useNodePresence} from './use-node-presence';
@@ -253,17 +255,19 @@ function Scene(props:TreeSceneProps){
       const continuation=skipLayer.current?-1:plan.findIndex(stop=>stop.layer===previousLayer);
       const itinerary=continuation<0?treeTourFromView(plan,start,nodes,skipLayer.current):[...plan.slice(continuation),...plan.slice(0,continuation)];
       flight.current=createTreeOverviewTour(start,itinerary);
+      if(userPositioned.current)presentation.current?.resume(start);
+      userPositioned.current=false;
       skipLayer.current=undefined;
       resumePending.current=false;resumeReady.current=false;tourRef.current=true;resumed=true;
       moving=true;
     }
     gl.domElement.setAttribute('data-tour',touring||resumed?'playing':props.tour.current?'paused':'stopped');
-    let presentationFrame=props.vertical&&growing?presentation.current?.sample():undefined;
+    let presentationFrame=props.vertical?presentation.current?.sample():undefined;
     if(touring&&controls.current){
       if(presentationFrame&&presentation.current){
         presentationFrame=presentation.current(delta,navigation.speed);
-        for(const layer of presentationFrame.revealLayers)if(!props.open.includes(layer))props.onRevealLayer(layer);
-        if(!userPositioned.current)void controls.current.setLookAt(...presentationFrame.shot.position,...presentationFrame.shot.target,presentationFrame.phase==='overview');
+        if(growing)for(const layer of presentationFrame.revealLayers)if(!props.open.includes(layer))props.onRevealLayer(layer);
+        void controls.current.setLookAt(...presentationFrame.shot.position,...presentationFrame.shot.target,presentationFrame.phase==='overview');
       }else if(flight.current){
         const shot=flight.current(delta,navigation.speed);
         if(!props.vertical)void controls.current.setLookAt(...shot.position,...shot.target,false);
@@ -418,6 +422,8 @@ function Scene(props:TreeSceneProps){
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
     {props.vertical&&<>
+      <TreeStarField height={trunkTop} paused={props.paused}/>
+      <TreeGalaxies height={trunkTop}/>
       <hemisphereLight args={['#d8edff','#14202e',1.4]}/>
       <directionalLight position={[1800,2800,1600]} color="#fff0d9" intensity={2.2}/>
       <directionalLight position={[-1600,1700,-1400]} color="#6cbaff" intensity={2.8}/>

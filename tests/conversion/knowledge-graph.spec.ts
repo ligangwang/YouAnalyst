@@ -1710,7 +1710,7 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await expect(canvas).toHaveAttribute('data-tour-phase','ascent',{timeout:20000});
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:1}));
  await expect(canvas).toHaveAttribute('data-tour-layer','energy');
- const close=await distance();expect(close).toBeGreaterThan(wide*.8);expect(close).toBeLessThan(wide*.96);
+ const close=await distance();expect(close).toBeLessThan(wide*.7);
  const start=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(start);
  await expect(tree.locator('[data-tree-kind="company"][data-tree-layer="energy"][data-label-visible="true"]').first()).toBeVisible({timeout:10000});
@@ -1743,6 +1743,12 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
  const resumed=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(resumed);
+ // Zoom must resume actual camera movement, not just change the tour badge.
+ await canvas.dispatchEvent('wheel',{deltaY:-150,bubbles:true,cancelable:true});
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
+ const afterZoom=await canvas.getAttribute('data-camera-position');
+ await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(afterZoom);
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
  await page.waitForTimeout(2200);

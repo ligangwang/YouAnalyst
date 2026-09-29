@@ -1,4 +1,3 @@
-import {PerspectiveCamera,Vector3} from 'three';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTreeTour, treeTourStops, treeTourPlan, treeTourFromView, type TreeTourStop, type TreeShot } from '../src/lib/knowledge-graph/tree-tour';
@@ -230,7 +229,7 @@ test('tree cinematic orbit stays on the trunk with continuous velocity through e
   const shot=treeOverviewShot(nodes,width,height),tour=createTreePresentation(shot,plan,nodes,width/height);
   let previous=tour.sample(),near=0;let previousVelocity:number[]|undefined;
   const seen=new Set<string>();
-  const camera=new PerspectiveCamera(45,width/height,1,100000);
+  let lowest=Infinity,highest=-Infinity;
   for(let t=0;t<tour.duration()+tour.loopDuration()*2;t+=.05){
    const frame=tour(.05),velocity=frame.shot.position.map((v,i)=>(v-previous.shot.position[i])/.05);
    if(frame.phase==='ascent'||frame.phase==='descent'){
@@ -242,17 +241,14 @@ test('tree cinematic orbit stays on the trunk with continuous velocity through e
     assert(Math.hypot(...velocity)>10,'camera never holds still');
     if(previousVelocity)assert(Math.hypot(...velocity.map((v,i)=>v-previousVelocity![i]))<2,'no abrupt changes in velocity');
     previousVelocity=velocity;seen.add(frame.phase+':'+frame.layer);
-    if(Math.round(t*20)%100===0){
-      camera.position.set(...frame.shot.position);camera.lookAt(...frame.shot.target);camera.updateMatrixWorld();
-      for(const node of nodes){
-        const projected=new Vector3(...node.position).project(camera);
-        assert(Math.abs(projected.x)<1&&Math.abs(projected.y)<1,'the orbit retains the whole tree silhouette');
-      }
-    }
+    lowest=Math.min(lowest,frame.elevation);highest=Math.max(highest,frame.elevation);
+    assert(radius<(shot.position[2]-shot.target[2])*.7,'approach companies instead of retaining the whole-tree fit');
    }
    previous=frame;
   }
   for(const stop of plan)for(const direction of ['ascent','descent'])assert(seen.has(direction+':'+stop.layer));
+  assert(Math.abs(lowest-plan[0].target[1])<1);
+  assert(Math.abs(highest-plan.at(-1)!.target[1])<1);
   assert.deepEqual(tour.sample().revealLayers,plan.map(p=>p.layer),'expanded layers stay open');
   assert.equal(createTreePresentation(shot,plan,nodes).sample().phase,'overview','reset starts over');
  }
@@ -306,7 +302,36 @@ test('tree builds wood before foliage and only orbits after all layers are revea
   }
   if(frame.trunkGrowth<1)assert.deepEqual(frame.revealLayers,[],'leaves wait for the complete trunk');
   if(['approach','ascent'].includes(frame.phase))assert.deepEqual(frame.revealLayers,plan.map(s=>s.layer));
-  if(frame.phase==='ascent')assert(Math.hypot(...frame.shot.position.map((v,i)=>v-frame.shot.target[i]))>4800,'orbit retains tree context');
+  if(frame.phase==='ascent')assert(Math.hypot(...frame.shot.position.map((v,i)=>v-frame.shot.target[i]))<2500,'orbit approaches the company band');
  }
  assert.deepEqual([...phases],['roots','trunk','foliage','approach','ascent']);
+});
+
+test('zoom and pan resume from the current view, retain zoom and keep climbing and descending',()=>{
+ const tour=createTreePresentation({position:[0,1500,7000],target:[0,1500,0]},[0,3000].map((y,i)=>({target:[0,y,0],layer:String(i),distance:0,kind:'overview',duration:3,hold:0})));
+ for(let i=0;i<800;i++)tour(.1);
+ for(const radius of [900,650,1800]){
+  const manual:TreeShot={position:[radius,1200,0],target:[0,1200,0]};
+  tour.resume(manual);assert.deepEqual(tour.sample().shot,manual,'resume starts without a jump');
+  const first=tour(.01).shot;assert(Math.hypot(...first.position.map((v,i)=>v-manual.position[i]))<.01);
+  for(let i=0;i<60;i++)tour(.1);
+  const before=tour.sample(),after=tour(.1);
+  assert.notDeepEqual(before.shot.position,after.shot.position,'camera really moves after zoom');
+  assert(Math.abs(Math.hypot(after.shot.position[0],after.shot.position[2])-radius)<1e-6,'keep the chosen zoom');
+ }
+ const seen=new Set<string>();let low=Infinity,high=-Infinity;
+ for(let i=0;i<4000;i++){const frame=tour(.1);seen.add(frame.phase);low=Math.min(low,frame.elevation);high=Math.max(high,frame.elevation);}
+ assert(seen.has('ascent')&&seen.has('descent'));assert(low<1&&high>2999);
+});
+
+test('zoom during tree growth is preserved until the close orbit begins',()=>{
+ const tour=createTreePresentation({position:[0,1500,7000],target:[0,1500,0]},[0,3000].map((y,i)=>({target:[0,y,0],layer:String(i),distance:0,kind:'overview',duration:3,hold:0})));
+ tour(.1);
+ const zoom:TreeShot={position:[1200,500,0],target:[0,500,0]};
+ tour.resume(zoom);
+ assert.deepEqual(tour.sample().shot,zoom);
+ for(let i=0;i<30;i++)assert.deepEqual(tour(.1).shot,zoom);
+ for(let i=0;i<600;i++)tour(.1);
+ const shot=tour.sample().shot;
+ assert(Math.abs(Math.hypot(shot.position[0]-shot.target[0],shot.position[2]-shot.target[2])-1200)<1e-6);
 });
