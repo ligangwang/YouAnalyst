@@ -185,7 +185,7 @@ function Scene(props:TreeSceneProps){
       }
       const shot=treeOverviewShot(all,size.width,size.height);
       if(restarting||!presentation.current)presentation.current=createTreePresentation(shot,fullPlan,all,size.width/size.height);
-      else presentation.current.reframe(shot);
+      else presentation.current.reframe(shot,size.width/size.height);
       const current=presentation.current.sample().shot;
       void c.setLookAt(...current.position,...current.target,Boolean(previous)&&!reduced.current);
       flight.current=createTreeOverviewTour(shot,plan);

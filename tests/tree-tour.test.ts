@@ -298,3 +298,22 @@ test('close tree tour spirals down to the roots and up repeatedly without loop j
   else assert.deepEqual(order,['layer-0']);
  }
 });
+
+
+test('reframing smoothly adapts the close camera distance to the new aspect ratio',()=>{
+ const shot:TreeShot={position:[0,500,5000],target:[0,500,0]};
+ const plan:TreeTourStop[]=[{target:[0,0,0],layer:'energy',distance:0,kind:'overview',duration:3,hold:0}];
+ const tour=createTreePresentation(shot,plan,[],1.8);
+ for(let i=0;i<200;i++)tour(.1);
+ const radius=()=>{const {position,target}=tour.sample().shot;return Math.hypot(position[0]-target[0],position[2]-target[2]);};
+ for(const ratio of [.6,1.8]){
+  const before=tour.sample(),oldRadius=radius();tour.reframe(shot,ratio);
+  assert.deepEqual(tour.sample(),before,'resize does not snap the current camera');
+  tour(.05);assert(Math.abs(radius()-oldRadius)<50,'first frame eases toward the new radius');
+  for(let i=0;i<100;i++)tour(.05);
+  const expected=createTreePresentation(shot,plan,[],ratio);
+  for(let i=0;i<200;i++)expected(.1);
+  const frame=expected.sample(),expectedRadius=Math.hypot(frame.shot.position[0]-frame.shot.target[0],frame.shot.position[2]-frame.shot.target[2]);
+  assert(Math.abs(radius()-expectedRadius)<.1,'resized distance matches a fresh tour at the new aspect');
+ }
+});

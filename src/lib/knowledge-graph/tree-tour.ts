@@ -71,7 +71,8 @@ export type TreePresentationFrame = {shot:TreeShot;phase:'overview'|'approach'|'
 // stop; a dense layer takes longer rather than silently skipping its companies.
 export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],nodes:TreePoint[]=[],aspect=1) {
   let elapsed=0;
-  const distance=Math.min((overview.position[2]-overview.target[2])*.55,Math.max(1000,1100/Math.sqrt(Math.max(.35,aspect))));
+  const closeDistance=(shot:TreeShot,ratio:number)=>Math.min((shot.position[2]-shot.target[2])*.55,Math.max(1000,1100/Math.sqrt(Math.max(.35,ratio))));
+  let distance=closeDistance(overview,aspect),desiredDistance=distance;
   type Pose={target:Point;angle:number};
   type Segment={from:Pose;to:Pose;duration:number;moveDuration:number;phase:TreePresentationFrame['phase'];layer:string;companyId:string;revealed:string[]};
   const segments:Segment[]=[],revealed:string[]=[];
@@ -121,7 +122,7 @@ export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],no
     }
     return {...base,shot:closeShot(pose),phase:'orbit',layer:lastLayer,revealLayers:[...revealed],angle:pose.angle,elevation:pose.target[1]};
   };
-  return Object.assign((delta:number,speed=1)=>{elapsed+=tourDelta(delta,speed);return sample();},{sample,duration:()=>TREE_PRESENTATION.overview+TREE_PRESENTATION.approach+total,loopDuration:()=>loopDuration,reframe:(shot:TreeShot)=>{overview=shot;}});
+  return Object.assign((delta:number,speed=1)=>{const dt=tourDelta(delta,speed);elapsed+=dt;distance+=(desiredDistance-distance)*(1-Math.exp(-dt*2));return sample();},{sample,duration:()=>TREE_PRESENTATION.overview+TREE_PRESENTATION.approach+total,loopDuration:()=>loopDuration,reframe:(shot:TreeShot,ratio=aspect)=>{overview=shot;aspect=ratio;desiredDistance=closeDistance(shot,ratio);}});
 }
 
 // Keep layer membership explicit: leaves from adjacent layers can overlap in height.
