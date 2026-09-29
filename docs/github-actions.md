@@ -6,6 +6,10 @@ Worker changes are detected from the pushed commit range. Financial worker chang
 
 Deployment validates selected jobs' IAM configuration before building. The three financial workers share one build per dispatch; directory uses a separate image. Jobs deploy immutable image digests. Deployments serialize through one concurrency group. After an SEC worker deployment, a bounded Pub/Sub delivery probe processes two cached companies without forcing SEC requests; ordinary maintenance is not launched. Existing schedules retain their enabled/paused state; the A-share script creates new schedules paused. Directory deployment updates an existing worker and IAM without changing its schedule. Initial directory setup still uses `scripts/deploy-directory-sync.sh`.
 
+SEC Pub/Sub push authentication requires a one-time `roles/iam.serviceAccountTokenCreator` binding for the Pub/Sub service agent on the scheduler service account. An authorized operator can set `PUBSUB_BOOTSTRAP_IAM=1` when running `scripts/deploy-sec-fundamentals.sh` to create that binding. Routine releases reuse it and do not need service-account IAM administration. The post-deployment cached-company delivery probe verifies that authenticated push delivery still works. If it fails, inspect the subscription and IAM configuration before rerunning; a successful Cloud Run deployment alone is not proof of delivery.
+
+Chart layout and tour libraries are excluded from worker triggers only when they are absent from every worker bundle. A deployment test checks the exclusion list against the bundled dependencies so future imports cannot silently bypass a needed worker update.
+
 ## Admin Tasks
 
 Use `/admin/jobs` for routine operations:

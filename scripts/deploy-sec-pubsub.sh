@@ -36,8 +36,12 @@ for pair in "$result:sec-fundamentals-updates-audit" "$dead:sec-fundamentals-dea
     gcloud pubsub subscriptions create "$sub" --topic "$topic" --project "$GCP_PROJECT_ID" --message-retention-duration 7d --expiration-period never --quiet
   fi
 done
-gcloud iam service-accounts add-iam-policy-binding "$invoker" --project "$GCP_PROJECT_ID" \
-  --member "serviceAccount:$agent" --role roles/iam.serviceAccountTokenCreator --quiet >/dev/null
+# One-time setup belongs to an authorized operator, not the release identity.
+# Routine releases reuse this binding; the delivery probe verifies push auth.
+if [[ "${PUBSUB_BOOTSTRAP_IAM:-0}" == 1 ]]; then
+  gcloud iam service-accounts add-iam-policy-binding "$invoker" --project "$GCP_PROJECT_ID" \
+    --member "serviceAccount:$agent" --role roles/iam.serviceAccountTokenCreator --quiet >/dev/null
+fi
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-sec-fundamentals.cjs --min-instances 0 --max-instances 1 \

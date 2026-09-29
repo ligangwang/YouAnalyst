@@ -3,9 +3,15 @@ import {appendFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 
 // Both images bundle shared library code. Treat shared dependencies conservatively.
+// These presentation modules are checked against every worker bundle in tests.
+export const chartOnlyLibraries = new Set([
+  'vertical-tree', 'vertical-tree-geometry', 'tree-tour', 'tour-motion',
+  'label-fade', 'intro-orbit', 'industry-tree', 'hierarchy-tour',
+].map(name => `src/lib/knowledge-graph/${name}.ts`));
 export function backgroundJobTarget(paths) {
   let financial = false, directory = false;
   for (const path of paths) {
+    if (chartOnlyLibraries.has(path)) continue;
     if (['scripts/serve-sec-fundamentals.ts', 'scripts/deploy-sec-pubsub.sh'].includes(path)) { financial = true; continue; }
     if (/^(src\/lib\/|scripts\/lib\/)/.test(path) || /^(package(-lock)?\.json|tsconfig\.json|\.gcloudignore|\.dockerignore)$/.test(path)
       || ['.github/workflows/deploy.yml','scripts/deploy-background-jobs.sh','scripts/build-fundamentals.sh','scripts/background-job-changes.mjs'].includes(path)) {

@@ -301,15 +301,30 @@ Cloud Scheduler triggers `refresh-sec-fundamentals-production` daily at 21:00
 `scripts/deploy-sec-fundamentals.sh`. The script requires `GCP_PROJECT_ID`,
 `FUNDAMENTALS_IMAGE` and the existing `SEC_USER_AGENT` contact setting. It uses
 the shared maintenance accounts; invocation (scheduler and web app) is scoped to
-the job. The GitHub deployment workflow is manual, with no maintenance cron.
+the job. GitHub deploys affected workers after the production website release;
+maintenance runs are triggered by Cloud Scheduler or the admin page.
 
 Each run reads the same full graph as the website, queues all missing or expired
 US map companies (including ADRs), and audits that each has a cache or request
 record. `_worker` in `company_fundamentals` holds the shared lease and latest
 coverage summary. Overlapping executions are rejected; a later attempt of the
-same Cloud Run task can recover its predecessor's lease. A run processes up to
-500 requests or 18 minutes under a 20-minute timeout, retaining all remaining
-requests for the next run. Requests are sequential, spaced at least 500 ms apart.
+same Cloud Run task can recover its predecessor's lease. The publisher queues up
+to 500 eligible requests on `sec-fundamentals-requests`. Authenticated Pub/Sub
+push delivers batches to the private `sec-fundamentals-subscriber` Cloud Run
+service (one instance, concurrency one). All SEC callers share the five-request
+per second budget coordinated by `company_fundamentals/_sec_request_budget`.
+Batch checkpoints and result publication state also use the existing collection.
+Redelivery skips completed work; updates publish to `sec-fundamentals-updates`.
+
+The subscriber returns failures to Pub/Sub for retry (300–600 seconds); its
+dead-letter topic is `sec-fundamentals-dead-letter`. Result and dead-letter audit
+subscriptions retain messages for seven days. Initial push-token IAM setup is
+an operator action using `PUBSUB_BOOTSTRAP_IAM=1`; routine deployment leaves
+the existing service-account binding intact (see `docs/github-actions.md`).
+After deployment, run the publisher with execution override
+`FUNDAMENTALS_VERIFY_ONLY=1`: it verifies two cached companies and republishes
+the batch to exercise deduplication without forcing SEC requests. Check subscriber
+logs for the duplicate acknowledgement as well as the successful probe execution.
 
 Provider failures preserve prior data and pending requests with a one-hour
 cooldown; HTTP 403/429 stops the batch. Failed/deferred-error requests make the
