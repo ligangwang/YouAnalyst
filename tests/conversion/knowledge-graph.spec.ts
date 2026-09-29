@@ -1759,13 +1759,17 @@ test('navigation: collapsing a tree branch disables its fading companies',async(
  const company=tree.locator('[data-tree-node="chips/compute/US:NVDA"]');
  await expect(company).toBeEnabled();
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true');
- const disabledOnExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
-   const observer=new MutationObserver(()=>{
-     if(el.getAttribute('data-exiting')==='true'){observer.disconnect();resolve((el as HTMLButtonElement).disabled);}
-   });
-   observer.observe(el,{attributes:true});
-   (document.querySelector('[data-tree-node="chips"]') as HTMLButtonElement).click();
- }));
- expect(disabledOnExit).toBe(true);
+ // Drei can replace an Html root while committing its exit. Observe the
+ // subtree so the assertion follows the company, not a detached DOM instance.
+ await tree.evaluate(el=>{
+   const selector='[data-tree-node="chips/compute/US:NVDA"][data-exiting="true"]';
+   const record=()=>{const node=el.querySelector<HTMLButtonElement>(selector);if(node)el.setAttribute('data-test-exit-disabled',String(node.disabled));};
+   const observer=new MutationObserver(record);
+   observer.observe(el,{subtree:true,childList:true,attributes:true,attributeFilter:['data-exiting','disabled']});
+   Object.assign(el,{stopExitObserver:()=>observer.disconnect()});
+ });
+ await tree.locator('[data-tree-node="chips"]').evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(tree).toHaveAttribute('data-test-exit-disabled','true');
+ await tree.evaluate(el=>(el as HTMLElement & {stopExitObserver:()=>void}).stopExitObserver());
  await expect(company).toHaveCount(0);
 });
