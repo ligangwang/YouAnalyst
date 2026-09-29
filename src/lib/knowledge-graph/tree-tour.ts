@@ -77,7 +77,6 @@ export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],no
   const closeDistance=()=>reach+900/Math.sqrt(Math.max(.6,aspect));
   let distance=closeDistance(),desiredDistance=distance;
   let resumed:TreeShot|undefined,resumeElapsed=0,angleOffset=0;
-  const bottom=stops[0]?.target[1]??overview.target[1],top=stops.at(-1)?.target[1]??bottom;
   // The tree scene's shared multiplier is 2x; this matches the graph's pace.
   const angularSpeed=TOUR_MOTION.degreesPerSecond*Math.PI/360;
   const sample=():TreePresentationFrame=>{
@@ -93,6 +92,7 @@ export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],no
     }
     const t=grow-growthDuration,k=Math.min(1,t/TREE_PRESENTATION.approach);
     const travel=Math.max(0,t-TREE_PRESENTATION.approach),cycle=travel/TREE_PRESENTATION.traverse;
+    const bottom=stops[0]?.target[1]??overview.target[1],top=stops.at(-1)?.target[1]??bottom;
     const progress=(1-Math.cos(Math.PI*cycle))/2;
     // Integral of the easing curve: spin accelerates once, then never stops.
     const angle=angleOffset+angularSpeed*(travel+TREE_PRESENTATION.approach*(k**6-3*k**5+2.5*k**4));
@@ -107,14 +107,22 @@ export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],no
     return {...base,shot,phase:k<1?'approach':Math.floor(cycle)%2?'descent':'ascent',layer,
       rootGrowth:1,trunkGrowth:1,revealLayers:stops.map(stop=>stop.layer),angle,elevation:target[1]};
   };
-  return Object.assign((delta:number,speed=1)=>{const dt=tourDelta(delta,speed);elapsed+=dt;if(elapsed>TREE_PRESENTATION.overview+growthDuration)resumeElapsed+=dt;distance+=(desiredDistance-distance)*(1-Math.exp(-dt*2));return sample();},{sample,duration:()=>TREE_PRESENTATION.overview+growthDuration+TREE_PRESENTATION.approach+TREE_PRESENTATION.traverse,loopDuration:()=>TREE_PRESENTATION.traverse*2,
-    resume:(shot:TreeShot)=>{
+  const resume=(shot:TreeShot)=>{
       const frame=sample();
       // Zooming during the reveal must not snap back to the original overview.
       if(elapsed<TREE_PRESENTATION.overview+growthDuration)overview=shot;
       angleOffset+=Math.atan2(shot.position[0]-shot.target[0],shot.position[2]-shot.target[2])-frame.angle;
-      distance=desiredDistance=Math.max(180,Math.hypot(shot.position[0]-shot.target[0],shot.position[2]-shot.target[2]));
+      // The orbit adds a small vertical offset; retain the full dolly distance
+      // even when a manual rotation places the camera directly above the target.
+      distance=desiredDistance=Math.max(180,Math.hypot(...shot.position.map((v,i)=>v-shot.target[i])))/Math.hypot(1,.025);
       resumed=shot;resumeElapsed=0;
+    };
+  return Object.assign((delta:number,speed=1)=>{const dt=tourDelta(delta,speed);elapsed+=dt;if(elapsed>TREE_PRESENTATION.overview+growthDuration)resumeElapsed+=dt;distance+=(desiredDistance-distance)*(1-Math.exp(-dt*2));return sample();},{sample,resume,duration:()=>TREE_PRESENTATION.overview+growthDuration+TREE_PRESENTATION.approach+TREE_PRESENTATION.traverse,loopDuration:()=>TREE_PRESENTATION.traverse*2,
+    updateStops:(next:TreeTourStop[],shot:TreeShot)=>{
+      stops=next;
+      // Manual expansion ends the introduction; never replay growth on re-entry.
+      elapsed=Math.max(elapsed,TREE_PRESENTATION.overview+growthDuration+TREE_PRESENTATION.approach);
+      resume(shot);
     },
     reframe:(shot:TreeShot,ratio=aspect)=>{overview=shot;aspect=ratio;desiredDistance=closeDistance();}});
 }

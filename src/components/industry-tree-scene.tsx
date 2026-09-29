@@ -227,6 +227,10 @@ function Scene(props:TreeSceneProps){
   useEffect(()=>{
     const previous=previousPlan.current;previousPlan.current=plan;
     if(!props.vertical||previous===plan||growing)return;
+    if(controls.current)presentation.current?.updateStops(plan,{
+      position:controls.current.getPosition(new Vector3(),false).toArray(),
+      target:controls.current.getTarget(new Vector3(),false).toArray(),
+    });
     const destination=flight.current?.destination()?.layer;
     skipLayer.current=destination&&!plan.some(stop=>stop.layer===destination)?destination:undefined;
     tourRef.current=false;resumePending.current=plan.length>0;resumeReady.current=false;

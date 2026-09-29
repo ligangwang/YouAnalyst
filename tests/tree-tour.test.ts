@@ -317,7 +317,7 @@ test('zoom and pan resume from the current view, retain zoom and keep climbing a
   for(let i=0;i<60;i++)tour(.1);
   const before=tour.sample(),after=tour(.1);
   assert.notDeepEqual(before.shot.position,after.shot.position,'camera really moves after zoom');
-  assert(Math.abs(Math.hypot(after.shot.position[0],after.shot.position[2])-radius)<1e-6,'keep the chosen zoom');
+  assert(Math.abs(Math.hypot(...after.shot.position.map((v,i)=>v-after.shot.target[i]))-radius)<1e-6,'keep the chosen zoom');
  }
  const seen=new Set<string>();let low=Infinity,high=-Infinity;
  for(let i=0;i<4000;i++){const frame=tour(.1);seen.add(frame.phase);low=Math.min(low,frame.elevation);high=Math.max(high,frame.elevation);}
@@ -333,5 +333,31 @@ test('zoom during tree growth is preserved until the close orbit begins',()=>{
  for(let i=0;i<30;i++)assert.deepEqual(tour(.1).shot,zoom);
  for(let i=0;i<600;i++)tour(.1);
  const shot=tour.sample().shot;
- assert(Math.abs(Math.hypot(shot.position[0]-shot.target[0],shot.position[2]-shot.target[2])-1200)<1e-6);
+ assert(Math.abs(Math.hypot(...shot.position.map((v,i)=>v-shot.target[i]))-1200)<1e-6);
+});
+
+test('vertical manual rotation preserves the full camera distance on resume',()=>{
+ const tour=createTreePresentation({position:[0,0,7000],target:[0,0,0]},[{target:[0,0,0],layer:'chips',distance:0,kind:'overview',duration:3,hold:0}]);
+ for(let i=0;i<600;i++)tour(.1);
+ for(const position of [[0,2400,0],[300,-2400,400]] as [number,number,number][]){
+  tour.resume({position,target:[0,0,0]});
+  for(let i=0;i<60;i++)tour(.1);
+  const shot=tour.sample().shot;
+  assert(Math.abs(Math.hypot(...shot.position.map((v,i)=>v-shot.target[i]))-Math.hypot(...position))<1e-6);
+ }
+});
+
+test('changed visible layers update both orbit endpoints without a camera jump',()=>{
+ const stops:TreeTourStop[]=[0,1000,2000,3000].map((y,i)=>({target:[0,y,0],layer:String(i),distance:0,kind:'overview',duration:3,hold:0}));
+ const tour=createTreePresentation({position:[0,1500,7000],target:[0,1500,0]},stops);
+ for(let i=0;i<800;i++)tour(.1);
+ for(const visible of [stops.slice(1,3),[stops[2]],stops]){
+  const before=tour.sample().shot;tour.updateStops(visible,before);
+  assert.deepEqual(tour.sample().shot,before);
+  for(let i=0;i<4000;i++){
+   const frame=tour(.1);
+   assert(visible.some(stop=>stop.layer===frame.layer));
+   if(i>50){assert(frame.shot.target[1]>=visible[0].target[1]-1e-6);assert(frame.shot.target[1]<=visible.at(-1)!.target[1]+1e-6);}
+  }
+ }
 });
