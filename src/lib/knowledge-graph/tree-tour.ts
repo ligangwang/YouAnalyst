@@ -36,7 +36,11 @@ export function treeOverviewShot(nodes:TreePoint[],width:number,height:number):T
   const tanV=Math.tan(Math.PI/8)*Math.max(.2,(height-100)/height);
   const tanH=Math.tan(Math.PI/8)*Math.max(120,width-100)/height;
   const points:Point[]=[...nodes.map(n=>n.position),[-VERTICAL_ROOT_REACH,-VERTICAL_ROOT_DEPTH,0],[VERTICAL_ROOT_REACH,0,0]];
-  const distance=Math.max(500,...points.map(p=>Math.max((Math.abs(p[0]-target[0])+110)/tanH,(Math.abs(p[1]-target[1])+110)/tanV)+p[2]));
+  target[0]=0;
+  const distance=Math.max(500,...points.map(p=>{
+    const r=Math.hypot(p[0],p[2])+110,h=Math.abs(p[1]-target[1])+110;
+    return Math.max(r/tanH,(h+r*.16)/tanV)+r+h*.16;
+  }));
   return {target,position:[target[0],target[1],distance]};
 }
 
@@ -58,6 +62,38 @@ export function createTreeOverviewTour(start:TreeShot,stops:TreeTourStop[]) {
     }
     return start;
   },{destination:()=>stops[index]});
+}
+
+export const TREE_PRESENTATION = { overview: 4, reveal: 3, settle: 2, orbit: 60, ascent: 8, return: 30 } as const;
+export type TreePresentationFrame = {shot:TreeShot;phase:'overview'|'reveal'|'orbit'|'ascent'|'return';layer:string;revealLayers:string[];angle:number;elevation:number};
+
+// A fixed-distance orbit around the whole tree. The small change in elevation
+// gives each layer its own turn without ever aiming a close-up at the trunk.
+export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[]) {
+  let elapsed=0;
+  const n=stops.length, growth=TREE_PRESENTATION.overview+n*TREE_PRESENTATION.reveal+TREE_PRESENTATION.settle;
+  const cycle=n*TREE_PRESENTATION.orbit+Math.max(0,n-1)*TREE_PRESENTATION.ascent+TREE_PRESENTATION.return;
+  const sample=():TreePresentationFrame=>{
+    const revealLayers=stops.filter((_,i)=>elapsed>=TREE_PRESENTATION.overview+i*TREE_PRESENTATION.reveal).map(s=>s.layer);
+    const base={shot:overview,phase:'overview' as TreePresentationFrame['phase'],layer:'',revealLayers,angle:0,elevation:0};
+    if(!n||elapsed<TREE_PRESENTATION.overview)return base;
+    if(elapsed<growth)return {...base,phase:'reveal',layer:stops[Math.min(n-1,Math.floor((elapsed-TREE_PRESENTATION.overview)/TREE_PRESENTATION.reveal))].layer};
+    let t=(elapsed-growth)%cycle,index=0,angle=0,elevation=0,phase:TreePresentationFrame['phase']='orbit';
+    const height=(i:number)=>n<2?0:i/(n-1)*.16;
+    for(;index<n;index++){
+      if(t<TREE_PRESENTATION.orbit){angle=index*Math.PI*2.25+2*Math.PI*ease(t/TREE_PRESENTATION.orbit);elevation=height(index);break;}
+      t-=TREE_PRESENTATION.orbit;
+      if(index<n-1){
+        if(t<TREE_PRESENTATION.ascent){const k=ease(t/TREE_PRESENTATION.ascent);angle=index*Math.PI*2.25+Math.PI*2+k*Math.PI*.25;elevation=height(index)+(height(index+1)-height(index))*k;phase='ascent';break;}
+        t-=TREE_PRESENTATION.ascent;
+      }
+    }
+    if(index===n){const k=ease(t/TREE_PRESENTATION.return);index=n-1;const endAngle=((n-1)*2.25+2)*Math.PI;angle=endAngle+(Math.ceil(endAngle/(Math.PI*2))*Math.PI*2-endAngle)*k;elevation=height(n-1)*(1-k);phase='return';}
+    const distance=overview.position[2]-overview.target[2],radius=distance*Math.cos(elevation);
+    const shot:TreeShot={target:overview.target,position:[overview.target[0]+radius*Math.sin(angle),overview.target[1]+distance*Math.sin(elevation),overview.target[2]+radius*Math.cos(angle)]};
+    return {...base,shot,phase,layer:stops[index].layer,angle,elevation};
+  };
+  return Object.assign((delta:number,speed=1)=>{elapsed+=tourDelta(delta,speed);return sample();},{sample,reframe:(shot:TreeShot)=>{overview=shot;}});
 }
 
 // Keep layer membership explicit: leaves from adjacent layers can overlap in height.

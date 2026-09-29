@@ -15,7 +15,7 @@ import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_
 import styles from './industry-tree.module.css';
 import {useNodePresence} from './use-node-presence';
 import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
-import { createTreeTour, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/knowledge-graph/tree-tour';
+import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/knowledge-graph/label-fade';
 
 export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
@@ -36,8 +36,10 @@ function Scene(props:TreeSceneProps){
   useEffect(()=>()=>{gl.domElement.style.cursor='';},[gl]);
   // Redraw on resume so changes made while scrolled away (e.g. a selection in the other tree) appear.
   useEffect(()=>{if(!props.paused)invalidate();},[props.paused,invalidate]);
-  const [growing,setGrowing]=useState(Boolean(props.vertical));
-  const revealed=useRef(new Set<string>());
+  const [growth,setGrowth]=useState({request:props.request,active:Boolean(props.vertical)});
+  if(growth.request!==props.request)setGrowth({request:props.request,active:Boolean(props.vertical)});
+  const growing=growth.request!==props.request?Boolean(props.vertical):growth.active;
+  const presentation=useRef<ReturnType<typeof createTreePresentation>|null>(null);
   const controls=useRef<CameraControls>(null);
   const userPositioned=useRef(false);
   const flight=useRef<ReturnType<typeof createTreeTour>|null>(null);
@@ -50,9 +52,9 @@ function Scene(props:TreeSceneProps){
     if(!props.vertical)return;
     const surface=gl.domElement.closest('[data-industry-section]');
     if(!surface)return;
-    const pointers=new Set<number>(),keys=new Set<string>();
+    const pointers=new Set<number>(),keys=new Set<string>(),starts=new Map<number,{x:number;y:number}>();
     const clear=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;resumeReady.current=false;};
-    const pause=()=>{userPositioned.current=true;tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
+    const pause=()=>{tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
     const schedule=()=>{
       clear();
       if(pointers.size||keys.size||document.hidden)return;
@@ -60,18 +62,20 @@ function Scene(props:TreeSceneProps){
       invalidate();
     };
     scheduleResume.current=schedule;
-    const down=(event:Event)=>{pointers.add((event as PointerEvent).pointerId);pause();};
-    const up=(event:PointerEvent)=>{if(pointers.delete(event.pointerId))schedule();};
-    const wheel=()=>{pause();schedule();};
+    const down=(event:Event)=>{const e=event as PointerEvent;pointers.add(e.pointerId);if(e.target===gl.domElement)starts.set(e.pointerId,{x:e.clientX,y:e.clientY});pause();};
+    const move=(event:PointerEvent)=>{const start=starts.get(event.pointerId);if(start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>4)userPositioned.current=true;};
+    const up=(event:PointerEvent)=>{starts.delete(event.pointerId);if(pointers.delete(event.pointerId))schedule();};
+    const wheel=(event:Event)=>{if(!(event.target instanceof Element&&event.target.closest('[data-node-card]')))userPositioned.current=true;pause();schedule();};
     const keydown=(event:Event)=>{keys.add((event as KeyboardEvent).code);pause();};
     const keyup=(event:KeyboardEvent)=>{if(keys.delete(event.code))schedule();};
     const focus=()=>{pause();schedule();};
-    const blur=()=>{if(pointers.size||keys.size){pointers.clear();keys.clear();pause();schedule();}};
+    const blur=()=>{if(pointers.size||keys.size){pointers.clear();starts.clear();keys.clear();pause();schedule();}};
     const visibility=()=>{if(document.hidden){clear();blur();}else if(resumePending.current)schedule();};
     surface.addEventListener('pointerdown',down,true);
     surface.addEventListener('wheel',wheel,{capture:true,passive:true});
     surface.addEventListener('keydown',keydown,true);
     surface.addEventListener('focusin',focus,true);
+    window.addEventListener('pointermove',move,true);
     window.addEventListener('pointerup',up,true);
     window.addEventListener('pointercancel',up,true);
     window.addEventListener('keyup',keyup,true);
@@ -83,6 +87,7 @@ function Scene(props:TreeSceneProps){
       surface.removeEventListener('wheel',wheel,true);
       surface.removeEventListener('keydown',keydown,true);
       surface.removeEventListener('focusin',focus,true);
+      window.removeEventListener('pointermove',move,true);
       window.removeEventListener('pointerup',up,true);
       window.removeEventListener('pointercancel',up,true);
       window.removeEventListener('keyup',keyup,true);
@@ -100,7 +105,6 @@ function Scene(props:TreeSceneProps){
   const savedSelectionView=useRef<{position:Vector3;target:Vector3}|null>(null);
   useEffect(()=>{
     if(props.selected){
-      userPositioned.current=true;
       if(!lastSelection.current&&controls.current)savedSelectionView.current={position:controls.current.getPosition(new Vector3(),false),target:controls.current.getTarget(new Vector3(),false)};
       tourRef.current=false;
     }
@@ -174,8 +178,16 @@ function Scene(props:TreeSceneProps){
     // Expanding/collapsing a vertical layer changes the itinerary, never the user's camera.
     if(props.vertical&&previous?.vertical&&previous.request===props.request&&(userPositioned.current||(previous.width===size.width&&previous.height===size.height)))return;
     if(props.vertical){
+      const restarting=!previous||previous.request!==props.request;
+      if(restarting){
+        userPositioned.current=false;resumePending.current=false;resumeReady.current=false;tourRef.current=true;
+        if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
+      }
       const shot=treeOverviewShot(all,size.width,size.height);
-      void c.setLookAt(...shot.position,...shot.target,Boolean(previous)&&!reduced.current);
+      if(restarting||!presentation.current)presentation.current=createTreePresentation(shot,fullPlan);
+      else presentation.current.reframe(shot);
+      const current=presentation.current.sample().shot;
+      void c.setLookAt(...current.position,...current.target,Boolean(previous)&&!reduced.current);
       flight.current=createTreeOverviewTour(shot,plan);
       invalidate();return;
     }
@@ -207,18 +219,18 @@ function Scene(props:TreeSceneProps){
     void c.setLookAt(...position,...target,!reduced.current&&!props.tour.current);
     flight.current=createTreeTour({position,target},plan);
     invalidate();
-  },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,growing]);
+  },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,growing,fullPlan,tourRef]);
   const previousPlan=useRef(plan);
   useEffect(()=>{
     const previous=previousPlan.current;previousPlan.current=plan;
-    if(!props.vertical||previous===plan)return;
+    if(!props.vertical||previous===plan||growing)return;
     const destination=flight.current?.destination()?.layer;
     skipLayer.current=destination&&!plan.some(stop=>stop.layer===destination)?destination:undefined;
     tourRef.current=false;resumePending.current=plan.length>0;resumeReady.current=false;
     if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
     if(plan.length)scheduleResume.current();else flight.current=null;
     invalidate();
-  },[plan,props.vertical,invalidate,tourRef]);
+  },[plan,props.vertical,invalidate,tourRef,growing]);
   useEffect(()=>{invalidate();},[navigation.speed,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
@@ -227,6 +239,7 @@ function Scene(props:TreeSceneProps){
     for(const label of labels.current.values()){
       const company=label.getAttribute('data-tree-company');
       if(company){const pressed=String(company===props.selected);if(label.getAttribute('aria-pressed')!==pressed)label.setAttribute('aria-pressed',pressed);}
+      else{const expanded=String(props.open.includes(label.getAttribute('data-tree-node')??''));if(label.getAttribute('aria-expanded')!==expanded)label.setAttribute('aria-expanded',expanded);}
     }
     let moving=false;
     const now=performance.now();
@@ -244,15 +257,23 @@ function Scene(props:TreeSceneProps){
       moving=true;
     }
     gl.domElement.setAttribute('data-tour',touring||resumed?'playing':props.tour.current?'paused':'stopped');
-    gl.domElement.setAttribute('data-tour-layer',flight.current?.destination()?.layer??'');
-    gl.domElement.setAttribute('data-tour-open-layers',[...new Set(plan.map(stop=>stop.layer))].join(','));
-    if(touring&&flight.current&&controls.current){
-      const layer=flight.current.destination()?.layer;
-      if(growing&&layer&&!revealed.current.has(layer)){revealed.current.add(layer);props.onRevealLayer(layer);}
-      const shot=flight.current(delta,navigation.speed);
-      if(!props.vertical)void controls.current.setLookAt(...shot.position,...shot.target,false);
+    let presentationFrame=props.vertical&&growing?presentation.current?.sample():undefined;
+    if(touring&&controls.current){
+      if(presentationFrame&&presentation.current){
+        presentationFrame=presentation.current(delta,navigation.speed);
+        for(const layer of presentationFrame.revealLayers)if(!props.open.includes(layer))props.onRevealLayer(layer);
+        if(!userPositioned.current)void controls.current.setLookAt(...presentationFrame.shot.position,...presentationFrame.shot.target,presentationFrame.phase==='overview');
+      }else if(flight.current){
+        const shot=flight.current(delta,navigation.speed);
+        if(!props.vertical)void controls.current.setLookAt(...shot.position,...shot.target,false);
+      }
       moving=true;
     }
+    const visitingLayer=presentationFrame&&['orbit','ascent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
+    gl.domElement.setAttribute('data-tour-phase',presentationFrame?.phase??'manual');
+    gl.domElement.setAttribute('data-user-positioned',String(userPositioned.current));
+    gl.domElement.setAttribute('data-tour-layer',presentationFrame?.layer??flight.current?.destination()?.layer??'');
+    gl.domElement.setAttribute('data-tour-open-layers',[...new Set(plan.map(stop=>stop.layer))].join(','));
     if(controls.current){
       gl.domElement.setAttribute('data-camera-position',controls.current.getPosition(vector,false).toArray().join(','));
       gl.domElement.setAttribute('data-camera-target',controls.current.getTarget(vector,false).toArray().join(','));
@@ -298,7 +319,7 @@ function Scene(props:TreeSceneProps){
           // Pin the selected label's shape: a card following its bounds must not
           // move back and forth as the card covers/uncover its hover target.
           const intentional=Boolean(props.selected&&target.node.company?.id===props.selected)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
-          const wanted=intentional||(htmlScale>=threshold+(fade.visible?0:.04)&&!collisionLabels.current.has(target.node.id));
+          const wanted=intentional||((target.node.layer===visitingLayer||htmlScale>=threshold+(fade.visible?0:.04))&&!collisionLabels.current.has(target.node.id));
           const previous=fade.level;
           const result=advanceLabelFade(fade,wanted,now,reduced.current);
           compact=fade.level===0&&!fade.visible;
@@ -318,7 +339,7 @@ function Scene(props:TreeSceneProps){
           // Collapsed sibling branches sit 72 units apart: grow their labels up to that gap, never past natural size.
           const gap=72*htmlScale*size.height/1100;
           label.style.transform=`scale(${Math.min(1,Math.max(htmlScale,gap/34))/htmlScale})`;
-        }else label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1):Math.min(1,1/htmlScale)})`;
+        }else label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?(target.node.layer===visitingLayer?1.15:Math.min(1,Math.max(.7,htmlScale))):1):Math.min(1,1/htmlScale)})`;
         if(props.vertical)label.dataset.compact=String(compact);
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
@@ -327,9 +348,10 @@ function Scene(props:TreeSceneProps){
       // Around a real canopy, foreground and rear leaves can project onto one
       // another. Keep nearby names readable and use dots for competing labels.
       const target=controls.current?.getTarget(new Vector3())??new Vector3();
-      const distances=new Map(nodes.map(n=>[n.id,(n.position[0]-target.x)**2+(n.position[1]-target.y)**2+(n.position[2]-target.z)**2]));
+      const distances=new Map(nodes.map(n=>[n.id,new Vector3(...n.position).distanceToSquared(visitingLayer?state.camera.position:target)]));
       const ordered=[...nodes].sort((a,b)=>Number(b.company?.id===props.selected)-Number(a.company?.id===props.selected)
         ||Number(b.kind==='layer'||b.kind==='root')-Number(a.kind==='layer'||a.kind==='root')
+        ||Number(b.layer===visitingLayer)-Number(a.layer===visitingLayer)
         ||distances.get(a.id)!-distances.get(b.id)!);
       // Read all bounds together before changing any collision state. Cache the
       // result between passes so the cinematic frame loop avoids forced layouts.
@@ -342,8 +364,8 @@ function Scene(props:TreeSceneProps){
         if(!group||!dimensions)return [];
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
         const fade=labelFades.current.get(el),threshold=(node.kind==='company'?.65:.72)+(fade?.visible?0:.04);
-        if(htmlScale<threshold&&!fade?.level)return [];
-        const left=node.position[0]<0,scale=node.kind==='company'?Math.min(1,Math.max(.7,htmlScale)):1;
+        if(node.layer!==visitingLayer&&htmlScale<threshold&&!fade?.level)return [];
+        const left=node.position[0]<0,scale=node.kind==='company'?(node.layer===visitingLayer?1.15:Math.min(1,Math.max(.7,htmlScale))):1;
         vector.copy(group.position);vector.x+=(left?-1:1)*(node.kind==='company'?16:22)*group.scale.x;
         vector.project(state.camera);
         const width=dimensions.width*scale,height=dimensions.height*scale;
@@ -428,7 +450,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else {setGrowing(false);props.onToggle(node.id);}}}>
+          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else {setGrowth({request:props.request,active:false});props.onToggle(node.id);}}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}</small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}

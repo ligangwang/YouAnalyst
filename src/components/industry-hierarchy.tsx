@@ -33,6 +33,11 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
    }
    row=Math.max(row,start+112);
   }
+  // Children are placed first. Recenter ancestors from the deepest level up,
+  // so expanding any branch also recenters its layer and the root.
+  const children=new Map<string,Node[]>();
+  for(const node of result)if(node.parent){const siblings=children.get(node.parent)??[];siblings.push(node);children.set(node.parent,siblings);}
+  for(let i=result.length-1;i>=0;i--){const group=children.get(result[i].id);if(group?.length)result[i].y=(group[0].y+group[group.length-1].y)/2;}
   return result;
  },[layers,open,locale]);
  const presence=useNodePresence(nodes,speed);
