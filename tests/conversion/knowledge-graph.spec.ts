@@ -1649,16 +1649,16 @@ test('navigation: hierarchy pause preserves progress through the current stop',a
  await navigationFixture(page,'hierarchy');
  await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
  await page.emulateMedia({reducedMotion:'no-preference'});
- // The root stop takes 7.5 seconds at 2x. Pause near its end, then ensure
+ // The root stop takes 3.75 seconds at the doubled 2x setting. Pause near its end, then ensure
  // resume uses the remaining time instead of restarting the entire stop.
- await page.waitForTimeout(6000);
+ await page.waitForTimeout(3000);
  await page.getByRole('button',{name:'Pause tour',exact:true}).click();
  const svg=page.locator('[data-industry-tree="hierarchy"] svg');
  const held=await svg.getAttribute('viewBox');
  await page.waitForTimeout(500);
  expect(await svg.getAttribute('viewBox')).toBe(held);
  await page.getByRole('button',{name:'Resume tour',exact:true}).click();
- await expect(page.locator('[data-hierarchy-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:4000});
+ await expect(page.locator('[data-hierarchy-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:2000});
 });
 
 
@@ -1671,7 +1671,7 @@ for(const closeWith of ['cross','node'] as const)test(`navigation: hierarchy res
  const companies=scene.locator('[data-tree-company]');
  await expect(companies.first()).toBeAttached({timeout:22000});
  // Approach the end of the company-group transition before inspecting it.
- await page.waitForTimeout(8000);
+ await page.waitForTimeout(4000);
  await companies.first().evaluate((el:HTMLButtonElement)=>el.click());
  const card=page.getByRole('dialog',{name:'Company details'});
  await expect(card).toBeVisible();
@@ -1689,9 +1689,9 @@ for(const closeWith of ['cross','node'] as const)test(`navigation: hierarchy res
  }else await companies.first().evaluate((el:HTMLButtonElement)=>el.click());
  await expect(card).toHaveCount(0);
  await expect(scene).toHaveAttribute('data-tour','running');
- // The remaining transition plus reading hold fits within seven seconds at 2x;
- // restarting this company stop would take another 12.5 seconds.
- await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:7000});
+ // The remaining transition plus reading hold fits within 3.5 seconds at doubled 2x;
+ // restarting this company stop would take another 6.25 seconds.
+ await expect(scene.locator('[data-hierarchy-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:3500});
 });
 
 test('navigation: closing a hierarchy card respects an explicit Pause choice',async({page})=>{
