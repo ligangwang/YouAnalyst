@@ -1,9 +1,23 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {backgroundJobTarget} from '../../scripts/background-job-changes.mjs';
+import {backgroundJobTarget,chartOnlyLibraries} from '../../scripts/background-job-changes.mjs';
+import {build} from 'esbuild';
 import {readFileSync,existsSync} from 'node:fs';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
+
+test('chart-only exclusions cannot hide dependencies of any deployed worker',async()=>{
+  const result=await build({entryPoints:[
+    'scripts/refresh-sec-fundamentals.ts','scripts/serve-sec-fundamentals.ts',
+    'scripts/refresh-cn-fundamentals.ts','scripts/refresh-private-valuations.ts',
+    'scripts/sync-cni-directory.ts',
+  ],bundle:true,platform:'node',packages:'external',outdir:'unused',write:false,metafile:true});
+  const inputs=new Set(Object.keys(result.metafile!.inputs).map(p=>p.replaceAll('\\','/')));
+  for(const path of chartOnlyLibraries) {
+    assert.ok(!inputs.has(path),`${path} is used by a worker and must trigger deployment`);
+    assert.equal(backgroundJobTarget([path]),'none');
+  }
+});
 
 test('website-only changes skip workers and worker inputs select their images',()=>{
   assert.equal(backgroundJobTarget(['src/components/admin-jobs-page.tsx','docs/github-actions.md']),'none');

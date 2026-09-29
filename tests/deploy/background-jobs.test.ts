@@ -57,6 +57,12 @@ test('SEC deployment creates private bounded subscriber before switching the pub
   assert.match(r.calls,/subscriptions add-iam-policy-binding sec-fundamentals-worker.*roles\/pubsub.subscriber/);
   assert.match(r.calls,/FUNDAMENTALS_REQUEST_TOPIC=sec-fundamentals-requests/);
   assert.ok(r.calls.indexOf('run deploy sec-fundamentals-subscriber') < r.calls.indexOf('run jobs deploy refresh-sec-fundamentals-production'));
+  assert.doesNotMatch(r.calls,/iam service-accounts add-iam-policy-binding/);
+});
+
+test('only explicit bootstrap configures Pub/Sub token creation on the push identity',()=>{
+  const r=run('sec-fundamentals',{PUBSUB_BOOTSTRAP_IAM:'1'});assert.equal(r.status,0,r.stderr);
+  assert.match(r.calls,/iam service-accounts add-iam-policy-binding directory-sync-scheduler@demo.iam.gserviceaccount.com.*--member serviceAccount:service-123456789@gcp-sa-pubsub.iam.gserviceaccount.com --role roles\/iam.serviceAccountTokenCreator/);
 });
 test('invalid selection or missing IAM/SEC configuration fails before mutations',()=>{
   for(const [target,extra] of [['bad',{}],['all',{SEC_USER_AGENT:''}],['directory',{WEB_SA:''}]] as [string,Record<string,string>][]) {
