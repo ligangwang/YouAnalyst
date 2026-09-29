@@ -15,7 +15,7 @@ const sides=6;
 const TRUNK_HALF_WIDTH=100;
 const SEAM_BLEND=60;
 type Kind='trunk'|'fiber'|'root'|'ring'|'branch'|'twig';
-type Attach='trunk'|'root'|'crown';
+type Attach='trunk'|'root'|'crown'|'node';
 type RGBA=[number,number,number,number];
 export type Strand={from:string;to:string;kind:Kind;width:[number,number];offset:number;color:(t:number)=>RGBA;layer?:string;branch?:string;end?:[number,number];attach?:Attach;stem?:number;azimuth?:number;pivotX?:number};
 type XY={x:number;y:number;z?:number};
@@ -79,13 +79,13 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
     const tint=new Color(n.color),light=mix(tint,'#ffffff',.35);
     if(n.kind==='branch'){
       const parent=byId.get(n.parent);
-      const attach:Attach=parent===energy?'root':parent===crownLayer?'crown':'trunk';
-      const base=attach==='trunk'?trunkColor(Math.min(1,Math.max(0,(n.stem??n.position[1])/top))):attach==='root'?bark(gold.getStyle()):bark(crownLayer.color);
+      const attach:Attach=parent===energy?'node':parent===crownLayer?'crown':'trunk';
+      const base=attach==='trunk'?trunkColor(Math.min(1,Math.max(0,(n.stem??n.position[1])/top))):parent===energy?bark(gold.getStyle()):bark(crownLayer.color);
       // Bark near the trunk, lightening only towards the tip, so limbs read as wood rather than light pipes.
       const strand:Strand={from:n.parent,to:n.id,kind:'branch',width:[attach==='trunk'?0:12,1.6],offset:0,attach,end:parent?.span,stem:n.stem,layer:n.layer,branch:n.branch,color:t=>rgba(mix(base,light,.75*ease(t)),.97)};
       (attach==='trunk'?limbs:crown).push(strand);
     }else if(n.kind==='company'&&energy&&n.layer===energy.id){
-      roots.push({from:energy.id,to:n.id,kind:'branch',attach:'root',width:[12,1.6],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(bark(gold.getStyle()),light,.75*ease(t)),.97)});
+      roots.push({from:n.parent,to:n.id,kind:'branch',attach:'node',width:[12,1.6],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(bark(gold.getStyle()),light,.75*ease(t)),.97)});
     }else if(n.layer!==energy?.id)twigs.push({from:n.parent,to:n.id,kind:'twig',width:[1.2,.35],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(light,tint,t),.75-.35*t)});
   }
   // Draw order: limbs tuck in behind the trunk so they appear to grow out of
@@ -174,10 +174,11 @@ export function createStrandWriter(){
           ay=Math.min(hi-30,Math.max(lo+30,strand.stem??by));
           const side=Math.sign(bx-tx(ay))||1;
           h0=trunkHalf(ay/top)*.42;ax=tx(ay)+side*trunkHalf(ay/top)*.35;
-        }else if(strand.attach==='root'){ax=(Math.sign(bx)||1)*40;ay=-40;h0=strand.width[0];}
+        }else if(strand.attach==='node'){ax=source.x;ay=source.y;h0=strand.width[0];}
+        else if(strand.attach==='root'){ax=(Math.sign(bx)||1)*40;ay=-40;h0=strand.width[0];}
         else {ax=0;ay=strand.stem??top+20;h0=strand.width[0];}
         const [c1x,c1y,c2x,c2y]=verticalLimbControls(ax,ay,bx,by);
-        curve={ax,ay,bx,by,bz:target.z,c1x,c1y,c2x,c2y,h0,h1:strand.width[1]};
+        curve={ax,ay,az:strand.attach==='node'?source.z:0,bx,by,bz:target.z,c1x,c1y,c2x,c2y,h0,h1:strand.width[1]};
         limbs.set(strand.to,curve);
       }else if(strand.kind==='twig'){
         // Twigs leave their limb where the leaf hangs, not all from its tip.

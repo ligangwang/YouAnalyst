@@ -146,8 +146,14 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       node.position=[pivotX+radial*Math.cos(azimuth),node.position[1],-radial*Math.sin(azimuth)];
     }
   }
-  // Energy companies share a category, not a physical root. Give each company
-  // an independent root around the trunk while retaining its semantic parent.
+  // Energy supply is the shared hub for distinct company roots. Keep it near
+  // the centre so the parent connectors form a fan, never a company-to-company chain.
+  const energyBranches=nodes.filter(n=>n.kind==='branch'&&ROOT_LAYERS.has(n.layer??''));
+  energyBranches.forEach((node,i)=>{
+    node.position=[(i-(energyBranches.length-1)/2)*180,-140,0];
+    node.planar=[...node.position];node.azimuth=0;node.pivotX=0;
+  });
+  // Keep companies dispersed around their shared category. Each is a sibling.
   const energyCompanies=nodes.filter(n=>n.kind==='company'&&ROOT_LAYERS.has(n.layer??'')).sort((a,b)=>a.id.localeCompare(b.id));
   energyCompanies.forEach((node,i)=>{
     const azimuth=Math.PI/6+i*2*Math.PI/energyCompanies.length;

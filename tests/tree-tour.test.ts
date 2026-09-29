@@ -26,10 +26,12 @@ test('tree has depth, connected 3D wood and a complete deterministic company iti
   const strands=verticalTreeStrands(nodes),geometries=verticalTreeStrandGeometries(strands,'');
   const energyCompanies=companies.filter(n=>n.layer==='energy');
   assert.equal(energyCompanies.length,3);
-  const companyRoots=strands.filter(s=>s.attach==='root'&&energyCompanies.some(n=>n.id===s.to));
+  const companyRoots=strands.filter(s=>s.attach==='node'&&energyCompanies.some(n=>n.id===s.to));
   assert.equal(companyRoots.length,energyCompanies.length,'every energy company has its own root');
   assert.equal(plan.filter(s=>s.kind==='company'&&s.layer==='energy').length,energyCompanies.length,'the tour visits each separate root');
-  assert(companyRoots.every(s=>s.from==='energy'),'company roots grow from the base, not from another company');
+  assert(companyRoots.every(s=>s.from==='energy/energy'),'Energy supply is the visible parent of all three company roots');
+  assert(energyCompanies.every(n=>n.parent==='energy/energy'));
+  assert.equal(nodes.find(n=>n.id==='energy/energy')?.parent,'energy');
   for(const branch of branches.filter(n=>n.layer==='energy'))assert(strands.some(s=>s.from==='energy'&&s.to===branch.id),'expanded Energy categories retain their connector');
   for(let i=0;i<energyCompanies.length;i++)for(let j=i+1;j<energyCompanies.length;j++){
     assert(Math.hypot(...energyCompanies[i].position.map((v,axis)=>v-energyCompanies[j].position[axis]))>700,'energy companies spread around the trunk');
@@ -38,6 +40,18 @@ test('tree has depth, connected 3D wood and a complete deterministic company iti
   const positions=geometries[0].getAttribute('position');
   assert(Array.from(positions.array).every(Number.isFinite));
   assert(Array.from({length:positions.count},(_,i)=>positions.getZ(i)).some(z=>z>100));
+  // Check rendered endpoints too: the writer must not replace the semantic
+  // parent with the decorative trunk base when drawing root connections.
+  const verticesPerStrand=positions.count/strands.length;
+  for(const strand of strands.filter(s=>s.attach==='node')){
+    const index=strands.indexOf(strand);
+    for(const [id,offset] of [[strand.from,0],[strand.to,verticesPerStrand-36+2]] as const){
+      const ring=Array.from({length:6},(_,face)=>index*verticesPerStrand+offset+face*6);
+      const centre=[0,1,2].map(axis=>ring.reduce((sum,v)=>sum+positions.getComponent(v,axis),0)/6);
+      const node=nodes.find(n=>n.id===id)!;
+      assert(Math.hypot(...centre.map((v,axis)=>v-node.position[axis]))<4.01,`${strand.from} → ${strand.to} meets ${id}`);
+    }
+  }
   geometries.forEach(g=>g.dispose());
 });
 
