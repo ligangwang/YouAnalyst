@@ -10,7 +10,7 @@ test('chart-only exclusions cannot hide dependencies of any deployed worker',asy
   const result=await build({entryPoints:[
     'scripts/refresh-sec-fundamentals.ts','scripts/serve-sec-fundamentals.ts',
     'scripts/refresh-cn-fundamentals.ts','scripts/refresh-private-valuations.ts',
-    'scripts/sync-cni-directory.ts',
+    'scripts/sync-cni-directory.ts','scripts/serve-private-valuations.ts','scripts/serve-ticker-sync.ts','scripts/serve-cn-fundamentals.ts','scripts/serve-cni-directory.ts',
   ],bundle:true,platform:'node',packages:'external',outdir:'unused',write:false,metafile:true});
   const inputs=new Set(Object.keys(result.metafile!.inputs).map(p=>p.replaceAll('\\','/')));
   for(const path of chartOnlyLibraries) {
@@ -22,6 +22,12 @@ test('chart-only exclusions cannot hide dependencies of any deployed worker',asy
 test('website-only changes skip workers and worker inputs select their images',()=>{
   assert.equal(backgroundJobTarget(['src/components/admin-jobs-page.tsx','docs/github-actions.md']),'none');
   assert.equal(backgroundJobTarget(['scripts/fetch-cn-annual.py']),'fundamentals');
+  assert.equal(backgroundJobTarget(['scripts/serve-private-valuations.ts']),'fundamentals');
+  assert.equal(backgroundJobTarget(['scripts/deploy-private-valuations-pubsub.sh']),'fundamentals');
+  assert.equal(backgroundJobTarget(['scripts/serve-ticker-sync.ts']),'fundamentals');
+  assert.equal(backgroundJobTarget(['scripts/deploy-ticker-sync.sh']),'fundamentals');
+  assert.equal(backgroundJobTarget(['scripts/serve-cn-fundamentals.ts','scripts/deploy-cn-pubsub.sh']),'fundamentals');
+  assert.equal(backgroundJobTarget(['scripts/serve-cni-directory.ts','scripts/deploy-directory-pubsub.sh']),'directory');
   assert.equal(backgroundJobTarget(['scripts/download-cni-directory.py']),'directory');
   assert.equal(backgroundJobTarget(['Dockerfile.directory-sync','scripts/refresh-sec-fundamentals.ts']),'all');
   assert.equal(backgroundJobTarget(['.github/workflows/deploy.yml']),'all');

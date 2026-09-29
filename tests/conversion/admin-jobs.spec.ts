@@ -17,7 +17,7 @@ test("directory and ticker controls share task history and preview does not requ
     if(url.pathname==='/api/admin/jobs')return route.fulfill({json:{records:[],nextPageToken:null}});
     if(request.method()==='POST') {
       const body=request.postData()?request.postDataJSON():null;requests.push({path:url.pathname,body});
-      return route.fulfill({json:{ok:true,operation:'op',dryRun:body?.dryRun,written:body?.dryRun?0:12}});
+      return route.fulfill({status:body?.dryRun?200:202,json:{ok:true,operation:'op',dryRun:body?.dryRun,...(body?.dryRun?{written:0}:{queued:true,runId:'queued-ticker-request'})}});
     }
     return route.abort();
   });
@@ -33,7 +33,9 @@ test("directory and ticker controls share task history and preview does not requ
   await expect(page.getByText('Preview complete. No catalog changes written.',{exact:true})).toBeVisible();
   expect(requests[1].body).toMatchObject({dryRun:true,limit:12,country:'United States',currency:'USD'});
   await page.getByRole('button',{name:'Sync ticker catalog now'}).click();
-  await expect(page.getByText('Ticker sync completed.',{exact:true})).toBeVisible();
+  await expect(page.getByText('Ticker sync queued. Processing continues in the background. Refresh run history for results.',{exact:true})).toBeVisible();
+  await expect(page.getByText('Ticker sync completed.',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('combobox',{name:'Job',exact:true})).toBeEnabled();
   expect(requests[2].body?.dryRun).toBe(false);
 });
 test.beforeAll(async () => {

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { GoogleAuth } from "google-auth-library";
+import { publishJobMessage } from "../job-pubsub";
 import { validFundamentalsTicker } from "./service";
 
 export const MAX_BATCH_COMPANIES = 20;
@@ -36,16 +36,5 @@ export function fundamentalsVersion(value: Record<string, unknown> | null | unde
   delete stable.fetchedAt;
   return digest(stable);
 }
-const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/pubsub"] });
-export async function publishFundamentalsMessage(topic: string, message: FundamentalsRequest | FundamentalsUpdate) {
-  const project = process.env.GCP_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  if (!project || !/^[A-Za-z][A-Za-z0-9._~+%-]{2,254}$/.test(topic)) throw new Error("Pub/Sub project/topic missing or invalid");
-  const client = await auth.getClient();
-  const result = await client.request<{ messageIds: string[] }>({
-    url: `https://pubsub.googleapis.com/v1/projects/${project}/topics/${topic}:publish`, method: "POST",
-    data: { messages: [{ data: Buffer.from(JSON.stringify(message)).toString("base64"),
-      attributes: { type: message.type, batchId: message.batchId } }] }, timeout: 20_000, retry: false,
-  });
-  if (!result.data.messageIds?.length) throw new Error("Pub/Sub publish was not confirmed");
-  return result.data.messageIds[0];
-}
+export const publishFundamentalsMessage = (topic: string, message: FundamentalsRequest | FundamentalsUpdate) =>
+  publishJobMessage(topic, message);

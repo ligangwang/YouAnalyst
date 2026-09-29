@@ -10,11 +10,12 @@ runtime="$maintenance_runtime_account"
 trigger="$maintenance_scheduler_account"
 # Validate the job name and all three accounts before changing anything.
 check_maintenance_job_iam "$job"
+bash scripts/deploy-cn-pubsub.sh
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 \
   --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 \
   --command node --args dist/refresh-cn-fundamentals.cjs \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}" --quiet
+  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|GIT_SHA=${GIT_SHA:-unknown}|CN_FUNDAMENTALS_REQUEST_TOPIC=cn-fundamentals-requests" --quiet
 # Scheduler and web app (/admin/jobs "Run now") invoker grants on this job.
 ensure_maintenance_job_iam "$job"
 # Weekdays after the China EOD job (08:00 New York). A new schedule is created

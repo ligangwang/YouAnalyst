@@ -3,6 +3,8 @@ import { getFirestore } from "firebase-admin/firestore";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { checkPrivateValuation, privateValuationSources } from "../src/lib/fundamentals/private-valuations";
+import { publishPrivateValuationChecks } from "../src/lib/fundamentals/private-valuation-pubsub";
+import { publishJobMessage } from "../src/lib/job-pubsub";
 
 const dryRun = process.argv.includes("--dry-run");
 const sourcesOnly = process.argv.includes("--sources-only");
@@ -22,6 +24,13 @@ async function main() {
   if (!process.env.GCP_PROJECT_ID) throw Error("GCP_PROJECT_ID is required");
   initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
   const db = getFirestore();
+  if (!dryRun && !process.argv.includes("--direct") && process.env.PRIVATE_VALUATIONS_REQUEST_TOPIC) {
+    log.emit("INFO", "run_started", { mode: "pubsub" });
+    const result = await publishPrivateValuationChecks(db, process.env.CLOUD_RUN_EXECUTION || log.runId,
+      request => publishJobMessage(process.env.PRIVATE_VALUATIONS_REQUEST_TOPIC!, request), log);
+    log.emit("INFO", "run_completed", result);
+    return;
+  }
   const lease = db.collection("company_fundamentals").doc("_private_valuation_worker");
   if (!dryRun && !await acquireMaintenanceLease(lease, log.runId, Date.now(), cloudRunTaskAttempt())) throw Error("Another private valuation worker holds the lease");
   const counts = { companies: 0, verified: 0, review_required: 0, stale: 0, unsupported: 0, failed: 0 };

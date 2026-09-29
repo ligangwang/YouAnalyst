@@ -302,7 +302,7 @@ async function fetchTwelveDataStocks(): Promise<{ providerCount: number; stocks:
   };
 }
 
-export async function runTickerCatalogSync(input: TickerCatalogSyncInput = {}): Promise<TickerCatalogSyncResult> {
+export async function prepareTickerCatalogSync(input: TickerCatalogSyncInput = {}, syncRunId = new Date().toISOString()) {
   const dryRun = input.dryRun ?? true;
   const country = input.country?.trim() || DEFAULT_COUNTRY;
   const countryLower = country.toLowerCase();
@@ -311,7 +311,6 @@ export async function runTickerCatalogSync(input: TickerCatalogSyncInput = {}): 
   const typeSet = new Set(types.map((type) => type.toLowerCase()));
   const limit = clampLimit(input.limit);
   const lastSyncedAt = new Date().toISOString();
-  const syncRunId = lastSyncedAt;
 
   console.info("[sync-tickers] Starting ticker catalog sync", {
     dryRun,
@@ -337,6 +336,32 @@ export async function runTickerCatalogSync(input: TickerCatalogSyncInput = {}): 
     }
   }
   const documents = Array.from(documentById.values());
+  const result: TickerCatalogSyncResult = {
+    dryRun,
+    country,
+    currency,
+    types,
+    providerCount,
+    filteredCount: filteredStocks.length,
+    attemptedWrites: documents.length,
+    written: 0,
+    batchesCommitted: 0,
+    sample: documents.slice(0, 10).map((ticker) => ({
+      id: ticker.id,
+      symbol: ticker.symbol,
+      name: ticker.name,
+      exchange: ticker.exchange,
+      micCode: ticker.micCode,
+      type: ticker.type,
+    })),
+  };
+
+  return { documents, result };
+}
+
+export async function runTickerCatalogSync(input: TickerCatalogSyncInput = {}): Promise<TickerCatalogSyncResult> {
+  const { documents, result } = await prepareTickerCatalogSync(input);
+  const dryRun = result.dryRun;
   let written = 0;
   let batchesCommitted = 0;
 
@@ -360,27 +385,5 @@ export async function runTickerCatalogSync(input: TickerCatalogSyncInput = {}): 
       batchesCommitted += 1;
     }
   }
-
-  const result: TickerCatalogSyncResult = {
-    dryRun,
-    country,
-    currency,
-    types,
-    providerCount,
-    filteredCount: filteredStocks.length,
-    attemptedWrites: documents.length,
-    written,
-    batchesCommitted,
-    sample: documents.slice(0, 10).map((ticker) => ({
-      id: ticker.id,
-      symbol: ticker.symbol,
-      name: ticker.name,
-      exchange: ticker.exchange,
-      micCode: ticker.micCode,
-      type: ticker.type,
-    })),
-  };
-
-  console.info("[sync-tickers] Completed ticker catalog sync", result);
-  return result;
+  return { ...result, written, batchesCommitted };
 }
