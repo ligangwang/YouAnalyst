@@ -125,7 +125,11 @@ test('tree overview pauses on hold and preserves the released view',async({page,
  await expect(canvas).toHaveAttribute('data-tour','playing');
  await expect(canvas).toHaveAttribute('data-tour-phase','ascent',{timeout:10000});
  // This test exercises camera controls; a leaf under the moving pointer must not select a company.
- await canvas.evaluate(el=>el.addEventListener('click',event=>event.stopPropagation()));
+ await tree.evaluate(el=>{
+   const block=(event:Event)=>{if(event.isTrusted)event.stopPropagation();};
+   el.addEventListener('click',block,true);
+   Object.assign(el,{releaseControlTest:()=>el.removeEventListener('click',block,true)});
+ });
  const bounds=(await canvas.boundingBox())!;
  const pose=()=>canvas.evaluate(el=>[...(el.getAttribute('data-camera-position')??'').split(','),...(el.getAttribute('data-camera-target')??'').split(',')].map(Number));
  await page.mouse.move(bounds.x+8,bounds.y+8);
@@ -184,6 +188,7 @@ test('tree overview pauses on hold and preserves the released view',async({page,
  await page.waitForTimeout(2300);
  expect(await pose()).toEqual(reduced);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
+ await tree.evaluate(el=>(el as HTMLElement & {releaseControlTest:()=>void}).releaseControlTest());
  // A selected company must keep an otherwise ready-to-resume tour paused.
  const company=tree.locator('[data-tree-company="US:NVDA"]').first();
  await company.evaluate((el:HTMLButtonElement)=>el.click());
@@ -1752,6 +1757,8 @@ test('navigation: collapsing a tree branch disables its fading companies',async(
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(tree.locator('[data-tree-node="chips/compute/US:NVDA"]')).toBeAttached();
  const company=tree.locator('[data-tree-node="chips/compute/US:NVDA"]');
+ await expect(company).toBeEnabled();
+ await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true');
  const disabledOnExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
    const observer=new MutationObserver(()=>{
      if(el.getAttribute('data-exiting')==='true'){observer.disconnect();resolve((el as HTMLButtonElement).disabled);}
