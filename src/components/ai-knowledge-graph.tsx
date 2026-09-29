@@ -126,11 +126,6 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const [showAllEdges, setShowAllEdges] = useState(false);
   const company = scoped.nodes.find(n => n.id === selected && n.kind === "COMPANY");
   const detailCard=useNodeCardPosition(company?.id??'','graph',view==='graph'&&Boolean(company));
-  useLayoutEffect(()=>{
-    // A new company starts a new reading session; keep the card's dragged position.
-    const card=detailCard.current;
-    if(card){card.scrollTop=0;card.scrollLeft=0;}
-  },[company?.id,detailCard]);
   const relations = company ? scoped.relationships.filter(e => e.source === company.id || e.target === company.id) : [];
   const label = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n?.kind === "STAGE" ? text(n.labels?.en ?? n.label ?? id, n.labels?.["zh-CN"] ?? n.label ?? id) : n ? companyName(n,locale) : id; };
   const cardDismiss=useCardDismiss();
