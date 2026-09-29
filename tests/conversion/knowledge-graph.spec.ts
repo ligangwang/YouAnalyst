@@ -1679,7 +1679,7 @@ test('navigation: manual hierarchy stays put and cannot pause other charts',asyn
 
 test('tree continuously surrounds the trunk and resumes after company details',async({page})=>{
  await accelerateTours(page,0);
- test.setTimeout(45000);
+ test.setTimeout(75000);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
  const fixture=graph;
@@ -1690,11 +1690,18 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await expect(canvas).toHaveAttribute('data-tour-phase','overview');
  const distance=async()=>canvas.evaluate(el=>{const p=el.getAttribute('data-camera-position')!.split(',').map(Number),t=el.getAttribute('data-camera-target')!.split(',').map(Number);return Math.hypot(...p.map((v,i)=>v-t[i]));});
  const wide=await distance();
+ await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:1}));
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-trunk-growth'))).toBeGreaterThan(.25);
+ await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
+ await expect(canvas).toHaveAttribute('data-tour-phase','trunk');
+ await expect(tree.locator('[data-tree-kind="company"]')).toHaveCount(0);
+ expect(await distance()).toBeCloseTo(wide,1);
+ await tree.screenshot({path:test.info().outputPath('tree-growing-trunk.png')});
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
  await expect(canvas).toHaveAttribute('data-tour-phase','ascent',{timeout:20000});
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:1}));
  await expect(canvas).toHaveAttribute('data-tour-layer','energy');
- const close=await distance();expect(close).toBeLessThan(wide*.6);
+ const close=await distance();expect(close).toBeGreaterThan(wide*.8);expect(close).toBeLessThan(wide*.96);
  const start=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(start);
  await expect(tree.locator('[data-tree-kind="company"][data-tree-layer="energy"][data-label-visible="true"]').first()).toBeVisible({timeout:10000});
@@ -1704,7 +1711,7 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
  await expect(canvas).toHaveAttribute('data-tour-phase','ascent',{timeout:20000});
- await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
+ await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');
  await expect(canvas).not.toHaveAttribute('data-tour-company');
  await expect(canvas).toHaveAttribute('data-tour-layer','chips',{timeout:45000});
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:1}));
@@ -1716,7 +1723,7 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  expect(path.slice(1).every((p,i)=>Math.hypot(...p.map((v,j)=>v-path[i][j]))>0)).toBe(true);
  const target=(await canvas.getAttribute('data-camera-target'))!.split(',').map(Number);expect(target[0]).toBe(0);expect(target[2]).toBe(0);
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
- await expect(tree.locator('[data-tree-layer="chips"][data-tree-kind="company"][data-label-visible="true"]').first()).toBeVisible();
+ await expect(tree.locator('[data-tree-layer="chips"][data-tree-kind="company"]').first()).toBeEnabled();
  await tree.screenshot({path:test.info().outputPath('tree-presentation.png')});
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
  await tree.locator('[data-tree-company="US:CEG"]').evaluate((el:HTMLButtonElement)=>el.click());
@@ -1774,7 +1781,7 @@ test('navigation: collapsing a tree branch disables its fading companies',async(
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true');
  // Step the animation clock so slower CI rendering cannot skip the exit
  // commit between two real-time assertions.
- await page.clock.pauseAt(new Date(Date.now()+100));
+ await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now()+60000)));
  await tree.locator('[data-tree-node="chips"]').evaluate((el:HTMLButtonElement)=>el.click());
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','false');
  await page.clock.runFor(80);

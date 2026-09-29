@@ -1,3 +1,4 @@
+import {PerspectiveCamera,Vector3} from 'three';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTreeTour, treeTourStops, treeTourPlan, treeTourFromView, type TreeTourStop, type TreeShot } from '../src/lib/knowledge-graph/tree-tour';
@@ -56,6 +57,7 @@ test('tree has depth, connected 3D wood and a complete deterministic company iti
   assert(companyRoots.every(s=>s.from==='energy/energy'),'Energy supply is the visible parent of all three company roots');
   assert(energyCompanies.every(n=>n.parent==='energy/energy'));
   assert.equal(nodes.find(n=>n.id==='energy/energy')?.parent,'energy');
+  assert.deepEqual(nodes.find(n=>n.id==='energy')?.position,[0,0,0],'Energy attaches the supply hub to the physical trunk base');
   for(const branch of branches.filter(n=>n.layer==='energy'))assert(strands.some(s=>s.from==='energy'&&s.to===branch.id),'expanded Energy categories retain their connector');
   for(let i=0;i<energyCompanies.length;i++)for(let j=i+1;j<energyCompanies.length;j++){
     assert(Math.hypot(...energyCompanies[i].position.map((v,axis)=>v-energyCompanies[j].position[axis]))>700,'energy companies spread around the trunk');
@@ -228,6 +230,7 @@ test('tree cinematic orbit stays on the trunk with continuous velocity through e
   const shot=treeOverviewShot(nodes,width,height),tour=createTreePresentation(shot,plan,nodes,width/height);
   let previous=tour.sample(),near=0;let previousVelocity:number[]|undefined;
   const seen=new Set<string>();
+  const camera=new PerspectiveCamera(45,width/height,1,100000);
   for(let t=0;t<tour.duration()+tour.loopDuration()*2;t+=.05){
    const frame=tour(.05),velocity=frame.shot.position.map((v,i)=>(v-previous.shot.position[i])/.05);
    if(frame.phase==='ascent'||frame.phase==='descent'){
@@ -239,6 +242,13 @@ test('tree cinematic orbit stays on the trunk with continuous velocity through e
     assert(Math.hypot(...velocity)>10,'camera never holds still');
     if(previousVelocity)assert(Math.hypot(...velocity.map((v,i)=>v-previousVelocity![i]))<2,'no abrupt changes in velocity');
     previousVelocity=velocity;seen.add(frame.phase+':'+frame.layer);
+    if(Math.round(t*20)%100===0){
+      camera.position.set(...frame.shot.position);camera.lookAt(...frame.shot.target);camera.updateMatrixWorld();
+      for(const node of nodes){
+        const projected=new Vector3(...node.position).project(camera);
+        assert(Math.abs(projected.x)<1&&Math.abs(projected.y)<1,'the orbit retains the whole tree silhouette');
+      }
+    }
    }
    previous=frame;
   }
@@ -268,7 +278,7 @@ test('reframing smoothly adapts the close camera distance to the new aspect rati
  const shot:TreeShot={position:[0,500,5000],target:[0,500,0]};
  const plan:TreeTourStop[]=[{target:[0,0,0],layer:'energy',distance:0,kind:'overview',duration:3,hold:0}];
  const tour=createTreePresentation(shot,plan,[],1.8);
- for(let i=0;i<200;i++)tour(.1);
+ for(let i=0;i<800;i++)tour(.1);
  const radius=()=>{const {position,target}=tour.sample().shot;return Math.hypot(position[0]-target[0],position[2]-target[2]);};
  for(const ratio of [.6,1.8]){
   const before=tour.sample(),oldRadius=radius();tour.reframe(shot,ratio);
@@ -276,8 +286,27 @@ test('reframing smoothly adapts the close camera distance to the new aspect rati
   tour(.05);assert(Math.abs(radius()-oldRadius)<50,'first frame eases toward the new radius');
   for(let i=0;i<100;i++)tour(.05);
   const expected=createTreePresentation(shot,plan,[],ratio);
-  for(let i=0;i<200;i++)expected(.1);
+  for(let i=0;i<800;i++)expected(.1);
   const frame=expected.sample(),expectedRadius=Math.hypot(frame.shot.position[0]-frame.shot.target[0],frame.shot.position[2]-frame.shot.target[2]);
   assert(Math.abs(radius()-expectedRadius)<.1,'resized distance matches a fresh tour at the new aspect');
  }
+});
+
+test('tree builds wood before foliage and only orbits after all layers are revealed',()=>{
+ const shot:TreeShot={position:[0,1000,6000],target:[0,1000,0]};
+ const plan:TreeTourStop[]=['energy','chips','infrastructure','models','applications'].map((layer,i)=>({target:[0,i*500,0],layer,distance:0,duration:3,hold:0,kind:'overview'}));
+ const tour=createTreePresentation(shot,plan);
+ const phases=new Set<string>();let previous=0;
+ for(let t=0;t<60;t+=.05){
+  const frame=tour(.05);phases.add(frame.phase);
+  assert(frame.trunkGrowth>=previous);previous=frame.trunkGrowth;
+  if(['roots','trunk','foliage'].includes(frame.phase)){
+   assert.deepEqual(frame.shot,shot,'growth retains the entire-tree view');
+   assert.equal(frame.angle,0);
+  }
+  if(frame.trunkGrowth<1)assert.deepEqual(frame.revealLayers,[],'leaves wait for the complete trunk');
+  if(['approach','ascent'].includes(frame.phase))assert.deepEqual(frame.revealLayers,plan.map(s=>s.layer));
+  if(frame.phase==='ascent')assert(Math.hypot(...frame.shot.position.map((v,i)=>v-frame.shot.target[i]))>4800,'orbit retains tree context');
+ }
+ assert.deepEqual([...phases],['roots','trunk','foliage','approach','ascent']);
 });

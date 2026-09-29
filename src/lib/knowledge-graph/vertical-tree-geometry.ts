@@ -289,7 +289,7 @@ export function verticalTreeObjects(geometries:BufferGeometry[],dust:BufferGeome
     mesh.position.set(0,-110,-8-i);mesh.scale.set(VERTICAL_ROOT_REACH/90*.9*s,2.4*s,1);return mesh;
   });
   const ribbons=geometries.map((geometry,glow)=>{
-    const mesh=new Mesh(geometry,glow?new MeshBasicMaterial({vertexColors:true,side:DoubleSide,transparent:true,depthWrite:false,blending:AdditiveBlending}):new MeshStandardMaterial({vertexColors:true,side:DoubleSide,transparent:true,depthWrite:true,roughness:.76,metalness:.12,blending:NormalBlending}));
+    const mesh=new Mesh(geometry,glow?new MeshBasicMaterial({vertexColors:true,side:DoubleSide,transparent:true,depthWrite:false,blending:AdditiveBlending}):new MeshStandardMaterial({vertexColors:true,side:DoubleSide,transparent:true,alphaTest:.01,depthWrite:true,roughness:.76,metalness:.12,blending:NormalBlending}));
     mesh.frustumCulled=false;mesh.renderOrder=glow?-3:-2;return mesh;
   });
   const points=new Points(dust,new PointsMaterial({vertexColors:true,size:5,map:dotTexture(),sizeAttenuation:false,transparent:true,opacity:.7,depthWrite:false,blending:AdditiveBlending}));

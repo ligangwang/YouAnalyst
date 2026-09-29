@@ -86,8 +86,7 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   for(const layer of layers){
     const expanded=open.has(layer.id);
     if(ROOT_LAYERS.has(layer.id)){
-      const y=-420;
-      nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,y,0],count:layer.companies.length,span:[-VERTICAL_ROOT_DEPTH,0]});
+      nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,0,0],count:layer.companies.length,span:[-VERTICAL_ROOT_DEPTH,0]});
       if(expanded)layer.branches.forEach((branch,i)=>{
         const side=i%2?-1:1,k=Math.floor(i/2),jitter=verticalJitter(branch.id);
         limb(layer,branch,[side*40,-40],side,(520+k*120)*(.9+.2*jitter),-(.42+.12*jitter+k*.06),-40);
