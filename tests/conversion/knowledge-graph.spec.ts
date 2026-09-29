@@ -1681,6 +1681,7 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  const wide=await distance();
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
  await expect(canvas).toHaveAttribute('data-tour-phase','ascent',{timeout:20000});
+ await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:1}));
  await expect(canvas).toHaveAttribute('data-tour-layer','energy');
  const close=await distance();expect(close).toBeLessThan(wide*.6);
  const start=await canvas.getAttribute('data-camera-position');
