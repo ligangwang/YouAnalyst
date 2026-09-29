@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTreeTour, treeTourStops, treeTourPlan, treeTourFromView, type TreeTourStop } from '../src/lib/knowledge-graph/tree-tour';
+import { createTreeTour, treeTourStops, treeTourPlan, treeTourFromView, type TreeTourStop, type TreeShot } from '../src/lib/knowledge-graph/tree-tour';
 import type { TreePoint } from '../src/lib/knowledge-graph/industry-tree';
 import { industryTree } from '../src/lib/knowledge-graph/industry-tree';
 import { layoutVerticalTree } from '../src/lib/knowledge-graph/vertical-tree';
@@ -222,33 +222,38 @@ test('hierarchy parent redirects visit children, skip every closed group and wra
 import { createTreePresentation, TREE_PRESENTATION } from '../src/lib/knowledge-graph/tree-tour';
 import { PerspectiveCamera, Vector3 } from 'three';
 
-test('tree presentation grows bottom-up, circles every layer, ascends smoothly and returns without unwinding',()=>{
+test('close tree tour visits every company without pulling back between layers',()=>{
  const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
  const nodes=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');
- const plan=treeOverviewPlan(nodes);
+ const plan=treeOverviewPlan(nodes),companies=nodes.filter(n=>n.kind==='company');
  for(const [width,height] of [[1440,800],[390,650]]){
-  const shot=treeOverviewShot(nodes,width,height),tour=createTreePresentation(shot,plan);
+  const shot=treeOverviewShot(nodes,width,height),tour=createTreePresentation(shot,plan,nodes,width/height);
   const camera=new PerspectiveCamera(45,width/height,1,100000);
   assert.equal(tour.sample().phase,'overview');assert.equal(tour.sample().revealLayers.length,0);
-  const orbitLayers=new Set<string>(),reveals=new Set<string>();let previous=tour.sample(),angle=0,turn=0;
-  const seconds=TREE_PRESENTATION.overview+plan.length*3+2+plan.length*60+(plan.length-1)*8+TREE_PRESENTATION.return+1;
+  const visited=new Set<string>(),layerOrder=new Set<string>();let previous=tour.sample(),near=0;
+  const seconds=tour.duration()+tour.loopDuration()*2.1;
   for(let i=0;i<seconds*20;i++){
-   const frame=tour(.05);
-   frame.revealLayers.forEach(layer=>reveals.add(layer));
-   if(frame.phase==='orbit')orbitLayers.add(frame.layer);
-   if(frame.phase==='orbit'&&previous.phase==='orbit'&&frame.layer===previous.layer)turn+=frame.angle-angle;
-   if(previous.phase==='orbit'&&frame.phase!=='orbit'){assert(turn>6.2,'a full circle before leaving a layer');turn=0;}
-   if(frame.phase==='ascent')assert(frame.elevation>=previous.elevation,'ascent never bobs down');
-   assert(Math.hypot(...frame.shot.position.map((v,j)=>v-previous.shot.position[j]))<150,`no camera jumps at ${i/20}s: ${previous.phase} -> ${frame.phase}, ${previous.angle} -> ${frame.angle}`);
-   if(i%20===0){
-    camera.position.set(...frame.shot.position);camera.lookAt(...frame.shot.target);camera.updateMatrixWorld();
-    for(const node of nodes){const p=new Vector3(...node.position).project(camera);assert(Math.abs(p.x)<.96&&Math.abs(p.y)<.96,`whole tree stays visible: ${node.id}`);}
+   const frame=tour(.05),distance=Math.hypot(...frame.shot.position.map((v,j)=>v-frame.shot.target[j]));
+   if(frame.phase==='orbit'||frame.phase==='ascent'||frame.phase==='descent'||frame.phase==='reveal'){
+    near ||= distance;assert(Math.abs(distance-near)<1e-7,'never pull back after the approach');
+    assert(distance<(shot.position[2]-shot.target[2])*.6,'camera is substantially closer');
+    assert(frame.angle>=previous.angle-1e-8,'orbit never unwinds');
+    layerOrder.add(frame.layer);
    }
-   previous=frame;angle=frame.angle;
+   if(frame.companyId){
+    const node=nodes.find(n=>n.id===frame.companyId)!;
+    if(Math.hypot(...frame.shot.target.map((v,j)=>v-node.position[j]))<.01){
+     visited.add(node.id);camera.position.set(...frame.shot.position);camera.lookAt(...frame.shot.target);camera.updateMatrixWorld();
+     const projected=new Vector3(...node.position).project(camera);
+     assert(Math.abs(projected.x)<.01&&Math.abs(projected.y)<.01,'visited company is centered and visible');
+    }
+   }
+   assert(Math.hypot(...frame.shot.position.map((v,j)=>v-previous.shot.position[j]))<250,`no camera jumps at ${i/20}: ${previous.phase}/${previous.layer}/${previous.angle} -> ${frame.phase}/${frame.layer}/${frame.angle}`);
+   previous=frame;
   }
-  assert.deepEqual([...reveals],plan.map(s=>s.layer));assert.deepEqual([...orbitLayers],plan.map(s=>s.layer));
-  assert.equal(tour.sample().phase,'orbit');assert.equal(tour.sample().layer,'energy');
-  assert.deepEqual(createTreePresentation(shot,plan).sample().revealLayers,[],'reset starts empty again');
+  assert.deepEqual(visited,new Set(companies.map(n=>n.id)));
+  assert.deepEqual([...layerOrder],plan.map(s=>s.layer));
+  assert.deepEqual(createTreePresentation(shot,plan,nodes).sample().revealLayers,[]);
  }
 });
 
@@ -264,5 +269,51 @@ test('presentation pacing respects every speed and frame rate',()=>{
  const before=resizing.sample();resizing.reframe({...shot,position:[0,500,6000]});
  assert.equal(resizing.sample().phase,before.phase);assert.equal(resizing.sample().angle,before.angle);
  assert.deepEqual(resizing.sample().revealLayers,before.revealLayers);
- assert(TREE_PRESENTATION.orbit>TREE_PRESENTATION.ascent);
+ assert(TREE_PRESENTATION.approach>TREE_PRESENTATION.company);
+});
+
+
+test('close tree tour spirals down to the roots and up repeatedly without loop jumps',()=>{
+ const shot:TreeShot={position:[0,500,5000],target:[0,500,0]};
+ for(const count of [1,2,3,5]){
+  const plan:TreeTourStop[]=Array.from({length:count},(_,i)=>({target:[0,i*500,0],layer:`layer-${i}`,distance:0,kind:'overview',duration:3,hold:0}));
+  const tour=createTreePresentation(shot,plan);
+  const order:string[]=[];let previous=tour.sample(),near=0;
+  const end=tour.duration()+tour.loopDuration()*2.1;
+  for(let time=0;time<end;time+=.05){
+   const frame=tour(.05);
+   if(time>=tour.duration()){
+    assert(!['overview','approach','reveal'].includes(frame.phase));
+    assert.deepEqual(frame.revealLayers,plan.map(s=>s.layer));
+    if(order.at(-1)!==frame.layer)order.push(frame.layer);
+    const radius=Math.hypot(...frame.shot.position.map((v,i)=>v-frame.shot.target[i]));
+    near ||= radius;assert(Math.abs(radius-near)<1e-7);
+    assert(frame.angle>=previous.angle-1e-7,'rotation continues through both turnarounds');
+    assert(Math.hypot(...frame.shot.position.map((v,i)=>v-previous.shot.position[i]))<30,'loop boundary never jumps');
+   }
+   previous=frame;
+  }
+  const cycle=[...plan.slice(0,-1).reverse(),...plan.slice(1)].map(s=>s.layer);
+  if(count>1)assert.deepEqual(order.slice(0,cycle.length*2),[...cycle,...cycle]);
+  else assert.deepEqual(order,['layer-0']);
+ }
+});
+
+
+test('reframing smoothly adapts the close camera distance to the new aspect ratio',()=>{
+ const shot:TreeShot={position:[0,500,5000],target:[0,500,0]};
+ const plan:TreeTourStop[]=[{target:[0,0,0],layer:'energy',distance:0,kind:'overview',duration:3,hold:0}];
+ const tour=createTreePresentation(shot,plan,[],1.8);
+ for(let i=0;i<200;i++)tour(.1);
+ const radius=()=>{const {position,target}=tour.sample().shot;return Math.hypot(position[0]-target[0],position[2]-target[2]);};
+ for(const ratio of [.6,1.8]){
+  const before=tour.sample(),oldRadius=radius();tour.reframe(shot,ratio);
+  assert.deepEqual(tour.sample(),before,'resize does not snap the current camera');
+  tour(.05);assert(Math.abs(radius()-oldRadius)<50,'first frame eases toward the new radius');
+  for(let i=0;i<100;i++)tour(.05);
+  const expected=createTreePresentation(shot,plan,[],ratio);
+  for(let i=0;i<200;i++)expected(.1);
+  const frame=expected.sample(),expectedRadius=Math.hypot(frame.shot.position[0]-frame.shot.target[0],frame.shot.position[2]-frame.shot.target[2]);
+  assert(Math.abs(radius()-expectedRadius)<.1,'resized distance matches a fresh tour at the new aspect');
+ }
 });

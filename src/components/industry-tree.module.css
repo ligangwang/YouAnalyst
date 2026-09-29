@@ -62,3 +62,5 @@
 
 .entering{animation:nodeEnter .8s ease both}.exiting{animation:nodeExit .8s ease both;pointer-events:none}
 @media(prefers-reduced-motion:reduce){.entering,.exiting{animation:none}}
+
+.vertical .company[data-tour-focus="true"] {border-color:currentColor;background:#173e52;box-shadow:0 0 12px color-mix(in srgb,currentColor,transparent 75%);}
