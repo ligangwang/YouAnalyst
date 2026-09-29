@@ -11,7 +11,7 @@ test('all browser shards and authentication must pass the stable release gate', 
   assert.equal(shard.if, "github.event_name != 'pull_request' || github.event.pull_request.draft == false");
   assert.deepEqual(shard.strategy.matrix.shard, [1, 2, 3, 4]);
   assert.equal(shard.strategy['fail-fast'], false);
-  assert(shard.steps.some((s: { run?: string }) => s.run?.includes('--shard=${{ matrix.shard }}/4')));
+  assert(shard.steps.some((s: { run?: string }) => s.run?.includes('node scripts/conversion-shards.mjs ${{ matrix.shard }}/4')));
   const auth = shard.steps.find((s: { run?: string }) => s.run === 'npm run test:auth');
   assert.equal(auth.if, 'matrix.shard == 1');
   const gate = workflow.jobs['verify-browser'];

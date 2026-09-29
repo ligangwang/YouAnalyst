@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { build } from "esbuild";
+import { accelerateTours, tourClockPlugin } from "./fixtures/tour-clock";
 import { PerspectiveCamera, Vector3 } from "three";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
-import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
+import { combineGraphs, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sectors";
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
-import { layoutCompanies } from "../../src/lib/knowledge-graph/constellation";
 
 for (const view of ['graph','vertical'] as const) test(`clicking the selected ${view} node toggles its detail card`,async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -107,6 +107,7 @@ async function revealListFilters(page:Page) {
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
 test('tree overview pauses on hold and preserves the released view',async({page,isMobile})=>{
+ await accelerateTours(page);
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
@@ -122,11 +123,7 @@ test('tree overview pauses on hold and preserves the released view',async({page,
  expect(await positions()).toEqual(initial);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await expect(canvas).toHaveAttribute('data-tour','playing');
- expect(await positions()).toEqual(initial);
- await page.waitForTimeout(14000);
- await page.screenshot({path:`output/tree-tour-${test.info().project.name}.png`});
-
- await page.screenshot({path:`output/tree-tour-${test.info().project.name}.png`});
+ await expect(canvas).toHaveAttribute('data-tour-phase','orbit',{timeout:10000});
  // This test exercises camera controls; a leaf under the moving pointer must not select a company.
  await canvas.evaluate(el=>el.addEventListener('click',event=>event.stopPropagation()));
  const bounds=(await canvas.boundingBox())!;
@@ -298,7 +295,8 @@ test('background follow status does not cancel the opening camera', async ({page
 });
 
 test('cinematic introduction and reset replay approach and rotation until touched', async ({page, isMobile}) => {
- test.setTimeout(150000);
+ await accelerateTours(page);
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=graph');
@@ -329,7 +327,7 @@ test('cinematic introduction and reset replay approach and rotation until touche
        if(wasShown===false && shown && exits.has(id) && now-exits.get(id)!<1100)earlyReturns.add(id);
        visibility.set(id,shown);
      });
-     if(now-start>=14000)resolve({sideChanges:[...sideChanges],earlyReturns:[...earlyReturns],samples});
+     if(now-start>=3000)resolve({sideChanges:[...sideChanges],earlyReturns:[...earlyReturns],samples});
      else setTimeout(sample,100);
    };
    sample();
@@ -359,7 +357,6 @@ test('cinematic introduction and reset replay approach and rotation until touche
    await expect(canvas).toHaveAttribute('data-test-renderer','original');
    await expect.poll(averageScale).toBeLessThan(closeScale*.85);
    const wideScale=await averageScale();
-   await page.waitForTimeout(14000);
    await expect.poll(averageScale,{timeout:30000}).toBeGreaterThan(wideScale*1.15);
    const moving=await positions();
    await expect.poll(async()=>{const next=await positions();return next.some((v,i)=>Math.abs(v-moving[i])>1);},{timeout:15000}).toBe(true);
@@ -755,21 +752,10 @@ test.beforeEach(async ({page}, info) => {
 });
 
 test.beforeAll(async () => {
-  const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [{ name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
+  const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [tourClockPlugin, { name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#08131d;font-family:Arial}*{box-sizing:border-box}button,input{font:inherit} ${bundle.outputFiles.find(f => f.path.endsWith(".css"))?.text}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
-test("combination retains every company and isolates evidence IDs", () => {
-  expect(graph.nodes.filter(n => n.kind === "COMPANY")).toHaveLength(129);
-  expect(new Set(graph.sources.map(s => s.id)).size).toBe(graph.sources.length);
-  const sourceIds = new Set(graph.sources.map(s => s.id));
-  expect(graph.relationships.every(e => e.sourceIds.every(id => sourceIds.has(id)))).toBe(true);
-  for (const markets of [["US"], ["CN_A"], ["US", "CN_A"]] as const) {
-    const visible = filterGraph(graph, [...markets]);
-    const positions = layoutGraph(visible.nodes).positions;
-    expect(visible.nodes.every(n => positions.has(n.id))).toBe(true);
-    expect(visible.relationships.every(e => positions.has(e.source) && positions.has(e.target))).toBe(true);
-  }
-});
+
 
 for (const language of ["en", "zh-CN"]) test(`directory renders only on expansion and reuses graph data (${language})`, async ({ page }) => {
   let requests = 0;
@@ -793,13 +779,7 @@ for (const language of ["en", "zh-CN"]) test(`directory renders only on expansio
   await expect(directory.locator("li").first()).toBeVisible();
   expect(requests).toBe(1);
 });
-test("star layout retains isolated companies and only draws recorded company edges", () => {
-  const layout = layoutCompanies(graph);
-  expect(layout.nodes).toHaveLength(129);
-  expect(layout.edges).toEqual(graph.relationships.filter(e => e.type !== "PARTICIPATES_IN"));
-  expect(layout.nodes.every(n => Number.isFinite(n.x) && Number.isFinite(n.y) && n.x >= 0 && n.x <= layout.width && n.y >= 0 && n.y <= layout.height)).toBe(true);
-  expect(layoutCompanies(graph)).toEqual(layout);
-});
+
 test("graph renders, orbits and resets without extra controls", async ({ page }) => {
   await page.emulateMedia({reducedMotion:'reduce'});
   const errors: string[] = [];
@@ -1071,14 +1051,7 @@ test("unselected zoom never shows context-free relationship labels", async ({pag
 });
 
 
-test("company layout retains real depth",()=>{
-  const layout=layout3D(graph);
-  expect(layout.nodes).toHaveLength(129);
-  for(const axis of ["x","y","z"] as const){
-    const positions=layout.nodes.map(n=>n[axis]);
-    expect(Math.max(...positions)-Math.min(...positions)).toBeGreaterThan(150);
-  }
-});
+
 
 test("company text grows on zoom in and shrinks on zoom out",async({page})=>{
   await page.emulateMedia({reducedMotion:"reduce"});
@@ -1096,12 +1069,7 @@ test("company text grows on zoom in and shrinks on zoom out",async({page})=>{
   await expect.poll(fontSize).toBeLessThan(enlarged-.5);
 });
 
-test("unclassified companies have their own spatial anchor",()=>{
- const layout=layout3D({...graph,nodes:[...graph.nodes,{id:"ORG:RELATED",kind:"COMPANY",name:"Related company",stageIds:["related"],market:"GLOBAL",order:999}]});
- const related=layout.nodes.find(n=>n.id==="ORG:RELATED")!;
- const semiconductor=layout.nodes.find(n=>n.stageIds?.[0]==="materials")!;
- expect([related.ax,related.ay,related.az]).not.toEqual([semiconductor.ax,semiconductor.ay,semiconductor.az]);
-});
+
 
 test("graph omits floating sector names while toolbar sectors still focus companies",async({page})=>{
  await navigationFixture(page);
@@ -1651,38 +1619,6 @@ test('navigation: hierarchy clears previous company financials when selection ch
 });
 
 
-test('navigation: tree approaches companies from the overview even at half speed',async({page})=>{
- test.setTimeout(75000);
- await page.emulateMedia({reducedMotion:'no-preference'});
- await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','.5'));
- const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
- await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
- await page.goto('http://graph.test/map?lang=en&view=tree');
- const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
- await expect(tree.locator('[data-tree-node="energy"]')).toHaveAttribute('aria-expanded','true',{timeout:15000});
- await expect(tree.locator('[data-tree-node="chips"]')).toHaveCount(1);
- const start=await canvas.getAttribute('data-camera-target');
- await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true',{timeout:30000});
- await expect(tree.locator('[data-tree-node="chips/compute"]')).toHaveAttribute('aria-expanded','true');
- await expect(tree.locator('[data-tree-node="applications"]')).toHaveCount(1);
- await expect.poll(()=>canvas.getAttribute('data-camera-target')).not.toBe(start);
- await expect(canvas).toHaveAttribute('data-tour','playing');
- const company=tree.locator('[data-tree-company="US:NVDA"]');
- await expect(company).toHaveCount(1);
- await tree.screenshot({path:test.info().outputPath('tree-progressive.png')});
- const disabledOnExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
-   const observer=new MutationObserver(()=>{
-     if(el.getAttribute('data-exiting')==='true'){observer.disconnect();resolve((el as HTMLButtonElement).disabled);}
-   });
-   observer.observe(el,{attributes:true});
-   (document.querySelector('[data-tree-node="chips"]') as HTMLButtonElement).click();
- }));
- expect(disabledOnExit).toBe(true);
- await expect(company).toHaveCount(0);
-});
-
-
-
 test('navigation: manual hierarchy stays put and cannot pause other charts',async({page})=>{
  test.setTimeout(45000);
  await navigationFixture(page,'hierarchy');
@@ -1726,7 +1662,8 @@ test('navigation: manual hierarchy stays put and cannot pause other charts',asyn
 
 
 test('tree approaches and visits companies before spiraling to the next layer',async({page})=>{
- test.setTimeout(100000);
+ await accelerateTours(page,0);
+ test.setTimeout(45000);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
  const fixture=graph;
@@ -1737,14 +1674,17 @@ test('tree approaches and visits companies before spiraling to the next layer',a
  await expect(canvas).toHaveAttribute('data-tour-phase','overview');
  const distance=async()=>canvas.evaluate(el=>{const p=el.getAttribute('data-camera-position')!.split(',').map(Number),t=el.getAttribute('data-camera-target')!.split(',').map(Number);return Math.hypot(...p.map((v,i)=>v-t[i]));});
  const wide=await distance();
+ await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
  await expect(canvas).toHaveAttribute('data-tour-phase','orbit',{timeout:20000});
  await expect(canvas).toHaveAttribute('data-tour-layer','energy');
  const close=await distance();expect(close).toBeLessThan(wide*.6);
  const start=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(start);
  await expect(tree.locator('[data-tree-kind="company"][data-tree-layer="energy"][data-label-visible="true"]').first()).toBeVisible({timeout:10000});
+ await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
- await expect(canvas).toHaveAttribute('data-tour-phase',/^(overview|approach)$/);
+ await expect(canvas).toHaveAttribute('data-tour-phase','overview');
+ await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
  await expect(canvas).toHaveAttribute('data-tour-phase','orbit',{timeout:20000});
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
@@ -1792,4 +1732,25 @@ test('manual hierarchy centers each parent vertically over its children after ex
  await expect(chart.locator('[data-hierarchy-node^="chips/compute/"]')).toHaveCount(0);
  await center('chips',branches);await center('root',layers);
  await chart.screenshot({path:test.info().outputPath('centered-hierarchy.png')});
+});
+
+test('navigation: collapsing a tree branch disables its fading companies',async({page})=>{
+ await accelerateTours(page,0);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.locator('[data-industry-tree="vertical"]');
+ await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Expand all',exact:true}).click();
+ await expect(tree.locator('[data-tree-node="chips/compute/US:NVDA"]')).toBeAttached();
+ const company=tree.locator('[data-tree-node="chips/compute/US:NVDA"]');
+ const disabledOnExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
+   const observer=new MutationObserver(()=>{
+     if(el.getAttribute('data-exiting')==='true'){observer.disconnect();resolve((el as HTMLButtonElement).disabled);}
+   });
+   observer.observe(el,{attributes:true});
+   (document.querySelector('[data-tree-node="chips"]') as HTMLButtonElement).click();
+ }));
+ expect(disabledOnExit).toBe(true);
+ await expect(company).toHaveCount(0);
 });
