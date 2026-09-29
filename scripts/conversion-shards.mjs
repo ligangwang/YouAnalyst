@@ -8,7 +8,7 @@ import { resolve } from 'node:path';
 export function testWeight(test) {
   if(test.file !== 'knowledge-graph.spec.ts')return 1;
   if(/overview pauses|resumes gently|zoomed and panned/.test(test.title))return 30;
-  if(/cinematic introduction|tree approaches and visits/.test(test.title))return 12;
+  if(/cinematic introduction|tree approaches and visits|tree continuously surrounds/.test(test.title))return 12;
   return 5;
 }
 /** @typedef {{file:string,project:string,title:string,id:string}} BrowserTest */

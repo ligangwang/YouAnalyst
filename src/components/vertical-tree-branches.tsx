@@ -6,7 +6,7 @@ import type { Group, Material, Mesh, Texture } from 'three';
 import type { TreePoint } from '@/lib/knowledge-graph/industry-tree';
 import { createStrandWriter, verticalTreeDust, verticalTreeObjects, verticalTreeStrandGeometries, verticalTreeStrands } from '@/lib/knowledge-graph/vertical-tree-geometry';
 
-// Curved, tapered ribbons keep the optical-fiber look inexpensive on phones.
+// Tapered, shaded tubes give the wood depth while sharing geometry on phones.
 // Their endpoints follow animated node groups, so branches grow with the tree.
 export function VerticalTreeBranches({nodes,groups,focus}:{nodes:TreePoint[];groups:RefObject<Map<string,Group>>;focus:string}){
   const strands=useMemo(()=>verticalTreeStrands(nodes),[nodes]);
