@@ -39,6 +39,7 @@ function Scene(props:TreeSceneProps){
   const [growth,setGrowth]=useState({request:props.request,active:Boolean(props.vertical)});
   if(growth.request!==props.request)setGrowth({request:props.request,active:Boolean(props.vertical)});
   const growing=growth.request!==props.request?Boolean(props.vertical):growth.active;
+  const woodGrowth=useRef({roots:0,trunk:0,top:1});
   const presentation=useRef<ReturnType<typeof createTreePresentation>|null>(null);
   const controls=useRef<CameraControls>(null);
   const userPositioned=useRef(false);
@@ -269,6 +270,10 @@ function Scene(props:TreeSceneProps){
       }
       moving=true;
     }
+    const growthFrame=props.vertical&&growing&&!reduced.current?presentationFrame:undefined;
+    woodGrowth.current={roots:growthFrame?.rootGrowth??1,trunk:growthFrame?.trunkGrowth??1,top:trunkTop};
+    gl.domElement.setAttribute('data-trunk-growth',String(woodGrowth.current.trunk));
+    gl.domElement.setAttribute('data-root-growth',String(woodGrowth.current.roots));
     const visitingLayer=presentationFrame&&['ascent','descent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
     gl.domElement.setAttribute('data-tour-phase',presentationFrame?.phase??'manual');
     gl.domElement.setAttribute('data-user-positioned',String(userPositioned.current));
@@ -281,7 +286,8 @@ function Scene(props:TreeSceneProps){
     for(const target of targets){
       const group=groups.current.get(target.node.id);if(!group)continue;
       vector.set(...target.position);
-      const scale=target.visible?1:0;
+      const grown=target.node.kind!=='layer'||!growthFrame||target.node.position[1]<=trunkTop*growthFrame.trunkGrowth&&growthFrame.rootGrowth>0;
+      const scale=target.visible&&grown?1:0;
       const amount=reduced.current?1:1-Math.exp(-tourDelta(delta,navigation.speed)*1.8);
       group.position.lerp(vector,amount);
       group.scale.lerp(vector.setScalar(scale),amount);
@@ -305,6 +311,10 @@ function Scene(props:TreeSceneProps){
         if(hit)hit.scale.setScalar(Math.max(Number(hit.userData.minimumRadius),state.camera.position.distanceTo(group.position)*2*Math.tan(Math.PI/8)/size.height*10));
       }
       const label=labels.current.get(target.node.id);
+      if(label&&props.vertical&&target.node.kind==='layer'){
+        label.style.opacity=String(group.userData.presenceAlpha);
+        label.style.visibility=group.userData.presenceAlpha>.01?'visible':'hidden';
+      }
       if(label&&(target.node.kind==='branch'||target.node.kind==='company')){
         // Html scales with distance; cap the final label size during close focus.
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
@@ -413,7 +423,7 @@ function Scene(props:TreeSceneProps){
       <directionalLight position={[-1600,1700,-1400]} color="#6cbaff" intensity={2.8}/>
       <directionalLight position={[600,400,-1800]} color="#76e4c5" intensity={.8}/>
     </>}
-    {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
+    {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus} growth={woodGrowth}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
       const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);

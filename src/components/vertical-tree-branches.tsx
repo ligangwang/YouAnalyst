@@ -8,7 +8,7 @@ import { createStrandWriter, verticalTreeDust, verticalTreeObjects, verticalTree
 
 // Tapered, shaded tubes give the wood depth while sharing geometry on phones.
 // Their endpoints follow animated node groups, so branches grow with the tree.
-export function VerticalTreeBranches({nodes,groups,focus}:{nodes:TreePoint[];groups:RefObject<Map<string,Group>>;focus:string}){
+export function VerticalTreeBranches({nodes,groups,focus,growth}:{nodes:TreePoint[];groups:RefObject<Map<string,Group>>;focus:string;growth:RefObject<{roots:number;trunk:number;top:number}>}){
   const strands=useMemo(()=>verticalTreeStrands(nodes),[nodes]);
   const geometries=useMemo(()=>verticalTreeStrandGeometries(strands,focus),[strands,focus]);
   const dust=useMemo(()=>verticalTreeDust(nodes),[nodes]);
@@ -31,9 +31,18 @@ export function VerticalTreeBranches({nodes,groups,focus}:{nodes:TreePoint[];gro
       let changed=false;
       const count=strands.length?color.count/strands.length:0;
       strands.forEach((strand,j)=>{
-        const opacity=Number(map.get(strand.kind==='root'?'energy':strand.to)?.userData.presenceAlpha??0);
-        const key=String(j);if(alpha.get(key)===opacity)return;alpha.set(key,opacity);changed=true;
-        for(let k=j*count;k<(j+1)*count;k++)color.setW(k,base[k*4+3]*opacity);
+        const wood=['trunk','fiber','ring'].includes(strand.kind);
+        // Energy is present from the first growth stage and fades when the
+        // whole tree collapses; the persistent title/root group does not.
+        const opacity=Number(map.get(wood||strand.kind==='root'?'energy':strand.to)?.userData.presenceAlpha??0);
+        const progress=wood?growth.current.trunk:strand.kind==='root'?growth.current.roots:1;
+        const key=String(j),value=opacity+progress*2;if(alpha.get(key)===value)return;alpha.set(key,value);changed=true;
+        const positions=geometry.getAttribute('position');
+        for(let k=j*count;k<(j+1)*count;k++){
+          const extent=wood?positions.getY(k)/growth.current.top:Math.abs(positions.getX(k))/1000;
+          const reveal=progress>=1?1:progress<=0?0:Math.max(0,Math.min(1,(progress-extent)*20));
+          color.setW(k,base[k*4+3]*opacity*reveal);
+        }
       });
       if(changed)color.needsUpdate=true;
     });
@@ -41,6 +50,7 @@ export function VerticalTreeBranches({nodes,groups,focus}:{nodes:TreePoint[];gro
     if(previous.current?.geometries===geometries&&positions.every((v,i)=>v===previous.current!.positions[i]))return;
     previous.current={geometries,positions};
     write(strands,geometries,id=>map.get(id)?.position,layerIds.map(id=>map.get(id)?.position.y??0));
+    colors.forEach(c=>c.alpha.clear());
   });
   return <>{objects.map(object=><primitive key={object.uuid} object={object}/>)}</>;
 }
