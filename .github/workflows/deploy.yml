@@ -742,6 +742,8 @@ jobs:
       SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
       GIT_SHA: ${{ github.sha }}
       TARGET_JOB: ${{ needs.verify.outputs.workers }}
+      TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+      TWELVE_DATA_API_URL: ${{ vars.TWELVE_DATA_API_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: google-github-actions/auth@v2

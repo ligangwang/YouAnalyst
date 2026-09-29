@@ -4,10 +4,10 @@ set -euo pipefail
 : "${GIT_SHA:?Set GIT_SHA}"
 export GCP_REGION="${GCP_REGION:-us-central1}"
 case "${1:-}" in
-  all) targets=(sec-fundamentals cn-fundamentals private-valuations directory) ;;
-  fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations) ;;
-  sec-fundamentals|cn-fundamentals|private-valuations|directory) targets=("$1") ;;
-  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations or directory' >&2; exit 1 ;;
+  all) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync directory) ;;
+  fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync) ;;
+  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|directory) targets=("$1") ;;
+  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync or directory' >&2; exit 1 ;;
 esac
 # Validate every selected target before any build or mutation.
 for target in "${targets[@]}"; do
@@ -30,7 +30,9 @@ for target in "${targets[@]}"; do
     bash scripts/build-fundamentals.sh "$image" cloudbuild.directory-sync.yaml
     image="$(gcloud artifacts docker images describe "$image" --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
     [[ "$image" == *@sha256:* ]] || { echo 'Missing directory image digest' >&2; exit 1; }
-    gcloud run jobs update sync-cni-directory-production --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --image "$image" --quiet
+    export DIRECTORY_SYNC_IMAGE="$image"
+    bash scripts/deploy-directory-pubsub.sh
+    gcloud run jobs update sync-cni-directory-production --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --image "$image" --update-env-vars DIRECTORY_REQUEST_TOPIC=cni-directory-requests --quiet
     bash scripts/lib/maintenance-job-iam.sh sync-cni-directory-production
   else
     bash "scripts/deploy-$target.sh"

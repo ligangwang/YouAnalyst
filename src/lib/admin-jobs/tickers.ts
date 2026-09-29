@@ -5,24 +5,12 @@ import { getAdminFirestore } from "../firebase/admin";
 import { acquireMaintenanceLease, releaseMaintenanceLease } from "../maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../maintenance-log";
 import { runTickerCatalogSync } from "../tickers/sync-tickers";
-
-export function tickerSyncInput(body: unknown) {
-  if (!body || typeof body !== "object") throw Error("Choose preview or sync.");
-  const b = body as Record<string, unknown>;
-  if (typeof b.dryRun !== "boolean") throw Error("Choose preview or sync.");
-  const field = (key: string, fallback: string) => {
-    if (b[key] === undefined) return fallback;
-    if (typeof b[key] !== "string" || !b[key].trim() || b[key].length > 120) throw Error(`Invalid ${key}.`);
-    return b[key].trim();
-  };
-  const country = field("country", "United States"), currency = field("currency", "USD").toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) throw Error("Use a three-letter currency code.");
-  if (b.limit !== undefined && (!Number.isInteger(b.limit) || Number(b.limit) < 1 || Number(b.limit) > 50000)) throw Error("Limit must be 1–50000, or blank for all.");
-  if (b.types !== undefined && (!Array.isArray(b.types) || !b.types.length || b.types.length > 20 || b.types.some(t => typeof t !== "string" || !t.trim() || t.length > 100))) throw Error("Invalid security types.");
-  return { dryRun: b.dryRun, country, currency, limit: b.limit as number | undefined, types: b.types as string[] | undefined };
-}
+import { tickerSyncInput } from "../tickers/sync-input";
+import { queueTickerSync } from "../tickers/pubsub";
+export { tickerSyncInput } from "../tickers/sync-input";
 
 export async function syncAdminTickers(input: ReturnType<typeof tickerSyncInput>, uid: string) {
+  if (!input.dryRun) return queueTickerSync(input, uid, getAdminFirestore());
   const log = createMaintenanceLog("sync-tickers", {requestedBy: uid, dryRun: input.dryRun});
   // Reuse the existing sync metadata collection; never store job history in a new collection.
   const lease = getAdminFirestore().collection("directory_syncs").doc("TICKER_CATALOG");
@@ -48,9 +36,9 @@ export async function runTickerResponse(request: NextRequest, dependencies = {ge
   let input: ReturnType<typeof tickerSyncInput>;
   try { input = tickerSyncInput(await request.json()); }
   catch (error) { return reply({error: error instanceof Error ? error.message : "Invalid input"}, 400); }
-  try { return reply({ok: true, ...await dependencies.run(input, user.uid)}, 200); }
+  try { return reply({ok: true, ...await dependencies.run(input, user.uid)}, input.dryRun ? 200 : 202); }
   catch (error) {
     const busy = maintenanceError(error).code === "ALREADY_RUNNING";
-    return reply({error: busy ? "Ticker sync is already running. Check run history." : "Sync did not complete successfully. Some batches may have been written. Check run history before retrying."}, busy ? 409 : 502);
+    return reply({error: busy ? "Ticker sync is already queued or running. Check run history." : "Could not confirm the request. Check run history, then retry with the same options."}, busy ? 409 : 502);
   }
 }

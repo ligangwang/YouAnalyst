@@ -15,7 +15,7 @@ test("ticker sync requires admin authorization and explicit validated mode",asyn
   assert.equal(runs,0);
   for(const dryRun of [true,false]) {
     const response=await runTickerResponse(req({dryRun}),deps);
-    assert.equal(response.status,200);assert.equal((await response.json()).dryRun,dryRun);
+    assert.equal(response.status,dryRun?200:202);assert.equal((await response.json()).dryRun,dryRun);
   }
   const failure=await runTickerResponse(req({dryRun:false}),{...deps,run:async()=>{throw Error('private credential detail');}});
   assert.equal(failure.status,502);assert.ok(!JSON.stringify(await failure.json()).includes('credential'));

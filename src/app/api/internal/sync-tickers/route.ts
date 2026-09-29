@@ -1,5 +1,5 @@
 import { isInternalRequest } from "@/lib/firebase/auth";
-import { runTickerCatalogSync } from "@/lib/tickers/sync-tickers";
+import { syncAdminTickers, tickerSyncInput } from "@/lib/admin-jobs/tickers";
 import { NextRequest, NextResponse } from "next/server";
 
 type SyncTickersRequest = {
@@ -39,19 +39,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const payload = (await request.json().catch(() => ({}))) as SyncTickersRequest;
-    const result = await runTickerCatalogSync({
-      dryRun: readBoolean(payload.dryRun),
+    const result = await syncAdminTickers(tickerSyncInput({
+      dryRun: readBoolean(payload.dryRun) ?? true,
       country: readString(payload.country),
       currency: readString(payload.currency),
       types: readTypes(payload.types),
       limit: readNumber(payload.limit),
-    });
+    }), "internal");
 
     return NextResponse.json({
       ok: true,
       ...result,
       timestamp: new Date().toISOString(),
-    });
+    }, { status: result.dryRun ? 200 : 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to sync tickers";
     return NextResponse.json({ error: message }, { status: 500 });

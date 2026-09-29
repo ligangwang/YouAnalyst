@@ -14,7 +14,8 @@ for account in directory-sync-runtime directory-sync-scheduler; do
     gcloud iam service-accounts create "$account" --project "$GCP_PROJECT_ID"
 done
 gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" --member "serviceAccount:$runtime" --role roles/datastore.user --condition=None --quiet >/dev/null
-gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" --image "$DIRECTORY_SYNC_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 --set-env-vars "GCP_PROJECT_ID=$GCP_PROJECT_ID" --quiet
+bash scripts/deploy-directory-pubsub.sh
+gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" --image "$DIRECTORY_SYNC_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 --set-env-vars "GCP_PROJECT_ID=$GCP_PROJECT_ID,DIRECTORY_REQUEST_TOPIC=cni-directory-requests" --quiet
 # Scheduler and web app (/admin/jobs "Run now") invoker grants on this job.
 ensure_maintenance_job_iam "$job"
 operation=create

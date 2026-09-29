@@ -9,7 +9,10 @@ import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease }
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { refreshCnAnnual } from "../src/lib/fundamentals/cn-annual-worker";
 
-// Usage: refresh-cn-fundamentals [--dry-run] [--companies=XSHG:600584,XSHE:000063]
+import { publishCnRequests } from "../src/lib/fundamentals/cn-pubsub";
+import { publishJobMessage } from "../src/lib/job-pubsub";
+
+// Usage: refresh-cn-fundamentals [--direct] [--dry-run] [--companies=XSHG:600584,XSHE:000063]
 // --dry-run fetches and prints share counts, prices, FX and market caps without any Firestore write.
 const dryRun = process.argv.includes("--dry-run");
 const subset = process.argv.find(arg => arg.startsWith("--companies="))?.slice("--companies=".length).split(",").map(v => v.trim().toUpperCase()).filter(Boolean);
@@ -21,6 +24,13 @@ async function main() {
   if (subset && !dryRun) throw new Error("--companies is only supported with --dry-run");
   initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
   const db = getFirestore();
+  if (!dryRun && !process.argv.includes("--direct") && process.env.CN_FUNDAMENTALS_REQUEST_TOPIC) {
+    log.emit("INFO", "run_started", { mode: "pubsub" });
+    const companies = cnMapCompanies(await loadKnowledgeGraph());
+    const result = await publishCnRequests(db, process.env.CLOUD_RUN_EXECUTION || log.runId, companies,
+      request => publishJobMessage(process.env.CN_FUNDAMENTALS_REQUEST_TOPIC!, request));
+    log.emit("INFO", "run_completed", result); return;
+  }
   const lease = db.collection(FUNDAMENTALS_COLLECTION).doc(CN_WORKER_DOC);
   if (dryRun) {
     // Read-only: do not take the lease, but do not overlap a real run either.

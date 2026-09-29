@@ -14,6 +14,26 @@ function fixture(responses: unknown[]) {
   };
   return { request, calls };
 }
+
+test("private valuation check history reads subscriber logs separately from publisher executions", async () => {
+  const f = fixture([{ entries: [{ timestamp: "2026-09-29T00:00:00Z", jsonPayload: { runId: "check-attempt" } }] },
+    { entries: [{ jsonPayload: { runId: "check-attempt", message: "private-valuation-check: run_completed", completed: 1, company: "ORG:OPENAI" } }] }]);
+  const page = await loadJobHistory({ job: "privateValuationChecks", view: "runs" }, f.request, "test-project");
+  assert.equal(page.records[0].status, "Succeeded");
+  assert.equal(page.records[0].summary.completed, 1);
+  assert.match(JSON.stringify(f.calls[0].data), /private-valuation-check/);
+  assert.match(JSON.stringify(f.calls[0].data), /cloud_run_revision/);
+});
+
+test("A-share and directory processing histories use their own subscriber logs", async () => {
+  for (const [job, label] of [["cnFundamentalsChecks", "cn-fundamentals-check"], ["directoryImports", "cni-directory-import"]] as const) {
+    const f = fixture([{ entries: [{ timestamp: "2026-09-29T00:00:00Z", jsonPayload: { runId: "attempt" } }] },
+      { entries: [{ jsonPayload: { runId: "attempt", message: `${label}: run_completed`, completed: 1 } }] }]);
+    const page = await loadJobHistory({ job, view: "runs" }, f.request, "test-project");
+    assert.equal(page.records[0].status, "Succeeded");
+    assert.match(JSON.stringify(f.calls[0].data), new RegExp(label));
+  }
+});
 test("fundamentals batch history exposes completed and remaining counts from subscriber logs", async () => {
   const f = fixture([{ entries: [{ timestamp: "2026-09-27T00:00:00Z", jsonPayload: { runId: "batch-attempt" } }] },
     { entries: [{ jsonPayload: { runId: "batch-attempt", message: "sec-fundamentals-batch: run_completed", requested: 20, completed: 20, remaining: 0 } }] }]);
