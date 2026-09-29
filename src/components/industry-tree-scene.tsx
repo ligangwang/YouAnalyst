@@ -269,10 +269,8 @@ function Scene(props:TreeSceneProps){
       }
       moving=true;
     }
-    const visitingLayer=presentationFrame&&['orbit','ascent','descent','reveal'].includes(presentationFrame.phase)?presentationFrame.layer:'';
-    const visitingCompany=presentationFrame?.companyId??'';
+    const visitingLayer=presentationFrame&&['ascent','descent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
     gl.domElement.setAttribute('data-tour-phase',presentationFrame?.phase??'manual');
-    gl.domElement.setAttribute('data-tour-company',visitingCompany);
     gl.domElement.setAttribute('data-user-positioned',String(userPositioned.current));
     gl.domElement.setAttribute('data-tour-layer',presentationFrame?.layer??flight.current?.destination()?.layer??'');
     gl.domElement.setAttribute('data-tour-open-layers',[...new Set(plan.map(stop=>stop.layer))].join(','));
@@ -320,7 +318,7 @@ function Scene(props:TreeSceneProps){
           const threshold=target.node.kind==='company'?.65:.72;
           // Pin the selected label's shape: a card following its bounds must not
           // move back and forth as the card covers/uncover its hover target.
-          const intentional=target.node.id===visitingCompany||Boolean(props.selected&&target.node.company?.id===props.selected)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
+          const intentional=Boolean(props.selected&&target.node.company?.id===props.selected)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
           const wanted=intentional||((target.node.layer===visitingLayer||htmlScale>=threshold+(fade.visible?0:.04))&&!collisionLabels.current.has(target.node.id));
           const previous=fade.level;
           const result=advanceLabelFade(fade,wanted,now,reduced.current);
@@ -328,7 +326,6 @@ function Scene(props:TreeSceneProps){
           label.style.opacity=String(result.opacity*(label.dataset.treeDimmed==='true'?.2:1));
           label.style.pointerEvents=fade.visible||compact?'auto':'none';
           label.dataset.labelVisible=String(fade.visible);
-          label.dataset.tourFocus=String(target.node.id===visitingCompany);
           label.dataset.labelOpacity=String(result.opacity);
           if(result.moving)moving=true;
           if(previous>0&&compact){lastCollision.current=-Infinity;moving=true;}
@@ -353,7 +350,6 @@ function Scene(props:TreeSceneProps){
       const target=controls.current?.getTarget(new Vector3())??new Vector3();
       const distances=new Map(nodes.map(n=>[n.id,new Vector3(...n.position).distanceToSquared(visitingLayer?state.camera.position:target)]));
       const ordered=[...nodes].sort((a,b)=>Number(b.company?.id===props.selected)-Number(a.company?.id===props.selected)
-        ||Number(b.id===visitingCompany)-Number(a.id===visitingCompany)
         ||Number(b.kind==='layer'||b.kind==='root')-Number(a.kind==='layer'||a.kind==='root')
         ||Number(b.layer===visitingLayer)-Number(a.layer===visitingLayer)
         ||distances.get(a.id)!-distances.get(b.id)!);
@@ -411,6 +407,12 @@ function Scene(props:TreeSceneProps){
     <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.setAttribute('data-camera','moving');}} onSleep={()=>{gl.domElement.setAttribute('data-camera','idle');invalidate();}}
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
+    {props.vertical&&<>
+      <hemisphereLight args={['#d8edff','#14202e',1.4]}/>
+      <directionalLight position={[1800,2800,1600]} color="#fff0d9" intensity={2.2}/>
+      <directionalLight position={[-1600,1700,-1400]} color="#6cbaff" intensity={2.8}/>
+      <directionalLight position={[600,400,-1800]} color="#76e4c5" intensity={.8}/>
+    </>}
     {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
@@ -434,9 +436,9 @@ function Scene(props:TreeSceneProps){
       }:{};
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         {leaf?<group rotation={[0,node.azimuth??0,0]}><group rotation={[0,0,leaf.angle]}>
-          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.3,leaf.width*1.5,1]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.07} depthWrite={false} blending={AdditiveBlending}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,1]} {...pick}><meshBasicMaterial vertexColors color={leaf.tint} side={DoubleSide} transparent opacity={dim?.12:.96}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.length,1]} position={[0,0,.2]}><meshBasicMaterial color="#f4fbff" transparent opacity={dim?.05:.45}/></mesh>
+          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.12,leaf.width*1.18,leaf.length*.5]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.035} depthWrite={false} blending={AdditiveBlending}/></mesh>
+          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors color={leaf.tint} roughness={.6} metalness={.08} side={DoubleSide} transparent opacity={dim?.12:.96}/></mesh>
+          <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.length,leaf.length*.5]} position={[0,0,.4]}><meshBasicMaterial color="#f4fbff" transparent opacity={dim?.05:.45}/></mesh>
         </group></group>:<>
         <mesh {...pick}><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
         <mesh {...pick}><sphereGeometry args={[look.glowRadius||radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.glow} depthWrite={false} blending={AdditiveBlending}/></mesh>

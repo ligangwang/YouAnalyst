@@ -1,4 +1,4 @@
-import { AdditiveBlending, BufferGeometry, Color, DataTexture, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, NormalBlending, Points, PointsMaterial, Shape, ShapeGeometry, SphereGeometry, Vector3, type Object3D } from 'three';
+import { AdditiveBlending, BufferGeometry, Color, DataTexture, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, NormalBlending, Points, PointsMaterial, Shape, ShapeGeometry, SphereGeometry, Vector3, type Object3D } from 'three';
 import type { TreePoint } from './industry-tree';
 import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalLimbControls, verticalTrunkX } from './vertical-tree';
 
@@ -11,7 +11,7 @@ import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalLimb
 // the applications crown sits on top. Colours blend only near each seam, so a
 // layer reads as one band while the trunk still reads as one living thing.
 const segments=20;
-const sides=6;
+const sides=8;
 const TRUNK_HALF_WIDTH=100;
 const SEAM_BLEND=60;
 type Kind='trunk'|'fiber'|'root'|'ring'|'branch'|'twig';
@@ -261,7 +261,23 @@ export function createStrandWriter(){
         }
       });
     });
-    geometries.forEach(g=>{g.getAttribute('position').needsUpdate=true;});
+    geometries.forEach((g,i)=>{
+      g.getAttribute('position').needsUpdate=true;
+      if(i!==0)return;
+      g.computeVertexNormals();
+      const normals=g.getAttribute('normal');
+      // Share shading around each tube ring without changing the unindexed
+      // vertices used by the growth animation. This removes the polygon bands.
+      for(let start=0;start<normals.count;start+=sides*6){
+        const faces=Array.from({length:sides},(_,face)=>new Vector3().fromBufferAttribute(normals,start+face*6));
+        const ring=faces.map((n,face)=>n.clone().add(faces[(face+sides-1)%sides]).normalize());
+        for(let face=0;face<sides;face++)for(let v=0;v<6;v++){
+          const n=ring[(face+([1,3,4].includes(v)?1:0))%sides];
+          normals.setXYZ(start+face*6+v,n.x,n.y,n.z);
+        }
+      }
+      normals.needsUpdate=true;
+    });
   };
 }
 
@@ -273,7 +289,7 @@ export function verticalTreeObjects(geometries:BufferGeometry[],dust:BufferGeome
     mesh.position.set(0,-110,-8-i);mesh.scale.set(VERTICAL_ROOT_REACH/90*.9*s,2.4*s,1);return mesh;
   });
   const ribbons=geometries.map((geometry,glow)=>{
-    const mesh=new Mesh(geometry,new MeshBasicMaterial({vertexColors:true,side:DoubleSide,transparent:true,depthWrite:false,blending:glow?AdditiveBlending:NormalBlending}));
+    const mesh=new Mesh(geometry,glow?new MeshBasicMaterial({vertexColors:true,side:DoubleSide,transparent:true,depthWrite:false,blending:AdditiveBlending}):new MeshStandardMaterial({vertexColors:true,side:DoubleSide,transparent:true,depthWrite:true,roughness:.76,metalness:.12,blending:NormalBlending}));
     mesh.frustumCulled=false;mesh.renderOrder=glow?-3:-2;return mesh;
   });
   const points=new Points(dust,new PointsMaterial({vertexColors:true,size:5,map:dotTexture(),sizeAttenuation:false,transparent:true,opacity:.7,depthWrite:false,blending:AdditiveBlending}));
@@ -299,24 +315,24 @@ export function verticalTreeNodeStyle(node:TreePoint,dim:boolean,capScale=1){
 // colours shade the blade (deeper at the stem, brighter across the middle) and
 // multiply with each company's layer colour.
 function leafBlade(){
-  const shape=new Shape();
-  shape.moveTo(0,0);
-  shape.bezierCurveTo(.18,.2,.55,.34,1,0);
-  shape.bezierCurveTo(.55,-.34,.18,-.2,0,0);
-  const geometry=new ShapeGeometry(shape,14);
-  const pos=geometry.getAttribute('position'),colors:number[]=[];
-  for(let i=0;i<pos.count;i++){
-    const x=pos.getX(i),y=Math.abs(pos.getY(i));
-    const shade=.62+.46*Math.sin(Math.min(1,x)*Math.PI*.85)-.28*y;
+  const positions:number[]=[],colors:number[]=[],indices:number[]=[];
+  const lengthSteps=18,widthSteps=6;
+  for(let i=0;i<=lengthSteps;i++)for(let j=0;j<=widthSteps;j++){
+    const x=i/lengthSteps,v=j/widthSteps*2-1;
+    const width=.27*Math.sin(Math.PI*x)**.85;
+    positions.push(x,v*width,.09*Math.sin(Math.PI*x)*(1-v*v));
+    const shade=.7+.25*Math.sin(Math.PI*x)-.12*Math.abs(v);
     colors.push(shade,shade,shade);
+    if(i<lengthSteps&&j<widthSteps){const a=i*(widthSteps+1)+j,b=a+widthSteps+1;indices.push(a,b,a+1,a+1,b,b+1);}
   }
-  geometry.setAttribute('color',new Float32BufferAttribute(colors,3));
-  return geometry;
+  const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(positions,3));geometry.setAttribute('color',new Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
 }
 function leafVein(){
   const shape=new Shape();
-  shape.moveTo(0,.012);shape.quadraticCurveTo(.5,.018,.9,0);shape.quadraticCurveTo(.5,-.018,0,-.012);shape.lineTo(0,.012);
-  return new ShapeGeometry(shape,6);
+  shape.moveTo(0,.006);shape.quadraticCurveTo(.5,.009,.9,0);shape.quadraticCurveTo(.5,-.009,0,-.006);shape.lineTo(0,.006);
+  const geometry=new ShapeGeometry(shape,18),p=geometry.getAttribute('position');
+  for(let i=0;i<p.count;i++)p.setZ(i,.09*Math.sin(Math.PI*p.getX(i)));
+  return geometry;
 }
 export const VERTICAL_LEAF_BLADE=leafBlade();
 export const VERTICAL_LEAF_VEIN=leafVein();

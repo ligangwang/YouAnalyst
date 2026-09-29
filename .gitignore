@@ -48,3 +48,5 @@ firebase-debug.log
 
 # Private production migration snapshots and account-level dry-run reports.
 /output/publishing-*.json
+
+/.cache/conversion-shards/

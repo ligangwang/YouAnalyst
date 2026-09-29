@@ -127,7 +127,7 @@ jobs:
       - name: Verify user journeys
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/conversion/report.json
-        run: npm run test:conversion -- --shard=${{ matrix.shard }}/4 --reporter=line,json
+        run: node scripts/conversion-shards.mjs ${{ matrix.shard }}/4 --reporter=line,json
 
       - name: Save browser diagnostics
         if: failure()
