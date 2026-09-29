@@ -13,4 +13,3 @@ export function tickerSyncInput(body: unknown) {
   if (b.types !== undefined && (!Array.isArray(b.types) || !b.types.length || b.types.length > 20 || b.types.some(t => typeof t !== "string" || !t.trim() || t.length > 100))) throw Error("Invalid security types.");
   return { dryRun: b.dryRun, country, currency, limit: b.limit as number | undefined, types: b.types as string[] | undefined };
 }
-
