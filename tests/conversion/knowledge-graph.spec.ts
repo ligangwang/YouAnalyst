@@ -1690,6 +1690,15 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await expect(canvas).toHaveAttribute('data-tour-phase','overview');
  const distance=async()=>canvas.evaluate(el=>{const p=el.getAttribute('data-camera-position')!.split(',').map(Number),t=el.getAttribute('data-camera-target')!.split(',').map(Number);return Math.hypot(...p.map((v,i)=>v-t[i]));});
  const wide=await distance();
+ // Slow down in the browser as soon as the target arrives so assertion polling
+ // cannot miss a short phase while the fixture advances at eight times speed.
+ const travelUntil=async(attribute:string,value:string)=>canvas.evaluate((el,{attribute,value})=>{
+   const observer=new MutationObserver(()=>{
+     if(el.getAttribute(attribute)===value){Object.assign(globalThis,{__fixtureTourRate:1});observer.disconnect();}
+   });
+   observer.observe(el,{attributes:true,attributeFilter:[attribute]});
+   Object.assign(globalThis,{__fixtureTourRate:8});
+ },{attribute,value});
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:1}));
  await expect.poll(async()=>Number(await canvas.getAttribute('data-trunk-growth'))).toBeGreaterThan(.25);
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
@@ -1697,7 +1706,7 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await expect(tree.locator('[data-tree-kind="company"]')).toHaveCount(0);
  expect(await distance()).toBeCloseTo(wide,1);
  await tree.screenshot({path:test.info().outputPath('tree-growing-trunk.png')});
- await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
+ await travelUntil('data-tour-phase','ascent');
  await expect(canvas).toHaveAttribute('data-tour-phase','ascent',{timeout:20000});
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:1}));
  await expect(canvas).toHaveAttribute('data-tour-layer','energy');
@@ -1708,7 +1717,7 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour-phase','overview');
- await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
+ await travelUntil('data-tour-layer','chips');
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','false');
  await expect(canvas).toHaveAttribute('data-tour-phase','ascent',{timeout:20000});
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');
