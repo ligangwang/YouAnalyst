@@ -106,7 +106,7 @@ async function revealListFilters(page:Page) {
  if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
-test('tree overview pauses on hold and preserves the released view',async({page,isMobile})=>{
+test('tree tour pauses on hold and smoothly resumes the released view',async({page,isMobile})=>{
  await accelerateTours(page);
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -146,7 +146,7 @@ test('tree overview pauses on hold and preserves the released view',async({page,
  await page.waitForTimeout(600);
  expect(await pose()).toEqual(held);
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
- expect(await pose()).toEqual(held);
+ await expect.poll(pose).not.toEqual(held);
  // Pan and zoom, then observe the first resumed frame in the page itself.
  await page.mouse.move(bounds.x+8,bounds.y+8);
  await zoomWheel(page,-120);
@@ -168,7 +168,7 @@ test('tree overview pauses on hold and preserves the released view',async({page,
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
  const first=(await canvas.getAttribute('data-first-resumed-pose'))!.split(',').map(Number);
  expect(Math.max(...first.map((v,i)=>Math.abs(v-manual[i])))).toBeLessThan(.01);
- expect(await pose()).toEqual(manual);
+ await expect.poll(pose).not.toEqual(manual);
  // Mobile touch and mouse click both pause an already resumed tour.
  if(isMobile)await page.touchscreen.tap(bounds.x+8,bounds.y+8);
  else await page.mouse.click(bounds.x+8,bounds.y+8);
@@ -205,7 +205,7 @@ test('tree overview pauses on hold and preserves the released view',async({page,
  await page.waitForTimeout(500);
  expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
- expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
+ await expect.poll(pose).not.toEqual(selected);
 });
 async function projectedGraphPositions(page: Page) {
  // Drei's outer Html wrapper holds the projected node position. Label bounds also
@@ -234,7 +234,7 @@ test('tree layer changes preserve the camera and navigation skips closed layers'
  await page.emulateMedia({reducedMotion:'no-preference'});
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
  await expect(canvas).toHaveAttribute('data-tour-layer','chips');
- expect(await pose()).toEqual(initial);
+ await expect.poll(pose).not.toEqual(initial);
  await tree.getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour-open-layers','');
  await expect(canvas).toHaveAttribute('data-tour','stopped');
@@ -256,7 +256,7 @@ test('tree layer changes preserve the camera and navigation skips closed layers'
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
  const reopened=(await canvas.getAttribute('data-reopened-pose'))!.split(',').map(Number),previous=collapsed.split(',').map(Number);
  expect(Math.max(...reopened.map((v,i)=>Math.abs(v-previous[i])))).toBeLessThan(.01);
- expect(await pose()).toEqual(collapsed);
+ await expect.poll(pose).not.toEqual(collapsed);
  // The card must win hit testing over projected Html node labels.
  await page.emulateMedia({reducedMotion:'reduce'});
  await tree.locator('[data-tree-company="US:GEV"]').first().evaluate((el:HTMLButtonElement)=>el.click());
@@ -1710,7 +1710,7 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await expect(canvas).toHaveAttribute('data-tour-phase','ascent',{timeout:20000});
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:1}));
  await expect(canvas).toHaveAttribute('data-tour-layer','energy');
- const close=await distance();expect(close).toBeGreaterThan(wide*.8);expect(close).toBeLessThan(wide*.96);
+ const close=await distance();expect(close).toBeLessThan(wide*.7);
  const start=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(start);
  await expect(tree.locator('[data-tree-kind="company"][data-tree-layer="energy"][data-label-visible="true"]').first()).toBeVisible({timeout:10000});
@@ -1743,6 +1743,12 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
  const resumed=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(resumed);
+ // Zoom must resume actual camera movement, not just change the tour badge.
+ await canvas.dispatchEvent('wheel',{deltaY:-150,bubbles:true,cancelable:true});
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
+ const afterZoom=await canvas.getAttribute('data-camera-position');
+ await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(afterZoom);
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
  await page.waitForTimeout(2200);
