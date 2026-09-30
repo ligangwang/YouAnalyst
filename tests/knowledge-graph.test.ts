@@ -255,7 +255,11 @@ test('vertical tree stacks dependent layers on one trunk and reserves space for 
    const group=all.filter(n=>n.layer===layer.id);
    const node=group.find(n=>n.kind==='layer')!;
    if(layer.id==='energy')assert(group.every(n=>n.kind==='layer'?n.position[1]===0:n.position[1]<0),'Energy supply and its companies grow below the trunk-base Energy anchor');
-   else if(layer.id==='applications')assert(group.filter(n=>n.kind!=='layer').every(n=>n.position[1]>node.position[1]),'application branches grow above the trunk tip');
+   else if(layer.id==='applications'){
+     const forks=group.filter(n=>n.kind==='branch');
+     assert(forks.every(n=>n.stem!<node.position[1]&&n.position[1]>n.stem!),'crown forks attach below the tip and grow upward');
+     if(forks.length>1)assert(new Set(forks.map(n=>n.stem)).size>1,'crown forks start at staggered heights');
+   }
    else {
      const branches=group.filter(n=>n.kind==='branch');
      assert(branches.every(b=>b.stem!>node.span![0]&&b.stem!<node.span![1]),'branches grow from their own trunk segment');
