@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { nextTrackId, playbackTracks, type PlaybackTrack } from '@/lib/music/playback';
 import { useLocale } from './providers/locale-provider';
 import styles from './universe-music.module.css';
 
@@ -24,12 +25,43 @@ function subscribe(notify: () => void) {
 export function UniverseMusic({ active = true }: { active?: boolean }) {
   const muted = useSyncExternalStore(subscribe, readMuted, () => true);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [tracks, setTracks] = useState<PlaybackTrack[]>([]);
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const failed = useRef(new Set<string>());
+  const revision = useRef('');
+  const current = tracks.find(t => t.id === currentId);
+  const source = current?.url;
+
+  useEffect(() => {
+    if (!active) return;
+    const controller = new AbortController();
+    let fetching = false;
+    async function refresh() {
+      if (document.hidden || fetching) return;
+      fetching = true;
+      try {
+        const response = await fetch('/api/music', { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) return;
+        const data = await response.json();
+        const next = playbackTracks(data.tracks);
+        if (!next || controller.signal.aborted) return;
+        if (revision.current !== data.revision) { failed.current.clear(); revision.current = data.revision; }
+        setTracks(next);
+        setCurrentId(id => next.some(t => t.id === id) ? id : nextTrackId(next, null, failed.current));
+      } catch { /* Preserve the last working playlist during a temporary outage. */ }
+      finally { fetching = false; }
+    }
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 60000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => { controller.abort(); window.clearInterval(interval); document.removeEventListener('visibilitychange', refresh); };
+  }, [active]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.volume = 0.35;
-    if (!active || muted) { audio.pause(); return; }
+    if (!active || muted || !source) { audio.pause(); return; }
     let pending = false;
     const play = (event?: Event) => {
       // The mute control must never briefly start audio on its way to muting it.
@@ -48,9 +80,14 @@ export function UniverseMusic({ active = true }: { active?: boolean }) {
       window.removeEventListener('keydown', play);
       audio.pause();
     };
-  }, [active, muted]);
+  }, [active, muted, source]);
 
-  return <audio ref={audioRef} src="/audio/blisters.mp3" loop preload="none" />;
+  return <audio ref={audioRef} src={current?.url} loop={tracks.length === 1} preload="none"
+    onEnded={() => setCurrentId(nextTrackId(tracks, currentId, failed.current))}
+    onError={() => {
+      if (currentId) failed.current.add(currentId);
+      setCurrentId(nextTrackId(tracks, currentId, failed.current));
+    }} />;
 }
 
 export function UniverseMusicToggle() {
