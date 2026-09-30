@@ -430,7 +430,7 @@ function Scene(props:TreeSceneProps){
       <TreeGalaxies height={trunkTop}/>
       <hemisphereLight args={['#d8edff','#14202e',1.4]}/>
       <directionalLight position={[1800,2800,1600]} color="#fff0d9" intensity={2.2}/>
-      <directionalLight position={[-1600,1700,-1400]} color="#6cbaff" intensity={2.8}/>
+      <directionalLight position={[-1600,1700,-1400]} color={props.vertical?'#b8c9b0':'#6cbaff'} intensity={props.vertical?1.3:2.8}/>
       <directionalLight position={[600,400,-1800]} color="#76e4c5" intensity={.8}/>
     </>}
     {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus} growth={woodGrowth}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
@@ -457,8 +457,8 @@ function Scene(props:TreeSceneProps){
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         {leaf?<group rotation={[0,node.azimuth??0,0]}><group rotation={[0,0,leaf.angle]}>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.12,leaf.width*1.18,leaf.length*.5]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.035} depthWrite={false} blending={AdditiveBlending}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors color={leaf.tint} roughness={.6} metalness={.08} side={DoubleSide} transparent opacity={dim?.12:.96}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.length,leaf.length*.5]} position={[0,0,.4]}><meshBasicMaterial color="#f4fbff" transparent opacity={dim?.05:.45}/></mesh>
+          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors color={leaf.tint} roughness={.82} metalness={0} side={DoubleSide} transparent opacity={dim?.12:.98}/></mesh>
+          <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.width,leaf.length*.5]} position={[0,0,.4]}><meshBasicMaterial color="#d8db8e" side={DoubleSide} transparent opacity={dim?.05:.36}/></mesh>
         </group></group>:<>
         <mesh {...pick}><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
         <mesh {...pick}><sphereGeometry args={[look.glowRadius||radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.glow} depthWrite={false} blending={AdditiveBlending}/></mesh>

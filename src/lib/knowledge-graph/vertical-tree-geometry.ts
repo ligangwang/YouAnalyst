@@ -12,7 +12,7 @@ import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalLimb
 // layer reads as one band while the trunk still reads as one living thing.
 const segments=20;
 const sides=8;
-const TRUNK_HALF_WIDTH=100;
+const TRUNK_HALF_WIDTH=144;
 const SEAM_BLEND=60;
 type Kind='trunk'|'fiber'|'root'|'ring'|'branch'|'twig';
 type Attach='trunk'|'root'|'crown'|'node';
@@ -22,7 +22,14 @@ type XY={x:number;y:number;z?:number};
 
 // Half-width of the trunk at a height fraction: a flared base settling into a
 // steady taper that still carries weight up to the crown.
-const trunkHalf=(t:number)=>TRUNK_HALF_WIDTH*(.34+.66*Math.pow(1-Math.min(1,Math.max(0,t)),1.05))+TRUNK_HALF_WIDTH*.75*Math.pow(Math.max(0,1-t/.07),2);
+const trunkHalf=(t:number)=>{
+  const height=Math.min(1,Math.max(0,t));
+  // Start narrowing below the crown so the trunk flows into its upper forks
+  // without a thick shoulder followed by an abrupt needle-shaped tip.
+  const crown=Math.max(0,(height-.48)/.52);
+  const taper=.045+.955*Math.pow(1-crown,1.35);
+  return TRUNK_HALF_WIDTH*(.4+.6*Math.pow(1-height,1.05))*taper+TRUNK_HALF_WIDTH*.75*Math.pow(Math.max(0,1-height/.09),2);
+};
 
 function gradient(stops:[number,Color][]){
   return (t:number)=>{
@@ -34,7 +41,7 @@ const rgba=(c:Color,a:number):RGBA=>[c.r,c.g,c.b,a];
 const mix=(a:Color|string,b:Color|string,t:number)=>new Color(a).lerp(new Color(b),Math.min(1,Math.max(0,t)));
 const ease=(t:number)=>t*t*(3-2*t);
 // Trunk bands are a deeper, richer version of the layer colour.
-const bark=(hex:string)=>mix(hex,'#0b2a45',.3);
+const bark=(hex:string)=>mix('#806044',hex,.09);
 
 export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
   const layers=nodes.filter(n=>n.kind==='layer');
@@ -76,16 +83,16 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
   const byId=new Map(nodes.map(n=>[n.id,n]));
   for(const n of nodes){
     if(!n.parent||n.kind==='layer')continue;
-    const tint=new Color(n.color),light=mix(tint,'#ffffff',.35);
+    const tint=bark(n.color),light=mix(tint,'#c0aa75',.25);
     if(n.kind==='branch'){
       const parent=byId.get(n.parent);
       const attach:Attach=parent===energy?'node':parent===crownLayer?'crown':'trunk';
       const base=attach==='trunk'?trunkColor(Math.min(1,Math.max(0,(n.stem??n.position[1])/top))):parent===energy?bark(gold.getStyle()):bark(crownLayer.color);
       // Bark near the trunk, lightening only towards the tip, so limbs read as wood rather than light pipes.
-      const strand:Strand={from:n.parent,to:n.id,kind:'branch',width:[attach==='trunk'?0:12,1.6],offset:0,attach,end:parent?.span,stem:n.stem,layer:n.layer,branch:n.branch,color:t=>rgba(mix(base,light,.75*ease(t)),.97)};
+      const strand:Strand={from:n.parent,to:n.id,kind:'branch',width:parent===energy?[48,32]:[attach==='trunk'?0:12,1.6],offset:0,attach,end:parent?.span,stem:n.stem,layer:n.layer,branch:n.branch,color:t=>rgba(mix(base,light,.75*ease(t)),.97)};
       (attach==='trunk'?limbs:crown).push(strand);
     }else if(n.kind==='company'&&energy&&n.layer===energy.id){
-      roots.push({from:n.parent,to:n.id,kind:'branch',attach:'node',width:[12,1.6],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(bark(gold.getStyle()),light,.75*ease(t)),.97)});
+      roots.push({from:n.parent,to:n.id,kind:'branch',attach:'node',width:[32,2.4],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(bark(gold.getStyle()),light,.75*ease(t)),.97)});
     }else if(n.layer!==energy?.id)twigs.push({from:n.parent,to:n.id,kind:'twig',width:[1.2,.35],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(light,tint,t),.75-.35*t)});
   }
   // Draw order: limbs tuck in behind the trunk so they appear to grow out of
@@ -103,7 +110,7 @@ export function verticalTreeStrandGeometries(strands:Strand[],focus:string){
     const colors=new Float32Array(strands.length*segments*per*4);
     strands.forEach((s,index)=>{
       const dim=focus&&(s.kind==='branch'||s.kind==='twig')&&s.layer!==focus&&s.branch!==focus?.18:1;
-      const glowAlpha=glow?(s.kind==='trunk'?.22:s.kind==='branch'?.2:s.kind==='root'?.12:0):1;
+      const glowAlpha=glow?(s.kind==='root'?.035:0):1;
       for(let step=0;step<segments;step++){
         const p=s.color(step/segments),q=s.color((step+1)/segments);
         // Vertex order matches the position writer. Main: p+, p-, q+, p-, q-, q+.
@@ -113,6 +120,16 @@ export function verticalTreeStrandGeometries(strands:Strand[],focus:string){
       }
     });
     geometry.setAttribute('color',new Float32BufferAttribute(colors,4));
+    if(!glow){
+      const uv=new Float32Array(strands.length*segments*per*2);
+      strands.forEach((_,index)=>{
+        for(let step=0;step<segments;step++)for(let face=0;face<sides;face++){
+          const u=face/sides,v=step/segments,du=1/sides,dv=1/segments;
+          uv.set([u,v,u+du,v,u,v+dv,u+du,v,u+du,v+dv,u,v+dv],((index*segments+step)*per+face*6)*2);
+        }
+      });
+      geometry.setAttribute('uv',new Float32BufferAttribute(uv,2));
+    }
     return geometry;
   });
 }
@@ -142,13 +159,13 @@ export function verticalTreeDust(nodes:TreePoint[]){
   return geometry;
 }
 
-type Curve={ax:number;ay:number;az?:number;c1x:number;c1y:number;c2x:number;c2y:number;bx:number;by:number;bz?:number;h0:number;h1:number};
+type Curve={ax:number;ay:number;az?:number;c1x:number;c1y:number;c2x:number;c2y:number;bx:number;by:number;bz?:number;h0:number;h1:number;bow?:number;taper?:number};
 const cubic=(c:Curve,t:number,out:Vector3)=>{
   const u=1-t;
-  return out.set(u*u*u*c.ax+3*u*u*t*c.c1x+3*u*t*t*c.c2x+t*t*t*c.bx,u*u*u*c.ay+3*u*u*t*c.c1y+3*u*t*t*c.c2y+t*t*t*c.by,(c.az??0)+((c.bz??0)-(c.az??0))*ease(t)-4);
+  return out.set(u*u*u*c.ax+3*u*u*t*c.c1x+3*u*t*t*c.c2x+t*t*t*c.bx,u*u*u*c.ay+3*u*u*t*c.c1y+3*u*t*t*c.c2y+t*t*t*c.by,(c.az??0)+((c.bz??0)-(c.az??0))*ease(t)+(c.bow??0)*Math.sin(Math.PI*t)-4);
 };
 // Limbs taper smoothly from the trunk to a fine tip.
-const limbHalf=(c:Curve,t:number)=>c.h1+(c.h0-c.h1)*Math.pow(1-t,1.5);
+const limbHalf=(c:Curve,t:number)=>c.h1+(c.h0-c.h1)*Math.pow(1-t,c.taper??1.5);
 
 export function createStrandWriter(){
   const p=new Vector3(),q=new Vector3(),before=new Vector3(),after=new Vector3(),normalP=new Vector3(),normalQ=new Vector3(),on=new Vector3();
@@ -176,9 +193,12 @@ export function createStrandWriter(){
           h0=trunkHalf(ay/top)*.42;ax=tx(ay)+side*trunkHalf(ay/top)*.35;
         }else if(strand.attach==='node'){ax=source.x;ay=source.y;h0=strand.width[0];}
         else if(strand.attach==='root'){ax=(Math.sign(bx)||1)*40;ay=-40;h0=strand.width[0];}
-        else {ax=0;ay=strand.stem??top+20;h0=strand.width[0];}
-        const [c1x,c1y,c2x,c2y]=verticalLimbControls(ax,ay,bx,by);
-        curve={ax,ay,az:strand.attach==='node'?source.z:0,bx,by,bz:target.z,c1x,c1y,c2x,c2y,h0,h1:strand.width[1]};
+        else {ay=strand.stem??top-160;ax=tx(ay);h0=trunkHalf(ay/top)*.65;}
+        const [c1x,c1y,c2x,c2y]=verticalLimbControls(ax,ay,bx,by,strand.to);
+        const reach=Math.hypot(bx-ax,by-ay);
+        curve={ax,ay,az:strand.attach==='node'?source.z:0,bx,by,bz:target.z,c1x,c1y,c2x,c2y,
+          h0:h0*(.8+.4*verticalJitter(strand.to,25)),h1:strand.width[1],
+          bow:reach*(verticalJitter(strand.to,26)-.5)*.22,taper:1.1+verticalJitter(strand.to,27)};
         limbs.set(strand.to,curve);
       }else if(strand.kind==='twig'){
         // Twigs leave their limb where the leaf hangs, not all from its tip.
@@ -234,7 +254,10 @@ export function createStrandWriter(){
             const base=(index*segments+step)*6*sides;
             for(let face=0;face<sides;face++){
               const a=face*2*Math.PI/sides,b=(face+1)*2*Math.PI/sides;
-              const write=(i:number,v:Vector3,n:Vector3,w:number,angle:number)=>pos.setXYZ(base+face*6+i,v.x+n.x*w*Math.cos(angle),v.y+n.y*w*Math.cos(angle),v.z+w*.65*Math.sin(angle));
+              const write=(i:number,v:Vector3,n:Vector3,w:number,angle:number)=>{
+                const ridge=1+.055*Math.sin(angle*4+v.y*.007)+.025*Math.sin(angle*8-v.y*.021);
+                pos.setXYZ(base+face*6+i,v.x+n.x*w*ridge*Math.cos(angle),v.y+n.y*w*ridge*Math.cos(angle),v.z+w*.65*ridge*Math.sin(angle));
+              };
               write(0,p,normalP,wp,a);write(1,p,normalP,wp,b);write(2,q,normalQ,wq,a);
               write(3,p,normalP,wp,b);write(4,q,normalQ,wq,b);write(5,q,normalQ,wq,a);
             }
@@ -282,14 +305,28 @@ export function createStrandWriter(){
 }
 
 // Static scene objects: ground glow, ribbon meshes and dust points.
+function barkTexture(){
+  const width=128,height=512,data=new Uint8Array(width*height*4);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const u=x/width*Math.PI*2,v=y/height*Math.PI*2;
+    const grain=Math.sin(u*19+.7*Math.sin(v*2)+.25*Math.sin(v*7));
+    const fissure=Math.pow(Math.max(0,grain),12);
+    const fine=Math.sin(u*47+.4*Math.sin(v*11))*.055;
+    const shade=.73-fissure*.34+fine+.07*Math.sin(u*7+Math.sin(v*3));
+    const c=Math.round(shade*255);data.set([c,c,c,255],(y*width+x)*4);
+  }
+  const texture=new DataTexture(data,width,height);texture.needsUpdate=true;return texture;
+}
+
 export function verticalTreeObjects(geometries:BufferGeometry[],dust:BufferGeometry):Object3D[]{
   // Stacked soft discs give the soil glow a gradual falloff without a hard rim.
   const ground=[1,.72,.48,.28].map((s,i)=>{
     const mesh=new Mesh(new SphereGeometry(90,40,16),new MeshBasicMaterial({color:i<2?'#3fa9e8':'#e8c96a',transparent:true,opacity:.022,depthWrite:false,blending:AdditiveBlending}));
     mesh.position.set(0,-110,-8-i);mesh.scale.set(VERTICAL_ROOT_REACH/90*.9*s,2.4*s,1);return mesh;
   });
+  const texture=barkTexture();
   const ribbons=geometries.map((geometry,glow)=>{
-    const mesh=new Mesh(geometry,glow?new MeshBasicMaterial({vertexColors:true,side:DoubleSide,transparent:true,depthWrite:false,blending:AdditiveBlending}):new MeshStandardMaterial({vertexColors:true,side:DoubleSide,transparent:true,alphaTest:.01,depthWrite:true,roughness:.76,metalness:.12,blending:NormalBlending}));
+    const mesh=new Mesh(geometry,glow?new MeshBasicMaterial({vertexColors:true,side:DoubleSide,transparent:true,depthWrite:false,blending:AdditiveBlending}):new MeshStandardMaterial({map:texture,bumpMap:texture,bumpScale:2.8,vertexColors:true,side:DoubleSide,transparent:true,alphaTest:.01,depthWrite:true,roughness:.96,metalness:0,blending:NormalBlending}));
     mesh.frustumCulled=false;mesh.renderOrder=glow?-3:-2;return mesh;
   });
   const points=new Points(dust,new PointsMaterial({vertexColors:true,size:5,map:dotTexture(),sizeAttenuation:false,transparent:true,opacity:.7,depthWrite:false,blending:AdditiveBlending}));
@@ -319,8 +356,8 @@ function leafBlade(){
   const lengthSteps=18,widthSteps=6;
   for(let i=0;i<=lengthSteps;i++)for(let j=0;j<=widthSteps;j++){
     const x=i/lengthSteps,v=j/widthSteps*2-1;
-    const width=.27*Math.sin(Math.PI*x)**.85;
-    positions.push(x,v*width,.09*Math.sin(Math.PI*x)*(1-v*v));
+    const width=.27*Math.sin(Math.PI*x)**.85*(1+.035*Math.sin(x*Math.PI*24));
+    positions.push(x,v*width,.09*Math.sin(Math.PI*x)*(1-v*v)+.045*x*x+.015*v*Math.sin(x*Math.PI*2));
     const shade=.7+.25*Math.sin(Math.PI*x)-.12*Math.abs(v);
     colors.push(shade,shade,shade);
     if(i<lengthSteps&&j<widthSteps){const a=i*(widthSteps+1)+j,b=a+widthSteps+1;indices.push(a,b,a+1,a+1,b,b+1);}
@@ -330,8 +367,16 @@ function leafBlade(){
 function leafVein(){
   const shape=new Shape();
   shape.moveTo(0,.006);shape.quadraticCurveTo(.5,.009,.9,0);shape.quadraticCurveTo(.5,-.009,0,-.006);shape.lineTo(0,.006);
-  const geometry=new ShapeGeometry(shape,18),p=geometry.getAttribute('position');
-  for(let i=0;i<p.count;i++)p.setZ(i,.09*Math.sin(Math.PI*p.getX(i)));
+  const veins=[shape];
+  for(let i=1;i<=7;i++)for(const side of [-1,1]){
+    const x=.08+i*.095,end=x+.13,y=side*.23*Math.sin(Math.PI*end)**.85;
+    const vein=new Shape();vein.moveTo(x,-.002);vein.quadraticCurveTo(x+.075,y*.35,end,y);vein.quadraticCurveTo(x+.075,y*.35+.003,x,.002);vein.closePath();veins.push(vein);
+  }
+  const geometry=new ShapeGeometry(veins,18),p=geometry.getAttribute('position');
+  for(let i=0;i<p.count;i++){
+    const x=p.getX(i),w=.27*Math.sin(Math.PI*x)**.85,v=w>0?p.getY(i)/w:0;
+    p.setZ(i,.09*Math.sin(Math.PI*x)*(1-v*v)+.045*x*x+.015*v*Math.sin(x*Math.PI*2)+.002);
+  }
   return geometry;
 }
 export const VERTICAL_LEAF_BLADE=leafBlade();
@@ -351,6 +396,6 @@ export function verticalLeafPose(node:TreePoint,parent:TreePoint|undefined,capSc
   }
   angle+=jitter*.6;
   const length=108+58*Math.min(2.5,Math.max(.65,capScale));
-  const tint=new Color(node.color).offsetHSL(jitter*.05,jitter*.1,jitter*.08);
+  const tint=new Color('#6f9940').lerp(new Color(node.color),.12).offsetHSL(jitter*.06,jitter*.12,jitter*.12);
   return {angle,length,width:length*.78,tint:'#'+tint.getHexString()};
 }

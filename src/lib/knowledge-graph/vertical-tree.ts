@@ -25,18 +25,25 @@ export function verticalJitter(id:string,salt=0){
 export function verticalBranchOrigin(branch:TreePoint,top:number):[number,number]{
   const side=Math.sign((branch.planar??branch.position)[0])||1,stem=branch.stem??0;
   if(ROOT_LAYERS.has(branch.layer??''))return [side*40,-40];
-  if(branch.layer===CROWN_LAYER)return [0,stem];
+  if(branch.layer===CROWN_LAYER)return [verticalTrunkX(stem,top),stem];
   return [verticalTrunkX(stem,top)+side*30,stem];
 }
 
 // A limb's curve: it rises out of the trunk, then eases outward along its lean.
 // Shared by the layout and the renderer so things placed on a limb sit on it.
-export function verticalLimbControls(ax:number,ay:number,bx:number,by:number):[number,number,number,number]{
+export function verticalLimbControls(ax:number,ay:number,bx:number,by:number,id?:string):[number,number,number,number]{
   const dx=bx-ax,dy=by-ay;
-  return [ax+dx*.18,ay+dy*.45,bx-dx*.38,by-dy*.12];
+  if(!id)return [ax+dx*.18,ay+dy*.45,bx-dx*.38,by-dy*.12];
+  // Persistent identities give each limb its own elbow and tip direction.
+  // Offsets are perpendicular to the limb, so both sides vary naturally.
+  const shoulder=.12+.23*verticalJitter(id,21),tip=.2+.28*verticalJitter(id,22);
+  const bend=(verticalJitter(id,23)-.5)*.48;
+  const droop=(verticalJitter(id,24)-.5)*.38;
+  return [ax+dx*shoulder-dy*bend,ay+dy*shoulder+dx*bend,
+    bx-dx*tip-dy*droop,by-dy*tip+dx*droop];
 }
-export function verticalLimbPoint([ax,ay]:[number,number],[bx,by]:[number,number],t:number):[number,number]{
-  const [c1x,c1y,c2x,c2y]=verticalLimbControls(ax,ay,bx,by),u=1-t;
+export function verticalLimbPoint([ax,ay]:[number,number],[bx,by]:[number,number],t:number,id?:string):[number,number]{
+  const [c1x,c1y,c2x,c2y]=verticalLimbControls(ax,ay,bx,by,id),u=1-t;
   return [u*u*u*ax+3*u*u*t*c1x+3*u*t*t*c2x+t*t*t*bx,u*u*u*ay+3*u*u*t*c1y+3*u*t*t*c2y+t*t*t*by];
 }
 
@@ -64,7 +71,7 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       if(ROOT_LAYERS.has(layer.id)){
         // Roots carry no leaves: energy companies are nodules sitting on the root strand itself.
         const t=.3+.65*(j+.35+.3*wobble)/companies.length;
-        const [x,y]=verticalLimbPoint(origin,[bx,by],t);
+        const [x,y]=verticalLimbPoint(origin,[bx,by],t,branch.id);
         position=[x,y,0];
       }else{
         // Leaves start past the limb's middle and run beyond its tip, fanning wider towards the end,
@@ -98,9 +105,10 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,y,0],count:layer.companies.length,span:[bottom,y]});
       if(expanded)layer.branches.forEach((branch,i)=>{
         const offset=i-(layer.branches.length-1)/2,side=Math.sign(offset)||(i%2?-1:1),jitter=verticalJitter(branch.id);
-        // The crown's limbs spread from the trunk tip into a dome.
-        const angle=(44-8*Math.min(1,Math.abs(offset)/2)+(jitter-.5)*10)*Math.PI/180;
-        limb(layer,branch,[0,y+20],side,tierReach(layer.id)*(.88+.24*jitter),angle,y+20);
+        // Stagger forks below the tip instead of balancing twigs on a flat cut.
+        const stem=y-170-(i%3)*55;
+        const angle=(55-8*Math.min(1,Math.abs(offset)/2)+(jitter-.5)*10)*Math.PI/180;
+        limb(layer,branch,[verticalTrunkX(stem,y),stem],side,tierReach(layer.id)*(.88+.24*jitter),angle,stem);
       });
       continue;
     }
@@ -145,11 +153,11 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       node.position=[pivotX+radial*Math.cos(azimuth),node.position[1],-radial*Math.sin(azimuth)];
     }
   }
-  // Energy supply is the shared hub for distinct company roots. Keep it near
-  // the centre so the parent connectors form a fan, never a company-to-company chain.
+  // The shared root collar belongs inside the trunk flare, not suspended
+  // below it. Company roots split here while retaining their category parent.
   const energyBranches=nodes.filter(n=>n.kind==='branch'&&ROOT_LAYERS.has(n.layer??''));
   energyBranches.forEach((node,i)=>{
-    node.position=[(i-(energyBranches.length-1)/2)*180,-140,0];
+    node.position=[(i-(energyBranches.length-1)/2)*70,-45,0];
     node.planar=[...node.position];node.azimuth=0;node.pivotX=0;
   });
   // Keep companies dispersed around their shared category. Each is a sibling.
