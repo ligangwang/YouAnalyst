@@ -22,7 +22,6 @@ function subscribe(notify: () => void) {
 }
 
 export function UniverseMusic({ active = true }: { active?: boolean }) {
-  const { text } = useLocale();
   const muted = useSyncExternalStore(subscribe, readMuted, () => true);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -51,10 +50,14 @@ export function UniverseMusic({ active = true }: { active?: boolean }) {
     };
   }, [active, muted]);
 
+  return <audio ref={audioRef} src="/audio/blisters.mp3" loop preload="none" />;
+}
+
+export function UniverseMusicToggle() {
+  const { text } = useLocale();
+  const muted = useSyncExternalStore(subscribe, readMuted, () => true);
   const label = muted ? text('Unmute music', '开启音乐') : text('Mute music', '静音');
-  return <>
-    <audio ref={audioRef} src="/audio/blisters.mp3" loop preload="none" />
-    {active && <button type="button" className={styles.toggle} data-universe-music-toggle
+  return <button type="button" className={styles.toggle} data-universe-music-toggle
       aria-label={label} title={label} aria-pressed={!muted} onClick={() => {
         memoryMuted = !muted;
         try {
@@ -67,7 +70,5 @@ export function UniverseMusic({ active = true }: { active?: boolean }) {
         <path d="M11 5 6 9H3v6h3l5 4z" />
         {muted ? <path d="m16 9 6 6m0-6-6 6" /> : <><path d="M15 8a6 6 0 0 1 0 8" /><path d="M18 5a10 10 0 0 1 0 14" /></>}
       </svg>
-      <span>{text('Music', '音乐')}</span>
-    </button>}
-  </>;
+    </button>;
 }

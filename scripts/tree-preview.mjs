@@ -25,9 +25,9 @@ const bundle = await build({
         <NavigationSettings/>
         <UniverseMusic/>
         {universe?<><label><input type="checkbox" checked={allEdges} onChange={e=>setAllEdges(e.target.checked)}/> Show all connections</label>
-          <CompanyGraph3D graph={graph} selected={selected} onSelect={pick} cameraRequest={0} reset={reset} onReset={()=>{select('');setReset(n=>n+1)}} showAllEdges={allEdges}/>
+          <CompanyGraph3D musicControls graph={graph} selected={selected} onSelect={pick} cameraRequest={0} reset={reset} onReset={()=>{select('');setReset(n=>n+1)}} showAllEdges={allEdges}/>
           {selected&&<p>Selected: {graph.nodes.find(n=>n.id===selected)?.name} <button onClick={()=>select('')}>Clear selection</button></p>}
-        </>:<IndustryStructure companies={companies} selected={selected} onSelect={pick} followedIds={[]} active vertical/>}
+        </>:<IndustryStructure musicControls companies={companies} selected={selected} onSelect={pick} followedIds={[]} active vertical/>}
       </main></AuthProvider></LocaleProvider>}
     createRoot(document.getElementById('root')).render(<App/>);
   `}, bundle:true,write:false,outfile:'preview.js',platform:'browser',define:{'process.env':'{}'},

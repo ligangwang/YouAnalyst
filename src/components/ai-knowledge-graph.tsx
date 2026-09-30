@@ -14,7 +14,7 @@ import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-
 import { companySectors, INDUSTRY_VIEWS, LEGACY_VERTICAL_VIEW, parseIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
 import {IndustryHierarchy} from "./industry-hierarchy";
 import {NavigationSettings} from "./navigation-settings";
-import {UniverseMusic} from "./universe-music";
+import {UniverseMusic, UniverseMusicToggle} from "./universe-music";
 import { IndustryStructure } from "./industry-tree";
 import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
 import { CompanyCountryFlag } from "./company-country-flag";
@@ -203,10 +203,10 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     <header className={styles.header}><div className={styles.mapIdentity}><div className={styles.titleRow}><div className={styles.thesisPicker}><label htmlFor={viewId+'-thesis'}>{text('Theme','投资主题')}</label><Heading className={styles.mapHeading}>{text("AI Industry Map", "AI 产业图谱")}</Heading><select id={viewId+'-thesis'} defaultValue="ai" aria-label={text('Investment theme','投资主题')}><option value="ai">AI</option></select></div><details className={styles.mapHelp}><summary aria-label={text('About the AI Industry Map','关于 AI 产业图谱')}>ⓘ</summary><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></details></div>
     </div>
     {(view==="graph"||view==="tree")&&<NavigationSettings/>}
-    <UniverseMusic active={view==="graph"||view==="tree"}/>
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
       {([['graph','Relationship graph','关系图谱'],['tree','Industry tree','产业树'],['hierarchy','Company hierarchy','公司层级图'],['table','Company list','公司列表']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" aria-label={text(en,zh)} id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}><ViewIcon view={id} />{text(id==='table'?'List':id==='tree'?'Tree':id==='hierarchy'?'Hierarchy':'Graph',id==='table'?'列表':id==='tree'?'树状图':id==='hierarchy'?'层级图':'关系图')}</button>)}
     </div></header>
+    <UniverseMusic active={status==="ready"&&(view==="graph"||(view==="tree"&&companies.length>0))}/>
     <div hidden={view!=='table'}><div className={styles.sharedFilters}>
     <div className={styles.controls}>
       <svg className={styles.searchIcon} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
@@ -233,10 +233,10 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       {/* Keep the initialized 3D tree mounted across tabs. */}
       <div hidden={view!=='tree'} className={styles.structureStack}>
-        <IndustryStructure vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectNode(id,"vertical")} closing={cardDismiss.closing} showCard={cardHost.tree==="vertical"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
+        <IndustryStructure musicControls vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectNode(id,"vertical")} closing={cardDismiss.closing} showCard={cardHost.tree==="vertical"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
       </div>
       {view==='hierarchy'&&<IndustryHierarchy companies={treeCompanies} selected={selected} closing={cardDismiss.closing} onSelect={id=>selectNode(id,'horizontal')}/>}
-      {view==='graph' && <Suspense fallback={<p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p>}><CompanyGraph3D showAllEdges={showAllEdges} hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectNode} reset={reset} onReset={resetGraphView}/></Suspense>}
+      {view==='graph' && <Suspense fallback={<div className={styles.canvas3d}><p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p><UniverseMusicToggle/></div>}><CompanyGraph3D musicControls showAllEdges={showAllEdges} hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectNode} reset={reset} onReset={resetGraphView}/></Suspense>}
       </div>
       {company && !treeView && <aside ref={detailCard} className={`${styles.detail} ${cardFade.card}`} data-closing={cardDismiss.closing} inert={cardDismiss.closing} aria-label={text("Company details", "公司详情")} onKeyDown={e=>{if(e.key==='Escape')selectCompany('');}}>
         <div className={styles.detailHeader} data-card-drag={view==='graph'?true:undefined} tabIndex={view==='graph'?0:undefined} aria-label={view==='graph'?text("Move company card","移动公司卡片"):undefined}>

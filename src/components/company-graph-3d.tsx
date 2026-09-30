@@ -3,6 +3,7 @@
 import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
 import { CameraControls, Html } from "@react-three/drei";
 import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, LineSegments, type Intersection, type Raycaster, type Mesh, type MeshBasicMaterial } from "three";
@@ -31,7 +32,7 @@ function countryName(country: string | undefined, locale: string) {
   return country && flagCountries.has(country) ? new Intl.DisplayNames([locale], { type: "region" }).of(country) : undefined;
 }
 
-type Props = { showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { musicControls?: boolean; showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -582,12 +583,15 @@ export default function CompanyGraph3D(props: Props) {
     return () => { active = false; };
   }, [attempt]);
   const fallback = <GraphUnavailable onRetry={retry}/>;
-  if (supported === null) return <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p>;
-  if (!supported) return fallback;
+  if (!supported) return <div className={styles.canvas3d}>
+    {supported === null ? <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p> : fallback}
+    {props.musicControls && <UniverseMusicToggle/>}
+  </div>;
   return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction data-context-lost={contextLost}>
     <WheelZoomHint hint={wheelHint}/>
     <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
+    {props.musicControls && <UniverseMusicToggle/>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
     <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
   </div>;
