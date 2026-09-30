@@ -706,6 +706,9 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
 });
 let html: string;
 test("event deep link opens source evidence beside the selected company", async ({page}) => {
+  // This checks evidence and URL state, not the exit animation. Software WebGL
+  // startup can delay its timer in CI; animated dismissal is covered separately.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   page.on("pageerror", error => { throw error; });
   await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en&company=US%3AAMD&event=amd-cisco-humain-live-20260831");
