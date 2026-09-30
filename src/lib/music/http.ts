@@ -38,7 +38,11 @@ export async function adminMusicResponse(request: NextRequest, deps: { store: Mu
     if (request.method === 'GET') return Response.json(playlist, { headers });
     const revision = request.headers.get('if-match');
     if (!revision) throw new MusicError(428, 'Reload the playlist before editing.');
-    if (revision !== playlist.revision) throw new MusicError(409, 'The playlist changed. Reload and try again.');
+    const deleteId = request.nextUrl.searchParams.get('id') ?? '';
+    // Cleanup of an already-unpublished UUID does not mutate the manifest.
+    const cleanupOnly = request.method === 'DELETE' && validTrackId(deleteId)
+      && !playlist.tracks.some(track => track.id === deleteId);
+    if (revision !== playlist.revision && !cleanupOnly) throw new MusicError(409, 'The playlist changed. Reload and try again.');
     if (request.method === 'POST') {
       if (playlist.tracks.length >= MAX_TRACKS) throw new MusicError(400, 'The playlist can contain up to 100 tracks.');
       if (request.headers.get('content-type')?.split(';')[0] !== 'audio/mpeg') throw new MusicError(415, 'Upload MP3 audio.');

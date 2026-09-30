@@ -79,8 +79,12 @@ test('music: deletion can be retried after object storage fails', async () => {
   const result = await (await f.call('DELETE', `?id=${id}`)).json();
   assert.equal(result.cleanupPending, id);
   assert.equal((await f.store.read()).tracks.length, 1);
+  // Another editor publishes a new order while object cleanup is pending.
+  await f.call('PATCH', '', JSON.stringify({ ids: [BUILTIN_ID] }));
+  const concurrent = await f.store.read();
   f.failDelete(false);
-  assert.equal((await f.call('DELETE', `?id=${id}`)).status, 200);
+  assert.equal((await f.call('DELETE', `?id=${id}`, undefined, result.revision)).status, 200);
+  assert.deepEqual(await f.store.read(), concurrent);
   assert.equal(f.files.size, 0);
 });
 
