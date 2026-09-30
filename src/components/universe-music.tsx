@@ -7,7 +7,9 @@ import styles from './universe-music.module.css';
 const preferenceKey = 'ya-universe-music-muted';
 const preferenceEvent = 'universe-music-preference';
 let memoryMuted = true;
+let useMemoryPreference = false;
 function readMuted() {
+  if (useMemoryPreference) return memoryMuted;
   try { return localStorage.getItem(preferenceKey) !== 'false'; } catch { return memoryMuted; }
 }
 function subscribe(notify: () => void) {
@@ -55,7 +57,10 @@ export function UniverseMusic({ active = true }: { active?: boolean }) {
     {active && <button type="button" className={styles.toggle} data-universe-music-toggle
       aria-label={label} title={label} aria-pressed={!muted} onClick={() => {
         memoryMuted = !muted;
-        try { localStorage.setItem(preferenceKey, String(memoryMuted)); } catch { /* Optional storage. */ }
+        try {
+          localStorage.setItem(preferenceKey, String(memoryMuted));
+          useMemoryPreference = false;
+        } catch { useMemoryPreference = true; }
         window.dispatchEvent(new Event(preferenceEvent));
       }}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
