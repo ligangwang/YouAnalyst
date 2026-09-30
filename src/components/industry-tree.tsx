@@ -4,12 +4,13 @@ import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useStat
 import { industryTree } from '@/lib/knowledge-graph/industry-tree';
 import { companyName, type GraphNode } from '@/lib/knowledge-graph/model';
 import { useLocale } from './providers/locale-provider';
+import { UniverseMusicToggle } from './universe-music';
 import { TreeCompanyCard } from './tree-company-card';
 import { useWheelZoomGate, WheelZoomHint } from './wheel-zoom-gate';
 import styles from './industry-tree.module.css';
 
 const Scene=lazy(()=>import('./industry-tree-scene'));
-type Props={companies:GraphNode[];selected:string;onSelect:(id:string)=>void;followedIds:string[];active:boolean;vertical?:boolean;showCard?:boolean;revealCard?:boolean;closing?:boolean};
+type Props={musicControls?:boolean;companies:GraphNode[];selected:string;onSelect:(id:string)=>void;followedIds:string[];active:boolean;vertical?:boolean;showCard?:boolean;revealCard?:boolean;closing?:boolean};
 // Both trees share one page, so each one only starts WebGL once it scrolls into view and pauses its
 // render loop while off-screen. Without IntersectionObserver both simply stay live.
 function useOnScreen(active:boolean){
@@ -26,7 +27,7 @@ function useOnScreen(active:boolean){
 function IconButton({label,onClick,children}:{label:string;onClick:()=>void;children:ReactNode}){
   return <button type="button" aria-label={label} title={label} onClick={onClick}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg></button>;
 }
-export function IndustryStructure({companies,selected,onSelect,followedIds,active,vertical=false,showCard=true,revealCard=false,closing=false}:Props){
+export function IndustryStructure({musicControls=false,companies,selected,onSelect,followedIds,active,vertical=false,showCard=true,revealCard=false,closing=false}:Props){
   const {text,locale}=useLocale();
   const company=companies.find(c=>c.id===selected);
   const layers=useMemo(()=>industryTree(companies),[companies]);
@@ -61,6 +62,7 @@ export function IndustryStructure({companies,selected,onSelect,followedIds,activ
       <IconButton label={text('Reset view','复位视角')} onClick={()=>{setFocus('');if(vertical){setOpen(matchMedia('(prefers-reduced-motion: reduce)').matches?['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]:['root']);onSelect('');}setRequest(n=>n+1);}}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4v4h4"/></IconButton>
     </div></header>
     <div ref={attachScene} className={styles.scene} data-industry-tree={vertical?'vertical':'3d'}>
+      {musicControls&&active&&<UniverseMusicToggle/>}
       <WheelZoomHint hint={wheelHint}/>
       {/* Preserve initialized renderers across tabs; hidden trees pause without recreating WebGL contexts. */}
       {seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene tour={tour} paused={!active||!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onRevealLayer={revealLayer} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback}/></Suspense>}
