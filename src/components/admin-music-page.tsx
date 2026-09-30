@@ -91,7 +91,7 @@ export function AdminMusicPage() {
     {!playlist && busy && <p role="status">{text('Loading playlist…', '正在加载播放列表…')}</p>}
     {playlist?.tracks.length === 0 && <p>{text('The playlist is empty. Music is silent until you add a track.', '播放列表为空，添加曲目后才能播放音乐。')}</p>}
     <ol className={styles.list}>{playlist?.tracks.map((track, index) => <li key={track.id}>
-      <div className={styles.track}><span className={styles.number}>{index + 1}</span><div><strong>{track.title}</strong><small>{(track.bytes / 1024 / 1024).toFixed(1)} MB</small></div></div>
+      <div className={styles.track}><span className={styles.number}>{index + 1}</span><div><strong>{track.title}</strong><small>{(track.bytes / 1024 / 1024).toFixed(1)} {text('MB', '兆字节')}</small></div></div>
       <audio controls preload="none" src={trackUrl(track.id)} aria-label={text(`Preview ${track.title}`, `试听 ${track.title}`)}/>
       <div className={styles.actions}>
         <button type="button" disabled={busy || index === 0} onClick={() => move(index, -1)} aria-label={text(`Move ${track.title} up`, `上移 ${track.title}`)}>↑</button>
