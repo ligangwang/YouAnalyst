@@ -1,0 +1,16 @@
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid #56858266;
+  border-radius: 20px;
+  background: #0b2028;
+  color: #a4e6d4;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.toggle[aria-pressed="false"] { color: #a6b4bd; }
+.toggle:hover { border-color: #a4e6d4; }
+.toggle:focus-visible { outline: 2px solid #a4e6d4; outline-offset: 3px; }
