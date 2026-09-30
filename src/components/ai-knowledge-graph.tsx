@@ -14,6 +14,7 @@ import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-
 import { companySectors, INDUSTRY_VIEWS, LEGACY_VERTICAL_VIEW, parseIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
 import {IndustryHierarchy} from "./industry-hierarchy";
 import {NavigationSettings} from "./navigation-settings";
+import {UniverseMusic} from "./universe-music";
 import { IndustryStructure } from "./industry-tree";
 import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
 import { CompanyCountryFlag } from "./company-country-flag";
@@ -202,6 +203,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     <header className={styles.header}><div className={styles.mapIdentity}><div className={styles.titleRow}><div className={styles.thesisPicker}><label htmlFor={viewId+'-thesis'}>{text('Theme','投资主题')}</label><Heading className={styles.mapHeading}>{text("AI Industry Map", "AI 产业图谱")}</Heading><select id={viewId+'-thesis'} defaultValue="ai" aria-label={text('Investment theme','投资主题')}><option value="ai">AI</option></select></div><details className={styles.mapHelp}><summary aria-label={text('About the AI Industry Map','关于 AI 产业图谱')}>ⓘ</summary><p>{text("Explore AI stocks, companies, and supply-chain relationships.", "探索 AI 公司、股票与产业链关系。")}</p></details></div>
     </div>
     {(view==="graph"||view==="tree")&&<NavigationSettings/>}
+    <UniverseMusic active={view==="graph"||view==="tree"}/>
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
       {([['graph','Relationship graph','关系图谱'],['tree','Industry tree','产业树'],['hierarchy','Company hierarchy','公司层级图'],['table','Company list','公司列表']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" aria-label={text(en,zh)} id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}><ViewIcon view={id} />{text(id==='table'?'List':id==='tree'?'Tree':id==='hierarchy'?'Hierarchy':'Graph',id==='table'?'列表':id==='tree'?'树状图':id==='hierarchy'?'层级图':'关系图')}</button>)}
     </div></header>
