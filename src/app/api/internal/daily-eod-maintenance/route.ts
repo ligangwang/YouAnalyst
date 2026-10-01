@@ -1,4 +1,5 @@
 import { isInternalRequest } from "@/lib/firebase/auth";
+import { queueEodMaintenance } from "@/lib/predictions/eod-pubsub";
 import { runDailyEodMaintenance } from "@/lib/predictions/eod-prices";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json().catch(() => ({}))) as DailyEodMaintenanceRequest;
     if (payload.market !== undefined && payload.market !== "US" && payload.market !== "CN_A") return NextResponse.json({ error: "Invalid market" }, { status: 400 });
-    const result = await runDailyEodMaintenance({
+    const result = await (payload.dryRun === true ? runDailyEodMaintenance : queueEodMaintenance)({
       market: payload.market as "US" | "CN_A" | undefined,
       runDate: readString(payload.runDate),
       limit: Number.isFinite(payload.limit) ? Number(payload.limit) : undefined,
@@ -57,9 +58,10 @@ export async function POST(request: NextRequest) {
       ok: true,
       ...result,
       timestamp: new Date().toISOString(),
-    });
+    }, { status: payload.dryRun === true ? 200 : 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to run daily EOD maintenance";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const code = (error as { code?: string }).code;
+    return NextResponse.json({ error: message }, { status: code === "INVALID_EOD_REQUEST" ? 400 : 503 });
   }
 }

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDecodedUserFromRequest } from "../firebase/auth";
 import { isAdminUser } from "../firebase/admin-role";
-import { runDailyEodMaintenance } from "../predictions/eod-prices";
+import { queueEodMaintenance } from "../predictions/eod-pubsub";
 import { marketDate } from "../predictions/instrument";
 import { maintenanceError } from "../maintenance-log";
 
-export async function rerunEodResponse(request: NextRequest, dependencies = { getUser: getDecodedUserFromRequest, isAdmin: isAdminUser, run: runDailyEodMaintenance }) {
+export async function rerunEodResponse(request: NextRequest, dependencies = { getUser: getDecodedUserFromRequest, isAdmin: isAdminUser, run: queueEodMaintenance }) {
   const reply = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
   const user = await dependencies.getUser(request);
   if (!user) return reply({ error: "Unauthorized" }, 401);
@@ -21,7 +21,7 @@ export async function rerunEodResponse(request: NextRequest, dependencies = { ge
     // Keep the same maintenance behavior as Scheduler; do not expose arbitrary
     // internal options, forced score recomputation or cross-date roll-forward.
     const result = await dependencies.run({ market, runDate: body.runDate, limit: 500, trigger: "admin", requestedBy: user.uid });
-    return reply({ ok: true, result });
+    return reply({ ok: true, result }, 202);
   } catch (error) {
     const details = maintenanceError(error);
     console.error(JSON.stringify({ severity: "ERROR", event: "admin_eod_rerun_failed", market, runDate: body.runDate, requestedBy: user.uid, error: details }));

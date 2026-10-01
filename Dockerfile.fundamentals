@@ -13,6 +13,7 @@ RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --pla
   && node_modules/.bin/esbuild scripts/serve-private-valuations.ts --bundle --platform=node --packages=external --outfile=dist/serve-private-valuations.cjs \
   && node_modules/.bin/esbuild scripts/serve-ticker-sync.ts --bundle --platform=node --packages=external --outfile=dist/serve-ticker-sync.cjs \
   && node_modules/.bin/esbuild scripts/serve-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-cn-fundamentals.cjs \
+  && node_modules/.bin/esbuild scripts/serve-eod-maintenance.ts --bundle --platform=node --packages=external --outfile=dist/serve-eod-maintenance.cjs \
   && npm prune --omit=dev
 
 FROM node:22-bookworm-slim

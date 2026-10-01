@@ -34,6 +34,8 @@ const MAX_ROLL_FORWARD_BATCH_SIZE = 20;
 
 export type DailyEodMaintenanceInput = {
   trigger?: "admin";
+  /** Internal queue cursor; never accepted from public request bodies. */
+  afterPredictionId?: string;
   requestedBy?: string;
   market?: PredictionMarket;
   runDate?: string;
@@ -80,6 +82,7 @@ export type DailyEodMaintenanceResult = {
   actionablePredictions: number;
   scannedCandidatePredictions: number;
   hasMoreCandidatePredictions: boolean;
+  nextPredictionId?: string;
   priceLoad: {
     provider: string | null;
     rawGcsPath: string | null;
@@ -181,6 +184,7 @@ type EodPredictionScanResult = {
   predictionsToProcess: EodPredictionRecord[];
   scannedCandidatePredictions: number;
   hasMoreCandidatePredictions: boolean;
+  nextPredictionId?: string;
 };
 
 type PredictionScanLimit = number | null;
@@ -759,7 +763,7 @@ async function fetchEodPrices(
   return fetchTwelveDataEodPrices(tickers, requestedDate, loadedAt);
 }
 
-async function readRollForwardDates(
+export async function readRollForwardDates(
   db: FirebaseFirestore.Firestore,
   startDate: string,
   maxDates: number,
@@ -1258,11 +1262,13 @@ export async function scanEodPredictions(
   limit: PredictionScanLimit,
   manualTickers: string[],
   market: PredictionMarket,
+  afterPredictionId?: string,
 ): Promise<EodPredictionScanResult> {
   const candidatePredictions: EodPredictionRecord[] = [];
   const predictionsNeedingWork: EodPredictionRecord[] = [];
   const predictionsToProcess: EodPredictionRecord[] = [];
   let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+  let nextPredictionId = afterPredictionId;
   let scannedCandidatePredictions = 0;
   let hasMoreCandidatePredictions = false;
 
@@ -1276,6 +1282,8 @@ export async function scanEodPredictions(
 
     if (lastDoc) {
       query = query.startAfter(lastDoc);
+    } else if (afterPredictionId) {
+      query = query.startAfter(afterPredictionId);
     }
 
     const snapshot = await query.get();
@@ -1287,6 +1295,7 @@ export async function scanEodPredictions(
     scannedCandidatePredictions += snapshot.size;
 
     for (const doc of snapshot.docs) {
+      nextPredictionId = doc.id;
       const prediction = toEodPredictionRecord(doc);
       if (!prediction || predictionInstrument(prediction.ticker)?.market !== market) {
         continue;
@@ -1324,6 +1333,7 @@ export async function scanEodPredictions(
     predictionsToProcess,
     scannedCandidatePredictions,
     hasMoreCandidatePredictions,
+    nextPredictionId,
   };
 }
 
@@ -1432,7 +1442,8 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       predictionsToProcess,
       scannedCandidatePredictions,
       hasMoreCandidatePredictions,
-    } = await scanEodPredictions(db, runDate, limit, manualTickers, market);
+      nextPredictionId,
+    } = await scanEodPredictions(db, runDate, limit, manualTickers, market, input.afterPredictionId);
     log.stage("load_price_universe");
     const { requestedTickers, mapTickers } = await loadEodPriceUniverse({ market, loadPrices, manualTickers,
       predictionTickers: predictionsToProcess.map((item) => item.ticker) });
@@ -1923,6 +1934,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       actionablePredictions: predictionsNeedingWork.length,
       scannedCandidatePredictions,
       hasMoreCandidatePredictions,
+      ...(nextPredictionId ? { nextPredictionId } : {}),
       priceLoad,
       fx,
       marking,

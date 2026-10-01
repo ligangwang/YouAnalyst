@@ -8,7 +8,7 @@ const require=createRequire(import.meta.url);
 
 test('chart-only exclusions cannot hide dependencies of any deployed worker',async()=>{
   const result=await build({entryPoints:[
-    'scripts/refresh-sec-fundamentals.ts','scripts/serve-sec-fundamentals.ts',
+    'scripts/serve-eod-maintenance.ts','scripts/refresh-sec-fundamentals.ts','scripts/serve-sec-fundamentals.ts',
     'scripts/refresh-cn-fundamentals.ts','scripts/refresh-private-valuations.ts',
     'scripts/sync-cni-directory.ts','scripts/serve-private-valuations.ts','scripts/serve-ticker-sync.ts','scripts/serve-cn-fundamentals.ts','scripts/serve-cni-directory.ts',
   ],bundle:true,platform:'node',packages:'external',outdir:'unused',write:false,metafile:true});

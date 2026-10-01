@@ -13,7 +13,7 @@ function run(target:string,extra:Record<string,string>={}) {
         echo "$*" >> "$CALLS"
         case "$*" in
           "pubsub topics describe"*|"pubsub subscriptions describe"*) if [[ "\${NEW_PUBSUB:-0}" == 1 ]]; then return 1; fi ;;
-          "run services describe sec-fundamentals-subscriber"*|"run services describe private-valuations-subscriber"*|"run services describe ticker-catalog-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
+          "run services describe eod-maintenance-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe private-valuations-subscriber"*|"run services describe ticker-catalog-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
           "run services describe"*) echo "$WEB_SA" ;;
           "projects describe"*) echo 123456789 ;;
           "run jobs describe"*) echo directory-sync-runtime@demo.iam.gserviceaccount.com ;;
@@ -111,4 +111,16 @@ test('invalid selection or missing IAM/SEC configuration fails before mutations'
     const r=run(target,extra);assert.notEqual(r.status,0);
     assert.doesNotMatch(r.calls,/builds submit|run jobs (deploy|update|add-iam)/);
   }
+});
+
+
+test('EOD deployment is private, retained before publication, and reuses scoped provider configuration',()=>{
+  const r=run('eod-maintenance',{NEW_PUBSUB:'1',EODHD_BULK_EOD_BUCKET:'existing-bulk-cache',EODHD_API_TOKEN:'secret-for-test'});
+  assert.equal(r.status,0,r.stderr);
+  assert.match(r.calls,/subscriptions create eod-maintenance-worker --topic eod-maintenance-requests/);
+  assert.ok(r.calls.indexOf('subscriptions create eod-maintenance-worker') < r.calls.indexOf('run deploy eod-maintenance-subscriber'));
+  assert.match(r.calls,/run deploy eod-maintenance-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-eod-maintenance.cjs.*--concurrency 1/);
+  assert.match(r.calls,/--dead-letter-topic eod-maintenance-dead-letter/);
+  assert.match(r.calls,/storage buckets add-iam-policy-binding gs:\/\/existing-bulk-cache.*roles\/storage.objectUser/);
+  assert.doesNotMatch(r.calls,/secret-for-test|scheduler jobs (pause|resume)/);
 });

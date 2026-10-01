@@ -4,10 +4,10 @@ set -euo pipefail
 : "${GIT_SHA:?Set GIT_SHA}"
 export GCP_REGION="${GCP_REGION:-us-central1}"
 case "${1:-}" in
-  all) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync directory) ;;
-  fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync) ;;
-  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|directory) targets=("$1") ;;
-  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync or directory' >&2; exit 1 ;;
+  all) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance directory) ;;
+  fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance) ;;
+  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|eod-maintenance|directory) targets=("$1") ;;
+  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync, eod-maintenance or directory' >&2; exit 1 ;;
 esac
 # Validate every selected target before any build or mutation.
 for target in "${targets[@]}"; do
