@@ -56,7 +56,7 @@ test("company identity, evidence and crawlable links are present without browser
   assert.match(html, /<h1[^>]*>Advanced Micro Devices/);
   assert.match(html, /Example Packaging supplies AMD/);
   assert.match(html, /Synthetic test evidence/);
-  assert.match(html, /href="\/ticker\/NVDA"/);
+  assert.match(html, /href="\/en\/ticker\/NVDA"/);
   assert.match(html, /href="https:\/\/www.sec.gov\/Archives\//);
   assert.match(html, /<details/);
   assert.doesNotMatch(html, /Loading ticker/);
@@ -93,4 +93,21 @@ test("company heading shows domicile flag for a US-listed Taiwanese company", ()
   assert.match(html, /src="\/flags\/tw.svg"/);
   assert.doesNotMatch(html, /\/flags\/us.svg/);
   assert.doesNotMatch(renderToStaticMarkup(<CompanyHeading name="Unknown" ticker="UNKNOWN" />), /<img/);
+});
+
+
+test("Chinese company identity, labels and discovery links are available in server HTML", () => {
+  const require = createRequire(import.meta.url);
+  const { CompanyResearchOverview } = require("../../src/components/company-research-overview") as typeof import("../../src/components/company-research-overview");
+  const { AuthProvider } = require("../../src/components/providers/auth-provider") as typeof import("../../src/components/providers/auth-provider");
+  const { LocaleProvider } = require("../../src/components/providers/locale-provider") as typeof import("../../src/components/providers/locale-provider");
+  const company = buildCompanyResearch("AMD", [{ symbol: "AMD", active: true, predictionSupported: true, name: "Advanced Micro Devices", names: { "zh-CN": "超威半导体" }, currency: "USD", country: "United States", type: "Common Stock" }], fixtureGraph);
+  const html = renderToStaticMarkup(<LocaleProvider locale="zh-CN"><AuthProvider><CompanyResearchOverview company={company} /></AuthProvider></LocaleProvider>);
+  assert.match(html, /<h1[^>]*>超威半导体/);
+  for (const label of ["货币", "国家或地区", "证券类型"]) assert.ok(html.includes(label), label);
+  assert.match(html, /href="\/zh-cn\/companies"/);
+  assert.match(html, /href="\/zh-cn\/ticker\/NVDA"/);
+  assert.match(html, /href="\/zh-cn\?company=AMD"/);
+  assert.match(html, /Synthetic test evidence/);
+  assert.doesNotMatch(html, /href="\/(?:companies|ticker|map)/);
 });

@@ -23,5 +23,5 @@ export default function DailyRoutePage() {
 }
 
 export async function generateMetadata(...args: Parameters<typeof buildPageMetadata>) {
-  return localizedMetadata(await buildPageMetadata(...args));
+  return localizedMetadata(await buildPageMetadata(...args), { usePageCanonical: true });
 }

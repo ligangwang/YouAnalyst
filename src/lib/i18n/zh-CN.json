@@ -1162,5 +1162,12 @@
   "Score": "得分",
   "Score: each public call is scored from −1000 to +1000 on its return since entry (1000 × tanh(return ÷ 30%)). An analyst's score averages those call scores, adjusts for win rate, and is scaled down until they have about 10 calls. Open and settled calls both count.": "得分说明：每条公开观点按建仓以来的收益计分，范围为 −1000 至 +1000（1000 × tanh(收益 ÷ 30%)）。分析师得分为各条观点得分的平均值，并按胜率调整；观点数量不足约 10 条时会按比例折减。进行中和已结算的观点都会计入。",
   "Company search": "公司搜索",
-  "Search companies by name or ticker.": "按名称或股票代码搜索公司。"
+  "Search companies by name or ticker.": "按名称或股票代码搜索公司。",
+  "Currency": "货币",
+  "Country": "国家或地区",
+  "Security": "证券类型",
+  "Daily score moves | YouAnalyst": "每日得分变化 | YouAnalyst",
+  "See today's top public stock calls and daily performance moves on YouAnalyst.": "查看 YouAnalyst 今日热门公开股票观点及每日表现变化。",
+  "Track daily score changes and recent analyst performance moves on YouAnalyst.": "跟踪 YouAnalyst 每日得分变化及分析师近期表现。",
+  "YouAnalyst daily top call share card": "YouAnalyst 每日热门观点分享卡片"
 }

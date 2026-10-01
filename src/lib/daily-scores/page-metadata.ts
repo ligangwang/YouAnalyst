@@ -6,12 +6,13 @@ import {
 } from "@/lib/daily-scores/public-share";
 import { getDailyScores } from "@/lib/daily-scores/service";
 
-function buildDailyScoresMetadata(date: string | null, hasCallOfTheDay: boolean): Metadata {
+export function buildDailyScoresMetadata(date: string | null, hasCallOfTheDay: boolean, canonicalDate: string | null = date): Metadata {
   const title = date ? `Best Calls Today - ${date} | YouAnalyst` : "Daily score moves | YouAnalyst";
   const description = hasCallOfTheDay
     ? "See today's top public stock calls and daily performance moves on YouAnalyst."
     : "Track daily score changes and recent analyst performance moves on YouAnalyst.";
-  const canonical = dailyCanonicalPath(date);
+  // Keep the latest page stable; date aliases canonicalize to the dated route.
+  const canonical = dailyCanonicalPath(canonicalDate);
   const imageDate = dailyShareImageDate(date);
   const version = dailyShareVersion(date);
   const openGraphImage = `/daily/share/${imageDate}/opengraph-image?v=${version}`;
@@ -48,7 +49,7 @@ function buildDailyScoresMetadata(date: string | null, hasCallOfTheDay: boolean)
 export async function dailyScoresMetadata(date: string | null): Promise<Metadata> {
   try {
     const result = await getDailyScores(date);
-    return buildDailyScoresMetadata(result.date, Boolean(result.callOfTheDay));
+    return buildDailyScoresMetadata(result.date, Boolean(result.callOfTheDay), date);
   } catch {
     return buildDailyScoresMetadata(date, false);
   }

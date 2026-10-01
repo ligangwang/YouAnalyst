@@ -5,7 +5,7 @@ import { CompanyFollowButton } from "./company-follow-button";
 import type { KnowledgeGraph } from "@/lib/knowledge-graph/model";
 
 import { UiText } from "@/components/ui-text";
-import Link from "next/link";
+import { LocalizedLink as Link } from "./localized-link";
 import type { ReactNode } from "react";
 import type { CompanyResearch } from "@/lib/company-research";
 import { CompanyCallActions } from "./company-call-actions";
