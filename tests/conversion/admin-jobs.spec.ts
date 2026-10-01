@@ -106,7 +106,7 @@ test("non-admins never fetch job history", async ({ page }) => {
   expect(historyCalls).toBe(0);
 });
 
-test("admin selects a date and reruns EOD once, then sees the result and refreshed history", async ({ page }) => {
+test("admin selects a date and queues EOD once, then sees acceptance and refreshed history", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   const posts: unknown[] = [];
   let finish: (() => void) | undefined;
@@ -118,7 +118,7 @@ test("admin selects a date and reruns EOD once, then sees the result and refresh
     if (url.pathname === "/api/admin/jobs" && req.method() === "POST") {
       posts.push(req.postDataJSON());
       await new Promise<void>(resolve => { finish = resolve; });
-      return route.fulfill({ json: { ok: true, result: { runId: "manual-run", priceLoad: { cacheHits: 60, loaded: 7, failed: 0 } } } });
+      return route.fulfill({ status: 202, json: { ok: true, result: { queued: true, runId: "manual-run", market: "US", runDate: "2026-01-02" } } });
     }
     if (url.pathname === "/api/admin/jobs") {
       historyReads++;
@@ -136,7 +136,7 @@ test("admin selects a date and reruns EOD once, then sees the result and refresh
   expect(posts[0]).toEqual({ job: "us", runDate: "2026-01-02" });
   const readsBefore = historyReads;
   finish!();
-  await expect(page.getByRole("status").filter({ hasText: "Run manual-run" })).toContainText("Cached 60, fetched 7, failed 0");
+  await expect(page.getByRole("status").filter({ hasText: "Request manual-run" })).toContainText("Queued. Follow progress in run history.");
   await expect.poll(() => historyReads).toBeGreaterThan(readsBefore);
   await expect(page.getByRole("button", { name: "Rerun for this date", exact: true })).toBeEnabled();
 });
