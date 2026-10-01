@@ -390,3 +390,28 @@ case). The mode cannot call OpenAI or cause consumer work. It may merge up to
 2,000 existing-collection accession documents, the issuer cursor, collector lease
 metadata and shared SEC request-budget metadata. A completed baseline does not
 prove live filing fan-out or extraction-provider behavior.
+
+### Executing the separately approved NVIDIA baseline canary
+
+**Run approved NVIDIA baseline only** is a dedicated manual workflow, separate
+from the read-only diagnostic. It has no issuer or collector-mode inputs: NVIDIA
+and `--baseline-only` are hardcoded. An operator must confirm that specific
+execution and supply the exact successful main worker-release commit. The workflow
+rejects rerun attempts and checks baseline-support ancestry, successful production
+release, immutable deployed image digest and GIT_SHA, single-task/parallelism and
+retry bounds, existing runtime identity, disabled collector/graph processing, and
+both paused schedules before one job-execution command.
+
+The enable flag applies to that execution only. Persistent configuration is
+rechecked afterward. Existing log-read access is tested before execution, and only
+a bounded NVIDIA baseline summary is printed. An ambiguous execution failure or
+missing completion log must be investigated using its execution identity; never
+rerun the execution to recover a missing response. No new IAM grant, account,
+credential, collection, schedule, service or Cloud Run job is created. The required
+resource reads, job override execution and Cloud Logging reads must already be
+permitted. A denial stops the workflow without granting access.
+
+The workflow and its local host-side validation scripts do not change the worker
+bundle; they need reviewed CI publication, not another worker redeployment. The
+approved worker release may be a later tested descendant containing the strict
+baseline implementation, and its actual image must match the supplied release.

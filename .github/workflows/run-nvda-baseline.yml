@@ -1,0 +1,97 @@
+name: Run approved NVIDIA baseline only
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_commit:
+        description: Exact successfully deployed main worker commit (40-character SHA)
+        required: true
+        type: string
+      confirm_nvda:
+        description: Run one approved NVIDIA-only baseline execution, without publication or OpenAI
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  baseline-nvda-only:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 50
+    concurrency:
+      group: deploy-background-jobs-production
+      cancel-in-progress: false
+    env:
+      GCP_PROJECT_ID: ifindata-80905
+      GCP_REGION: us-central1
+      APPROVED_WORKER_COMMIT: ${{ inputs.release_commit }}
+      CONFIRM_NVDA: ${{ inputs.confirm_nvda }}
+      WORKFLOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+    steps:
+      - name: Require an approved successful worker release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = process.env.APPROVED_WORKER_COMMIT;
+            if (process.env.CONFIRM_NVDA !== 'true' || !/^[a-f0-9]{40}$/.test(sha) || process.env.WORKFLOW_RUN_ATTEMPT !== '1') {
+              core.setFailed('Explicit NVIDIA confirmation and exact SHA are required. Inspect any prior execution instead of rerunning this workflow.');
+              return;
+            }
+            const {data} = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner, repo: context.repo.repo, workflow_id: 'deploy.yml',
+              head_sha: sha, per_page: 100
+            });
+            if (!Number.isSafeInteger(data.total_count) || data.total_count > 100) {
+              core.setFailed('Release history is incomplete; do not guess which worker build is approved.');
+              return;
+            }
+            const candidates = data.workflow_runs.filter(run => run.head_sha === sha && run.head_branch === 'main'
+              && ['push', 'workflow_dispatch'].includes(run.event));
+            if (candidates.some(run => !Number.isFinite(Date.parse(run.run_started_at ?? run.created_at)))) {
+              core.setFailed('Release attempt ordering is unavailable.');
+              return;
+            }
+            candidates.sort((a, b) => Date.parse(b.run_started_at ?? b.created_at) - Date.parse(a.run_started_at ?? a.created_at) || b.id - a.id);
+            // Tags are mutable: never let an older successful build hide a newer
+            // failed, running, staging-only or worker-skipped attempt of this SHA.
+            const run = candidates[0];
+            let verified = false;
+            if (run?.status === 'completed' && run.conclusion === 'success') {
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+                owner: context.repo.owner, repo: context.repo.repo, run_id: run.id, per_page: 100
+              });
+              const passed = job => job?.status === 'completed' && job.conclusion === 'success';
+              const production = jobs.find(job => job.name === 'deploy-production');
+              const workers = jobs.find(job => job.name === 'deploy-background-jobs');
+              const requiredSteps = ['Deploy changed background workers',
+                'Verify SEC Pub/Sub delivery with cached companies',
+                'Verify graph Pub/Sub delivery without SEC or OpenAI calls'];
+              if (passed(production) && passed(workers)
+                && requiredSteps.every(name => workers.steps?.some(step => step.name === name && passed(step)))) {
+                verified = true;
+              }
+            }
+            if (!verified) {
+              core.setFailed('The exact main worker release must have passed before this baseline canary.');
+            }
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify baseline-only support and main ancestry
+        run: |
+          git merge-base --is-ancestor 592541f6791e7e13906bd679a42cfbbd941b8a15 "$APPROVED_WORKER_COMMIT"
+          git merge-base --is-ancestor "$APPROVED_WORKER_COMMIT" HEAD
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Run the bounded baseline after read-only preflight
+        run: bash scripts/run-nvda-baseline.sh
