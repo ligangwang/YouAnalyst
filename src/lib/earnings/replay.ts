@@ -16,9 +16,10 @@ export async function replayEarningsFixture(manifestPath: string, options: {
   const root = dirname(manifestPath), raw = Boolean(options.rawDocumentPath);
   const planFile = raw ? manifest.rawPlanFile : manifest.planFile;
   if (!planFile) throw new Error("No reviewed raw-document extraction adapter for this source");
+  if (raw && (typeof manifest.originalBytesSha256 !== "string" || !/^[a-f0-9]{64}$/.test(manifest.originalBytesSha256))) throw new Error("Raw replay requires a valid reference SHA-256 hash");
   const plan = JSON.parse(await readFile(resolve(root, planFile), "utf8")) as ExtractionPlan;
   const bytes = await readFile(options.rawDocumentPath ?? resolve(root, manifest.bodyFile));
-  if (raw && manifest.originalBytesSha256 && sha256(bytes) !== manifest.originalBytesSha256) throw new Error("Raw source hash changed; review the adapter before replay");
+  if (raw && sha256(bytes) !== manifest.originalBytesSha256) throw new Error("Raw source hash changed; review the adapter before replay");
   const now = options.now ?? new Date().toISOString();
   let pdfText: string | undefined;
   if (raw && options.rawDocumentPath?.toLowerCase().endsWith(".pdf")) {

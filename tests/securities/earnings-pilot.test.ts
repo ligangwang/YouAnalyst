@@ -137,6 +137,26 @@ test('stable identities do not depend on JSON property insertion order',async()=
  assert.equal(stableId('period',[{start:'2026-01-01',end:'2026-03-31'}]),stableId('period',[{end:'2026-03-31',start:'2026-01-01'}]));
 });
 
+test('raw replay requires a valid matching reference hash before using a reviewed adapter',async()=>{
+ const {mkdtemp,writeFile,rm}=await import('node:fs/promises');const{tmpdir}=await import('node:os');const{sha256}=await import('../../src/lib/earnings/model');
+ const dir=await mkdtemp(resolve(tmpdir(),'earnings-raw-hash-'));
+ try{
+  // Synthetic integrity harness using compact fixture bytes; this does not add
+  // another original-publisher document to the verified source corpus.
+  const fixture=json(resolve(fixtureRoot,'us/amd-fy2026-q1.replay.json'));
+  fixture.bodyFile=resolve(fixtureRoot,'us',fixture.bodyFile);fixture.planFile=resolve(fixtureRoot,'us',fixture.planFile);fixture.rawPlanFile=fixture.planFile;
+  const manifest=resolve(dir,'synthetic-hash.json'),rawDocumentPath=fixture.bodyFile;
+  for(const hash of [undefined,null,'','a'.repeat(63),'g'.repeat(64)]){
+   await writeFile(manifest,JSON.stringify({...fixture,originalBytesSha256:hash}));
+   await assert.rejects(()=>replayEarningsFixture(manifest,{now,rawDocumentPath}),/valid reference SHA-256/);
+  }
+  await writeFile(manifest,JSON.stringify({...fixture,originalBytesSha256:'0'.repeat(64)}));
+  await assert.rejects(()=>replayEarningsFixture(manifest,{now,rawDocumentPath}),/Raw source hash changed/);
+  const reference=sha256(readFileSync(rawDocumentPath));await writeFile(manifest,JSON.stringify({...fixture,originalBytesSha256:reference}));
+  const result=await replayEarningsFixture(manifest,{now,rawDocumentPath});assert.equal(result.outcome.status,'extracted');assert.equal(result.capture.rawSha256,reference);assert.equal(result.capture.completeness,'full');
+ }finally{await rm(dir,{recursive:true,force:true});}
+});
+
 test('injection-only collector composes discovery, raw capture, validation and idempotent staging',async()=>{
  const {collectEarningsDocuments}=await import('../../src/lib/earnings/collector');
  const fixture=json(resolve(fixtureRoot,'cn/longsys-h1-2026.json')),plan=json(resolve(fixtureRoot,'cn',fixture.planFile));
