@@ -183,8 +183,8 @@ function comparePredictionsByPerformance(
   return b.createdAt.localeCompare(a.createdAt);
 }
 
-function targetDateFromRunStatus(today: string, status: unknown): string {
-  return status === "STARTED" || status === "COMPLETED" || status === "FAILED"
+export function targetDateFromRunStatus(today: string, status: unknown): string {
+  return status === "QUEUED" || status === "STARTED" || status === "COMPLETED" || status === "COMPLETED_WITH_ERRORS" || status === "FAILED"
     ? addDays(today, 1)
     : today;
 }

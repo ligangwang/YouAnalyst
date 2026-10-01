@@ -72,8 +72,8 @@ test("worker status changes from starting to running only when a start time exis
 });
 test("EOD pages join outcomes by run ID; incomplete runs never claim success", async () => {
   const f = fixture([{ entries: ["a", "b", "c"].map(runId => ({ timestamp: "2026-01-01T00:00:00Z", jsonPayload: { runId } })), nextPageToken: "next-eod" }, {
-    entries: [ { timestamp: "2026-01-01T00:01:00Z", jsonPayload: { runId: "a", message: "daily-eod-maintenance: run_failed", error: { message: "contention" } } },
-      { jsonPayload: { runId: "b", message: "daily-eod-maintenance: run_completed", priceLoad: { failed: 1 } } } ],
+    entries: [ { timestamp: "2026-01-01T00:01:00Z", jsonPayload: { runId: "a", message: "eod-maintenance-batch: run_failed", error: { message: "contention" } } },
+      { jsonPayload: { runId: "b", message: "eod-maintenance-batch: run_completed", priceLoad: { failed: 1 } } } ],
   }]);
   const page = await loadJobHistory({ job: "china", view: "runs", pageToken: "first-page" }, f.request, "test-project");
   assert.deepEqual(page.records.map(r => r.status), ["Failed", "Completed with errors", "No completion recorded"]);
@@ -83,7 +83,7 @@ test("EOD pages join outcomes by run ID; incomplete runs never claim success", a
   assert.equal((f.calls[0].data as { pageToken: string }).pageToken, "first-page");
   const resultFilter = (f.calls[1].data as { filter: string }).filter;
   assert.match(resultFilter, /timestamp>="2026-01-01T00:00:00Z"/);
-  assert.match(resultFilter, /jsonPayload.message=\("daily-eod-maintenance: run_completed" OR "daily-eod-maintenance: run_failed"\)/);
+  assert.match(resultFilter, /jsonPayload.message=\("eod-maintenance-batch: run_completed" OR "eod-maintenance-batch: run_failed"\)/);
 });
 test("empty Logging pages retain next cursor, errors include SEC and detailed logs are execution-scoped", async () => {
   const f = fixture([{ entries: [], nextPageToken: "scan-more" }, { entries: [] }]);
@@ -124,7 +124,7 @@ test("admin API denies anonymous and regular users before cloud access and valid
 test("outcome lookup follows partial Logging pages instead of declaring a completed run missing", async () => {
   const f = fixture([{ entries: [{ timestamp: "2026-01-01T00:00:00Z", jsonPayload: { runId: "a" } }] },
     { entries: [], nextPageToken: "scan-2" }, { entries: [], nextPageToken: "scan-3" },
-    { entries: [{ jsonPayload: { runId: "a", message: "daily-eod-maintenance: run_completed" } }] },
+    { entries: [{ jsonPayload: { runId: "a", message: "eod-maintenance-batch: run_completed" } }] },
   ]);
   const page = await loadJobHistory({ job: "us", view: "runs" }, f.request, "test-project");
   assert.equal(page.records[0].status, "Succeeded");
@@ -137,7 +137,7 @@ test("EOD result scan starts at the oldest run on the requested page and keeps s
   const f = fixture([{ entries: [
     { timestamp: "2026-09-21T17:10:52.987654Z", jsonPayload: { runId: "new" } },
     { timestamp: since, jsonPayload: { runId: "old" } },
-  ], nextPageToken: "older-runs" }, { entries: ["new", "old"].map(runId => ({ jsonPayload: { runId, message: "daily-eod-maintenance: run_completed", priceLoad: { loaded: 52, failed: 0 } } })) }]);
+  ], nextPageToken: "older-runs" }, { entries: ["new", "old"].map(runId => ({ jsonPayload: { runId, message: "eod-maintenance-batch: run_completed", priceLoad: { loaded: 52, failed: 0 } } })) }]);
   const result = await loadJobHistory({ job: "us", view: "runs", pageToken: "page-two" }, f.request, "test-project");
   assert.ok((f.calls[1].data as { filter: string }).filter.includes(`timestamp>=${JSON.stringify(since)}`));
   assert.deepEqual(result.records.map(r => r.status), ["Succeeded", "Succeeded"]);

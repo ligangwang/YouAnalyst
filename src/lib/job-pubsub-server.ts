@@ -12,6 +12,7 @@ export function createJobSubscriber<T extends { batchId: string }>(options: {
     if (req.method !== "POST" || req.url !== "/pubsub") { res.writeHead(404); res.end(); return; }
     const log = createMaintenanceLog(options.job, { mode: "pubsub" });
     let batchId: string | undefined;
+    let context: Record<string, unknown> = {};
     try {
       let size = 0;
       const chunks: Buffer[] = [];
@@ -25,7 +26,8 @@ export function createJobSubscriber<T extends { batchId: string }>(options: {
         || typeof envelope.message?.data !== "string") throw Error("Unexpected Pub/Sub envelope");
       const request = options.parse(JSON.parse(Buffer.from(envelope.message.data, "base64").toString("utf8")));
       batchId = request.batchId;
-      const context = { batchId,
+      context = { batchId,
+        ...("input" in request && request.input && typeof request.input === "object" && "market" in request.input ? { market: request.input.market } : {}),
         ...("companyId" in request ? { company: request.companyId } : {}),
         ...("companyIds" in request && Array.isArray(request.companyIds) ? { requested: request.companyIds.length } : {}) };
       log.emit("INFO", "run_started", context);
@@ -34,7 +36,7 @@ export function createJobSubscriber<T extends { batchId: string }>(options: {
       log.emit(warning ? "WARNING" : "INFO", "run_completed", { ...context, ...result });
       res.writeHead(204); res.end();
     } catch (error) {
-      log.emit("ERROR", "run_failed", { batchId, error: maintenanceError(error) });
+      log.emit("ERROR", "run_failed", { ...context, batchId, error: maintenanceError(error) });
       res.writeHead(503); res.end("Processing requires retry");
     }
   });

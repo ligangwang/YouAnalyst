@@ -23,9 +23,7 @@ export function AdminEodRerun({ job, onBusy, onComplete }: { job: "us" | "china"
       const response = await fetch("/api/admin/jobs", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ job, runDate }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || text("The rerun failed. Check run history.", "重新运行失败，请查看运行记录。"));
-      const prices = payload.result.priceLoad;
-      setFailed(prices.failed > 0);
-      setMessage(`${runDate}: ${text("Cached", "缓存")} ${prices.cacheHits}, ${text("fetched", "已获取")} ${prices.loaded}, ${text("failed", "失败")} ${prices.failed}. ${text("Run", "运行")} ${payload.result.runId ?? ""}`);
+      setMessage(`${runDate}: ${text("Queued. Follow progress in run history.", "已加入队列，请在运行记录中查看进度。")} ${text("Request", "请求")} ${payload.result.runId ?? ""}`);
     } catch (error) {
       setFailed(true);
       setMessage(`${error instanceof Error ? error.message : String(error)} ${text("Check run history before retrying; an interrupted request may still be running.", "重试前请查看运行记录；请求中断后任务可能仍在运行。")}`);
@@ -42,7 +40,7 @@ export function AdminEodRerun({ job, onBusy, onComplete }: { job: "us" | "china"
       </label>
       <button type="submit" disabled={running || !runDate} className="rounded-lg bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-40">{running ? text("Running…", "运行中…") : text("Rerun for this date", "按此日期重新运行")}</button>
     </form>
-    {running && <p role="status" className="mt-3 text-sm text-cyan-200">{text("Maintenance is running. This may take a few minutes.", "维护任务正在运行，可能需要几分钟。")}</p>}
+    {running && <p role="status" className="mt-3 text-sm text-cyan-200">{text("Submitting maintenance to the queue.", "正在将维护任务加入队列。")}</p>}
     {message && <p role={failed ? "alert" : "status"} className={`mt-3 break-words text-sm ${failed ? "text-amber-300" : "text-emerald-300"}`}>{message}</p>}
   </section>;
 }

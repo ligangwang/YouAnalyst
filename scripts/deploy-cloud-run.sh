@@ -41,6 +41,10 @@ fi
 echo "[3/5] Deploying $service_name to Cloud Run via Cloud Build"
 export MUSIC_STORAGE_BUCKET="${MUSIC_STORAGE_BUCKET:-${project_id}-site-media-${target}}"
 MUSIC_WEB_SERVICE="$service_name" bash scripts/ensure-music-storage.sh
+# Retain requests before the new web publisher receives traffic.
+if [[ "$target" == production ]]; then
+  GCP_PROJECT_ID="$project_id" GCP_REGION="$region" bash scripts/deploy-eod-maintenance.sh --publisher-only
+fi
 build_started=$SECONDS
 image_tag="${region}-docker.pkg.dev/${project_id}/ifindata/ifindata-web:${GIT_SHA:-local}"
 dockerfile="Dockerfile"

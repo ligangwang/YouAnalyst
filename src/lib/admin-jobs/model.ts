@@ -8,8 +8,8 @@ export const scheduledJobs = {
   cnFundamentalsChecks: { name: "A-share fundamentals checks", scheduler: null, worker: null, logJob: "cn-fundamentals-check", schedule: "Processes queued companies; incomplete sources retry" },
   directoryImports: { name: "China directory imports", scheduler: null, worker: null, logJob: "cni-directory-import", schedule: "Imports validated snapshots; retries resume unfinished batches" },
   directory: { name: "China company directory", scheduler: "sync-cni-directory-production", worker: "sync-cni-directory-production", logJob: "sync-cni-directory", schedule: "Monday, 02:20 UTC" },
-  us: { name: "US end-of-day maintenance", scheduler: "daily-eod-maintenance-production", worker: null, logJob: "daily-eod-maintenance", market: "US", schedule: "Weekdays, 8 PM New York" },
-  china: { name: "China end-of-day maintenance", scheduler: "daily-eod-maintenance-production-cn-a", worker: null, logJob: "daily-eod-maintenance", market: "CN_A", schedule: "Weekdays, 8 AM New York" },
+  us: { name: "US end-of-day maintenance", scheduler: "daily-eod-maintenance-production", worker: null, logJob: "eod-maintenance-batch", market: "US", schedule: "Weekdays, 8 PM New York" },
+  china: { name: "China end-of-day maintenance", scheduler: "daily-eod-maintenance-production-cn-a", worker: null, logJob: "eod-maintenance-batch", market: "CN_A", schedule: "Weekdays, 8 AM New York" },
 } as const;
 export type JobId = keyof typeof scheduledJobs;
 export type HistoryView = "runs" | "errors" | "logs" | "scheduler";

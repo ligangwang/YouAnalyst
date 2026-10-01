@@ -1,8 +1,8 @@
 # Background Pub/Sub jobs
 
 This rollout extends the existing SEC pattern to private valuation checks, ticker
-catalog sync, A-share fundamentals, and China directory imports. US/China EOD
-maintenance retains its existing execution and prediction-update sequencing.
+catalog sync, A-share fundamentals, China directory imports, and US/China EOD
+maintenance. Existing recurring maintenance now runs behind Pub/Sub subscribers.
 
 | Work | Request topic | Subscriber service | Durable state |
 | --- | --- | --- | --- |
@@ -10,6 +10,7 @@ maintenance retains its existing execution and prediction-update sequencing.
 | Private valuations | `private-valuations-requests` | `private-valuations-subscriber` | `company_fundamentals/_private_check_<id>` |
 | Ticker catalog | `ticker-catalog-requests` | `ticker-catalog-subscriber` | `directory_syncs/_ticker_<id>` and snapshot pages |
 | A-share fundamentals | `cn-fundamentals-requests` | `cn-fundamentals-subscriber` | `company_fundamentals/_cn_request_<id>` |
+| US/China EOD | `eod-maintenance-requests` | `eod-maintenance-subscriber` | `eod_runs/_request_<id>`, `_dispatch_<input hash>`, `_queue_<market>` |
 | China directory | `cni-directory-requests` | `cni-directory-subscriber` | `directory_syncs/_cni_<id>` and snapshot pages |
 
 These are documents in existing collections. No collection is introduced.
@@ -81,9 +82,51 @@ one atomic replacement.
 China company directory shows publisher runs; China directory imports shows
 processing attempts. Normal worker releases preserve the weekly schedule.
 
+## US/China end-of-day maintenance
+
+The existing authenticated Scheduler endpoint and Admin rerun action return HTTP
+202 only after Pub/Sub confirms publication. Dry runs remain synchronous and
+read-only. No schedule changes are required. Admin displays queue acceptance and
+Tasks shows `eod-maintenance-batch` delivery attempts, filtered by market.
+
+Each request freezes the market, date, options and requesting admin. Queue acceptance
+atomically sets the existing EOD cutoff to QUEUED if not already started, so new US
+predictions target the next date even while the subscriber is waiting. Scheduler
+retries reuse a deterministic request ID; an ambiguous admin publication reuses
+the saved original request. An explicit admin rerun after completion creates a
+new request. Request records and dispatch pointers use the existing `eod_runs`
+collection. Separate dates/options can queue independently; a failed holiday or
+unavailable price cannot prevent next day's request from being accepted.
+
+A market lease serializes subscriber processing, while the original engine lease
+also excludes simultaneous direct runs. Each page processes at most 50 eligible
+predictions, then saves its cursor only after prices, prediction transactions and
+user analytics finish. Price/FX failures or missing prediction prices leave the
+page retryable. Missing/deleted users retain the engine's existing skip behavior.
+Replaying an uncheckpointed page uses existing idempotent mark/score updates.
+Completed messages are acknowledged without repeating provider work. This is
+at-least-once delivery, not a cross-document exactly-once transaction.
+
+Roll-forward snapshots up to the requested number of available dates (default 5,
+maximum 20), completes all prediction pages for each date, and reports the next
+date if more remain. `limit` now bounds page size rather than truncating the whole
+queued run. Processing reserves a minute before beginning another page; interrupted
+leases expire after 30 minutes. Exhausted deliveries use
+`eod-maintenance-dead-letter` / `eod-maintenance-dead-letter-audit` with the same
+seven-day retention and retry settings as other jobs. A request with unavailable
+prices can need operator attention; it never reports successful completion.
+
+The production web rollout first creates the retained request subscription and
+publisher permission. A new subscription starts in pull mode until the subsequent
+worker rollout configures authenticated push. This prevents requests from being
+lost between web and worker releases. The worker receives the existing price
+provider settings and object access scoped to the existing EOD bulk cache bucket;
+it does not need an AI API key. Rollback must drain or pause EOD push delivery before
+restoring the old synchronous web endpoint, then wait for active leases to clear.
+
 ## Deployment, verification and recovery
 
-The financial image bundles SEC, private valuation, ticker and A-share subscribers.
+The financial image bundles SEC, private valuation, ticker, A-share and EOD subscribers.
 The directory image bundles the CNI publisher and subscriber and includes its
 Python downloader. Changed worker detection includes every subscriber, deployment
 script and shared dependency. Delivery resources are provisioned before scheduled
@@ -101,7 +144,10 @@ After deployment:
 3. Preview and queue a limited ticker sync; confirm its subscriber completion count.
 4. Start the directory publisher and confirm snapshot validation, batch checkpoints
    and final completion under China directory imports.
-5. For duplicate verification, republish a completed request unchanged and confirm
+5. Queue a bounded EOD price-only request for a known cached trading date. Confirm
+   its market, request ID, page checkpoint and final completion; verify unauthenticated
+   subscriber requests are rejected. Also verify Scheduler/Admin returns queue acceptance.
+6. For duplicate verification, republish a completed request unchanged and confirm
    a successful duplicate delivery without provider work or repeated catalog writes.
 
 To recover a failed delivery, fix the cause and replay the original dead-letter

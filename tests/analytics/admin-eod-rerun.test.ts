@@ -16,13 +16,13 @@ test("rerun requires an administrator and rejects invalid dates or non-EOD jobs 
     assert.equal((await rerunEodResponse(request(body), deps)).status, 400);
   }
 });
-test("rerun passes exact market/date and admin identity, ignores unsafe options, and returns results", async () => {
+test("rerun passes exact market/date and admin identity, ignores unsafe options, and returns queue acceptance", async () => {
   const deps: Dependencies = { getUser: admin, isAdmin: async () => true, run: async input => {
     assert.deepEqual(input, { market: "CN_A", runDate: "2026-01-02", limit: 500, trigger: "admin", requestedBy: "admin-1" });
-    return { runId: "run-1", priceLoad: { loaded: 3, failed: 0 } } as Awaited<ReturnType<Dependencies["run"]>>;
+    return { runId: "run-1", queued: true, market: "CN_A", runDate: "2026-01-02" } as Awaited<ReturnType<Dependencies["run"]>>;
   } };
   const response = await rerunEodResponse(request({ job: "china", runDate: "2026-01-02", recompute: true, rollForward: true, tickers: ["NVDA"], requestedBy: "forged" }), deps);
-  assert.equal(response.status, 200);
+  assert.equal(response.status, 202);
   assert.equal(response.headers.get("cache-control"), "private, no-store");
   assert.equal((await response.json()).result.runId, "run-1");
 });

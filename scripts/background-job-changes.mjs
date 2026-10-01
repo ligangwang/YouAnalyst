@@ -13,7 +13,7 @@ export function backgroundJobTarget(paths) {
   for (const path of paths) {
     if (chartOnlyLibraries.has(path)) continue;
     if (['scripts/serve-cni-directory.ts','scripts/deploy-directory-pubsub.sh'].includes(path)) { directory = true; continue; }
-    if (['scripts/serve-sec-fundamentals.ts', 'scripts/deploy-sec-pubsub.sh', 'scripts/serve-private-valuations.ts', 'scripts/deploy-private-valuations-pubsub.sh', 'scripts/serve-ticker-sync.ts', 'scripts/deploy-ticker-sync.sh', 'scripts/serve-cn-fundamentals.ts', 'scripts/deploy-cn-pubsub.sh'].includes(path)) { financial = true; continue; }
+    if (['scripts/serve-eod-maintenance.ts', 'scripts/deploy-eod-maintenance.sh', 'scripts/serve-sec-fundamentals.ts', 'scripts/deploy-sec-pubsub.sh', 'scripts/serve-private-valuations.ts', 'scripts/deploy-private-valuations-pubsub.sh', 'scripts/serve-ticker-sync.ts', 'scripts/deploy-ticker-sync.sh', 'scripts/serve-cn-fundamentals.ts', 'scripts/deploy-cn-pubsub.sh'].includes(path)) { financial = true; continue; }
     if (/^(src\/lib\/|scripts\/lib\/)/.test(path) || /^(package(-lock)?\.json|tsconfig\.json|\.gcloudignore|\.dockerignore)$/.test(path)
       || ['.github/workflows/deploy.yml','scripts/deploy-background-jobs.sh','scripts/build-fundamentals.sh','scripts/background-job-changes.mjs'].includes(path)) {
       financial = directory = true;

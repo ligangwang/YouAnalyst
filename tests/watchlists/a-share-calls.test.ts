@@ -33,7 +33,7 @@ test("market scans paginate past another market without consuming its processing
   });
   const query = (offset = 0) => ({
     where: () => query(offset), orderBy: () => query(offset), limit: () => query(offset),
-    startAfter: (doc: { id: string }) => query(Number(doc.id) + 1),
+    startAfter: (doc: { id: string } | string) => query(Number(typeof doc === "string" ? doc : doc.id) + 1),
     get: async () => ({ docs: docs.slice(offset, offset + 500), size: Math.min(500, docs.length - offset), empty: offset >= docs.length }),
   });
   const db = { collection: () => query() } as unknown as Firestore;
@@ -41,6 +41,12 @@ test("market scans paginate past another market without consuming its processing
   assert.equal(china.predictionsToProcess.length, 1);
   assert.equal(china.predictionsToProcess[0].ticker, "XSHG:600584");
   assert.equal(china.scannedCandidatePredictions, 502);
+  assert.equal(china.nextPredictionId, "500");
+  const next = await scanEodPredictions(db, "2026-09-11", 1, [], "CN_A", china.nextPredictionId);
+  assert.equal(next.predictionsToProcess[0].id, "501");
+  const done = await scanEodPredictions(db, "2026-09-11", 1, [], "CN_A", next.nextPredictionId);
+  assert.equal(done.hasMoreCandidatePredictions, false);
+  assert.equal(done.predictionsToProcess.length, 0);
   const us = await scanEodPredictions(db, "2026-09-11", 1, [], "US");
   assert.equal(us.predictionsToProcess[0].ticker, "AMD");
 });
