@@ -1810,21 +1810,30 @@ test('navigation: collapsing a tree branch disables its fading companies',async(
 });
 
 
-for (const language of ["en", "zh-CN"]) test(`homepage puts compact links above the map and evidence below every view (${language})`, async ({ page }) => {
+for (const language of ["en", "zh-CN"]) test(`homepage keeps the intro, compact links and evidence below every view (${language})`, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: graph }) : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto(`http://graph.test/map?lang=${language}&homepage=1`);
   const intro = page.getByRole("region", { name: language === "en" ? "Start your investment research" : "开始投资研究" });
   const evidence = page.getByRole("region", { name: language === "en" ? "Research and evidence" : "研究与证据" });
   const workspace = page.getByRole("tabpanel");
+  const header = page.locator("main > header");
+  await expect(intro.locator("p")).toHaveCount(1);
+  await expect(intro.getByRole("link")).toHaveCount(3);
   await expect(evidence.getByRole("article")).toHaveCount(3);
   await expect(intro.getByRole("article")).toHaveCount(0);
-  for (const view of language === "en" ? ["Relationship graph", "Industry tree", "Company hierarchy", "Company list"] : ["关系图谱", "产业树", "公司层级图", "公司列表"]) {
+  for (const view of language === "en" ? ["Relationship graph", "Industry tree", "Company hierarchy", "Company list", "Relationship graph"] : ["关系图谱", "产业树", "公司层级图", "公司列表", "关系图谱"]) {
     await page.getByRole("tab", { name: view, exact: true }).click();
     await expect(workspace).toBeVisible();
     const introBounds = (await intro.boundingBox())!, workspaceBounds = (await workspace.boundingBox())!, evidenceBounds = (await evidence.boundingBox())!;
-    expect(introBounds.y + introBounds.height).toBeLessThanOrEqual(workspaceBounds.y);
-    expect(workspaceBounds.y + workspaceBounds.height).toBeLessThanOrEqual(evidenceBounds.y);
+    expect(workspaceBounds.y + workspaceBounds.height).toBeLessThanOrEqual(introBounds.y);
+    expect(introBounds.y + introBounds.height).toBeLessThanOrEqual(evidenceBounds.y);
+    // Moving the intro must also remove its old space above the visualization.
+    if (view !== "Company list" && view !== "公司列表") {
+      const headerBounds = (await header.boundingBox())!;
+      expect(workspaceBounds.y - headerBounds.y - headerBounds.height).toBeLessThanOrEqual(16);
+    }
+    expect(await intro.evaluate(element => element.nextElementSibling?.getAttribute("aria-label"))).toBe(language === "en" ? "Research and evidence" : "研究与证据");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });
