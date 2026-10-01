@@ -1,0 +1,24 @@
+{
+  "id": "baba-fy2026-q4",
+  "source": {
+    "provider": "issuer_ir",
+    "companyId": "US:BABA",
+    "issuerId": "sec:0001577552",
+    "documentId": "data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf",
+    "url": "https://data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf",
+    "title": "Alibaba Group Holding Limited quarterly financial results",
+    "publishedAt": {
+      "value": "2026-05-13",
+      "precision": "date",
+      "timezone": null
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "en"
+  },
+  "bodyFile": "baba-fy2026-q4.excerpt.html",
+  "mediaType": "text/html",
+  "planFile": "baba-fy2026-q4.plan.json",
+  "completeness": "excerpt",
+  "originalBytesSha256": "94b08e45d3c06789fc4fb5ad3c0e1a3fd57013b6a12c4688e05db4a0a92a1174",
+  "rawPlanFile": "baba-fy2026-q4.raw.plan.json"
+}

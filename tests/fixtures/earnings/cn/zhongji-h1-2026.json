@@ -1,0 +1,46 @@
+{
+  "fixtureVersion": 1,
+  "id": "zhongji-h1-2026",
+  "fixtureKind": "curated_factual_excerpt",
+  "source": {
+    "provider": "cninfo",
+    "companyId": "XSHE:300308",
+    "issuerId": "cn:300308",
+    "documentId": "1225491753",
+    "url": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491753.PDF",
+    "title": "2026 年半年度报告",
+    "publishedAt": {
+      "value": "2026-08-22",
+      "precision": "date",
+      "timezone": "Asia/Shanghai"
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "zh"
+  },
+  "bodyFile": "zhongji-h1-2026.excerpt.txt",
+  "mediaType": "text/plain",
+  "planFile": "zhongji-h1-2026.plan.json",
+  "expected": {
+    "revenue": 41777861795.03,
+    "yoy": 182.49,
+    "scale": 1,
+    "kind": "actual",
+    "period": {
+      "start": "2026-01-01",
+      "end": "2026-06-30",
+      "type": "half_year",
+      "fiscalYear": 2026
+    }
+  },
+  "originalBytesSha256": "e0ecd7c365c65e90b1fa4b4616ba3f4649449d64451e0ba0b1b78ba9ce3170bf",
+  "originalByteLength": 2984970,
+  "rawTextMethod": "pdftotext -layout",
+  "rawPlanFile": "zhongji-h1-2026.raw.plan.json",
+  "rawSourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491753.PDF",
+  "rawReplayed": false,
+  "notes": [
+    "Factual table excerpt, not the entire original PDF.",
+    "H1 is a six-month period, never Q2.",
+    "Segments and other guidance not extracted by this bounded adapter."
+  ]
+}

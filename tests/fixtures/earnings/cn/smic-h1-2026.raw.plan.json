@@ -1,0 +1,43 @@
+{
+  "period": {
+    "start": "2026-01-01",
+    "end": "2026-06-30",
+    "type": "half_year",
+    "fiscalYear": 2026
+  },
+  "periodEvidence": [
+    "2026 年半年度报告"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "label": "Revenue",
+      "rowLabel": "营业收入",
+      "currency": "CNY",
+      "scale": 1000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "PRC_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "单位：千元",
+      "name": "revenue",
+      "sectionStart": "主要会计数据",
+      "sectionEnd": "利润总额"
+    },
+    {
+      "name": "revenue_yoy",
+      "label": "Revenue YoY",
+      "rowLabel": "营业收入",
+      "currency": null,
+      "scale": 1,
+      "unit": "percent",
+      "kind": "actual",
+      "basis": "PRC_GAAP",
+      "scope": "consolidated",
+      "valueIndex": 2,
+      "header": "(%)",
+      "sectionStart": "主要会计数据",
+      "sectionEnd": "利润总额"
+    }
+  ]
+}

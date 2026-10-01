@@ -1,0 +1,48 @@
+{
+  "fixtureVersion": 1,
+  "id": "longsys-h1-forecast-2026",
+  "fixtureKind": "curated_factual_excerpt",
+  "source": {
+    "provider": "cninfo",
+    "companyId": "XSHE:301308",
+    "issuerId": "cn:301308",
+    "documentId": "1225409631",
+    "url": "https://static.cninfo.com.cn/finalpage/2026-07-03/1225409631.PDF",
+    "title": "2026 年半年度业绩预告",
+    "publishedAt": {
+      "value": "2026-07-03",
+      "precision": "date",
+      "timezone": "Asia/Shanghai"
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "zh"
+  },
+  "bodyFile": "longsys-h1-forecast-2026.excerpt.txt",
+  "mediaType": "text/plain",
+  "planFile": "longsys-h1-forecast-2026.plan.json",
+  "expected": {
+    "revenue": null,
+    "yoy": null,
+    "scale": 10000.0,
+    "kind": "forecast",
+    "period": {
+      "start": "2026-01-01",
+      "end": "2026-06-30",
+      "type": "half_year",
+      "fiscalYear": 2026
+    },
+    "lower": 22000000000.0,
+    "upper": 25000000000.0
+  },
+  "originalBytesSha256": "6dc073bfd5988101985cd221fb0aef879eaf502aabc94c41ff4860067e3f72ee",
+  "originalByteLength": 104688,
+  "rawTextMethod": "pdftotext -layout",
+  "rawPlanFile": "longsys-h1-forecast-2026.raw.plan.json",
+  "rawSourceUrl": "https://static.cninfo.com.cn/finalpage/2026-07-03/1225409631.PDF",
+  "rawReplayed": false,
+  "notes": [
+    "Factual table excerpt, not the entire original PDF.",
+    "H1 is a six-month period, never Q2.",
+    "Segments and other guidance not extracted by this bounded adapter."
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nvda-fy2027-q2",
+  "source": {
+    "provider": "issuer_ir",
+    "companyId": "US:NVDA",
+    "issuerId": "sec:0001045810",
+    "documentId": "nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2027",
+    "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2027",
+    "title": "NVIDIA Corporation quarterly financial results",
+    "publishedAt": {
+      "value": "2026-08-26",
+      "precision": "date",
+      "timezone": null
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "en"
+  },
+  "bodyFile": "nvda-fy2027-q2.excerpt.html",
+  "mediaType": "text/html",
+  "planFile": "nvda-fy2027-q2.plan.json",
+  "completeness": "excerpt",
+  "originalBytesSha256": "3c6ec3d35d1cd950dbdbdd937b778c9a9e091e93fed695b713e84f656c8c14bf",
+  "rawPlanFile": "nvda-fy2027-q2.raw.plan.json"
+}

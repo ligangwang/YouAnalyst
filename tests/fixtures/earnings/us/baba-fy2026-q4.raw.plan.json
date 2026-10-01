@@ -1,0 +1,47 @@
+{
+  "period": {
+    "start": "2026-01-01",
+    "end": "2026-03-31",
+    "type": "quarter",
+    "fiscalYear": 2026,
+    "fiscalQuarter": 4
+  },
+  "periodEvidence": [
+    "March 31, 2026"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "label": "Revenue",
+      "rowLabel": "Revenue",
+      "sectionStart": "MARCH QUARTER SUMMARY FINANCIAL RESULTS",
+      "sectionEnd": "Income",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "name": "revenue",
+      "valueIndex": 1,
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "unitEvidence": "RMB RMB US$ Change (in millions, except percentages and per share amounts)"
+    },
+    {
+      "label": "Revenue YoY",
+      "rowLabel": "Revenue",
+      "sectionStart": "MARCH QUARTER SUMMARY FINANCIAL RESULTS",
+      "sectionEnd": "Income",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "name": "revenue_yoy",
+      "valueIndex": 3,
+      "currency": null,
+      "scale": 1,
+      "unit": "percent"
+    }
+  ],
+  "periodStartDerivation": "Calendar-quarter start from three-month period ending on stated calendar date",
+  "announcementDate": "2026-05-13",
+  "announcementDateEvidence": "May 13, 2026"
+}

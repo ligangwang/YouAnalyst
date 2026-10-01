@@ -1,0 +1,120 @@
+{
+  "as_of": "2026-10-01",
+  "coverage": "Most recent two quarterly reporting periods disclosed by the as-of date, not two calendar quarters and not annual/YTD observations.",
+  "records": [
+    {
+      "id": "nvda-fy2027-q1",
+      "file": "nvda-fy2027-q1.json",
+      "source_url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2027",
+      "published_at": "2026-05-20",
+      "period": {
+        "fiscal_year": 2027,
+        "fiscal_quarter": 1,
+        "period_type": "quarter",
+        "period_start": "2026-01-26",
+        "period_end": "2026-04-26",
+        "period_start_derivation": "Day following the preceding quarter/year end, independently present in source financial-table headers"
+      }
+    },
+    {
+      "id": "nvda-fy2027-q2",
+      "file": "nvda-fy2027-q2.json",
+      "source_url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2027",
+      "published_at": "2026-08-26",
+      "period": {
+        "fiscal_year": 2027,
+        "fiscal_quarter": 2,
+        "period_type": "quarter",
+        "period_start": "2026-04-27",
+        "period_end": "2026-07-26",
+        "period_start_derivation": "Day following the preceding quarter/year end, independently present in source financial-table headers"
+      }
+    },
+    {
+      "id": "amd-fy2026-q1",
+      "file": "amd-fy2026-q1.json",
+      "source_url": "https://ir.amd.com/news-events/press-releases/detail/1284/amd-reports-first-quarter-2026-financial-results",
+      "published_at": "2026-05-05",
+      "period": {
+        "fiscal_year": 2026,
+        "fiscal_quarter": 1,
+        "period_type": "quarter",
+        "period_start": "2025-12-28",
+        "period_end": "2026-03-28",
+        "period_start_derivation": "Day following the preceding quarter/year end, independently present in source financial-table headers"
+      }
+    },
+    {
+      "id": "amd-fy2026-q2",
+      "file": "amd-fy2026-q2.json",
+      "source_url": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results",
+      "published_at": "2026-08-04",
+      "period": {
+        "fiscal_year": 2026,
+        "fiscal_quarter": 2,
+        "period_type": "quarter",
+        "period_start": "2026-03-29",
+        "period_end": "2026-06-27",
+        "period_start_derivation": "Day following the preceding quarter/year end, independently present in source financial-table headers"
+      }
+    },
+    {
+      "id": "msft-fy2026-q3",
+      "file": "msft-fy2026-q3.json",
+      "source_url": "https://www.microsoft.com/en-us/investor/earnings/FY-2026-Q3/press-release-webcast",
+      "published_at": "2026-04-29",
+      "period": {
+        "fiscal_year": 2026,
+        "fiscal_quarter": 3,
+        "period_type": "quarter",
+        "period_start": "2026-01-01",
+        "period_end": "2026-03-31",
+        "period_start_derivation": "Calendar-quarter start from three-month period ending on stated calendar date"
+      }
+    },
+    {
+      "id": "msft-fy2026-q4",
+      "file": "msft-fy2026-q4.json",
+      "source_url": "https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast",
+      "published_at": "2026-07-29",
+      "period": {
+        "fiscal_year": 2026,
+        "fiscal_quarter": 4,
+        "period_type": "quarter",
+        "period_start": "2026-04-01",
+        "period_end": "2026-06-30",
+        "period_start_derivation": "Calendar-quarter start from three-month period ending on stated calendar date"
+      }
+    },
+    {
+      "id": "baba-fy2026-q4",
+      "file": "baba-fy2026-q4.json",
+      "source_url": "https://data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf",
+      "published_at": "2026-05-13",
+      "period": {
+        "fiscal_year": 2026,
+        "fiscal_quarter": 4,
+        "period_type": "quarter",
+        "period_start": "2026-01-01",
+        "period_end": "2026-03-31",
+        "period_start_derivation": "Calendar-quarter start from three-month period ending on stated calendar date",
+        "fiscal_label_derivation": "Quarter numbering follows fiscal year ending March 31; the release identifies the calendar quarter end."
+      }
+    },
+    {
+      "id": "baba-fy2027-q1",
+      "file": "baba-fy2027-q1.json",
+      "source_url": "https://data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf",
+      "published_at": "2026-08-20",
+      "period": {
+        "fiscal_year": 2027,
+        "fiscal_quarter": 1,
+        "period_type": "quarter",
+        "period_start": "2026-04-01",
+        "period_end": "2026-06-30",
+        "period_start_derivation": "Calendar-quarter start from three-month period ending on stated calendar date",
+        "fiscal_label_derivation": "Quarter numbering follows fiscal year ending March 31; the release identifies the calendar quarter end."
+      }
+    }
+  ]
+}

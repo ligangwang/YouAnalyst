@@ -1,0 +1,176 @@
+{
+  "verifiedAt": "2026-10-01T14:16:00Z",
+  "scope": "Full original bytes replay for revenue/growth only; no general coverage guarantee",
+  "verified": 15,
+  "unverified": [
+    "msft-fy2026-q3",
+    "msft-fy2026-q4"
+  ],
+  "records": [
+    {
+      "id": "cambricon-h1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-08/1225464969.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "eda895e90e5bbc9976bce9e949b6d0e9aabdc33343c26dfa8b6aed0ed2e4a4b0",
+      "textSha256": "e1ce0db9af91befebfc136f7f17e934721350245894527d8212d11f1a8fd8857",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "cambricon-q1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-30/1225264337.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "6aed917a6930c4ffc79d880ac0841c92e62aabc6684f4862129f48a91fed18d0",
+      "textSha256": "42cc045730734d9023534f3c3939223e09dfbe29a4ca37300b603cdd62e9160f",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "longsys-h1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-11/1225467150.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "d217cdf138618f290fab4e07f71e90eef54c84d52142c38f8593ed726cdf5184",
+      "textSha256": "a5ef8c5a9f97eb8d3a0b193b9c51c1f7290b193ef9d8a1f27c99e4721b511a8d",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "longsys-h1-forecast-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-07-03/1225409631.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "6dc073bfd5988101985cd221fb0aef879eaf502aabc94c41ff4860067e3f72ee",
+      "textSha256": "dcf4f5882a2475f96370a8a0ff2d3ff68db4ad64dbe36fbbaacc107859bc3236",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": null
+    },
+    {
+      "id": "longsys-q1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225214140.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "6f792b523513ad1caf95ee784c024b764519a6e5de6ff53055217d629d6e240f",
+      "textSha256": "a1d424ba5f5ab75703670f9628c607a51fbcd42172baa60c220ef5cb38dd36a2",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "smic-h1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225520297.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "6a44b7cfe77129d47089ae71bee8c71d2733ae694b8910485e6c3e444de5cb13",
+      "textSha256": "a18caac182d635c17cbe9e874046b5fada24cf3359a45653182c655aee48a70e",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "smic-q1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-05-15/1225307101.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "86d567a9b31cc4b0dfcf19c610a797500cc764afd73b465b50dc60f651366cd5",
+      "textSha256": "2103cf14a3c7289aa7d84c36fcc9a6cf49c013c50ead4108b1b29340e56025e7",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "zhongji-h1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491753.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "e0ecd7c365c65e90b1fa4b4616ba3f4649449d64451e0ba0b1b78ba9ce3170bf",
+      "textSha256": "3df52490add606e96f9977a6584737b80f5b00d3dd3ad4f3efb020ea3d84e898",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "zhongji-q1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-17/1225111941.PDF",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "5e37220662c1fea7c9286a9410dbcef20ce83f70329ba3b44f2bf733459aa1af",
+      "textSha256": "f837fe2bfab362821b074a6b9eccdf7c6a2dcedefe5360a6fb69869aed8add7f",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "amd-fy2026-q1",
+      "sourceUrl": "https://ir.amd.com/news-events/press-releases/detail/1284/amd-reports-first-quarter-2026-financial-results",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "52b56457e3d19d89bb19dad52cfb06e2f0aa935a13ad6e6c48f3339a1c48c2e3",
+      "textSha256": "fa733ef4421329de40c8c979d4e4467fd87c366cf8e1f0d5f832893f00050b19",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "amd-fy2026-q2",
+      "sourceUrl": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "a2ae26cd16569d52c7b3c8c99213d8b764cb52e4951882d6cb189a34471d5e9d",
+      "textSha256": "7ac5b0598cc0e5eebe276948dfa1a2ad488ad78ca73e7f02417c81cadf5c080f",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "baba-fy2026-q4",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "94b08e45d3c06789fc4fb5ad3c0e1a3fd57013b6a12c4688e05db4a0a92a1174",
+      "textSha256": "d99fd8a407d76de811d8b534fa9f01e7f14440ab95e88c99fee778dc9c0344dc",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "baba-fy2027-q1",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "e12a8508845c899f18b2049246470c5da2515fe8212fa16c9a449392e2cfabba",
+      "textSha256": "e5f001aed206ca843b7c3d251bb9ff2bc0385ec6254bbbcc9ccc31c18f650a4a",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "nvda-fy2027-q1",
+      "sourceUrl": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2027",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "9576b92d195262ca072b3edd8c1979e0816b0f243744cb1493ab9b4b6561936e",
+      "textSha256": "41942a3632848dd7532ce05c9825acb261d7b807b3d2dcf25b23bac0c3666bdf",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    },
+    {
+      "id": "nvda-fy2027-q2",
+      "sourceUrl": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2027",
+      "status": "extracted",
+      "expectedRevenueMatched": true,
+      "rawSha256": "3c6ec3d35d1cd950dbdbdd937b778c9a9e091e93fed695b713e84f656c8c14bf",
+      "textSha256": "d27e6abf04301bde406ad80806e812bc4f2fda994f280505a81ea7ccc754f448",
+      "completeness": "full",
+      "reason": null,
+      "expectedGrowthMatched": true
+    }
+  ]
+}

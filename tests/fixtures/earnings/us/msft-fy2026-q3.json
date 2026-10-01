@@ -1,0 +1,292 @@
+{
+  "fixture_version": 1,
+  "id": "msft-fy2026-q3",
+  "as_of": "2026-10-01",
+  "fixture_kind": "curated_factual_excerpt",
+  "authentic_downloaded_raw": false,
+  "fixture_notice": "Curated factual tables compiled from the identified official source(s). Not original publisher HTML or a complete source document. Original bytes, where fetched, were verified and hashed but are not committed. Amounts and field labels are factual; narrative is paraphrased.",
+  "company": {
+    "name": "Microsoft Corporation",
+    "ticker": "MSFT",
+    "listing_market": "US",
+    "issuer_domicile": "US"
+  },
+  "source": {
+    "id": "release",
+    "url": "https://www.microsoft.com/en-us/investor/earnings/FY-2026-Q3/press-release-webcast",
+    "published_at": "2026-04-29",
+    "language": "en",
+    "kind": "issuer_release",
+    "verified_on": "2026-10-01",
+    "retrieval_method": "web.run rendered official page",
+    "original_bytes_sha256": null,
+    "original_bytes_length": null,
+    "original_bytes_committed": false,
+    "extraction_method": "Manual factual row transcription from web.run rendered official page",
+    "locator": "Financial Performance Constant Currency Reconciliation: three-month GAAP revenue",
+    "original_bytes_unavailable_reason": "Direct HTTPS requests timed out or returned HTTP 403; web.run successfully read the official page. No raw-byte checksum claimed."
+  },
+  "supporting_sources": [
+    {
+      "id": "call",
+      "url": "https://www.microsoft.com/en-us/investor/events/fy-2026/earnings-fy-2026-q3",
+      "published_at": "2026-04-29",
+      "language": "en",
+      "kind": "issuer_call_transcript",
+      "verified_on": "2026-10-01",
+      "retrieval_method": "web.run rendered official page",
+      "original_bytes_sha256": null,
+      "original_bytes_length": null,
+      "original_bytes_committed": false,
+      "extraction_method": "Manual factual row transcription from web.run rendered official page",
+      "locator": "Amy Hood prepared remarks / outlook"
+    }
+  ],
+  "expected": {
+    "fiscal_period": {
+      "fiscal_year": 2026,
+      "fiscal_quarter": 3,
+      "period_type": "quarter",
+      "period_start": "2026-01-01",
+      "period_end": "2026-03-31",
+      "period_start_derivation": "Calendar-quarter start from three-month period ending on stated calendar date"
+    },
+    "revenue": {
+      "amount": 82886,
+      "currency": "USD",
+      "unit": "million",
+      "accounting_basis": "US_GAAP",
+      "precision": "million",
+      "yoy_percent": 18,
+      "yoy_basis": "reported",
+      "prior_year_amount": 70066,
+      "evidence": {
+        "source_id": "release",
+        "locator": "GAAP revenue table"
+      },
+      "constant_currency_yoy_percent": 15,
+      "prior_year_period_end": "2025-03-31"
+    },
+    "segments": [
+      {
+        "name": "Productivity and Business Processes",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 35013,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 17,
+        "yoy_basis": "reported",
+        "prior_year_amount": 29944,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Segment Revenue Constant Currency Reconciliation: three-month GAAP columns",
+          "fixture_selector": "#segments-1"
+        },
+        "constant_currency_yoy_percent": 13
+      },
+      {
+        "name": "Intelligent Cloud",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 34681,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 30,
+        "yoy_basis": "reported",
+        "prior_year_amount": 26751,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Segment Revenue Constant Currency Reconciliation: three-month GAAP columns",
+          "fixture_selector": "#segments-2"
+        },
+        "constant_currency_yoy_percent": 28
+      },
+      {
+        "name": "More Personal Computing",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 13192,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": -1,
+        "yoy_basis": "reported",
+        "prior_year_amount": 13371,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Segment Revenue Constant Currency Reconciliation: three-month GAAP columns",
+          "fixture_selector": "#segments-3"
+        },
+        "constant_currency_yoy_percent": -3
+      }
+    ],
+    "guidance": [
+      {
+        "metric": "revenue",
+        "subject": "consolidated",
+        "target_period": {
+          "fiscal_year": 2026,
+          "fiscal_quarter": 4,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null,
+          "date_policy": "Only fiscal year/quarter established by reviewed guidance; calendar-derived dates are not emitted"
+        },
+        "lower": 86700,
+        "upper": 87800,
+        "point": null,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "unspecified",
+        "approximate": true,
+        "evidence": {
+          "source_id": "call",
+          "locator": "Amy Hood / total-company and segment guidance",
+          "fixture_selector": "#guidance-1"
+        }
+      },
+      {
+        "metric": "revenue",
+        "subject": "Productivity and Business Processes",
+        "target_period": {
+          "fiscal_year": 2026,
+          "fiscal_quarter": 4,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null,
+          "date_policy": "Only fiscal year/quarter established by reviewed guidance; calendar-derived dates are not emitted"
+        },
+        "lower": 37000,
+        "upper": 37300,
+        "point": null,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "unspecified",
+        "approximate": true,
+        "evidence": {
+          "source_id": "call",
+          "locator": "Amy Hood / total-company and segment guidance",
+          "fixture_selector": "#guidance-2"
+        }
+      },
+      {
+        "metric": "revenue",
+        "subject": "Intelligent Cloud",
+        "target_period": {
+          "fiscal_year": 2026,
+          "fiscal_quarter": 4,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null,
+          "date_policy": "Only fiscal year/quarter established by reviewed guidance; calendar-derived dates are not emitted"
+        },
+        "lower": 37950,
+        "upper": 38250,
+        "point": null,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "unspecified",
+        "approximate": true,
+        "evidence": {
+          "source_id": "call",
+          "locator": "Amy Hood / total-company and segment guidance",
+          "fixture_selector": "#guidance-3"
+        }
+      },
+      {
+        "metric": "revenue",
+        "subject": "More Personal Computing",
+        "target_period": {
+          "fiscal_year": 2026,
+          "fiscal_quarter": 4,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null,
+          "date_policy": "Only fiscal year/quarter established by reviewed guidance; calendar-derived dates are not emitted"
+        },
+        "lower": 11750,
+        "upper": 12250,
+        "point": null,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "unspecified",
+        "approximate": true,
+        "evidence": {
+          "source_id": "call",
+          "locator": "Amy Hood / total-company and segment guidance",
+          "fixture_selector": "#guidance-4"
+        }
+      },
+      {
+        "metric": "revenue_growth_yoy",
+        "subject": "Azure",
+        "target_period": {
+          "fiscal_year": 2026,
+          "fiscal_quarter": 4,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null,
+          "date_policy": "Only fiscal year/quarter established by reviewed guidance; calendar-derived dates are not emitted"
+        },
+        "lower": 39,
+        "upper": 40,
+        "point": null,
+        "currency": null,
+        "unit": "percent",
+        "accounting_basis": "constant_currency",
+        "approximate": true,
+        "evidence": {
+          "source_id": "call",
+          "locator": "Amy Hood / Azure outlook",
+          "fixture_selector": "#guidance-5"
+        }
+      }
+    ],
+    "guidance_status": "reported",
+    "currency_policy": "Native reporting currency",
+    "missing_fields": [],
+    "revenue_breakdowns": [
+      {
+        "name": "Microsoft Cloud",
+        "kind": "overlapping_product_service_metric",
+        "parent": null,
+        "amount": 54500,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "nearest_100_million",
+        "yoy_percent": 29,
+        "yoy_basis": "reported",
+        "prior_year_amount": null,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Business Highlights",
+          "fixture_selector": "#revenue_breakdowns-1"
+        }
+      }
+    ]
+  },
+  "notes": [
+    "Numerical guidance comes from the same-date official call transcript; the earnings release itself defers guidance to the call.",
+    "Reported revenue growth and constant-currency growth are separate fields.",
+    "Microsoft Cloud overlaps reportable segments; do not add it to segment totals."
+  ],
+  "body_file": "msft-fy2026-q3.excerpt.html",
+  "body_sha256": "0baf55c7222623432c2e723f76fcac0bc3fb6fc89a98407ad404290fc2477839",
+  "evidence": [
+    {
+      "fixture_selector": "#revenue-1",
+      "source_id": "release",
+      "source_locator": "GAAP revenue table",
+      "kind": "factual_table_row",
+      "normalized_factual_row": "Revenue 82,886 70,066 18%",
+      "normalization_note": "Factual table cells transcribed and whitespace/columns normalized; not a verbatim prose quotation."
+    }
+  ]
+}

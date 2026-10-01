@@ -1,0 +1,44 @@
+{
+  "period": {
+    "start": "2026-01-01",
+    "end": "2026-03-31",
+    "type": "quarter",
+    "fiscalYear": 2026,
+    "fiscalQuarter": 1
+  },
+  "periodEvidence": [
+    "2026 年第一季度报告"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "label": "Revenue",
+      "rowLabel": "营业收入（元）",
+      "currency": "CNY",
+      "scale": 1,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "PRC_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "营业收入（元）",
+      "name": "revenue",
+      "sectionStart": "主要会计数据",
+      "sectionEnd": "归属于上市公司股东的净利"
+    },
+    {
+      "name": "revenue_yoy",
+      "label": "Revenue YoY",
+      "rowLabel": "营业收入（元）",
+      "currency": null,
+      "scale": 1,
+      "unit": "percent",
+      "kind": "actual",
+      "basis": "PRC_GAAP",
+      "scope": "consolidated",
+      "valueIndex": 2,
+      "header": "本报告期",
+      "sectionStart": "主要会计数据",
+      "sectionEnd": "归属于上市公司股东的净利"
+    }
+  ]
+}

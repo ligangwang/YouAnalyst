@@ -1,0 +1,346 @@
+{
+  "fixture_version": 1,
+  "id": "nvda-fy2027-q1",
+  "as_of": "2026-10-01",
+  "fixture_kind": "curated_factual_excerpt",
+  "authentic_downloaded_raw": false,
+  "fixture_notice": "Curated factual tables compiled from the identified official source(s). Not original publisher HTML or a complete source document. Original bytes, where fetched, were verified and hashed but are not committed. Amounts and field labels are factual; narrative is paraphrased.",
+  "company": {
+    "name": "NVIDIA Corporation",
+    "ticker": "NVDA",
+    "listing_market": "US",
+    "issuer_domicile": "US"
+  },
+  "source": {
+    "id": "release",
+    "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2027",
+    "published_at": "2026-05-20",
+    "language": "en",
+    "kind": "issuer_release",
+    "verified_on": "2026-10-01",
+    "retrieval_method": "urllib.request direct HTTPS",
+    "original_bytes_sha256": "9576b92d195262ca072b3edd8c1979e0816b0f243744cb1493ab9b4b6561936e",
+    "original_bytes_length": 292926,
+    "original_bytes_committed": false,
+    "extraction_method": "Python html.parser.HTMLParser; whitespace collapsed; manual factual row selection",
+    "locator": null
+  },
+  "supporting_sources": [
+    {
+      "id": "10q",
+      "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000052/nvda-20260426.htm",
+      "published_at": null,
+      "language": "en",
+      "kind": "sec_10q",
+      "verified_on": "2026-10-01",
+      "retrieval_method": "urllib.request direct HTTPS",
+      "original_bytes_sha256": "d7542f6f8826162b4128e373c40893377b56fd69aebc0cacf1614e0fdc79655b",
+      "original_bytes_length": 1167167,
+      "original_bytes_committed": false,
+      "extraction_method": "Python html.parser.HTMLParser; whitespace collapsed; manual factual row selection",
+      "locator": "Note 13 / Revenue by Reportable Segments and Revenue by Market Platform",
+      "document_signed_at": "2026-05-20",
+      "publication_date_note": "Signature date verified; SEC filing-index acceptance timestamp not retrieved."
+    }
+  ],
+  "expected": {
+    "fiscal_period": {
+      "fiscal_year": 2027,
+      "fiscal_quarter": 1,
+      "period_type": "quarter",
+      "period_start": "2026-01-26",
+      "period_end": "2026-04-26",
+      "period_start_derivation": "Day following the preceding quarter/year end, independently present in source financial-table headers"
+    },
+    "revenue": {
+      "amount": 81615,
+      "currency": "USD",
+      "unit": "million",
+      "accounting_basis": "US_GAAP",
+      "precision": "million",
+      "yoy_percent": 85,
+      "yoy_basis": "reported",
+      "prior_year_amount": 44062,
+      "evidence": {
+        "source_id": "release",
+        "locator": "GAAP revenue table"
+      },
+      "prior_year_period_end": "2025-04-27"
+    },
+    "segments": [
+      {
+        "name": "Compute & Networking",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 74550,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 88,
+        "yoy_basis": "reported",
+        "prior_year_amount": 39589,
+        "evidence": {
+          "source_id": "10q",
+          "locator": "Revenue by Reportable Segments: three-month columns",
+          "fixture_selector": "#segments-1"
+        }
+      },
+      {
+        "name": "Graphics",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 7065,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 58,
+        "yoy_basis": "reported",
+        "prior_year_amount": 4473,
+        "evidence": {
+          "source_id": "10q",
+          "locator": "Revenue by Reportable Segments: three-month columns",
+          "fixture_selector": "#segments-2"
+        }
+      }
+    ],
+    "guidance": [
+      {
+        "metric": "revenue",
+        "subject": "consolidated",
+        "target_period": {
+          "fiscal_year": 2027,
+          "fiscal_quarter": 2,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null
+        },
+        "lower": 89180,
+        "upper": 92820,
+        "point": 91000,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "unspecified",
+        "approximate": true,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Outlook",
+          "fixture_selector": "#guidance-1"
+        },
+        "range_derivation": "Issuer midpoint plus or minus 2%; bounds calculated",
+        "assumptions": [
+          "No Data Center compute revenue from China assumed"
+        ]
+      },
+      {
+        "metric": "gross_margin",
+        "subject": "consolidated",
+        "target_period": {
+          "fiscal_year": 2027,
+          "fiscal_quarter": 2,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null
+        },
+        "lower": 74.4,
+        "upper": 75.4,
+        "point": 74.9,
+        "currency": null,
+        "unit": "percent",
+        "accounting_basis": "US_GAAP",
+        "approximate": true,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Outlook",
+          "fixture_selector": "#guidance-2"
+        }
+      },
+      {
+        "metric": "gross_margin",
+        "subject": "consolidated",
+        "target_period": {
+          "fiscal_year": 2027,
+          "fiscal_quarter": 2,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null
+        },
+        "lower": 74.5,
+        "upper": 75.5,
+        "point": 75.0,
+        "currency": null,
+        "unit": "percent",
+        "accounting_basis": "non_GAAP",
+        "approximate": true,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Outlook",
+          "fixture_selector": "#guidance-3"
+        }
+      },
+      {
+        "metric": "operating_expenses",
+        "subject": "consolidated",
+        "target_period": {
+          "fiscal_year": 2027,
+          "fiscal_quarter": 2,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null
+        },
+        "lower": null,
+        "upper": null,
+        "point": 8500,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "approximate": true,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Outlook",
+          "fixture_selector": "#guidance-4"
+        }
+      },
+      {
+        "metric": "operating_expenses",
+        "subject": "consolidated",
+        "target_period": {
+          "fiscal_year": 2027,
+          "fiscal_quarter": 2,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null
+        },
+        "lower": null,
+        "upper": null,
+        "point": 8300,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "non_GAAP",
+        "approximate": true,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Outlook",
+          "fixture_selector": "#guidance-5"
+        }
+      }
+    ],
+    "guidance_status": "reported",
+    "currency_policy": "Native reporting currency",
+    "missing_fields": [],
+    "revenue_breakdowns": [
+      {
+        "name": "Data Center",
+        "kind": "market_platform",
+        "parent": null,
+        "amount": 75246,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 92,
+        "yoy_basis": "reported",
+        "prior_year_amount": 39112,
+        "evidence": {
+          "source_id": "10q",
+          "locator": "Revenue by Market Platform: three-month columns",
+          "fixture_selector": "#revenue_breakdowns-1"
+        }
+      },
+      {
+        "name": "Hyperscale",
+        "kind": "market_subplatform",
+        "parent": "Data Center",
+        "amount": 37869,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 115,
+        "yoy_basis": "reported",
+        "prior_year_amount": 17599,
+        "evidence": {
+          "source_id": "10q",
+          "locator": "Revenue by Market Platform: three-month columns",
+          "fixture_selector": "#revenue_breakdowns-2"
+        }
+      },
+      {
+        "name": "AI Clouds, Industrial, & Enterprise",
+        "kind": "market_subplatform",
+        "parent": "Data Center",
+        "amount": 37377,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 74,
+        "yoy_basis": "reported",
+        "prior_year_amount": 21513,
+        "evidence": {
+          "source_id": "10q",
+          "locator": "Revenue by Market Platform: three-month columns",
+          "fixture_selector": "#revenue_breakdowns-3"
+        }
+      },
+      {
+        "name": "Edge Computing",
+        "kind": "market_platform",
+        "parent": null,
+        "amount": 6369,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 29,
+        "yoy_basis": "reported",
+        "prior_year_amount": 4950,
+        "evidence": {
+          "source_id": "10q",
+          "locator": "Revenue by Market Platform: three-month columns",
+          "fixture_selector": "#revenue_breakdowns-4"
+        }
+      }
+    ],
+    "annual_guidance": {
+      "metric": "tax_rate",
+      "lower": 16,
+      "upper": 18,
+      "unit": "percent",
+      "accounting_basis": [
+        "US_GAAP",
+        "non_GAAP"
+      ],
+      "target_period": {
+        "fiscal_year": 2027,
+        "period_type": "annual"
+      },
+      "exclusions": [
+        "Discrete items",
+        "Material changes in tax environment"
+      ],
+      "evidence": {
+        "source_id": "release",
+        "locator": "Outlook"
+      }
+    }
+  },
+  "notes": [
+    "Reportable segments and market platforms are separate non-additive taxonomies. Do not add both sets together.",
+    "FY2027 Q1 changed market-platform presentation and recast comparatives.",
+    "Non-GAAP measures began including stock-based compensation in FY2027 Q1; revenue is identical under both bases."
+  ],
+  "body_file": "nvda-fy2027-q1.excerpt.html",
+  "body_sha256": "92c70a768b233d60a70b60029a849970a25c1c0b1c0d6206ab71a05c85e7ed66",
+  "evidence": [
+    {
+      "fixture_selector": "#revenue-1",
+      "source_id": "release",
+      "source_locator": "GAAP revenue table",
+      "kind": "factual_table_row",
+      "normalized_factual_row": "Revenue 81,615 44,062 85%",
+      "normalization_note": "Factual table cells transcribed and whitespace/columns normalized; not a verbatim prose quotation."
+    }
+  ]
+}

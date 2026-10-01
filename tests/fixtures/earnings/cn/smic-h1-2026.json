@@ -1,0 +1,46 @@
+{
+  "fixtureVersion": 1,
+  "id": "smic-h1-2026",
+  "fixtureKind": "curated_factual_excerpt",
+  "source": {
+    "provider": "cninfo",
+    "companyId": "XSHG:688981",
+    "issuerId": "cn:688981",
+    "documentId": "1225520297",
+    "url": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225520297.PDF",
+    "title": "2026 年半年度报告",
+    "publishedAt": {
+      "value": "2026-08-28",
+      "precision": "date",
+      "timezone": "Asia/Shanghai"
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "zh"
+  },
+  "bodyFile": "smic-h1-2026.excerpt.txt",
+  "mediaType": "text/plain",
+  "planFile": "smic-h1-2026.plan.json",
+  "expected": {
+    "revenue": 38635115000.0,
+    "yoy": 19.4,
+    "scale": 1000.0,
+    "kind": "actual",
+    "period": {
+      "start": "2026-01-01",
+      "end": "2026-06-30",
+      "type": "half_year",
+      "fiscalYear": 2026
+    }
+  },
+  "originalBytesSha256": "6a44b7cfe77129d47089ae71bee8c71d2733ae694b8910485e6c3e444de5cb13",
+  "originalByteLength": 1077584,
+  "rawTextMethod": "pdftotext -layout",
+  "rawPlanFile": "smic-h1-2026.raw.plan.json",
+  "rawSourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225520297.PDF",
+  "rawReplayed": false,
+  "notes": [
+    "Factual table excerpt, not the entire original PDF.",
+    "H1 is a six-month period, never Q2.",
+    "Segments and other guidance not extracted by this bounded adapter."
+  ]
+}

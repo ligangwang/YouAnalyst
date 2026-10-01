@@ -1,0 +1,24 @@
+{
+  "id": "amd-fy2026-q2",
+  "source": {
+    "provider": "issuer_ir",
+    "companyId": "US:AMD",
+    "issuerId": "sec:0000002488",
+    "documentId": "ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results",
+    "url": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results",
+    "title": "Advanced Micro Devices, Inc. quarterly financial results",
+    "publishedAt": {
+      "value": "2026-08-04",
+      "precision": "date",
+      "timezone": null
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "en"
+  },
+  "bodyFile": "amd-fy2026-q2.excerpt.html",
+  "mediaType": "text/html",
+  "planFile": "amd-fy2026-q2.plan.json",
+  "completeness": "excerpt",
+  "originalBytesSha256": "a2ae26cd16569d52c7b3c8c99213d8b764cb52e4951882d6cb189a34471d5e9d",
+  "rawPlanFile": "amd-fy2026-q2.raw.plan.json"
+}

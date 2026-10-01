@@ -1,0 +1,104 @@
+{
+  "period": {
+    "start": "2026-04-27",
+    "end": "2026-07-26",
+    "type": "quarter",
+    "fiscalYear": 2027,
+    "fiscalQuarter": 2
+  },
+  "periodEvidence": [
+    "End | 2026-07-26",
+    "Start | 2026-04-27",
+    "Fiscal year | 2027",
+    "Quarter | 2"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Revenue",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |"
+    },
+    {
+      "name": "revenue_yoy",
+      "label": "Revenue YoY",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |",
+      "valueIndex": 2,
+      "currency": null,
+      "scale": 1,
+      "unit": "percent",
+      "header": "YoY %",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Compute & Networking revenue",
+      "rowLabel": "Compute & Networking |",
+      "segment": "Compute & Networking",
+      "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Graphics revenue",
+      "rowLabel": "Graphics |",
+      "segment": "Graphics",
+      "sourceUrl": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "forecast",
+      "basis": "unspecified",
+      "scope": "consolidated",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Revenue guidance",
+      "rowLabel": "revenue | consolidated |",
+      "valueIndex": 2,
+      "range": true,
+      "period": {
+        "start": null,
+        "end": null,
+        "type": "quarter",
+        "fiscalYear": 2027,
+        "fiscalQuarter": 3
+      },
+      "periodEvidence": [
+        "revenue | consolidated | 2027 | 3"
+      ],
+      "sourceUrl": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2027",
+      "derivation": "midpoint_plus_minus",
+      "pointIndex": 4,
+      "approximate": true
+    }
+  ],
+  "periodStartDerivation": "Day following the preceding quarter/year end, independently present in source financial-table headers"
+}

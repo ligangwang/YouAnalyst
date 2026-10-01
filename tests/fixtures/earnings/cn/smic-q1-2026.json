@@ -1,0 +1,47 @@
+{
+  "fixtureVersion": 1,
+  "id": "smic-q1-2026",
+  "fixtureKind": "curated_factual_excerpt",
+  "source": {
+    "provider": "cninfo",
+    "companyId": "XSHG:688981",
+    "issuerId": "cn:688981",
+    "documentId": "1225307101",
+    "url": "https://static.cninfo.com.cn/finalpage/2026-05-15/1225307101.PDF",
+    "title": "2026 年第一季度报告",
+    "publishedAt": {
+      "value": "2026-05-15",
+      "precision": "date",
+      "timezone": "Asia/Shanghai"
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "zh"
+  },
+  "bodyFile": "smic-q1-2026.excerpt.txt",
+  "mediaType": "text/plain",
+  "planFile": "smic-q1-2026.plan.json",
+  "expected": {
+    "revenue": 17617218000.0,
+    "yoy": 8.1,
+    "scale": 1000.0,
+    "kind": "actual",
+    "period": {
+      "start": "2026-01-01",
+      "end": "2026-03-31",
+      "type": "quarter",
+      "fiscalYear": 2026,
+      "fiscalQuarter": 1
+    }
+  },
+  "originalBytesSha256": "86d567a9b31cc4b0dfcf19c610a797500cc764afd73b465b50dc60f651366cd5",
+  "originalByteLength": 205165,
+  "rawTextMethod": "pdftotext -layout",
+  "rawPlanFile": "smic-q1-2026.raw.plan.json",
+  "rawSourceUrl": "https://static.cninfo.com.cn/finalpage/2026-05-15/1225307101.PDF",
+  "rawReplayed": false,
+  "notes": [
+    "Factual table excerpt, not the entire original PDF.",
+    "Quarterly fiscal period.",
+    "Segments and other guidance not extracted by this bounded adapter."
+  ]
+}
