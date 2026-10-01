@@ -7,6 +7,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/maintenance-job-iam.sh"
 
 pipeline_require_enabled() {
   case "${PUBSUB_BOOTSTRAP_IAM:-0}" in 0|1) ;; *) echo 'PUBSUB_BOOTSTRAP_IAM must be 0 or 1' >&2; return 1 ;; esac
+  case "${FILING_PIPELINE_BOOTSTRAP_IAM:-0}" in 0|1) ;; *) echo 'FILING_PIPELINE_BOOTSTRAP_IAM must be 0 or 1' >&2; return 1 ;; esac
   [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 ]] || {
     echo 'SEC filing pipeline is not enabled. Review docs/background-pubsub.md before setting ENABLE_SEC_FILING_PIPELINE=1.' >&2
     return 1
@@ -36,16 +37,17 @@ pipeline_retained_subscription() {
 
 pipeline_iam() {
   local kind="$1" name="$2" role="$3" member="$4" current
+  local bootstrap="${FILING_PIPELINE_BOOTSTRAP_IAM:-${PUBSUB_BOOTSTRAP_IAM:-0}}"
   local -a command scope=(--project "$GCP_PROJECT_ID")
   case "$kind" in
     topic) command=(pubsub topics) ;;
     subscription) command=(pubsub subscriptions) ;;
     service) command=(run services); scope+=(--region "$pipeline_region") ;;
     job) command=(run jobs); scope+=(--region "$pipeline_region") ;;
-    account) command=(iam service-accounts) ;;
+    account) command=(iam service-accounts); bootstrap="${PUBSUB_BOOTSTRAP_IAM:-0}" ;;
     *) echo "Unknown IAM resource kind: $kind" >&2; return 1 ;;
   esac
-  if [[ "${PUBSUB_BOOTSTRAP_IAM:-0}" == 1 ]]; then
+  if [[ "$bootstrap" == 1 ]]; then
     gcloud "${command[@]}" add-iam-policy-binding "$name" "${scope[@]}" \
       --member "$member" --role "$role" --quiet >/dev/null
   else
@@ -54,7 +56,7 @@ pipeline_iam() {
       --flatten='bindings[].members' --filter="bindings.role=$role AND bindings.members=$member" \
       --format='value(bindings.members)')" || return 1
     if ! grep -Fxq -- "$member" <<< "$current"; then
-      echo "Missing $role for $member on $kind $name. An authorized operator must approve and run PUBSUB_BOOTSTRAP_IAM=1; routine releases cannot expand IAM." >&2
+      echo "Missing $role for $member on $kind $name. An authorized operator must approve the setup workflow or FILING_PIPELINE_BOOTSTRAP_IAM=1; PUBSUB_BOOTSTRAP_IAM=1 additionally administers shared account IAM. Routine releases cannot expand IAM." >&2
       return 1
     fi
   fi

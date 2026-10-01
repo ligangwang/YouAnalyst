@@ -26,7 +26,7 @@ if [[ "${1:-}" == --publisher-only ]]; then exit 0; fi
 pipeline_topic sec-filings-discovered
 # Check an existing service's binding before replacing its revision. First-time
 # grants are made below only in the explicitly approved bootstrap mode.
-if [[ "${PUBSUB_BOOTSTRAP_IAM:-0}" != 1 ]]; then
+if [[ "${PUBSUB_BOOTSTRAP_IAM:-0}" != 1 && "${FILING_PIPELINE_BOOTSTRAP_IAM:-0}" != 1 ]]; then
   pipeline_iam service "$service" roles/run.invoker "serviceAccount:$maintenance_scheduler_account"
 fi
 # Reuse the production secret already supplied by the release environment. Never

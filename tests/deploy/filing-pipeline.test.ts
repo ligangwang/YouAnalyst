@@ -114,6 +114,17 @@ test('normal filing release only verifies IAM and refuses implicit grants', () =
   assert.doesNotMatch(missing.calls, /add-iam-policy-binding|subscriptions (create|update)|topics create/);
 });
 
+test('approved scoped bootstrap creates resource bindings without account IAM administration', () => {
+  const r = run('scripts/deploy-company-graph-pubsub.sh', {
+    NEW_PUBSUB: '1', FILING_PIPELINE_BOOTSTRAP_IAM: '1', PUBSUB_BOOTSTRAP_IAM: '0',
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.calls, /topics add-iam-policy-binding company-graph-requests/);
+  assert.match(r.calls, /services add-iam-policy-binding company-graph-subscriber/);
+  assert.doesNotMatch(r.calls, /iam service-accounts (get-iam-policy|add-iam-policy-binding)|projects add-iam-policy-binding/);
+  assert.ok(r.calls.indexOf('run deploy company-graph-subscriber') < r.calls.indexOf('services add-iam-policy-binding company-graph-subscriber'));
+});
+
 test('graph subscriber keeps request and filing delivery isolated and processing disabled by default', () => {
   const r = run('scripts/deploy-company-graph-pubsub.sh');
   assert.equal(r.status, 0, r.stderr);

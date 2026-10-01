@@ -279,11 +279,23 @@ Staging receives no graph request topic through this rollout.
 
 ### Operator rollout checklist
 
+The manual **Set up paused SEC and graph pipeline** workflow applies the approved
+new resource bindings using the existing release credentials. It is main-only,
+requires the exact main release to have succeeded, keeps processing disabled and
+both new schedules paused, and runs cached no-provider delivery probes. It uses
+`FILING_PIPELINE_BOOTSTRAP_IAM=1` only for the new resource bindings; the existing
+service-account token-creation binding is reused without IAM administration.
+It never resumes schedules or enables paid processing. After successful setup,
+persist the disabled rollout variables before the next ordinary release.
+
 1. Obtain separate approval for the listed persistent, resource-scoped IAM grants.
    Reusing the existing OpenAI configuration does not authorize new IAM grants.
-   An approved operator can run `PUBSUB_BOOTSTRAP_IAM=1` with the chosen deployment
-   target; this flag is deliberately absent from routine CI. No live bootstrap is
-   performed by local tests.
+   Use the manual setup workflow, or have an approved operator run the chosen
+   deployment target with `FILING_PIPELINE_BOOTSTRAP_IAM=1`. This scoped flag
+   leaves the existing account token-creation binding unchanged. The older
+   `PUBSUB_BOOTSTRAP_IAM=1` remains a separate initial account bootstrap option.
+   Neither is enabled in routine release CI. No live bootstrap is performed by
+   local tests.
 2. Persist production `ENABLE_SEC_FILING_PIPELINE=1`, with both
    `SEC_FILINGS_COLLECTOR_ENABLED=0` and `COMPANY_GRAPH_PROCESSING_ENABLED=0`.
    Choose `COMPANY_GRAPH_QUEUE_BATCH_SIZE` from 1–5, starting with 1. Supply the
