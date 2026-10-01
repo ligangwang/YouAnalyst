@@ -90,8 +90,10 @@ export function AdminCompanyGraphRequestsPage() {
   const [acceptedTickers, setAcceptedTickers] = useState<Set<string>>(new Set());
   const [unconfirmedTickers, setUnconfirmedTickers] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
+  const [freshTicker, setFreshTicker] = useState<string | null>(null);
 
   async function loadRequests(confirmHistory = false) {
+    setFreshTicker(null);
     setLoadingQueue(true);
     setQueueError(null);
 
@@ -142,13 +144,14 @@ export function AdminCompanyGraphRequestsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user]);
 
-  async function queueGraph(item: GraphRequestItem) {
+  async function queueGraph(item: GraphRequestItem, forceNew = false) {
     if (submitting.current || loadingQueue || unconfirmedTickers.has(item.ticker) || acceptedTickers.has(item.ticker) || item.status === "PROCESSING") {
       return;
     }
 
     submitting.current = true;
-    const shouldForce = item.status === "COMPLETED";
+    const shouldForce = forceNew || item.status === "COMPLETED";
+    setFreshTicker(null);
     const ticker = item.ticker;
     let requestStarted = false;
     let requestRejected = false;
@@ -288,8 +291,28 @@ export function AdminCompanyGraphRequestsPage() {
                             : item.status === "FAILED" ? <UiText text={"Queue retry"} />
                               : <UiText text={"Queue extraction"} />}
                 </button>
+                {item.status === "FAILED" ? (
+                  <button type="button" onClick={() => setFreshTicker(item.ticker)}
+                    disabled={activeTicker !== null || loadingQueue || unconfirmedTickers.has(item.ticker) || acceptedTickers.has(item.ticker)}
+                    className="rounded-lg border border-amber-400/40 px-4 py-2 text-sm font-semibold text-amber-100 disabled:opacity-60">
+                    <UiText text={"Start fresh extraction"} />
+                  </button>
+                ) : null}
               </div>
             </div>
+            {freshTicker === item.ticker && item.status === "FAILED" ? (
+              <div className="mt-4 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3">
+                <p className="mb-3 text-sm text-amber-100"><UiText text={"Start a new extraction after reviewing this failure? This bypasses the failed provider response and may incur another OpenAI charge."} /></p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void queueGraph(item, true)} disabled={activeTicker !== null || loadingQueue}
+                    className="rounded-lg bg-amber-300 px-3 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60">
+                    <UiText text={"Confirm fresh extraction"} />
+                  </button>
+                  <button type="button" onClick={() => setFreshTicker(null)} disabled={activeTicker !== null}
+                    className="rounded-lg border border-white/20 px-3 py-2 text-sm"><UiText text={"Cancel"} /></button>
+                </div>
+              </div>
+            ) : null}
           </article>
         ))}
 

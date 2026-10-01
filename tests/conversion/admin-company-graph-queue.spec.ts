@@ -52,6 +52,29 @@ function row(page: Page, ticker: string) {
   return page.getByRole("article").filter({ has: page.getByRole("heading", { name: `$${ticker}`, exact: true }) });
 }
 
+test("terminal failures offer a reviewed fresh generation without silently charging on retry", async ({ page }) => {
+  const items = [request("AMD", "FAILED")], posts: unknown[] = [];
+  await openFixture(page, async route => {
+    if (route.request().method() === "POST") {
+      posts.push(route.request().postDataJSON());
+      items[0] = { ...items[0], status: "QUEUED", error: null };
+      return route.fulfill({ status: 202, json: { ok: true, ticker: "AMD", status: "QUEUED", dispatch: { status: "PUBLISHED" } } });
+    }
+    return route.fulfill({ json: { items } });
+  });
+  await row(page, "AMD").getByRole("button", { name: "Start fresh extraction", exact: true }).click();
+  await expect(row(page, "AMD").getByText(/may incur another OpenAI charge/)).toBeVisible();
+  expect(posts).toEqual([]);
+  await row(page, "AMD").getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(row(page, "AMD").getByRole("button", { name: "Confirm fresh extraction", exact: true })).toHaveCount(0);
+  expect(posts).toEqual([]);
+  await row(page, "AMD").getByRole("button", { name: "Start fresh extraction", exact: true }).click();
+  await row(page, "AMD").getByRole("button", { name: "Confirm fresh extraction", exact: true }).click();
+  await expect.poll(() => posts.length).toBe(1);
+  expect(posts).toEqual([{ ticker: "AMD", force: true }]);
+  await expect(page.getByRole("status")).toContainText("regeneration queued");
+});
+
 test.beforeAll(async () => {
   const bundled = await build({
     stdin: {

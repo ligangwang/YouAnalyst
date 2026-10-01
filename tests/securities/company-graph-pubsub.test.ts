@@ -155,6 +155,30 @@ test("saved response identity resumes after provider-result checkpoint failure",
   f.inject(); await runLatest10KCompanyGraphExtraction(extractInput, f.deps);
   assert.deepEqual(f.calls.responseIds, [undefined, "resp_test"]);
 });
+
+test("retry refetches truncated sections and preserves late relationship evidence", async () => {
+  const f = extractionFixture();
+  const riskText = "General market uncertainty.\n\n".repeat(12000) + "NVIDIA is our sole supplier of essential accelerator components.";
+  assert.ok(riskText.length > 300000);
+  f.deps.sections = async () => {
+    f.calls.sections++;
+    return [{ id: "item1", title: "Business", text: "We manufacture computer hardware." },
+      { id: "item1a", title: "Risks", text: riskText }];
+  };
+  const inputs: string[] = [], extract = f.deps.extract;
+  f.deps.extract = async input => { inputs.push(input.extractionText); return extract(input); };
+  f.inject((_path, data) => Boolean(data.providerResult));
+  await assert.rejects(runLatest10KCompanyGraphExtraction(extractInput, f.deps), /Injected/);
+  const path = `sec_filing_sections/${filing.accessionNumber}_item1a`;
+  assert.equal(f.rows.get(path)?.truncated, true);
+  f.inject();
+  await runLatest10KCompanyGraphExtraction(extractInput, f.deps);
+  assert.equal(f.calls.sections, 2);
+  assert.deepEqual(inputs, [inputs[0], inputs[0]]);
+  assert.match(inputs[1], /NVIDIA is our sole supplier/);
+  assert.equal(f.rows.get(path)?.truncated, true);
+  assert.equal(f.rows.get(path)?.charCount, riskText.length);
+});
 test("legacy incomplete filing cache is repaired instead of early-returned", async () => {
   const source = extractionFixture(); const result = await runLatest10KCompanyGraphExtraction(extractInput, source.deps);
   const f = extractionFixture(); f.rows.set(`sec_filings/${filing.accessionNumber}`, { companyGraphLatestResult: { result } });

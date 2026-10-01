@@ -262,6 +262,11 @@ obsolete request generations are skipped; older filing delivery does not regress
 the latest graph. Pub/Sub is at least once: an ambiguous provider response before
 its durable checkpoint can require operator attention or repeated provider work.
 Do not describe this as exactly-once paid extraction.
+Normal **Queue retry** reuses saved provider state. After reviewing a terminal
+provider failure, **Start fresh extraction** and its explicit confirmation create
+a new generation; the UI warns that this may incur another OpenAI charge.
+Truncated stored filing sections are refetched before extraction so retries retain
+relationship evidence beyond the stored excerpt limit.
 
 The anonymous request endpoint remains queue-only. Once production is explicitly
 opted in, the website receives `COMPANY_GRAPH_REQUEST_TOPIC=company-graph-requests`

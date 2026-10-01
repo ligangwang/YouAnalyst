@@ -1179,5 +1179,8 @@
   "Queue extraction": "排队提取",
   "Sign in with an admin account to queue graph extraction.": "请使用管理员账号登录以提交关系图提取请求。",
   "Unable to queue company graph extraction.": "无法提交公司关系图提取请求。",
-  "Unable to confirm the graph extraction request.": "无法确认关系图提取请求。"
+  "Unable to confirm the graph extraction request.": "无法确认关系图提取请求。",
+  "Start fresh extraction": "开始全新提取",
+  "Start a new extraction after reviewing this failure? This bypasses the failed provider response and may incur another OpenAI charge.": "确认已检查此次失败并开始全新提取？这会跳过失败的服务响应，并可能再次产生 OpenAI 费用。",
+  "Confirm fresh extraction": "确认全新提取"
 }

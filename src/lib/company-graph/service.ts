@@ -357,9 +357,17 @@ export async function runLatest10KCompanyGraphExtraction(input: CompanyGraphExtr
     let sections: SecFilingSection[];
     const sectionRefs = ["item1", "item1a"].map(id => db.collection("sec_filing_sections").doc(`${filing!.accessionNumber}_${id}`));
     const saved = await Promise.all(sectionRefs.map(ref => ref.get()));
-    if (saved.every(doc => typeof doc.data()?.text === "string")) {
+    if (saved.every(doc => {
+      const section = doc.data();
+      return typeof section?.text === "string" && section.truncated !== true
+        && (!Number.isFinite(Number(section.charCount)) || Number(section.charCount) <= section.text.length);
+    })) {
       sections = saved.map((doc, index) => ({ id: index === 0 ? "item1" : "item1a", title: String(doc.data()!.title), text: String(doc.data()!.text) }));
-    } else sections = await (dependencies.sections ?? fetchLatest10KSections)(company.cik, filing, signal);
+    } else {
+      // Stored excerpts can omit relationship paragraphs late in Item 1A. Never
+      // turn their truncated prefixes into a different provider input on retry.
+      sections = await (dependencies.sections ?? fetchLatest10KSections)(company.cik, filing, signal);
+    }
     const storedSections = summarizeStoredSections(sections);
     if (!sections.some(section => section.text.trim())) throw new Error(`No extractable 10-K text found for ${ticker}.`);
     await assertLease();
