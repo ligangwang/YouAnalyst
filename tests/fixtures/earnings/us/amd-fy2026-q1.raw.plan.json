@@ -1,0 +1,47 @@
+{
+  "period": {
+    "start": "2025-12-28",
+    "end": "2026-03-28",
+    "type": "quarter",
+    "fiscalYear": 2026,
+    "fiscalQuarter": 1
+  },
+  "periodEvidence": [
+    "March 28, 2026"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "label": "Revenue",
+      "rowLabel": "Revenue ($M) |",
+      "sectionStart": "GAAP Quarterly Financial Results",
+      "sectionEnd": "Non-GAAP(*) Quarterly Financial Results",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "name": "revenue",
+      "valueIndex": 0,
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "unitEvidence": "(in millions, except per share data)"
+    },
+    {
+      "label": "Revenue YoY",
+      "rowLabel": "Revenue ($M) |",
+      "sectionStart": "GAAP Quarterly Financial Results",
+      "sectionEnd": "Non-GAAP(*) Quarterly Financial Results",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "name": "revenue_yoy",
+      "valueIndex": 2,
+      "currency": null,
+      "scale": 1,
+      "unit": "percent"
+    }
+  ],
+  "periodStartDerivation": "Day following the preceding quarter/year end, independently present in source financial-table headers",
+  "announcementDate": "2026-05-05",
+  "announcementDateEvidence": "May 05, 2026"
+}

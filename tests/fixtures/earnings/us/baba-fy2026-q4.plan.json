@@ -1,0 +1,104 @@
+{
+  "period": {
+    "start": "2026-01-01",
+    "end": "2026-03-31",
+    "type": "quarter",
+    "fiscalYear": 2026,
+    "fiscalQuarter": 4
+  },
+  "periodEvidence": [
+    "End | 2026-03-31",
+    "Start | 2026-01-01",
+    "Fiscal year | 2026",
+    "Quarter | 4"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "Revenue",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |"
+    },
+    {
+      "name": "revenue_yoy",
+      "label": "Revenue YoY",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |",
+      "valueIndex": 2,
+      "currency": null,
+      "scale": 1,
+      "unit": "percent",
+      "header": "YoY %",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated"
+    },
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "Alibaba China E-commerce Group revenue",
+      "rowLabel": "Alibaba China E-commerce Group |",
+      "segment": "Alibaba China E-commerce Group",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf"
+    },
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "Alibaba International Digital Commerce Group revenue",
+      "rowLabel": "Alibaba International Digital Commerce Group |",
+      "segment": "Alibaba International Digital Commerce Group",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf"
+    },
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "Cloud Intelligence Group revenue",
+      "rowLabel": "Cloud Intelligence Group |",
+      "segment": "Cloud Intelligence Group",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf"
+    },
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "All others revenue",
+      "rowLabel": "All others |",
+      "segment": "All others",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf"
+    }
+  ],
+  "periodStartDerivation": "Calendar-quarter start from three-month period ending on stated calendar date"
+}

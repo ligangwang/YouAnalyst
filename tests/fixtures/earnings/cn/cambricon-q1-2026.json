@@ -1,0 +1,47 @@
+{
+  "fixtureVersion": 1,
+  "id": "cambricon-q1-2026",
+  "fixtureKind": "curated_factual_excerpt",
+  "source": {
+    "provider": "cninfo",
+    "companyId": "XSHG:688256",
+    "issuerId": "cn:688256",
+    "documentId": "1225264337",
+    "url": "https://static.cninfo.com.cn/finalpage/2026-04-30/1225264337.PDF",
+    "title": "2026 年第一季度报告",
+    "publishedAt": {
+      "value": "2026-04-30",
+      "precision": "date",
+      "timezone": "Asia/Shanghai"
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "zh"
+  },
+  "bodyFile": "cambricon-q1-2026.excerpt.txt",
+  "mediaType": "text/plain",
+  "planFile": "cambricon-q1-2026.plan.json",
+  "expected": {
+    "revenue": 2884696746.86,
+    "yoy": 159.56,
+    "scale": 1,
+    "kind": "actual",
+    "period": {
+      "start": "2026-01-01",
+      "end": "2026-03-31",
+      "type": "quarter",
+      "fiscalYear": 2026,
+      "fiscalQuarter": 1
+    }
+  },
+  "originalBytesSha256": "6aed917a6930c4ffc79d880ac0841c92e62aabc6684f4862129f48a91fed18d0",
+  "originalByteLength": 189239,
+  "rawTextMethod": "pdftotext -layout",
+  "rawPlanFile": "cambricon-q1-2026.raw.plan.json",
+  "rawSourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-30/1225264337.PDF",
+  "rawReplayed": false,
+  "notes": [
+    "Factual table excerpt, not the entire original PDF.",
+    "Quarterly fiscal period.",
+    "Segments and other guidance not extracted by this bounded adapter."
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "fixtureVersion": 1,
+  "id": "longsys-q1-2026",
+  "fixtureKind": "curated_factual_excerpt",
+  "source": {
+    "provider": "cninfo",
+    "companyId": "XSHE:301308",
+    "issuerId": "cn:301308",
+    "documentId": "1225214140",
+    "url": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225214140.PDF",
+    "title": "2026 年第一季度报告",
+    "publishedAt": {
+      "value": "2026-04-28",
+      "precision": "date",
+      "timezone": "Asia/Shanghai"
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "zh"
+  },
+  "bodyFile": "longsys-q1-2026.excerpt.txt",
+  "mediaType": "text/plain",
+  "planFile": "longsys-q1-2026.plan.json",
+  "expected": {
+    "revenue": 9908726244.41,
+    "yoy": 132.79,
+    "scale": 1,
+    "kind": "actual",
+    "period": {
+      "start": "2026-01-01",
+      "end": "2026-03-31",
+      "type": "quarter",
+      "fiscalYear": 2026,
+      "fiscalQuarter": 1
+    }
+  },
+  "originalBytesSha256": "6f792b523513ad1caf95ee784c024b764519a6e5de6ff53055217d629d6e240f",
+  "originalByteLength": 596264,
+  "rawTextMethod": "pdftotext -layout",
+  "rawPlanFile": "longsys-q1-2026.raw.plan.json",
+  "rawSourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225214140.PDF",
+  "rawReplayed": false,
+  "notes": [
+    "Factual table excerpt, not the entire original PDF.",
+    "Quarterly fiscal period.",
+    "Segments and other guidance not extracted by this bounded adapter."
+  ]
+}

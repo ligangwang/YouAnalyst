@@ -1,0 +1,81 @@
+{
+  "fixture_version": 1,
+  "id": "nvda-fy2027-q1-comparative-recast",
+  "fixture_kind": "curated_factual_comparative_recast",
+  "verified_on": "2026-10-01",
+  "issuer": "NVIDIA Corporation",
+  "ticker": "NVDA",
+  "record_purpose": "Preserve source-specific Q1 market-platform allocation before and after an explicitly disclosed comparative reclassification.",
+  "is_correction_notice": false,
+  "not_a_replacement_earnings_event": true,
+  "period": {
+    "fiscal_year": 2027,
+    "fiscal_quarter": 1,
+    "period_type": "quarter",
+    "start": "2026-01-26",
+    "end": "2026-04-26"
+  },
+  "currency": "USD",
+  "unit": "million",
+  "taxonomy": "market_platform_and_subplatform; not reportable segments",
+  "versions": [
+    {
+      "version": "as_originally_disclosed",
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000052/nvda-20260426.htm",
+        "document_kind": "SEC Form 10-Q",
+        "document_period_end": "2026-04-26",
+        "document_signed_at": "2026-05-20",
+        "publication_timestamp": null,
+        "publication_timestamp_note": "SEC acceptance timestamp not independently retrieved. Signed date is not presented as an acceptance timestamp.",
+        "language": "en",
+        "original_bytes_sha256": "d7542f6f8826162b4128e373c40893377b56fd69aebc0cacf1614e0fdc79655b",
+        "original_byte_length": 1167167,
+        "extraction_method": "Collector htmlToEarningsText plus manual column verification",
+        "locator": "Revenue by Market Platform: Apr 26, 2026 column"
+      },
+      "data_center": 75246,
+      "hyperscale": 37869,
+      "acie": 37377,
+      "edge_computing": 6369,
+      "consolidated_revenue": 81615
+    },
+    {
+      "version": "comparative_recast_in_later_filing",
+      "source": {
+        "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm",
+        "document_kind": "SEC Form 10-Q",
+        "document_period_end": "2026-07-26",
+        "document_signed_at": "2026-08-26",
+        "publication_timestamp": null,
+        "publication_timestamp_note": "SEC acceptance timestamp not independently retrieved. Signed date is not presented as an acceptance timestamp.",
+        "language": "en",
+        "original_bytes_sha256": "4c4641962eaba02450bb0a7163bb42facc5dbdc6401eb6a338315e141f846978",
+        "original_byte_length": 1517161,
+        "extraction_method": "Collector htmlToEarningsText plus manual column verification",
+        "locator": "Revenue by Market Platform: Apr 26, 2026 comparative column; footnote (2)"
+      },
+      "data_center": 75246,
+      "hyperscale": 43050,
+      "acie": 32196,
+      "edge_computing": 6369,
+      "consolidated_revenue": 81615
+    }
+  ],
+  "reclassification": {
+    "reason_paraphrase": "One customer moved from ACIE to Hyperscale because its business model changed; prior-period revenue was recast.",
+    "affected_period": "FY2027 Q1 comparative shown in FY2027 Q2 filing",
+    "source_url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm",
+    "locator": "Revenue by Market Platform, footnote (2)",
+    "derived_hyperscale_change": 5181,
+    "derived_acie_change": -5181,
+    "delta_derivation": "Later Q1 comparative value minus originally disclosed Q1 value"
+  },
+  "assertions": [
+    "For each version Hyperscale + ACIE = Data Center",
+    "For each version Data Center + Edge Computing = consolidated revenue",
+    "The Q1 consolidated and Data Center revenue figures are unchanged",
+    "Preserve both document versions; do not make the whole Q2 earnings event supersede Q1",
+    "No formal correction announcement, restatement of GAAP consolidated revenue, or change of quarterly reporting period is claimed"
+  ]
+}

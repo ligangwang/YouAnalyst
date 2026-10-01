@@ -1,0 +1,40 @@
+{
+  "period": {
+    "start": "2026-01-01",
+    "end": "2026-03-31",
+    "type": "quarter",
+    "fiscalYear": 2026,
+    "fiscalQuarter": 1
+  },
+  "periodEvidence": [
+    "2026 年第一季度报告"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "label": "Revenue",
+      "rowLabel": "营业收入",
+      "currency": "CNY",
+      "scale": 1,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "PRC_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "单位：元 币种：人民币",
+      "name": "revenue"
+    },
+    {
+      "name": "revenue_yoy",
+      "label": "Revenue YoY",
+      "rowLabel": "营业收入",
+      "currency": null,
+      "scale": 1,
+      "unit": "percent",
+      "kind": "actual",
+      "basis": "PRC_GAAP",
+      "scope": "consolidated",
+      "valueIndex": 2,
+      "header": "(%)"
+    }
+  ]
+}

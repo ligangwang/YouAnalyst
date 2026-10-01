@@ -1,0 +1,284 @@
+{
+  "fixture_version": 1,
+  "id": "baba-fy2027-q1",
+  "as_of": "2026-10-01",
+  "fixture_kind": "curated_factual_excerpt",
+  "authentic_downloaded_raw": false,
+  "fixture_notice": "Curated factual tables compiled from the identified official source(s). Not original publisher HTML or a complete source document. Original bytes, where fetched, were verified and hashed but are not committed. Amounts and field labels are factual; narrative is paraphrased.",
+  "company": {
+    "name": "Alibaba Group Holding Limited",
+    "ticker": "BABA",
+    "listing_market": "US",
+    "issuer_domicile": "Cayman Islands"
+  },
+  "source": {
+    "id": "release",
+    "url": "https://data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf",
+    "published_at": "2026-08-20",
+    "language": "en",
+    "kind": "issuer_release_pdf",
+    "verified_on": "2026-10-01",
+    "retrieval_method": "urllib.request direct HTTPS",
+    "original_bytes_sha256": "e12a8508845c899f18b2049246470c5da2515fe8212fa16c9a449392e2cfabba",
+    "original_bytes_length": 493574,
+    "original_bytes_committed": false,
+    "extraction_method": "pdftotext -layout, Poppler",
+    "locator": "Printed page 6: revenue by segment, quarter columns",
+    "discovered_via": "https://www.alibabagroup.com/en-US/document-2026456290057781248",
+    "landing_page_original_bytes_sha256": "cab3b3ac70c19e644a5f01a91b9815e2f78c41c1c23001a5e54627f80b00f7b5"
+  },
+  "supporting_sources": [],
+  "expected": {
+    "fiscal_period": {
+      "fiscal_year": 2027,
+      "fiscal_quarter": 1,
+      "period_type": "quarter",
+      "period_start": "2026-04-01",
+      "period_end": "2026-06-30",
+      "period_start_derivation": "Calendar-quarter start from three-month period ending on stated calendar date",
+      "fiscal_label_derivation": "Quarter numbering follows fiscal year ending March 31; the release identifies the calendar quarter end."
+    },
+    "revenue": {
+      "amount": 268953,
+      "currency": "CNY",
+      "unit": "million",
+      "accounting_basis": "US_GAAP",
+      "precision": "million",
+      "yoy_percent": 9,
+      "yoy_basis": "reported",
+      "prior_year_amount": 247652,
+      "evidence": {
+        "source_id": "release",
+        "locator": "Printed page 6: consolidated revenue row"
+      },
+      "usd_convenience_translation": {
+        "amount": 39639,
+        "currency": "USD",
+        "unit": "million",
+        "cny_per_usd": 6.7851,
+        "exchange_rate_date": "2026-06-30",
+        "not_separate_gaap_observation": true
+      },
+      "prior_year_period_end": "2025-06-30"
+    },
+    "segments": [
+      {
+        "name": "Alibaba E-commerce Group",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 205862,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 4,
+        "yoy_basis": "reported",
+        "prior_year_amount": 198812,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue by segment, three-month columns",
+          "fixture_selector": "#segments-1"
+        }
+      },
+      {
+        "name": "AI Cloud and Compute Services",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 48437,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 45,
+        "yoy_basis": "reported",
+        "prior_year_amount": 33418,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue by segment, three-month columns",
+          "fixture_selector": "#segments-2"
+        }
+      },
+      {
+        "name": "AI Labs and Applications",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 3338,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 16,
+        "yoy_basis": "reported",
+        "prior_year_amount": 2882,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue by segment, three-month columns",
+          "fixture_selector": "#segments-3"
+        }
+      },
+      {
+        "name": "All others",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 28803,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 1,
+        "yoy_basis": "reported",
+        "prior_year_amount": 28629,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue by segment, three-month columns",
+          "fixture_selector": "#segments-4"
+        }
+      }
+    ],
+    "guidance": [],
+    "guidance_status": "not_disclosed_in_reviewed_release",
+    "currency_policy": "Native reporting currency; translated USD presentation is not a second revenue observation",
+    "missing_fields": [
+      "Numerical forward revenue guidance and dated guidance target are not disclosed in the reviewed release. Earnings-call transcript was not reviewed for Alibaba."
+    ],
+    "reconciliation": [
+      {
+        "name": "Unallocated",
+        "kind": "reconciliation",
+        "parent": null,
+        "amount": 783,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": null,
+        "yoy_basis": null,
+        "prior_year_amount": 519,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue reconciliation",
+          "fixture_selector": "#reconciliation-1"
+        }
+      },
+      {
+        "name": "Inter-segment elimination",
+        "kind": "reconciliation",
+        "parent": null,
+        "amount": -18270,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": null,
+        "yoy_basis": null,
+        "prior_year_amount": -16608,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue reconciliation",
+          "fixture_selector": "#reconciliation-2"
+        }
+      }
+    ],
+    "revenue_breakdowns": [
+      {
+        "name": "China E-commerce",
+        "kind": "segment_business",
+        "parent": "Alibaba E-commerce Group",
+        "amount": 110900,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": -8,
+        "yoy_basis": "reported",
+        "prior_year_amount": 120874,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue by segment subrows",
+          "fixture_selector": "#revenue_breakdowns-1"
+        }
+      },
+      {
+        "name": "China Quick Commerce",
+        "kind": "segment_business",
+        "parent": "Alibaba E-commerce Group",
+        "amount": 53295,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 45,
+        "yoy_basis": "reported",
+        "prior_year_amount": 36725,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue by segment subrows",
+          "fixture_selector": "#revenue_breakdowns-2"
+        }
+      },
+      {
+        "name": "International E-commerce",
+        "kind": "segment_business",
+        "parent": "Alibaba E-commerce Group",
+        "amount": 27761,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": -1,
+        "yoy_basis": "reported",
+        "prior_year_amount": 28177,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue by segment subrows",
+          "fixture_selector": "#revenue_breakdowns-3"
+        }
+      },
+      {
+        "name": "Global Wholesale",
+        "kind": "segment_business",
+        "parent": "Alibaba E-commerce Group",
+        "amount": 13906,
+        "currency": "CNY",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 7,
+        "yoy_basis": "reported",
+        "prior_year_amount": 13036,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Printed page 6: revenue by segment subrows",
+          "fixture_selector": "#revenue_breakdowns-4"
+        }
+      }
+    ],
+    "management_outlook": {
+      "kind": "qualitative",
+      "summary": "Management describes sustained investment in full-stack AI capabilities.",
+      "target_period": null,
+      "evidence": {
+        "source_id": "release",
+        "locator": "Printed page 1: CFO remarks"
+      },
+      "not_quantitative_guidance": true
+    }
+  },
+  "notes": [
+    "Native reporting currency is RMB (ISO CNY), unit millions. USD values are convenience translations.",
+    "Segment sums require unallocated revenue and inter-segment eliminations.",
+    "June 2026 changes the segment taxonomy and recasts prior-year comparative values; March and June segment names cannot be treated as a stable time series."
+  ],
+  "body_file": "baba-fy2027-q1.excerpt.html",
+  "body_sha256": "c436b2304d71683cbb3edb3c2ad9569d30ca73b3e5f94416f3bad030fdaa488e",
+  "evidence": [
+    {
+      "fixture_selector": "#revenue-1",
+      "source_id": "release",
+      "source_locator": "Printed page 6: consolidated revenue row",
+      "kind": "factual_table_row",
+      "normalized_factual_row": "Revenue 268,953 247,652 9%",
+      "normalization_note": "Factual table cells transcribed and whitespace/columns normalized; not a verbatim prose quotation."
+    }
+  ]
+}

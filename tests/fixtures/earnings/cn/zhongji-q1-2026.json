@@ -1,0 +1,47 @@
+{
+  "fixtureVersion": 1,
+  "id": "zhongji-q1-2026",
+  "fixtureKind": "curated_factual_excerpt",
+  "source": {
+    "provider": "cninfo",
+    "companyId": "XSHE:300308",
+    "issuerId": "cn:300308",
+    "documentId": "1225111941",
+    "url": "https://static.cninfo.com.cn/finalpage/2026-04-17/1225111941.PDF",
+    "title": "2026 年第一季度报告",
+    "publishedAt": {
+      "value": "2026-04-17",
+      "precision": "date",
+      "timezone": "Asia/Shanghai"
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "zh"
+  },
+  "bodyFile": "zhongji-q1-2026.excerpt.txt",
+  "mediaType": "text/plain",
+  "planFile": "zhongji-q1-2026.plan.json",
+  "expected": {
+    "revenue": 19496398083.95,
+    "yoy": 192.12,
+    "scale": 1,
+    "kind": "actual",
+    "period": {
+      "start": "2026-01-01",
+      "end": "2026-03-31",
+      "type": "quarter",
+      "fiscalYear": 2026,
+      "fiscalQuarter": 1
+    }
+  },
+  "originalBytesSha256": "5e37220662c1fea7c9286a9410dbcef20ce83f70329ba3b44f2bf733459aa1af",
+  "originalByteLength": 793963,
+  "rawTextMethod": "pdftotext -layout",
+  "rawPlanFile": "zhongji-q1-2026.raw.plan.json",
+  "rawSourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-17/1225111941.PDF",
+  "rawReplayed": false,
+  "notes": [
+    "Factual table excerpt, not the entire original PDF.",
+    "Quarterly fiscal period.",
+    "Segments and other guidance not extracted by this bounded adapter."
+  ]
+}

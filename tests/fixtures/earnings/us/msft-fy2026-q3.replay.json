@@ -1,0 +1,23 @@
+{
+  "id": "msft-fy2026-q3",
+  "source": {
+    "provider": "issuer_ir",
+    "companyId": "US:MSFT",
+    "issuerId": "sec:0000789019",
+    "documentId": "www.microsoft.com/en-us/investor/earnings/FY-2026-Q3/press-release-webcast",
+    "url": "https://www.microsoft.com/en-us/investor/earnings/FY-2026-Q3/press-release-webcast",
+    "title": "Microsoft Corporation quarterly financial results",
+    "publishedAt": {
+      "value": "2026-04-29",
+      "precision": "date",
+      "timezone": null
+    },
+    "firstSeenAt": "2026-10-01T13:50:00Z",
+    "language": "en"
+  },
+  "bodyFile": "msft-fy2026-q3.excerpt.html",
+  "mediaType": "text/html",
+  "planFile": "msft-fy2026-q3.plan.json",
+  "completeness": "excerpt",
+  "originalBytesSha256": null
+}

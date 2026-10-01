@@ -1,0 +1,121 @@
+{
+  "period": {
+    "start": "2026-04-01",
+    "end": "2026-06-30",
+    "type": "quarter",
+    "fiscalYear": 2026,
+    "fiscalQuarter": 4
+  },
+  "periodEvidence": [
+    "End | 2026-06-30",
+    "Start | 2026-04-01",
+    "Fiscal year | 2026",
+    "Quarter | 4"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Revenue",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |"
+    },
+    {
+      "name": "revenue_yoy",
+      "label": "Revenue YoY",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |",
+      "valueIndex": 2,
+      "currency": null,
+      "scale": 1,
+      "unit": "percent",
+      "header": "YoY %",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Productivity and Business Processes revenue",
+      "rowLabel": "Productivity and Business Processes |",
+      "segment": "Productivity and Business Processes",
+      "sourceUrl": "https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast",
+      "sectionStart": "Name | Current |",
+      "sectionEnd": "Metric | Subject |"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Intelligent Cloud revenue",
+      "rowLabel": "Intelligent Cloud |",
+      "segment": "Intelligent Cloud",
+      "sourceUrl": "https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast",
+      "sectionStart": "Name | Current |",
+      "sectionEnd": "Metric | Subject |"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "More Personal Computing revenue",
+      "rowLabel": "More Personal Computing |",
+      "segment": "More Personal Computing",
+      "sourceUrl": "https://www.microsoft.com/en-us/investor/earnings/fy-2026-q4/press-release-webcast",
+      "sectionStart": "Name | Current |",
+      "sectionEnd": "Metric | Subject |"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "forecast",
+      "basis": "unspecified",
+      "scope": "consolidated",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Revenue guidance",
+      "rowLabel": "revenue | consolidated |",
+      "valueIndex": 2,
+      "range": true,
+      "period": {
+        "start": null,
+        "end": null,
+        "type": "quarter",
+        "fiscalYear": 2027,
+        "fiscalQuarter": 1
+      },
+      "periodEvidence": [
+        "revenue | consolidated | 2027 | 1"
+      ],
+      "sourceUrl": "https://www.microsoft.com/en-us/investor/events/fy-2026/earnings-fy-2026-q4"
+    }
+  ],
+  "periodStartDerivation": "Calendar-quarter start from three-month period ending on stated calendar date"
+}

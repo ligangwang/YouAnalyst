@@ -1,0 +1,118 @@
+{
+  "period": {
+    "start": "2026-03-29",
+    "end": "2026-06-27",
+    "type": "quarter",
+    "fiscalYear": 2026,
+    "fiscalQuarter": 2
+  },
+  "periodEvidence": [
+    "End | 2026-06-27",
+    "Start | 2026-03-29",
+    "Fiscal year | 2026",
+    "Quarter | 2"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Revenue",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |"
+    },
+    {
+      "name": "revenue_yoy",
+      "label": "Revenue YoY",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |",
+      "valueIndex": 2,
+      "currency": null,
+      "scale": 1,
+      "unit": "percent",
+      "header": "YoY %",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Data Center revenue",
+      "rowLabel": "Data Center |",
+      "segment": "Data Center",
+      "sourceUrl": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Client and Gaming revenue",
+      "rowLabel": "Client and Gaming |",
+      "segment": "Client and Gaming",
+      "sourceUrl": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Embedded revenue",
+      "rowLabel": "Embedded |",
+      "segment": "Embedded",
+      "sourceUrl": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results"
+    },
+    {
+      "currency": "USD",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "forecast",
+      "basis": "unspecified",
+      "scope": "consolidated",
+      "unitEvidence": "Monetary actuals: USD million",
+      "name": "revenue",
+      "label": "Revenue guidance",
+      "rowLabel": "revenue | consolidated |",
+      "valueIndex": 2,
+      "range": true,
+      "period": {
+        "start": null,
+        "end": null,
+        "type": "quarter",
+        "fiscalYear": 2026,
+        "fiscalQuarter": 3
+      },
+      "periodEvidence": [
+        "revenue | consolidated | 2026 | 3"
+      ],
+      "sourceUrl": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results",
+      "derivation": "midpoint_plus_minus",
+      "pointIndex": 4,
+      "approximate": true
+    }
+  ],
+  "periodStartDerivation": "Day following the preceding quarter/year end, independently present in source financial-table headers"
+}

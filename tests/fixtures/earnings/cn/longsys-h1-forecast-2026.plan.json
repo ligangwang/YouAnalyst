@@ -1,0 +1,27 @@
+{
+  "period": {
+    "start": "2026-01-01",
+    "end": "2026-06-30",
+    "type": "half_year",
+    "fiscalYear": 2026
+  },
+  "periodEvidence": [
+    "2026 年半年度业绩预告"
+  ],
+  "kind": "forecast",
+  "metrics": [
+    {
+      "label": "Revenue",
+      "rowLabel": "营业收入",
+      "currency": "CNY",
+      "scale": 10000.0,
+      "unit": "currency",
+      "kind": "forecast",
+      "basis": "PRC_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "人民币万元",
+      "name": "revenue",
+      "range": true
+    }
+  ]
+}

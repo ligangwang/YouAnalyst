@@ -1,0 +1,104 @@
+{
+  "period": {
+    "start": "2026-04-01",
+    "end": "2026-06-30",
+    "type": "quarter",
+    "fiscalYear": 2027,
+    "fiscalQuarter": 1
+  },
+  "periodEvidence": [
+    "End | 2026-06-30",
+    "Start | 2026-04-01",
+    "Fiscal year | 2027",
+    "Quarter | 1"
+  ],
+  "kind": "actual",
+  "metrics": [
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "Revenue",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |"
+    },
+    {
+      "name": "revenue_yoy",
+      "label": "Revenue YoY",
+      "rowLabel": "Revenue |",
+      "sectionStart": "Measure | Current | Prior-year | YoY %",
+      "sectionEnd": "Name | Current |",
+      "valueIndex": 2,
+      "currency": null,
+      "scale": 1,
+      "unit": "percent",
+      "header": "YoY %",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "consolidated"
+    },
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "Alibaba E-commerce Group revenue",
+      "rowLabel": "Alibaba E-commerce Group |",
+      "segment": "Alibaba E-commerce Group",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf"
+    },
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "AI Cloud and Compute Services revenue",
+      "rowLabel": "AI Cloud and Compute Services |",
+      "segment": "AI Cloud and Compute Services",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf"
+    },
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "AI Labs and Applications revenue",
+      "rowLabel": "AI Labs and Applications |",
+      "segment": "AI Labs and Applications",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf"
+    },
+    {
+      "currency": "CNY",
+      "scale": 1000000.0,
+      "unit": "currency",
+      "kind": "actual",
+      "basis": "US_GAAP",
+      "scope": "segment",
+      "unitEvidence": "Monetary actuals: CNY million",
+      "name": "revenue",
+      "label": "All others revenue",
+      "rowLabel": "All others |",
+      "segment": "All others",
+      "sourceUrl": "https://data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf"
+    }
+  ],
+  "periodStartDerivation": "Calendar-quarter start from three-month period ending on stated calendar date"
+}

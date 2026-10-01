@@ -1,0 +1,216 @@
+{
+  "fixture_version": 1,
+  "id": "amd-fy2026-q2",
+  "as_of": "2026-10-01",
+  "fixture_kind": "curated_factual_excerpt",
+  "authentic_downloaded_raw": false,
+  "fixture_notice": "Curated factual tables compiled from the identified official source(s). Not original publisher HTML or a complete source document. Original bytes, where fetched, were verified and hashed but are not committed. Amounts and field labels are factual; narrative is paraphrased.",
+  "company": {
+    "name": "Advanced Micro Devices, Inc.",
+    "ticker": "AMD",
+    "listing_market": "US",
+    "issuer_domicile": "US"
+  },
+  "source": {
+    "id": "release",
+    "url": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results",
+    "published_at": "2026-08-04",
+    "language": "en",
+    "kind": "issuer_release",
+    "verified_on": "2026-10-01",
+    "retrieval_method": "urllib.request direct HTTPS",
+    "original_bytes_sha256": "a2ae26cd16569d52c7b3c8c99213d8b764cb52e4951882d6cb189a34471d5e9d",
+    "original_bytes_length": 453196,
+    "original_bytes_committed": false,
+    "extraction_method": "Python html.parser.HTMLParser; whitespace collapsed; manual factual row selection",
+    "locator": null
+  },
+  "supporting_sources": [],
+  "expected": {
+    "fiscal_period": {
+      "fiscal_year": 2026,
+      "fiscal_quarter": 2,
+      "period_type": "quarter",
+      "period_start": "2026-03-29",
+      "period_end": "2026-06-27",
+      "period_start_derivation": "Day following the preceding quarter/year end, independently present in source financial-table headers"
+    },
+    "revenue": {
+      "amount": 11536,
+      "currency": "USD",
+      "unit": "million",
+      "accounting_basis": "US_GAAP",
+      "precision": "million",
+      "yoy_percent": 50,
+      "yoy_basis": "reported",
+      "prior_year_amount": 7685,
+      "evidence": {
+        "source_id": "release",
+        "locator": "GAAP revenue table"
+      },
+      "prior_year_period_end": "2025-06-28"
+    },
+    "segments": [
+      {
+        "name": "Data Center",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 6718,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 107,
+        "yoy_basis": "reported",
+        "prior_year_amount": 3240,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Selected Corporate Data / Segment and Disaggregated Revenue Information; current and prior-year three-month columns",
+          "fixture_selector": "#segments-1"
+        }
+      },
+      {
+        "name": "Client and Gaming",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 3841,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 6,
+        "yoy_basis": "reported",
+        "prior_year_amount": 3621,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Selected Corporate Data / Segment and Disaggregated Revenue Information; current and prior-year three-month columns",
+          "fixture_selector": "#segments-2"
+        }
+      },
+      {
+        "name": "Embedded",
+        "kind": "reportable_segment",
+        "parent": null,
+        "amount": 977,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 19,
+        "yoy_basis": "reported",
+        "prior_year_amount": 824,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Selected Corporate Data / Segment and Disaggregated Revenue Information; current and prior-year three-month columns",
+          "fixture_selector": "#segments-3"
+        }
+      }
+    ],
+    "guidance": [
+      {
+        "metric": "revenue",
+        "subject": "consolidated",
+        "target_period": {
+          "fiscal_year": 2026,
+          "fiscal_quarter": 3,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null
+        },
+        "lower": 12700,
+        "upper": 13300,
+        "point": 13000,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "unspecified",
+        "approximate": true,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Current Outlook",
+          "fixture_selector": "#guidance-1"
+        },
+        "range_derivation": "Issuer midpoint plus or minus USD300 million; bounds calculated"
+      },
+      {
+        "metric": "gross_margin",
+        "subject": "consolidated",
+        "target_period": {
+          "fiscal_year": 2026,
+          "fiscal_quarter": 3,
+          "period_type": "quarter",
+          "period_start": null,
+          "period_end": null
+        },
+        "lower": null,
+        "upper": null,
+        "point": 56,
+        "currency": null,
+        "unit": "percent",
+        "accounting_basis": "non_GAAP",
+        "approximate": true,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Current Outlook",
+          "fixture_selector": "#guidance-2"
+        }
+      }
+    ],
+    "guidance_status": "reported",
+    "currency_policy": "Native reporting currency",
+    "missing_fields": [],
+    "revenue_breakdowns": [
+      {
+        "name": "Client",
+        "kind": "segment_business",
+        "parent": "Client and Gaming",
+        "amount": 3062,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": 23,
+        "yoy_basis": "reported",
+        "prior_year_amount": 2499,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Selected Corporate Data / Client and Gaming subrows",
+          "fixture_selector": "#revenue_breakdowns-1"
+        }
+      },
+      {
+        "name": "Gaming",
+        "kind": "segment_business",
+        "parent": "Client and Gaming",
+        "amount": 779,
+        "currency": "USD",
+        "unit": "million",
+        "accounting_basis": "US_GAAP",
+        "precision": "million",
+        "yoy_percent": -31,
+        "yoy_basis": "reported",
+        "prior_year_amount": 1122,
+        "evidence": {
+          "source_id": "release",
+          "locator": "Selected Corporate Data / Client and Gaming subrows",
+          "fixture_selector": "#revenue_breakdowns-2"
+        }
+      }
+    ]
+  },
+  "notes": [
+    "Client and Gaming is one reportable segment; Client and Gaming subrows are disaggregation, not additional additive segments.",
+    "Revenue is the same in GAAP and non-GAAP summary tables."
+  ],
+  "body_file": "amd-fy2026-q2.excerpt.html",
+  "body_sha256": "41952bb285edb5b299609ee435eceadb70298486fc00455ca48d680cc8f2fb44",
+  "evidence": [
+    {
+      "fixture_selector": "#revenue-1",
+      "source_id": "release",
+      "source_locator": "GAAP revenue table",
+      "kind": "factual_table_row",
+      "normalized_factual_row": "Revenue 11,536 7,685 50%",
+      "normalization_note": "Factual table cells transcribed and whitespace/columns normalized; not a verbatim prose quotation."
+    }
+  ]
+}
