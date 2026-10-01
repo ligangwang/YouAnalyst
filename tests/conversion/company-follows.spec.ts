@@ -25,6 +25,7 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
   await page.goto(origin+"/en/watchlists/following");
   await page.getByRole("button",{name:"Updates",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Customer expansion"})).toBeVisible();
+  await expect(page.getByRole("region", { name: "Research summary", exact: true })).toContainText("Customer expansion");
   await expect(page.getByLabel("Why this appears")).toContainText("recorded customer of AMD");
   await expect(page.getByTitle("Earlier event, added later. Collection is not a new business event.")).toBeVisible();
   await expect(page.getByText("marks an earlier event that was collected recently.", { exact: false })).toHaveCount(1);
@@ -34,6 +35,7 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
   await page.getByRole("checkbox",{name:"Include one-hop suppliers / customers"}).uncheck();
   await expect(page.getByText("No reliable updates available for these companies yet.")).toBeVisible();
   await expect(page.getByRole("heading",{name:"Customer expansion"})).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Research summary", exact: true })).toHaveCount(0);
 });
 test.beforeEach(({ page }) => { page.on("pageerror", error => { throw error; }); });
 test.beforeAll(async () => {

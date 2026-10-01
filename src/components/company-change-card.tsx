@@ -46,14 +46,17 @@ export function CompanyChangeCard({ item, graph, publicFeed = false, evidence = 
   const fact = edge?.facts?.find(f => f.id === item.factId);
   const title = event ? (chinese ? event.titleZh : event.title) : edge ? relationshipExplanation(fact ? {...edge, facts:[fact]} : edge, graph, chinese) : item.sourceTitle;
   const eventDay = item.eventDate?.slice(0,10);
+  const sourceDay = item.sourceDate?.slice(0,10);
+  const shownDay = eventDay ?? sourceDay ?? item.collectedAt.slice(0,10);
   const evidenceTitle = (update: CompanyUpdate) => { const e = graph.relationships.find(r => r.id === update.edgeId); const f = e?.facts?.find(f => f.id === update.factId); return e ? relationshipExplanation(f ? {...e, facts:[f]} : e, graph, chinese) : update.sourceTitle; };
   return <article className="rounded-xl border border-white/10 p-5">
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
       <p className="flex flex-wrap items-center gap-2 text-xs text-cyan-200"><span>{text(category[0], category[1])}{event?.planned && ` · ${text("Planned", "计划中")}`}</span>{collectedLater(item) && <LaterCollectionMarker />}</p>
-      <p className="text-xs text-slate-400">{text("Event / announcement", "事件／宣布日期")}: {eventDay ? <time dateTime={eventDay} className="text-sm font-semibold text-slate-100">{eventDay}</time> : <span className="text-slate-300">{text("Not specified", "未明确")}</span>}</p>
+      <p className="text-xs text-slate-400">{eventDay ? text("Event / announcement", "事件／宣布日期") : sourceDay ? text("Source published", "资料发布日期") : text("Collected / reviewed", "收录／复核")}: <time dateTime={shownDay} className="text-sm font-semibold text-slate-100">{shownDay}</time></p>
     </div>
     <h3 className="mt-2 font-semibold"><Link href={item.href} onClick={() => { trackEvent("company_event_open", {entry_point:publicFeed ? "public_feed" : "following"}); if (event) trackEvent("company_event_map", {entry_point:publicFeed ? "public_feed" : "following"}); }} className="hover:text-cyan-200">{title}</Link></h3>
     <p className="mt-2 text-sm leading-6 text-slate-300">{event && chinese ? event.summaryZh : item.description}</p>
+    {!eventDay && <p className="mt-2 text-xs text-slate-400">{text("Event timing is not stated; the date above is not a new business event.", "事件发生日期未明确；上方日期不代表新发生的业务事件。")}</p>}
     {!publicFeed && <ul className="mt-3 space-y-1 border-l-2 border-cyan-800 pl-3 text-xs text-slate-300" aria-label={text("Why this appears", "为何关联到你")}>
       {item.reasons?.map(r => <li key={`${r.followedId}:${r.companyId}:${r.edgeId ?? "direct"}`}>{r.edgeId ? <>{text(`Because ${name(r.companyId)} is a recorded ${r.role} of ${name(r.followedId)}, which you follow.`, `你关注的 ${name(r.followedId)} 与 ${name(r.companyId)} 有已收录的${r.role === "supplier" ? "供应商" : "客户"}关系。`)} <Link className="text-cyan-200 underline" href={`/?${new URLSearchParams({company:r.followedId,relationship:r.edgeId})}`} onClick={() => trackEvent("company_evidence_view", {entry_point:"connection_reason"})}>{text("Check relationship evidence", "查看关联依据")}</Link></> : text(`You follow ${name(r.followedId)}.`, `你关注了 ${name(r.followedId)}。`)}</li>)}
     </ul>}

@@ -95,6 +95,20 @@ test("feed explains later collection once, orders by event date and groups evide
   await page.screenshot({ path: info.outputPath("feed.png"), fullPage: true });
 });
 
+test("research summary prioritizes dated company reports and shows evidence limits", async ({ page }) => {
+  await serve(page, 3);
+  await page.goto(origin + "/en/feed");
+  const summary = page.getByRole("region", { name: "Research summary", exact: true });
+  await expect(summary).toBeVisible();
+  const rows = summary.getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("AMD and Cisco report HUMAIN systems are live");
+  await expect(rows.nth(0)).toContainText("no prior-state comparison is recorded");
+  await expect(rows.nth(1)).toContainText("Announced plan; completed delivery is not established");
+  expect(await summary.locator("time").allTextContents()).toEqual(["2026-08-31", "2025-03-04"]);
+  await expect(summary.getByRole("link", { name: "Read source: AMD · HUMAIN production deployment", exact: true })).toHaveAttribute("href", "https://example.com/humain");
+});
+
 test("Chinese feed keeps the marker accessible and the planned caveat in item text", async ({ page }, info) => {
   await serve(page, 3);
   await page.goto(origin + "/zh-cn/feed");

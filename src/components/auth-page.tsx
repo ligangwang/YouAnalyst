@@ -52,7 +52,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const viewed = useRef(false);
-  const entryPoint = mapCompany ? "map_save" : destination?.startsWith("/predictions/new") ? "prediction" : "general";
+  const entryPoint = mapCompany ? "map_save" : isFollowing ? "following" : destination?.startsWith("/predictions/new") ? "prediction" : "general";
 
   useEffect(() => {
     if (loading || user || viewed.current) return;

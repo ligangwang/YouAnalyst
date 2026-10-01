@@ -1,6 +1,6 @@
 import type { CompanyUpdate } from "./company-updates";
 
-/** "event": event/announcement date, newest first (collected date when no event date). "added": collected date. */
+/** "event": event/announcement date, newest first (source date, then collected date when no event date). "added": collected date. */
 export type FeedOrder = "event" | "added";
 /** One feed card: a primary update plus evidence updates that describe the same event. */
 export type FeedEntry = { item: CompanyUpdate; evidence: CompanyUpdate[] };
@@ -43,6 +43,6 @@ export function entryCollectedAt(entry: FeedEntry): string {
 }
 
 export function orderFeed(entries: FeedEntry[], order: FeedOrder = "event"): FeedEntry[] {
-  const key = (entry: FeedEntry) => order === "event" ? day(entry.item.eventDate) ?? day(entry.item.collectedAt) ?? "" : entryCollectedAt(entry);
+  const key = (entry: FeedEntry) => order === "event" ? day(entry.item.eventDate) ?? day(entry.item.sourceDate) ?? day(entry.item.collectedAt) ?? "" : entryCollectedAt(entry);
   return [...entries].sort((a, b) => key(b).localeCompare(key(a)) || entryCollectedAt(b).localeCompare(entryCollectedAt(a)) || a.item.id.localeCompare(b.item.id));
 }

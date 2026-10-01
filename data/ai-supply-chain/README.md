@@ -1,6 +1,6 @@
 # AI industry map storage
 
-The live map reads only:
+The live map reads the shared stores:
 - `companies/{companyId}`: company identity, description, market, and `aiGraph` sector membership.
 - `company_relationships/{relationshipId}`: published company-to-company connections with embedded evidence.
 
@@ -13,6 +13,13 @@ The JSON files are historical reviewed seed inputs and remain covered by read-on
 The legacy graph migration is complete and its script has been removed. Deployments now read the shared stores directly. Historical migration code is retained in Git at commit `df65762`; see the [completed migration and recovery record](../../docs/company-collection-rename.md) before planning any restore.
 
 The map keeps a five-minute server cache. A fresh page/API request after cache expiry reflects approved shared-store updates.
+
+### NVIDIA manufacturing editorial projection
+
+`src/lib/research/nvidia-manufacturing.ts` is a narrow, versioned editorial supplement for the FY2026 NVIDIA manufacturing evidence. The graph loader reads the exact supplier company documents and all statuses of NVIDIA relationships before applying it. It appends the checked filing fact to older published supply relationships while preserving existing evidence and facts; pending, terminated, same-date/newer reviews, conflicting IDs, duplicates and unpublished relationships are untouched. A review does not receive a new business-event publication timestamp. CoWoS use is disclosed separately from TSMC wafer manufacturing; no packaging allocation or HBM qualification is inferred.
+
+The SK hynix (`US:SKHY`) and Samsung (`ORG:SAMSUNG-ELECTRONICS`) editorial profiles are used only when their exact company documents are absent. Existing identities, including hidden or invalid rows, always take precedence. The company page and follow-existence check share the same missing-only rule. Editorial profiles/evidence are labeled in the company UI; unavailable Firestore reads remain errors. This projection does not create collections, backfill data, run model extraction, or write to Firestore. The historical seed JSON is not replayed over live data.
+
 
 ## Semantics and coverage
 

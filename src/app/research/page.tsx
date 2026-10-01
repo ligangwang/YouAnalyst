@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { localizedMetadata } from "@/lib/i18n/server";
 import { companyLinks, deepDives } from "@/lib/research/deep-dives";
+import { infrastructureTopics, RESEARCH_REVIEWED } from "@/lib/research/infrastructure-topics";
 import styles from "@/components/research-discovery.module.css";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,14 @@ export default async function ResearchIndex() {
     <a href={prefix}>{zh ? "AI 产业图谱" : "AI industry map"} ←</a>
     <h1>{zh ? "研究专题" : "Research deep-dives"}</h1>
     <p>{zh ? "每个专题选取一家公司的生态，列出供应商、客户与合作伙伴的原始证据，并说明每条证据未能证明什么。来源日期与复核日期分别列示。" : "Each deep-dive takes one company’s ecosystem and lists primary evidence for its suppliers, customers and partners, including what each source does not establish. Source dates are shown separately from review dates."}</p>
+    <h2>{zh ? "按研究问题开始" : "Start with a research question"}</h2>
+    <div className={styles.dives}>{infrastructureTopics.map(topic => <article className={styles.dive} key={topic.slug}>
+      <h2><a href={`${prefix}/research/${topic.slug}`}>{topic.title[lang]}</a></h2>
+      <p>{topic.summary[lang]}</p>
+      <p className={styles.muted}>{zh ? "证据复核" : "Evidence reviewed"}: <time dateTime={RESEARCH_REVIEWED}>{RESEARCH_REVIEWED}</time></p>
+      <a href={`${prefix}/research/${topic.slug}`}>{zh ? "核查公司、来源与边界" : "Check the companies, sources and limits"} →</a>
+    </article>)}</div>
+    <h2>{zh ? "公司生态研究" : "Company ecosystems"}</h2>
     <div className={styles.dives}>{deepDives.map(d => <article className={styles.dive} key={d.slug}>
       <h2><a href={`${prefix}${d.path}`}>{d.title[lang]}</a></h2>
       <p>{d.summary[lang]}</p>

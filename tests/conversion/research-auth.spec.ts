@@ -43,7 +43,7 @@ test.beforeAll(async () => {
     alias: { "@/components/providers/auth-provider": mock, "next/navigation": mock, "next/link": mock },
   });
   const css = await postcss([tailwind()]).process('@import "tailwindcss";', { from: path.resolve("research-auth-test.css") });
-  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css.css}body{background:#07111d;color:#f8fafc;font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="youanalyst-analytics" content="enabled"><style>${css.css}body{background:#07111d;color:#f8fafc;font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
 test.beforeEach(async ({ page }) => {
@@ -93,6 +93,9 @@ for (const view of ["Companies", "Updates"] as const) {
         await page.getByRole("button", { name: method === "email-new" ? "Create account" : "Sign in", exact: true }).click();
       }
       await expect(page).toHaveURL(origin + destination);
+      const events = await page.evaluate(() => (window.dataLayer ?? []).map(item => Array.from(item as ArrayLike<unknown>)));
+      expect(events.find(event => event[1] === "auth_view")?.[2]).toMatchObject({ entry_point: "following" });
+      expect(JSON.stringify(events)).not.toMatch(/research@example|test-user|scope=following/);
       await expect(page.getByRole("button", { name: view, exact: true })).toHaveAttribute("aria-pressed", "true");
       await expect(page.getByText("You haven’t followed any companies yet.", { exact: true })).toBeVisible();
     });

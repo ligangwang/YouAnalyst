@@ -27,3 +27,7 @@
 .chips li { padding: 3px 8px; border: 1px solid #3d6577; border-radius: 999px; font-size: .85rem; }
 .sources { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; font-size: .9rem; }
 .card { min-width: 0; overflow-wrap: anywhere; }
+.flow { list-style: none; padding: 0; gap: 28px; }
+.flow > li { position: relative; }
+.flow > li:not(:last-child)::after { content: "→"; position: absolute; right: -23px; top: 50%; color: #72dfef; }
+@media(max-width:700px) { .flow { grid-template-columns: 1fr; } .flow > li:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -27px; } }
