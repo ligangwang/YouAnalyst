@@ -480,7 +480,7 @@ async function readEodhdBulkRows(
   url.searchParams.set("date", requestedDate);
   url.searchParams.set("fmt", "json");
 
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
   const rawJson = await response.text();
   if (!response.ok) {
     throw new Error(`EODHD bulk EOD request failed with HTTP ${response.status}: ${rawJson.slice(0, 500)}`);
@@ -631,7 +631,7 @@ async function fetchTwelveDataEodPrices(
     url.searchParams.set("end_date", `${requestedDate} 23:59:59`);
     url.searchParams.set("apikey", config.apiKey);
 
-    const response = await fetch(url, { cache: "no-store" });
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
     if (!response.ok) {
       tickerChunk.forEach((ticker) => failures.push({ ticker, reason: `provider_http_${response.status}` }));
       continue;
