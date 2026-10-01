@@ -89,7 +89,9 @@ The existing authenticated Scheduler endpoint and Admin rerun action return HTTP
 read-only. No schedule changes are required. Admin displays queue acceptance and
 Tasks shows `eod-maintenance-batch` delivery attempts, filtered by market.
 
-Each request freezes the market, date, options and requesting admin. Scheduler
+Each request freezes the market, date, options and requesting admin. Queue acceptance
+atomically sets the existing EOD cutoff to QUEUED if not already started, so new US
+predictions target the next date even while the subscriber is waiting. Scheduler
 retries reuse a deterministic request ID; an ambiguous admin publication reuses
 the saved original request. An explicit admin rerun after completion creates a
 new request. Request records and dispatch pointers use the existing `eod_runs`

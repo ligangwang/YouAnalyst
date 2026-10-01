@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { targetDateFromRunStatus } from "../../src/lib/predictions/service";
 import { pubsubFirestore } from "../helpers/pubsub-firestore";
 import { eodQueueInput, queueEodMaintenance, processEodMaintenance, type EodRequest } from "../../src/lib/predictions/eod-pubsub";
 import type { DailyEodMaintenanceInput, DailyEodMaintenanceResult } from "../../src/lib/predictions/eod-prices";
@@ -74,4 +75,14 @@ test("untrusted payloads cannot inject a cursor, a preview, a mismatched ticker,
     assert.throws(() => eodQueueInput({ ...input, ...extra }), /Invalid/);
   const f = await fixture();
   await assert.rejects(processEodMaintenance({ ...f.message, input: { ...f.message.input, recompute: true } }, f.db, f.log), /conflicting/);
+});
+
+test("queue acceptance freezes the cutoff even before delivery and does not overwrite a completed run", async () => {
+  const f = await fixture();
+  assert.equal(f.rows.get("eod_runs/US_2026-01-02")?.status, "QUEUED");
+  assert.equal(targetDateFromRunStatus("2026-01-02", f.rows.get("eod_runs/US_2026-01-02")?.status), "2026-01-03");
+  assert.equal(targetDateFromRunStatus("2026-01-02", undefined), "2026-01-02");
+  f.rows.set("eod_runs/US_2026-01-02", { status: "COMPLETED", priceLoad: { loaded: 4 } });
+  await queueEodMaintenance(input, f.db, async () => {});
+  assert.deepEqual(f.rows.get("eod_runs/US_2026-01-02"), { status: "COMPLETED", priceLoad: { loaded: 4 } });
 });

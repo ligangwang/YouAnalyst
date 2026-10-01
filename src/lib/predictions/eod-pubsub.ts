@@ -54,6 +54,9 @@ export async function queueEodMaintenance(value: DailyEodMaintenanceInput = {}, 
   const request = await db.runTransaction(async tx => {
     const data = (await tx.get(state)).data();
     const existing = (await tx.get(ledgerRef(db, batchId))).data() as Ledger | undefined;
+    // Freeze the EOD cutoff atomically with acceptance, not when a delayed worker starts.
+    const cutoff = db.collection("eod_runs").doc(`${input.market}_${input.runDate}`);
+    const priorCutoff = (await tx.get(cutoff)).data();
     let request = existing?.request ?? proposed;
     if (data?.activeRequest) {
       const active = parseEodRequest(data.activeRequest);
@@ -61,6 +64,8 @@ export async function queueEodMaintenance(value: DailyEodMaintenanceInput = {}, 
       request = active;
     } else if (!existing) tx.create(ledgerRef(db, batchId), { request });
     if (!existing?.completed) tx.set(state, { activeRequest: request }, { merge: true });
+    if (!priorCutoff?.status) tx.set(cutoff, { market: input.market, runDate: input.runDate,
+      status: "QUEUED", queuedAt: request.requestedAt }, { merge: true });
     return request;
   });
   await publish(request);
@@ -117,4 +122,3 @@ export async function processEodMaintenance(value: unknown, db: Firestore, log: 
     return { batchId: request.batchId, market: request.input.market, pages: ledger.pages, dates: ledger.dates, nextRunDate: ledger.nextRunDate };
   } finally { await releaseMaintenanceLease(state, log.runId); }
 }
-
