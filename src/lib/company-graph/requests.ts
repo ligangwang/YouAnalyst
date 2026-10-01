@@ -13,6 +13,7 @@ export type CompanyGraphRequestDocument = {
   generation: number; requestId: string; queuedAt: string; force: boolean;
   edgeCount?: number; processingStartedAt?: string | null; processingRunId?: string | null;
   attemptCount?: number; leaseExpiresAtMs?: number; nextAttemptAtMs?: number; dispatchedAt?: string | null;
+  budgetDeferredUntilMs?: number;
 };
 export type CompanyGraphRequestListItem = CompanyGraphRequestDocument & { id: string };
 export type CompanyGraphRequestQueueResult = {
@@ -38,7 +39,8 @@ function item(id: string, data: Record<string, unknown>): CompanyGraphRequestLis
     requestId: str(data.requestId) ?? companyGraphRequestId(ticker, generation), queuedAt: str(data.queuedAt) ?? first,
     force: data.force === true, edgeCount: num(data.edgeCount), processingStartedAt: str(data.processingStartedAt),
     processingRunId: str(data.processingRunId), attemptCount: num(data.attemptCount),
-    dispatchedAt: str(data.dispatchedAt), leaseExpiresAtMs: num(data.leaseExpiresAtMs), nextAttemptAtMs: num(data.nextAttemptAtMs) };
+    dispatchedAt: str(data.dispatchedAt), leaseExpiresAtMs: num(data.leaseExpiresAtMs), nextAttemptAtMs: num(data.nextAttemptAtMs),
+    budgetDeferredUntilMs: num(data.budgetDeferredUntilMs) };
 }
 export function requestForCompanyGraphItem(value: CompanyGraphRequestListItem): CompanyGraphRequest {
   return parseCompanyGraphRequest({ version: 1, type: "company.graph.extract.requested", batchId: value.requestId,
@@ -72,7 +74,8 @@ export async function enqueueCompanyGraphRequest(rawTicker: string, options: { f
       firstRequestedAt: current?.firstRequestedAt ?? now, lastRequestedAt: now, updatedAt: now,
       completedAt: null, failedAt: null, error: null, extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
       ...(options.replay && current?.status === "FAILED" ? { dispatchedAt: null, nextAttemptAtMs: 0 } : {}),
-      ...(!active ? { processingRunId: null, processingStartedAt: null, leaseExpiresAtMs: 0, nextAttemptAtMs: 0, attemptCount: 0, dispatchedAt: null } : {}) };
+      ...(!active ? { processingRunId: null, processingStartedAt: null, leaseExpiresAtMs: 0, nextAttemptAtMs: 0,
+        budgetDeferredUntilMs: 0, attemptCount: 0, dispatchedAt: null, publishLeaseOwner: null, publishLeaseExpiresAtMs: 0 } : {}) };
     tx.set(ref, next, { merge: true });
     return { ticker, status: active ? "ALREADY_QUEUED" as const : "QUEUED" as const,
       message: `${ticker} ${active ? "is already in" : "was added to"} the graph request queue.`,
@@ -116,11 +119,28 @@ export async function claimCompanyGraphRequest(request: CompanyGraphRequest, own
     if (current.requestId !== request.requestId || current.generation !== request.generation) return "obsolete" as const;
     if (current.force !== request.force || current.queuedAt !== request.requestedAt || current.ticker !== request.ticker) throw new Error("Graph request identity reused with different contents");
     if (current.status === "COMPLETED") return "completed" as const;
+    if ((current.budgetDeferredUntilMs ?? 0) > now) return "deferred" as const;
     if ((current.leaseExpiresAtMs ?? 0) > now) throw new Error("Graph request lease is busy; retry delivery");
     tx.set(ref, { status: "PROCESSING", generation: request.generation, requestId: request.requestId,
       processingRunId: owner, processingStartedAt: new Date(now).toISOString(), leaseExpiresAtMs: now + GRAPH_LEASE_MS,
-      attemptCount: (current.attemptCount ?? 0) + 1, error: null, updatedAt: new Date(now).toISOString() }, { merge: true });
+      attemptCount: (current.attemptCount ?? 0) + 1, error: null, budgetDeferredUntilMs: 0,
+      updatedAt: new Date(now).toISOString() }, { merge: true });
     return "claimed" as const;
+  });
+}
+export async function deferCompanyGraphRequest(request: CompanyGraphRequest, owner: string, retryAtMs: number,
+  db = getAdminFirestore(), now = Date.now()) {
+  if (!Number.isSafeInteger(retryAtMs) || retryAtMs <= 0) throw new Error("Invalid graph budget retry time");
+  const ref = db.collection("company_research_requests").doc(request.ticker);
+  await db.runTransaction(async tx => {
+    const data = (await tx.get(ref)).data();
+    if (data?.requestId !== request.requestId || data?.processingRunId !== owner) {
+      throw new Error("Graph request ownership changed before durable budget deferral");
+    }
+    tx.set(ref, { status: "QUEUED", updatedAt: new Date(now).toISOString(),
+      leaseExpiresAtMs: 0, processingRunId: null, processingStartedAt: null,
+      nextAttemptAtMs: retryAtMs, budgetDeferredUntilMs: retryAtMs, dispatchedAt: null,
+      publishLeaseOwner: null, publishLeaseExpiresAtMs: 0, error: null, failedAt: null }, { merge: true });
   });
 }
 export async function finishCompanyGraphRequest(request: CompanyGraphRequest, owner: string, result: { edgeCount: number } | { error: string }, db = getAdminFirestore(), now = Date.now()) {

@@ -4,12 +4,16 @@ import { getAdminFirestore } from "../firebase/admin";
 import type { MaintenanceLog } from "../maintenance-log";
 import { publishJobMessage } from "../job-pubsub";
 import { withSecRequestContext } from "../sec-request";
-import { claimCompanyGraphRequest, finishCompanyGraphRequest, GRAPH_LEASE_MS, listQueuedCompanyGraphRequests,
+import { claimCompanyGraphRequest, deferCompanyGraphRequest, finishCompanyGraphRequest, GRAPH_LEASE_MS, listQueuedCompanyGraphRequests,
   requestForCompanyGraphItem } from "./requests";
 import { parseCompanyGraphManualJob, parseCompanyGraphFiling, type CompanyGraphJob, type CompanyGraphRequest,
   type CompanyGraphVerification } from "./pubsub";
 import { runLatest10KCompanyGraphExtraction } from "./service";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "./types";
+import { GraphBudgetExceededError, readCompanyGraphBudgetAvailability } from "./budget";
+import { completeCompanyGraphFilingDeferral, deferCompanyGraphFiling, dispatchDeferredCompanyGraphFiling,
+  listDeferredCompanyGraphFilings, readCompanyGraphFilingDeferral, recordCompanyGraphFilingReceipt } from "./deferred-work";
+import { SEC_FILINGS_TOPIC, type SecFilingDiscovered } from "../sec-filings/event";
 
 export function normalizeCompanyGraphQueueLimit(value: unknown): number {
   const parsed = Number(value ?? process.env.COMPANY_GRAPH_QUEUE_BATCH_SIZE ?? 1);
@@ -18,13 +22,14 @@ export function normalizeCompanyGraphQueueLimit(value: unknown): number {
 export async function dispatchCompanyGraphRequest(request: CompanyGraphRequest, db: Firestore,
   publish: (request: CompanyGraphRequest) => Promise<unknown>, now = Date.now()) {
   const ref = db.collection("company_research_requests").doc(request.ticker);
+  const publishLeaseOwner = randomUUID();
   const reserved = await db.runTransaction(async tx => {
     const data = (await tx.get(ref)).data();
     if (!data || (data.requestId && data.requestId !== request.requestId) || data.status === "COMPLETED"
       || data.dispatchedAt || Number(data.leaseExpiresAtMs) > now || Number(data.publishLeaseExpiresAtMs) > now
       || Number(data.nextAttemptAtMs) > now) return false;
     tx.set(ref, { requestId: request.requestId, generation: request.generation, queuedAt: request.requestedAt,
-      force: request.force, publishLeaseExpiresAtMs: now + 30_000 }, { merge: true });
+      force: request.force, publishLeaseOwner, publishLeaseExpiresAtMs: now + 30_000 }, { merge: true });
     return true;
   });
   if (!reserved) return { status: "PENDING" as const };
@@ -32,8 +37,8 @@ export async function dispatchCompanyGraphRequest(request: CompanyGraphRequest, 
     await publish(request);
     await db.runTransaction(async tx => {
       const data = (await tx.get(ref)).data();
-      if (data?.requestId === request.requestId && data.status !== "COMPLETED") tx.set(ref, {
-        dispatchedAt: new Date(now).toISOString(), dispatchError: null, publishLeaseExpiresAtMs: 0,
+      if (data?.requestId === request.requestId && data.publishLeaseOwner === publishLeaseOwner && data.status !== "COMPLETED") tx.set(ref, {
+        dispatchedAt: new Date(now).toISOString(), dispatchError: null, publishLeaseOwner: null, publishLeaseExpiresAtMs: 0,
         nextAttemptAtMs: now + GRAPH_LEASE_MS,
       }, { merge: true });
     });
@@ -43,8 +48,8 @@ export async function dispatchCompanyGraphRequest(request: CompanyGraphRequest, 
     // durable request identity for the next bounded publisher sweep.
     await db.runTransaction(async tx => {
       const data = (await tx.get(ref)).data();
-      if (data?.requestId === request.requestId && data.status !== "COMPLETED") tx.set(ref, {
-        dispatchError: error instanceof Error ? error.message : "Publication failed", publishLeaseExpiresAtMs: 0,
+      if (data?.requestId === request.requestId && data.publishLeaseOwner === publishLeaseOwner && data.status !== "COMPLETED") tx.set(ref, {
+        dispatchError: error instanceof Error ? error.message : "Publication failed", publishLeaseOwner: null, publishLeaseExpiresAtMs: 0,
         nextAttemptAtMs: now + 60_000,
       }, { merge: true });
     });
@@ -52,23 +57,55 @@ export async function dispatchCompanyGraphRequest(request: CompanyGraphRequest, 
   }
 }
 export async function publishQueuedCompanyGraphRequests(input: { limit?: number; preview?: boolean } = {},
-  dependencies: { db?: Firestore; publish?: (request: CompanyGraphRequest) => Promise<unknown>; now?: number } = {}) {
+  dependencies: { db?: Firestore; publish?: (request: CompanyGraphRequest) => Promise<unknown>;
+    publishFiling?: (event: SecFilingDiscovered) => Promise<unknown>;
+    budgetAvailability?: typeof readCompanyGraphBudgetAvailability; now?: number } = {}) {
   const db = dependencies.db ?? getAdminFirestore(), now = dependencies.now ?? Date.now();
   const limit = normalizeCompanyGraphQueueLimit(input.limit);
-  const candidates = await listQueuedCompanyGraphRequests(limit, db, now, { unpublishedOnly: true, preview: input.preview });
+  // Read before either cursor can advance. Datastore/pricing failures propagate
+  // without publications; a normal exhausted day pauses the publisher cleanly.
+  const budget = await (dependencies.budgetAvailability ?? readCompanyGraphBudgetAvailability)(db, now);
+  const items: Array<{ ticker: string; requestId: string; source: "manual" | "filing"; status: string; error?: string }> = [];
+  if (!budget.available && !input.preview) return { requestedLimit: limit, published: 0, failed: 0,
+    mode: "pubsub", status: "budget_deferred", retryAtMs: budget.retryAtMs, items };
+  const [manual, filings] = await Promise.all([
+    listQueuedCompanyGraphRequests(limit, db, now, { unpublishedOnly: true, preview: input.preview }),
+    listDeferredCompanyGraphFilings(limit, db, now, input.preview),
+  ]);
+  const cursorRef = db.collection("company_research_requests").doc("_graph_dispatcher");
+  const firstQueue = (await cursorRef.get()).data()?.nextQueue === "filing" ? "filing" : "manual";
+  const manualWork = manual.map(candidate => ({ source: "manual" as const, request: requestForCompanyGraphItem(candidate) }));
+  const filingWork = filings.map(candidate => ({ source: "filing" as const, request: candidate.event }));
+  const queues = { manual: manualWork, filing: filingWork };
+  const candidates: Array<typeof manualWork[number] | typeof filingWork[number]> = [];
+  let nextQueue: "manual" | "filing" = firstQueue;
+  while (candidates.length < limit && (manualWork.length || filingWork.length)) {
+    const otherQueue = nextQueue === "manual" ? "filing" : "manual";
+    const candidate = queues[nextQueue].shift() ?? queues[otherQueue].shift();
+    if (!candidate) break;
+    candidates.push(candidate);
+    nextQueue = candidate.source === "manual" ? "filing" : "manual";
+  }
   const publish = dependencies.publish ?? (async request => {
     if (!process.env.COMPANY_GRAPH_REQUEST_TOPIC) throw new Error("COMPANY_GRAPH_REQUEST_TOPIC is required");
     return publishJobMessage(process.env.COMPANY_GRAPH_REQUEST_TOPIC, request);
   });
-  const items: Array<{ ticker: string; requestId: string; status: string; error?: string }> = [];
+  const publishFiling = dependencies.publishFiling ?? (async event =>
+    publishJobMessage(process.env.SEC_FILINGS_TOPIC || SEC_FILINGS_TOPIC, event));
   for (const candidate of candidates) {
-    const request = requestForCompanyGraphItem(candidate);
-    if (input.preview) { items.push({ ticker: request.ticker, requestId: request.requestId, status: "PREVIEW" }); continue; }
-    try { items.push({ ticker: request.ticker, requestId: request.requestId, ...await dispatchCompanyGraphRequest(request, db, publish, now) }); }
-    catch (error) { items.push({ ticker: request.ticker, requestId: request.requestId, status: "FAILED", error: error instanceof Error ? error.message : "Publication failed" }); }
+    const identity = { ticker: candidate.source === "manual" ? candidate.request.ticker : candidate.request.companyId,
+      requestId: candidate.request.batchId, source: candidate.source };
+    if (input.preview) { items.push({ ...identity, status: "PREVIEW" }); continue; }
+    try {
+      const result = candidate.source === "manual"
+        ? await dispatchCompanyGraphRequest(candidate.request, db, publish, now)
+        : await dispatchDeferredCompanyGraphFiling(candidate.request, db, publishFiling, now);
+      items.push({ ...identity, ...result });
+    } catch (error) { items.push({ ...identity, status: "FAILED", error: error instanceof Error ? error.message : "Publication failed" }); }
   }
+  if (!input.preview && candidates.length) await cursorRef.set({ nextQueue }, { merge: true });
   return { requestedLimit: limit, published: items.filter(i => i.status === "PUBLISHED").length,
-    failed: items.filter(i => i.status === "FAILED").length, mode: input.preview ? "preview" : "pubsub", items };
+    failed: items.filter(i => i.status === "FAILED").length, mode: input.preview ? "preview" : "pubsub", budgetAvailable: budget.available, items };
 }
 async function processVerification(request: CompanyGraphVerification, db: Firestore, log: MaintenanceLog) {
   const ref = db.collection("company_research_runs").doc(`_graph_verify_${request.batchId}`);
@@ -91,10 +128,15 @@ export async function processCompanyGraphJob(input: CompanyGraphJob, db: Firesto
   if (request.type === "sec.filing.discovered" && request.form !== "10-K") return { status: "ineligible", form: request.form };
   if (!(dependencies.enabled ?? process.env.COMPANY_GRAPH_PROCESSING_ENABLED === "1")) throw new Error("Company graph processing is disabled; retry after operator enables it");
   const manual = request.type === "company.graph.extract.requested" ? request : null;
+  const filing = request.type === "sec.filing.discovered" ? request : null;
   const now = dependencies.now ?? Date.now;
   if (manual) {
     const claimed = await claimCompanyGraphRequest(manual, log.runId, db, now());
     if (claimed !== "claimed") return { duplicate: true, status: claimed };
+  }
+  if (filing) {
+    const deferred = await readCompanyGraphFilingDeferral(filing, db, now());
+    if (deferred) return { duplicate: true, ...deferred };
   }
   const ticker = manual?.ticker ?? (request as Extract<CompanyGraphJob, { type: "sec.filing.discovered" }>).companyId;
   try {
@@ -102,8 +144,17 @@ export async function processCompanyGraphJob(input: CompanyGraphJob, db: Firesto
       (dependencies.extract ?? runLatest10KCompanyGraphExtraction)({ ticker, dryRun: false, force: manual?.force ?? false,
         requestId: request.batchId, requestedAt: manual?.requestedAt, requestGeneration: manual?.generation, ...(request.type === "sec.filing.discovered" ? { filing: request } : {}) }, { db }));
     if (manual) await finishCompanyGraphRequest(manual, log.runId, { edgeCount: result.edges.length }, db, now());
+    if (filing) {
+      await recordCompanyGraphFilingReceipt(filing, result.runId, db, now());
+      await completeCompanyGraphFilingDeferral(filing, db, now());
+    }
     return { completed: 1, ticker: result.ticker, runId: result.runId, edgeCount: result.edges.length, cached: result.cached };
   } catch (error) {
+    if (error instanceof GraphBudgetExceededError) {
+      if (manual) await deferCompanyGraphRequest(manual, log.runId, error.retryAtMs, db, now());
+      if (filing) await deferCompanyGraphFiling(filing, error.retryAtMs, db, now());
+      return { status: "deferred", ticker, retryAtMs: error.retryAtMs };
+    }
     if (manual) await finishCompanyGraphRequest(manual, log.runId, { error: error instanceof Error ? error.message : "Extraction failed" }, db, now());
     throw error;
   }

@@ -381,14 +381,14 @@ export async function runLatest10KCompanyGraphExtraction(input: CompanyGraphExtr
       const openAiResult = checkpoint?.providerResult as Awaited<ReturnType<typeof extractCompanyGraphRelationships>> | undefined
         ?? await (dependencies.extract ?? extractCompanyGraphRelationships)({ companyName: company.name, ticker,
           accessionNumber: filing.accessionNumber, filingDate: filing.filingDate,
-          extractionText: buildCompanyGraphExtractionText(sections), signal,
+          extractionText: buildCompanyGraphExtractionText(sections), signal, budgetRequestId: runId, budgetDb: db,
           responseId: typeof checkpoint?.providerResponseId === "string" ? checkpoint.providerResponseId : undefined,
           onResponseCreated: dryRun ? undefined : async responseId => {
             await assertLease(); await fencedSet(db, runRef, { providerResponseId: responseId }, fence);
           } });
       await assertLease();
-      // A crash after the provider accepts POST but before its response ID is saved
-      // can repeat a paid request. At-least-once delivery is not exactly-once billing.
+      // The provider budget reserves before POST and retains ambiguous charges. A
+      // missing response identity requires operator review, never automatic resubmit.
       if (!dryRun) await fencedSet(db, runRef, { providerResult: openAiResult, providerCompletedAt: new Date(now()).toISOString() }, fence);
       const nowIso = new Date(now()).toISOString();
       const usageEvent = await (dependencies.usage ?? safeRecordOpenAiUsageEvent)({ purpose: "company_graph_extraction",

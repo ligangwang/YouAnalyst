@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../../src/lib/maintenance-log";
@@ -9,7 +9,10 @@ import { dispatchCompanyGraphRequest, processCompanyGraphJob, publishQueuedCompa
 import { runLatest10KCompanyGraphExtraction, shouldAdvanceLatestGraph } from "../../src/lib/company-graph/service";
 import { createSecFilingDiscovered } from "../../src/lib/sec-filings/event";
 import { COMPANY_GRAPH_EXTRACTION_VERSION, type CompanyGraphExtractionResult } from "../../src/lib/company-graph/types";
-import { extractCompanyGraphRelationships } from "../../src/lib/company-graph/openai";
+import { extractCompanyGraphRelationships, buildCompanyGraphResponseBody } from "../../src/lib/company-graph/openai";
+
+import { graphBudgetFingerprint, reserveGraphBudget, recordGraphResponse } from "../../src/lib/company-graph/budget";
+import { budgetFixture } from "../helpers/graph-budget";
 
 type Data = Record<string, unknown>;
 function fixture(initial: Record<string, Data> = {}) {
@@ -245,47 +248,58 @@ test("operator force recovers a failed generation while normal retry remains sta
   const next = await enqueueCompanyGraphRequest("AMD", { db: f.db, now: now + 1, replay: true, force: true });
   assert.equal(next.request?.generation, 2); assert.equal(next.request?.force, true);
 });
+function providerInput(db: Firestore) {
+  return { companyName: "AMD", ticker: "AMD", accessionNumber: filing.accessionNumber,
+    filingDate: filing.filingDate, extractionText: "text", budgetDb: db, budgetRequestId: "provider_test", budgetNow: () => now };
+}
+function providerEnvironment(t: TestContext) {
+  const priorKey = process.env.OPENAI_API_KEY, priorModel = process.env.OPENAI_MODEL;
+  process.env.OPENAI_API_KEY = "mock-local-test-only"; process.env.OPENAI_MODEL = "gpt-5.6-sol";
+  t.after(() => {
+    if (priorKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = priorKey;
+    if (priorModel === undefined) delete process.env.OPENAI_MODEL; else process.env.OPENAI_MODEL = priorModel;
+  });
+}
+async function savedProvider() {
+  const f = budgetFixture(), input = providerInput(f.db);
+  const ticket = await reserveGraphBudget({ requestKey: input.budgetRequestId, model: "gpt-5.6-sol", inputTokens: 100,
+    fingerprint: graphBudgetFingerprint(buildCompanyGraphResponseBody(input)) }, f.db, now);
+  await recordGraphResponse(ticket, "resp_saved", f.db);
+  return { f, input: { ...input, responseId: "resp_saved" } };
+}
 test("provider resumes stored response via GET and never starts another paid POST", async t => {
-  const priorKey = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "mock-local-test-only";
-  t.after(() => { if (priorKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = priorKey; });
+  providerEnvironment(t); const { input } = await savedProvider();
   const calls: Array<{ url: string; method?: string; body?: unknown }> = [];
   t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
     calls.push({ url, method: init?.method, body: init?.body });
-    return Response.json({ id: "resp_saved", model: "saved-model", status: "completed", output_text: '{"relationships":[]}', usage: {} });
+    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", status: "completed", output_text: '{"relationships":[]}', usage: { input_tokens: 100, output_tokens: 20 } });
   });
-  const result = await extractCompanyGraphRelationships({ companyName: "AMD", ticker: "AMD", accessionNumber: filing.accessionNumber,
-    filingDate: filing.filingDate, extractionText: "text", responseId: "resp_saved" });
+  const result = await extractCompanyGraphRelationships(input);
   assert.equal(calls.length, 1); assert.equal(calls[0].method, "GET"); assert.equal(calls[0].body, undefined);
-  assert.match(calls[0].url, /\/responses\/resp_saved$/); assert.equal(result.model, "saved-model");
+  assert.match(calls[0].url, /\/responses\/resp_saved$/); assert.equal(result.model, "gpt-5.6-sol");
 });
 test("provider creation saves response identity before polling; checkpoint failure stops without resubmit", async t => {
-  const priorKey = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "mock-local-test-only";
-  t.after(() => { if (priorKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = priorKey; });
-  let calls = 0;
-  t.mock.method(globalThis, "fetch", async (_url: string, init?: RequestInit) => {
+  providerEnvironment(t); const f = budgetFixture(); let calls = 0;
+  t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
+    if (url.endsWith("/input_tokens")) return Response.json({ object: "response.input_tokens", input_tokens: 100 });
     calls++; const body = JSON.parse(String(init?.body)); assert.equal(body.background, true); assert.equal(body.store, true);
     return Response.json({ id: "resp_saved", status: "queued" });
   });
-  await assert.rejects(extractCompanyGraphRelationships({ companyName: "AMD", ticker: "AMD", accessionNumber: filing.accessionNumber,
-    filingDate: filing.filingDate, extractionText: "text", onResponseCreated: async id => { assert.equal(id, "resp_saved"); throw Error("checkpoint failed"); } }), /checkpoint failed/);
+  await assert.rejects(extractCompanyGraphRelationships({ ...providerInput(f.db), onResponseCreated: async id => {
+    assert.equal(id, "resp_saved"); throw Error("checkpoint failed"); } }), /checkpoint failed/);
   assert.equal(calls, 1);
 });
 for (const status of ["failed", "incomplete", "cancelled"]) test(`provider terminal ${status} requests operator review without another POST`, async t => {
-  const priorKey = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "mock-local-test-only";
-  t.after(() => { if (priorKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = priorKey; });
-  let calls = 0;
-  t.mock.method(globalThis, "fetch", async (_url: string, init?: RequestInit) => { calls++; assert.equal(init?.method, "GET"); return Response.json({ id: "resp_saved", status }); });
-  await assert.rejects(extractCompanyGraphRelationships({ companyName: "AMD", ticker: "AMD", accessionNumber: filing.accessionNumber,
-    filingDate: filing.filingDate, extractionText: "text", responseId: "resp_saved" }), /operator review/);
+  providerEnvironment(t); const { input } = await savedProvider(); let calls = 0;
+  t.mock.method(globalThis, "fetch", async (_url: string, init?: RequestInit) => { calls++; assert.equal(init?.method, "GET");
+    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", status, usage: { input_tokens: 100, output_tokens: 20 } }); });
+  await assert.rejects(extractCompanyGraphRelationships(input), /operator review/);
   assert.equal(calls, 1);
 });
 test("provider polling respects abort and does not start replacement paid work", async t => {
-  const priorKey = process.env.OPENAI_API_KEY; process.env.OPENAI_API_KEY = "mock-local-test-only";
-  t.after(() => { if (priorKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = priorKey; });
-  let calls = 0;
+  providerEnvironment(t); const { input } = await savedProvider(); let calls = 0;
   t.mock.method(globalThis, "fetch", async () => { calls++; return Response.json({ id: "resp_saved", status: "in_progress" }); });
-  await assert.rejects(extractCompanyGraphRelationships({ companyName: "AMD", ticker: "AMD", accessionNumber: filing.accessionNumber,
-    filingDate: filing.filingDate, extractionText: "text", responseId: "resp_saved", signal: AbortSignal.abort() }), /abort/i);
+  await assert.rejects(extractCompanyGraphRelationships({ ...input, signal: AbortSignal.abort() }), /abort/i);
   assert.equal(calls, 1);
 });
 test("same-millisecond forced generations preserve the higher generation", async () => {

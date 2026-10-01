@@ -94,16 +94,19 @@ test("admin can page through runs and errors, inspect details and change job wit
 test("non-admins never fetch job history", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   let historyCalls = 0;
+  let budgetCalls = 0;
   await page.route("**/*", route => {
     const url = new URL(route.request().url());
     if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
     if (url.pathname === "/api/admin/me") return route.fulfill({ status: 403, json: { isAdmin: false } });
     if (url.pathname === "/api/admin/jobs") historyCalls++;
+    if (url.pathname === "/api/admin/company-graph/budget") budgetCalls++;
     return route.abort();
   });
   await page.goto(origin);
   await expect(page.getByRole("alert")).toHaveText("This page is available to administrators only.");
   expect(historyCalls).toBe(0);
+  expect(budgetCalls).toBe(0);
 });
 
 test("admin selects a date and queues EOD once, then sees acceptance and refreshed history", async ({ page }) => {
@@ -247,4 +250,151 @@ test("company graph publisher and subscriber histories distinguish queue accepta
   await expect(page.getByText("Request and filing deliveries retry independently.", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Scheduler deliveries", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Run SEC fundamentals now", exact: true })).toHaveCount(0);
+});
+
+const initialGraphBudget = { limitUsd: 5, spentUsd: 1.25, reservedUsd: 0.5, remainingUsd: 3.25, day: "2026-10-01", timezone: "America/New_York", blocked: false, pricingValidUntil: "2026-10-31T00:00:00Z" };
+
+test("graph budget remains editable when job history fails and zero pauses new calls", async ({ page }, testInfo) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const writes: number[] = [];
+  let current = { ...initialGraphBudget };
+  let finish: (() => void) | undefined;
+  await page.route("**/*", async route => {
+    const req = route.request(), url = new URL(req.url());
+    if (req.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/api/admin/me") return route.fulfill({ json: { isAdmin: true } });
+    if (url.pathname === "/api/admin/jobs") return route.fulfill({ status: 502, json: { error: "Cloud Logging history is unavailable." } });
+    if (url.pathname === "/api/admin/company-graph/budget") {
+      expect(req.headers().authorization).toBe("Bearer isolated-test-token");
+      if (req.method() === "PATCH") {
+        expect(req.postDataJSON()).toEqual({ limitUsd: 0 });
+        writes.push(req.postDataJSON().limitUsd);
+        await new Promise<void>(resolve => { finish = resolve; });
+        current = { ...current, limitUsd: 0, remainingUsd: 0, blocked: true };
+      }
+      return route.fulfill({ json: current });
+    }
+    return route.abort();
+  });
+  await page.goto(origin);
+  const panel = page.getByRole("region", { name: "Company graph OpenAI budget" });
+  await expect(page.getByRole("alert").filter({ hasText: "Cloud Logging history is unavailable." })).toBeVisible();
+  await expect(panel.getByText("US$5.00", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$1.25", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.50", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$3.25", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Budget day: 2026-10-01 · America/New_York", { exact: true })).toBeVisible();
+  await expect(panel.getByText(/not your provider invoice or ChatGPT allowance/)).toBeVisible();
+  await expect(panel.getByText(/does not reverse charges/)).toBeVisible();
+  await panel.getByLabel("Daily limit (USD)", { exact: true }).fill("0");
+  await panel.getByRole("button", { name: "Save daily limit", exact: true }).click();
+  await expect(panel.getByRole("button", { name: "Saving budget…", exact: true })).toBeDisabled();
+  await expect(panel.getByRole("button", { name: "Refresh budget", exact: true })).toBeDisabled();
+  await expect.poll(() => writes.length).toBe(1);
+  finish!();
+  await expect(panel.getByText("Daily limit saved.", { exact: true })).toBeVisible();
+  await expect(panel.getByText("Paused. New OpenAI calls are blocked.", { exact: true })).toBeVisible();
+  await expect(panel.getByLabel("Daily limit (USD)", { exact: true })).toHaveValue("0.00");
+  await expect(panel.getByText("US$1.25", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("admin-graph-budget-paused.png"), fullPage: true });
+});
+
+test("graph budget saves cents and displays authoritative amounts when lowered below committed usage", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const writes: number[] = [];
+  await page.route("**/*", route => {
+    const req = route.request(), url = new URL(req.url());
+    if (req.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/api/admin/me") return route.fulfill({ json: { isAdmin: true } });
+    if (url.pathname === "/api/admin/jobs") return route.fulfill({ json: { records: [], nextPageToken: null } });
+    if (url.pathname === "/api/admin/company-graph/budget") {
+      if (req.method() === "PATCH") {
+        const { limitUsd } = req.postDataJSON();
+        writes.push(limitUsd);
+        return route.fulfill({ json: { ...initialGraphBudget, limitUsd, remainingUsd: 0, blocked: true } });
+      }
+      return route.fulfill({ json: initialGraphBudget });
+    }
+    return route.abort();
+  });
+  await page.goto(origin);
+  const panel = page.getByRole("region", { name: "Company graph OpenAI budget" });
+  await panel.getByLabel("Daily limit (USD)", { exact: true }).fill("0.29");
+  await panel.getByRole("button", { name: "Save daily limit", exact: true }).click();
+  await expect(panel.getByText("Daily limit saved.", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.29", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$1.25", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.50", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.00", { exact: true })).toBeVisible();
+  await expect(panel.getByText("New OpenAI calls are blocked by the budget or pricing validity checks.", { exact: true })).toBeVisible();
+  expect(writes).toEqual([0.29]);
+});
+
+test("graph budget read failure keeps history usable and supports independent retry", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let reads = 0;
+  let historyReads = 0;
+  await page.route("**/*", route => {
+    const req = route.request(), url = new URL(req.url());
+    if (req.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/api/admin/me") return route.fulfill({ json: { isAdmin: true } });
+    if (url.pathname === "/api/admin/jobs") {
+      historyReads++;
+      return route.fulfill({ json: { records: [{ id: "ok", status: "Succeeded", startedAt: "2026-10-01T00:00:00Z", summary: { processed: 1 } }], nextPageToken: null } });
+    }
+    if (url.pathname === "/api/admin/company-graph/budget") {
+      reads++;
+      return reads === 1 ? route.fulfill({ status: 503, json: { error: "Unable to load the company graph budget." } }) : route.fulfill({ json: initialGraphBudget });
+    }
+    return route.abort();
+  });
+  await page.goto(origin);
+  const panel = page.getByRole("region", { name: "Company graph OpenAI budget" });
+  await expect(panel.getByRole("alert")).toHaveText("Unable to load the company graph budget.");
+  await expect(panel.getByLabel("Daily limit (USD)", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Succeeded", { exact: true })).toBeVisible();
+  const initialHistoryReads = historyReads;
+  await panel.getByRole("button", { name: "Refresh budget", exact: true }).click();
+  await expect(panel.getByLabel("Daily limit (USD)", { exact: true })).toHaveValue("5.00");
+  await expect(panel.getByRole("alert")).toHaveCount(0);
+  expect(reads).toBe(2);
+  expect(historyReads).toBe(initialHistoryReads);
+});
+
+test("graph budget failed update keeps the last confirmed limit and invalid inputs never write", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const writes: number[] = [];
+  await page.route("**/*", route => {
+    const req = route.request(), url = new URL(req.url());
+    if (req.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/api/admin/me") return route.fulfill({ json: { isAdmin: true } });
+    if (url.pathname === "/api/admin/jobs") return route.fulfill({ json: { records: [], nextPageToken: null } });
+    if (url.pathname === "/api/admin/company-graph/budget") {
+      if (req.method() === "PATCH") {
+        writes.push(req.postDataJSON().limitUsd);
+        return route.fulfill({ status: 503, json: { error: "Unable to save. Refresh the budget to check the current limit." } });
+      }
+      return route.fulfill({ json: initialGraphBudget });
+    }
+    return route.abort();
+  });
+  await page.goto(origin);
+  const panel = page.getByRole("region", { name: "Company graph OpenAI budget" });
+  const input = panel.getByLabel("Daily limit (USD)", { exact: true });
+  for (const invalid of ["", "-1", "0.001", "1000000.01"]) {
+    await input.fill(invalid);
+    await panel.getByRole("button", { name: "Save daily limit", exact: true }).click();
+    expect(await input.evaluate((element: HTMLInputElement) => element.checkValidity())).toBe(false);
+  }
+  expect(writes).toEqual([]);
+  await input.fill("6.25");
+  await panel.getByRole("button", { name: "Save daily limit", exact: true }).click();
+  await expect(panel.getByRole("alert")).toHaveText("Unable to save. Refresh the budget to check the current limit.");
+  await expect(panel.getByText("Daily limit saved.", { exact: true })).toHaveCount(0);
+  await expect(panel.getByText("US$5.00", { exact: true })).toBeVisible();
+  expect(writes).toEqual([6.25]);
+  await panel.getByRole("button", { name: "Refresh budget", exact: true }).click();
+  await expect(input).toHaveValue("5.00");
+  await expect(panel.getByRole("alert")).toHaveCount(0);
 });
