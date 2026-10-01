@@ -2,11 +2,13 @@ type AnalyticsEvent = "research_share" | "company_follow_intent" | "company_foll
   "graph_search" | "graph_company_select" | "graph_expand" | "graph_filter" | "graph_evidence_open" |
   "graph_source_open" | "graph_view_change" | "graph_company_open" | "graph_predict_click" |
   "graph_feedback_click" | "graph_save_view" | "graph_discovery_open" | "graph_save_intent" | "graph_save_complete" | "graph_save_error" | "graph_saved_company_open" | "auth_view" | "auth_start" | "auth_cancel" | "auth_error" | "sign_up" | "login" | "prediction_publish";
+export type AuthEntryPoint = "company_follow" | "map_save" | "following" | "prediction" | "general";
 type AnalyticsParams = {
   ticker?: string; segment?: string; relationship_type?: string; node_kind?: string;
   result_count?: number; node_count?: number; edge_count?: number; coverage_count?: number;
   view_mode?: string; method?: string; action?: string; visibility?: string;
   question_id?: string; entry_point?: string;
+  error_reason?: import("./auth-error-reason").AuthErrorReason;
 };
 declare global {
   interface Window { dataLayer?: unknown[]; gtag?: (...args: unknown[]) => void }

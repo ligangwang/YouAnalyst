@@ -96,7 +96,11 @@ function isDismissedPopupError(error: unknown): boolean {
 }
 
 function friendlyError(error: unknown, fallback: string): Error {
-  return new Error(toMessage(error, fallback));
+  // Retain the SDK code for bounded analytics classification after converting
+  // the displayed message. The analytics layer never emits this raw code.
+  return Object.assign(new Error(toMessage(error, fallback)), {
+    code: error instanceof FirebaseError ? error.code : undefined,
+  });
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {

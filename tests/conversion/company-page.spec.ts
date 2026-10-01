@@ -11,6 +11,7 @@ test.beforeAll(async () => {
     stdin: { contents: `
       import React from "react";
       import { createRoot } from "react-dom/client";
+      import { LocaleProvider } from "./src/components/providers/locale-provider";
       import { TickerPage } from "./src/components/ticker-page";
       import { CompanyResearchOverview } from "./src/components/company-research-overview";
       import { CompanyFundamentalsView } from "./src/components/company-fundamentals";
@@ -21,7 +22,7 @@ test.beforeAll(async () => {
       const report = { cik: "0000002488", accession: "0000002488-26-000010", form: "10-K", filed: "2026-02-01", end: "2025-12-27", url: "https://www.sec.gov/Archives/example.htm" };
       const data = { report, metrics: annualMetrics({cik:2488, facts:{"us-gaap":{Revenues:{units:{USD:[{val:1000000000,start:"2024-12-29",end:report.end,filed:report.filed,accn:report.accession,form:"10-K"}]}}}}}, report), excerpt: "Synthetic business excerpt for company-page testing.", fetchedAt: "2026-09-09T00:00:00Z" };
       if (new URLSearchParams(location.search).has("marketCap")) data.marketCap = { status:"estimated",value:2500000000,currency:"USD",priceDate:"2026-09-18",shares:{date:"2026-08-01",filed:"2026-08-05",sourceUrl:"https://www.sec.gov/Archives/shares.htm"} };
-      createRoot(document.getElementById("root")).render(<TickerPage ticker="AMD" overview={<CompanyResearchOverview company={company} fundamentals={<CompanyFundamentalsView data={data} />} />} />);
+      createRoot(document.getElementById("root")).render(<LocaleProvider locale={location.pathname.startsWith("/zh-cn") ? "zh-CN" : "en"}><TickerPage ticker="AMD" overview={<CompanyResearchOverview company={company} fundamentals={<CompanyFundamentalsView data={data} />} />} /></LocaleProvider>);
     `, resolveDir: process.cwd(), loader: "tsx" },
     bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" },
     alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") },
@@ -60,7 +61,7 @@ for (const predictionsAvailable of [true, false]) {
     }
     await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DUP/);
     await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DDOWN/);
-    await expect(page.getByRole("link", { name: "Research NVIDIA (NVDA)" })).toHaveAttribute("href", "/ticker/NVDA");
+    await expect(page.getByRole("link", { name: "Research NVIDIA (NVDA)" })).toHaveAttribute("href", "/en/ticker/NVDA");
     await expect(page.getByRole("heading", { name: "Example Packaging supplies AMD", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Institutional holdings", exact: true })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Insider transactions", exact: true })).toHaveCount(0);
@@ -72,3 +73,22 @@ for (const predictionsAvailable of [true, false]) {
     await expect(page.getByText("Synthetic test evidence", { exact: false }).first()).toBeVisible();
   });
 }
+
+
+test("Chinese company links retain the locale and supplied evidence", async ({ page }, testInfo) => {
+  await page.route("**/*", route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.origin !== origin || request.method() !== "GET") return route.abort();
+    if (request.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/api/ticker/AMD") return route.fulfill({ json: { items: [], ticker: "AMD", nextCursor: null } });
+    return route.fulfill({ status: 503, json: { error: "Test service unavailable" } });
+  });
+  await page.goto(`${origin}/zh-cn/ticker/AMD`);
+  await expect(page.getByRole("heading", { name: "业务与财务", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "公司", exact: true })).toHaveAttribute("href", "/zh-cn/companies");
+  await expect(page.locator('a[href="/zh-cn/ticker/NVDA"]')).toBeVisible();
+  await expect(page.locator('a[href="/zh-cn?company=AMD"]').first()).toBeVisible();
+  await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("chinese-company-research.png"), fullPage: true });
+});

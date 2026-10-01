@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { isFollowingAuthDestination, safeAuthDestination } from "@/lib/auth-continuation";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, type AuthEntryPoint } from "@/lib/analytics";
+import { authErrorReason } from "@/lib/auth-error-reason";
 import { mapAuthCompany } from "@/lib/industry-graph/saved-companies";
 import { saveCompanyToAccount } from "@/lib/save-company";
 import { companyFollowIntent, persistCompanyFollow } from "@/lib/company-follow-intent";
@@ -52,7 +53,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const viewed = useRef(false);
-  const entryPoint = mapCompany ? "map_save" : isFollowing ? "following" : destination?.startsWith("/predictions/new") ? "prediction" : "general";
+  const entryPoint: AuthEntryPoint = followIntent ? "company_follow" : mapCompany ? "map_save" : isFollowing ? "following" : destination?.startsWith("/predictions/new") ? "prediction" : "general";
 
   useEffect(() => {
     if (loading || user || viewed.current) return;
@@ -119,7 +120,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
 
       await finishAuth(result.user, result.shouldCompleteProfile);
     } catch (nextError) {
-      trackEvent("auth_error", { method: "email", entry_point: entryPoint });
+      trackEvent("auth_error", { method: "email", action: isCreate ? "sign_up" : "login", entry_point: entryPoint, error_reason: authErrorReason(nextError) });
       setLocalError(nextError instanceof Error ? nextError.message : "Authentication failed");
     } finally {
       setSubmitting(false);
@@ -143,16 +144,16 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
           onClick={() => {
             setSubmitting(true);
             setLocalError(null);
-            trackEvent("auth_start", { method: "google", entry_point: entryPoint });
+            trackEvent("auth_start", { method: "google", action: isCreate ? "sign_up" : "login", entry_point: entryPoint });
             void signInWithGoogle()
               .then(async (result) => {
                 trackEvent(result.shouldCompleteProfile ? "sign_up" : "login", { method: "google", entry_point: entryPoint });
                 await finishAuth(result.user, result.shouldCompleteProfile);
               })
               .catch((error: unknown) => {
-                const code = error && typeof error === "object" && "code" in error ? error.code : null;
-                const canceled = code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request";
-                trackEvent(canceled ? "auth_cancel" : "auth_error", { method: "google", entry_point: entryPoint });
+                const reason = authErrorReason(error);
+                const canceled = reason === "canceled";
+                trackEvent(canceled ? "auth_cancel" : "auth_error", { method: "google", action: isCreate ? "sign_up" : "login", entry_point: entryPoint, error_reason: reason });
                 if (!canceled) setLocalError(error instanceof Error ? error.message : "Google sign-in failed. Please try again.");
               }).finally(() => setSubmitting(false));
           }}
