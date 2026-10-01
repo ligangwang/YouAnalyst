@@ -46,6 +46,9 @@ export function requestForCompanyGraphItem(value: CompanyGraphRequestListItem): 
 }
 export async function hasCurrentCompanyGraph(ticker: string, db = getAdminFirestore()): Promise<boolean> {
   const data = (await db.collection("company_research_runs").doc(`${normalizeCompanyGraphTicker(ticker)}_latest_10k`).get()).data();
+  return isCurrentCompanyGraph(data);
+}
+export function isCurrentCompanyGraph(data: Record<string, unknown> | undefined): boolean {
   return data?.status === "COMPLETED" && data.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION
     && typeof data.edgeCount === "number" && data.edgeCount >= 0;
 }
