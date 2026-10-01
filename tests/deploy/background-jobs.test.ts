@@ -23,7 +23,11 @@ function run(target:string,extra:Record<string,string>={}) {
         esac
       }
       export -f gcloud
-      bash scripts/deploy-background-jobs.sh "$TARGET"
+      if [[ "\${PUBLISHER_ONLY:-0}" == 1 ]]; then
+        bash scripts/deploy-eod-maintenance.sh --publisher-only
+      else
+        bash scripts/deploy-background-jobs.sh "$TARGET"
+      fi
     `],{encoding:'utf8',timeout:10000,env:{...process.env,CALLS:path.join(dir,'calls').replaceAll('\\','/'),TARGET:target,GCP_PROJECT_ID:'demo',GIT_SHA:'commit',SEC_USER_AGENT:'test contact',WEB_RUNTIME_SERVICE_ACCOUNT:'',WEB_SA:'web@demo.iam.gserviceaccount.com',CLOUD_RUN_SERVICE_PRODUCTION:'web',...extra}});
     assert.ifError(result.error);
     let calls='';try{calls=readFileSync(path.join(dir,'calls'),'utf8');}catch{}
@@ -123,4 +127,12 @@ test('EOD deployment is private, retained before publication, and reuses scoped 
   assert.match(r.calls,/--dead-letter-topic eod-maintenance-dead-letter/);
   assert.match(r.calls,/storage buckets add-iam-policy-binding gs:\/\/existing-bulk-cache.*roles\/storage.objectUser/);
   assert.doesNotMatch(r.calls,/secret-for-test|scheduler jobs (pause|resume)/);
+});
+
+test('web publisher bootstrap needs no beta component or worker image',()=>{
+  const r=run('eod-maintenance',{PUBLISHER_ONLY:'1',NEW_PUBSUB:'1'});
+  assert.equal(r.status,0,r.stderr);
+  assert.match(r.calls,/subscriptions create eod-maintenance-worker/);
+  assert.match(r.calls,/topics add-iam-policy-binding eod-maintenance-requests/);
+  assert.doesNotMatch(r.calls,/beta |run deploy|builds submit/);
 });

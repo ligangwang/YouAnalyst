@@ -12,7 +12,6 @@ request=eod-maintenance-requests
 dead=eod-maintenance-dead-letter
 subscription=eod-maintenance-worker
 gcloud services enable pubsub.googleapis.com --project "$GCP_PROJECT_ID" --quiet
-gcloud beta services identity create --service pubsub.googleapis.com --project "$GCP_PROJECT_ID" --quiet >/dev/null
 number="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
 [[ "$number" =~ ^[0-9]+$ ]] || { echo 'Missing project number' >&2; exit 1; }
 agent="service-$number@gcp-sa-pubsub.iam.gserviceaccount.com"
@@ -36,6 +35,7 @@ if ! gcloud pubsub subscriptions describe "$subscription" --project "$GCP_PROJEC
   gcloud pubsub subscriptions create "$subscription" --topic "$request" --project "$GCP_PROJECT_ID" --message-retention-duration 7d --expiration-period never --quiet
 fi
 if [[ "${1:-}" == --publisher-only ]]; then exit 0; fi
+gcloud beta services identity create --service pubsub.googleapis.com --project "$GCP_PROJECT_ID" --quiet >/dev/null
 : "${FUNDAMENTALS_IMAGE:?Set FUNDAMENTALS_IMAGE}"
 # One-time setup belongs to an authorized operator, not the release identity.
 # Routine releases reuse this binding, also used by the SEC subscriber.
