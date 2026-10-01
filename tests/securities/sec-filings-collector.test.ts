@@ -408,7 +408,8 @@ test("read-only diagnostic workflow has no provider secret, apply mode, resource
   assert.match(workflow, /--dry-run --baseline-only "--company=\$COMPANY"/);
   assert.match(workflow, /SEC_FILINGS_COLLECTOR_ENABLED: '0'/);
   assert.match(workflow, /github.ref == 'refs\/heads\/main'/);
-  assert.doesNotMatch(workflow, /OPENAI_API_KEY|--apply|gcloud|add-iam-policy-binding|workflow_call/);
+  assert.doesNotMatch(workflow, /OPENAI_API_KEY|--apply|add-iam-policy-binding|workflow_call/);
+  assert.match(workflow, /bash scripts\/inspect-graph-topic.sh/);
   const baseline = readFileSync("src/lib/sec-filings/baseline.ts", "utf8");
   assert.doesNotMatch(baseline, /publishJobMessage|listPendingSecFilings|markSecFilingPublished|source\.archive|afterCompanyId/);
 });

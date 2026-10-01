@@ -364,6 +364,10 @@ as specified in the [Firestore IAM method permissions](https://docs.cloud.google
 No transactions or database metadata API calls are requested. If a read is denied,
 stop and report the permission error; do not add IAM to make the diagnostic run succeed.
 Counts use independent read snapshots and can change if other activity is running.
+The workflow also uses the deployment identity's existing `run.services.get` to
+verify the web service's `COMPANY_GRAPH_REQUEST_TOPIC`. Only the expected non-secret
+topic is printed; other environment values and malformed responses are never
+echoed. A missing or different topic fails the check without changing the service.
 
 An explicitly approved baseline application additionally needs `--apply` and an
 execution-only `SEC_FILINGS_COLLECTOR_ENABLED=1` override. Keep the persistent flag
