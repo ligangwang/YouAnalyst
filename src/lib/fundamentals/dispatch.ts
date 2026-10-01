@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "../firebase/admin";
 import { maintenanceError } from "../maintenance-log";
-import { FUNDAMENTALS_COLLECTION, validFundamentalsTicker } from "./service";
+import { FUNDAMENTALS_COLLECTION, needsShareMetadataUpgrade, validFundamentalsTicker } from "./service";
 import { digest, publishFundamentalsMessage, type FundamentalsRequest } from "./pubsub";
 
 // Publish after the page response. The existing pending document remains the
@@ -17,14 +17,15 @@ export async function dispatchRequestedFundamentals(ticker: string, db: Firestor
     // every visit/poll; the transaction below rechecks before claiming work.
     const current = await ref.get();
     const eligible = (stored: FirebaseFirestore.DocumentData | undefined, now: number) =>
-      stored?.pending === true && !(Number(stored.refreshAfter) > now) && !(Number(stored.dispatchAfter) > now);
+      stored?.pending === true && (!(Number(stored.refreshAfter) > now) || needsShareMetadataUpgrade(stored))
+      && !(Number(stored.dispatchAfter) > now);
     if (!eligible(current.data(), current.readTime.toMillis())) return;
     const request = await db.runTransaction(async tx => {
       const snapshot = await tx.get(ref), stored = snapshot.data();
       const now = snapshot.readTime.toMillis();
       if (!eligible(stored, now)) return null;
       const requestedAt = typeof stored?.requestedAt === "string" ? stored.requestedAt : new Date(now).toISOString();
-      tx.set(ref, { dispatchOwner: owner, dispatchAfter: now + 300_000 }, { merge: true });
+      tx.set(ref, { requestedAt, dispatchOwner: owner, dispatchAfter: now + 300_000 }, { merge: true });
       return { version: 1, type: "fundamentals.refresh.requested", batchId: digest({ ticker, requestedAt }),
         companyIds: [ticker], requestedAt, reason: "scheduled_or_manual" } satisfies FundamentalsRequest;
     });

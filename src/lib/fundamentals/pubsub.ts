@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import { publishJobMessage } from "../job-pubsub";
 import { validFundamentalsTicker } from "./service";
+import { parseSecFilingDiscovered, type SecFilingDiscovered } from "../sec-filings/event";
 
 export const MAX_BATCH_COMPANIES = 20;
 export type FundamentalsRequest = {
   version: 1; type: "fundamentals.refresh.requested"; batchId: string;
   companyIds: string[]; reason: "scheduled_or_manual" | "filing" | "verification"; requestedAt: string;
+  filing?: SecFilingDiscovered;
 };
 export type FundamentalsUpdate = {
   version: 1; type: "fundamentals.updated"; eventId: string; batchId: string;
@@ -22,8 +24,17 @@ export function parseFundamentalsRequest(value: unknown): FundamentalsRequest {
     || typeof v.requestedAt !== "string" || !Number.isFinite(Date.parse(v.requestedAt))) {
     throw new Error("Invalid fundamentals batch request");
   }
+  const filing = v.filing === undefined ? undefined : parseSecFilingDiscovered(v.filing);
+  if (filing && (v.reason !== "filing" || v.companyIds.length !== 1 || v.companyIds[0] !== filing.companyId)) {
+    throw new Error("Filing request must target its issuer");
+  }
   return { version: 1, type: "fundamentals.refresh.requested", batchId: v.batchId,
-    companyIds: [...v.companyIds], reason: v.reason!, requestedAt: v.requestedAt };
+    companyIds: [...v.companyIds], reason: v.reason!, requestedAt: v.requestedAt, ...(filing ? { filing } : {}) };
+}
+export function fundamentalsRequestForFiling(input: unknown): FundamentalsRequest {
+  const filing = parseSecFilingDiscovered(input);
+  return { version: 1, type: "fundamentals.refresh.requested", batchId: `filing_${filing.eventId}`,
+    companyIds: [filing.companyId], reason: "filing", requestedAt: filing.discoveredAt, filing };
 }
 export function digest(value: unknown): string {
   const canonical = (v: unknown): unknown => Array.isArray(v) ? v.map(canonical)

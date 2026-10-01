@@ -41,3 +41,26 @@ test("failed publish retains durable work and allows a bounded retry", async t =
   await dispatchRequestedFundamentals("AMD", f.db, publish);
   assert.equal(calls, 2);
 });
+
+test("concurrent visits dispatch fresh caches needing a share metadata upgrade once", async () => {
+  const f = sharedFirestore(), messages: FundamentalsRequest[] = [];
+  f.documents.set("company_fundamentals/AMD", { version: 1, pending: true, outcome: "ready",
+    requestedAt: new Date(f.now()).toISOString(), refreshAfter: f.now() + 86400000,
+    value: { report: { form: "10-K" } } });
+  await Promise.all(Array.from({ length: 10 }, () => dispatchRequestedFundamentals("AMD", f.db,
+    async message => { messages.push(message); return "message-id"; })));
+  assert.equal(messages.length, 1);
+  assert.deepEqual(messages[0].companyIds, ["AMD"]);
+});
+
+test("legacy pending requests without a timestamp preserve the same payload after an uncertain publish", async t => {
+  t.mock.method(console, "error", () => {});
+  const f = sharedFirestore(), messages: FundamentalsRequest[] = [];
+  f.documents.set("company_fundamentals/AMD", { pending: true });
+  const publish = async (message: FundamentalsRequest) => { messages.push(message); throw Error("acknowledgment lost"); };
+  await dispatchRequestedFundamentals("AMD", f.db, publish);
+  f.advance(30000);
+  await dispatchRequestedFundamentals("AMD", f.db, publish);
+  assert.equal(messages.length, 2);
+  assert.deepEqual(messages[0], messages[1]);
+});

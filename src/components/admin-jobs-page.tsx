@@ -10,12 +10,17 @@ import { AdminSecRerun } from "./admin-sec-rerun";
 import { scheduledJobs, type JobId, type HistoryView, type JobHistoryPage, type JobRecord } from "@/lib/admin-jobs/model";
 
 const button = "rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800 disabled:opacity-40";
-const chineseNames = { cnFundamentalsChecks: "A 股财务检查", directoryImports: "中国目录导入", tickers: "股票目录", privateValuations: "私人公司估值", privateValuationChecks: "私人公司估值检查", fundamentals: "SEC 财务数据", fundamentalsBatches: "SEC 财务批次", cnFundamentals: "A 股财务与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
+const chineseNames: Record<JobId, string> = { companyGraph: "公司关系图请求", companyGraphBatches: "公司关系图处理", secFilings: "SEC 文件发现", cnFundamentalsChecks: "A 股财务检查", directoryImports: "中国目录导入", tickers: "股票目录", privateValuations: "私人公司估值", privateValuationChecks: "私人公司估值检查", fundamentals: "SEC 财务数据", fundamentalsBatches: "SEC 财务批次", cnFundamentals: "A 股财务与市值", directory: "中国公司目录", us: "美国收盘维护", china: "中国收盘维护" };
+const chineseSchedules: Partial<Record<JobId, string>> = {
+  secFilings: "每 15 分钟一次；部署初期暂停调度并禁用采集",
+  companyGraph: "每 5 分钟发布 1–5 个请求；部署初期暂停调度",
+  companyGraphBatches: "处理排队请求和文件事件；部署初期禁用处理",
+};
 const statusLabels: Record<string, string> = { Succeeded: "成功", Failed: "失败", Cancelled: "已取消", Starting: "启动中", Running: "运行中", Unknown: "未知", "No completion recorded": "无完成记录", "Completed with errors": "完成但有错误", "Delivery started": "开始触发", "Delivery failed": "触发失败", Delivered: "已送达" };
 function date(value: string) { return value ? new Date(value).toLocaleString() : "—"; }
 function summary(record: JobRecord): string {
   const fields = record.summary;
-  const counts = ["requested", "completed", "processed", "failed", "remaining", "companies", "count", "created", "updated", "unchanged", "attemptedWrites", "written"]
+  const counts = ["requested", "completed", "processed", "failed", "remaining", "companies", "count", "created", "updated", "unchanged", "attemptedWrites", "written", "discovered", "published", "scanned"]
     .filter(key => typeof fields[key] === "number").map(key => `${key}: ${fields[key]}`);
   if (fields.priceLoad) counts.push(`prices: ${JSON.stringify(fields.priceLoad)}`);
   if (fields.fx) counts.push(`FX: ${JSON.stringify(fields.fx)}`);
@@ -76,12 +81,15 @@ export function AdminJobsPage() {
         </select>
       </label>
       <button className={button} disabled={busy} onClick={() => { setQuery(q => ({ ...q, tokens: [""] })); setRefresh(n => n + 1); }}>{text("Refresh", "刷新")}</button>
-      <p className="py-2 text-sm text-slate-400">{activeJob.schedule}</p>
+      <p className="py-2 text-sm text-slate-400">{text(activeJob.schedule, chineseSchedules[query.job] || activeJob.schedule)}</p>
     </div>
     {(query.job === "us" || query.job === "china") && <AdminEodRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     {(query.job === "fundamentals" || query.job === "cnFundamentals" || query.job === "privateValuations" || query.job === "directory") && <AdminSecRerun key={query.job} job={query.job} onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     {query.job === "tickers" && <AdminTickerSync onBusy={setRerunning} onComplete={() => { changeView("runs"); setRefresh(n => n + 1); }} />}
     {query.job === "fundamentals" && <p className="mb-4 text-sm text-slate-400">{text("A successful publisher run means batches were queued. Select SEC fundamentals batches to inspect processing outcomes.", "发布任务成功表示批次已排队。请选择 SEC 财务批次查看处理结果。")}</p>}
+    {query.job === "companyGraph" && <p className="mb-4 text-sm text-slate-400">{text("A successful publisher run means requests were queued. Select Company graph processing to inspect extraction outcomes.", "发布任务成功表示请求已排队。请选择公司关系图处理查看提取结果。")}</p>}
+    {query.job === "companyGraphBatches" && <p className="mb-4 text-sm text-slate-400">{text("Request and filing deliveries retry independently. Check run details for the request ID, accession and extraction outcome.", "请求和文件事件独立重试。请在运行详情中查看请求编号、文件编号和提取结果。")}</p>}
+    {query.job === "secFilings" && <p className="mb-4 text-sm text-slate-400">{text("Discovery queues filing events. Check SEC fundamentals batches and Company graph processing for independent results.", "文件发现任务将事件加入队列。请分别查看 SEC 财务批次和公司关系图处理的结果。")}</p>}
     {query.job === "privateValuations" && <p className="mb-4 text-sm text-slate-400">{text("A successful publisher run means checks were queued. Select Private valuation checks to inspect results.", "发布任务成功表示检查已排队。请选择私人公司估值检查查看结果。")}</p>}
     {query.job === "cnFundamentals" && <p className="mb-4 text-sm text-slate-400">{text("A successful publisher run means checks were queued. Select A-share fundamentals checks for results.", "发布任务成功表示检查已排队。请选择 A 股财务检查查看结果。")}</p>}
     {query.job === "directory" && <p className="mb-4 text-sm text-slate-400">{text("A successful publisher run means an import was queued. Select China directory imports for results.", "发布任务成功表示导入已排队。请选择中国目录导入查看结果。")}</p>}

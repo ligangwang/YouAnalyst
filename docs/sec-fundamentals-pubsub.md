@@ -42,8 +42,37 @@ Reserved metadata documents are excluded from company queries and valuations.
 
 A message contains version=1, type=fundamentals.refresh.requested, batchId,
 companyIds (1–20 existing US ticker keys), reason=scheduled_or_manual or filing,
-and requestedAt. This first release retains cache freshness rules; a filing
-collector and accession-aware refresh scheduling are future work.
+and requestedAt. Existing scheduled/manual batches retain cache freshness rules.
+When the filing pipeline is explicitly enabled, `sec-filings-fundamentals`
+delivers `sec.filing.discovered` from `sec-filings-discovered` to the same service.
+Subscription-specific parsers reject a payload sent through the wrong route.
+Each filing event becomes a one-company batch with a deterministic
+`filing_<eventId>` identifier and the original accession metadata.
+
+A new filing bypasses a successfully cached company's TTL, but never a provider
+cooldown or an unfinished retry delay. The worker checks the SEC ticker/CIK
+identity and, for XBRL filings, requires that accession to appear in Company Facts
+before acknowledging success. Submissions/Company Facts propagation lag preserves
+the last good cache and retries after five minutes. Other existing provider errors
+retain their one-hour cooldown. Non-XBRL filings do not wait for nonexistent XBRL
+facts. Annual financial presentation stays annual; quarterly filings can refresh
+share metadata without converting quarterly figures into annual metrics.
+
+XBRL does not guarantee Company Facts coverage: SEC aggregates only non-custom,
+entity-wide concepts. In particular, a valid amendment may contain no eligible
+facts for its accession. Absence cannot safely distinguish that case from indexing
+lag. Such deliveries keep the previous cache, record
+`SEC_FILING_FACTS_UNRESOLVED`, and remain retryable until isolated dead-letter
+review if necessary. They are never acknowledged as fresh merely because time
+has passed. An operator should inspect the source and replay the original event
+after resolving the cause. See [SEC API coverage](https://www.sec.gov/search-filings/edgar-application-programming-interfaces).
+
+The cache's `lastFilingRefresh` receipt is saved with the financial snapshot.
+The existing batch ledger and result outbox handle retries after that save,
+market-cap failures, and result publication failures without refetching completed
+data. Delayed filings refresh the current SEC snapshot rather than replacing it
+with historical financial values. See [background Pub/Sub jobs](background-pubsub.md)
+for collector baselining, staged activation, and recovery.
 
 Each request has a seven-minute processing budget with 90 seconds reserved before
 starting another company. Partial failures return 503; redelivery skips checkpointed
@@ -89,4 +118,9 @@ Batch ledgers are retained for recovery in this initial release.
 The post-deployment probe uses reason=verification with two existing cached
 companies. It verifies authenticated delivery, validation, checkpointing and
 completion without fetching SEC data, even when caches have aged past their
-refresh time. It never emits an artificial fundamentals.updated event.
+refresh time. It republishes the same request and waits for a separate duplicate
+receipt from the subscriber before reporting success; confirmed publication
+alone is not delivery verification. Both phases share a twelve-minute deadline.
+It never emits an artificial fundamentals.updated event. This probe checks the
+original SEC request subscription; it does not prove that the new filing collector
+or either filing fan-out subscription has been activated.

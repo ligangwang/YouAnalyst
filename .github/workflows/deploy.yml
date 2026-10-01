@@ -498,6 +498,7 @@ jobs:
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
       SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
       COMPANY_GRAPH_QUEUE_BATCH_SIZE: ${{ vars.COMPANY_GRAPH_QUEUE_BATCH_SIZE }}
+      ENABLE_SEC_FILING_PIPELINE: ${{ vars.ENABLE_SEC_FILING_PIPELINE }}
       ENABLE_PRO_FEATURES: ${{ vars.ENABLE_PRO_FEATURES }}
       ENABLE_BILLING: ${{ vars.ENABLE_BILLING }}
       PRO_BILLING_BYPASS: ${{ vars.PRO_BILLING_BYPASS }}
@@ -740,6 +741,14 @@ jobs:
       WEB_RUNTIME_SERVICE_ACCOUNT: ${{ vars.WEB_RUNTIME_SERVICE_ACCOUNT }}
       CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
       SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      # Keep rollout config on every later release; bootstrap IAM is deliberately
+      # absent from CI and requires a separately approved operator invocation.
+      ENABLE_SEC_FILING_PIPELINE: ${{ vars.ENABLE_SEC_FILING_PIPELINE }}
+      SEC_FILINGS_COLLECTOR_ENABLED: ${{ vars.SEC_FILINGS_COLLECTOR_ENABLED }}
+      COMPANY_GRAPH_PROCESSING_ENABLED: ${{ vars.COMPANY_GRAPH_PROCESSING_ENABLED }}
+      COMPANY_GRAPH_QUEUE_BATCH_SIZE: ${{ vars.COMPANY_GRAPH_QUEUE_BATCH_SIZE }}
+      OPENAI_API_KEY: ${{ vars.ENABLE_SEC_FILING_PIPELINE == '1' && secrets.OPENAI_API_KEY || '' }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
       GIT_SHA: ${{ github.sha }}
       TARGET_JOB: ${{ needs.verify.outputs.workers }}
       TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
@@ -763,3 +772,10 @@ jobs:
           gcloud run jobs execute refresh-sec-fundamentals-production
           --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
           --update-env-vars FUNDAMENTALS_VERIFY_ONLY=1 --wait --quiet
+      - name: Verify graph Pub/Sub delivery without SEC or OpenAI calls
+        if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'company-graph' || env.TARGET_JOB == 'sec-filings') }}
+        run: >-
+          gcloud run jobs execute refresh-company-graph-production
+          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
+          --args dist/refresh-company-graph.cjs,--verify-delivery
+          --update-env-vars COMPANY_GRAPH_VERIFY_ONLY=1 --wait --quiet

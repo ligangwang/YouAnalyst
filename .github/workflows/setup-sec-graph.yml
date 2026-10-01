@@ -1,0 +1,77 @@
+name: Set up paused SEC and graph pipeline
+
+# Deliberate operator action only. An approved code release alone never grants
+# new resource access, starts discovery, or enables paid graph processing.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  setup-paused-pipeline:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    concurrency:
+      group: deploy-background-jobs-production
+      cancel-in-progress: false
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: us-central1
+      WEB_RUNTIME_SERVICE_ACCOUNT: ${{ vars.WEB_RUNTIME_SERVICE_ACCOUNT }}
+      CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+      GIT_SHA: ${{ github.sha }}
+      ENABLE_SEC_FILING_PIPELINE: '1'
+      FILING_PIPELINE_BOOTSTRAP_IAM: '1'
+      # Do not require service-account IAM administration. Reuse the existing
+      # SEC push token-creation grant and verify authentication through delivery.
+      PUBSUB_BOOTSTRAP_IAM: '0'
+      COMPANY_GRAPH_PROCESSING_ENABLED: '0'
+      SEC_FILINGS_COLLECTOR_ENABLED: '0'
+      COMPANY_GRAPH_QUEUE_BATCH_SIZE: '1'
+    steps:
+      - name: Require the exact main release to have passed
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data} = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner, repo: context.repo.repo,
+              workflow_id: 'deploy.yml', head_sha: context.sha,
+              event: 'push', status: 'completed', per_page: 20
+            });
+            if (!data.workflow_runs.some(run => run.head_sha === context.sha && run.conclusion === 'success')) {
+              core.setFailed('The exact main commit must finish its reviewed production release before setup.');
+            }
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: beta
+      - name: Provision only the approved SEC and graph resources
+        run: bash scripts/deploy-background-jobs.sh sec-filings
+      - name: Keep the new schedules paused
+        run: |
+          for job in refresh-company-graph-production collect-sec-filings-production; do
+            gcloud scheduler jobs pause "$job" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" --quiet
+            state="$(gcloud scheduler jobs describe "$job" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" --format='value(state)')"
+            [[ "$state" == PAUSED ]] || { echo "Expected paused schedule: $job" >&2; exit 1; }
+          done
+      - name: Verify SEC delivery with cached companies
+        run: >-
+          gcloud run jobs execute refresh-sec-fundamentals-production
+          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
+          --update-env-vars FUNDAMENTALS_VERIFY_ONLY=1 --wait --quiet
+      - name: Verify graph delivery without provider calls
+        run: >-
+          gcloud run jobs execute refresh-company-graph-production
+          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
+          --args dist/refresh-company-graph.cjs,--verify-delivery
+          --update-env-vars COMPANY_GRAPH_VERIFY_ONLY=1 --wait --quiet

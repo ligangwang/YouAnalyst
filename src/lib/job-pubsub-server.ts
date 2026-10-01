@@ -5,8 +5,15 @@ import { createMaintenanceLog, maintenanceError, type MaintenanceLog } from "./m
 // a private service; the envelope check is routing validation, not authentication.
 export function createJobSubscriber<T extends { batchId: string }>(options: {
   project: string; subscription: string; job: string; parse: (value: unknown) => T;
+  additionalSubscriptions?: Array<{ subscription: string; parse: (value: unknown) => T }>;
   process: (request: T, log: MaintenanceLog) => Promise<Record<string, unknown>>;
 }) {
+  const parsers = new Map<string, (value: unknown) => T>();
+  for (const route of [{ subscription: options.subscription, parse: options.parse }, ...options.additionalSubscriptions ?? []]) {
+    const name = `projects/${options.project}/subscriptions/${route.subscription}`;
+    if (parsers.has(name)) throw Error("Duplicate Pub/Sub subscription route");
+    parsers.set(name, route.parse);
+  }
   return createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/health") { res.writeHead(200); res.end("ok"); return; }
     if (req.method !== "POST" || req.url !== "/pubsub") { res.writeHead(404); res.end(); return; }
@@ -22,9 +29,9 @@ export function createJobSubscriber<T extends { batchId: string }>(options: {
         chunks.push(Buffer.from(chunk));
       }
       const envelope = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-      if (envelope?.subscription !== `projects/${options.project}/subscriptions/${options.subscription}`
-        || typeof envelope.message?.data !== "string") throw Error("Unexpected Pub/Sub envelope");
-      const request = options.parse(JSON.parse(Buffer.from(envelope.message.data, "base64").toString("utf8")));
+      const parse = parsers.get(envelope?.subscription);
+      if (!parse || typeof envelope?.message?.data !== "string") throw Error("Unexpected Pub/Sub envelope");
+      const request = parse(JSON.parse(Buffer.from(envelope.message.data, "base64").toString("utf8")));
       batchId = request.batchId;
       context = { batchId,
         ...("input" in request && request.input && typeof request.input === "object" && "market" in request.input ? { market: request.input.market } : {}),

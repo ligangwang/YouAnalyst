@@ -62,7 +62,12 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
   try {
     let ledger = (await ref.get()).data() as Ledger | undefined;
     if (ledger && digest(ledger.request) !== digest(request)) throw new Error("Batch ID reused with different contents");
-    if (ledger?.completed) return { requested: request.companyIds.length, completed: request.companyIds.length, failed: 0, duplicate: true };
+    if (ledger?.completed) {
+      // A confirmed publish alone does not prove that the duplicate was delivered.
+      // Only probes need this receipt; ordinary redelivery remains a read-only fast path.
+      if (request.reason === "verification") await ref.set({ verificationDuplicateRunId: log.runId }, { merge: true });
+      return { requested: request.companyIds.length, completed: request.companyIds.length, failed: 0, duplicate: true };
+    }
     if (!ledger) {
       ledger = { request, progress: {} };
       await ref.create({ ...ledger, createdAt: new Date().toISOString() });
@@ -76,18 +81,24 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
       try {
         const company = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
         const stored = (await company.get()).data();
+        const filingRefresh = request.filing && stored?.lastFilingRefresh?.eventId !== request.filing.eventId;
         const fresh = stored?.outcome === "ready" && stored?.pending !== true
-          && (request.reason === "verification" || (Number(stored.refreshAfter) > Date.now() && !needsShareMetadataUpgrade(stored)));
+          && (request.reason === "verification" || (!filingRefresh && Number(stored.refreshAfter) > Date.now() && !needsShareMetadataUpgrade(stored)));
         if (request.reason === "verification" && (!fresh || !stored?.value)) throw new Error("Verification requires an existing cached company");
         if (!fresh && Number((await worker.get()).get("providerRetryAfter") ?? 0) > Date.now()) break;
         if (!ledger.progress[ticker]) {
           ledger.progress[ticker] = { before: fundamentalsVersion(stored?.value) };
           await ref.set({ progress: ledger.progress }, { merge: true });
         }
-        if (stored?.pending && Number(stored.refreshAfter) > Date.now() && !needsShareMetadataUpgrade(stored)) continue;
-        if (!fresh) await withSecRequestContext({ ticker, runId: log.runId, job: "refresh-sec-fundamentals" }, () => refresh(ticker, { db, log }));
+        if (stored?.pending && Number(stored.refreshAfter) > Date.now() && !needsShareMetadataUpgrade(stored)
+          && (!filingRefresh || stored.outcome === "retry")) continue;
+        if (!fresh) await withSecRequestContext({ ticker, runId: log.runId, job: "refresh-sec-fundamentals" }, () => refresh(ticker, { db, log,
+          ...(request.filing ? { filing: request.filing } : {}) }));
         const after = (await company.get()).data();
         if (after?.pending || !["ready", "unavailable"].includes(after?.outcome)) throw new Error("Company refresh remains incomplete");
+        if (request.filing && after?.outcome === "ready" && after.lastFilingRefresh?.eventId !== request.filing.eventId) {
+          throw new Error("Filing refresh has not been checkpointed");
+        }
         const version = fundamentalsVersion(after?.value);
         ledger.progress[ticker] = { ...ledger.progress[ticker], completed: true, version,
           changed: version !== ledger.progress[ticker].before };
@@ -96,7 +107,8 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
       } catch (error) {
         failed++;
         const details = maintenanceError(error);
-        log.emit("ERROR", "company_failed", { ticker, batchId: request.batchId, error: details });
+        log.emit("ERROR", "company_failed", { ticker, batchId: request.batchId, error: details,
+          ...(request.filing ? { filingEventId: request.filing.eventId, accessionNumber: request.filing.accessionNumber } : {}) });
         if (Number(details.code) === 403 || Number(details.code) === 429) {
           await worker.set({ providerRetryAfter: Date.now() + 3_600_000 }, { merge: true });
           break;
@@ -133,23 +145,32 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
 // Reuses cached companies, so it does not force provider requests or invent
 // financial data. This is explicitly invoked, never run during ordinary jobs.
 export async function verifyFundamentalsDelivery(db: Firestore, runId: string,
-  publish: (request: FundamentalsRequest) => Promise<unknown>, log: MaintenanceLog) {
+  publish: (request: FundamentalsRequest) => Promise<unknown>, log: MaintenanceLog,
+  dependencies: { now?: () => number; sleep?: (ms: number) => Promise<void> } = {}) {
+  const now = dependencies.now ?? Date.now;
+  const sleep = dependencies.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
   const page = await db.collection(FUNDAMENTALS_COLLECTION).where("outcome", "==", "ready").limit(100).get();
   const companyIds = page.docs.filter(d => validFundamentalsTicker(d.id) && d.data().pending !== true && d.data().value).slice(0, 2).map(d => d.id);
   if (companyIds.length < 2) throw new Error("Need two cached companies for safe Pub/Sub delivery verification");
   const request: FundamentalsRequest = { version: 1, type: "fundamentals.refresh.requested", batchId: digest({ probe: runId }),
     companyIds, reason: "verification", requestedAt: new Date().toISOString() };
   await publish(request);
-  const deadline = Date.now() + 12 * 60_000;
-  while (Date.now() < deadline) {
+  const deadline = now() + 12 * 60_000;
+  let duplicatePublished = false;
+  let previousDuplicateRunId: unknown;
+  while (now() < deadline) {
     const data = (await batchRef(db, request.batchId).get()).data();
-    if (data?.completed) {
+    if (data?.completed && !duplicatePublished) {
       // Re-send the same payload to exercise the completed-batch fast path.
+      previousDuplicateRunId = data.verificationDuplicateRunId;
       await publish(request);
-      log.emit("INFO", "pubsub_delivery_verified", { batchId: request.batchId, ...data.result });
+      duplicatePublished = true;
+    } else if (data?.completed && duplicatePublished && data.verificationDuplicateRunId
+      && data.verificationDuplicateRunId !== previousDuplicateRunId) {
+      log.emit("INFO", "pubsub_delivery_verified", { batchId: request.batchId, ...data.result, duplicateVerified: true });
       return data.result;
     }
-    await new Promise(resolve => setTimeout(resolve, 10_000));
+    await sleep(10_000);
   }
-  throw new Error(`Subscriber did not complete probe batch ${request.batchId} within 12 minutes`);
+  throw new Error(`Subscriber did not ${duplicatePublished ? "confirm duplicate delivery for" : "complete"} probe batch ${request.batchId} within 12 minutes`);
 }

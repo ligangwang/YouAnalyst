@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../../src/lib/maintenance-log";
-import { processFundamentalsBatch, publishPendingFundamentals } from "../../src/lib/fundamentals/pubsub-batch";
+import { processFundamentalsBatch, publishPendingFundamentals, verifyFundamentalsDelivery } from "../../src/lib/fundamentals/pubsub-batch";
 import { fundamentalsVersion, parseFundamentalsRequest, type FundamentalsRequest, type FundamentalsUpdate } from "../../src/lib/fundamentals/pubsub";
 
 type Data = Record<string, unknown>;
@@ -13,10 +13,10 @@ function fixture(initial: Record<string, Data> = {}) {
   const ref = (id: string) => ({ id, firestore: db, get: async () => snap(id),
     set: async (data: Data) => { rows.set(id, { ...rows.get(id), ...data }); },
     create: async (data: Data) => { assert.ok(!rows.has(id)); rows.set(id, data); } });
-  const db = { collection: () => ({ doc: ref, where: () => {
+  const db = { collection: () => ({ doc: ref, where: (field: string, _operator: string, value: unknown) => {
     let after = "", limit = 100;
     const q = { orderBy: () => q, startAfter: (v: string) => { after = v; return q; }, limit: (v: number) => { limit = v; return q; },
-      get: async () => { const docs = [...rows].filter(([id, d]) => d.pending === true && id > after).sort(([a], [b]) => a.localeCompare(b))
+      get: async () => { const docs = [...rows].filter(([id, d]) => d[field] === value && id > after).sort(([a], [b]) => a.localeCompare(b))
         .slice(0, limit).map(([id]) => snap(id)); return { docs, size: docs.length }; } };
     return q;
   } }), runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ get: async (r: ReturnType<typeof ref>) => r.get(),
@@ -116,4 +116,38 @@ test("reusing a batch identifier with different contents is rejected", async () 
   const f = fixture();
   await processFundamentalsBatch(request(), f.db, f.log, f.publish, f);
   await assert.rejects(processFundamentalsBatch(request(["MU"]), f.db, f.log, f.publish, f), /different contents/);
+});
+
+test("delivery probe waits for the completed duplicate receipt before reporting success", async () => {
+  const f = fixture(Object.fromEntries(["AMD", "NVDA"].map(ticker => [ticker,
+    { outcome: "ready", pending: false, value: { metrics: { revenue: 10 } } }])));
+  let now = 0;
+  let deliveries = 0;
+  let duplicate: FundamentalsRequest | undefined;
+  await verifyFundamentalsDelivery(f.db, "probe", async message => {
+    deliveries++;
+    if (deliveries === 1) await processFundamentalsBatch(message, f.db, f.log, f.publish, f);
+    else duplicate = message;
+  }, f.log, { now: () => now, sleep: async ms => {
+    now += ms;
+    assert.equal(f.logs.some(log => log.event === "pubsub_delivery_verified"), false);
+    if (duplicate) await processFundamentalsBatch(duplicate, f.db,
+      { ...f.log, runId: "00000000-0000-0000-0000-000000000002" }, f.publish, f);
+  } });
+  assert.equal(deliveries, 2);
+  assert.equal(f.logs.at(-1)?.duplicateVerified, true);
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual(f.events, []);
+});
+
+test("confirmed republication without a duplicate delivery fails the probe", async () => {
+  const f = fixture(Object.fromEntries(["AMD", "NVDA"].map(ticker => [ticker,
+    { outcome: "ready", pending: false, value: { metrics: { revenue: 10 } } }])));
+  let now = 0;
+  let deliveries = 0;
+  await assert.rejects(verifyFundamentalsDelivery(f.db, "probe", async message => {
+    if (++deliveries === 1) await processFundamentalsBatch(message, f.db, f.log, f.publish, f);
+  }, f.log, { now: () => now, sleep: async ms => { now += ms; } }), /confirm duplicate delivery/);
+  assert.equal(deliveries, 2);
+  assert.equal(f.logs.some(log => log.event === "pubsub_delivery_verified"), false);
 });

@@ -1,0 +1,31 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+
+test("new resource bootstrap is manual-only, main-only and requires the exact successful release", () => {
+  const workflow = require("js-yaml").load(readFileSync(".github/workflows/setup-sec-graph.yml", "utf8"));
+  assert.deepEqual(Object.keys(workflow.on), ["workflow_dispatch"]);
+  assert.deepEqual(workflow.permissions, { contents: "read", actions: "read" });
+  const job = workflow.jobs["setup-paused-pipeline"];
+  assert.equal(job.if, "github.ref == 'refs/heads/main'");
+  assert.equal(job.environment, "production");
+  const guard = job.steps[0].with.script;
+  assert.match(guard, /workflow_id: 'deploy.yml', head_sha: context.sha/);
+  assert.match(guard, /event: 'push', status: 'completed'/);
+  assert.match(guard, /run.head_sha === context.sha && run.conclusion === 'success'/);
+  assert.match(guard, /core.setFailed/);
+  assert.equal(job.env.FILING_PIPELINE_BOOTSTRAP_IAM, "1");
+  assert.equal(job.env.PUBSUB_BOOTSTRAP_IAM, "0");
+  assert.equal(job.env.COMPANY_GRAPH_PROCESSING_ENABLED, "0");
+  assert.equal(job.env.SEC_FILINGS_COLLECTOR_ENABLED, "0");
+  assert.equal(job.env.COMPANY_GRAPH_QUEUE_BATCH_SIZE, "1");
+  const commands = job.steps.map((step: { run?: string }) => step.run ?? "").join("\n");
+  assert.match(commands, /deploy-background-jobs.sh sec-filings/);
+  assert.match(commands, /scheduler jobs pause/);
+  assert.match(commands, /\[\[ "\$state" == PAUSED \]\]/);
+  assert.match(commands, /FUNDAMENTALS_VERIFY_ONLY=1/);
+  assert.match(commands, /--args dist\/refresh-company-graph.cjs,--verify-delivery/);
+  assert.doesNotMatch(commands, /scheduler jobs resume|COMPANY_GRAPH_PROCESSING_ENABLED=1|SEC_FILINGS_COLLECTOR_ENABLED=1/);
+});
