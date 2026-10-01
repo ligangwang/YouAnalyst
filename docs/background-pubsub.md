@@ -403,13 +403,24 @@ retry bounds, existing runtime identity, disabled collector/graph processing, an
 both paused schedules before one job-execution command.
 
 The enable flag applies to that execution only. Persistent configuration is
-rechecked afterward. Existing log-read access is tested before execution, and only
-a bounded NVIDIA baseline summary is printed. An ambiguous execution failure or
-missing completion log must be investigated using its execution identity; never
-rerun the execution to recover a missing response. No new IAM grant, account,
-credential, collection, schedule, service or Cloud Run job is created. The required
-resource reads, job override execution and Cloud Logging reads must already be
-permitted. A denial stops the workflow without granting access.
+rechecked afterward. Before execution, existing Firestore read access captures a
+bounded NVIDIA ledger snapshot and requires a fresh baseline with no active
+collector lease. After execution, Cloud Run must report one successful task with
+the exact approved image, NVIDIA baseline arguments and execution-only flag.
+The completed cursor must belong to that execution's time window, all prior
+NVIDIA discovery records and pending markers must remain unchanged, and every
+new discovery must be an unpublished baseline record. The global pending-document
+count must remain unchanged. Only a small verification summary is printed;
+temporary snapshots are removed when the workflow exits.
+
+An ambiguous execution failure or failed state check must be investigated using
+its execution identity; never rerun the execution to recover a missing response.
+No new IAM grant, account, credential, collection, schedule, service or Cloud Run
+job is created. Existing resource reads, Cloud Run execution reads/override
+execution and Firestore get/list/count access must already be permitted. A denial
+stops without granting access. Cloud Logging is not used. The proof combines the
+isolated baseline code path with successful execution and durable state; it does
+not inspect Pub/Sub undelivered-message metrics or count actual SEC requests.
 
 The workflow and its local host-side validation scripts do not change the worker
 bundle; they need reviewed CI publication, not another worker redeployment. The

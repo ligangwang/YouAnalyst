@@ -7,8 +7,7 @@ function environment(container, name) {
   requireValue(matches.length === 1 && typeof matches[0].value === 'string');
   return matches[0].value;
 }
-export function checkCollector(value, expected) {
-  const execution = value?.spec?.template?.spec;
+function checkTask(execution, expected, flag) {
   const task = execution?.template?.spec;
   requireValue(execution?.taskCount === 1 && execution.parallelism === 1);
   requireValue(task?.containers?.length === 1 && Number.isSafeInteger(task.maxRetries) && task.maxRetries <= 1 && task.maxRetries >= 0);
@@ -19,7 +18,11 @@ export function checkCollector(value, expected) {
   requireValue(JSON.stringify(container.command) === '["node"]');
   requireValue(environment(container, 'GCP_PROJECT_ID') === expected.project);
   requireValue(environment(container, 'GIT_SHA') === expected.commit);
-  requireValue(environment(container, 'SEC_FILINGS_COLLECTOR_ENABLED') === '0');
+  requireValue(environment(container, 'SEC_FILINGS_COLLECTOR_ENABLED') === flag);
+  return container;
+}
+export function checkCollector(value, expected) {
+  checkTask(value?.spec?.template?.spec, expected, "0");
   return true;
 }
 export function checkGraphDisabled(value) {
@@ -27,17 +30,20 @@ export function checkGraphDisabled(value) {
   requireValue(containers?.length === 1 && environment(containers[0], 'COMPANY_GRAPH_PROCESSING_ENABLED') === '0');
   return true;
 }
-export function canarySummary(entries) {
-  requireValue(Array.isArray(entries));
-  const payloads = entries.map(row => row.jsonPayload).filter(row => row?.event === 'run_completed' || row?.message === 'collect-sec-filings: run_completed');
-  if (!payloads.length) return null;
-  const row = payloads[0];
-  requireValue(row.companyId === 'NVDA' && row.mode === 'baseline-only' && row.published === 0);
-  requireValue(['completed', 'already-completed'].includes(row.status));
-  for (const key of ['baselined', 'existing', 'snapshotFilings']) requireValue(Number.isSafeInteger(row[key]) && row[key] >= 0 && row[key] <= 2000);
-  requireValue(row.baselined + row.existing <= row.snapshotFilings);
-  return { companyId: 'NVDA', mode: 'baseline-only', status: row.status, baselined: row.baselined,
-    existing: row.existing, snapshotFilings: row.snapshotFilings, published: 0 };
+export function checkExecution(value, expected) {
+  const container = checkTask(value?.spec, expected, '1');
+  requireValue(JSON.stringify(container.args) === '["dist/collect-sec-filings.cjs","--apply","--baseline-only","--company=NVDA"]');
+  requireValue(/^collect-sec-filings-production-[a-z0-9]+$/.test(expected.execution)
+    && value?.metadata?.name === expected.execution);
+  const status = value.status;
+  requireValue(status?.conditions?.some(row => row.type === 'Completed' && row.status === 'True'));
+  requireValue(status.succeededCount === 1 && (status.failedCount ?? 0) === 0
+    && (status.cancelledCount ?? 0) === 0 && (status.runningCount ?? 0) === 0);
+  requireValue(Number.isSafeInteger(status.retriedCount ?? 0) && (status.retriedCount ?? 0) >= 0 && (status.retriedCount ?? 0) <= 1);
+  requireValue(Number.isFinite(Date.parse(status.startTime)) && Number.isFinite(Date.parse(status.completionTime))
+    && Date.parse(status.startTime) <= Date.parse(status.completionTime));
+  return { execution: expected.execution, startTime: status.startTime, completionTime: status.completionTime,
+    succeededCount: 1, retriedCount: status.retriedCount ?? 0, commit: expected.commit, image: expected.image };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
@@ -45,10 +51,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (process.argv[2] === 'collector') checkCollector(value, { project: process.env.GCP_PROJECT_ID,
       commit: process.env.APPROVED_WORKER_COMMIT, image: process.env.EXPECTED_IMAGE });
     else if (process.argv[2] === 'graph') checkGraphDisabled(value);
-    else if (process.argv[2] === 'summary') {
-      const result = canarySummary(value);
-      if (result) console.log(JSON.stringify(result));
-      else process.exitCode = 2; // Logs can arrive after execution completion.
+    else if (process.argv[2] === 'execution') {
+      console.log(JSON.stringify(checkExecution(value, { project: process.env.GCP_PROJECT_ID,
+        commit: process.env.APPROVED_WORKER_COMMIT, image: process.env.EXPECTED_IMAGE, execution: process.env.EXPECTED_EXECUTION })));
     } else throw new Error();
   } catch {
     console.error('NVDA baseline safety check failed; configuration was not printed.');
