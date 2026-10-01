@@ -15,7 +15,7 @@ test("homepage questions preserve localized, focused research destinations", () 
     const url = new URL(entry.href, "https://youanalyst.com");
     assert(isLocalizedPage(url.pathname));
     assert.equal(localizedPath(entry.href, "zh-CN"), `/zh-cn${entry.href}`);
-    assert(entry.question.en && entry.question.zh && entry.summary.en && entry.summary.zh);
+    assert(entry.question.en && entry.question.zh && entry.shortLabel.en && entry.shortLabel.zh && entry.summary.en && entry.summary.zh);
     assert(entry.sources.length > 0);
   }
   const suppliers = new URL(researchStartingPoints[0].href, "https://youanalyst.com");
@@ -69,6 +69,36 @@ test("homepage cards render crawlable, localized questions and primary sources w
     for (const entry of researchStartingPoints) for (const source of entry.sources) {
       assert(html.includes(`href="${source.url}"`));
       if (source.date) assert(html.includes(`dateTime="${source.date}"`));
+    }
+  }
+});
+
+
+test("homepage intro is compact, bilingual and links to the same focused research", () => {
+  const result = buildSync({
+    stdin: { contents: `import React from "react";
+      import {renderToStaticMarkup} from "react-dom/server";
+      import {LocaleProvider} from "./src/components/providers/locale-provider";
+      import {ResearchQuickLinks} from "./src/components/research-starting-points";
+      import {researchStartingPoints} from "./src/lib/research/starting-points";
+      export const render = locale => renderToStaticMarkup(<LocaleProvider locale={locale}><ResearchQuickLinks entries={researchStartingPoints}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() },
+    bundle: true, write: false, platform: "node", format: "cjs", outfile: "homepage-intro-ssr.cjs",
+    external: ["react", "react-dom/server", "react/jsx-runtime"],
+    alias: { "next/link": path.resolve("tests/industry/link.tsx") },
+  });
+  const compiled = { exports: {} as { render(locale: string): string } };
+  new Function("require", "module", "exports", result.outputFiles.find(file => file.path.endsWith(".cjs"))!.text)(createRequire(import.meta.url), compiled, compiled.exports);
+  for (const locale of ["en", "zh-CN"]) {
+    const html = compiled.exports.render(locale);
+    const language = locale === "en" ? "en" : "zh";
+    assert.equal((html.match(/<a /g) ?? []).length, 3);
+    assert.equal((html.match(/<p /g) ?? []).length, 1);
+    assert(!html.includes("<article") && !html.includes("<h2") && !html.includes("<time"));
+    for (const entry of researchStartingPoints) {
+      assert(html.includes(entry.shortLabel[language]));
+      assert(html.includes(localizedPath(entry.href, locale === "en" ? "en" : "zh-CN").replaceAll("&", "&amp;")));
+      assert(!html.includes(entry.summary[language]));
+      for (const source of entry.sources) assert(!html.includes(source.url));
     }
   }
 });

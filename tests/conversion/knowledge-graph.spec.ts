@@ -760,7 +760,7 @@ test.beforeEach(async ({page}, info) => {
 });
 
 test.beforeAll(async () => {
-  const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [tourClockPlugin, { name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
+  const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";import {ResearchQuickLinks,ResearchStartingPoints} from "./src/components/research-starting-points";import {researchStartingPoints} from "./src/lib/research/starting-points";const homepage=new URLSearchParams(location.search).has("homepage");createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph startingPoints={homepage?<ResearchQuickLinks entries={researchStartingPoints}/>:undefined} introduction={homepage?<ResearchStartingPoints entries={researchStartingPoints}/>:undefined} initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [tourClockPlugin, { name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#08131d;font-family:Arial}*{box-sizing:border-box}button,input{font:inherit} ${bundle.outputFiles.find(f => f.path.endsWith(".css"))?.text}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
@@ -1807,4 +1807,24 @@ test('navigation: collapsing a tree branch disables its fading companies',async(
  await expect(company).toBeDisabled();
  await page.clock.runFor(1000);
  await expect(company).toHaveCount(0);
+});
+
+
+for (const language of ["en", "zh-CN"]) test(`homepage puts compact links above the map and evidence below every view (${language})`, async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: graph }) : route.fulfill({ contentType: "text/html", body: html }));
+  await page.goto(`http://graph.test/map?lang=${language}&homepage=1`);
+  const intro = page.getByRole("region", { name: language === "en" ? "Start your investment research" : "开始投资研究" });
+  const evidence = page.getByRole("region", { name: language === "en" ? "Research and evidence" : "研究与证据" });
+  const workspace = page.getByRole("tabpanel");
+  await expect(evidence.getByRole("article")).toHaveCount(3);
+  await expect(intro.getByRole("article")).toHaveCount(0);
+  for (const view of language === "en" ? ["Relationship graph", "Industry tree", "Company hierarchy", "Company list"] : ["关系图谱", "产业树", "公司层级图", "公司列表"]) {
+    await page.getByRole("tab", { name: view, exact: true }).click();
+    await expect(workspace).toBeVisible();
+    const introBounds = (await intro.boundingBox())!, workspaceBounds = (await workspace.boundingBox())!, evidenceBounds = (await evidence.boundingBox())!;
+    expect(introBounds.y + introBounds.height).toBeLessThanOrEqual(workspaceBounds.y);
+    expect(workspaceBounds.y + workspaceBounds.height).toBeLessThanOrEqual(evidenceBounds.y);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
 });
