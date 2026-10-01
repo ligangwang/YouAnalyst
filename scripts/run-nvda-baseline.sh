@@ -20,9 +20,10 @@ check_disabled() {
   done
 }
 check_disabled
-# Prove existing log-read access before executing anything. Never grant missing IAM.
-gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="collect-sec-filings-production"' \
-  --project "$GCP_PROJECT_ID" --limit=1 --format='value(timestamp)' --verbosity=error >/dev/null
+# Existing Firestore reads must succeed before execution. No log access or IAM changes.
+state_dir="$(mktemp -d)"
+trap 'rm -rf "$state_dir"' EXIT
+node --import tsx scripts/verify-nvda-baseline.ts before > "$state_dir/before.json"
 
 # One invocation only. An ambiguous failure requires inspection, never an automatic
 # second POST. The existing job may retry its task once; baseline mode is idempotent.
@@ -33,14 +34,7 @@ execution="$(gcloud run jobs execute "$job" --project "$GCP_PROJECT_ID" --region
 echo "Execution: $execution"
 check_disabled
 
-log_file="$(mktemp)"
-trap 'rm -f "$log_file"' EXIT
-filter="resource.type=\"cloud_run_job\" AND labels.\"run.googleapis.com/execution_name\"=\"$execution\" AND jsonPayload.message=\"collect-sec-filings: run_completed\""
-for attempt in {1..12}; do
-  gcloud logging read "$filter" --project "$GCP_PROJECT_ID" --limit=10 --freshness=1h --order=desc --format=json --verbosity=error > "$log_file"
-  if node scripts/check-nvda-baseline.mjs summary < "$log_file"; then exit 0; else result=$?; fi
-  [[ "$result" == 2 ]] || exit "$result"
-  sleep 10
-done
-echo 'Execution completed but its bounded summary is not visible yet; inspect this execution, do not rerun it.' >&2
-exit 1
+# Inspect the one execution, never submit another job if verification fails.
+gcloud run jobs executions describe "$execution" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json --verbosity=error |
+  EXPECTED_EXECUTION="$execution" node scripts/check-nvda-baseline.mjs execution > "$state_dir/execution.json"
+node --import tsx scripts/verify-nvda-baseline.ts after "$state_dir/before.json" "$state_dir/execution.json"

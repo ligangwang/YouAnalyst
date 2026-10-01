@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { runInNewContext } from "node:vm";
-import { checkCollector, checkGraphDisabled, canarySummary } from "../../scripts/check-nvda-baseline.mjs";
+import { checkCollector, checkGraphDisabled, checkExecution } from "../../scripts/check-nvda-baseline.mjs";
 import { backgroundJobTarget } from "../../scripts/background-job-changes.mjs";
 
 const commit = "592541f6791e7e13906bd679a42cfbbd941b8a15";
@@ -16,8 +16,16 @@ const collector = () => ({ spec: { template: { spec: { taskCount: 1, parallelism
   containers: [{ image, command: ["node"], env: [{ name: "GIT_SHA", value: commit }, { name: "SEC_FILINGS_COLLECTOR_ENABLED", value: "0" }, { name: "GCP_PROJECT_ID", value: project }] }],
 } } } } } });
 const graph = (flag = "0") => ({ spec: { template: { spec: { containers: [{ env: [{ name: "COMPANY_GRAPH_PROCESSING_ENABLED", value: flag }] }] } } } });
-const summary = () => [{ jsonPayload: { message: "collect-sec-filings: run_completed", companyId: "NVDA", mode: "baseline-only",
-  status: "completed", baselined: 12, existing: 1, snapshotFilings: 13, published: 0 } }];
+const execution = () => {
+  const spec = collector().spec.template.spec;
+  const container = spec.template.spec.containers[0];
+  container.env[1].value = "1";
+  return { metadata: { name: "collect-sec-filings-production-canary1" },
+    spec: { ...spec, template: { spec: { ...spec.template.spec, containers: [{ ...container,
+      args: ["dist/collect-sec-filings.cjs", "--apply", "--baseline-only", "--company=NVDA"] }] } } },
+    status: { conditions: [{ type: "Completed", status: "True" }], succeededCount: 1,
+      startTime: "2026-10-01T19:00:00Z", completionTime: "2026-10-01T19:01:00Z" } };
+};
 
 test("canary preflight accepts only the exact bounded disabled worker", () => {
   assert.equal(checkCollector(collector(), { project, commit, image }), true);
@@ -75,21 +83,24 @@ test("a newer failed or running release attempt cannot be masked by an older suc
     assert.equal(failures.length, 1);
   }
 });
-test("canary summary is issuer-bound, bounded, and contains no unrelated fields", () => {
-  assert.equal(canarySummary([]), null);
-  const rows = summary(); Object.assign(rows[0].jsonPayload, { unrelated: "DO_NOT_PRINT" });
-  assert.deepEqual(canarySummary(rows), { companyId: "NVDA", mode: "baseline-only", status: "completed",
-    baselined: 12, existing: 1, snapshotFilings: 13, published: 0 });
-  for (const change of [{ companyId: "AMD" }, { mode: "collector" }, { status: "partial" }, { published: 1 }, { snapshotFilings: 2001 }, { baselined: 15 }]) {
-    const invalid = summary(); Object.assign(invalid[0].jsonPayload, change);
-    assert.throws(() => canarySummary(invalid));
-  }
+test("execution proof binds successful status to the exact bounded NVDA override", () => {
+  const expected = { project, commit, image, execution: "collect-sec-filings-production-canary1" };
+  assert.equal(checkExecution(execution(), expected).succeededCount, 1);
+  for (const mutate of [
+    (v: ReturnType<typeof execution>) => { v.metadata.name = "wrong"; },
+    (v: ReturnType<typeof execution>) => { v.spec.template.spec.containers[0].args.pop(); },
+    (v: ReturnType<typeof execution>) => { v.spec.template.spec.containers[0].args[3] = "--company=AMD"; },
+    (v: ReturnType<typeof execution>) => { v.status.conditions[0].status = "False"; },
+    (v: ReturnType<typeof execution>) => { v.status.succeededCount = 0; },
+    (v: ReturnType<typeof execution>) => { v.status.completionTime = "invalid"; },
+    (v: ReturnType<typeof execution>) => { v.spec.template.spec.containers[0].env[1].value = "0"; },
+  ]) { const value = execution(); mutate(value); assert.throws(() => checkExecution(value, expected)); }
 });
 
-function run(overrides: { collector?: unknown; graph?: unknown; paused?: boolean; logAccess?: boolean; ambiguous?: boolean; drift?: boolean; delayed?: boolean; logRows?: unknown; malformed?: boolean } = {}) {
+function run(overrides: { collector?: unknown; graph?: unknown; paused?: boolean; stateAccess?: boolean; ambiguous?: boolean; drift?: boolean; stateMismatch?: boolean; execution?: unknown } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "nvda-baseline-canary-"));
   try {
-    for (const [file, value] of Object.entries({ collector: overrides.collector ?? collector(), graph: overrides.graph ?? graph(), drift: graph("1"), summary: overrides.logRows ?? summary() })) {
+    for (const [file, value] of Object.entries({ collector: overrides.collector ?? collector(), graph: overrides.graph ?? graph(), drift: graph("1"), execution: overrides.execution ?? execution() })) {
       writeFileSync(join(dir, `${file}.json`), JSON.stringify(value));
     }
     writeFileSync(join(dir, "gcloud"), `#!/bin/sh
@@ -99,15 +110,19 @@ case "$1 $2 $3" in
   'run jobs describe') cat "$MOCK_DIR/collector.json" ;;
   'run services describe') ${overrides.drift ? 'if [ "$(grep -c "^run services describe" "$MOCK_DIR/calls")" -gt 1 ]; then cat "$MOCK_DIR/drift.json"; else cat "$MOCK_DIR/graph.json"; fi' : 'cat "$MOCK_DIR/graph.json"'} ;;
   'scheduler jobs describe') echo '${overrides.paused === false ? "ENABLED" : "PAUSED"}' ;;
-  *)
-    if [ "$1 $2" = 'logging read' ]; then
-      ${overrides.logAccess === false ? "exit 9" : `case "$*" in *execution_name*) ${overrides.malformed ? 'echo malformed-DO_NOT_PRINT' : overrides.delayed ? 'if [ ! -f "$MOCK_DIR/log-read" ]; then touch "$MOCK_DIR/log-read"; echo "[]"; else cat "$MOCK_DIR/summary.json"; fi' : 'cat "$MOCK_DIR/summary.json"'} ;; *) echo timestamp ;; esac`}
-    elif [ "$1 $2 $3" = 'run jobs execute' ]; then
-      ${overrides.ambiguous ? "exit 8" : "echo collect-sec-filings-production-canary1"}
-    else exit 7; fi ;;
+  'run jobs executions') cat "$MOCK_DIR/execution.json" ;;
+  'run jobs execute') ${overrides.ambiguous ? "exit 8" : "echo collect-sec-filings-production-canary1"} ;;
+  *) exit 7 ;;
+
 esac
 `, { mode: 0o755 });
-    writeFileSync(join(dir, "sleep"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    writeFileSync(join(dir, "node"), `#!/bin/sh
+if [ "$1 $2 $3" = '--import tsx scripts/verify-nvda-baseline.ts' ]; then
+  printf 'state %s\\n' "$4" >> "$MOCK_DIR/calls"
+  if [ "$4" = before ]; then ${overrides.stateAccess === false ? "exit 9" : "echo '{}'"};
+  else ${overrides.stateMismatch ? "exit 6" : "echo '{\"newPendingOrPublishedRecords\":0}'"}; fi
+else exec '${process.execPath}' "$@"; fi
+`, { mode: 0o755 });
     const result = spawnSync("bash", ["scripts/run-nvda-baseline.sh"], { encoding: "utf8", env: { ...process.env,
       PATH: `${dir}:${process.env.PATH}`, MOCK_DIR: dir, MOCK_IMAGE: image,
       GCP_PROJECT_ID: project, GCP_REGION: "us-central1", APPROVED_WORKER_COMMIT: commit } });
@@ -122,11 +137,14 @@ test("canary invokes exactly one NVDA baseline execution and rechecks persistent
   assert.match(executes[0], /--update-env-vars=SEC_FILINGS_COLLECTOR_ENABLED=1/);
   assert.equal(result.calls.filter(line => line.startsWith("run jobs describe")).length, 2);
   assert.equal(result.calls.filter(line => line.startsWith("scheduler jobs describe")).length, 4);
-  assert.ok(result.stdout.includes('"published":0'));
+  assert.ok(result.calls.indexOf("state before") < result.calls.findIndex(line => line.startsWith("run jobs execute")));
+  assert.ok(result.calls.indexOf("state after") > result.calls.findIndex(line => line.startsWith("run jobs executions describe")));
+  assert.ok(result.calls.every(line => !line.startsWith("logging ")));
+  assert.ok(result.stdout.includes('"newPendingOrPublishedRecords":0'));
   assert.ok(result.calls.every(line => !/^(run (jobs|services) (update|deploy)|scheduler jobs (create|update|resume)|iam )/.test(line)));
 });
-test("unsafe runtime state or missing log-read access blocks before execution", () => {
-  for (const overrides of [{ graph: graph("1") }, { collector: {} }, { paused: false }, { logAccess: false }]) {
+test("unsafe runtime state or missing durable-state read access blocks before execution", () => {
+  for (const overrides of [{ graph: graph("1") }, { collector: {} }, { paused: false }, { stateAccess: false }]) {
     const result = run(overrides); assert.notEqual(result.status, 0);
     assert.equal(result.calls.filter(line => line.startsWith("run jobs execute")).length, 0);
   }
@@ -135,13 +153,11 @@ test("an uncertain execution is never retried by the workflow script", () => {
   const result = run({ ambiguous: true }); assert.notEqual(result.status, 0);
   assert.equal(result.calls.filter(line => line.startsWith("run jobs execute")).length, 1);
 });
-test("post-execution drift and delayed or invalid logs never cause another execute", () => {
-  const invalid = summary(); invalid[0].jsonPayload.companyId = "AMD";
-  for (const options of [{ drift: true }, { logRows: invalid }, { malformed: true }, { delayed: true }]) {
+test("post-execution drift or failed execution/state proof never cause another execute", () => {
+  for (const options of [{ drift: true }, { execution: {} }, { stateMismatch: true }]) {
     const result = run(options);
     assert.equal(result.calls.filter(line => line.startsWith("run jobs execute")).length, 1);
-    assert.equal(result.status === 0, "delayed" in options);
-    assert.doesNotMatch(result.stderr + result.stdout, /DO_NOT_PRINT/);
+    assert.notEqual(result.status, 0);
   }
 });
 test("canary workflow is explicit, main-only, non-repeatable and does not change worker selection", () => {
@@ -152,5 +168,5 @@ test("canary workflow is explicit, main-only, non-repeatable and does not change
   assert.match(workflow, /run.conclusion === 'success'/);
   assert.match(workflow, /git merge-base --is-ancestor 592541f/);
   assert.doesNotMatch(workflow, /OPENAI_API_KEY|--apply|workflow_call|schedule:/);
-  assert.equal(backgroundJobTarget([".github/workflows/run-nvda-baseline.yml", "scripts/run-nvda-baseline.sh", "scripts/check-nvda-baseline.mjs", "tests/deploy/nvda-baseline-canary.test.ts"]), "none");
+  assert.equal(backgroundJobTarget([".github/workflows/run-nvda-baseline.yml", "scripts/run-nvda-baseline.sh", "scripts/check-nvda-baseline.mjs", "scripts/verify-nvda-baseline.ts", "tests/deploy/nvda-baseline-canary.test.ts"]), "none");
 });
