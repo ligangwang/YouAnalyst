@@ -50,7 +50,7 @@ test("both topic pages server-render sources, conceptual visuals, caveats and lo
   const { InfrastructureResearchPage, AuthProvider, LocaleProvider } = components();
   for (const topic of infrastructureTopics) for (const chinese of [false, true]) {
     const html = renderToStaticMarkup(createElement(AuthProvider, { children: createElement(LocaleProvider, {
-      locale: chinese ? "zh-CN" : "en", children: createElement(InfrastructureResearchPage, { topic, chinese }),
+      locale: chinese ? "zh-CN" : "en", children: createElement(InfrastructureResearchPage, { topic }),
     }) }));
     assert(html.includes(topic.title[chinese ? "zh" : "en"]));
     assert(html.includes(`dateTime="${RESEARCH_REVIEWED}"`));
