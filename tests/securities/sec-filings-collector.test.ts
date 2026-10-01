@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../../src/lib/maintenance-log";
+import { baselineSecFilings, inspectSecBaseline } from "../../src/lib/sec-filings/baseline";
+import { parseSecCollectorArgs } from "../../src/lib/sec-filings/cli";
+import { hasCurrentCompanyGraph } from "../../src/lib/company-graph/requests";
 import { collectSecFilings, inspectSecFilingCollection } from "../../src/lib/sec-filings/collector";
 import { createSecFilingDiscovered, type SecFilingDiscovered } from "../../src/lib/sec-filings/event";
 import { persistSecFilingDiscovery, type SecCollectorCursor } from "../../src/lib/sec-filings/store";
@@ -52,6 +55,7 @@ function fixture(initial: Record<string, Data> = {}) {
         assert.equal(op, "==");
         let after = "", limit = 100;
         const query = {
+          count: () => ({ get: async () => ({ data: () => ({ count: [...documents].filter(([path, data]) => path.startsWith(`${collection}/`) && data[field] === value).length }) }) }),
           orderBy: () => query,
           startAfter: (id: string) => { after = id; return query; },
           limit: (n: number) => { limit = n; return query; },
@@ -239,7 +243,7 @@ test("filing ledger rejects changed immutable metadata while preserving extracti
 });
 test("collector CLI is disabled by default and SEC transport uses only the shared budget", () => {
   const script = readFileSync("scripts/collect-sec-filings.ts", "utf8");
-  assert.match(script, /args\.includes\("--apply"\)/);
+  assert.match(script, /parseSecCollectorArgs/);
   assert.match(script, /SEC_FILINGS_COLLECTOR_ENABLED !== "1"/);
   assert.match(script, /inspectSecFilingCollection/);
   const source = readFileSync("src/lib/sec-filings/source.ts", "utf8");
@@ -304,4 +308,149 @@ test("a sibling listing cannot assign conflicting XBRL metadata to an existing a
   await persistSecFilingDiscovery(f.db, createSecFilingDiscovered({ ...filing(), companyId: "AMD", cik: CIK, discoveredAt: iso }), false);
   await assert.rejects(persistSecFilingDiscovery(f.db, createSecFilingDiscovered({ ...filing(), isXbrl: false,
     companyId: "OTHER", cik: CIK, discoveredAt: iso }), false), /conflicts across listings/);
+});
+
+
+test("explicit baseline ignores all outbox events and the global rotation", async () => {
+  const f = fixture({ [META]: { afterCompanyId: "ZZZ" } });
+  const pending = createSecFilingDiscovered({ ...filing(99), companyId: "OTHER", cik: CIK, discoveredAt: iso });
+  await persistSecFilingDiscovery(f.db, pending, false);
+  const before = structuredClone(f.documents.get(`sec_filings/${pending.accessionNumber}`));
+  const result = await baselineSecFilings(f.db, "AMD", f.log, f.options());
+  assert.equal(result.baselined, 1); assert.equal(result.published, 0);
+  assert.deepEqual(f.requests, ["resolve:AMD", `submissions:${CIK}`]);
+  assert.deepEqual(f.documents.get(`sec_filings/${pending.accessionNumber}`), before);
+  assert.equal(f.documents.get(META)?.afterCompanyId, "ZZZ");
+  assert.equal(f.events.length, 0);
+});
+test("baseline crash recovery uses only its frozen snapshot without refetch or new discovery", async () => {
+  const f = fixture();
+  let crash = true;
+  f.onWrite(path => { if (path.startsWith("sec_filings/") && crash) { crash = false; throw new Error("crash"); } });
+  await assert.rejects(baselineSecFilings(f.db, "AMD", f.log, f.options()), /crash/);
+  f.setSubmissions({ recent: [filing(2)], files: [{ name: `CIK${CIK}-submissions-001.json`, filingFrom: "2020-01-01", filingTo: "2026-09-27" }] });
+  const result = await baselineSecFilings(f.db, "AMD", f.log, f.options());
+  assert.equal(result.baselined, 1); assert.equal(result.published, 0);
+  assert.deepEqual(f.requests, ["resolve:AMD", `submissions:${CIK}`]);
+  assert.equal(discoveries(f, 2), undefined);
+  assert.equal(Object.values(discoveries(f, 1))[0].state, "baseline");
+  assert.equal(f.events.length, 0);
+});
+test("baseline retries with an already completed cursor do no provider, ledger or watermark work", async () => {
+  const f = fixture({ [COMPANY]: { secFilingsCollector: cursor() } });
+  const before = structuredClone(f.documents.get(COMPANY));
+  const result = await baselineSecFilings(f.db, "AMD", f.log, f.options());
+  assert.equal(result.status, "already-completed"); assert.equal(f.writes(), 0);
+  assert.deepEqual(f.documents.get(COMPANY), before);
+  assert.equal(f.requests.length, 0); assert.equal(f.events.length, 0);
+  assert.equal([...f.documents.keys()].some(path => path.startsWith("sec_filings/")), false);
+});
+test("baseline preserves existing same-issuer pending records and graph results", async () => {
+  const f = fixture({ [`sec_filings/${filing().accessionNumber}`]: { companyGraphLatestResult: { retained: true } } });
+  const event = createSecFilingDiscovered({ ...filing(), companyId: "AMD", cik: CIK, discoveredAt: iso });
+  await persistSecFilingDiscovery(f.db, event, false);
+  const before = structuredClone(f.documents.get(`sec_filings/${event.accessionNumber}`));
+  const result = await baselineSecFilings(f.db, "AMD", f.log, f.options());
+  assert.equal(result.existing, 1); assert.equal(result.published, 0);
+  assert.deepEqual(f.documents.get(`sec_filings/${event.accessionNumber}`), before);
+  assert.equal(f.events.length, 0);
+});
+test("baseline rejects nonbaseline scan and changed issuer without altering cursor", async () => {
+  const c: SecCollectorCursor = { ...cursor(), lastCompleteAt: null, scan: { baseline: false, startedAt: iso, fromDate: "2026-01-01", completedArchives: [], baselineFilings: null } };
+  const f = fixture({ [COMPANY]: { secFilingsCollector: c } });
+  await assert.rejects(baselineSecFilings(f.db, "AMD", f.log, f.options()), /nonbaseline/);
+  assert.deepEqual(f.documents.get(COMPANY)?.secFilingsCollector, c); assert.equal(f.requests.length, 0);
+  c.scan = null; c.cik = "0000000001"; f.documents.set(COMPANY, { secFilingsCollector: c });
+  await assert.rejects(baselineSecFilings(f.db, "AMD", f.log, f.options()), /CIK conflicts/);
+  assert.deepEqual(f.documents.get(COMPANY)?.secFilingsCollector, c);
+});
+test("baseline deadline resumes frozen rows and does not read archives", async () => {
+  const f = fixture();
+  f.setSubmissions({ recent: [filing(1), filing(2)], files: [{ name: `CIK${CIK}-submissions-001.json`, filingFrom: "2020-01-01", filingTo: "2026-09-27" }] });
+  f.onWrite(path => { if (path === `sec_filings/${filing(1).accessionNumber}`) f.advance(12 * 60_000); });
+  assert.equal((await baselineSecFilings(f.db, "AMD", f.log, f.options())).status, "partial");
+  assert.equal((f.documents.get(COMPANY)?.secFilingsCollector as SecCollectorCursor).lastCompleteAt, null);
+  f.onWrite();
+  assert.equal((await baselineSecFilings(f.db, "AMD", f.log, f.options())).status, "completed");
+  assert.equal(f.requests.length, 2); assert.equal(f.events.length, 0);
+});
+test("baseline rejects oversized or malformed snapshots before cursor and ledger writes", async () => {
+  for (const rows of [Array.from({ length: 2001 }, (_, i) => filing(i)), [{ ...filing(), primaryDocument: "../bad" }]]) {
+    const f = fixture(); f.setSubmissions({ recent: rows, files: [] });
+    await assert.rejects(baselineSecFilings(f.db, "AMD", f.log, f.options()));
+    assert.equal(f.documents.has(COMPANY), false);
+    assert.equal([...f.documents.keys()].some(path => path.startsWith("sec_filings/")), false);
+  }
+});
+test("baseline diagnostics read exact ledger counts and cache eligibility without writes or sources", async () => {
+  const f = fixture({ [COMPANY]: { secFilingsCollector: cursor() },
+    "company_research_requests/AMD": { status: "QUEUED", dispatchedAt: iso },
+    "company_research_requests/OTHER": { status: "FAILED" },
+    "company_research_runs/AMD_latest_10k": { status: "COMPLETED", extractionVersion: "supply-chain-ontology-v1", edgeCount: 0, result: { ticker: "AMD", runId: "cached" } },
+    "sec_filings/one": { discoveryPending: true }, "sec_filings/two": { discoveryPending: true } });
+  const result = await inspectSecBaseline(f.db, "AMD");
+  assert.deepEqual(result.graphLedgerCounts, { QUEUED: 1, PROCESSING: 0, FAILED: 1, COMPLETED: 0 });
+  assert.equal(result.pendingFilingDocuments, 2); assert.equal(result.graphCacheEligible, true);
+  assert.equal(result.baselineState, "already-completed"); assert.equal(result.selectedRequestPublished, true);
+  assert.equal(result.pubsubBacklog, "not-inspected");
+  assert.equal(f.writes(), 0); assert.equal(f.requests.length, 0); assert.equal(f.events.length, 0);
+});
+test("baseline CLI requires a paired explicit issuer and never falls through to normal apply", () => {
+  for (const args of [["--baseline-only"], ["--company=NVDA"], ["--apply", "--company=NVDA"], ["--baseline-only", "--company=nvda"], ["--apply", "--dry-run"], ["--apply", "--apply"], ["--baseline-only", "--company=NVDA,AMD"]]) {
+    assert.throws(() => parseSecCollectorArgs(args, {}));
+  }
+  assert.deepEqual(parseSecCollectorArgs(["--baseline-only", "--company=NVDA"], {}), { apply: false, baselineOnly: true, companyId: "NVDA", maxCompanies: 1 });
+  assert.equal(parseSecCollectorArgs(["--apply", "--baseline-only", "--company=NVDA"], {}).apply, true);
+  assert.equal(parseSecCollectorArgs([], {}).apply, false);
+});
+test("read-only diagnostic workflow has no provider secret, apply mode, resource or IAM writes", () => {
+  const workflow = readFileSync(".github/workflows/inspect-sec-graph.yml", "utf8");
+  assert.match(workflow, /--dry-run --baseline-only "--company=\$COMPANY"/);
+  assert.match(workflow, /SEC_FILINGS_COLLECTOR_ENABLED: '0'/);
+  assert.match(workflow, /github.ref == 'refs\/heads\/main'/);
+  assert.doesNotMatch(workflow, /OPENAI_API_KEY|--apply|add-iam-policy-binding|workflow_call/);
+  assert.match(workflow, /bash scripts\/inspect-graph-topic.sh/);
+  const baseline = readFileSync("src/lib/sec-filings/baseline.ts", "utf8");
+  assert.doesNotMatch(baseline, /publishJobMessage|listPendingSecFilings|markSecFilingPublished|source\.archive|afterCompanyId/);
+});
+
+
+test("baseline completion checkpoint failure retries snapshot with no new source work", async () => {
+  const f = fixture();
+  let fail = true;
+  f.onWrite((path, data) => {
+    if (path === COMPANY && (data.secFilingsCollector as SecCollectorCursor)?.lastCompleteAt && fail) {
+      fail = false; throw new Error("completion write interrupted");
+    }
+  });
+  await assert.rejects(baselineSecFilings(f.db, "AMD", f.log, f.options()), /completion write/);
+  f.setSubmissions({ recent: [filing(2)], files: [] });
+  const result = await baselineSecFilings(f.db, "AMD", f.log, f.options());
+  assert.equal(result.status, "completed"); assert.equal(result.existing, 1);
+  assert.equal(f.requests.length, 2); assert.equal(discoveries(f, 2), undefined);
+  assert.equal(f.events.length, 0);
+});
+test("baseline rejects invalid issuer and active collector lease without source or publication", async () => {
+  const f = fixture({ [META]: { leaseOwner: "other", leaseExpiresAtMs: Date.parse(iso) + 60_000 } });
+  await assert.rejects(baselineSecFilings(f.db, "NVDA,AMD", f.log, f.options()), /explicit US ticker/);
+  await assert.rejects(baselineSecFilings(f.db, "AMD", f.log, f.options()), /busy/);
+  assert.equal(f.writes(), 0); assert.equal(f.requests.length, 0); assert.equal(f.events.length, 0);
+});
+
+test("diagnostic cache eligibility exactly matches production for incomplete and legacy documents", async () => {
+  const base = { status: "COMPLETED", extractionVersion: "supply-chain-ontology-v1" };
+  for (const [data, expected] of [
+    [{ ...base, result: { ticker: "AMD", runId: "cached" } }, false],
+    [{ ...base, edgeCount: 0 }, true],
+    [{ ...base, edgeCount: 2 }, true],
+    [{ ...base, edgeCount: -1 }, false],
+    [{ ...base, edgeCount: "0" }, false],
+    [{ ...base, edgeCount: 0, status: "FAILED" }, false],
+    [{ ...base, edgeCount: 0, extractionVersion: "old" }, false],
+  ] as const) {
+    const f = fixture({ "company_research_runs/AMD_latest_10k": data });
+    assert.equal((await inspectSecBaseline(f.db, "AMD")).graphCacheEligible, expected);
+    assert.equal(await hasCurrentCompanyGraph("AMD", f.db), expected);
+    assert.equal(f.writes(), 0);
+  }
 });
