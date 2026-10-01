@@ -16,7 +16,11 @@ test.beforeAll(async () => {
     import {LocaleProvider} from "./src/components/providers/locale-provider";
     const chinese=location.pathname.startsWith("/zh-cn/");
     const topic=infrastructureTopics.find(topic=>location.pathname.endsWith(topic.slug));
-    createRoot(document.getElementById("root")).render(<LocaleProvider locale={chinese?"zh-CN":"en"}>{topic?<InfrastructureResearchPage topic={topic} chinese={chinese}/>:<p>Authentication destination</p>}</LocaleProvider>);
+    function App(){
+      const [zh,setZh]=React.useState(chinese);
+      return <LocaleProvider locale={zh?"zh-CN":"en"}><button onClick={()=>setZh(value=>!value)}>Switch fixture language</button>{topic?<InfrastructureResearchPage topic={topic}/>:<p>Authentication destination</p>}</LocaleProvider>;
+    }
+    createRoot(document.getElementById("root")).render(<App/>);
   `, resolveDir: process.cwd(), loader: "tsx" }, bundle: true, write: false, outfile: "topics.js", platform: "browser", define: { "process.env": "{}" }, alias: { "@/components/providers/auth-provider": mock, "next/navigation": mock, "next/link": mock } });
   const css = await postcss([tailwind()]).process('@import "tailwindcss";', { from: path.resolve("topics-test.css") });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="youanalyst-analytics" content="disabled"><style>${css.css}${bundle.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}body{background:#07111d;color:#f8fafc;font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
@@ -52,3 +56,21 @@ test("HBM evidence keeps samples separate and a follow preserves the exact artic
   expect(url.pathname).toBe("/auth");
   expect(url.searchParams.get("next")).toBe("/en/research/hbm-supply?followCompany=ORG%3ASAMSUNG-ELECTRONICS#samsung-hbm4e");
 });
+
+for (const [slug, english, chinese] of [
+  ["hbm-supply", "HBM suppliers: production, samples and plans", "HBM 供应商：量产、样品与计划"],
+  ["ai-infrastructure-bottlenecks", "AI infrastructure bottlenecks: follow memory, packaging and cooling", "AI 基础设施瓶颈：追踪内存、封装与散热"],
+]) {
+  test(`${slug} reacts to locale changes without a reload`, async ({ page }) => {
+    await page.goto(`${origin}/en/research/${slug}`);
+    await expect(page.getByRole("heading", { name: english, exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Switch fixture language", exact: true }).click();
+    await expect(page.getByRole("heading", { name: chinese, exact: true })).toBeVisible();
+    await expect(page.getByText("证据边界：", { exact: true })).toHaveCount(4);
+    await expect(page.getByRole("link", { name: "关注公司，追踪有来源的更新", exact: true })).toHaveAttribute("href", "/zh-cn/feed?scope=following");
+    await page.getByRole("button", { name: "Switch fixture language", exact: true }).click();
+    await expect(page.getByRole("heading", { name: english, exact: true })).toBeVisible();
+    await expect(page.getByText("Evidence limit:", { exact: true })).toHaveCount(4);
+    await expect(page).toHaveURL(`${origin}/en/research/${slug}`);
+  });
+}

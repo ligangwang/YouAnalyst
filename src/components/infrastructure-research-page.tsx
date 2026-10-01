@@ -1,3 +1,6 @@
+"use client";
+
+import { useLocale } from "./providers/locale-provider";
 import type { ResearchTopic } from "@/lib/research/infrastructure-topics";
 import { RESEARCH_REVIEWED, topicSources } from "@/lib/research/infrastructure-topics";
 import { companyLinks } from "@/lib/research/deep-dives";
@@ -5,7 +8,8 @@ import { EvidenceLink, ShareResearchView } from "./research-actions";
 import { CompanyFollowButton } from "./company-follow-button";
 import styles from "./research-discovery.module.css";
 
-export function InfrastructureResearchPage({ topic, chinese = false }: { topic: ResearchTopic; chinese?: boolean }) {
+export function InfrastructureResearchPage({ topic }: { topic: ResearchTopic }) {
+  const { chinese } = useLocale();
   const lang = chinese ? "zh" : "en", prefix = chinese ? "/zh-cn" : "/en";
   const text = (en: string, zh: string) => chinese ? zh : en;
   return <main className={styles.section}>
