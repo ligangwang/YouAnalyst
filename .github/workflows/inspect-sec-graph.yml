@@ -1,0 +1,39 @@
+name: Inspect SEC and graph rollout
+
+on:
+  workflow_dispatch:
+    inputs:
+      company:
+        description: Explicit US ticker to inspect (no SEC calls or writes)
+        required: true
+        default: NVDA
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-only:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      COMPANY: ${{ inputs.company }}
+      SEC_FILINGS_COLLECTOR_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - name: Read issuer cursor and queue ledger counts
+        # Existing identity only. Missing Firestore read permission fails closed;
+        # this workflow never creates grants, impersonates another identity, runs
+        # a Cloud Run job, reads provider secrets or applies collector work.
+        run: node_modules/.bin/tsx scripts/collect-sec-filings.ts --dry-run --baseline-only "--company=$COMPANY"

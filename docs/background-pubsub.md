@@ -341,3 +341,48 @@ Wait for active extraction to finish or its lease to expire before using direct
 mode. Removing the web request topic restores the legacy Admin path, so coordinate
 that change with processing shutdown. No rollback step needs to alter the existing
 US/China EOD schedules or message contracts.
+
+### Strict one-issuer baseline and read-only diagnostics
+
+The normal collector's `SEC_FILINGS_MAX_COMPANIES=1` rotates through the current
+US graph and still drains the entire pending outbox. It is **not** a named-issuer,
+no-publication canary.
+
+Use the paired `--baseline-only --company=NVDA` options for a strict baseline.
+Without `--apply` (or with `--dry-run`) this reads only Firestore: the issuer cursor,
+current graph cache eligibility, selected request state, exact global graph-request
+status counts and the number of pending filing documents. These are ledger counts,
+not Pub/Sub undelivered-message metrics. No SEC/OpenAI request, lease, cursor, or
+other data write occurs during inspection.
+
+The main-only **Inspect SEC and graph rollout** workflow runs this read-only mode
+with the existing production release identity. It does not provision resources,
+create grants, read provider secrets, run Cloud Run jobs, or enable processing.
+That identity must already have `datastore.entities.get` for document reads and
+`datastore.entities.get` plus `datastore.entities.list` for aggregation queries,
+as specified in the [Firestore IAM method permissions](https://docs.cloud.google.com/firestore/native/docs/security/iam).
+No transactions or database metadata API calls are requested. If a read is denied,
+stop and report the permission error; do not add IAM to make the diagnostic run succeed.
+Counts use independent read snapshots and can change if other activity is running.
+
+An explicitly approved baseline application additionally needs `--apply` and an
+execution-only `SEC_FILINGS_COLLECTOR_ENABLED=1` override. Keep the persistent flag
+at 0 and both schedules paused. This mode:
+
+- Operates on exactly the named issuer, without loading the full graph
+- Never queries/drains the pending outbox or publishes any message
+- Freezes at most 2,000 eligible recent filing rows / 256 KB and never fetches archives
+- Finishes only that frozen snapshot on retry, ignoring later arrivals until a
+  separately approved normal collector run
+- Preserves existing pending/published records, graph fields and global rotation
+- Leaves completed issuer cursors unchanged; replay after completion is read-only
+- Refuses a nonbaseline scan or changed issuer identity rather than resetting it
+
+A fresh successful baseline normally makes two budgeted SEC requests: the ticker
+mapping and that issuer's submissions JSON. Retrying after the snapshot is saved
+needs neither. A failure before the snapshot is saved can repeat those requests;
+the existing Cloud Run job permits one retry (up to four source requests in that
+case). The mode cannot call OpenAI or cause consumer work. It may merge up to
+2,000 existing-collection accession documents, the issuer cursor, collector lease
+metadata and shared SEC request-budget metadata. A completed baseline does not
+prove live filing fan-out or extraction-provider behavior.
