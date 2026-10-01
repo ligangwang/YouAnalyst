@@ -259,9 +259,11 @@ source selection, provider-response and final-write checkpoints remain in existi
 `company_research_runs`, `sec_filings`, and `sec_filing_sections`. Retry the same
 request or event so durable checkpoints can be reused. Completed accessions and
 obsolete request generations are skipped; older filing delivery does not regress
-the latest graph. Pub/Sub is at least once: an ambiguous provider response before
-its durable checkpoint can require operator attention or repeated provider work.
-Do not describe this as exactly-once paid extraction.
+the latest graph. Pub/Sub is at least once. The graph budget now reserves worst-case cost before
+provider submission. A lost response identity retains the reservation and requires
+operator review; it cannot automatically start another paid request. An explicit
+new extraction generation requires its own reservation. This is not a provider
+account-wide billing limit.
 Normal **Queue retry** reuses saved provider state. After reviewing a terminal
 provider failure, **Start fresh extraction** and its explicit confirmation create
 a new generation; the UI warns that this may incur another OpenAI charge.
@@ -426,3 +428,62 @@ The workflow and its local host-side validation scripts do not change the worker
 bundle; they need reviewed CI publication, not another worker redeployment. The
 approved worker release may be a later tested descendant containing the strict
 baseline implementation, and its actual image must match the supplied release.
+
+
+## Company graph daily budget and final activation
+
+The Admin Tasks page exposes the graph pipeline's editable daily USD limit,
+settled conservative estimate, unresolved reservations and remaining admission
+budget. The initial limit is US$5; zero blocks new generation. Reducing the limit
+below spent plus reserved liability blocks further requests without reversing
+existing charges. A new day follows America/New_York including DST; unresolved
+reservations carry across midnight until verified terminal usage is recorded.
+This applies to company graph requests, filing-triggered graph work and direct
+operator extraction, including paid dry-run requests. Other YouAnalyst AI features,
+ChatGPT/Codex allowances, cloud infrastructure charges, taxes and the provider's
+account-wide bill are outside this pipeline limit.
+
+Before generation, the exact messages and structured-output schema are sent to
+Responses input-token counting. Unknown/malformed counts or more than 100,000 input
+tokens block generation. Requests use Standard processing, no tools or external
+model context, and max_output_tokens 16,384 (including reasoning and formatting).
+Only the verified gpt-5.6-sol price schedule is admitted: reserve all input at the
+higher cache-write rate of US$5/million and output at US$20/million. A request's
+reservation is at most US$0.82768. Cached-token discounts are deliberately not used
+to admit more work. The reviewed price version expires at 2026-11-22T00:00:00Z;
+unknown models, expired prices or unavailable budget storage stop new generation.
+Sources: https://developers.openai.com/api/docs/models/gpt-5.6-sol and
+https://developers.openai.com/api/docs/guides/token-counting.
+
+The aggregate and individual reservations use existing company_research_runs
+documents. Transactions reserve before POST across concurrent web/worker calls.
+A response ID is saved before normal service checkpointing; retries retrieve that
+same response. Missing/ambiguous response IDs retain the full reservation and
+require operator review. Only valid terminal usage within the admitted token
+bounds releases unused liability; settlement is idempotent. The settled value
+is a conservative estimate, not the OpenAI invoice. No new collection or IAM
+permission is required.
+
+When the remaining budget cannot admit a request, manual and filing work is saved
+for later replay before acknowledging delivery. The existing graph publisher
+shares its 1–5 publication limit between manual requests and deferred exact filing
+events, respecting next-attempt time and budget availability. Budget exhaustion
+does not consume Pub/Sub failure retries. Lowering the budget cannot cancel an
+already admitted provider request; its full worst-case amount was reserved.
+
+The existing production release owns the final activation. Set its production
+SEC_GRAPH_ACTIVATE_TREE variable to the exact reviewed Git tree, enable both
+processing flags, and retain batch size 1. Only that source tree can run the live
+activation step after existing delivery checks. It verifies the approved project,
+region, exact image digest and model, then uses the existing publisher job for one
+saved NVDA forced extraction and one exact baseline 10-K event. The source,
+request and activation marker are committed atomically; retries reuse them.
+Successful graph/provider/budget completion and both filing-consumer receipts are
+required before resuming the existing 5-minute/15-minute schedules. Failure leaves
+both paused; a partial resume is rolled back. No new deployment workflow, cloud
+resource, collection or IAM grant is involved.
+
+The live result records safe queue-ledger counts and final budget amounts. These
+counts are not Pub/Sub backlog metrics. Enabling processing can deliver previously
+published work too; all graph requests share the same atomic budget. A later
+source tree skips activation, and normal deployments preserve schedule state.

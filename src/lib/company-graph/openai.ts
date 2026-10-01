@@ -1,4 +1,10 @@
 import { setTimeout as sleep } from "node:timers/promises";
+import { randomUUID } from "node:crypto";
+import type { Firestore } from "firebase-admin/firestore";
+import { getAdminFirestore } from "../firebase/admin";
+import { GRAPH_BUDGET_MODEL, GRAPH_MAX_INPUT_TOKENS, GRAPH_MAX_OUTPUT_TOKENS, graphReservationMicros,
+  graphBudgetFingerprint, findGraphBudgetTicket, reserveGraphBudget, recordGraphResponse, settleGraphBudget,
+  GraphBudgetUncertainError } from "./budget";
 import { getOpenAiApiKey, getOpenAiModel } from "@/lib/openai-runtime";
 import {
   COMPANY_GRAPH_EDGE_DIRECTIONS,
@@ -167,7 +173,7 @@ function normalizeRelationships(raw: unknown): ExtractedCompanyGraphRelationship
   });
 }
 
-export async function extractCompanyGraphRelationships(input: {
+export type CompanyGraphProviderInput = {
   companyName: string;
   ticker: string;
   accessionNumber: string;
@@ -175,22 +181,17 @@ export async function extractCompanyGraphRelationships(input: {
   extractionText: string;
   signal?: AbortSignal;
   responseId?: string;
+  budgetRequestId?: string;
+  budgetDb?: Firestore;
   onResponseCreated?: (responseId: string) => Promise<void>;
-}): Promise<OpenAiCompanyGraphExtractionResult> {
-  const model = getOpenAiModel();
-  const signal = input.signal ?? AbortSignal.timeout(7 * 60_000);
-  if (input.responseId && !/^resp_[A-Za-z0-9_-]+$/.test(input.responseId)) throw new Error("Invalid stored OpenAI response identity");
-  const headers = { "content-type": "application/json", authorization: `Bearer ${getOpenAiApiKey()}` };
-  let response = await fetch(`https://api.openai.com/v1/responses${input.responseId ? `/${input.responseId}` : ""}`, {
-    signal,
-    method: input.responseId ? "GET" : "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${getOpenAiApiKey()}`,
-    },
-    body: input.responseId ? undefined : JSON.stringify({
+  budgetNow?: () => number;
+};
+
+export function buildCompanyGraphResponseBody(input: CompanyGraphProviderInput, model = GRAPH_BUDGET_MODEL) {
+  return {
       model,
-      ...(input.onResponseCreated ? { background: true, store: true } : {}),
+      background: true, store: true, service_tier: "default",
+      max_output_tokens: GRAPH_MAX_OUTPUT_TOKENS, truncation: "disabled",
       input: [
         {
           role: "system",
@@ -235,7 +236,42 @@ export async function extractCompanyGraphRelationships(input: {
           ...RESPONSE_SCHEMA,
         },
       },
-    }),
+    };
+}
+
+export async function extractCompanyGraphRelationships(input: CompanyGraphProviderInput): Promise<OpenAiCompanyGraphExtractionResult> {
+  const now = input.budgetNow ?? Date.now;
+  const model = getOpenAiModel();
+  if (model !== GRAPH_BUDGET_MODEL) throw new Error("Company graph model has no approved budget pricing.");
+  const signal = input.signal ?? AbortSignal.timeout(7 * 60_000);
+  if (input.responseId && !/^resp_[A-Za-z0-9_-]+$/.test(input.responseId)) throw new Error("Invalid stored OpenAI response identity");
+  const headers = { "content-type": "application/json", authorization: `Bearer ${getOpenAiApiKey()}` };
+  const db = input.budgetDb ?? getAdminFirestore();
+  const requestKey = input.budgetRequestId ?? `direct_${randomUUID()}`;
+  const body = buildCompanyGraphResponseBody(input, model);
+  const fingerprint = graphBudgetFingerprint(body);
+  let ticket = await findGraphBudgetTicket(requestKey, db);
+  let responseIdToResume = ticket?.responseId ?? input.responseId;
+  if (ticket && ticket.fingerprint !== fingerprint) throw new Error("Graph budget request payload changed; paid processing is blocked.");
+  if (ticket && !ticket.responseId) throw new GraphBudgetUncertainError();
+  if (input.responseId && (!ticket || ticket.responseId !== input.responseId)) throw new Error("Graph provider response has no matching budget reservation; operator review required.");
+  if (!ticket) {
+    graphReservationMicros(model, 1, now()); // Expiry blocks new generation, not recovery of an admitted response.
+    // Count the identical structured input, including the system message and JSON
+    // schema. No local character/token estimate can authorize a paid request.
+    const countResponse = await fetch("https://api.openai.com/v1/responses/input_tokens", {
+      method: "POST", signal, headers,
+      body: JSON.stringify({ model: body.model, input: body.input, text: body.text }),
+    });
+    const count = await countResponse.json().catch(() => ({}));
+    if (!countResponse.ok || count.object !== "response.input_tokens" || !Number.isSafeInteger(count.input_tokens)
+      || count.input_tokens <= 0 || count.input_tokens > GRAPH_MAX_INPUT_TOKENS) throw new Error("Graph input-token count cannot be verified; no generation was started.");
+    ticket = await reserveGraphBudget({ requestKey, fingerprint, model, inputTokens: count.input_tokens }, db, now());
+    responseIdToResume = undefined;
+  }
+  let response = await fetch(`https://api.openai.com/v1/responses${responseIdToResume ? `/${responseIdToResume}` : ""}`, {
+    signal, method: responseIdToResume ? "GET" : "POST", headers,
+    body: responseIdToResume ? undefined : JSON.stringify(body),
   });
 
   let responseBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
@@ -250,9 +286,11 @@ export async function extractCompanyGraphRelationships(input: {
   }
 
   const responseId = asString(responseBody.id);
-  if (input.onResponseCreated && !input.responseId) {
+  if (!responseIdToResume) {
     if (!responseId) throw new Error("OpenAI response is missing its durable identity");
-    await input.onResponseCreated(responseId);
+    await recordGraphResponse(ticket, responseId, db);
+    ticket = { ...ticket, responseId };
+    await input.onResponseCreated?.(responseId);
   }
   while (responseBody.status === "queued" || responseBody.status === "in_progress") {
     if (!responseId) throw new Error("OpenAI response is missing its identity");
@@ -261,6 +299,7 @@ export async function extractCompanyGraphRelationships(input: {
     responseBody = await response.json() as Record<string, unknown>;
     if (!response.ok) throw new Error(`OpenAI response retrieval failed (${response.status}); retry saved response`);
   }
+  await settleGraphBudget(ticket, responseBody, db, now());
   if (responseBody.status && responseBody.status !== "completed") {
     throw new Error(`OpenAI response ended with ${String(responseBody.status)}; operator review required`);
   }
