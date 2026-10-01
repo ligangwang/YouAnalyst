@@ -14,6 +14,7 @@ test.beforeAll(async () => {
   const bundle = await build({
     stdin: {
       contents: `
+        import React from "react";
         import { createRoot } from "react-dom/client";
         import AuthRoutePage from "./src/app/auth/page";
         import { FollowedCompaniesPage } from "./src/components/followed-companies-page";

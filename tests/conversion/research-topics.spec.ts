@@ -9,6 +9,7 @@ let html: string;
 test.beforeAll(async () => {
   const mock = path.resolve("tests/conversion/fixtures/mocks.tsx");
   const bundle = await build({ stdin: { contents: `
+    import React from "react";
     import {createRoot} from "react-dom/client";
     import {InfrastructureResearchPage} from "./src/components/infrastructure-research-page";
     import {infrastructureTopics} from "./src/lib/research/infrastructure-topics";

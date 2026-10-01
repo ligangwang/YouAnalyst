@@ -112,8 +112,8 @@ test("private list separates historic source dates and clears when the account c
   await page.getByRole("button",{name:"更新",exact:true}).click();
   await page.getByRole("button", {name:"证据更新",exact:true}).click();
   await page.getByText("查看证据", {exact:true}).click();
-  await expect(page.getByText("资料发布日期: 2024-01-02", { exact: true })).toBeVisible();
-  await expect(page.getByText("事件／宣布日期: 未明确", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article").locator("details").getByText("资料发布日期: 2024-01-02", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article").getByText("事件发生日期未明确；上方日期不代表新发生的业务事件。", { exact: true })).toBeVisible();
   await expect(page.getByText("收录／复核: 2026-09-15", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "在图谱中打开" })).toHaveAttribute("href", "/zh-cn?company=US%3AAMD&relationship=amd-openai");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
