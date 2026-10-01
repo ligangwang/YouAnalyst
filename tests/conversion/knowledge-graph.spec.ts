@@ -1157,7 +1157,9 @@ test("relationship labels always have a visible company endpoint",async({page})=
 });
 
 
-test("company labels keep their placement during rotation and after release",async({page})=>{
+for (const run of [1, 2, 3]) test(`company labels keep their placement during rotation and after release (run ${run})`,async({page})=>{
+ // The bounded scan may wait 500 ms for each of the 129 projected candidates.
+ test.setTimeout(90_000);
  await page.emulateMedia({reducedMotion:"reduce"});
  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
  await page.goto("http://graph.test/map?lang=en");
@@ -1194,6 +1196,10 @@ test("company labels keep their placement during rotation and after release",asy
  await page.waitForTimeout(1000);
  await expect(canvas).toHaveAttribute("data-camera","idle");
  expect(await sides()).toEqual(held);
+ const highlightedIds=()=>page.locator('[data-highlighted="true"]').evaluateAll(els=>els.map(el=>el.getAttribute('data-company-id')).join());
+ await page.mouse.move(1,1);
+ await expect.poll(highlightedIds).toBe('');
+ await expect.poll(sides).toEqual(held);
  const hiddenPoints=await page.locator('[data-company-id]').evaluateAll(els=>els.filter(el=>getComputedStyle(el).visibility==='hidden').map(el=>{
    const box=el.parentElement!.getBoundingClientRect();
    return {id:el.getAttribute('data-company-id')!,x:box.x+box.width/2,y:box.y+box.height/2};
@@ -1202,16 +1208,19 @@ test("company labels keep their placement during rotation and after release",asy
  // Raycasting can hit a nearer point or edge in this dense graph. Inspect every
  // exposed candidate, and wait for React/WebGL hover state instead of assuming
  // it has committed after a fixed 80 ms on a busy CI runner.
- const highlightedIds=()=>page.locator('[data-highlighted="true"]').evaluateAll(els=>els.map(el=>el.getAttribute('data-company-id')).join());
  for(const point of hiddenPoints){
-   const prior=await highlightedIds();
+   // Clear the prior ray hit before probing a new point. Pointer-out and a new
+   // pointer-move can commit separately; the first highlight change is not
+   // necessarily the final hit for this coordinate.
+   await page.mouse.move(1,1);
+   await expect.poll(highlightedIds).toBe('');
    await page.mouse.move(point.x,point.y);
    const label=page.locator(`[data-company-id="${point.id}"]`);
-   // One pointer move commits its hover in a single render, so the first change is the result.
-   await expect.poll(highlightedIds,{timeout:500,intervals:[50,100]}).not.toBe(prior).catch(()=>{});
    // Endpoints of a hovered edge are highlighted too, but only a hovered point reveals its
-   // name; require this company to be the sole highlight so an edge hit is skipped.
-   if(await highlightedIds()!==point.id)continue;
+   // name. Wait for this company's settled hover, not an intermediate highlight
+   // change; nearer points or edges still do not qualify as the requested hit.
+   const hit=await expect.poll(highlightedIds,{timeout:500,intervals:[50,100]}).toBe(point.id).then(()=>true,()=>false);
+   if(!hit)continue;
    // The reveal is applied by the next demand frame; allow a slow CI frame but still require it.
    await expect.poll(()=>label.evaluate(el=>getComputedStyle(el).visibility),{timeout:10000}).toBe('visible');
    await expect(label).toBeVisible();
@@ -1221,7 +1230,7 @@ test("company labels keep their placement during rotation and after release",asy
  expect(revealed, `No hidden label revealed among ${hiddenPoints.length} exposed points`).toBe(true);
  await page.mouse.move(1,1);
  await expect.poll(sides).toEqual(held);
- await page.screenshot({path:'output/stable-rotation-'+test.info().project.name+'.png'});
+ await page.screenshot({path:`output/stable-rotation-${test.info().project.name}-${run}.png`});
 });
 
 
