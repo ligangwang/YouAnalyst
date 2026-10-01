@@ -48,7 +48,7 @@ test("coverage rejects wrong dates, identities, markets and invalid closes", () 
   assert.deepEqual(mapEodCoverage(["AMD", "NVDA", "TSM", "AVGO"], date, prices, new Set(["AMD", "TSM"])), { runDate: date, requested: 4, cached: 1, fetched: 1, missing: ["TSM", "AVGO"] });
 });
 
-test("the EOD job fetches and persists all 67 map prices with zero predictions, reuses cache, and reports gaps", async t => {
+test("the EOD job fetches and persists all 68 map prices with zero predictions, reuses cache, and reports gaps", async t => {
   const previousApp = globalThis.__adminApp;
   const previousToken = process.env.EODHD_API_TOKEN;
   const previousTwelve = process.env.TWELVE_DATA_API_KEY;
@@ -68,11 +68,12 @@ test("the EOD job fetches and persists all 67 map prices with zero predictions, 
   t.mock.method(console, "error", recordLog);
   const companies = graph.nodes.filter(node => node.kind === "COMPANY").map(node => ({ id: node.id, data: () => ({ name: node.name || node.id, status: "PUBLISHED", aiGraph: { status: "PUBLISHED", stageIds: [], stages: [], memberships: [], sources: [], order: node.order, asOf: runDate } }) }));
   const db = {
+    getAll: async (...refs: ({ get: () => unknown } | { fieldMask: string[] })[]) => Promise.all(refs.filter((ref): ref is { get: () => unknown } => "get" in ref).map(ref => ref.get())),
     runTransaction: async (work: (tx: unknown) => Promise<unknown>) => work({ getAll: (...refs: {get: () => unknown}[]) => Promise.all(refs.map(ref => ref.get())), get: (ref: { get: () => unknown }) => ref.get(), set: (ref: { set: (v: unknown) => unknown }, value: unknown) => ref.set(value) }),
     collection: (name: string) => {
       const query = { where: () => query, orderBy: () => query, limit: () => query,
         get: async () => ({ docs: name === "companies" ? companies : [], empty: name !== "companies", size: name === "companies" ? companies.length : 0 }),
-        doc: (id: string) => ({ firestore: db, get: async () => ({ exists: documents.has(`${name}/${id}`), data: () => documents.get(`${name}/${id}`), get: (key: string) => documents.get(`${name}/${id}`)?.[key] }),
+        doc: (id: string) => ({ firestore: db, get: async () => ({ id, exists: documents.has(`${name}/${id}`), data: () => documents.get(`${name}/${id}`), get: (key: string) => documents.get(`${name}/${id}`)?.[key] }),
           create: async (value: Record<string, unknown>) => { documents.set(name + "/" + id, value); },
           update: async (value: Record<string, unknown>) => { documents.set(name + "/" + id, { ...documents.get(name + "/" + id), ...value }); },
           set: async (value: Record<string, unknown>) => { documents.set(`${name}/${id}`, { ...documents.get(`${name}/${id}`), ...value }); } }),
@@ -92,14 +93,14 @@ test("the EOD job fetches and persists all 67 map prices with zero predictions, 
   });
   const first = await runDailyEodMaintenance({ market: "US", runDate, limit: 1 });
   assert.equal(first.candidatePredictions, 0);
-  assert.equal(new Set(requested).size, 67);
-  assert.equal(first.priceLoad.loaded, 67);
-  assert.deepEqual(first.priceLoad.mapCoverage, { runDate, requested: 67, cached: 0, fetched: 67, missing: [] });
-  assert.equal([...documents.keys()].filter(key => key.startsWith("eod_prices/")).length, 67);
+  assert.equal(new Set(requested).size, 68);
+  assert.equal(first.priceLoad.loaded, 68);
+  assert.deepEqual(first.priceLoad.mapCoverage, { runDate, requested: 68, cached: 0, fetched: 68, missing: [] });
+  assert.equal([...documents.keys()].filter(key => key.startsWith("eod_prices/")).length, 68);
   assert.deepEqual((documents.get(`eod_runs/US_${runDate}`)?.priceLoad as { mapCoverage: unknown } | undefined)?.mapCoverage, first.priceLoad.mapCoverage);
   const second = await runDailyEodMaintenance({ market: "US", runDate, limit: 1 });
-  assert.equal(requested.length, 67);
-  assert.equal(second.priceLoad.mapCoverage?.cached, 67);
+  assert.equal(requested.length, 68);
+  assert.equal(second.priceLoad.mapCoverage?.cached, 68);
   documents.delete(`eod_prices/US_TSM_${runDate}`);
   failTsm = true;
   const third = await runDailyEodMaintenance({ market: "US", runDate, limit: 1 });

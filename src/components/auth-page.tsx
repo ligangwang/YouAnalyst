@@ -6,14 +6,19 @@ import { useLocale } from "./providers/locale-provider";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
-import { safeAuthDestination } from "@/lib/auth-continuation";
+import { isFollowingAuthDestination, safeAuthDestination } from "@/lib/auth-continuation";
 import { trackEvent } from "@/lib/analytics";
 import { mapAuthCompany } from "@/lib/industry-graph/saved-companies";
 import { saveCompanyToAccount } from "@/lib/save-company";
 import { companyFollowIntent, persistCompanyFollow } from "@/lib/company-follow-intent";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 
-const authChinese: Record<string, string> = {"Signed in":"已登录","Continue to your research.":"继续你的研究。","Saving…":"保存中…","Continue":"继续","Go to feed":"查看动态","Create your YouAnalyst account":"创建 YouAnalyst 账号","Sign in to YouAnalyst":"登录 YouAnalyst","Turn your research into a record you can revisit. Keep bullish and bearish calls in watchlists and see how prices move after each call.":"将研究化为可以回顾的记录。在自选股中保存看多或看空观点，观察发布后的价格变化。","Your first watchlist is ready automatically.":"首个自选股列表将自动创建。","Your company and direction will carry through. Review your call before publishing; creating an account does not publish it.":"公司与方向将自动保留。请在发布前确认观点；注册账号不会自动发布。","Choose a company, pick Bullish or Bearish, and confirm your call. Add your reasoning whenever you have something to say.":"选择公司，点击看多或看空，再确认观点。随时补充你的理由。","Continue with Google":"使用 Google 继续","or":"或","Email":"邮箱","Password":"密码","Use at least 6 characters.":"至少使用 6 个字符。","Create account":"创建账号","Sign in":"登录","Have an account? Sign in":"已有账号？登录","Need an account? Create one":"还没有账号？立即注册"};
+const authChinese: Record<string, string> = {
+  "Keep your research in one place": "保存关注，继续研究",
+  "Sign in or create an account to save and follow companies in your private list and track sourced updates.": "登录或注册即可将公司保存到私密关注列表，持续研究并查看有来源支持的更新。",
+  "No bullish or bearish call required.": "无需发表看多或看空判断。",
+  "You’ll return to your research after signing in.": "登录后将返回刚才的研究页面。",
+  "Signed in":"已登录","Continue to your research.":"继续你的研究。","Saving…":"保存中…","Continue":"继续","Go to feed":"查看动态","Create your YouAnalyst account":"创建 YouAnalyst 账号","Sign in to YouAnalyst":"登录 YouAnalyst","Turn your research into a record you can revisit. Keep bullish and bearish calls in watchlists and see how prices move after each call.":"将研究化为可以回顾的记录。在自选股中保存看多或看空观点，观察发布后的价格变化。","Your first watchlist is ready automatically.":"首个自选股列表将自动创建。","Your company and direction will carry through. Review your call before publishing; creating an account does not publish it.":"公司与方向将自动保留。请在发布前确认观点；注册账号不会自动发布。","Choose a company, pick Bullish or Bearish, and confirm your call. Add your reasoning whenever you have something to say.":"选择公司，点击看多或看空，再确认观点。随时补充你的理由。","Continue with Google":"使用 Google 继续","or":"或","Email":"邮箱","Password":"密码","Use at least 6 characters.":"至少使用 6 个字符。","Create account":"创建账号","Sign in":"登录","Have an account? Sign in":"已有账号？登录","Need an account? Create one":"还没有账号？立即注册"};
 
 export function AuthPage({ requestedNext, initialCreate = false }: { requestedNext?: string; initialCreate?: boolean }) {
   const { chinese } = useLocale();
@@ -21,6 +26,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   const router = useRouter();
   const destination = safeAuthDestination(requestedNext);
   const followIntent = companyFollowIntent(destination);
+  const isFollowing = isFollowingAuthDestination(destination);
   const followId = followIntent?.companyId;
   const [followCompany, setFollowCompany] = useState<{id:string; name:string} | null>(null);
   useEffect(() => {
@@ -46,7 +52,7 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const viewed = useRef(false);
-  const entryPoint = mapCompany ? "map_save" : destination?.startsWith("/predictions/new") ? "prediction" : "general";
+  const entryPoint = mapCompany ? "map_save" : isFollowing ? "following" : destination?.startsWith("/predictions/new") ? "prediction" : "general";
 
   useEffect(() => {
     if (loading || user || viewed.current) return;
@@ -123,12 +129,12 @@ export function AuthPage({ requestedNext, initialCreate = false }: { requestedNe
   return (
     <main className="mx-auto w-full max-w-xl px-4 py-16">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-6 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
-        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? <UiText text={`Keep ${mapCompany} on your map`} /> : callOutlook ? <UiText text={`Track your ${callOutlook}`} /> : isCreate ? t("Create your YouAnalyst account") : t("Sign in to YouAnalyst")}</h1>
+        <h1 className="mb-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">{mapCompany ? <UiText text={`Keep ${mapCompany} on your map`} /> : callOutlook ? <UiText text={`Track your ${callOutlook}`} /> : isFollowing ? t("Keep your research in one place") : isCreate ? t("Create your YouAnalyst account") : t("Sign in to YouAnalyst")}</h1>
         {followIntent && <h2 className="mb-2 text-xl font-semibold text-cyan-100">{chinese ? `关注 ${followName}` : `Follow ${followName}`}</h2>}
-        <p className="mb-4 text-sm text-slate-300">{followIntent ? (chinese ? "登录或注册即可将公司保存到私密关注列表，查看后续研究更新，并返回刚才的位置。无需发表投资判断。" : "Sign in or create an account to save this company to your private list, revisit its research and see updates. You’ll return to where you left off; no investment view is required.") : mapCompany ? <UiText text={`Create an account or sign in to save ${mapCompany}. Then return directly to its connections.`} /> : t("Turn your research into a record you can revisit. Keep bullish and bearish calls in watchlists and see how prices move after each call.")}</p>
+        <p className="mb-4 text-sm text-slate-300">{followIntent ? (chinese ? "登录或注册即可将公司保存到私密关注列表，查看后续研究更新，并返回刚才的位置。无需发表投资判断。" : "Sign in or create an account to save this company to your private list, revisit its research and see updates. You’ll return to where you left off; no investment view is required.") : mapCompany ? <UiText text={`Create an account or sign in to save ${mapCompany}. Then return directly to its connections.`} /> : isFollowing ? t("Sign in or create an account to save and follow companies in your private list and track sourced updates.") : t("Turn your research into a record you can revisit. Keep bullish and bearish calls in watchlists and see how prices move after each call.")}</p>
         {!mapCompany && !followIntent && <div className="mb-6 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4 text-sm text-slate-300">
-          <p className="font-medium text-cyan-100">{t("Your first watchlist is ready automatically.")}</p>
-          <p className="mt-2">{callOutlook ? t("Your company and direction will carry through. Review your call before publishing; creating an account does not publish it.") : t("Choose a company, pick Bullish or Bearish, and confirm your call. Add your reasoning whenever you have something to say.")}</p>
+          <p className="font-medium text-cyan-100">{isFollowing ? t("No bullish or bearish call required.") : t("Your first watchlist is ready automatically.")}</p>
+          <p className="mt-2">{isFollowing ? t("You’ll return to your research after signing in.") : callOutlook ? t("Your company and direction will carry through. Review your call before publishing; creating an account does not publish it.") : t("Choose a company, pick Bullish or Bearish, and confirm your call. Add your reasoning whenever you have something to say.")}</p>
         </div>}
 
         <button

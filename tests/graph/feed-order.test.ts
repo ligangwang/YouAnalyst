@@ -36,9 +36,9 @@ test("evidence for the same event is grouped under its event card", () => {
   assert.equal(entries.length, updates.length - 1);
 });
 
-test("feed orders by event date with undated items placed by collected date, or by collection", () => {
+test("feed orders by event date, then source publication, with collection kept separate", () => {
   const byEvent = orderFeed(groupFeedUpdates(updates), "event").map(e => e.item.id);
-  assert.deepEqual(byEvent, ["mu-amd:undated", "mu-amd:hbm", humain.id, "older"]);
+  assert.deepEqual(byEvent, ["mu-amd:hbm", humain.id, "mu-amd:undated", "older"]);
   const byAdded = orderFeed(groupFeedUpdates(updates), "added").map(e => e.item.id);
   assert.deepEqual(byAdded, ["older", "mu-amd:undated", humain.id, "mu-amd:hbm"]);
 });

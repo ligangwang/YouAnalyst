@@ -1,4 +1,5 @@
 import { predictionInstrument } from "@/lib/predictions/instrument";
+import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -107,7 +108,19 @@ export async function GET(request: NextRequest) {
     const prefixField = query.length === 1 && request.nextUrl.searchParams.get("scope") !== "all" ? "symbolPrefixes" : "searchPrefixes";
     const tickerSnapshot = await db.collection("companies").where(prefixField, "array-contains", query).limit(50).get();
 
-    const tickerItems: ScoredSearchItem[] = tickerSnapshot.docs
+    const editorialDocs: { id: string; data: () => Record<string, unknown> }[] = [];
+    // Research discovery only. Do not fabricate tradeable/prediction-enabled instruments.
+    // Exact reads keep hidden or invalid remote records authoritative even when search indexes omit them.
+    if (request.nextUrl.searchParams.get("scope") === "all") {
+      const candidates = NVIDIA_EDITORIAL_COMPANIES.filter(company => [company.symbol, company.name, ...Object.values(company.names as Record<string, string> ?? {})]
+        .some(value => typeof value === "string" && value.toLowerCase().split(/\s+/).some((_, i, words) => words.slice(i).join(" ").startsWith(query))));
+      for (const company of candidates) {
+        const existing = await db.collection("companies").doc(company.id).get();
+        if (!existing.exists && !tickerSnapshot.docs.some(doc => doc.id === company.id)) editorialDocs.push({ id: company.id, data: () => ({ ...company, market: company.id.startsWith("US:") ? "US" : "GLOBAL" }) });
+      }
+    }
+
+    const tickerItems: ScoredSearchItem[] = [...tickerSnapshot.docs, ...editorialDocs]
       .filter(doc => !doc.data().status || ["PUBLISHED", "DIRECTORY"].includes(doc.data().status))
       .filter(doc => request.nextUrl.searchParams.get("scope") === "all" || (doc.data().listingStatus !== "PRIVATE" && ((doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true) || (request.nextUrl.searchParams.get("scope") === "calls" && predictionInstrument(doc.id)?.market === "CN_A"))))
       .map((doc) => toSearchItem(doc.id, doc.data()))

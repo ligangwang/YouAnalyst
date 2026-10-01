@@ -25,6 +25,7 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
   await page.goto(origin+"/en/watchlists/following");
   await page.getByRole("button",{name:"Updates",exact:true}).click();
   await expect(page.getByRole("heading",{name:"Customer expansion"})).toBeVisible();
+  await expect(page.getByRole("region", { name: "Research summary", exact: true })).toContainText("Customer expansion");
   await expect(page.getByLabel("Why this appears")).toContainText("recorded customer of AMD");
   await expect(page.getByTitle("Earlier event, added later. Collection is not a new business event.")).toBeVisible();
   await expect(page.getByText("marks an earlier event that was collected recently.", { exact: false })).toHaveCount(1);
@@ -34,6 +35,7 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
   await page.getByRole("checkbox",{name:"Include one-hop suppliers / customers"}).uncheck();
   await expect(page.getByText("No reliable updates available for these companies yet.")).toBeVisible();
   await expect(page.getByRole("heading",{name:"Customer expansion"})).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Research summary", exact: true })).toHaveCount(0);
 });
 test.beforeEach(({ page }) => { page.on("pageerror", error => { throw error; }); });
 test.beforeAll(async () => {
@@ -110,8 +112,8 @@ test("private list separates historic source dates and clears when the account c
   await page.getByRole("button",{name:"更新",exact:true}).click();
   await page.getByRole("button", {name:"证据更新",exact:true}).click();
   await page.getByText("查看证据", {exact:true}).click();
-  await expect(page.getByText("资料发布日期: 2024-01-02", { exact: true })).toBeVisible();
-  await expect(page.getByText("事件／宣布日期: 未明确", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article").locator("details").getByText("资料发布日期: 2024-01-02", { exact: true })).toBeVisible();
+  await expect(page.getByRole("article").getByText("事件发生日期未明确；上方日期不代表新发生的业务事件。", { exact: true })).toBeVisible();
   await expect(page.getByText("收录／复核: 2026-09-15", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "在图谱中打开" })).toHaveAttribute("href", "/zh-cn?company=US%3AAMD&relationship=amd-openai");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

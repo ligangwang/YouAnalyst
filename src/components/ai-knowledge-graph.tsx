@@ -42,7 +42,7 @@ function ViewIcon({ view }: { view: IndustryView }) {
     {view === "table" ? <><path d="M9 5h12M9 12h12M9 19h12" /><path d="M3 5h1M3 12h1M3 19h1" /></> : (view === "tree" || view === "hierarchy") ? <><rect x="9" y="2" width="6" height="5" rx="1" /><path d="M12 7v5M5 17v-5h14v5" /><rect x="2" y="17" width="6" height="5" rx="1" /><rect x="16" y="17" width="6" height="5" rx="1" /></> : <><path d="m6 7 10-2M6 7l5 11M18 5l-7 13" /><circle cx="5" cy="6" r="3" /><circle cx="19" cy="4" r="3" /><circle cx="11" cy="19" r="3" /></>}
   </svg>;
 }
-export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", introduction, allowedRelationshipIds }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; introduction?: React.ReactNode; allowedRelationshipIds?: string[] }) {
+export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", startingPoints, introduction, allowedRelationshipIds }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; startingPoints?: React.ReactNode; introduction?: React.ReactNode; allowedRelationshipIds?: string[] }) {
   const { text, locale } = useLocale();
   const defaultView: IndustryView = "graph";
   const view = useSyncExternalStore(subscribeView, () => {
@@ -206,6 +206,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
       {([['graph','Relationship graph','关系图谱'],['tree','Industry tree','产业树'],['hierarchy','Company hierarchy','公司层级图'],['table','Company list','公司列表']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" aria-label={text(en,zh)} id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}><ViewIcon view={id} />{text(id==='table'?'List':id==='tree'?'Tree':id==='hierarchy'?'Hierarchy':'Graph',id==='table'?'列表':id==='tree'?'树状图':id==='hierarchy'?'层级图':'关系图')}</button>)}
     </div></header>
+    {startingPoints}
     <UniverseMusic active={status==="ready"&&(view==="graph"||(view==="tree"&&companies.length>0))}/>
     <div hidden={view!=='table'}><div className={styles.sharedFilters}>
     <div className={styles.controls}>
@@ -276,4 +277,3 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     </details>}
   </Container>{!allowedRelationshipIds && !treeView && <AiMapDirectory graph={graph} status={status} onRetry={() => { setStatus("loading"); setRetry(n => n + 1); }} />}</>;
 }
-

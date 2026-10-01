@@ -1,3 +1,5 @@
+import { unlocalizedPath } from "./i18n/urls";
+
 /** Accept only same-site paths before passing a continuation to the router. */
 export function safeAuthDestination(requested: string | null | undefined): string | null {
   if (!requested?.startsWith("/") || requested.startsWith("//")) return null;
@@ -20,6 +22,17 @@ export function safeAuthDestination(requested: string | null | undefined): strin
   } catch {
     return null;
   }
+}
+
+/** Research-list entry points need account copy, without a call-making prerequisite. */
+export function isFollowingAuthDestination(requested: string | null | undefined): boolean {
+  const destination = safeAuthDestination(requested);
+  if (!destination) return false;
+  const url = new URL(destination, "https://youanalyst.invalid");
+  const pathname = unlocalizedPath(url.pathname).replace(/\/$/, "");
+  const scopes = url.searchParams.getAll("scope");
+  return pathname === "/watchlists/following" ||
+    (pathname === "/feed" && scopes.length === 1 && scopes[0] === "following");
 }
 
 export function predictionSignInHref(ticker: string, watchlistId: string, direction?: "UP" | "DOWN"): string {

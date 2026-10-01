@@ -4,6 +4,7 @@ import { normalizeTicker } from "@/lib/predictions/types";
 import { absoluteUrl } from "@/lib/seo";
 import { isMapTicker } from "@/lib/industry-graph/directory";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "@/lib/company-graph/types";
+import { infrastructureTopics, RESEARCH_REVIEWED } from "@/lib/research/infrastructure-topics";
 import { localizedPath } from "@/lib/i18n/urls";
 
 function bilingual(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
@@ -18,7 +19,8 @@ export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
-  { url: absoluteUrl("/research"), lastModified: "2026-09-24", changeFrequency: "weekly", priority: 0.8 },
+  ...infrastructureTopics.map(topic => ({ url: absoluteUrl(`/research/${topic.slug}`), lastModified: RESEARCH_REVIEWED, changeFrequency: "weekly" as const, priority: 0.8 })),
+  { url: absoluteUrl("/research"), lastModified: RESEARCH_REVIEWED, changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/research/nvidia-ai-ecosystem"), lastModified: "2026-09-24", changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/research/amd-ai-ecosystem"), lastModified: "2026-09-17", changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/feed"), changeFrequency: "hourly", priority: 0.8 },

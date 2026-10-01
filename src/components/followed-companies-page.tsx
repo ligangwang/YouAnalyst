@@ -8,6 +8,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { companyRole, researchCompanyUrl } from "@/lib/knowledge-graph/research-view";
 import { companyUpdates, type CompanyUpdate } from "@/lib/knowledge-graph/company-updates";
+import { ResearchChangeSummary } from "./research-change-summary";
 import { CompanyChangeCard, LaterCollectionNote } from "./company-change-card";
 import { trackFollowingVisit } from "@/lib/analytics";
 
@@ -63,6 +64,7 @@ export function FollowedCompaniesPage({ feed = false }: { feed?: boolean }) {
             {[["BUSINESS", "Business events", "业务事件"], ["RESEARCH", "Evidence updates", "证据更新"], ["ALL", "All", "全部"]].map(([value,en,zh]) => <button key={value} aria-pressed={category === value} className="rounded-full border border-cyan-400/30 px-3 py-1 text-sm aria-pressed:bg-cyan-900" onClick={() => {setCategory(value);setLimit(20);}}>{text(en,zh)}</button>)}
             <label className="text-sm"><input type="checkbox" checked={includeNeighbors} onChange={e => {setIncludeNeighbors(e.target.checked);setLimit(20);}} /> {text("Include one-hop suppliers / customers", "包含一跳供应商／客户")}</label>
           </div>
+          {items && graph && <ResearchChangeSummary graph={graph} items={items} following />}
           {!items ? !error && <p role="status" className="mt-5">{text("Loading updates…", "加载更新中…")}</p> : !items.length ? <p className="mt-5 rounded-xl border border-dashed border-white/20 p-5">{text("No reliable updates available for these companies yet.", "这些公司暂时没有可核实的更新。")}</p> : <ol className="mt-5 space-y-4">{items.slice(0, limit).map(item => graph && <li key={item.id}><CompanyChangeCard item={item} graph={graph} /></li>)}</ol>}{items && items.length > limit && <button className="mt-5 rounded-full border border-cyan-400/30 px-4 py-2 text-sm text-cyan-200" onClick={() => setLimit(n => n + 20)}>{text("Show more", "显示更多")}</button>}
         </section>
       </>}

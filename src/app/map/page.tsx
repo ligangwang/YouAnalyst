@@ -3,6 +3,8 @@ import { AiKnowledgeGraph } from "@/components/ai-knowledge-graph";
 import { redirect } from "next/navigation";
 import { localizedMetadata } from "@/lib/i18n/server";
 import { ResearchDiscovery } from "@/components/research-discovery";
+import { ResearchStartingPoints } from "@/components/research-starting-points";
+import { researchStartingPoints } from "@/lib/research/starting-points";
 
 export const dynamic = "force-dynamic";
 type MapSearchParams = { event?: string | string[]; relationship?: string | string[]; company?: string | string[]; market?: string | string[]; q?: string | string[]; view?: string | string[] };
@@ -12,5 +14,5 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Home({ searchParams }: { searchParams: Promise<MapSearchParams> }) {
   const { company, view, q, event, relationship } = await searchParams;
   if (view === "filings") redirect("/feed");
-  return <AiKnowledgeGraph introduction={<ResearchDiscovery/>} key={JSON.stringify([company,event,relationship])} initialEvent={typeof event === "string" ? event : ""} initialEdge={typeof relationship === "string" ? relationship : ""} initialCompany={typeof company === "string" ? company : ""} initialQuery={typeof q === "string" ? q : ""} />;
+  return <AiKnowledgeGraph startingPoints={<ResearchStartingPoints entries={researchStartingPoints}/>} introduction={<ResearchDiscovery/>} key={JSON.stringify([company,event,relationship])} initialEvent={typeof event === "string" ? event : ""} initialEdge={typeof relationship === "string" ? relationship : ""} initialCompany={typeof company === "string" ? company : ""} initialQuery={typeof q === "string" ? q : ""} />;
 }

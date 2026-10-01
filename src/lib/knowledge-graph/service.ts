@@ -2,6 +2,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { KnowledgeGraph } from "./model";
 import { graphFromMarket, RELATIONSHIP_COLLECTION, type MarketCompany, type MarketRelationship } from "./market-store";
 import { attachCnMarketCaps } from "./cn-market-caps";
+import { loadNvidiaManufacturingProjection } from "./nvidia-manufacturing-projection";
 let cached: { graph: KnowledgeGraph; expires: number; revision: string } | undefined;
 let pending: { promise: Promise<KnowledgeGraph>; revision: string } | undefined;
 export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
@@ -30,7 +31,8 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
       const profiles = await db.getAll(...neighbors.slice(i, i + 200).map(id => db.collection("companies").doc(id)));
       rows.push(...profiles.filter(d => d.exists).map(d => ({ ...d.data(), id: d.id }) as MarketCompany));
     }
-    const graph = graphFromMarket(rows, relationships);
+    const projection = await loadNvidiaManufacturingProjection(db, rows, relationships);
+    const graph = graphFromMarket(projection.companies, projection.records);
     // Project only public valuation summaries; reuse the graph's five-minute cache.
     const usCompanies = graph.nodes.filter(n => n.kind === "COMPANY" && n.id.startsWith("US:"));
     try {

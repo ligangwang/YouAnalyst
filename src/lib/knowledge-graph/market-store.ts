@@ -29,7 +29,7 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
       nodes.set(s.id, { ...s, labels: { ...old?.labels, ...s.labels } });
     }
     for (const s of graph?.sources ?? []) sources.set(s.id, s);
-    nodes.set(c.id, { id: c.id, kind: "COMPANY", privateValuation: projectPrivateValuation(c.id, c.listingStatus, c.privateValuationCheck), name: String(c.name), names: Object.fromEntries(Object.entries((c.names && typeof c.names === "object" ? c.names : {}) as Record<string, unknown>).filter(([key,value]) => ["en", "zh-CN"].includes(key) && typeof value === "string" && value.trim())), aliases: Array.isArray(c.aliases) ? c.aliases.filter((a): a is string => typeof a === "string") : [], symbol: String(c.symbol ?? (c.id.startsWith("ORG:") ? "" : c.id.split(":")[1])), market: c.id.startsWith("US:") ? "US" : /^(XSHG|XSHE):/.test(c.id) ? "CN_A" : "GLOBAL", ...companyGeography(c), summary: String(c.description ?? ""), order: graph?.order ?? 1000, stageIds, sourceIds: graph?.sources.map(s => s.id) ?? [] });
+    nodes.set(c.id, { id: c.id, kind: "COMPANY", ...(typeof c.editorialReviewedAt === "string" ? { editorialReviewedAt: c.editorialReviewedAt } : {}), privateValuation: projectPrivateValuation(c.id, c.listingStatus, c.privateValuationCheck), name: String(c.name), names: Object.fromEntries(Object.entries((c.names && typeof c.names === "object" ? c.names : {}) as Record<string, unknown>).filter(([key,value]) => ["en", "zh-CN"].includes(key) && typeof value === "string" && value.trim())), aliases: Array.isArray(c.aliases) ? c.aliases.filter((a): a is string => typeof a === "string") : [], symbol: String(c.symbol ?? (c.id.startsWith("ORG:") ? "" : c.id.split(":")[1])), market: c.id.startsWith("US:") ? "US" : /^(XSHG|XSHE):/.test(c.id) ? "CN_A" : "GLOBAL", ...companyGeography(c), summary: String(c.description ?? ""), order: graph?.order ?? 1000, stageIds, sourceIds: graph?.sources.map(s => s.id) ?? [] });
     for (const e of graph?.memberships ?? []) relationships.set(e.id, e);
     if (graph?.asOf) dates.push(graph.asOf);
   }
@@ -48,6 +48,7 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
       if (!linked.length) return [];
       return [{ state: String(f.state), scope: f.scope, sourceIds: linked,
         ...(typeof f.id === "string" ? { id: f.id } : {}),
+        ...(typeof f.editorialReviewedAt === "string" ? { editorialReviewedAt: f.editorialReviewedAt } : {}),
         ...(typeof f.limitation === "string" ? { limitation: f.limitation } : {}),
         ...(typeof f.reviewedAt === "string" ? { reviewedAt: f.reviewedAt } : {}),
         ...(typeof f.eventDate === "string" ? { eventDate: f.eventDate } : {}),

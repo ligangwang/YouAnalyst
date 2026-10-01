@@ -4,8 +4,13 @@ import { readFileSync } from "node:fs";
 import { researchFilters, selectedConnections, researchConnections, researchCompanies, layerSummaries, roadmap, LAYERS, REVIEWED, RESEARCH_PATH } from "../../src/lib/research/nvidia-ecosystem";
 import { companyLinks, deepDives } from "../../src/lib/research/deep-dives";
 import { isLocalizedPage } from "../../src/lib/i18n/urls";
+import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../../src/lib/knowledge-graph/market-store";
+import { projectNvidiaManufacturing } from "../../src/lib/knowledge-graph/nvidia-manufacturing-projection";
+import type { KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 
-const graph = JSON.parse(readFileSync("data/ai-supply-chain/ai-us.json", "utf8")) as { relationships: { id: string; type: string; commercialStatus: string; facts?: { state: string }[] }[] };
+const seed = JSON.parse(readFileSync("data/ai-supply-chain/ai-us.json", "utf8")) as KnowledgeGraph;
+const projected = projectNvidiaManufacturing(seed.nodes.filter(node => node.kind === "COMPANY").map(node => ({ ...node, status: "PUBLISHED", inGraph: { status: "PUBLISHED", stageIds: [], stages: [], memberships: [], sources: [], order: 1, asOf: seed.asOf } })) as MarketCompany[], seed.relationships.filter(edge => edge.type !== "PARTICIPATES_IN").map(edge => ({ ...edge, status: "PUBLISHED", evidence: seed.sources.filter(source => edge.sourceIds.includes(source.id)) })) as MarketRelationship[]);
+const graph = graphFromMarket(projected.companies, projected.records);
 // Mirrors relationshipExplanation's planned test in src/lib/knowledge-graph/research-view.ts.
 const edgeStage = (e: typeof graph.relationships[number]) => e.type === "PLANNED_ADOPTER_OF" || (e.facts?.length ? e.facts.every(f => f.state === "ANNOUNCED") : e.commercialStatus === "ANNOUNCED") ? "announced" : "shipped";
 
@@ -46,7 +51,9 @@ test("company links resolve to directory pages or stay unlinked", () => {
   assert.deepEqual(companyLinks("US:NVDA", "/en", "US:TSM__SUPPLIER_OF__US:NVDA"), { page: "/en/ticker/NVDA", map: "/en?company=US%3ANVDA&relationship=US%3ATSM__SUPPLIER_OF__US%3ANVDA" });
   assert.equal(companyLinks("ORG:ANTHROPIC", "/zh-cn")?.page, "/zh-cn/company/ORG%3AANTHROPIC");
   assert.equal(companyLinks("KR:SK-HYNIX", "/en"), null);
-  assert(researchCompanies.some(c => c.symbol === null), "companies outside the directory stay unlinked");
+  assert.equal(companyLinks("US:SKHY", "/en")?.page, "/en/ticker/SKHY");
+  assert.equal(companyLinks("ORG:SAMSUNG-ELECTRONICS", "/en")?.page, "/en/company/ORG%3ASAMSUNG-ELECTRONICS");
+  assert(researchCompanies.some(c => c.id === "ORG:SAMSUNG-ELECTRONICS" && c.symbol === null), "a global directory profile need not have a US ticker");
 });
 
 test("the home teaser and research index list every deep-dive", () => {
