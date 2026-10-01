@@ -28,7 +28,7 @@ function run(target:string,extra:Record<string,string>={}) {
       else
         bash scripts/deploy-background-jobs.sh "$TARGET"
       fi
-    `],{encoding:'utf8',timeout:10000,env:{...process.env,CALLS:path.join(dir,'calls').replaceAll('\\','/'),TARGET:target,GCP_PROJECT_ID:'demo',GIT_SHA:'commit',SEC_USER_AGENT:'test contact',WEB_RUNTIME_SERVICE_ACCOUNT:'',WEB_SA:'web@demo.iam.gserviceaccount.com',CLOUD_RUN_SERVICE_PRODUCTION:'web',...extra}});
+    `],{encoding:'utf8',timeout:10000,env:{...process.env,CALLS:path.join(dir,'calls').replaceAll('\\','/'),TARGET:target,GCP_PROJECT_ID:'demo',GIT_SHA:'commit',SEC_USER_AGENT:'test contact',WEB_RUNTIME_SERVICE_ACCOUNT:'',WEB_SA:'web@demo.iam.gserviceaccount.com',ENABLE_SEC_FILING_PIPELINE:'0',CLOUD_RUN_SERVICE_PRODUCTION:'web',...extra}});
     assert.ifError(result.error);
     let calls='';try{calls=readFileSync(path.join(dir,'calls'),'utf8');}catch{}
     return {...result,calls};

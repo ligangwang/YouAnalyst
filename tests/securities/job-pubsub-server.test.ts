@@ -28,3 +28,29 @@ test("shared push handler validates routing and acknowledges only successful pro
   assert.equal((await post(body())).status, 503);
   assert.equal(calls, 2);
 });
+
+test("additional subscriptions use their own parser and reject cross-topic payloads", async t => {
+  t.mock.method(console, "info", () => {}); t.mock.method(console, "error", () => {});
+  const parse = (kind: string) => (value: unknown) => {
+    const input = value as { batchId?: string; type?: string };
+    if (input?.type !== kind || !input.batchId) throw Error("Wrong event type for subscription");
+    return { batchId: input.batchId, type: kind };
+  };
+  const calls: string[] = [];
+  const server = createJobSubscriber({ project: "demo", subscription: "requests", job: "fixture",
+    parse: parse("request"), additionalSubscriptions: [{ subscription: "filings", parse: parse("filing") }],
+    process: async request => { calls.push(request.type); return { completed: 1 }; } });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const post = (subscription: string, type: string) => fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/pubsub`, {
+    method: "POST", body: JSON.stringify({ subscription: `projects/demo/subscriptions/${subscription}`,
+      message: { data: Buffer.from(JSON.stringify({ batchId: "test", type })).toString("base64") } }) });
+  assert.equal((await post("requests", "request")).status, 204);
+  assert.equal((await post("filings", "filing")).status, 204);
+  assert.equal((await post("requests", "filing")).status, 503);
+  assert.equal((await post("filings", "request")).status, 503);
+  assert.equal((await post("unknown", "request")).status, 503);
+  assert.deepEqual(calls, ["request", "filing"]);
+  assert.throws(() => createJobSubscriber({ project: "demo", subscription: "same", job: "fixture", parse: parse("request"),
+    additionalSubscriptions: [{ subscription: "same", parse: parse("filing") }], process: async () => ({}) }), /Duplicate/);
+});

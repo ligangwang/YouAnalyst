@@ -1169,5 +1169,15 @@
   "Daily score moves | YouAnalyst": "每日得分变化 | YouAnalyst",
   "See today's top public stock calls and daily performance moves on YouAnalyst.": "查看 YouAnalyst 今日热门公开股票观点及每日表现变化。",
   "Track daily score changes and recent analyst performance moves on YouAnalyst.": "跟踪 YouAnalyst 每日得分变化及分析师近期表现。",
-  "YouAnalyst daily top call share card": "YouAnalyst 每日热门观点分享卡片"
+  "YouAnalyst daily top call share card": "YouAnalyst 每日热门观点分享卡片",
+  "Submit supply-chain and competitor graph requests. Background extraction continues after acceptance; refresh request history for progress.": "提交供应链与竞争关系图请求。请求受理后将在后台继续提取，请刷新请求记录查看进度。",
+  "Submitting...": "正在提交…",
+  "Queued": "已排队",
+  "Processing": "处理中",
+  "Queue regeneration": "排队重新生成",
+  "Queue retry": "排队重试",
+  "Queue extraction": "排队提取",
+  "Sign in with an admin account to queue graph extraction.": "请使用管理员账号登录以提交关系图提取请求。",
+  "Unable to queue company graph extraction.": "无法提交公司关系图提取请求。",
+  "Unable to confirm the graph extraction request.": "无法确认关系图提取请求。"
 }

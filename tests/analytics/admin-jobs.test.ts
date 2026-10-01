@@ -171,3 +171,25 @@ test("failed worker retains detailed results and failure from the same attempt a
   assert.deepEqual(page.records[0].summary.coverage, { cached: 67 });
   assert.equal((f.calls[2].data as { pageToken: string }).pageToken, "more-results");
 });
+
+
+test("filing collector history uses its dedicated Cloud Run job", async () => {
+  const f = fixture([{ executions: [] }]);
+  const page = await loadJobHistory({ job: "secFilings", view: "runs" }, f.request, "test-project");
+  assert.deepEqual(page.records, []);
+  assert.match(f.calls[0].url, /jobs\/collect-sec-filings-production\/executions/);
+});
+
+test("graph request publisher history is separate from graph processing attempts", async () => {
+  const publisher = fixture([{ executions: [] }]);
+  await loadJobHistory({ job: "companyGraph", view: "runs" }, publisher.request, "test-project");
+  assert.match(publisher.calls[0].url, /jobs\/refresh-company-graph-production\/executions/);
+  const worker = fixture([{ entries: [{ timestamp: "2026-10-01T00:00:00Z", jsonPayload: { runId: "graph-attempt" } }] },
+    { entries: [{ jsonPayload: { runId: "graph-attempt", message: "company-graph-batch: run_completed", completed: 1, requestId: "graph_request" } }] }]);
+  const page = await loadJobHistory({ job: "companyGraphBatches", view: "runs" }, worker.request, "test-project");
+  assert.equal(page.records[0].status, "Succeeded");
+  assert.equal(page.records[0].summary.requestId, "graph_request");
+  assert.match(JSON.stringify(worker.calls[0].data), /company-graph-batch/);
+  assert.match(JSON.stringify(worker.calls[0].data), /cloud_run_revision/);
+  assert.doesNotMatch(JSON.stringify(worker.calls[0].data), /sec-fundamentals-batch/);
+});

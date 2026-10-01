@@ -42,11 +42,15 @@ if [[ "${PUBSUB_BOOTSTRAP_IAM:-0}" == 1 ]]; then
   gcloud iam service-accounts add-iam-policy-binding "$invoker" --project "$GCP_PROJECT_ID" \
     --member "serviceAccount:$agent" --role roles/iam.serviceAccountTokenCreator --quiet >/dev/null
 fi
+filing_env=""
+if [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 ]]; then
+  filing_env="|SEC_FILINGS_FUNDAMENTALS_SUBSCRIPTION=sec-filings-fundamentals"
+fi
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --no-allow-unauthenticated \
   --command node --args dist/serve-sec-fundamentals.cjs --min-instances 0 --max-instances 1 \
   --concurrency 1 --timeout 600 --memory 1Gi --cpu 1 --cpu-throttling \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_RESULT_TOPIC=$result|FUNDAMENTALS_SUBSCRIPTION=$subscription" --quiet
+  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_RESULT_TOPIC=$result|FUNDAMENTALS_SUBSCRIPTION=$subscription$filing_env" --quiet
 gcloud run services add-iam-policy-binding "$service" --project "$GCP_PROJECT_ID" --region "$region" \
   --member "serviceAccount:$invoker" --role roles/run.invoker --quiet >/dev/null
 url="$(gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
@@ -61,3 +65,7 @@ else
 fi
 gcloud pubsub topics add-iam-policy-binding "$dead" --project "$GCP_PROJECT_ID" --member "serviceAccount:$agent" --role roles/pubsub.publisher --quiet >/dev/null
 gcloud pubsub subscriptions add-iam-policy-binding "$subscription" --project "$GCP_PROJECT_ID" --member "serviceAccount:$agent" --role roles/pubsub.subscriber --quiet >/dev/null
+
+if [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 ]]; then
+  bash scripts/deploy-sec-filings-pubsub.sh
+fi

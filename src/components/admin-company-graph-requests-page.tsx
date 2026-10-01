@@ -3,7 +3,7 @@
 import { UiText } from "@/components/ui-text";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 
 type GraphRequestStatus = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
@@ -24,6 +24,17 @@ type GraphRequestItem = {
 type RequestsResponse = {
   items?: GraphRequestItem[];
   error?: string;
+};
+
+type ExtractResponse = {
+  ok?: boolean;
+  error?: string;
+  status?: "QUEUED" | "ALREADY_QUEUED" | "AVAILABLE";
+  dispatch?: { status: "PUBLISHED" | "PENDING" };
+  // Transitional deployments without a queue topic still return a direct result.
+  edges?: unknown[];
+  cached?: boolean;
+  extraction?: { usageEvent?: { estimatedCostUsd?: number | null } | null } | null;
 };
 
 function formatDate(value: string | null): string {
@@ -72,13 +83,17 @@ export function AdminCompanyGraphRequestsPage() {
   const { user, loading, getIdToken } = useAuth();
   const [items, setItems] = useState<GraphRequestItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [queueError, setQueueError] = useState<string | null>(null);
   const [loadingQueue, setLoadingQueue] = useState(false);
   const [activeTicker, setActiveTicker] = useState<string | null>(null);
+  const submitting = useRef(false);
+  const [acceptedTickers, setAcceptedTickers] = useState<Set<string>>(new Set());
+  const [unconfirmedTickers, setUnconfirmedTickers] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
 
-  async function loadRequests() {
+  async function loadRequests(confirmHistory = false) {
     setLoadingQueue(true);
-    setError(null);
+    setQueueError(null);
 
     try {
       if (!user) {
@@ -100,10 +115,19 @@ export function AdminCompanyGraphRequestsPage() {
       if (!response.ok) {
         throw new Error(payload.error ?? "Unable to load company graph requests.");
       }
+      if (!Array.isArray(payload.items)) {
+        throw new Error("Unable to read company graph request history. Refresh to try again.");
+      }
 
-      setItems(payload.items ?? []);
+      setItems(payload.items);
+      const activeRequests = new Set(payload.items.filter((item) => item.status === "QUEUED" || item.status === "PROCESSING").map((item) => item.ticker));
+      setAcceptedTickers((current) => new Set([...current].filter((ticker) => activeRequests.has(ticker))));
+      if (confirmHistory) {
+        setUnconfirmedTickers(new Set());
+        setError(null);
+      }
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to load company graph requests.");
+      setQueueError(nextError instanceof Error ? nextError.message : "Unable to load company graph requests.");
     } finally {
       setLoadingQueue(false);
     }
@@ -118,23 +142,31 @@ export function AdminCompanyGraphRequestsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user]);
 
-  async function generateGraph(item: GraphRequestItem) {
+  async function queueGraph(item: GraphRequestItem) {
+    if (submitting.current || loadingQueue || unconfirmedTickers.has(item.ticker) || acceptedTickers.has(item.ticker) || item.status === "PROCESSING") {
+      return;
+    }
+
+    submitting.current = true;
     const shouldForce = item.status === "COMPLETED";
     const ticker = item.ticker;
+    let requestStarted = false;
+    let requestRejected = false;
     setActiveTicker(ticker);
     setError(null);
     setMessage(null);
 
     try {
       if (!user) {
-        throw new Error("Sign in with an admin account to generate graph data.");
+        throw new Error("Sign in with an admin account to queue graph extraction.");
       }
 
       const token = await getIdToken(true);
       if (!token) {
-        throw new Error("Sign in with an admin account to generate graph data.");
+        throw new Error("Sign in with an admin account to queue graph extraction.");
       }
 
+      requestStarted = true;
       const response = await fetch("/api/admin/company-graph/extract", {
         method: "POST",
         headers: {
@@ -146,29 +178,51 @@ export function AdminCompanyGraphRequestsPage() {
           force: shouldForce,
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as {
-        error?: string;
-        edges?: unknown[];
-        cached?: boolean;
-        extraction?: {
-          usageEvent?: {
-            estimatedCostUsd?: number | null;
-          } | null;
-        } | null;
-      };
+      const payload = (await response.json().catch(() => ({}))) as ExtractResponse;
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to generate company graph.");
+        // A timeout or server failure may happen after the durable write.
+        requestRejected = response.status >= 400 && response.status < 500 && response.status !== 408;
+        throw new Error(payload.error ?? "Unable to queue company graph extraction.");
+      }
+      const queued = payload.status === "QUEUED" || payload.status === "ALREADY_QUEUED";
+      const directResult = !payload.status && Array.isArray(payload.edges);
+      if (!payload.ok || (!queued && payload.status !== "AVAILABLE" && !directResult)) {
+        throw new Error("Unable to confirm the graph extraction request.");
       }
 
-      setMessage(payload.cached
-        ? `${ticker} graph is already current.`
-        : `${ticker} graph ${shouldForce ? "regenerated" : "generated"} with ${payload.edges?.length ?? 0} edges. Estimated OpenAI cost: ${formatCost(payload.extraction?.usageEvent?.estimatedCostUsd)}.`);
+      if (queued) {
+        setAcceptedTickers((current) => new Set(current).add(ticker));
+      }
+      // Keep the accepted state visible even if the history refresh fails.
+      setItems((current) => current.map((entry) => entry.ticker !== ticker ? entry : {
+        ...entry,
+        status: !queued ? "COMPLETED" : entry.status === "PROCESSING" ? "PROCESSING" : "QUEUED",
+        error: null,
+      }));
+      const acceptedMessage = directResult
+        ? payload.cached
+          ? `${ticker} graph is already current.`
+          : `${ticker} graph ${shouldForce ? "regenerated" : "generated"} with ${payload.edges!.length} edges. Estimated OpenAI cost: ${formatCost(payload.extraction?.usageEvent?.estimatedCostUsd)}.`
+        : payload.status === "AVAILABLE"
+          ? `${ticker} graph is already available.`
+          : payload.status === "ALREADY_QUEUED"
+            ? `${ticker} graph extraction is already queued or processing. Refresh request history for results.`
+            : `${ticker} graph ${shouldForce ? "regeneration" : "extraction"} queued. Processing continues in the background. Refresh request history for results.`;
+      setMessage(queued && payload.dispatch?.status === "PENDING"
+        ? `${acceptedMessage} The request is saved; worker dispatch is pending.`
+        : acceptedMessage);
       await loadRequests();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to generate company graph.");
+      if (requestStarted && !requestRejected) {
+        setUnconfirmedTickers((current) => new Set(current).add(ticker));
+        setError(`${ticker} request could not be confirmed. A durable request may already exist. Refresh request history before submitting again.`);
+      } else {
+        setError(nextError instanceof Error ? nextError.message : "Unable to queue company graph extraction.");
+      }
       await loadRequests();
     } finally {
+      submitting.current = false;
       setActiveTicker(null);
     }
   }
@@ -180,20 +234,21 @@ export function AdminCompanyGraphRequestsPage() {
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Company graph requests"} /></h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Generate queued supply-chain and competitor graphs one ticker at a time."} /></p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Submit supply-chain and competitor graph requests. Background extraction continues after acceptance; refresh request history for progress."} /></p>
         </div>
         <button
           type="button"
-          onClick={() => void loadRequests()}
-          disabled={loadingQueue}
+          onClick={() => void loadRequests(true)}
+          disabled={loadingQueue || activeTicker !== null}
           className="rounded-xl border border-cyan-400/35 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-60"
         >
           {loadingQueue ? <UiText text={"Refreshing..."} /> : <UiText text={"Refresh"} />}
         </button>
       </div>
 
-      {message ? <p className="mb-3 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-sm text-emerald-100">{<UiText text={message} />}</p> : null}
-      {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
+      {message ? <p role="status" className="mb-3 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-sm text-emerald-100">{<UiText text={message} />}</p> : null}
+      {error ? <p role="alert" className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
+      {queueError ? <p role="alert" className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={queueError} />}</p> : null}
 
       <section className="grid gap-3">
         {items.map((item) => (
@@ -221,11 +276,17 @@ export function AdminCompanyGraphRequestsPage() {
                 ><UiText text={"View ticker"} /></Link>
                 <button
                   type="button"
-                  onClick={() => void generateGraph(item)}
-                  disabled={activeTicker === item.ticker || item.status === "PROCESSING"}
+                  onClick={() => void queueGraph(item)}
+                  disabled={activeTicker !== null || loadingQueue || unconfirmedTickers.has(item.ticker) || acceptedTickers.has(item.ticker) || item.status === "PROCESSING"}
                   className="rounded-lg bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {activeTicker === item.ticker ? <UiText text={"Generating..."} /> : item.status === "COMPLETED" ? <UiText text={"Regenerate"} /> : <UiText text={"Generate"} />}
+                  {activeTicker === item.ticker ? <UiText text={"Submitting..."} />
+                    : unconfirmedTickers.has(item.ticker) ? <UiText text={"Refresh to verify"} />
+                      : acceptedTickers.has(item.ticker) && item.status === "QUEUED" ? <UiText text={"Queued"} />
+                        : item.status === "PROCESSING" ? <UiText text={"Processing"} />
+                          : item.status === "COMPLETED" ? <UiText text={"Queue regeneration"} />
+                            : item.status === "FAILED" ? <UiText text={"Queue retry"} />
+                              : <UiText text={"Queue extraction"} />}
                 </button>
               </div>
             </div>

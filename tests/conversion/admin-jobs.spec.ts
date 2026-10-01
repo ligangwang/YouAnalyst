@@ -201,3 +201,50 @@ test("admin starts the private valuation job from its own Run now button",async(
  expect(posts).toEqual(["/api/admin/jobs/private-valuations"]);
  expect(history).toContain("privateValuations");
 });
+
+test("SEC filing discovery separates published events from downstream processing", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const queries: string[] = [];
+  await page.route("**/*", route => {
+    const request = route.request(), url = new URL(request.url());
+    if (request.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/api/admin/me") return route.fulfill({ json: { isAdmin: true } });
+    if (url.pathname === "/api/admin/jobs") {
+      queries.push(url.searchParams.get("job") ?? "");
+      return route.fulfill({ json: { records: [{ id: "collector-1", execution: "collector-1", startedAt: "2026-10-01T00:00:00Z", status: "Succeeded", summary: { discovered: 3, published: 3 } }], nextPageToken: null } });
+    }
+    return route.abort();
+  });
+  await page.goto(origin);
+  await page.getByRole("combobox", { name: "Job", exact: true }).selectOption("secFilings");
+  await expect.poll(() => queries.at(-1)).toBe("secFilings");
+  await expect(page.getByText("Discovery queues filing events.", { exact: false })).toBeVisible();
+  await expect(page.getByText("discovered: 3 · published: 3", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scheduler deliveries", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run SEC fundamentals now", exact: true })).toHaveCount(0);
+});
+
+test("company graph publisher and subscriber histories distinguish queue acceptance from processing", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const queries: string[] = [];
+  await page.route("**/*", route => {
+    const request = route.request(), url = new URL(request.url());
+    if (request.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (url.pathname === "/api/admin/me") return route.fulfill({ json: { isAdmin: true } });
+    if (url.pathname === "/api/admin/jobs") {
+      queries.push(url.searchParams.get("job") ?? "");
+      return route.fulfill({ json: { records: [], nextPageToken: null } });
+    }
+    return route.abort();
+  });
+  await page.goto(origin);
+  await page.getByRole("combobox", { name: "Job", exact: true }).selectOption("companyGraph");
+  await expect.poll(() => queries.at(-1)).toBe("companyGraph");
+  await expect(page.getByText("A successful publisher run means requests were queued.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scheduler deliveries", exact: true })).toBeVisible();
+  await page.getByRole("combobox", { name: "Job", exact: true }).selectOption("companyGraphBatches");
+  await expect.poll(() => queries.at(-1)).toBe("companyGraphBatches");
+  await expect(page.getByText("Request and filing deliveries retry independently.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scheduler deliveries", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run SEC fundamentals now", exact: true })).toHaveCount(0);
+});

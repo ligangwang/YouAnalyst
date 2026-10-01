@@ -14,6 +14,9 @@ RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --pla
   && node_modules/.bin/esbuild scripts/serve-ticker-sync.ts --bundle --platform=node --packages=external --outfile=dist/serve-ticker-sync.cjs \
   && node_modules/.bin/esbuild scripts/serve-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-cn-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-eod-maintenance.ts --bundle --platform=node --packages=external --outfile=dist/serve-eod-maintenance.cjs \
+  && node_modules/.bin/esbuild scripts/collect-sec-filings.ts --bundle --platform=node --packages=external --outfile=dist/collect-sec-filings.cjs \
+  && node_modules/.bin/esbuild scripts/refresh-company-graph.ts --bundle --platform=node --packages=external --outfile=dist/refresh-company-graph.cjs \
+  && node_modules/.bin/esbuild scripts/serve-company-graph.ts --bundle --platform=node --packages=external --outfile=dist/serve-company-graph.cjs \
   && npm prune --omit=dev
 
 FROM node:22-bookworm-slim

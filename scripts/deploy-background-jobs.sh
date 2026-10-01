@@ -6,14 +6,30 @@ export GCP_REGION="${GCP_REGION:-us-central1}"
 case "${1:-}" in
   all) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance directory) ;;
   fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance) ;;
-  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|eod-maintenance|directory) targets=("$1") ;;
-  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync, eod-maintenance or directory' >&2; exit 1 ;;
+  sec-filings) targets=(sec-fundamentals company-graph sec-filings) ;;
+  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|eod-maintenance|directory|company-graph) targets=("$1") ;;
+  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync, eod-maintenance, company-graph, sec-filings or directory' >&2; exit 1 ;;
 esac
+# The filing/graph pipeline is an explicit production rollout. Disabled releases
+# keep every existing worker path and schedule unchanged.
+case "${ENABLE_SEC_FILING_PIPELINE:-0}" in 0|1) ;; *) echo 'ENABLE_SEC_FILING_PIPELINE must be 0 or 1' >&2; exit 1 ;; esac
+if [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 && ( "$1" == all || "$1" == fundamentals ) ]]; then
+  targets+=(company-graph sec-filings)
+fi
 # Validate every selected target before any build or mutation.
 for target in "${targets[@]}"; do
   job="refresh-$target-production"
   if [[ "$target" == directory ]]; then job=sync-cni-directory-production; fi
+  if [[ "$target" == sec-filings ]]; then job=collect-sec-filings-production; fi
   if [[ "$target" == sec-fundamentals ]]; then : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"; fi
+  if [[ "$target" == company-graph || "$target" == sec-filings ]]; then
+    [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 ]] || { echo 'Set ENABLE_SEC_FILING_PIPELINE=1 only after rollout review' >&2; exit 1; }
+    : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"
+    : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"
+    case "${COMPANY_GRAPH_QUEUE_BATCH_SIZE:-1}" in [1-5]) ;; *) echo 'COMPANY_GRAPH_QUEUE_BATCH_SIZE must be 1 through 5' >&2; exit 1 ;; esac
+    case "${COMPANY_GRAPH_PROCESSING_ENABLED:-0}" in 0|1) ;; *) echo 'COMPANY_GRAPH_PROCESSING_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+    case "${SEC_FILINGS_COLLECTOR_ENABLED:-0}" in 0|1) ;; *) echo 'SEC_FILINGS_COLLECTOR_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+  fi
   WEB_RUNTIME_SERVICE_ACCOUNT="$(bash scripts/lib/maintenance-job-iam.sh --check "$job")"
   export WEB_RUNTIME_SERVICE_ACCOUNT
 done

@@ -1,16 +1,13 @@
 import { isAdminUser } from "@/lib/firebase/admin-role";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
-import {
-  markCompanyGraphRequestCompleted,
-  markCompanyGraphRequestFailed,
-  markCompanyGraphRequestProcessing,
-} from "@/lib/company-graph/requests";
-import { runLatest10KCompanyGraphExtraction } from "@/lib/company-graph/service";
+import { dispatchAdminCompanyGraph } from "@/lib/company-graph/admin-dispatch";
 import { NextRequest, NextResponse } from "next/server";
 
 type CompanyGraphExtractRequest = {
   ticker?: unknown;
   force?: unknown;
+  direct?: unknown;
+  dryRun?: unknown;
 };
 
 function readString(value: unknown): string | undefined {
@@ -40,27 +37,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ticker is required" }, { status: 400 });
     }
 
-    await markCompanyGraphRequestProcessing(ticker);
-
-    let result: Awaited<ReturnType<typeof runLatest10KCompanyGraphExtraction>>;
-    try {
-      result = await runLatest10KCompanyGraphExtraction({
-        ticker,
-        dryRun: false,
-        force: readBoolean(payload.force),
-      });
-      await markCompanyGraphRequestCompleted(result.ticker, result.edges.length);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to extract company graph";
-      await markCompanyGraphRequestFailed(ticker, message);
-      throw error;
-    }
+    const result = await dispatchAdminCompanyGraph({ ticker, force: readBoolean(payload.force),
+      direct: readBoolean(payload.direct), dryRun: readBoolean(payload.dryRun) });
 
     return NextResponse.json({
       ok: true,
       ...result,
       timestamp: new Date().toISOString(),
-    });
+    }, { status: "status" in result && result.status !== "AVAILABLE" ? 202 : 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to extract company graph";
     return NextResponse.json({ error: message }, { status: 500 });

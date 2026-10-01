@@ -7,6 +7,8 @@ maintenance. Existing recurring maintenance now runs behind Pub/Sub subscribers.
 | Work | Request topic | Subscriber service | Durable state |
 | --- | --- | --- | --- |
 | SEC fundamentals | `sec-fundamentals-requests` | `sec-fundamentals-subscriber` | `company_fundamentals/_batch_<id>` |
+| Company graph requests | `company-graph-requests` | `company-graph-subscriber` | Existing `company_research_requests` and `company_research_runs` documents |
+| SEC filing discovery | `sec-filings-discovered` (events) | SEC and company graph subscribers | `sec_filings/<accession>` outbox and existing `company_fundamentals` cursors |
 | Private valuations | `private-valuations-requests` | `private-valuations-subscriber` | `company_fundamentals/_private_check_<id>` |
 | Ticker catalog | `ticker-catalog-requests` | `ticker-catalog-subscriber` | `directory_syncs/_ticker_<id>` and snapshot pages |
 | A-share fundamentals | `cn-fundamentals-requests` | `cn-fundamentals-subscriber` | `company_fundamentals/_cn_request_<id>` |
@@ -31,9 +33,10 @@ is at least once. Request retention is seven days; retry delays are configured
 for 300–600 seconds and persistent failures are forwarded after approximately
 100 attempts to a job-specific dead-letter topic with a seven-day audit subscription.
 
-SEC continues emitting `fundamentals.updated`. The new jobs store results in their
-existing documents and logs; no additional result topic or downstream consumer is
-introduced. See [SEC details](sec-fundamentals-pubsub.md),
+SEC continues emitting `fundamentals.updated`. The filing collector adds the
+`sec.filing.discovered` event on `sec-filings-discovered`, with independent
+fundamentals and company graph subscriptions. Other jobs store results in their
+existing documents and logs. See [SEC details](sec-fundamentals-pubsub.md),
 [private valuations](private-valuations-pubsub.md), and
 [ticker sync](ticker-sync-pubsub.md) for their specific guarantees.
 
@@ -126,7 +129,8 @@ restoring the old synchronous web endpoint, then wait for active leases to clear
 
 ## Deployment, verification and recovery
 
-The financial image bundles SEC, private valuation, ticker, A-share and EOD subscribers.
+The financial image bundles the SEC collector and the SEC, company graph, private
+valuation, ticker, A-share and EOD subscribers, plus their publisher commands.
 The directory image bundles the CNI publisher and subscriber and includes its
 Python downloader. Changed worker detection includes every subscriber, deployment
 script and shared dependency. Delivery resources are provisioned before scheduled
@@ -161,3 +165,162 @@ or run with `--direct`. For directory rollback, pause push delivery and remove
 uses direct import. Complete an active queued directory import before switching
 to direct mode. Wait for other active workers to finish or their leases to expire
 before changing execution paths. Existing dry-run behavior remains read-only.
+
+
+## SEC filing collector and downstream refreshes
+
+The release includes the collector, both independent filing consumers, a bounded
+company-graph request publisher, and their release orchestration. The entire new
+pipeline remains opt-in; merging or deploying ordinary shared-library changes does
+not activate it. Collector deployment verifies both fan-out subscriptions are bound
+to `sec-filings-discovered`, rather than accepting names alone.
+
+The `collect-sec-filings-production` job polls SEC submissions using the existing
+SEC User-Agent and shared SEC request gate. It has no OpenAI configuration. Each
+accession is persisted before its event is published; retries replay the outbox.
+The collector uses existing collections, not a separate queue or audit collection.
+The first successful submissions snapshot for a company is frozen as a baseline;
+historical filings in it do not trigger extraction. Filings first seen after that
+snapshot, including later on the same day after an interrupted run, emit events.
+Subsequent scans use a seven-day overlap and SEC archive pages to cover downtime.
+Per-company checkpoints, a rotating company cursor, a twelve-minute budget, and
+the shared SEC rate limit bound collection. The CLI defaults to a read-only plan.
+The first complete scan establishes a baseline without publishing historical
+filings; later unseen accessions emit events, with overlap and archive checkpoints
+to recover gaps. Keep the cursor and outbox during rollout and rollback.
+The SEC fundamentals subscriber accepts both its original batch request and filing
+events on `SEC_FILINGS_FUNDAMENTALS_SUBSCRIPTION=sec-filings-fundamentals`.
+Filing discovery independently drives the company graph subscriber; a graph failure
+does not delay fundamentals refreshes.
+
+`ENABLE_SEC_FILING_PIPELINE=1` is an explicit deployment opt-in. With this flag,
+`deploy-background-jobs.sh all` and `fundamentals` retain all existing workers and
+append graph deployment followed by collector deployment. The `sec-filings` target
+deploys SEC fundamentals, company graph, and the collector in that order using one
+shared immutable image. `company-graph` deploys only graph delivery and its bounded
+publisher. The collector is never deployed before both fan-out consumers exist.
+
+The collector is deployed with `--apply`, but still defaults to
+`SEC_FILINGS_COLLECTOR_ENABLED=0`. Its initial 15-minute UTC schedule is paused.
+The graph publisher runs every five minutes UTC, publishes one request by default,
+and caps `COMPANY_GRAPH_QUEUE_BATCH_SIZE` at 1–5 requests per invocation. Its initial
+schedule is also paused. `COMPANY_GRAPH_PROCESSING_ENABLED=0` blocks paid subscriber
+work even if a manual or previously queued message arrives while testing delivery.
+A valid no-provider verification message can still be processed. Collector and
+publisher jobs receive no OpenAI credentials.
+
+Later deployments preserve both new schedules' existing paused/enabled states and
+reuse production GitHub Environment variables for the flags and batch size. Keep
+`ENABLE_SEC_FILING_PIPELINE`, `SEC_FILINGS_COLLECTOR_ENABLED`, and
+`COMPANY_GRAPH_PROCESSING_ENABLED` in that environment after enabling them; an
+ad-hoc shell value is not a persistent release setting. The workflow passes the
+existing `OPENAI_API_KEY` secret and `OPENAI_MODEL` variable only to the opted-in
+graph subscriber via a private temporary environment file. It does not retrieve
+credentials from the web service, create/copy keys, or add secret access. The file
+is removed after deployment, and credentials are not included in command arguments.
+US and China EOD schedulers, request schemas, publication order and prediction
+sequencing are unchanged.
+
+New resource-scoped IAM grants require an approved, deliberate bootstrap with
+`PUBSUB_BOOTSTRAP_IAM=1`. Ordinary releases check the new resources' exact existing
+bindings and fail if one is absent, instead of silently expanding permissions.
+The established SEC worker's routine IAM path is unchanged. The new pipeline
+reuses its token-creation binding without requiring service-account IAM read
+permission from the release identity; the no-provider delivery probe validates auth. Bootstrap includes
+publisher grants on the new topics, authenticated subscriber invocation, job
+invocation for the existing scheduler/web identities, Pub/Sub dead-letter delivery,
+and reuse of the existing push token-creation grant. No new service account,
+project-level binding, secret permission, or credential is created. Review these
+persistent permission changes before running bootstrap; local tests never run it
+against Google Cloud.
+
+The fundamentals filing subscription has its own
+`sec-filings-fundamentals-dead-letter` topic and seven-day audit subscription.
+Retain these resources and the accession outbox during rollback and replay the
+original event unchanged after repairing a failure. Stop new collection by pausing
+the collector schedule and setting `SEC_FILINGS_COLLECTOR_ENABLED=0`; already
+published messages can still be delivered until each push subscription is paused.
+
+
+## Company graph delivery and staged activation
+
+Manual graph requests use `company-graph-requests` / `company-graph-worker`;
+new filing events use `sec-filings-discovered` / `company-graph-filings`. Both push
+to the private `company-graph-subscriber`, with independent dead-letter topics
+`company-graph-dead-letter` and `company-graph-filings-dead-letter`. Each has a
+seven-day `-audit` subscription. The service accepts only the configured request
+and filing subscriptions, runs one delivery at a time, and has a ten-minute Cloud
+Run timeout for bounded extraction. Filing-driven graph extraction currently
+supports 10-K only; other valid filing forms are acknowledged as ineligible without
+calling OpenAI. SEC fundamentals handles its supported forms independently.
+
+Queue records and generations remain in the existing `company_research_requests`;
+source selection, provider-response and final-write checkpoints remain in existing
+`company_research_runs`, `sec_filings`, and `sec_filing_sections`. Retry the same
+request or event so durable checkpoints can be reused. Completed accessions and
+obsolete request generations are skipped; older filing delivery does not regress
+the latest graph. Pub/Sub is at least once: an ambiguous provider response before
+its durable checkpoint can require operator attention or repeated provider work.
+Do not describe this as exactly-once paid extraction.
+
+The anonymous request endpoint remains queue-only. Once production is explicitly
+opted in, the website receives `COMPANY_GRAPH_REQUEST_TOPIC=company-graph-requests`
+and authorized Admin generation queues durable work instead of waiting for paid
+extraction. Publication failure is visible and the queue is retained for retry.
+When the topic is absent, authorized Admin operations retain the existing direct
+behavior. Explicit `direct` and dry-run operator flows remain available.
+
+The production web release prepares the graph request topic, exact publisher
+permissions and a retained request subscription before serving the new publisher.
+A new subscription starts in pull mode; an existing push configuration is left
+unchanged. The later worker release configures authenticated delivery. This
+publisher-only preparation needs no OpenAI credential or gcloud beta component.
+Staging receives no graph request topic through this rollout.
+
+### Operator rollout checklist
+
+1. Obtain separate approval for the listed persistent, resource-scoped IAM grants.
+   Reusing the existing OpenAI configuration does not authorize new IAM grants.
+   An approved operator can run `PUBSUB_BOOTSTRAP_IAM=1` with the chosen deployment
+   target; this flag is deliberately absent from routine CI. No live bootstrap is
+   performed by local tests.
+2. Persist production `ENABLE_SEC_FILING_PIPELINE=1`, with both
+   `SEC_FILINGS_COLLECTOR_ENABLED=0` and `COMPANY_GRAPH_PROCESSING_ENABLED=0`.
+   Choose `COMPANY_GRAPH_QUEUE_BATCH_SIZE` from 1–5, starting with 1. Supply the
+   existing release OpenAI secret and SEC contact User-Agent through the approved
+   release configuration. Deploy `sec-filings` or the full financial target.
+3. Confirm the original SEC cached-company delivery probe, then run the graph
+   publisher's `--verify-delivery` probe against an existing completed graph cache.
+   It must observe successful delivery and a duplicate receipt without SEC or
+   OpenAI calls. Keep processing disabled and schedules paused during this step.
+   The probe checks manual graph request delivery; it does not establish filing
+   fan-out, collector freshness or extraction-provider behavior.
+4. Review the collector's default read-only plan and the graph publisher's default
+   read-only queue preview. Verify both filing subscriptions' topics, authenticated
+   endpoints, private service access and independent dead-letter resources.
+   For a bounded collector execution, override `SEC_FILINGS_MAX_COMPANIES=1`
+   on that execution. The accepted range is 1–500 (default 500); the rotating
+   cursor resumes with the next company on a later run. This bounds discovery
+   work, while previously persisted outbox events are still recovered first.
+5. Deliberately enable `COMPANY_GRAPH_PROCESSING_ENABLED=1` in the production
+   environment and redeploy before a reviewed, limited live extraction. Inspect
+   the actual source accession, retained provider/result checkpoints and final
+   graph, and confirm a duplicate uses completed state rather than provider work.
+6. Enable `SEC_FILINGS_COLLECTOR_ENABLED=1` only after the reviewed baseline and
+   limited filing test. Resume each new schedule separately when its workload is
+   approved. Resuming the graph publisher can process the existing public queue;
+   preview that queue before enabling automatic paid work.
+
+Tasks separates `SEC filing discovery`, `Company graph requests`, and
+`Company graph processing`. Publisher success means queue acceptance, not completed
+extraction. Worker attempts use `company-graph-batch`; correlate run/request IDs and
+filing accessions in Details. Failed attempts can later succeed.
+
+For rollback, pause both new schedules, persist collector and graph-processing
+flags as 0, and redeploy the disabled configuration. Stop push delivery separately
+when needed; changing a scheduler cannot cancel messages already published. Keep
+request and filing subscriptions, outbox/checkpoint documents and audit retention.
+Wait for active extraction to finish or its lease to expire before using direct
+mode. Removing the web request topic restores the legacy Admin path, so coordinate
+that change with processing shutdown. No rollback step needs to alter the existing
+US/China EOD schedules or message contracts.

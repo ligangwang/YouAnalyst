@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import { getOpenAiApiKey, getOpenAiModel } from "@/lib/openai-runtime";
 import {
   COMPANY_GRAPH_EDGE_DIRECTIONS,
@@ -172,16 +173,24 @@ export async function extractCompanyGraphRelationships(input: {
   accessionNumber: string;
   filingDate: string;
   extractionText: string;
+  signal?: AbortSignal;
+  responseId?: string;
+  onResponseCreated?: (responseId: string) => Promise<void>;
 }): Promise<OpenAiCompanyGraphExtractionResult> {
   const model = getOpenAiModel();
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
+  const signal = input.signal ?? AbortSignal.timeout(7 * 60_000);
+  if (input.responseId && !/^resp_[A-Za-z0-9_-]+$/.test(input.responseId)) throw new Error("Invalid stored OpenAI response identity");
+  const headers = { "content-type": "application/json", authorization: `Bearer ${getOpenAiApiKey()}` };
+  let response = await fetch(`https://api.openai.com/v1/responses${input.responseId ? `/${input.responseId}` : ""}`, {
+    signal,
+    method: input.responseId ? "GET" : "POST",
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${getOpenAiApiKey()}`,
     },
-    body: JSON.stringify({
+    body: input.responseId ? undefined : JSON.stringify({
       model,
+      ...(input.onResponseCreated ? { background: true, store: true } : {}),
       input: [
         {
           role: "system",
@@ -229,7 +238,7 @@ export async function extractCompanyGraphRelationships(input: {
     }),
   });
 
-  const responseBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  let responseBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
     throw new Error(
       `OpenAI company graph extraction failed: ${
@@ -240,11 +249,26 @@ export async function extractCompanyGraphRelationships(input: {
     );
   }
 
+  const responseId = asString(responseBody.id);
+  if (input.onResponseCreated && !input.responseId) {
+    if (!responseId) throw new Error("OpenAI response is missing its durable identity");
+    await input.onResponseCreated(responseId);
+  }
+  while (responseBody.status === "queued" || responseBody.status === "in_progress") {
+    if (!responseId) throw new Error("OpenAI response is missing its identity");
+    await sleep(2_000, undefined, { signal });
+    response = await fetch(`https://api.openai.com/v1/responses/${responseId}`, { headers, signal });
+    responseBody = await response.json() as Record<string, unknown>;
+    if (!response.ok) throw new Error(`OpenAI response retrieval failed (${response.status}); retry saved response`);
+  }
+  if (responseBody.status && responseBody.status !== "completed") {
+    throw new Error(`OpenAI response ended with ${String(responseBody.status)}; operator review required`);
+  }
   const outputText = extractOutputText(responseBody);
   const parsed = JSON.parse(outputText) as Record<string, unknown>;
 
   return {
-    model,
+    model: asString(responseBody.model) ?? model,
     responseId: asString(responseBody.id),
     relationships: normalizeRelationships(parsed.relationships),
     outputText,

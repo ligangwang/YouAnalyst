@@ -1,6 +1,6 @@
 import { filingRelationship, filingRelationshipId } from "./market-storage";
-import { createHash } from "node:crypto";
-import { FieldPath } from "firebase-admin/firestore";
+import { createHash, randomUUID } from "node:crypto";
+import { FieldPath, type Firestore, type DocumentReference, type Transaction } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import {
   buildCompanyGraphExtractionText,
@@ -8,6 +8,7 @@ import {
   fetchLatest10KSections,
   resolveSecCompanyByTicker,
   summarizeStoredSections,
+  type SecCompanyIdentity, type SecLatest10K, type SecFilingSection,
 } from "@/lib/company-graph/sec";
 import { collapseCompanyGraphEntityEdges } from "@/lib/company-graph/entities";
 import { extractCompanyGraphRelationships } from "@/lib/company-graph/openai";
@@ -18,11 +19,26 @@ import {
   type CompanyGraphTargetType,
 } from "@/lib/company-graph/types";
 import { safeRecordOpenAiUsageEvent } from "@/lib/openai/usage";
+import type { SecFilingDiscovered } from "../sec-filings/event";
+import { GRAPH_LEASE_MS, normalizeCompanyGraphTicker } from "./requests";
 
 export type CompanyGraphExtractionInput = {
   ticker: string;
   dryRun?: boolean;
   force?: boolean;
+  requestId?: string;
+  requestedAt?: string;
+  requestGeneration?: number;
+  filing?: SecFilingDiscovered;
+};
+export type CompanyGraphDependencies = {
+  db?: Firestore;
+  resolve?: typeof resolveSecCompanyByTicker;
+  latest?: typeof fetchLatest10K;
+  sections?: typeof fetchLatest10KSections;
+  extract?: typeof extractCompanyGraphRelationships;
+  usage?: typeof safeRecordOpenAiUsageEvent;
+  now?: () => number;
 };
 
 const MIN_EDGE_CONFIDENCE = 0.45;
@@ -71,10 +87,6 @@ const MATERIAL_CATEGORY_PATTERNS = [
   /\b(qualified|strategic)\s+(vendors?|suppliers?|providers?|partners?)\b/i,
   /\b(vendors?|suppliers?|providers?)\s+for\s+[a-z0-9 -]+\b/i,
 ];
-
-function normalizeTicker(value: string): string {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9.-]/g, "");
-}
 
 function edgeId(input: {
   accessionNumber: string;
@@ -169,58 +181,47 @@ function isCachedResultForFiling(
     result.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION;
 }
 
-async function persistEdges(db: FirebaseFirestore.Firestore, edges: CompanyGraphEdge[], filingUrl: string): Promise<number> {
-  let written = 0;
-
-  for (let index = 0; index < edges.length; index += EDGE_BATCH_SIZE) {
-    const batch = db.batch();
-    const chunk = edges.slice(index, index + EDGE_BATCH_SIZE);
-    const refs = chunk.map(edge => db.collection("company_relationships").doc(filingRelationshipId(edge.id)));
-    const previous = await db.getAll(...refs);
-
-    for (const [i, edge] of chunk.entries()) {
-      if (["PUBLISHED", "WITHDRAWN"].includes(previous[i].data()?.status)) continue;
-      batch.set(refs[i], filingRelationship(edge, filingUrl), { merge: true });
-    }
-
-    await batch.commit();
-    written += chunk.length;
-  }
-
-  return written;
+type GraphFence = { ref: DocumentReference; owner: string; now: () => number };
+async function checkFence(tx: Transaction, fence?: GraphFence) {
+  if (!fence) return;
+  const data = (await tx.get(fence.ref)).data();
+  if (data?.leaseOwner !== fence.owner || Number(data.leaseExpiresAtMs) <= fence.now()) throw new Error("Graph extraction lease expired");
 }
-
-async function deleteStaleEdgesForFiling(
-  db: FirebaseFirestore.Firestore,
-  input: {
-    sourceTicker: string;
-    accessionNumber: string;
-    currentEdgeIds: Set<string>;
-  },
-): Promise<number> {
-  const edgePrefix = filingRelationshipId(edgeDocIdPrefix(input.sourceTicker, input.accessionNumber));
-  const snapshot = await db
-    .collection("company_relationships")
-    .where(FieldPath.documentId(), ">=", edgePrefix)
-    .where(FieldPath.documentId(), "<", `${edgePrefix}\uf8ff`)
-    .orderBy(FieldPath.documentId())
-    .get();
-  const staleDocs = snapshot.docs.filter((doc) => doc.data().status === "NEEDS_REVIEW" && !input.currentEdgeIds.has(doc.id.slice("filing:".length)));
-  let deleted = 0;
-
-  for (let index = 0; index < staleDocs.length; index += EDGE_BATCH_SIZE) {
-    const batch = db.batch();
-    const chunk = staleDocs.slice(index, index + EDGE_BATCH_SIZE);
-
-    for (const doc of chunk) {
-      batch.delete(doc.ref);
-    }
-
-    await batch.commit();
-    deleted += chunk.length;
+async function fencedSet(db: Firestore, ref: DocumentReference, value: Record<string, unknown>, fence: GraphFence) {
+  await db.runTransaction(async tx => { await checkFence(tx, fence); tx.set(ref, value, { merge: true }); });
+}
+export async function persistEdges(db: Firestore, edges: CompanyGraphEdge[], filingUrl: string, fence?: GraphFence): Promise<number> {
+  // Read and write in one transaction so an editor publishing during a retry
+  // cannot be overwritten by a stale read followed by a blind batch write.
+  for (let index = 0; index < edges.length; index += EDGE_BATCH_SIZE) {
+    const chunk = edges.slice(index, index + EDGE_BATCH_SIZE);
+    await db.runTransaction(async tx => {
+      await checkFence(tx, fence);
+      const refs = chunk.map(edge => db.collection("company_relationships").doc(filingRelationshipId(edge.id)));
+      const previous = await Promise.all(refs.map(ref => tx.get(ref)));
+      for (const [i, edge] of chunk.entries()) {
+        if (["PUBLISHED", "WITHDRAWN"].includes(previous[i].data()?.status)) continue;
+        tx.set(refs[i], filingRelationship(edge, filingUrl), { merge: true });
+      }
+    });
   }
-
-  return deleted;
+  return edges.length;
+}
+async function deleteStaleEdgesForFiling(db: Firestore, input: {
+  sourceTicker: string; accessionNumber: string; currentEdgeIds: Set<string>;
+}, fence?: GraphFence): Promise<void> {
+  const prefix = filingRelationshipId(edgeDocIdPrefix(input.sourceTicker, input.accessionNumber));
+  const snapshot = await db.collection("company_relationships")
+    .where(FieldPath.documentId(), ">=", prefix).where(FieldPath.documentId(), "<", `${prefix}\uf8ff`)
+    .orderBy(FieldPath.documentId()).get();
+  const stale = snapshot.docs.filter(doc => !input.currentEdgeIds.has(doc.id.slice("filing:".length)));
+  for (let index = 0; index < stale.length; index += EDGE_BATCH_SIZE) {
+    await db.runTransaction(async tx => {
+      await checkFence(tx, fence);
+      const docs = await Promise.all(stale.slice(index, index + EDGE_BATCH_SIZE).map(doc => tx.get(doc.ref)));
+      for (const doc of docs) if (doc.data()?.status === "NEEDS_REVIEW") tx.delete(doc.ref);
+    });
+  }
 }
 
 function limitCategoryEdges(edges: CompanyGraphEdge[]): CompanyGraphEdge[] {
@@ -247,208 +248,231 @@ function limitCategoryEdges(edges: CompanyGraphEdge[]): CompanyGraphEdge[] {
   });
 }
 
-export async function runLatest10KCompanyGraphExtraction(
-  input: CompanyGraphExtractionInput,
-): Promise<CompanyGraphExtractionResult> {
-  const ticker = normalizeTicker(input.ticker);
-  if (!ticker) {
-    throw new Error("Ticker is required.");
-  }
-
-  const dryRun = input.dryRun !== false;
-  const force = input.force === true;
-  const db = getAdminFirestore();
-  const runRef = db.collection("company_research_runs").doc(runDocId(ticker));
-  const company = await resolveSecCompanyByTicker(ticker);
-  const filing = await fetchLatest10K(company.cik);
-
-  if (!force) {
-    const runSnapshot = await runRef.get();
-    const cachedResult = readCachedResult(runSnapshot.data());
-    if (isCachedResultForFiling(cachedResult, filing.accessionNumber)) {
-      return {
-        ...cachedResult,
-        dryRun,
-        cached: true,
-      };
-    }
-  }
-
-  const existingFilingSnapshot = await db.collection("sec_filings").doc(filing.accessionNumber).get();
-  const existingFilingData = existingFilingSnapshot.data() as Record<string, unknown> | undefined;
-
-  if (!force) {
-    const existingResult = readCachedResult(existingFilingData?.companyGraphLatestResult as Record<string, unknown> | undefined);
-    if (isCachedResultForFiling(existingResult, filing.accessionNumber)) {
-      return {
-        ...existingResult,
-        dryRun,
-        cached: true,
-      };
-    }
-  }
-
-  const sections = await fetchLatest10KSections(company.cik, filing);
-  const storedSections = summarizeStoredSections(sections);
-  const extractionText = buildCompanyGraphExtractionText(sections);
-
-  if (!extractionText) {
-    throw new Error(`No extractable latest 10-K text found for ${ticker}.`);
-  }
-
-  const openAiResult = await extractCompanyGraphRelationships({
-    companyName: company.name,
-    ticker,
-    accessionNumber: filing.accessionNumber,
-    filingDate: filing.filingDate,
-    extractionText,
-  });
-  const nowIso = new Date().toISOString();
-  const runId = `${ticker}_${filing.accessionNumber.replace(/-/g, "")}_${Date.now()}`;
-  const usageEvent = await safeRecordOpenAiUsageEvent({
-    purpose: "company_graph_extraction",
-    model: openAiResult.model,
-    responseId: openAiResult.responseId,
-    usage: openAiResult.usage,
-    createdAt: nowIso,
-    metadata: {
-      ticker,
-      companyName: company.name,
-      cik: company.cik,
-      accessionNumber: filing.accessionNumber,
-      filingDate: filing.filingDate,
-      dryRun,
-      force,
-      runId,
-    },
-  });
-  const edges: CompanyGraphEdge[] = limitCategoryEdges(collapseCompanyGraphEntityEdges(openAiResult.relationships
-    .filter((relationship) => relationship.confidence >= MIN_EDGE_CONFIDENCE)
-    .map((relationship) => {
-      const targetType = normalizeGraphTargetType(relationship.targetName, relationship.targetType);
-
-      return {
-        id: edgeId({
-          accessionNumber: filing.accessionNumber,
-          sourceTicker: ticker,
-          relationshipType: relationship.relationshipType,
-          targetName: relationship.targetName,
-          evidenceText: relationship.evidenceText,
-        }),
-        sourceName: company.name,
-        sourceTicker: ticker,
-        sourceCik: company.cik,
-        targetName: relationship.targetName,
-        targetType,
-        relationshipType: relationship.relationshipType,
-        direction: relationship.direction,
-        evidenceText: relationship.evidenceText,
-        filingType: "10-K" as const,
-        accessionNumber: filing.accessionNumber,
-        filingDate: filing.filingDate,
-        reportDate: filing.reportDate,
-        section: relationship.section,
-        confidence: relationship.confidence,
-        extractionProvider: "openai" as const,
-        extractionModel: openAiResult.model,
-        extractionRunId: runId,
-        createdAt: nowIso,
-      };
-    })));
-
-  const result: CompanyGraphExtractionResult = {
-    runId,
-    extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-    ticker,
-    companyName: company.name,
-    cik: company.cik,
-    dryRun,
-    cached: false,
-    filing: {
-      accessionNumber: filing.accessionNumber,
-      filingDate: filing.filingDate,
-      reportDate: filing.reportDate,
-      primaryDocument: filing.primaryDocument,
-      filingUrl: filing.filingUrl,
-    },
-    sections: storedSections.map((section) => ({
-      id: section.id,
-      title: section.title,
-      available: section.available,
-      charCount: section.charCount,
-      storedCharCount: section.storedCharCount,
-      truncated: section.truncated,
-    })),
-    extraction: {
-      provider: "openai",
-      model: openAiResult.model,
-      responseId: openAiResult.responseId,
-      usage: openAiResult.usage,
-      usageEvent: usageEvent
-        ? {
-            id: usageEvent.id,
-            estimatedCostUsd: usageEvent.estimatedCostUsd,
-            inputTokens: usageEvent.inputTokens,
-            cachedInputTokens: usageEvent.cachedInputTokens,
-            outputTokens: usageEvent.outputTokens,
-            totalTokens: usageEvent.totalTokens,
-          }
-        : null,
-    },
-    edges,
-  };
-
-  if (dryRun) {
-    return result;
-  }
-
-  await db.collection("sec_filings").doc(filing.accessionNumber).set({
-    accessionNumber: filing.accessionNumber,
-    cik: company.cik,
-    ticker,
-    companyName: company.name,
-    form: "10-K",
-    filingDate: filing.filingDate,
-    reportDate: filing.reportDate,
-    primaryDocument: filing.primaryDocument,
-    filingUrl: filing.filingUrl,
-    updatedAt: nowIso,
-    companyGraphLatestResult: {
-      result,
-    },
-  }, { merge: true });
-
-  for (const section of storedSections) {
-    await db.collection("sec_filing_sections").doc(`${filing.accessionNumber}_${section.id}`).set({
-      accessionNumber: filing.accessionNumber,
-      sectionId: section.id,
-      title: section.title,
-      text: section.text,
-      available: section.available,
-      charCount: section.charCount,
-      storedCharCount: section.storedCharCount,
-      truncated: section.truncated,
-      updatedAt: nowIso,
+export function shouldAdvanceLatestGraph(current: Record<string, unknown> | undefined, result: CompanyGraphExtractionResult, generationAt: string, requestGeneration?: number) {
+  if (!current) return true;
+  const old = readCachedResult(current);
+  const previousDate = old?.filing.filingDate ?? String(current.filingDate ?? "");
+  const previousAccession = old?.filing.accessionNumber ?? String(current.accessionNumber ?? "");
+  const order = `${result.filing.filingDate}|${result.filing.accessionNumber}`.localeCompare(`${previousDate}|${previousAccession}`);
+  if (order !== 0) return order > 0;
+  const priorTime = Date.parse(String(current.generationAt ?? ""));
+  const time = Date.parse(generationAt);
+  if (Number.isFinite(priorTime) && time !== priorTime) return time > priorTime;
+  if (Number.isFinite(priorTime) && typeof current.requestGeneration === "number" && requestGeneration !== undefined) return requestGeneration >= current.requestGeneration;
+  return !Number.isFinite(priorTime) || time >= priorTime;
+}
+async function persistCompletedResult(db: Firestore, result: CompanyGraphExtractionResult, generationAt: string, fence: GraphFence, requestGeneration?: number) {
+  const now = new Date().toISOString();
+  await persistEdges(db, result.edges, result.filing.filingUrl, fence);
+  await deleteStaleEdgesForFiling(db, { sourceTicker: result.ticker, accessionNumber: result.filing.accessionNumber,
+    currentEdgeIds: new Set(result.edges.map(edge => edge.id)) }, fence);
+  // This is the completion boundary. The legacy sec_filings cache is never
+  // authoritative until every section and observation is durable.
+  const latest = db.collection("company_research_runs").doc(runDocId(result.ticker));
+  const filingRef = db.collection("sec_filings").doc(result.filing.accessionNumber);
+  await db.runTransaction(async tx => {
+    await checkFence(tx, fence);
+    const prior = (await tx.get(latest)).data();
+    tx.set(filingRef, { cik: result.cik, ticker: result.ticker,
+      companyName: result.companyName, form: "10-K", ...result.filing, updatedAt: now,
+      companyGraphLatestResult: { result, persistenceCompleted: true } }, { merge: true });
+    if (shouldAdvanceLatestGraph(prior, result, generationAt, requestGeneration)) tx.set(latest, {
+      ticker: result.ticker, cik: result.cik, companyName: result.companyName,
+      accessionNumber: result.filing.accessionNumber, filingDate: result.filing.filingDate,
+      status: "COMPLETED", extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
+      edgeCount: result.edges.length, updatedAt: now, generationAt, requestGeneration: requestGeneration ?? null, result,
     }, { merge: true });
-  }
-
-  await deleteStaleEdgesForFiling(db, {
-    sourceTicker: ticker,
-    accessionNumber: filing.accessionNumber,
-    currentEdgeIds: new Set(edges.map((edge) => edge.id)),
   });
-  await persistEdges(db, edges, filing.filingUrl);
-  await runRef.set({
-    ticker,
-    cik: company.cik,
-    companyName: company.name,
-    accessionNumber: filing.accessionNumber,
-    status: "COMPLETED",
-    extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-    edgeCount: edges.length,
-    updatedAt: nowIso,
-    result,
-  }, { merge: true });
+}
 
-  return result;
+export async function runLatest10KCompanyGraphExtraction(input: CompanyGraphExtractionInput,
+  dependencies: CompanyGraphDependencies = {}): Promise<CompanyGraphExtractionResult> {
+  const ticker = normalizeCompanyGraphTicker(input.ticker);
+  const dryRun = input.dryRun !== false, force = input.force === true;
+  const db = dependencies.db ?? getAdminFirestore();
+  const now = dependencies.now ?? Date.now;
+  const owner = randomUUID();
+  const requestId = input.requestId ?? input.filing?.eventId ?? `direct_${owner}`;
+  if (!/^[A-Za-z0-9_-]{1,150}$/.test(requestId)) throw new Error("Invalid graph request identity");
+  const lock = db.collection("company_research_runs").doc(`_graph_lock_${ticker}`);
+  if (!dryRun) await db.runTransaction(async tx => {
+    const prior = (await tx.get(lock)).data();
+    if (Number(prior?.leaseExpiresAtMs) > now()) throw new Error("Company graph extraction is busy; retry delivery");
+    tx.set(lock, { leaseOwner: owner, leaseExpiresAtMs: now() + GRAPH_LEASE_MS }, { merge: true });
+  });
+  const fence = { ref: lock, owner, now };
+  const signal = AbortSignal.timeout(8 * 60_000);
+  const assertLease = async () => {
+    signal.throwIfAborted();
+    if (!dryRun) {
+      const data = (await lock.get()).data();
+      if (data?.leaseOwner !== owner || Number(data.leaseExpiresAtMs) <= now()) throw new Error("Graph extraction lease expired");
+    }
+  };
+  try {
+    const sourceRef = db.collection("company_research_runs").doc(`_graph_source_${requestId}`);
+    const source = dryRun ? undefined : (await sourceRef.get()).data();
+    let company = source?.company as SecCompanyIdentity | undefined;
+    let filing = source?.filing as SecLatest10K | undefined;
+    if (!company || !filing) {
+      if (input.filing) {
+        const [priorRun, master, existingFiling] = await Promise.all([
+          db.collection("company_research_runs").doc(runDocId(ticker)).get(),
+          db.collection("companies").doc(`US:${ticker}`).get(),
+          db.collection("sec_filings").doc(input.filing.accessionNumber).get(),
+        ]);
+        const names = [master.data()?.name, priorRun.data()?.companyName, existingFiling.data()?.companyName];
+        const name = names.find(value => typeof value === "string" && value.trim()) as string | undefined;
+        company = { ticker, cik: input.filing.cik, name: name ?? ticker, exchange: null };
+      } else company = await (dependencies.resolve ?? resolveSecCompanyByTicker)(ticker, signal);
+      if (input.filing) {
+        if (input.filing.form !== "10-K" || input.filing.companyId !== ticker || input.filing.cik !== company.cik) {
+          throw new Error("Graph extraction requires a matching exact 10-K filing");
+        }
+        filing = { accessionNumber: input.filing.accessionNumber, filingDate: input.filing.filingDate,
+          reportDate: null, primaryDocument: input.filing.primaryDocument,
+          filingUrl: `https://www.sec.gov/Archives/edgar/data/${Number(company.cik)}/${input.filing.accessionNumber.replace(/-/g, "")}/${input.filing.primaryDocument}` };
+      } else filing = await (dependencies.latest ?? fetchLatest10K)(company.cik, signal);
+      await assertLease();
+      if (!dryRun) await fencedSet(db, sourceRef, { company, filing, createdAt: new Date(now()).toISOString() }, fence);
+    }
+    const runId = `graph_${createHash("sha256").update(JSON.stringify([ticker, filing.accessionNumber,
+      COMPANY_GRAPH_EXTRACTION_VERSION, force ? requestId : "cached"])).digest("hex")}`;
+    const runRef = db.collection("company_research_runs").doc(`_graph_run_${runId}`);
+    const checkpoint = (await runRef.get()).data();
+    const generationAt = String(checkpoint?.createdAt ?? input.requestedAt ?? source?.createdAt ?? new Date(now()).toISOString());
+    const durable = readCachedResult(checkpoint);
+    if (checkpoint?.completed === true && isCachedResultForFiling(durable, filing.accessionNumber) && durable.ticker === ticker) {
+      return { ...durable, dryRun, cached: true };
+    }
+    {
+      const latest = (await db.collection("company_research_runs").doc(runDocId(ticker)).get()).data();
+      const cached = readCachedResult(latest);
+      // Legacy COMPLETED latest documents were written last and remain valid.
+      if ((!force || (input.requestedAt && cached && !shouldAdvanceLatestGraph(latest, cached, generationAt, input.requestGeneration)))
+        && latest?.status === "COMPLETED" && isCachedResultForFiling(cached, filing.accessionNumber) && cached.ticker === ticker) return { ...cached, dryRun, cached: true };
+    }
+    if (!dryRun && !checkpoint) await fencedSet(db, runRef, { createdAt: generationAt, ticker, accessionNumber: filing.accessionNumber,
+      extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION, status: "PROCESSING" }, fence);
+    let sections: SecFilingSection[];
+    const sectionRefs = ["item1", "item1a"].map(id => db.collection("sec_filing_sections").doc(`${filing!.accessionNumber}_${id}`));
+    const saved = await Promise.all(sectionRefs.map(ref => ref.get()));
+    if (saved.every(doc => typeof doc.data()?.text === "string")) {
+      sections = saved.map((doc, index) => ({ id: index === 0 ? "item1" : "item1a", title: String(doc.data()!.title), text: String(doc.data()!.text) }));
+    } else sections = await (dependencies.sections ?? fetchLatest10KSections)(company.cik, filing, signal);
+    const storedSections = summarizeStoredSections(sections);
+    if (!sections.some(section => section.text.trim())) throw new Error(`No extractable 10-K text found for ${ticker}.`);
+    await assertLease();
+    if (!dryRun) for (const section of storedSections) await fencedSet(db, db.collection("sec_filing_sections").doc(`${filing.accessionNumber}_${section.id}`), {
+      accessionNumber: filing.accessionNumber, sectionId: section.id, ...section, updatedAt: new Date(now()).toISOString(),
+    }, fence);
+    const legacyFiling = (await db.collection("sec_filings").doc(filing.accessionNumber).get()).data();
+    const legacyResult = !force ? readCachedResult(legacyFiling?.companyGraphLatestResult) : null;
+    let result = durable ?? (isCachedResultForFiling(legacyResult, filing.accessionNumber) && legacyResult.ticker === ticker ? legacyResult : null);
+    if (!result) {
+      const openAiResult = checkpoint?.providerResult as Awaited<ReturnType<typeof extractCompanyGraphRelationships>> | undefined
+        ?? await (dependencies.extract ?? extractCompanyGraphRelationships)({ companyName: company.name, ticker,
+          accessionNumber: filing.accessionNumber, filingDate: filing.filingDate,
+          extractionText: buildCompanyGraphExtractionText(sections), signal,
+          responseId: typeof checkpoint?.providerResponseId === "string" ? checkpoint.providerResponseId : undefined,
+          onResponseCreated: dryRun ? undefined : async responseId => {
+            await assertLease(); await fencedSet(db, runRef, { providerResponseId: responseId }, fence);
+          } });
+      await assertLease();
+      // A crash after the provider accepts POST but before its response ID is saved
+      // can repeat a paid request. At-least-once delivery is not exactly-once billing.
+      if (!dryRun) await fencedSet(db, runRef, { providerResult: openAiResult, providerCompletedAt: new Date(now()).toISOString() }, fence);
+      const nowIso = new Date(now()).toISOString();
+      const usageEvent = await (dependencies.usage ?? safeRecordOpenAiUsageEvent)({ purpose: "company_graph_extraction",
+        model: openAiResult.model, responseId: openAiResult.responseId, usage: openAiResult.usage, createdAt: nowIso,
+        metadata: { ticker, companyName: company.name, cik: company.cik, accessionNumber: filing.accessionNumber,
+          filingDate: filing.filingDate, dryRun, force, runId } });
+      const edges: CompanyGraphEdge[] = limitCategoryEdges(collapseCompanyGraphEntityEdges(openAiResult.relationships
+        .filter((relationship) => relationship.confidence >= MIN_EDGE_CONFIDENCE)
+        .map((relationship) => {
+          const targetType = normalizeGraphTargetType(relationship.targetName, relationship.targetType);
+
+          return {
+            id: edgeId({
+              accessionNumber: filing.accessionNumber,
+              sourceTicker: ticker,
+              relationshipType: relationship.relationshipType,
+              targetName: relationship.targetName,
+              evidenceText: relationship.evidenceText,
+            }),
+            sourceName: company.name,
+            sourceTicker: ticker,
+            sourceCik: company.cik,
+            targetName: relationship.targetName,
+            targetType,
+            relationshipType: relationship.relationshipType,
+            direction: relationship.direction,
+            evidenceText: relationship.evidenceText,
+            filingType: "10-K" as const,
+            accessionNumber: filing.accessionNumber,
+            filingDate: filing.filingDate,
+            reportDate: filing.reportDate,
+            section: relationship.section,
+            confidence: relationship.confidence,
+            extractionProvider: "openai" as const,
+            extractionModel: openAiResult.model,
+            extractionRunId: runId,
+            createdAt: nowIso,
+          };
+        })));
+
+      result = {
+        runId,
+        extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
+        ticker,
+        companyName: company.name,
+        cik: company.cik,
+        dryRun,
+        cached: false,
+        filing: {
+          accessionNumber: filing.accessionNumber,
+          filingDate: filing.filingDate,
+          reportDate: filing.reportDate,
+          primaryDocument: filing.primaryDocument,
+          filingUrl: filing.filingUrl,
+        },
+        sections: storedSections.map((section) => ({
+          id: section.id,
+          title: section.title,
+          available: section.available,
+          charCount: section.charCount,
+          storedCharCount: section.storedCharCount,
+          truncated: section.truncated,
+        })),
+        extraction: {
+          provider: "openai",
+          model: openAiResult.model,
+          responseId: openAiResult.responseId,
+          usage: openAiResult.usage,
+          usageEvent: usageEvent
+            ? {
+                id: usageEvent.id,
+                estimatedCostUsd: usageEvent.estimatedCostUsd,
+                inputTokens: usageEvent.inputTokens,
+                cachedInputTokens: usageEvent.cachedInputTokens,
+                outputTokens: usageEvent.outputTokens,
+                totalTokens: usageEvent.totalTokens,
+              }
+            : null,
+        },
+        edges,
+      };
+    }
+    if (dryRun) return { ...result, dryRun: true };
+    await assertLease();
+    await fencedSet(db, runRef, { result, status: "PERSISTING" }, fence);
+    await persistCompletedResult(db, result, generationAt, fence, input.requestGeneration);
+    await assertLease();
+    await fencedSet(db, runRef, { result, status: "PERSISTED", completed: true, completedAt: new Date(now()).toISOString() }, fence);
+    return { ...result, dryRun: false };
+  } finally {
+    if (!dryRun) await db.runTransaction(async tx => {
+      if ((await tx.get(lock)).data()?.leaseOwner === owner) tx.set(lock, { leaseOwner: null, leaseExpiresAtMs: 0 }, { merge: true });
+    });
+  }
 }

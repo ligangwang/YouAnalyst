@@ -40,3 +40,11 @@ test("authored static JSX labels have a translation or an explicit language/bran
   scan("src/components"); scan("src/app");
   assert.deepEqual(missing, []);
 });
+
+test("graph queue acceptance and uncertain delivery messages are localized", () => {
+  const queued = "AMD graph extraction queued. Processing continues in the background. Refresh request history for results.";
+  assert.match(translateUi(queued, "zh-CN"), /AMD.*请求已排队/);
+  assert.match(translateUi(`${queued} The request is saved; worker dispatch is pending.`, "zh-CN"), /等待分派/);
+  assert.match(translateUi("AMD request could not be confirmed. A durable request may already exist. Refresh request history before submitting again.", "zh-CN"), /无法确认 AMD.*刷新请求记录/);
+  assert.equal(translateUi(queued, "en"), queued);
+});

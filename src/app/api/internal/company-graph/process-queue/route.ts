@@ -2,17 +2,15 @@ import { isInternalRequest } from "@/lib/firebase/auth";
 import {
   normalizeCompanyGraphQueueLimit,
   processQueuedCompanyGraphRequests,
+  publishQueuedCompanyGraphRequests,
 } from "@/lib/company-graph/queue-worker";
 import { NextRequest, NextResponse } from "next/server";
 
 type ProcessQueueRequest = {
   limit?: unknown;
   force?: unknown;
+  direct?: unknown;
 };
-
-function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
-}
 
 export async function POST(request: NextRequest) {
   if (!isInternalRequest(request)) {
@@ -21,9 +19,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const payload = (await request.json().catch(() => ({}))) as ProcessQueueRequest;
-    const result = await processQueuedCompanyGraphRequests({
+    if (payload.force === true) return NextResponse.json({ error: "Queue-wide force is no longer supported. Use the authorized extract endpoint with an explicit ticker and force:true." }, { status: 400 });
+    const runQueue = process.env.COMPANY_GRAPH_REQUEST_TOPIC && payload.direct !== true
+      ? publishQueuedCompanyGraphRequests : processQueuedCompanyGraphRequests;
+    const result = await runQueue({
       limit: normalizeCompanyGraphQueueLimit(payload.limit),
-      force: readBoolean(payload.force),
     });
 
     return NextResponse.json({

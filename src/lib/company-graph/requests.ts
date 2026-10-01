@@ -1,313 +1,135 @@
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { COMPANY_GRAPH_EXTRACTION_VERSION } from "@/lib/company-graph/types";
+import { COMPANY_GRAPH_EXTRACTION_VERSION } from "./types";
+import { companyGraphRequestId, parseCompanyGraphRequest, type CompanyGraphRequest } from "./pubsub";
 
+export const GRAPH_LEASE_MS = 10 * 60_000;
 export type CompanyGraphRequestStatus = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
-
 export type CompanyGraphRequestDocument = {
-  ticker: string;
-  status: CompanyGraphRequestStatus;
-  requestedCount: number;
-  firstRequestedAt: string;
-  lastRequestedAt: string;
-  updatedAt: string;
-  completedAt: string | null;
-  failedAt: string | null;
-  error: string | null;
+  ticker: string; status: CompanyGraphRequestStatus; requestedCount: number;
+  firstRequestedAt: string; lastRequestedAt: string; updatedAt: string;
+  completedAt: string | null; failedAt: string | null; error: string | null;
   extractionVersion: typeof COMPANY_GRAPH_EXTRACTION_VERSION;
-  edgeCount?: number;
-  processingStartedAt?: string | null;
-  processingRunId?: string | null;
-  attemptCount?: number;
+  generation: number; requestId: string; queuedAt: string; force: boolean;
+  edgeCount?: number; processingStartedAt?: string | null; processingRunId?: string | null;
+  attemptCount?: number; leaseExpiresAtMs?: number; nextAttemptAtMs?: number; dispatchedAt?: string | null;
 };
-
+export type CompanyGraphRequestListItem = CompanyGraphRequestDocument & { id: string };
 export type CompanyGraphRequestQueueResult = {
-  ticker: string;
-  status: "AVAILABLE" | "QUEUED" | "ALREADY_QUEUED";
-  message: string;
+  ticker: string; status: "AVAILABLE" | "QUEUED" | "ALREADY_QUEUED"; message: string;
+  request?: CompanyGraphRequest;
 };
-
-export type CompanyGraphRequestListItem = CompanyGraphRequestDocument & {
-  id: string;
-};
-
-function normalizeTicker(value: string): string {
-  return value.trim().replace(/^\$/, "").toUpperCase().replace(/[^A-Z0-9.-]/g, "");
+const str = (v: unknown) => typeof v === "string" ? v : null;
+const num = (v: unknown) => typeof v === "number" && Number.isFinite(v) ? v : 0;
+export function normalizeCompanyGraphTicker(value: string): string {
+  const ticker = value.trim().replace(/^\$/, "").toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker)) throw new Error("Enter a valid ticker.");
+  return ticker;
 }
-
-function isValidTicker(value: string): boolean {
-  return /^[A-Z0-9][A-Z0-9.-]{0,9}$/.test(value);
+function item(id: string, data: Record<string, unknown>): CompanyGraphRequestListItem {
+  const ticker = str(data.ticker) ?? id;
+  const generation = Math.max(1, num(data.generation));
+  const first = str(data.firstRequestedAt) ?? str(data.updatedAt) ?? new Date(0).toISOString();
+  return { id, ticker, status: ["PROCESSING", "COMPLETED", "FAILED"].includes(String(data.status)) ? data.status as CompanyGraphRequestStatus : "QUEUED",
+    requestedCount: Math.max(1, num(data.requestedCount)), firstRequestedAt: first,
+    lastRequestedAt: str(data.lastRequestedAt) ?? first, updatedAt: str(data.updatedAt) ?? first,
+    completedAt: str(data.completedAt), failedAt: str(data.failedAt), error: str(data.error),
+    extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION, generation,
+    requestId: str(data.requestId) ?? companyGraphRequestId(ticker, generation), queuedAt: str(data.queuedAt) ?? first,
+    force: data.force === true, edgeCount: num(data.edgeCount), processingStartedAt: str(data.processingStartedAt),
+    processingRunId: str(data.processingRunId), attemptCount: num(data.attemptCount),
+    dispatchedAt: str(data.dispatchedAt), leaseExpiresAtMs: num(data.leaseExpiresAtMs), nextAttemptAtMs: num(data.nextAttemptAtMs) };
 }
-
-function readStatus(value: unknown): CompanyGraphRequestStatus {
-  return value === "PROCESSING" || value === "COMPLETED" || value === "FAILED" ? value : "QUEUED";
+export function requestForCompanyGraphItem(value: CompanyGraphRequestListItem): CompanyGraphRequest {
+  return parseCompanyGraphRequest({ version: 1, type: "company.graph.extract.requested", batchId: value.requestId,
+    requestId: value.requestId, generation: value.generation, ticker: value.ticker, requestedAt: value.queuedAt, force: value.force });
 }
-
-function numberFromValue(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+export async function hasCurrentCompanyGraph(ticker: string, db = getAdminFirestore()): Promise<boolean> {
+  const data = (await db.collection("company_research_runs").doc(`${normalizeCompanyGraphTicker(ticker)}_latest_10k`).get()).data();
+  return data?.status === "COMPLETED" && data.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION
+    && typeof data.edgeCount === "number" && data.edgeCount >= 0;
 }
-
-function stringFromValue(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function requestTimestampFromData(data: Record<string, unknown>): string {
-  return stringFromValue(data.lastRequestedAt) ??
-    stringFromValue(data.firstRequestedAt) ??
-    stringFromValue(data.processingStartedAt) ??
-    stringFromValue(data.completedAt) ??
-    stringFromValue(data.updatedAt) ??
-    "";
-}
-
-function firstRequestTimestampFromData(data: Record<string, unknown>): string {
-  return stringFromValue(data.firstRequestedAt) ?? requestTimestampFromData(data);
-}
-
-export async function hasCurrentCompanyGraph(ticker: string): Promise<boolean> {
-  const normalizedTicker = normalizeTicker(ticker);
-  if (!normalizedTicker) {
-    return false;
-  }
-
-  const runSnapshot = await getAdminFirestore().collection("company_research_runs").doc(`${normalizedTicker}_latest_10k`).get();
-  const runData = runSnapshot.data() as Record<string, unknown> | undefined;
-
-  return runData?.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION &&
-    typeof runData.edgeCount === "number" &&
-    runData.edgeCount > 0;
-}
-
-export async function enqueueCompanyGraphRequest(rawTicker: string): Promise<CompanyGraphRequestQueueResult> {
-  const ticker = normalizeTicker(rawTicker);
-  if (!ticker || !isValidTicker(ticker)) {
-    throw new Error("Enter a valid ticker.");
-  }
-
-  if (await hasCurrentCompanyGraph(ticker)) {
-    return {
-      ticker,
-      status: "AVAILABLE",
-      message: `${ticker} graph is ready.`,
-    };
-  }
-
-  const db = getAdminFirestore();
-  const requestRef = db.collection("company_research_requests").doc(ticker);
-  const nowIso = new Date().toISOString();
-
-  return db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(requestRef);
-    const current = snapshot.data() as Record<string, unknown> | undefined;
-    const currentStatus = readStatus(current?.status);
-    const requestedCount = numberFromValue(current?.requestedCount);
-    const isActive = currentStatus === "QUEUED" || currentStatus === "PROCESSING";
-
-    transaction.set(requestRef, {
-      ticker,
-      status: isActive ? currentStatus : "QUEUED",
-      requestedCount: requestedCount + 1,
-      firstRequestedAt: stringFromValue(current?.firstRequestedAt) ?? nowIso,
-      lastRequestedAt: nowIso,
-      updatedAt: nowIso,
-      completedAt: isActive ? stringFromValue(current?.completedAt) : null,
-      failedAt: null,
-      error: null,
-      extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-    }, { merge: true });
-
-    return {
-      ticker,
-      status: isActive ? "ALREADY_QUEUED" : "QUEUED",
-      message: isActive
-        ? `${ticker} is already in the graph request queue. Please check back in a few minutes.`
-        : `${ticker} was added to the graph request queue.`,
-    };
+// This function is deliberately queue-only. The anonymous endpoint cannot publish paid work.
+export async function enqueueCompanyGraphRequest(rawTicker: string, options: { force?: boolean; replay?: boolean; db?: Firestore; now?: number } = {}): Promise<CompanyGraphRequestQueueResult> {
+  const ticker = normalizeCompanyGraphTicker(rawTicker), db = options.db ?? getAdminFirestore();
+  if (!options.force && await hasCurrentCompanyGraph(ticker, db)) return { ticker, status: "AVAILABLE", message: `${ticker} graph is ready.` };
+  const ref = db.collection("company_research_requests").doc(ticker);
+  const now = new Date(options.now ?? Date.now()).toISOString();
+  return db.runTransaction(async tx => {
+    const snapshot = await tx.get(ref), data = snapshot.data();
+    const current = data ? item(ticker, data) : null;
+    const active = current && (["QUEUED", "PROCESSING"].includes(current.status)
+      || (current.status === "FAILED" && !(options.replay && options.force)));
+    // Failed requests resume checkpoints unless an operator deliberately forces a new generation.
+    const generation = active ? current.generation : (current?.generation ?? 0) + 1;
+    const requestId = companyGraphRequestId(ticker, generation);
+    const next = { ticker, status: active && current.status === "PROCESSING" ? "PROCESSING" : "QUEUED",
+      generation, requestId, force: active ? current.force : options.force === true,
+      queuedAt: active ? current.queuedAt : now, requestedCount: (current?.requestedCount ?? 0) + 1,
+      firstRequestedAt: current?.firstRequestedAt ?? now, lastRequestedAt: now, updatedAt: now,
+      completedAt: null, failedAt: null, error: null, extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
+      ...(options.replay && current?.status === "FAILED" ? { dispatchedAt: null, nextAttemptAtMs: 0 } : {}),
+      ...(!active ? { processingRunId: null, processingStartedAt: null, leaseExpiresAtMs: 0, nextAttemptAtMs: 0, attemptCount: 0, dispatchedAt: null } : {}) };
+    tx.set(ref, next, { merge: true });
+    return { ticker, status: active ? "ALREADY_QUEUED" as const : "QUEUED" as const,
+      message: `${ticker} ${active ? "is already in" : "was added to"} the graph request queue.`,
+      request: requestForCompanyGraphItem(item(ticker, next)) };
   });
 }
-
-export async function listCompanyGraphRequests(): Promise<CompanyGraphRequestListItem[]> {
-  const snapshot = await getAdminFirestore().collection("company_research_requests").limit(100).get();
-  return snapshot.docs
-    .map((doc) => {
-      const data = doc.data() as Record<string, unknown>;
-      const item: CompanyGraphRequestListItem = {
-        id: doc.id,
-        ticker: stringFromValue(data.ticker) ?? doc.id,
-        status: readStatus(data.status),
-        requestedCount: Math.max(1, numberFromValue(data.requestedCount)),
-        firstRequestedAt: firstRequestTimestampFromData(data),
-        lastRequestedAt: requestTimestampFromData(data),
-        updatedAt: stringFromValue(data.updatedAt) ?? "",
-        completedAt: stringFromValue(data.completedAt),
-        failedAt: stringFromValue(data.failedAt),
-        error: stringFromValue(data.error),
-        extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-        edgeCount: numberFromValue(data.edgeCount),
-        processingStartedAt: stringFromValue(data.processingStartedAt),
-        processingRunId: stringFromValue(data.processingRunId),
-        attemptCount: numberFromValue(data.attemptCount),
-      };
-      return item;
-    })
-    .sort((left, right) => {
-      const statusOrder: Record<CompanyGraphRequestStatus, number> = {
-        PROCESSING: 0,
-        QUEUED: 1,
-        FAILED: 2,
-        COMPLETED: 3,
-      };
-      const statusDelta = statusOrder[left.status] - statusOrder[right.status];
-      if (statusDelta !== 0) {
-        return statusDelta;
-      }
-      return (right.lastRequestedAt || right.updatedAt).localeCompare(left.lastRequestedAt || left.updatedAt);
-    });
+export async function listCompanyGraphRequests(db = getAdminFirestore()): Promise<CompanyGraphRequestListItem[]> {
+  const snapshot = await db.collection("company_research_requests").limit(101).get();
+  const order = { PROCESSING: 0, QUEUED: 1, FAILED: 2, COMPLETED: 3 };
+  return snapshot.docs.filter(doc => !doc.id.startsWith("_")).slice(0, 100).map(doc => item(doc.id, doc.data())).sort((a, b) => order[a.status] - order[b.status] || b.lastRequestedAt.localeCompare(a.lastRequestedAt));
 }
-
-export async function listQueuedCompanyGraphRequests(limit: number): Promise<CompanyGraphRequestListItem[]> {
-  const snapshot = await getAdminFirestore()
-    .collection("company_research_requests")
-    .where("status", "==", "QUEUED")
-    .orderBy("firstRequestedAt", "asc")
-    .limit(Math.max(1, Math.min(25, Math.trunc(limit))))
-    .get();
-
-  return snapshot.docs.map((doc) => {
-    const data = doc.data() as Record<string, unknown>;
-    return {
-      id: doc.id,
-      ticker: stringFromValue(data.ticker) ?? doc.id,
-      status: readStatus(data.status),
-      requestedCount: Math.max(1, numberFromValue(data.requestedCount)),
-      firstRequestedAt: firstRequestTimestampFromData(data),
-      lastRequestedAt: requestTimestampFromData(data),
-      updatedAt: stringFromValue(data.updatedAt) ?? "",
-      completedAt: stringFromValue(data.completedAt),
-      failedAt: stringFromValue(data.failedAt),
-      error: stringFromValue(data.error),
-      extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-      edgeCount: numberFromValue(data.edgeCount),
-      processingStartedAt: stringFromValue(data.processingStartedAt),
-      processingRunId: stringFromValue(data.processingRunId),
-      attemptCount: numberFromValue(data.attemptCount),
-    };
-  });
-}
-
-export async function claimCompanyGraphRequest(
-  ticker: string,
-  processingRunId: string,
-): Promise<CompanyGraphRequestListItem | null> {
-  const normalizedTicker = normalizeTicker(ticker);
-  if (!normalizedTicker) {
-    return null;
-  }
-
-  const db = getAdminFirestore();
-  const requestRef = db.collection("company_research_requests").doc(normalizedTicker);
-  const nowIso = new Date().toISOString();
-
-  return db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(requestRef);
-    const data = snapshot.data() as Record<string, unknown> | undefined;
-    const status = readStatus(data?.status);
-
-    if (!snapshot.exists || status !== "QUEUED") {
-      return null;
+export async function listQueuedCompanyGraphRequests(limit: number, db = getAdminFirestore(), now = Date.now(), options: { unpublishedOnly?: boolean; preview?: boolean } = {}) {
+  const cursorRef = db.collection("company_research_requests").doc("_graph_dispatcher");
+  let cursor = options.unpublishedOnly ? str((await cursorRef.get()).data()?.cursor) : null;
+  const candidates: CompanyGraphRequestListItem[] = [];
+  const max = Math.max(1, Math.min(25, Math.trunc(limit)));
+  // A persisted cursor bounds each scan while ensuring stuck/published records
+  // cannot permanently hide later queued requests.
+  for (let page = 0; page < 10 && candidates.length < max; page++) {
+    let query = db.collection("company_research_requests").where("status", "in", ["QUEUED", "FAILED", "PROCESSING"])
+      .orderBy(FieldPath.documentId()).limit(100);
+    if (cursor) query = query.startAfter(cursor);
+    const snapshot = await query.get();
+    for (const doc of snapshot.docs) {
+      cursor = doc.id;
+      const row = item(doc.id, doc.data());
+      if ((!options.unpublishedOnly || !row.dispatchedAt) && (row.leaseExpiresAtMs ?? 0) <= now && (row.nextAttemptAtMs ?? 0) <= now) candidates.push(row);
+      if (candidates.length >= max) break;
     }
-
-    transaction.set(requestRef, {
-      ticker: normalizedTicker,
-      status: "PROCESSING",
-      processingRunId,
-      processingStartedAt: nowIso,
-      updatedAt: nowIso,
-      error: null,
-      attemptCount: FieldValue.increment(1),
-      extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-    }, { merge: true });
-
-    return {
-      id: snapshot.id,
-      ticker: normalizedTicker,
-      status: "PROCESSING",
-      requestedCount: Math.max(1, numberFromValue(data?.requestedCount)),
-      firstRequestedAt: stringFromValue(data?.firstRequestedAt) ?? "",
-      lastRequestedAt: stringFromValue(data?.lastRequestedAt) ?? "",
-      updatedAt: nowIso,
-      completedAt: stringFromValue(data?.completedAt),
-      failedAt: stringFromValue(data?.failedAt),
-      error: null,
-      extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-      edgeCount: numberFromValue(data?.edgeCount),
-      processingStartedAt: nowIso,
-      processingRunId,
-      attemptCount: numberFromValue(data?.attemptCount) + 1,
-    };
+    if (snapshot.docs.length < 100 && candidates.length < max) { cursor = null; break; }
+  }
+  if (options.unpublishedOnly && !options.preview) await cursorRef.set({ cursor }, { merge: true });
+  return candidates;
+}
+export async function claimCompanyGraphRequest(request: CompanyGraphRequest, owner: string, db = getAdminFirestore(), now = Date.now()) {
+  const ref = db.collection("company_research_requests").doc(request.ticker);
+  return db.runTransaction(async tx => {
+    const data = (await tx.get(ref)).data();
+    if (!data) return "obsolete" as const;
+    const current = item(request.ticker, data);
+    if (current.requestId !== request.requestId || current.generation !== request.generation) return "obsolete" as const;
+    if (current.force !== request.force || current.queuedAt !== request.requestedAt || current.ticker !== request.ticker) throw new Error("Graph request identity reused with different contents");
+    if (current.status === "COMPLETED") return "completed" as const;
+    if ((current.leaseExpiresAtMs ?? 0) > now) throw new Error("Graph request lease is busy; retry delivery");
+    tx.set(ref, { status: "PROCESSING", generation: request.generation, requestId: request.requestId,
+      processingRunId: owner, processingStartedAt: new Date(now).toISOString(), leaseExpiresAtMs: now + GRAPH_LEASE_MS,
+      attemptCount: (current.attemptCount ?? 0) + 1, error: null, updatedAt: new Date(now).toISOString() }, { merge: true });
+    return "claimed" as const;
   });
 }
-
-export async function markCompanyGraphRequestProcessing(ticker: string): Promise<void> {
-  const normalizedTicker = normalizeTicker(ticker);
-  if (!normalizedTicker) {
-    return;
-  }
-
-  const db = getAdminFirestore();
-  const requestRef = db.collection("company_research_requests").doc(normalizedTicker);
-  const nowIso = new Date().toISOString();
-
-  await db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(requestRef);
-    const data = snapshot.data() as Record<string, unknown> | undefined;
-    const requestedCount = numberFromValue(data?.requestedCount);
-
-    transaction.set(requestRef, {
-      ticker: normalizedTicker,
-      status: "PROCESSING",
-      requestedCount: requestedCount + 1,
-      firstRequestedAt: stringFromValue(data?.firstRequestedAt) ?? nowIso,
-      lastRequestedAt: nowIso,
-      updatedAt: nowIso,
-      error: null,
-      extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-    }, { merge: true });
+export async function finishCompanyGraphRequest(request: CompanyGraphRequest, owner: string, result: { edgeCount: number } | { error: string }, db = getAdminFirestore(), now = Date.now()) {
+  const ref = db.collection("company_research_requests").doc(request.ticker);
+  return db.runTransaction(async tx => {
+    const data = (await tx.get(ref)).data();
+    if (data?.requestId !== request.requestId || data?.processingRunId !== owner) return false;
+    const iso = new Date(now).toISOString();
+    tx.set(ref, { status: "error" in result ? "FAILED" : "COMPLETED", updatedAt: iso,
+      leaseExpiresAtMs: 0, processingRunId: null,
+      ...("error" in result ? { failedAt: iso, error: result.error, nextAttemptAtMs: now + 60_000 }
+        : { completedAt: iso, error: null, edgeCount: result.edgeCount, nextAttemptAtMs: 0 }) }, { merge: true });
+    return true;
   });
-}
-
-export async function markCompanyGraphRequestCompleted(ticker: string, edgeCount: number): Promise<void> {
-  const normalizedTicker = normalizeTicker(ticker);
-  if (!normalizedTicker) {
-    return;
-  }
-
-  const nowIso = new Date().toISOString();
-  await getAdminFirestore().collection("company_research_requests").doc(normalizedTicker).set({
-    ticker: normalizedTicker,
-    status: "COMPLETED",
-    edgeCount,
-    completedAt: nowIso,
-    updatedAt: nowIso,
-    error: null,
-    extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-  }, { merge: true });
-}
-
-export async function markCompanyGraphRequestFailed(ticker: string, error: string): Promise<void> {
-  const normalizedTicker = normalizeTicker(ticker);
-  if (!normalizedTicker) {
-    return;
-  }
-
-  const nowIso = new Date().toISOString();
-  await getAdminFirestore().collection("company_research_requests").doc(normalizedTicker).set({
-    ticker: normalizedTicker,
-    status: "FAILED",
-    failedAt: nowIso,
-    updatedAt: nowIso,
-    error,
-    extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION,
-    failureCount: FieldValue.increment(1),
-  }, { merge: true });
 }

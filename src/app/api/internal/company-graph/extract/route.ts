@@ -1,11 +1,12 @@
 import { isInternalRequest } from "@/lib/firebase/auth";
-import { runLatest10KCompanyGraphExtraction } from "@/lib/company-graph/service";
+import { dispatchAdminCompanyGraph } from "@/lib/company-graph/admin-dispatch";
 import { NextRequest, NextResponse } from "next/server";
 
 type CompanyGraphExtractRequest = {
   ticker?: unknown;
   dryRun?: unknown;
   force?: unknown;
+  direct?: unknown;
 };
 
 function readString(value: unknown): string | undefined {
@@ -29,9 +30,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "ticker is required" }, { status: 400 });
     }
 
-    const result = await runLatest10KCompanyGraphExtraction({
+    const result = await dispatchAdminCompanyGraph({
       ticker,
-      dryRun: readBoolean(payload.dryRun),
+      dryRun: readBoolean(payload.dryRun) ?? true,
+      direct: readBoolean(payload.direct),
       force: readBoolean(payload.force),
     });
 
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       ...result,
       timestamp: new Date().toISOString(),
-    });
+    }, { status: "status" in result && result.status !== "AVAILABLE" ? 202 : 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to extract company graph";
     return NextResponse.json({ error: message }, { status: 500 });

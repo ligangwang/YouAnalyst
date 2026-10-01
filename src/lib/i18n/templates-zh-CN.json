@@ -68,5 +68,16 @@
   "Up investment idea for {0}": "看多 {0} 的投资观点",
   "Down investment idea for {0}": "看空 {0} 的投资观点",
   "Rankings open once at least {0} analysts have public calls. {1} ranked so far.": "至少 {0} 位分析师发布公开观点后开放排行榜，目前已有 {1} 位。",
-  "Best Calls Today - {0} | YouAnalyst": "今日最佳观点 - {0} | YouAnalyst"
+  "Best Calls Today - {0} | YouAnalyst": "今日最佳观点 - {0} | YouAnalyst",
+  "{0} graph is already current.": "{0} 的关系图已是最新版本。",
+  "{0} graph is already available.": "{0} 的关系图已可查看。",
+  "{0} graph generated with {1} edges. Estimated OpenAI cost: {2}.": "已生成 {0} 的关系图，共 {1} 项关系。预计 OpenAI 费用：{2}。",
+  "{0} graph regenerated with {1} edges. Estimated OpenAI cost: {2}.": "已重新生成 {0} 的关系图，共 {1} 项关系。预计 OpenAI 费用：{2}。",
+  "{0} graph extraction is already queued or processing. Refresh request history for results.": "{0} 的关系图提取请求已排队或正在处理，请刷新请求记录查看结果。",
+  "{0} graph extraction queued. Processing continues in the background. Refresh request history for results.": "{0} 的关系图提取请求已排队，将在后台继续处理，请刷新请求记录查看结果。",
+  "{0} graph regeneration queued. Processing continues in the background. Refresh request history for results.": "{0} 的关系图重新生成请求已排队，将在后台继续处理，请刷新请求记录查看结果。",
+  "{0} request could not be confirmed. A durable request may already exist. Refresh request history before submitting again.": "无法确认 {0} 的请求。请求可能已经保存，请先刷新请求记录，再考虑重新提交。",
+  "{0} graph extraction is already queued or processing. Refresh request history for results. The request is saved; worker dispatch is pending.": "{0} 的关系图提取请求已排队或正在处理，请刷新请求记录查看结果。请求已保存，正在等待分派给后台任务。",
+  "{0} graph extraction queued. Processing continues in the background. Refresh request history for results. The request is saved; worker dispatch is pending.": "{0} 的关系图提取请求已排队，将在后台继续处理，请刷新请求记录查看结果。请求已保存，正在等待分派给后台任务。",
+  "{0} graph regeneration queued. Processing continues in the background. Refresh request history for results. The request is saved; worker dispatch is pending.": "{0} 的关系图重新生成请求已排队，将在后台继续处理，请刷新请求记录查看结果。请求已保存，正在等待分派给后台任务。"
 }

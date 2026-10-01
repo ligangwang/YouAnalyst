@@ -48,8 +48,9 @@ function getSecUserAgent(): string {
   return `YouAnalyst company graph ${appUrl}`;
 }
 
-async function fetchSecJson<T>(url: string, fields: { ticker?: string; cik?: string }): Promise<T> {
+async function fetchSecJson<T>(url: string, fields: { ticker?: string; cik?: string }, signal?: AbortSignal): Promise<T> {
   return secRequest(url, {
+    signal,
     headers: {
       accept: "application/json",
       "user-agent": getSecUserAgent(),
@@ -375,13 +376,13 @@ export function summarizeStoredSections(sections: SecFilingSection[]) {
   });
 }
 
-export async function resolveSecCompanyByTicker(ticker: string): Promise<SecCompanyIdentity> {
+export async function resolveSecCompanyByTicker(ticker: string, signal?: AbortSignal): Promise<SecCompanyIdentity> {
   const normalizedTicker = normalizeTicker(ticker);
   if (!normalizedTicker) {
     throw new Error("Ticker is required.");
   }
 
-  const payload = await fetchSecJson<SecCompanyTickersResponse>(`${SEC_BASE_URL}/files/company_tickers_exchange.json`, { ticker: normalizedTicker });
+  const payload = await fetchSecJson<SecCompanyTickersResponse>(`${SEC_BASE_URL}/files/company_tickers_exchange.json`, { ticker: normalizedTicker }, signal);
   const fields = Array.isArray(payload.fields) ? payload.fields.map(String) : [];
   const data = Array.isArray(payload.data) ? payload.data : [];
   const cikIndex = fields.indexOf("cik");
@@ -389,17 +390,19 @@ export async function resolveSecCompanyByTicker(ticker: string): Promise<SecComp
   const tickerIndex = fields.indexOf("ticker");
   const exchangeIndex = fields.indexOf("exchange");
 
-  const match = data.find((row) => {
-    if (!Array.isArray(row)) {
-      return false;
-    }
-    return String(row[tickerIndex] ?? "").toUpperCase() === normalizedTicker;
-  });
+  const exact = data.filter(row => Array.isArray(row) && String(row[tickerIndex] ?? "").toUpperCase() === normalizedTicker);
+  const matches = exact.length ? exact : data.filter(row => Array.isArray(row)
+    && String(row[tickerIndex] ?? "").toUpperCase().replace(/\./g, "-") === normalizedTicker.replace(/\./g, "-"));
+  if (new Set(matches.map(row => padCik((row as unknown[])[cikIndex] as string | number))).size > 1) {
+    throw new Error(`Ambiguous SEC CIK mapping for ${normalizedTicker}.`);
+  }
+  const match = matches[0];
 
   if (!Array.isArray(match)) {
     throw new Error(`No SEC CIK mapping found for ${normalizedTicker}.`);
   }
 
+  if (!/^\d{1,10}$/.test(String(match[cikIndex])) || Number(match[cikIndex]) === 0) throw new Error(`Invalid SEC CIK mapping for ${normalizedTicker}.`);
   return {
     cik: padCik(match[cikIndex] as string | number),
     name: String(match[nameIndex] ?? normalizedTicker),
@@ -408,9 +411,9 @@ export async function resolveSecCompanyByTicker(ticker: string): Promise<SecComp
   };
 }
 
-export async function fetchLatest10K(cik: string): Promise<SecLatest10K> {
+export async function fetchLatest10K(cik: string, signal?: AbortSignal): Promise<SecLatest10K> {
   const paddedCik = padCik(cik);
-  const payload = await fetchSecJson<SecSubmissionsResponse>(`${SEC_DATA_BASE_URL}/submissions/CIK${paddedCik}.json`, { cik: paddedCik });
+  const payload = await fetchSecJson<SecSubmissionsResponse>(`${SEC_DATA_BASE_URL}/submissions/CIK${paddedCik}.json`, { cik: paddedCik }, signal);
   const recent = payload.filings?.recent;
   if (!recent) {
     throw new Error(`No SEC submissions found for CIK ${paddedCik}.`);
