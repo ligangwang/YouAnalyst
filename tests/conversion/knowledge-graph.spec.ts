@@ -760,7 +760,7 @@ test.beforeEach(async ({page}, info) => {
 });
 
 test.beforeAll(async () => {
-  const bundle = await build({ stdin: { contents: `import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";import {ResearchQuickLinks,ResearchStartingPoints} from "./src/components/research-starting-points";import {researchStartingPoints} from "./src/lib/research/starting-points";const homepage=new URLSearchParams(location.search).has("homepage");createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph startingPoints={homepage?<ResearchQuickLinks entries={researchStartingPoints}/>:undefined} introduction={homepage?<ResearchStartingPoints entries={researchStartingPoints}/>:undefined} initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [tourClockPlugin, { name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
+  const bundle = await build({ stdin: { contents: `import {BufferGeometry} from "three";const originalDispose=BufferGeometry.prototype.dispose;BufferGeometry.prototype.dispose=function(){if(this.getAttribute("capScale"))window.dispatchEvent(new Event("graph-star-disposed"));return originalDispose.call(this);};import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";import {ResearchQuickLinks,ResearchStartingPoints} from "./src/components/research-starting-points";import {researchStartingPoints} from "./src/lib/research/starting-points";const homepage=new URLSearchParams(location.search).has("homepage");createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph startingPoints={homepage?<ResearchQuickLinks entries={researchStartingPoints}/>:undefined} introduction={homepage?<ResearchStartingPoints entries={researchStartingPoints}/>:undefined} initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [tourClockPlugin, { name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#08131d;font-family:Arial}*{box-sizing:border-box}button,input{font:inherit} ${bundle.outputFiles.find(f => f.path.endsWith(".css"))?.text}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
@@ -1845,4 +1845,41 @@ for (const language of ["en", "zh-CN"]) test(`homepage keeps the intro, compact 
     expect(await intro.evaluate(element => element.nextElementSibling?.getAttribute("aria-label"))).toBe(language === "en" ? "Research and evidence" : "研究与证据");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
+});
+
+test('star hover keeps GPU geometry alive and highlight steady',async({page})=>{
+ test.setTimeout(45000);
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.addInitScript(()=>{window.addEventListener('graph-star-disposed',()=>document.documentElement.dataset.starDisposals=String(Number(document.documentElement.dataset.starDisposals||0)+1));});
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=graph');
+ const canvas=page.locator('canvas');
+ await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(fixture).nodes.length,{timeout:20000});
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-camera','idle');
+ const disposals=()=>page.locator('html').getAttribute('data-star-disposals');
+ const baseline=await disposals();
+ // Exercise actual WebGL hit targets, not just the HTML name buttons.
+ const points=await page.locator('[data-company-id]').evaluateAll(els=>els.map(el=>{const rect=el.parentElement!.getBoundingClientRect();return {x:rect.x+rect.width/2,y:rect.y+rect.height/2};}).filter(p=>document.elementFromPoint(p.x,p.y) instanceof HTMLCanvasElement));
+ let found=false;
+ for(const point of points){
+  await page.mouse.move(point.x,point.y);
+  const highlighted=page.locator('[data-company-id][data-highlighted="true"]');
+  await expect.poll(()=>highlighted.count(),{timeout:500,intervals:[50,100]}).toBeGreaterThan(0).catch(()=>{});
+  if(await highlighted.count()!==1)continue;
+  const id=(await highlighted.getAttribute('data-company-id'))!;
+  const label=page.locator('[data-company-id="'+id+'"]');
+  await expect(label).toHaveAttribute('data-visible','true');
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  // Sample the hovered star with the normal fade enabled.
+  const samples=await label.evaluate(el=>new Promise<{highlighted:boolean;visible:boolean}[]>(resolve=>{const samples:{highlighted:boolean;visible:boolean}[]=[];const start=performance.now();const sample=()=>{samples.push({highlighted:el.getAttribute('data-highlighted')==='true',visible:el.getAttribute('data-visible')==='true'});if(performance.now()-start<500)requestAnimationFrame(sample);else resolve(samples);};sample();}));
+  expect(samples.length).toBeGreaterThan(2);
+  expect(samples.every(s=>s.highlighted&&s.visible)).toBe(true);
+  await page.mouse.move(1,1);
+  await expect(label).toHaveAttribute('data-highlighted','false');
+  expect(await disposals()).toBe(baseline);
+  found=true;break;
+ }
+ expect(found,'No exposed star hit target was exercised').toBe(true);
 });
