@@ -70,6 +70,9 @@
 .companyPicker select { max-width: 180px; padding: 8px; background: #0b1726; border: 1px solid #294156; border-radius: 12px; color: #d8ebf8; }
 .mode3d { position: absolute; left: 16px; top: 16px; font-size: 11px; color: #8abace; }
 .canvas3d .canvasHint { z-index: 30; }
+.canvas3d .canvasHint[data-hover-help] { opacity: 0; transition: opacity .12s; }
+.canvas3d .canvasHint[data-hover-help][data-visible=true] { opacity: 1; }
+@media (hover: none) { .canvas3d .canvasHint[data-hover-help] { display: none; } }
 @media(max-width:800px) { .canvas3d { height:62vh; min-height:460px; }.companyPicker { left:12px; right:12px; top:42px; }.companyPicker select { flex:1; max-width:210px; }.label3d { width:90px; } }
 
 .resetView { position: absolute; z-index: 30; right: 14px; top: 14px; border: 1px solid #31465a; border-radius: 18px; background: #0b1726bb; color: #bed2e2; padding: 8px 12px; min-height: 36px; font-size: 11px; }

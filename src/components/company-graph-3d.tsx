@@ -1,7 +1,8 @@
 "use client";
 
 import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
-import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { IntelligencePropagation } from './intelligence-propagation';
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
@@ -32,18 +33,18 @@ function countryName(country: string | undefined, locale: string) {
   return country && flagCountries.has(country) ? new Intl.DisplayNames([locale], { type: "region" }).of(country) : undefined;
 }
 
-type Props = { musicControls?: boolean; showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
+type Props = { companyFocus?: string[]; intelligence?: {origin:string;edges:string[]}; musicControls?: boolean; showAllEdges?: boolean; hideReset?: boolean; cameraRequest: number; sectorFocus?: string; highlightedEdges?: string[]; activeEdge?: string; onSelectEdge?: (id: string) => void; graph: KnowledgeGraph; selected: string; onSelect: (id: string) => void; reset: number; onReset: () => void };
 class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNode }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; varying float vDepth; varying vec3 vColor; varying float vEmphasis;
-void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float active=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,active);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*mix(1.,1.5,active);}`;
+void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float emphasisBlend=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,emphasisBlend);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*mix(1.,1.5,emphasisBlend);}`;
 const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
-function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef }: Props & { introOrbitRef: { current: boolean } }) {
+function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef, onHoverChange }: Props & { introOrbitRef: { current: boolean }; onHoverChange: (hovered: boolean) => void }) {
   const { text, locale } = useLocale();
   // Graph uses the original baseline; the tree keeps its faster reveal cadence.
   const {selectedSpeed:speed}=useNavigationSettings();
@@ -148,8 +149,10 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
   // while keeping the star geometry mounted throughout the interaction.
   useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
-  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, hovered)])), [layout, selected, activeEdge, showAllEdges, hovered]);
+  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, intelligence ? edge.id===activeEdge ? 1 : intelligence.edges.includes(edge.id) ? .8 : 0 : edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, hovered)])), [layout, selected, activeEdge, showAllEdges, hovered, intelligence]);
   const displayedEdge=activeEdge||((edgeTargets.get(hoveredEdge) ?? 0) > 0 ? hoveredEdge : "");
+  const hoveringEntity=Boolean(hovered || (hoveredEdge && (edgeTargets.get(hoveredEdge) ?? 0) > 0));
+  useEffect(()=>{onHoverChange(hoveringEntity);},[hoveringEntity,onHoverChange]);
   useEffect(()=>{invalidate();},[edgeTargets,invalidate]);
   const edgeEndpoints=useMemo(()=>new Set(layout.edges.filter(e=>e.id===displayedEdge).flatMap(e=>[e.source,e.target])),[layout,displayedEdge]);
   const sectorMembers = useMemo(() => new Set(layout.nodes.filter(n => companySector(n).id === sectorFocus).map(n => n.id)), [layout, sectorFocus]);
@@ -159,7 +162,9 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     edge.id !== displayedEdge && (selected
       ? edge.source !== selected && edge.target !== selected
       : Boolean(sectorFocus) && !sectorMembers.has(edge.source) && !sectorMembers.has(edge.target));
-  const pointTargets = useMemo(() => layout.nodes.map(n => selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : n.id === hovered || edgeEndpoints.has(n.id) ? 2 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints]);
+  const focusedCompanies = useMemo(()=>companyFocus ? new Set(companyFocus) : undefined,[companyFocus]);
+  const pointTargets = useMemo(() => layout.nodes.map(n => focusedCompanies && !focusedCompanies.has(n.id) ? .12 : selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : n.id === hovered || edgeEndpoints.has(n.id) ? 2 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints, focusedCompanies]);
+  useEffect(()=>{invalidate();},[pointTargets,invalidate]);
   const geometry = useMemo(() => {
     const g = new BufferGeometry();
     g.setAttribute("position", new Float32BufferAttribute(layout.nodes.flatMap(n => [n.x, n.y, n.z]), 3));
@@ -486,6 +491,8 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       if(scale!==targetScale)scalesSettling=true;
       companyScales.current.set(element,scale);
       element.style.setProperty("--label-scale",String(scale));
+      if(focusedCompanies && !focusedCompanies.has(n.id))element.style.setProperty("--label-emphasis",".15");
+      else element.style.removeProperty("--label-emphasis");
     }
     if(scalesSettling)invalidate();
     for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===displayedEdge?1:labelScale(edge.x,edge.y,edge.z)));
@@ -547,6 +554,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   });
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
+    {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
     <TreeStarField height={0}/>
     <TreeGalaxies height={0}/>
     <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
@@ -588,9 +596,23 @@ function GraphUnavailable({onRetry}:{onRetry:()=>void}) {
 }
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
-  const introOrbitRef = useRef(true);
+  const introOrbitRef = useRef(!props.intelligence);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [contextLost,setContextLost]=useState(false);
+  const [pointerOverCanvas,setPointerOverCanvas]=useState(false);
+  const [hoveringEntity,setHoveringEntity]=useState(false);
+  const hoverHintTimer=useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideHoverHint=()=>{
+    if(hoverHintTimer.current!==null)clearTimeout(hoverHintTimer.current);
+    hoverHintTimer.current=null;
+    setPointerOverCanvas(false);
+  };
+  const scheduleHoverHint=(event:ReactPointerEvent<HTMLDivElement>)=>{
+    hideHoverHint();
+    if(event.pointerType!=='mouse' || event.buttons!==0 || !(event.target instanceof HTMLCanvasElement))return;
+    hoverHintTimer.current=setTimeout(()=>{hoverHintTimer.current=null;setPointerOverCanvas(true);},2000);
+  };
+  useEffect(()=>()=>{if(hoverHintTimer.current!==null)clearTimeout(hoverHintTimer.current);},[]);
   const [attempt,setAttempt]=useState(0);
   const retry=()=>{setContextLost(false);setSupported(null);setAttempt(value=>value+1);};
   const [wheelGateRef, wheelHint] = useWheelZoomGate();
@@ -612,13 +634,18 @@ export default function CompanyGraph3D(props: Props) {
     {supported === null ? <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p> : fallback}
     {props.musicControls && <UniverseMusicToggle/>}
   </div>;
-  return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction data-context-lost={contextLost}>
+  return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction data-context-lost={contextLost}
+    onPointerMoveCapture={scheduleHoverHint}
+    onPointerLeave={hideHoverHint}
+    onPointerDownCapture={hideHoverHint}
+    onPointerUpCapture={scheduleHoverHint}
+    onWheelCapture={hideHoverHint}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {props.musicControls && <UniverseMusicToggle/>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}
-    <p className={styles.canvasHint}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
+    <p className={styles.canvasHint} data-hover-help data-visible={pointerOverCanvas&&!hoveringEntity&&!contextLost} aria-hidden={!pointerOverCanvas||hoveringEntity||contextLost}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
   </div>;
 }
 

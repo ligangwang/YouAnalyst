@@ -79,5 +79,6 @@
   "{0} request could not be confirmed. A durable request may already exist. Refresh request history before submitting again.": "无法确认 {0} 的请求。请求可能已经保存，请先刷新请求记录，再考虑重新提交。",
   "{0} graph extraction is already queued or processing. Refresh request history for results. The request is saved; worker dispatch is pending.": "{0} 的关系图提取请求已排队或正在处理，请刷新请求记录查看结果。请求已保存，正在等待分派给后台任务。",
   "{0} graph extraction queued. Processing continues in the background. Refresh request history for results. The request is saved; worker dispatch is pending.": "{0} 的关系图提取请求已排队，将在后台继续处理，请刷新请求记录查看结果。请求已保存，正在等待分派给后台任务。",
-  "{0} graph regeneration queued. Processing continues in the background. Refresh request history for results. The request is saved; worker dispatch is pending.": "{0} 的关系图重新生成请求已排队，将在后台继续处理，请刷新请求记录查看结果。请求已保存，正在等待分派给后台任务。"
+  "{0} graph regeneration queued. Processing continues in the background. Refresh request history for results. The request is saved; worker dispatch is pending.": "{0} 的关系图重新生成请求已排队，将在后台继续处理，请刷新请求记录查看结果。请求已保存，正在等待分派给后台任务。",
+  "Through {0}": "截至 {0}"
 }

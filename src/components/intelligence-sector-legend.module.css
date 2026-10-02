@@ -1,0 +1,5 @@
+.legend{position:absolute;left:12px;top:10px;z-index:3;font-size:10px;color:#a3b5c5;max-width:calc(100% - 24px)}
+.legend>button{padding:4px 7px!important;background:#0b1722e8!important;border:1px solid #213242!important;white-space:nowrap}
+.items{display:flex;flex-wrap:wrap;gap:9px 12px;max-width:430px;padding:10px;margin-top:4px;background:#0b1722f5;border:1px solid #213242;border-radius:4px;box-shadow:0 4px 16px #0004}
+.items>span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.items i{width:5px;height:5px;border-radius:50%;flex-shrink:0}
