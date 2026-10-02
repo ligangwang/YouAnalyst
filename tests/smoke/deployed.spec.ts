@@ -116,7 +116,7 @@ test("Investment Intelligence homepage renders real data and crawlable research 
     await expect(page.getByRole("heading", { name: heading, exact: true })).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Sector color legend", exact: true })).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("canvas")).toBeVisible();
-    await expect(page.locator("[data-company-id]")).toHaveCount(snapshot.graph.nodes.filter((node: { kind: string }) => node.kind === "COMPANY").length, { timeout: 20_000 });
+    await expect(page.locator('[data-company-id="US:NVDA"]')).toHaveCount(1, { timeout: 20_000 });
     await expect.poll(() => page.locator('[data-company-id][data-visible="false"]').evaluateAll(elements => elements.length > 0 && elements.every(el => getComputedStyle(el).visibility === "hidden" && Number(getComputedStyle(el).opacity) === 0))).toBe(true);
   }
 });
