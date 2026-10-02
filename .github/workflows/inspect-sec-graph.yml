@@ -9,6 +9,12 @@ on:
         default: NVDA
         type: string
 
+      saved_nvda_request:
+        description: Optional exact failed NVDA request ID for one read-only OpenAI response GET
+        required: false
+        default: ""
+        type: string
+
 permissions:
   contents: read
 
@@ -40,10 +46,16 @@ jobs:
         run: bash scripts/inspect-graph-topic.sh
       - name: Read issuer cursor and queue ledger counts
         # Existing identity only. Missing Firestore read permission fails closed;
-        # this workflow never creates grants, impersonates another identity, runs
+        # this step never creates grants, impersonates another identity, runs
         # a Cloud Run job, reads provider secrets or applies collector work.
         run: node_modules/.bin/tsx scripts/collect-sec-filings.ts --dry-run --baseline-only "--company=$COMPANY"
       - name: Read recent graph execution diagnostics
         # Existing identity, exact graph job, newest five executions; allow-listed
         # status/args only. No environment values, raw errors, or log reads.
         run: node scripts/inspect-graph-executions.mjs
+      - name: Read only the already-created NVDA provider response metadata
+        if: ${{ inputs.company == 'NVDA' && inputs.saved_nvda_request != '' }}
+        env:
+          EXPECTED_GRAPH_REQUEST_ID: ${{ inputs.saved_nvda_request }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node_modules/.bin/tsx scripts/inspect-saved-graph-response.ts
