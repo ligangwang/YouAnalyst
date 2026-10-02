@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import MapPage from "@/app/map/page";
+import IntelligencePage from "@/app/intelligence/page";
 import { InvestmentIntelligence } from "@/components/investment-intelligence";
 import { localizedMetadata } from "@/lib/i18n/server";
 
@@ -22,5 +23,6 @@ export default async function Home({ searchParams }: {
   if(process.env.NODE_ENV === 'development' && params.preview === 'intelligence') return <InvestmentIntelligence/>;
   // Preserve company campaign destinations and bookmarked feed filters.
   if (typeof params.type === "string") redirect("/feed?type=" + encodeURIComponent(params.type));
+  if(![params.view,params.company,params.relationship,params.event,params.q,params.market].some(Boolean))return <IntelligencePage/>;
   return <MapPage searchParams={Promise.resolve(params)} />;
 }

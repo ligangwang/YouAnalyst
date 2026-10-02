@@ -98,7 +98,7 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
 }
 
 const primaryNavItems = [
-  { href: "/", label: "Map" },
+  { href: "/?view=graph", label: "Map" },
   { href: "/companies", label: "Companies" },
   { href: "/feed", label: "Feed" },
   { href: "/watchlists/following", label: "Following" },

@@ -22,8 +22,8 @@ const clock=(value:number)=>new Intl.DateTimeFormat('en-US',{timeZone:'America/N
 const shortDate=(value:string)=>value.slice(5);
 
 /** Failure never falls back to demo data. Polls pause during replay and hidden tabs. */
-export function LiveInvestmentIntelligence(){
-  const [snapshot,setSnapshot]=useState<IntelligenceSnapshot|null>(null);
+export function LiveInvestmentIntelligence({initialSnapshot}:{initialSnapshot?:IntelligenceSnapshot}={}){
+  const [snapshot,setSnapshot]=useState<IntelligenceSnapshot|null>(initialSnapshot??null);
   const [error,setError]=useState(''),[replaying,setReplaying]=useState(false),[retry,setRetry]=useState(0);
   useEffect(()=>{
     let disposed=false,inFlight=false;
