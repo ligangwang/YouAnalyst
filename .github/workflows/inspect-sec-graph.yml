@@ -43,3 +43,7 @@ jobs:
         # this workflow never creates grants, impersonates another identity, runs
         # a Cloud Run job, reads provider secrets or applies collector work.
         run: node_modules/.bin/tsx scripts/collect-sec-filings.ts --dry-run --baseline-only "--company=$COMPANY"
+      - name: Read recent graph execution diagnostics
+        # Existing identity, exact graph job, newest five executions; allow-listed
+        # status/args only. No environment values, raw errors, or log reads.
+        run: node scripts/inspect-graph-executions.mjs
