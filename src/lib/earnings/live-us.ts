@@ -206,9 +206,19 @@ function microsoft(document: RawEarningsDocument): ExtractionPlan {
 function alibaba(document: RawEarningsDocument): ExtractionPlan {
   const { text } = document, dated = ended(text), period = calendarPeriod(dated.end, "US:BABA");
   const month = MONTHS[Number(period.end.slice(5, 7)) - 1], year = Number(period.end.slice(0, 4));
-  const title = new RegExp(`Alibaba\\s+Group\\s+Announces\\s+${month}\\s+Quarter\\s+${year}(?:\\s+and\\s+Fiscal\\s+Year\\s+${year})?\\s+Results`, "i").exec(text.slice(0, 2500));
-  requireMatch(title);
-  const row = rowInSection(text, new RegExp(`^\\s*${month} QUARTER SUMMARY FINANCIAL RESULTS\\s*\\|?\\s*$`, "gim"),
+  const opening = text.slice(0, 2500);
+  const titles = [
+    ...opening.matchAll(/^\s*Alibaba\s+Group\s+Announces\s+(March|June|September|December)\s+Quarter\s+(20\d{2})(?:\s+and\s+Fiscal\s+Year\s+(20\d{2}))?\s+Results[ \t]*$/gim),
+    // This reviewed SEC exhibit is a dual quarterly/annual announcement. Its
+    // headline is not permission to substitute the annual financial table.
+    ...opening.matchAll(/^\s*ANNOUNCEMENT\s+OF\s+THE\s+(March|June|September|December)\s+QUARTER\s+(20\d{2})\s+RESULTS\s+AND\s+FISCAL\s+YEAR\s+(20\d{2})\s+ANNUAL\s+RESULTS[ \t]*$/gim),
+  ];
+  requireMatch(titles.length === 1);
+  const title = titles[0];
+  requireMatch(title[1].toLowerCase() === month.toLowerCase() && Number(title[2]) === year
+    && (!title[3] || (month === "March" && Number(title[3]) === year)));
+  if (/^\s*ANNOUNCEMENT/i.test(title[0])) requireMatch(document.source.provider === "sec" && month === "March");
+  const row = rowInSection(text, new RegExp(`^\\s*${month}\\s+QUARTER\\s+SUMMARY\\s+FINANCIAL\\s+RESULTS\\s*\\|?\\s*$`, "gim"),
     /^\s*Income(?: \(Loss\))? from operations\b[^\n]*/mi, /^\s*Revenue\s+(?:\|[^\n]+|[\d,]+[^\n]*)/gim);
   const header = clean(row.header), years = [...header.matchAll(/\b20\d{2}\b/g)].map(match => Number(match[0]));
   requireMatch(header.includes(`Three months ended ${month} ${Number(period.end.slice(8))},`)
@@ -239,7 +249,7 @@ export function makeUsEarningsPlan(document: RawEarningsDocument): ExtractionPla
     };
     const adapter = adapters[document.source.companyId]; requireMatch(adapter);
     const base = adapter(document);
-    const plan = { ...base, ...announcementByline(document, base.period), adapterVersion: "us-live-1" }; validatePeriod(plan.period);
+    const plan = { ...base, ...announcementByline(document, base.period), adapterVersion: document.source.companyId === "US:BABA" ? "us-live-2" : "us-live-1" }; validatePeriod(plan.period);
     if (document.source.companyId === "US:NVDA" || document.source.companyId === "US:AMD") {
       fiscalWindow(plan.period.end, plan.period.fiscalYear, plan.period.fiscalQuarter!, document.source.companyId);
     }

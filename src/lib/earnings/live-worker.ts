@@ -72,7 +72,11 @@ export async function processEarningsJob(job: EarningsJob, db: Firestore, log: M
     const plan = options.resolvePlan ? options.resolvePlan(document)
       : work.source.companyId.startsWith("US:") ? makeUsEarningsPlan(document) : makeCnEarningsPlan(document);
     const plausible = plan || classifyEarningsTitle(work.source.title) !== "unknown"
-      || /(?:first|second|third|fourth)\s+quarter|quarterly.{0,30}results|financial.{0,30}results/i.test(document.text.slice(0, 12_000));
+      || /(?:first|second|third|fourth)\s+quarter|quarterly.{0,30}results|financial.{0,30}results/i.test(document.text.slice(0, 12_000))
+      // Alibaba also files an exchange-style announcement through SEC. Its
+      // headline is relevant even when the strict metrics adapter rejects it.
+      // This only retains provenance for review; it cannot create a metric.
+      || (work.source.companyId === "US:BABA" && /\bANNOUNCEMENT\s+OF\s+THE\s+(?:MARCH|JUNE|SEPTEMBER|DECEMBER)\s+QUARTER\s+20\d{2}\s+RESULTS\b/i.test(document.text.slice(0, 2500)));
     if (!plausible) return await completeEarningsSource(db, work, log.runId, { status: "skipped", reason: "exhibit_has_no_supported_earnings_evidence" }, now());
     const captureId = await persistEarningsCapture(db, document, downloaded.bytes);
     // Amendments/correction notices need an explicit, validated predecessor. No

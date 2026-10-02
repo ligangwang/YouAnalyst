@@ -169,3 +169,29 @@ The existing `replay-earnings-pilot.ts --dry-run` stays offline. Production
 and the enabled flag. `--verify-delivery` remains provider-free even when runtime
 flags are enabled. `--check-canary` only reads durable proof. Ordinary collection
 has no unbounded-company or arbitrary-URL CLI option.
+
+### One-source Alibaba repair
+
+The explicit `replay-alibaba-march-2026` workflow action is a repair for the
+existing SEC exhibit `0001104659-26-060224/tm2614494d1_ex99-1.htm` only. It requires
+the exact successful current main release, explicit live-operation approval,
+matching collector/subscriber revisions, and enabled normal earnings processing.
+It overrides the existing job's arguments with
+`--apply --replay-alibaba-march-2026`; it changes no runtime configuration,
+schedules, resources, or permissions and performs no provider discovery.
+
+The repair accepts no source/URL argument. It validates the fixed Alibaba identity,
+queues only the existing skipped/review source, and publishes only that source's
+generation. An atomic per-release receipt in `earnings_collectors` retains its
+prior work snapshot and first-seen time. Repeated or uncertain calls reuse that
+generation or its valid completed receipt, never force another generation. Other
+pending sources are untouched by this repair; normal scheduled collection remains
+independent. Verification waits at most eight minutes for the current subscriber,
+restores/hash-checks stored raw evidence, and revalidates the actual January–March
+2026 quarter with the strict adapter. Unsupported evidence stays in review; a
+failed or timed-out repair must be inspected rather than broadened or blindly
+requeued. Immutable prior captures and normalized revisions are retained.
+The workflow's final read-only diagnostics includes `lastAlibabaMarchReplay` for
+its exact current SHA: outcome, generation, validated record/raw hash, quarter,
+metrics, completion time and previous source status. It excludes the stored
+pre-repair work snapshot and raw document content.

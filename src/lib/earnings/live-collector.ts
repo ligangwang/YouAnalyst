@@ -6,6 +6,7 @@ import { earningsPilot } from "./pilot";
 import { earningsScanWindow } from "./sec-observer";
 import type { EarningsRecord, EarningsSource } from "./model";
 import type { EarningsSourceDiscovered } from "./live-event";
+import { inspectAlibabaMarchReplay } from "./live-replay";
 
 export type EarningsDiscovery = (companyId: string, from: string, to: string, firstSeenAt: string) => Promise<EarningsSource[]>;
 export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, options: {
@@ -78,5 +79,6 @@ export async function inspectLiveEarnings(db: Firestore) {
     cursors, lastRun: (await earningsMetadata(db, "collector").get()).get("lastRun") ?? null,
     lastProbe: (await earningsMetadata(db, "last_probe").get()).data() ?? null,
     lastCanary: (await earningsMetadata(db, "last_canary").get()).data() ?? null,
+    lastAlibabaMarchReplay: await inspectAlibabaMarchReplay(db, process.env.GIT_SHA ?? ""),
     providerRequests: 0, externalWrites: 0 };
 }

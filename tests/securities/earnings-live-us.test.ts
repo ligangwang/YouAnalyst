@@ -39,7 +39,7 @@ for (const [name, expected] of Object.entries(examples) as [Example, typeof exam
     assert.equal(result.metrics.find(metric => metric.name === "revenue")!.currency, expected.currency);
     assert.equal(result.metrics.find(metric => metric.name === "revenue_yoy")!.value, expected.yoy);
     assert.equal(result.coverage.segments, "not_extracted"); assert.equal(result.coverage.guidance, "not_extracted");
-    assert.equal(result.completeness, "excerpt"); assert.match(result.parserVersion, /us-live-1/);
+    assert.equal(result.completeness, "excerpt"); assert.match(result.parserVersion, name === "alibaba" ? /us-live-2/ : /us-live-1/);
     assert.ok(result.metrics.every(metric => metric.evidence.every(evidence => doc.text.slice(evidence.start, evidence.end) === evidence.text && evidence.sourceUrl === doc.source.url)));
   });
 }
@@ -134,6 +134,47 @@ test("live US Alibaba rejects reversed current/prior or native/convenience curre
   assert.equal(makeUsEarningsPlan(document("alibaba", body("alibaba").replace("<td>2025</td><td>2026</td>", "<td>2026</td><td>2025</td>"))), null);
   assert.equal(makeUsEarningsPlan(document("alibaba", body("alibaba").replace("<td>RMB</td><td>RMB</td><td>US$</td>", "<td>RMB</td><td>US$</td><td>RMB</td>"))), null);
 });
+const alibabaAnnouncementHtml = () => readFileSync(resolve(fixtures, "alibaba-sec-announcement.html"), "utf8");
+function alibabaAnnouncement(html = alibabaAnnouncementHtml()) {
+  return document("alibaba", html, {
+    url: "https://www.sec.gov/Archives/edgar/data/1577552/000110465926060224/tm2614494d1_ex99-1.htm",
+    documentId: "0001104659-26-060224/tm2614494d1_ex99-1.htm", filingDate: "2026-05-13",
+    form: "6-K", accession: "0001104659-26-060224",
+  });
+}
+test("live US Alibaba formal SEC March announcement keeps quarterly revenue separate from annual results", () => {
+  const doc = alibabaAnnouncement(), result = record(doc);
+  const headingOffset = doc.text.replace(/\s+/g, " ").indexOf("ANNOUNCEMENT OF THE MARCH QUARTER");
+  assert.ok(headingOffset >= 0 && headingOffset < 2500);
+  assert.deepEqual(result.period, { start: "2026-01-01", end: "2026-03-31", type: "quarter", fiscalYear: 2026, fiscalQuarter: 4 });
+  assert.equal(result.metrics[0].value, 243_380e6); assert.equal(result.metrics[0].currency, "CNY");
+  assert.equal(result.metrics[1].value, 3); assert.equal(result.metrics[0].scale, 1e6);
+  assert.notEqual(result.metrics[0].value, 1_023_670e6);
+  assert.equal(result.announcementDate, null);
+  assert.ok(result.periodEvidence.some(evidence => evidence.text.includes("ANNUAL RESULTS")));
+});
+test("live US Alibaba formal heading rejects changed periods, annual-only and ambiguous headlines", () => {
+  const html = alibabaAnnouncementHtml();
+  const heading = "ANNOUNCEMENT<br>OF THE MARCH QUARTER 2026 RESULTS AND<br>FISCAL YEAR 2026 ANNUAL RESULTS";
+  const replacements = [
+    heading.replace("MARCH", "JUNE"),
+    heading.replace("QUARTER 2026", "QUARTER 2025"),
+    heading.replace("YEAR 2026", "YEAR 2025"),
+    heading.replace("QUARTER", "HALF YEAR"),
+    "ANNOUNCEMENT OF FISCAL YEAR 2026 ANNUAL RESULTS",
+    `${heading}</h2><h2>${heading}`,
+    `${heading}</h2><h2>Alibaba Group Announces March Quarter 2026 and Fiscal Year 2026 Results`,
+    `${heading}</h2><h2>ANNOUNCEMENT OF THE JUNE QUARTER 2026 RESULTS AND FISCAL YEAR 2026 ANNUAL RESULTS`,
+  ];
+  for (const replacement of replacements) assert.equal(makeUsEarningsPlan(alibabaAnnouncement(html.replace(heading, replacement))), null, replacement);
+  assert.equal(makeUsEarningsPlan(alibabaAnnouncement(html.replace("MARCH QUARTER SUMMARY", "FISCAL YEAR SUMMARY"))), null);
+});
+test("live US Alibaba formal announcement retains native currency and strict column guards", () => {
+  const html = alibabaAnnouncementHtml();
+  assert.equal(makeUsEarningsPlan(alibabaAnnouncement(html.replace("<td>2025</td><td>2026</td>", "<td>2026</td><td>2025</td>"))), null);
+  assert.equal(makeUsEarningsPlan(alibabaAnnouncement(html.replace("<td>RMB</td><td>RMB</td><td>US$</td>", "<td>RMB</td><td>US$</td><td>RMB</td>"))), null);
+});
+
 test("live US emits reported decreases with their negative sign", () => {
   const result = record(document("amd", body("amd").replace("Up 50%", "Down 5%")));
   assert.equal(result.metrics.find(metric => metric.name === "revenue_yoy")!.value, -5);
@@ -160,7 +201,7 @@ test("live US accepts another quarter in the same format without hardcoded sourc
 const fullSourceDirectory = process.env.EARNINGS_US_SOURCE_DIR;
 test("live US actual full-source replay matches the checked provenance manifest", { skip: !fullSourceDirectory }, () => {
   const manifest = JSON.parse(readFileSync(resolve(fixtures, "provenance.json"), "utf8")) as { sources: {
-    filename: string; example: Example; sha256: string; bytes: number; source: EarningsSource;
+    filename: string; example: Example; sha256: string; bytes: number; source: EarningsSource; announcementDate?: string | null;
     revenue: number; yoy: number; period: { start: string; end: string; fiscalYear: number; fiscalQuarter: number; type: "quarter" };
   }[] };
   for (const item of manifest.sources) {
@@ -172,11 +213,17 @@ test("live US actual full-source replay matches the checked provenance manifest"
     const result = record(doc);
     assert.deepEqual(result.period, item.period, item.filename);
     assert.equal(result.metrics[0].value, item.revenue, item.filename); assert.equal(result.metrics[1].value, item.yoy, item.filename);
-    // These reviewed captures were all announced on their recorded source date;
-    // synthetic tests above prove that the resolver does not use that metadata.
-    assert.equal(result.announcementDate, item.source.publishedAt?.value.slice(0, 10) ?? item.source.filingDate, item.filename);
-    const announcement = result.announcementDateEvidence!; assert.ok(announcement, item.filename);
-    assert.equal(doc.text.slice(announcement.start, announcement.end), announcement.text, item.filename);
+    // A formal SEC announcement without the reviewed opening byline explicitly
+    // records null; metadata does not fill an unavailable announcement date.
+    const expectedAnnouncement = item.announcementDate === undefined
+      ? item.source.publishedAt?.value.slice(0, 10) ?? item.source.filingDate : item.announcementDate;
+    assert.equal(result.announcementDate, expectedAnnouncement, item.filename);
+    const announcement = result.announcementDateEvidence;
+    if (expectedAnnouncement === null) assert.equal(announcement, null, item.filename);
+    else {
+      assert.ok(announcement, item.filename);
+      assert.equal(doc.text.slice(announcement.start, announcement.end), announcement.text, item.filename);
+    }
     assert.equal(result.completeness, "full"); assert.ok(result.metrics.every(metric => metric.sourceEvidenceKind === "raw_document"));
   }
 });
