@@ -1,0 +1,108 @@
+{
+  "verifiedAt": "2026-10-02",
+  "method": "Downloaded complete official PDFs, Poppler pdftotext -layout, makeCnEarningsPlan then extractEarnings; values asserted against existing official-source expectations. Original PDF bytes not committed.",
+  "discoveryWindow": {
+    "from": "2026-04-01",
+    "to": "2026-10-02"
+  },
+  "discovery": [
+    {
+      "companyId": "XSHG:688981",
+      "orgId": "gshk0000981",
+      "pages": 3,
+      "announcements": 86
+    },
+    {
+      "companyId": "XSHE:301308",
+      "orgId": "9900048787",
+      "pages": 6,
+      "announcements": 172
+    },
+    {
+      "companyId": "XSHG:688256",
+      "orgId": "nssc1000595",
+      "pages": 2,
+      "announcements": 55
+    },
+    {
+      "companyId": "XSHE:300308",
+      "orgId": "9900022016",
+      "pages": 4,
+      "announcements": 97
+    }
+  ],
+  "documents": [
+    {
+      "name": "cambricon-h1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-08/1225464969.PDF",
+      "rawBytes": 1204460,
+      "rawSha256": "eda895e90e5bbc9976bce9e949b6d0e9aabdc33343c26dfa8b6aed0ed2e4a4b0",
+      "outcome": "revenue_and_reported_yoy_matched",
+      "periodType": "half_year"
+    },
+    {
+      "name": "cambricon-q1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-30/1225264337.PDF",
+      "rawBytes": 189239,
+      "rawSha256": "6aed917a6930c4ffc79d880ac0841c92e62aabc6684f4862129f48a91fed18d0",
+      "outcome": "revenue_and_reported_yoy_matched",
+      "periodType": "quarter"
+    },
+    {
+      "name": "longsys-h1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-11/1225467150.PDF",
+      "rawBytes": 4269710,
+      "rawSha256": "d217cdf138618f290fab4e07f71e90eef54c84d52142c38f8593ed726cdf5184",
+      "outcome": "revenue_and_reported_yoy_matched",
+      "periodType": "half_year"
+    },
+    {
+      "name": "longsys-h1-forecast-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-07-03/1225409631.PDF",
+      "rawBytes": 104688,
+      "rawSha256": "6dc073bfd5988101985cd221fb0aef879eaf502aabc94c41ff4860067e3f72ee",
+      "outcome": "revenue_range_matched_no_reported_revenue_yoy",
+      "periodType": "half_year"
+    },
+    {
+      "name": "longsys-q1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-28/1225214140.PDF",
+      "rawBytes": 596264,
+      "rawSha256": "6f792b523513ad1caf95ee784c024b764519a6e5de6ff53055217d629d6e240f",
+      "outcome": "revenue_and_reported_yoy_matched",
+      "periodType": "quarter"
+    },
+    {
+      "name": "smic-h1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-28/1225520297.PDF",
+      "rawBytes": 1077584,
+      "rawSha256": "6a44b7cfe77129d47089ae71bee8c71d2733ae694b8910485e6c3e444de5cb13",
+      "outcome": "revenue_and_reported_yoy_matched",
+      "periodType": "half_year"
+    },
+    {
+      "name": "smic-q1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-05-15/1225307101.PDF",
+      "rawBytes": 205165,
+      "rawSha256": "86d567a9b31cc4b0dfcf19c610a797500cc764afd73b465b50dc60f651366cd5",
+      "outcome": "revenue_and_reported_yoy_matched",
+      "periodType": "quarter"
+    },
+    {
+      "name": "zhongji-h1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-08-22/1225491753.PDF",
+      "rawBytes": 2984970,
+      "rawSha256": "e0ecd7c365c65e90b1fa4b4616ba3f4649449d64451e0ba0b1b78ba9ce3170bf",
+      "outcome": "revenue_and_reported_yoy_matched",
+      "periodType": "half_year"
+    },
+    {
+      "name": "zhongji-q1-2026",
+      "sourceUrl": "https://static.cninfo.com.cn/finalpage/2026-04-17/1225111941.PDF",
+      "rawBytes": 793963,
+      "rawSha256": "5e37220662c1fea7c9286a9410dbcef20ce83f70329ba3b44f2bf733459aa1af",
+      "outcome": "revenue_and_reported_yoy_matched",
+      "periodType": "quarter"
+    }
+  ]
+}

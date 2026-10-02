@@ -17,7 +17,7 @@ export function datesInEvidence(text: string) {
 export function assertEnglishFiscalLabel(companyId: string, period: Period, heading: string, periodEvidence: string) {
   if (period.type !== 'quarter') throw new Error('US pilot results require a quarter-specific adapter; YTD/annual relabelling is unsupported');
   const candidates: { index: number; year: number; quarter: number }[] = [];
-  for (const match of heading.matchAll(/\b(first|second|third|fourth)\s+quarter(?:\s+of)?(?:\s+fiscal)?\s+(20\d{2})/gi)) candidates.push({index:match.index!,year:Number(match[2]),quarter:['first','second','third','fourth'].indexOf(match[1].toLowerCase())+1});
+  for (const match of heading.matchAll(/\b(first|second|third|fourth)\s+quarter(?:\s+of)?(?:\s+fiscal(?:\s+year)?)?\s+(20\d{2})/gi)) candidates.push({index:match.index!,year:Number(match[2]),quarter:['first','second','third','fourth'].indexOf(match[1].toLowerCase())+1});
   for (const match of heading.matchAll(/\bQ([1-4])\s*(?:FY|fiscal)\s*(\d{2}|20\d{2})\b/gi)) candidates.push({index:match.index!,year:match[2].length===2?2000+Number(match[2]):Number(match[2]),quarter:Number(match[1])});
   for (const match of heading.matchAll(/Fiscal year\s*\|?\s*(20\d{2})[^]*?Quarter\s*\|?\s*([1-4])\b/gi)) candidates.push({index:match.index!,year:Number(match[1]),quarter:Number(match[2])});
   const label = candidates.sort((a,b)=>a.index-b.index)[0];
@@ -48,7 +48,7 @@ export function assertChineseReportPeriod(period: Period, title: string, periodE
 export function assertGuidancePeriod(period: MetricPeriod, text: string) {
   if (period.type !== "quarter") throw new Error("Separate guidance target type needs a supported pilot adapter");
   const labels: {year:number;quarter:number}[]=[];
-  for (const match of text.matchAll(/\b(first|second|third|fourth)\s+quarter(?:\s+of)?(?:\s+fiscal)?\s+(20\d{2})/gi)) labels.push({year:Number(match[2]),quarter:["first","second","third","fourth"].indexOf(match[1].toLowerCase())+1});
+  for (const match of text.matchAll(/\b(first|second|third|fourth)\s+quarter(?:\s+of)?(?:\s+fiscal(?:\s+year)?)?\s+(20\d{2})/gi)) labels.push({year:Number(match[2]),quarter:["first","second","third","fourth"].indexOf(match[1].toLowerCase())+1});
   for (const match of text.matchAll(/\bQ([1-4])\s*(?:FY|fiscal)\s*(\d{2}|20\d{2})\b/gi)) labels.push({year:match[2].length===2?2000+Number(match[2]):Number(match[2]),quarter:Number(match[1])});
   for (const match of text.matchAll(/\|\s*(20\d{2})\s*\|\s*([1-4])\b/g)) labels.push({year:Number(match[1]),quarter:Number(match[2])});
   for (const match of text.matchAll(/(20\d{2})\s*年\s*第?([一二三四1234])\s*季度/g)) labels.push({year:Number(match[1]),quarter:/[1-4]/.test(match[2])?Number(match[2]):"一二三四".indexOf(match[2])+1});

@@ -81,12 +81,22 @@ export function parseSecTickerMapping(value: unknown): Map<string, string> {
   return mapping;
 }
 
-export function createSecFilingsSource(userAgent: string, signal?: AbortSignal): SecFilingsSource {
+export type SecRawSubmissionsObserver = (cik: string, value: unknown, archive: (name: string) => Promise<unknown>) => Promise<void>;
+export function createSecFilingsSource(userAgent: string, signal?: AbortSignal, observeRaw?: SecRawSubmissionsObserver): SecFilingsSource {
   if (!userAgent.trim()) throw new Error("SEC_USER_AGENT is required");
   const json = (url: string, cik?: string) => secRequest(url, {
     signal, headers: { accept: "application/json", "user-agent": userAgent },
   }, response => response.json() as Promise<unknown>, { cik, operation: "filing_discovery" });
   let mapping: Promise<Map<string, string>> | undefined;
+  // One source instance belongs to one collector run. Pilot-priority discovery
+  // and annual-fundamentals discovery share these exact responses and budget.
+  const snapshots = new Map<string, Promise<unknown>>(), archives = new Map<string, Promise<unknown>>();
+  const archive = (cik: string, name: string) => {
+    if (!/^\d{10}$/.test(cik) || !new RegExp(`^CIK${cik}-submissions-\\d+\\.json$`).test(name)) throw new Error("Invalid SEC archive path");
+    const key = `${cik}/${name}`;
+    if (!archives.has(key)) archives.set(key, json(`https://data.sec.gov/submissions/${name}`, cik));
+    return archives.get(key)!;
+  };
   return {
     async resolveCik(companyId) {
       mapping ??= json("https://www.sec.gov/files/company_tickers_exchange.json").then(parseSecTickerMapping);
@@ -96,11 +106,18 @@ export function createSecFilingsSource(userAgent: string, signal?: AbortSignal):
     },
     async submissions(cik) {
       if (!/^\d{10}$/.test(cik)) throw new Error("Invalid CIK");
-      return parseSecSubmissions(await json(`https://data.sec.gov/submissions/CIK${cik}.json`, cik), cik);
+      if (!snapshots.has(cik)) snapshots.set(cik, json(`https://data.sec.gov/submissions/CIK${cik}.json`, cik));
+      const value = await snapshots.get(cik)!, parsed = parseSecSubmissions(value, cik);
+      try { await observeRaw?.(cik, value, name => archive(cik, name)); }
+      catch {
+        // The earnings sidecar cannot suppress already-validated financial
+        // discovery, including when its own failure checkpoint cannot be saved.
+        console.error(JSON.stringify({ severity: "ERROR", event: "earnings_observer_failed", cik, financialDiscoveryContinues: true }));
+      }
+      return parsed;
     },
     async archive(cik, name) {
-      if (!/^\d{10}$/.test(cik) || !new RegExp(`^CIK${cik}-submissions-\\d+\\.json$`).test(name)) throw new Error("Invalid SEC archive path");
-      return parseSecFilingRows(await json(`https://data.sec.gov/submissions/${name}`, cik));
+      return parseSecFilingRows(await archive(cik, name));
     },
   };
 }

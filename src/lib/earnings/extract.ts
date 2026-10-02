@@ -13,6 +13,7 @@ export type MetricRule = {
   period?: MetricPeriod; periodEvidence?: string[];
 };
 export type ExtractionPlan = {
+  adapterVersion?: string;
   period: Period; periodStartDerivation?: string; periodEvidence: string[]; kind?: EarningsKind;
   announcementDate?: string; announcementDateEvidence?: string;
   metrics: MetricRule[];
@@ -34,8 +35,8 @@ function evidence(text: string, needle: string) {
   return matches[0];
 }
 function numericCells(text: string) {
-  return [...text.matchAll(/(?<![\p{L}\p{N}])\(?[-−+]?\d[\d,]*(?:\.\d+)?\)?(?:\s*%)?/gu)].map(match => {
-    const raw = match[0].replace(/\s+/g, "");
+  return [...text.matchAll(/(?<![\p{L}\p{N}])\(?[-−+]?\d[\d,]*(?:\.\d+)?\)?(?:\s*\|?\s*%)?/gu)].map(match => {
+    const raw = match[0].replace(/[\s|]+/g, "");
     const value = Number(raw.replace(/[,()%+]/g, "").replace("−", "-")) * (raw.startsWith("(") ? -1 : 1);
     const direction = /(?:down|decreas(?:ed|e)(?: by)?|下降|减少)\s*$/i.test(text.slice(Math.max(0, match.index! - 25), match.index));
     return { value: direction ? -Math.abs(value) : value, raw };
@@ -145,6 +146,7 @@ export function extractEarnings(document: RawEarningsDocument, plan: ExtractionP
     if (!kind || !["actual", "preliminary", "forecast"].includes(kind)) throw new Error("Unclassified filing: inspect actual release exhibit");
     if (plan.kind && classification !== "unknown" && classification !== plan.kind) throw new Error("Source classification conflicts with extraction plan");
     validatePeriod(plan.period);
+    if (plan.adapterVersion !== undefined && !/^[a-z0-9][a-z0-9.-]{0,60}$/.test(plan.adapterVersion)) throw new Error("Invalid earnings adapter version");
     if (!plan.periodEvidence.length) throw new Error("Fiscal period needs source evidence");
     const periodEvidence = plan.periodEvidence.map(needle => evidence(document.text, needle));
     const periodText = periodEvidence.map(item => item.text).join(" ");
@@ -179,7 +181,7 @@ export function extractEarnings(document: RawEarningsDocument, plan: ExtractionP
       revisionId: stableId("earnings_revision", [eventId, document.rawSha256, document.textSha256, EARNINGS_PARSER_VERSION, plan, { ...document.source, firstSeenAt: undefined }]),
       groupId, sourceId: document.sourceId, companyId: document.source.companyId, issuerId: document.source.issuerId,
       kind, period: plan.period, periodEvidence, periodStartDerivation: plan.periodStartDerivation ?? "reviewed_fiscal_calendar", source: document.source, announcementDate, announcementDateEvidence,
-      rawSha256: document.rawSha256, textSha256: document.textSha256, parserVersion: EARNINGS_PARSER_VERSION,
+      rawSha256: document.rawSha256, textSha256: document.textSha256, parserVersion: plan.adapterVersion ? `${EARNINGS_PARSER_VERSION}/${plan.adapterVersion}` : EARNINGS_PARSER_VERSION,
       extractedAt, completeness: document.completeness, metrics,
       warnings: ["reviewed_pilot_adapter", ...(document.completeness === "excerpt" ? ["excerpt_not_full_document_coverage"] : [])],
       coverage: { revenue: "extracted", segments: metrics.some(m => m.scope === "segment") ? "extracted" : "not_extracted", guidance: metrics.some(m => m.kind === "forecast") ? "extracted" : "not_extracted" },

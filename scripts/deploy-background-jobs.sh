@@ -7,8 +7,8 @@ case "${1:-}" in
   all) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance directory) ;;
   fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance) ;;
   sec-filings) targets=(sec-fundamentals company-graph sec-filings) ;;
-  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|eod-maintenance|directory|company-graph) targets=("$1") ;;
-  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync, eod-maintenance, company-graph, sec-filings or directory' >&2; exit 1 ;;
+  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|eod-maintenance|directory|company-graph|earnings) targets=("$1") ;;
+  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync, eod-maintenance, company-graph, sec-filings, earnings or directory' >&2; exit 1 ;;
 esac
 # The filing/graph pipeline is an explicit production rollout. Disabled releases
 # keep every existing worker path and schedule unchanged.
@@ -16,8 +16,23 @@ case "${ENABLE_SEC_FILING_PIPELINE:-0}" in 0|1) ;; *) echo 'ENABLE_SEC_FILING_PI
 if [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 && ( "$1" == all || "$1" == fundamentals ) ]]; then
   targets+=(company-graph sec-filings)
 fi
+# Earnings is a separate, default-off rollout. No existing SEC/graph switch is
+# inferred from it, and routine releases cannot bootstrap its resource access.
+for flag in EARNINGS_PIPELINE_ENABLED EARNINGS_COLLECTION_ENABLED EARNINGS_PROCESSING_ENABLED EARNINGS_BOOTSTRAP_IAM; do
+  case "${!flag:-0}" in 0|1) ;; *) echo "$flag must be 0 or 1" >&2; exit 1 ;; esac
+done
+if [[ "${EARNINGS_PIPELINE_ENABLED:-0}" == 1 && ( "$1" == all || "$1" == fundamentals ) ]]; then
+  targets+=(earnings)
+fi
+if [[ "${EARNINGS_BOOTSTRAP_IAM:-0}" != 0 && "$1" != earnings ]]; then
+  echo 'Earnings resource setup must use the isolated earnings target.' >&2; exit 1
+fi
 # Validate every selected target before any build or mutation.
 for target in "${targets[@]}"; do
+  if [[ "$target" == earnings ]]; then
+    bash scripts/deploy-earnings.sh --check
+    continue
+  fi
   job="refresh-$target-production"
   if [[ "$target" == directory ]]; then job=sync-cni-directory-production; fi
   if [[ "$target" == sec-filings ]]; then job=collect-sec-filings-production; fi

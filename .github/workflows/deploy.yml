@@ -750,6 +750,10 @@ jobs:
       COMPANY_GRAPH_PROCESSING_ENABLED: ${{ vars.COMPANY_GRAPH_PROCESSING_ENABLED }}
       SEC_GRAPH_ACTIVATE_TREE: ${{ vars.SEC_GRAPH_ACTIVATE_TREE }}
       SEC_GRAPH_RECOVERY_SOURCE_TREE: ${{ vars.SEC_GRAPH_RECOVERY_SOURCE_TREE }}
+      EARNINGS_PIPELINE_ENABLED: ${{ vars.EARNINGS_PIPELINE_ENABLED }}
+      EARNINGS_COLLECTION_ENABLED: ${{ vars.EARNINGS_COLLECTION_ENABLED }}
+      EARNINGS_PROCESSING_ENABLED: ${{ vars.EARNINGS_PROCESSING_ENABLED }}
+      EARNINGS_BOOTSTRAP_IAM: '0'
       COMPANY_GRAPH_QUEUE_BATCH_SIZE: ${{ vars.COMPANY_GRAPH_QUEUE_BATCH_SIZE }}
       OPENAI_API_KEY: ${{ vars.ENABLE_SEC_FILING_PIPELINE == '1' && secrets.OPENAI_API_KEY || '' }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
@@ -786,3 +790,9 @@ jobs:
       - name: Verify capped NVDA pipeline and activate reviewed source tree
         if: ${{ env.ENABLE_SEC_FILING_PIPELINE == '1' && env.COMPANY_GRAPH_PROCESSING_ENABLED == '1' && env.SEC_FILINGS_COLLECTOR_ENABLED == '1' && env.SEC_GRAPH_ACTIVATE_TREE != '' }}
         run: bash scripts/activate-sec-graph.sh
+      - name: Verify earnings delivery without provider calls
+        if: ${{ env.EARNINGS_PIPELINE_ENABLED == '1' && (env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'earnings') }}
+        run: >-
+          gcloud run jobs execute collect-earnings-production
+          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
+          --args dist/collect-earnings.cjs,--verify-delivery --wait --quiet
