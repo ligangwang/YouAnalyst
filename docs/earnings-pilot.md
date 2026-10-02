@@ -1,5 +1,9 @@
 # US and mainland-China earnings pilot
 
+This document records the original offline proof. The subsequent bounded live
+implementation and its separate approval/activation procedure are documented in
+[live-earnings.md](live-earnings.md). The replay command below remains offline.
+
 This is an **offline, read-only proof of the earnings path**, not an activated
 collector. It covers NVIDIA, AMD, Microsoft, Alibaba's US-listed ADR, SMIC,
 Longsys, Cambricon and Zhongji Innolight. No Firestore collection, topic,

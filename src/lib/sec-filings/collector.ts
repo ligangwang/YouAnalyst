@@ -19,6 +19,8 @@ export type SecCollectorOptions = {
   maxCompanies?: number;
   maxArchivePagesPerCompany?: number;
   pollIntervalMs?: number;
+  /** Optional bounded pre-filter sidecar, inside the same collector lease. */
+  beforeCollection?: () => Promise<void>;
 };
 export type SecCollectorResult = {
   companies: number;
@@ -103,6 +105,10 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
       }
     };
     if (!await drain()) return result;
+    if (options.beforeCollection && canWork()) {
+      try { await options.beforeCollection(); }
+      catch (error) { log.emit("WARNING", "optional_discovery_incomplete", { error: maintenanceError(error), financialDiscoveryContinues: true }); }
+    }
     const ordered = rotateCompanies(companies, (await metadata.get()).get("afterCompanyId"));
     for (const companyId of ordered) {
       if (!canWork() || result.inspected >= maxCompanies) break;

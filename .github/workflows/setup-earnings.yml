@@ -1,0 +1,138 @@
+name: Set up paused earnings pipeline
+
+# Setup creates only the five documented resource-scoped bindings. It reuses
+# existing identities and their established Pub/Sub token-creation permission.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Reviewed operation (setup never enables collection)
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - setup-paused
+          - verify-delivery
+          - diagnostics
+          - canary
+          - activate
+          - rollback
+      approved_commit:
+        description: Exact successful main release SHA to operate on
+        required: true
+        type: string
+      approve_resource_iam:
+        description: Approve the five earnings resource IAM bindings listed in deploy-earnings.sh; no account or project IAM
+        type: boolean
+        default: false
+      approve_live_operation:
+        description: Approve the selected bounded AMD/Longsys canary, reviewed-canary activation, or earnings-only rollback
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  earnings-operation:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    concurrency:
+      group: deploy-background-jobs-production
+      cancel-in-progress: false
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: us-central1
+      SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
+      GIT_SHA: ${{ github.sha }}
+      EARNINGS_PIPELINE_ENABLED: '1'
+      EARNINGS_COLLECTION_ENABLED: '0'
+      EARNINGS_PROCESSING_ENABLED: '0'
+    steps:
+      - name: Require explicit approval and the exact successful main release
+        id: approval
+        uses: actions/github-script@v7
+        env:
+          APPROVED_COMMIT: ${{ inputs.approved_commit }}
+          OPERATION: ${{ inputs.action }}
+          APPROVE_RESOURCE_IAM: ${{ inputs.approve_resource_iam }}
+          APPROVE_LIVE_OPERATION: ${{ inputs.approve_live_operation }}
+        with:
+          script: |
+            if (process.env.APPROVED_COMMIT !== context.sha) {
+              core.setFailed('The approved commit must equal this exact main release SHA.'); return;
+            }
+            if (process.env.OPERATION === 'setup-paused' && process.env.APPROVE_RESOURCE_IAM !== 'true') {
+              core.setFailed('Paused setup requires explicit approval of the five earnings resource bindings.'); return;
+            }
+            if (['canary', 'activate', 'rollback'].includes(process.env.OPERATION) && process.env.APPROVE_LIVE_OPERATION !== 'true') {
+              core.setFailed('The selected earnings operation requires explicit approval; review the canary before activation.'); return;
+            }
+            const {data: branch} = await github.rest.repos.getBranch({
+              owner: context.repo.owner, repo: context.repo.repo, branch: 'main'
+            });
+            if (branch.commit.sha !== context.sha) {
+              core.setFailed('Run this operation from the current main commit.'); return;
+            }
+            const {data} = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner, repo: context.repo.repo,
+              workflow_id: 'deploy.yml', head_sha: context.sha,
+              event: 'push', per_page: 20
+            });
+            const latest = data.workflow_runs.filter(run => run.head_sha === context.sha)
+              .sort((a, b) => b.run_number - a.run_number || b.run_attempt - a.run_attempt)[0];
+            if (!latest || latest.status !== 'completed' || latest.conclusion !== 'success') {
+              core.setFailed('The exact main commit must finish its production release before earnings operations.');
+            }
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: google-github-actions/auth@v2
+        id: cloud_auth
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Provision the approved resources with collection and processing disabled
+        if: inputs.action == 'setup-paused'
+        env:
+          EARNINGS_BOOTSTRAP_IAM: '1'
+          EARNINGS_SETUP_APPROVED_SHA: ${{ inputs.approved_commit }}
+        run: bash scripts/deploy-background-jobs.sh earnings
+      - name: Require both earnings runtimes to match this release
+        if: inputs.action != 'rollback'
+        run: |
+          gcloud run jobs describe collect-earnings-production --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json |
+            jq -e --arg sha "$GIT_SHA" '.spec.template.spec.template.spec.containers[0].env | any(.name == "GIT_SHA" and .value == $sha)' >/dev/null
+          gcloud run services describe earnings-subscriber --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json |
+            jq -e --arg sha "$GIT_SHA" '.spec.template.spec.containers[0].env | any(.name == "GIT_SHA" and .value == $sha)' >/dev/null
+      - name: Preview collection without provider calls or writes
+        if: inputs.action == 'dry-run'
+        run: node --import tsx scripts/collect-earnings.ts --dry-run
+      - name: Verify authenticated earnings delivery without provider calls
+        if: inputs.action == 'setup-paused' || inputs.action == 'verify-delivery'
+        run: >-
+          gcloud run jobs execute collect-earnings-production
+          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
+          --args dist/collect-earnings.cjs,--verify-delivery --wait --quiet
+      - name: Inspect earnings state without writes
+        if: inputs.action == 'diagnostics'
+        # Print bounded source/record proof directly into this workflow's logs.
+        # The existing release identity already reads Firestore; missing access
+        # fails closed, with no impersonation or new permission fallback.
+        run: node --import tsx scripts/collect-earnings.ts --diagnostics
+      - name: Run the approved earnings canary, activation, or rollback
+        if: inputs.action == 'canary' || inputs.action == 'activate' || inputs.action == 'rollback'
+        env:
+          EARNINGS_OPERATION_APPROVED_SHA: ${{ inputs.approved_commit }}
+          EARNINGS_OPERATION: ${{ inputs.action }}
+        run: bash scripts/operate-earnings.sh "$EARNINGS_OPERATION"
+      - name: Report durable earnings proof after the operation
+        if: always() && steps.approval.outcome == 'success' && steps.cloud_auth.outcome == 'success' && inputs.action != 'dry-run' && inputs.action != 'diagnostics'
+        run: node --import tsx scripts/collect-earnings.ts --diagnostics

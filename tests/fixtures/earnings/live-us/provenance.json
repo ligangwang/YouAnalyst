@@ -1,0 +1,322 @@
+{
+  "verifiedAt": "2026-10-02",
+  "purpose": "Local raw-document validation only; publisher bytes are not committed. Factual assertions independently reviewed in the existing US pilot fixtures.",
+  "sources": [
+    {
+      "filename": "nvda-fy2027-q2-sec.html",
+      "example": "nvidia",
+      "source": {
+        "provider": "sec",
+        "companyId": "US:NVDA",
+        "issuerId": "sec:0001045810",
+        "documentId": "000104581026000073/q2fy27pr.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000073/q2fy27pr.htm",
+        "title": "EX-99.1",
+        "publishedAt": null,
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en",
+        "filingDate": "2026-08-26"
+      },
+      "sha256": "6281a4fff39e30e773503051f97e0da1b2f7bf1ace25feaf852ce78480fa27ff",
+      "bytes": 341221,
+      "period": {
+        "start": "2026-04-27",
+        "end": "2026-07-26",
+        "type": "quarter",
+        "fiscalYear": 2027,
+        "fiscalQuarter": 2
+      },
+      "revenue": 96221000000,
+      "yoy": 106
+    },
+    {
+      "filename": "nvda-fy2027-q2.html",
+      "example": "nvidia",
+      "source": {
+        "provider": "issuer_ir",
+        "companyId": "US:NVDA",
+        "issuerId": "sec:0001045810",
+        "documentId": "nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2027",
+        "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2027",
+        "title": "NVIDIA Corporation quarterly financial results",
+        "publishedAt": {
+          "value": "2026-08-26",
+          "precision": "date",
+          "timezone": null
+        },
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en"
+      },
+      "sha256": "3c6ec3d35d1cd950dbdbdd937b778c9a9e091e93fed695b713e84f656c8c14bf",
+      "bytes": 370570,
+      "period": {
+        "start": "2026-04-27",
+        "end": "2026-07-26",
+        "type": "quarter",
+        "fiscalYear": 2027,
+        "fiscalQuarter": 2
+      },
+      "revenue": 96221000000,
+      "yoy": 106
+    },
+    {
+      "filename": "amd-fy2026-q2-sec.html",
+      "example": "amd",
+      "source": {
+        "provider": "sec",
+        "companyId": "US:AMD",
+        "issuerId": "sec:0000002488",
+        "documentId": "000000248826000121/q22026991.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/2488/000000248826000121/q22026991.htm",
+        "title": "EX-99.1",
+        "publishedAt": null,
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en",
+        "filingDate": "2026-08-04"
+      },
+      "sha256": "28e23c57aa7acad961ebc82376a156aeaa712d3ba0fbc4fb588763c0210dc732",
+      "bytes": 448999,
+      "period": {
+        "start": "2026-03-29",
+        "end": "2026-06-27",
+        "type": "quarter",
+        "fiscalYear": 2026,
+        "fiscalQuarter": 2
+      },
+      "revenue": 11536000000,
+      "yoy": 50
+    },
+    {
+      "filename": "amd-fy2026-q2.html",
+      "example": "amd",
+      "source": {
+        "provider": "issuer_ir",
+        "companyId": "US:AMD",
+        "issuerId": "sec:0000002488",
+        "documentId": "ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results",
+        "url": "https://ir.amd.com/news-events/press-releases/detail/1295/amd-reports-second-quarter-2026-financial-results",
+        "title": "Advanced Micro Devices, Inc. quarterly financial results",
+        "publishedAt": {
+          "value": "2026-08-04",
+          "precision": "date",
+          "timezone": null
+        },
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en"
+      },
+      "sha256": "a2ae26cd16569d52c7b3c8c99213d8b764cb52e4951882d6cb189a34471d5e9d",
+      "bytes": 453196,
+      "period": {
+        "start": "2026-03-29",
+        "end": "2026-06-27",
+        "type": "quarter",
+        "fiscalYear": 2026,
+        "fiscalQuarter": 2
+      },
+      "revenue": 11536000000,
+      "yoy": 50
+    },
+    {
+      "filename": "msft-fy2026-q4.html",
+      "example": "microsoft",
+      "source": {
+        "provider": "sec",
+        "companyId": "US:MSFT",
+        "issuerId": "sec:0000789019",
+        "documentId": "000119312526323632/msft-ex99_1.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526323632/msft-ex99_1.htm",
+        "title": "EX-99.1",
+        "publishedAt": null,
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en",
+        "filingDate": "2026-07-29"
+      },
+      "sha256": "4ec7ba746b70711b1fd226d8a3ca84ec20ef1f2aed17c172c893e4e5ee1b3996",
+      "bytes": 901708,
+      "period": {
+        "start": "2026-04-01",
+        "end": "2026-06-30",
+        "type": "quarter",
+        "fiscalYear": 2026,
+        "fiscalQuarter": 4
+      },
+      "revenue": 90007000000,
+      "yoy": 18
+    },
+    {
+      "filename": "baba-fy2027-q1-sec.html",
+      "example": "alibaba",
+      "source": {
+        "provider": "sec",
+        "companyId": "US:BABA",
+        "issuerId": "sec:0001577552",
+        "documentId": "000110465926099220/tm2623667d1_ex99-1.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/1577552/000110465926099220/tm2623667d1_ex99-1.htm",
+        "title": "EX-99.1",
+        "publishedAt": null,
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en",
+        "filingDate": "2026-08-20"
+      },
+      "sha256": "022fe932ca530739c31d6e60810bbf54435efeb0b67acaea6253e45cd7bdc3e1",
+      "bytes": 464052,
+      "period": {
+        "start": "2026-04-01",
+        "end": "2026-06-30",
+        "type": "quarter",
+        "fiscalYear": 2027,
+        "fiscalQuarter": 1
+      },
+      "revenue": 268953000000,
+      "yoy": 9
+    },
+    {
+      "filename": "baba-fy2027-q1.pdf",
+      "example": "alibaba",
+      "source": {
+        "provider": "issuer_ir",
+        "companyId": "US:BABA",
+        "issuerId": "sec:0001577552",
+        "documentId": "data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf",
+        "url": "https://data.alibabagroup.com/ecms-files/1532295521/fa5d65fc-9b3e-4e82-a8fc-4ce1c3e2c407/Alibaba%20Group%20Announces%20June%20Quarter%202026%20Results.pdf",
+        "title": "Alibaba Group Holding Limited quarterly financial results",
+        "publishedAt": {
+          "value": "2026-08-20",
+          "precision": "date",
+          "timezone": null
+        },
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en"
+      },
+      "sha256": "e12a8508845c899f18b2049246470c5da2515fe8212fa16c9a449392e2cfabba",
+      "bytes": 493574,
+      "period": {
+        "start": "2026-04-01",
+        "end": "2026-06-30",
+        "type": "quarter",
+        "fiscalYear": 2027,
+        "fiscalQuarter": 1
+      },
+      "revenue": 268953000000,
+      "yoy": 9
+    },
+    {
+      "filename": "nvda-fy2027-q1.html",
+      "example": "nvidia",
+      "source": {
+        "provider": "issuer_ir",
+        "companyId": "US:NVDA",
+        "issuerId": "sec:0001045810",
+        "documentId": "nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2027",
+        "url": "https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-first-quarter-fiscal-2027",
+        "title": "NVIDIA Corporation quarterly financial results",
+        "publishedAt": {
+          "value": "2026-05-20",
+          "precision": "date",
+          "timezone": null
+        },
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en"
+      },
+      "sha256": "9576b92d195262ca072b3edd8c1979e0816b0f243744cb1493ab9b4b6561936e",
+      "bytes": 292926,
+      "period": {
+        "start": "2026-01-26",
+        "end": "2026-04-26",
+        "type": "quarter",
+        "fiscalYear": 2027,
+        "fiscalQuarter": 1
+      },
+      "revenue": 81615000000,
+      "yoy": 85
+    },
+    {
+      "filename": "amd-fy2026-q1.html",
+      "example": "amd",
+      "source": {
+        "provider": "issuer_ir",
+        "companyId": "US:AMD",
+        "issuerId": "sec:0000002488",
+        "documentId": "ir.amd.com/news-events/press-releases/detail/1284/amd-reports-first-quarter-2026-financial-results",
+        "url": "https://ir.amd.com/news-events/press-releases/detail/1284/amd-reports-first-quarter-2026-financial-results",
+        "title": "Advanced Micro Devices, Inc. quarterly financial results",
+        "publishedAt": {
+          "value": "2026-05-05",
+          "precision": "date",
+          "timezone": null
+        },
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en"
+      },
+      "sha256": "52b56457e3d19d89bb19dad52cfb06e2f0aa935a13ad6e6c48f3339a1c48c2e3",
+      "bytes": 284462,
+      "period": {
+        "start": "2025-12-28",
+        "end": "2026-03-28",
+        "type": "quarter",
+        "fiscalYear": 2026,
+        "fiscalQuarter": 1
+      },
+      "revenue": 10253000000,
+      "yoy": 38
+    },
+    {
+      "filename": "baba-fy2026-q4.pdf",
+      "example": "alibaba",
+      "source": {
+        "provider": "issuer_ir",
+        "companyId": "US:BABA",
+        "issuerId": "sec:0001577552",
+        "documentId": "data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf",
+        "url": "https://data.alibabagroup.com/ecms-files/1532295521/5b1cb883-8d00-4237-a148-6631cc12a5d2/Alibaba%20Group%20Announces%20March%20Quarter%202026%20and%20Fiscal%20Year%202026%20Results.pdf",
+        "title": "Alibaba Group Holding Limited quarterly financial results",
+        "publishedAt": {
+          "value": "2026-05-13",
+          "precision": "date",
+          "timezone": null
+        },
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en"
+      },
+      "sha256": "94b08e45d3c06789fc4fb5ad3c0e1a3fd57013b6a12c4688e05db4a0a92a1174",
+      "bytes": 579810,
+      "period": {
+        "start": "2026-01-01",
+        "end": "2026-03-31",
+        "type": "quarter",
+        "fiscalYear": 2026,
+        "fiscalQuarter": 4
+      },
+      "revenue": 243380000000,
+      "yoy": 3
+    },
+    {
+      "filename": "msft-fy2026-q3.html",
+      "example": "microsoft",
+      "source": {
+        "provider": "sec",
+        "companyId": "US:MSFT",
+        "issuerId": "sec:0000789019",
+        "documentId": "000119312526191457/msft-ex99_1.htm",
+        "url": "https://www.sec.gov/Archives/edgar/data/789019/000119312526191457/msft-ex99_1.htm",
+        "title": "EX-99.1",
+        "publishedAt": null,
+        "firstSeenAt": "2026-10-02T11:00:00Z",
+        "language": "en",
+        "filingDate": "2026-04-29",
+        "filingAcceptedAt": "2026-04-29T20:03:31.000Z"
+      },
+      "sha256": "44ae79ec0cef961841788e7bcb2b99793ce91a208caf418c3997839b98a1da82",
+      "bytes": 835715,
+      "period": {
+        "start": "2026-01-01",
+        "end": "2026-03-31",
+        "type": "quarter",
+        "fiscalYear": 2026,
+        "fiscalQuarter": 3
+      },
+      "revenue": 82886000000,
+      "yoy": 18
+    }
+  ]
+}
