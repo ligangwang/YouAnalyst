@@ -9,7 +9,7 @@ export function IntelligencePropagation({layout,origin,edges}:{layout:ReturnType
   const {invalidate}=useThree();
   useEffect(()=>{const media=matchMedia('(prefers-reduced-motion: reduce)');const update=()=>{reduced.current=media.matches;invalidate();};update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[invalidate]);
   useEffect(()=>{elapsed.current=0;invalidate();},[origin,edges,invalidate]);
-  const paths=useMemo(()=>{const positions=new Map(layout.nodes.map(n=>[n.id,n]));return layout.edges.filter(e=>edges.includes(e.id)).flatMap(e=>{const a=positions.get(e.source===origin?e.source:e.target),b=positions.get(e.source===origin?e.target:e.source);return a&&b?[{a:new Vector3(a.x,a.y,a.z),b:new Vector3(b.x,b.y,b.z)}]:[];});},[layout,origin,edges]);
+  const paths=useMemo(()=>{const positions=new Map(layout.nodes.map(n=>[n.id,n]));return layout.edges.filter(e=>edges.includes(e.id)&&(e.source===origin||e.target===origin)).flatMap(e=>{const a=positions.get(origin),b=positions.get(e.source===origin?e.target:e.source);return a&&b?[{a:new Vector3(a.x,a.y,a.z),b:new Vector3(b.x,b.y,b.z)}]:[];});},[layout,origin,edges]);
   const center=layout.nodes.find(n=>n.id===origin);
   useFrame(({camera},delta)=>{
     elapsed.current+=Math.min(delta,.05);

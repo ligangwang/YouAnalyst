@@ -28,6 +28,12 @@ export type SecFilingDiscoveryRecord = {
 };
 type Discoveries = Record<string, SecFilingDiscoveryRecord>;
 
+/** Baselines are history, not new activity. Keep the original observation time. */
+export function firstIntelligenceObservation(records:Discoveries):string|null {
+  const times=Object.values(records).filter(record=>record.state==='pending'||record.state==='published').map(record=>parseSecFilingDiscovered(record.event).discoveredAt);
+  return times.sort()[0]??null;
+}
+
 export function secCollectorMetadata(db: Firestore) {
   return db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(SEC_COLLECTOR_METADATA_DOCUMENT);
 }
@@ -64,6 +70,8 @@ export async function persistSecFilingDiscovery(db: Firestore, event: SecFilingD
         throw new Error("SEC filing event metadata conflicts with the persisted accession");
       }
       if (!["baseline", "pending", "published"].includes(existing.state)) throw new Error("Invalid SEC discovery state");
+      const observedAt=firstIntelligenceObservation(records);
+      if(observedAt&&stored?.intelligenceObservedAt!==observedAt)tx.set(ref,{intelligenceObservedAt:observedAt},{merge:true});
       return "existing" as const;
     }
     for (const record of Object.values(records)) {
@@ -77,11 +85,13 @@ export async function persistSecFilingDiscovery(db: Firestore, event: SecFilingD
       if (stored?.[key] !== undefined && stored[key] !== event[key]) throw new Error("SEC filing metadata conflicts with the existing accession");
     }
     const state = baseline ? "baseline" : "pending";
+    const observedAt=firstIntelligenceObservation({...records,[event.eventId]:{event,state}});
     tx.set(ref, {
       accessionNumber: event.accessionNumber, cik: event.cik, ticker: stored?.ticker ?? event.companyId,
       form: event.form, filingDate: event.filingDate, primaryDocument: event.primaryDocument,
       discoveryEvents: { [event.eventId]: { event, state } },
       discoveryPending: !baseline || stored?.discoveryPending === true,
+      ...(observedAt?{intelligenceObservedAt:observedAt}:{}),
     }, { merge: true });
     return state;
   });
