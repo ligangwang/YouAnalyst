@@ -317,6 +317,36 @@
       },
       "revenue": 82886000000,
       "yoy": 18
+    },
+    {
+      "filename": "baba-fy2026-q4-sec.html",
+      "example": "alibaba",
+      "source": {
+        "provider": "sec",
+        "companyId": "US:BABA",
+        "issuerId": "sec:0001577552",
+        "documentId": "0001104659-26-060224/tm2614494d1_ex99-1.htm",
+        "form": "6-K",
+        "accession": "0001104659-26-060224",
+        "url": "https://www.sec.gov/Archives/edgar/data/1577552/000110465926060224/tm2614494d1_ex99-1.htm",
+        "title": "EX-99.1",
+        "publishedAt": null,
+        "firstSeenAt": "2026-10-02T15:00:00Z",
+        "language": "en",
+        "filingDate": "2026-05-13"
+      },
+      "sha256": "2983076e55b2f2163884f9ce8fab73e696c15099c4818519cb1cb7647b5d9473",
+      "bytes": 921654,
+      "period": {
+        "start": "2026-01-01",
+        "end": "2026-03-31",
+        "type": "quarter",
+        "fiscalYear": 2026,
+        "fiscalQuarter": 4
+      },
+      "revenue": 243380000000,
+      "yoy": 3,
+      "announcementDate": null
     }
   ]
 }

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import type { MaintenanceLog } from "../../src/lib/maintenance-log";
 import { earningsFirestore } from "../helpers/earnings-firestore";
@@ -100,6 +101,40 @@ test("transient source failure has a finite retry budget and preserves diagnosti
   assert.equal((await processEarningsJob(event, fx.db, log, worker)).status, "review_required");
   assert.match(String(fx.rows.get(`${EARNINGS_SOURCES}/${event.sourceId}`)?.reason), /retry_budget_exhausted/);
   assert.equal(records(fx).length, 0);
+});
+const alibabaAnnouncement: EarningsSource = {
+  provider: "sec", companyId: "US:BABA", issuerId: "sec:0001577552", language: "en", form: "6-K",
+  accession: "0001104659-26-060224", documentId: "0001104659-26-060224/tm2614494d1_ex99-1.htm",
+  url: "https://www.sec.gov/Archives/edgar/data/1577552/000110465926060224/tm2614494d1_ex99-1.htm",
+  title: "2 EXHIBIT 99.1 tm2614494d1_ex99-1.htm EX-99.1", filingDate: "2026-05-13", publishedAt: null,
+  firstSeenAt: "2026-10-02T11:00:00Z",
+};
+async function inspectRejectedAlibabaAnnouncement(raw: Buffer) {
+  const fx = earningsFirestore(), event = await enqueue(fx, alibabaAnnouncement);
+  const result = await processEarningsJob(event, fx.db, log, { enabled: true, now: fx.now,
+    download: async () => ({ bytes: raw, mediaType: "text/html" }), publish: async () => { throw new Error("Unexpected publication"); },
+    // Relevance must preserve a rejected format independently of extraction.
+    resolvePlan: () => null });
+  assert.equal(result.status, "review_required"); assert.equal(records(fx).length, 0);
+  const work = fx.rows.get(`${EARNINGS_SOURCES}/${event.sourceId}`) as unknown as EarningsWork;
+  assert.equal(work.reason, "unsupported_source_format_or_period"); assert.ok(work.captureId);
+  const restored = await readEarningsCapture(fx.db, work.captureId!);
+  assert.deepEqual(restored.bytes, raw); assert.equal(restored.document.source.url, alibabaAnnouncement.url);
+}
+test("Alibaba's SEC announcement heading retains raw provenance when its strict adapter rejects the document", async () => {
+  await inspectRejectedAlibabaAnnouncement(readFileSync("tests/fixtures/earnings/live-us/alibaba-sec-announcement.html"));
+});
+test("ordinary Alibaba monthly returns remain skipped without invented earnings records", async () => {
+  const fx = earningsFirestore(), event = await enqueue(fx, alibabaAnnouncement);
+  const result = await processEarningsJob(event, fx.db, log, { enabled: true, now: fx.now,
+    download: async () => ({ bytes: Buffer.from("<h1>Alibaba Group Holding Limited</h1><h2>Monthly Return of Equity Issuer on Movements in Securities</h2>"), mediaType: "text/html" }),
+    publish: async () => { throw new Error("Unexpected publication"); }, resolvePlan: () => null });
+  assert.equal(result.status, "skipped"); assert.equal(records(fx).length, 0);
+  assert.equal([...fx.rows.values()].some(row => row.recordType === "capture"), false);
+});
+test("exact May 13 Alibaba SEC source is retained even if extraction fails", { skip: !process.env.EARNINGS_US_SOURCE_DIR }, async () => {
+  const raw = readFileSync(resolve(process.env.EARNINGS_US_SOURCE_DIR!, "baba-fy2026-q4-sec.html"));
+  await inspectRejectedAlibabaAnnouncement(raw);
 });
 test("CN failure retains its checkpoint and successful sources observe the hourly interval", async () => {
   const fx = earningsFirestore(), path = `${EARNINGS_COLLECTORS}/cn_XSHG:688981`;

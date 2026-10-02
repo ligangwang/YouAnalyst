@@ -203,7 +203,7 @@ test("manual earnings operations require explicit exact-main approval and isolat
   assert.match(guard, /run.head_sha === context.sha/);
   assert.match(guard, /latest.status !== 'completed' \|\| latest.conclusion !== 'success'/);
   assert.match(guard, /b.run_number - a.run_number \|\| b.run_attempt - a.run_attempt/);
-  assert.match(guard, /\['canary', 'activate', 'rollback'\].*APPROVE_LIVE_OPERATION !== 'true'/);
+  assert.match(guard, /\['canary', 'activate', 'rollback', 'replay-alibaba-march-2026'\].*APPROVE_LIVE_OPERATION !== 'true'/);
   assert.equal(job.env.EARNINGS_COLLECTION_ENABLED, "0");
   assert.equal(job.env.EARNINGS_PROCESSING_ENABLED, "0");
   assert.equal(job.env.EARNINGS_BOOTSTRAP_IAM, undefined);
@@ -225,6 +225,21 @@ test("manual earnings operations require explicit exact-main approval and isolat
   assert.equal(proof.run, "node --import tsx scripts/collect-earnings.ts --diagnostics");
   assert.match(commands, /operate-earnings.sh "\$EARNINGS_OPERATION"/);
   assert.doesNotMatch(commands, /scheduler jobs resume|EARNINGS_(?:COLLECTION|PROCESSING)_ENABLED=1|OPENAI|COMPANY_GRAPH|SEC_FILINGS_COLLECTOR_ENABLED/);
+});
+
+test("Alibaba repair workflow overrides only existing job args after exact release and enabled runtime checks", () => {
+  const workflow = require("js-yaml").load(readFileSync(".github/workflows/setup-earnings.yml", "utf8"));
+  assert.ok(workflow.on.workflow_dispatch.inputs.action.options.includes("replay-alibaba-march-2026"));
+  const job = workflow.jobs["earnings-operation"];
+  const current = job.steps.find((step: { name?: string }) => step.name === "Require both earnings runtimes to match this release");
+  assert.equal(current.if, "inputs.action != 'rollback'");
+  const replay = job.steps.find((step: { if?: string }) => step.if === "inputs.action == 'replay-alibaba-march-2026'");
+  assert.match(replay.run, /EARNINGS_COLLECTION_ENABLED.*\.value == "1"/);
+  assert.match(replay.run, /EARNINGS_PROCESSING_ENABLED.*\.value == "1"/);
+  assert.match(replay.run, /EARNINGS_CANARY_ONLY.*\.value == "0"/);
+  assert.match(replay.run, /--args dist\/collect-earnings.cjs,--apply,--replay-alibaba-march-2026 --wait --quiet/);
+  assert.equal((replay.run.match(/run jobs execute/g) ?? []).length, 1);
+  assert.doesNotMatch(replay.run, /--update-env-vars|--set-env-vars|add-iam|scheduler|topics|subscriptions|OPENAI|--source|--url/);
 });
 
 test("routine workflow preserves SEC/graph settings and never bootstraps earnings access", () => {

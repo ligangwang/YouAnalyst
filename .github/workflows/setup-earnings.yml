@@ -18,6 +18,7 @@ on:
           - canary
           - activate
           - rollback
+          - replay-alibaba-march-2026
       approved_commit:
         description: Exact successful main release SHA to operate on
         required: true
@@ -27,7 +28,7 @@ on:
         type: boolean
         default: false
       approve_live_operation:
-        description: Approve the selected bounded AMD/Longsys canary, reviewed-canary activation, or earnings-only rollback
+        description: Approve the selected bounded canary, activation, rollback, or one-source Alibaba March 2026 repair
         type: boolean
         default: false
 
@@ -69,7 +70,7 @@ jobs:
             if (process.env.OPERATION === 'setup-paused' && process.env.APPROVE_RESOURCE_IAM !== 'true') {
               core.setFailed('Paused setup requires explicit approval of the five earnings resource bindings.'); return;
             }
-            if (['canary', 'activate', 'rollback'].includes(process.env.OPERATION) && process.env.APPROVE_LIVE_OPERATION !== 'true') {
+            if (['canary', 'activate', 'rollback', 'replay-alibaba-march-2026'].includes(process.env.OPERATION) && process.env.APPROVE_LIVE_OPERATION !== 'true') {
               core.setFailed('The selected earnings operation requires explicit approval; review the canary before activation.'); return;
             }
             const {data: branch} = await github.rest.repos.getBranch({
@@ -133,6 +134,15 @@ jobs:
           EARNINGS_OPERATION_APPROVED_SHA: ${{ inputs.approved_commit }}
           EARNINGS_OPERATION: ${{ inputs.action }}
         run: bash scripts/operate-earnings.sh "$EARNINGS_OPERATION"
+      - name: Retry only the existing Alibaba March 2026 SEC exhibit
+        if: inputs.action == 'replay-alibaba-march-2026'
+        run: |
+          gcloud run jobs describe collect-earnings-production --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json |
+            jq -e '.spec.template.spec.template.spec.containers[0].env | any(.name == "EARNINGS_COLLECTION_ENABLED" and .value == "1")' >/dev/null
+          gcloud run services describe earnings-subscriber --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json |
+            jq -e '.spec.template.spec.containers[0].env | any(.name == "EARNINGS_PROCESSING_ENABLED" and .value == "1") and any(.name == "EARNINGS_CANARY_ONLY" and .value == "0")' >/dev/null
+          gcloud run jobs execute collect-earnings-production --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --args dist/collect-earnings.cjs,--apply,--replay-alibaba-march-2026 --wait --quiet
       - name: Report durable earnings proof after the operation
         if: always() && steps.approval.outcome == 'success' && steps.cloud_auth.outcome == 'success' && inputs.action != 'dry-run' && inputs.action != 'diagnostics'
         run: node --import tsx scripts/collect-earnings.ts --diagnostics
