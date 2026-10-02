@@ -1,0 +1,21 @@
+.liveControls { display: flex; align-items: center; gap: 12px; }
+.liveControls > button { padding: 5px 9px; border: 1px solid #213242; color: #9ab0c3; }
+.liveStatus { display: flex; align-items: center; gap: 5px; color: #98e7d6; white-space: nowrap; }
+.liveStatus > i { width: 5px; height: 5px; border-radius: 50%; background: #98e7d6; }
+.liveStatus > small { font-size: 9px; color: #9ab0c3; }
+.more { position: relative; }
+.more > summary { cursor: pointer; color: #9ab0c3; list-style: none; white-space: nowrap; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > nav { position: absolute; top: calc(100% + 13px); right: 0; z-index: 80; background: #0b1722; border: 1px solid #213242; border-radius: 6px; min-width: 190px; padding: 6px; box-shadow: 0 10px 30px #0008; display: flex; flex-direction: column; }
+.more a { padding: 8px 9px; color: #c0d2df; font-size: 11px; border-radius: 4px; }
+.more a:hover { background: #ffffff0a; }
+.researchShortcuts { padding: 7px 8px 10px; border-top: 1px solid #213242; flex-shrink: 0; }
+.researchHeading { font-size: 9px; font-weight: 500; letter-spacing: .1em; color: #849bae; display: flex; justify-content: space-between; padding: 0 4px; margin: 0 0 5px; }
+.researchHeading a { font-size: 9px; letter-spacing: 0; color: #98e7d6; }
+.researchShortcuts > a, .researchShortcuts > button { display: block; font-size: 10px; padding: 5px 4px; text-align: left; width: 100%; color: #a8c9cf; border-radius: 4px; }
+.researchShortcuts > a:hover { background: #ffffff0a; }
+@media (max-width: 850px) {
+  .researchShortcuts { display: flex; flex-wrap: wrap; gap: 3px; padding: 5px 8px; }
+  .researchHeading { display: none; }
+  .researchShortcuts > a, .researchShortcuts > button { width: auto; font-size: 10px; padding: 5px; }
+}

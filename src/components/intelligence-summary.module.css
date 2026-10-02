@@ -1,0 +1,9 @@
+.summary { display:flex; align-items:center; flex-wrap:wrap; gap:4px 12px; padding:6px 12px; min-height:34px; border-top:1px solid #213242; background:#0a1520; flex-shrink:0; font-size:10px; font-variant-numeric:tabular-nums; }
+.summary button { padding:3px 4px; color:#9ab0c3; white-space:nowrap; }
+.summary button strong { color:#e4edf5; font-weight:500; margin-left:5px; }
+.summary button[aria-pressed=true] { background:#203a3e; color:#98e7d6; }
+.context { font-size:9px; color:#849bae; white-space:nowrap; }
+.sources { display:flex; align-items:center; gap:3px; flex-wrap:wrap; }
+.sources > span { color:#849bae; margin-right:3px; }
+.summary .clear { color:#98e7d6; margin-left:auto; }
+@media(max-width:850px) { .summary { gap:4px 8px; padding:5px 8px; } .context { width:100%; } }
