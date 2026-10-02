@@ -104,6 +104,7 @@ const primaryNavItems = [
   { href: "/watchlists/following", label: "Following" },
 ];
 const secondaryNavItems = [
+  { href: "/research", label: "Research" },
   { href: "/my/predictions", label: "My ideas" },
   { href: "/compare", label: "Performance comparison" },
   { href: "/predictions/new", label: "Publish an idea" },
