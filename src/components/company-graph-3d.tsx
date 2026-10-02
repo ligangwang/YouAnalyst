@@ -491,7 +491,8 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       if(scale!==targetScale)scalesSettling=true;
       companyScales.current.set(element,scale);
       element.style.setProperty("--label-scale",String(scale));
-      element.style.setProperty("--label-emphasis",focusedCompanies && !focusedCompanies.has(n.id) ? ".15" : "1");
+      if(focusedCompanies && !focusedCompanies.has(n.id))element.style.setProperty("--label-emphasis",".15");
+      else element.style.removeProperty("--label-emphasis");
     }
     if(scalesSettling)invalidate();
     for(const edge of edgeLabels)edgeElements.current.get(edge.id)?.style.setProperty("--label-scale",String(edge.id===displayedEdge?1:labelScale(edge.x,edge.y,edge.z)));
