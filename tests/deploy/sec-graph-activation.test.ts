@@ -20,13 +20,13 @@ const image=region+'-docker.pkg.dev/'+project+'/ifindata/sec-fundamentals@sha256
 const json=value=>console.log(JSON.stringify(value));
 const name=args[3], path=env.STATE+'-'+name;
 const container=(resource)=>({image:env.WRONG_IMAGE===resource ? image.replace(/c/g,'d') : image, command:['node'],
- args:['dist/refresh-company-graph.cjs','--verify-live'],env:Object.entries({GIT_SHA:sha,
+ args:['dist/refresh-company-graph.cjs',env.SEC_GRAPH_RECOVERY_SOURCE_TREE && !env.WRONG_MODE ? '--resume-live='+env.SEC_GRAPH_RECOVERY_SOURCE_TREE : '--verify-live'],env:Object.entries({GIT_SHA:sha,
  GCP_PROJECT_ID:env.WRONG_RUNTIME_PROJECT === resource ? "other-project" : project, COMPANY_GRAPH_QUEUE_BATCH_SIZE:'1', SEC_FILINGS_COLLECTOR_ENABLED:'1',
  COMPANY_GRAPH_PROCESSING_ENABLED:'1', OPENAI_MODEL:env.WRONG_MODEL || 'gpt-5.6-sol', COMPANY_GRAPH_VERIFY_ONLY:'0',
  SEC_GRAPH_RELEASE_SHA:sha,SEC_GRAPH_ACTIVATION_TREE:tree}).map(([name,value])=>({name,value}))});
 if(args.slice(0,4).join(' ')==='artifacts docker images describe') console.log(env.BAD_DIGEST ? 'untrusted:tag' : image);
 else if(args.slice(0,3).join(' ')==='scheduler jobs describe') {
- const state=existsSync(path) ? readFileSync(path,'utf8') : 'PAUSED';
+ const state=existsSync(path) ? readFileSync(path,'utf8') : env.INITIAL_STATE || 'PAUSED';
  if(args.includes('--format=json')) json({state,schedule:name.startsWith('refresh')?'*/5 * * * *':'*/15 * * * *',timeZone:'UTC',
  httpTarget:{httpMethod:'POST',uri:env.WRONG_TARGET ? 'https://wrong.example' : 'https://run.googleapis.com/v2/projects/ifindata-80905/locations/us-central1/jobs/'+name+':run'}});
  else console.log(state);
@@ -40,6 +40,7 @@ else if(args.slice(0,3).join(' ')==='run services describe') json({spec:{templat
  status:{latestReadyRevisionName:'ready',latestCreatedRevisionName:'ready',traffic:[{revisionName:'ready',percent:100}]}});
 else if(args.slice(0,3).join(' ')==='run jobs execute') {
  if(env.FAIL_CANARY) process.exit(1);
+ if(env.UNPAUSE_AFTER_EXECUTION) writeFileSync(env.STATE+'-refresh-company-graph-production','ENABLED');
  console.log(env.AMBIGUOUS_EXECUTION ? 'unexpected' : 'refresh-company-graph-production-canary');
 } else if(args.slice(0,4).join(' ')==='run jobs executions describe') json({metadata:{name:'refresh-company-graph-production-canary'},
  spec:{taskCount:1,template:{spec:{containers:[container('execution')]}}},status:{conditions:[{type:'Completed',status:env.FAIL_EXECUTION?'False':'True'}],succeededCount:1}});
@@ -69,6 +70,35 @@ test("activation executes once in the existing runtime, checks the exact image, 
 test("a stale or missing tree never runs cloud commands on a later release", () => {
   for (const SEC_GRAPH_ACTIVATE_TREE of ["", "c".repeat(40)]) {
     const r = run({ SEC_GRAPH_ACTIVATE_TREE }); assert.equal(r.status, 0, r.stderr); assert.equal(r.calls, "");
+  }
+});
+test("original-tree recovery verifies the current release image and leaves both schedules paused", () => {
+  const sourceTree = "d".repeat(40);
+  for (const INITIAL_STATE of ["PAUSED", "ENABLED"]) {
+    const r = run({ SEC_GRAPH_RECOVERY_SOURCE_TREE: sourceTree, INITIAL_STATE });
+    assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /both existing schedules remain paused/);
+    assert.equal(r.calls.match(/run jobs execute /g)?.length, 1);
+    assert.match(r.calls, new RegExp(`--args dist/refresh-company-graph.cjs,--resume-live=${sourceTree}`));
+    assert.match(r.calls, new RegExp(`SEC_GRAPH_ACTIVATION_TREE=${tree},SEC_GRAPH_RELEASE_SHA=${sha}`));
+    assert.equal(r.calls.match(/scheduler jobs pause /g)?.length, 2);
+    assert.doesNotMatch(r.calls, /jobs resume|--apply|create|delete|add-iam|set-iam|secrets|OPENAI_API_KEY|jobs update|services update/);
+    const lines = r.calls.trim().split("\n");
+    assert.match(lines.at(-2)!, /^scheduler jobs describe refresh-company-graph-production.*value\(state\)/);
+    assert.match(lines.at(-1)!, /^scheduler jobs describe collect-sec-filings-production.*value\(state\)/);
+  }
+});
+test("recovery rejects malformed source trees and still requires current release approval", () => {
+  const invalid = run({ SEC_GRAPH_RECOVERY_SOURCE_TREE: "main" });
+  assert.notEqual(invalid.status, 0); assert.equal(invalid.calls, "");
+  const stale = run({ SEC_GRAPH_RECOVERY_SOURCE_TREE: "d".repeat(40), SEC_GRAPH_ACTIVATE_TREE: "e".repeat(40) });
+  assert.equal(stale.status, 0); assert.equal(stale.calls, "");
+});
+test("failed recovery or mismatched effective execution mode leaves both schedules paused", () => {
+  for (const extra of [{ FAIL_CANARY: "1" }, { AMBIGUOUS_EXECUTION: "1" }, { FAIL_EXECUTION: "1" },
+    { WRONG_IMAGE: "execution" }, { WRONG_MODE: "1" }, { UNPAUSE_AFTER_EXECUTION: "1" }]) {
+    const r = run({ SEC_GRAPH_RECOVERY_SOURCE_TREE: "d".repeat(40), ...extra });
+    assert.notEqual(r.status, 0, JSON.stringify(extra)); assert.equal(r.calls.match(/run jobs execute /g)?.length, 1);
+    assert.doesNotMatch(r.calls, /jobs resume/); assert.equal(r.calls.match(/scheduler jobs pause /g)?.length, 4);
   }
 });
 test("matching approval still requires both flags, batch one, exact digest and exact existing schedule targets", () => {
@@ -102,6 +132,7 @@ test("the ordinary production release owns the gated activation after existing d
   const workflow = readFileSync(".github/workflows/deploy.yml", "utf8");
   const job = workflow.slice(workflow.indexOf("  deploy-background-jobs:"));
   assert.match(job, /SEC_GRAPH_ACTIVATE_TREE: \$\{\{ vars.SEC_GRAPH_ACTIVATE_TREE \}\}/);
+  assert.match(job, /SEC_GRAPH_RECOVERY_SOURCE_TREE: \$\{\{ vars.SEC_GRAPH_RECOVERY_SOURCE_TREE \}\}/);
   assert.ok(job.indexOf("--verify-delivery") < job.indexOf("bash scripts/activate-sec-graph.sh"));
   assert.match(job, /if: .*COMPANY_GRAPH_PROCESSING_ENABLED == '1'.*SEC_FILINGS_COLLECTOR_ENABLED == '1'.*SEC_GRAPH_ACTIVATE_TREE != ''/);
 });

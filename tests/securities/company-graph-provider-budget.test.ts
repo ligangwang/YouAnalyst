@@ -1,13 +1,13 @@
 import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { extractCompanyGraphRelationships, buildCompanyGraphResponseBody } from "../../src/lib/company-graph/openai";
-import { setGraphBudgetLimit, getGraphBudgetSummary, GraphBudgetExceededError, GraphBudgetUncertainError } from "../../src/lib/company-graph/budget";
+import { setGraphBudgetLimit, getGraphBudgetSummary, GraphBudgetExceededError, GraphBudgetUncertainError, reserveGraphBudget, recordGraphResponse, graphBudgetFingerprint } from "../../src/lib/company-graph/budget";
 import { budgetFixture } from "../helpers/graph-budget";
 const now = Date.parse("2026-10-01T12:00:00Z");
 function setup(t: TestContext) {
-  const previous = [process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL];
-  process.env.OPENAI_API_KEY = "mock-local-only"; process.env.OPENAI_MODEL = "gpt-5.6-sol";
-  t.after(() => { ["OPENAI_API_KEY", "OPENAI_MODEL"].forEach((key, i) => {
+  const previous = [process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL, process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED];
+  process.env.OPENAI_API_KEY = "mock-local-only"; process.env.OPENAI_MODEL = "gpt-5.6-sol"; process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED = "1";
+  t.after(() => { ["OPENAI_API_KEY", "OPENAI_MODEL", "COMPANY_GRAPH_PAID_ADMISSION_ENABLED"].forEach((key, i) => {
     if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i];
   }); });
   const f = budgetFixture();
@@ -15,7 +15,7 @@ function setup(t: TestContext) {
     extractionText: "NVIDIA competes with AMD.", budgetRequestId: "graph_test", budgetDb: f.db, budgetNow: () => now } };
 }
 const count = () => Response.json({ object: "response.input_tokens", input_tokens: 1000 });
-const complete = (fields: Record<string, unknown> = {}) => Response.json({ id: "resp_test", model: "gpt-5.6-sol", status: "completed",
+const complete = (fields: Record<string, unknown> = {}) => Response.json({ id: "resp_test", model: "gpt-5.6-sol", service_tier: "default", status: "completed",
   output_text: '{"relationships":[]}', usage: { input_tokens: 1000, output_tokens: 100 }, ...fields });
 test("the exact messages and structured-output schema are counted before a reserved Standard request", async t => {
   const f = setup(t), payloads: Record<string, unknown>[] = [];
@@ -101,4 +101,30 @@ test("already admitted responses remain recoverable after the reviewed pricing w
   assert.deepEqual(methods, ["POST", "GET"]);
   const state = await getGraphBudgetSummary(f.db, afterExpiry);
   assert.equal(state.reservedUsd, 0); assert.equal(state.blocked, true);
+});
+
+test("unreviewed future input bounds block every new paid admission before any provider call", async t => {
+  const f = setup(t); delete process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED; let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => { calls++; return complete(); });
+  await assert.rejects(extractCompanyGraphRelationships(f.input), /New paid graph requests are paused/);
+  assert.equal(calls, 0); assert.equal(f.rows.size, 0);
+  assert.equal((await getGraphBudgetSummary(f.db, now)).newRequestsPaused, true);
+});
+test("real NVDA token-count drift settles within held dollars using only its saved response GET", async t => {
+  const f = setup(t);
+  const ticket = await reserveGraphBudget({ requestKey: f.input.budgetRequestId, model: "gpt-5.6-sol", inputTokens: 11133,
+    fingerprint: graphBudgetFingerprint(buildCompanyGraphResponseBody(f.input)) }, f.db, now);
+  await recordGraphResponse(ticket, "resp_test", f.db); delete process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED;
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
+    calls++; assert.equal(url, "https://api.openai.com/v1/responses/resp_test"); assert.equal(init?.method, "GET");
+    return complete({ usage: { input_tokens: 11138, output_tokens: 3806, total_tokens: 14944 } });
+  });
+  await extractCompanyGraphRelationships({ ...f.input, responseId: "resp_test" });
+  assert.equal(calls, 1); const budget = await getGraphBudgetSummary(f.db, now);
+  assert.equal(budget.spentUsd, 0.13181); assert.equal(budget.reservedUsd, 0);
+  assert.equal(budget.remainingUsd, 4.86819); assert.equal(budget.newRequestsPaused, true);
+  const receipt = f.rows.get(`company_research_runs/${ticket.id}`)!;
+  assert.equal(receipt.inputTokens, 11133); assert.equal(receipt.usageInputTokens, 11138); assert.equal(receipt.inputTokenDelta, 5);
+  assert.equal(receipt.usageOutputTokens, 3806);
 });

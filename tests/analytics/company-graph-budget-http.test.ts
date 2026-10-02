@@ -5,7 +5,7 @@ import { graphBudgetResponse } from "../../src/lib/company-graph/budget-http";
 import type { GraphBudgetSummary } from "../../src/lib/company-graph/budget";
 
 type Dependencies = NonNullable<Parameters<typeof graphBudgetResponse>[1]>;
-const summary: GraphBudgetSummary = { limitUsd: 5, spentUsd: 1.25, reservedUsd: 0.5, remainingUsd: 3.25, day: "2026-10-01", timezone: "America/New_York", blocked: false, pricingValidUntil: "2026-10-31T00:00:00Z" };
+const summary: GraphBudgetSummary = { limitUsd: 5, spentUsd: 1.25, reservedUsd: 0.5, remainingUsd: 3.25, day: "2026-10-01", timezone: "America/New_York", blocked: false, newRequestsPaused: true, pricingValidUntil: "2026-10-31T00:00:00Z" };
 const request = (method = "GET", body?: string) => new NextRequest("https://example.test/api/admin/company-graph/budget", { method, ...(body === undefined ? {} : { body, headers: { "Content-Type": "application/json" } }) });
 const dependencies = (): Dependencies => ({
   getUser: async () => ({ uid: "admin-user" }) as Awaited<ReturnType<Dependencies["getUser"]>>,

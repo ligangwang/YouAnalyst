@@ -8,6 +8,12 @@ if [[ -z "${SEC_GRAPH_ACTIVATE_TREE:-}" || "$SEC_GRAPH_ACTIVATE_TREE" != "$tree"
   exit 0
 fi
 [[ "$tree" =~ ^[a-f0-9]{40}$ ]] || { echo 'Invalid reviewed source tree' >&2; exit 1; }
+mode=--verify-live
+source_tree="${SEC_GRAPH_RECOVERY_SOURCE_TREE:-}"
+if [[ -n "$source_tree" ]]; then
+  [[ "$source_tree" =~ ^[a-f0-9]{40}$ ]] || { echo 'Invalid original recovery source tree' >&2; exit 1; }
+  mode="--resume-live=$source_tree"
+fi
 [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 && "${COMPANY_GRAPH_PROCESSING_ENABLED:-0}" == 1 && "${SEC_FILINGS_COLLECTOR_ENABLED:-0}" == 1 ]] || {
   echo 'SEC/graph activation requires the reviewed pipeline and both processing flags.' >&2; exit 1;
 }
@@ -29,25 +35,6 @@ for i in 0 1; do
     jq -e --arg cron "${crons[$i]}" --arg uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/${jobs[$i]}:run" \
       '(.state == "PAUSED" or .state == "ENABLED") and .schedule == $cron and .timeZone == "UTC" and .httpTarget.uri == $uri and .httpTarget.httpMethod == "POST"' >/dev/null
 done
-check_job() {
-  local job="$1" key="$2" value="$3"
-  gcloud run jobs describe "$job" --project "$GCP_PROJECT_ID" --region "$region" --format=json |
-    jq -e --arg sha "$GIT_SHA" --arg key "$key" --arg value "$value" --arg image "$image" --arg project "$GCP_PROJECT_ID" --arg account "directory-sync-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
-      '.spec.template.spec.template.spec as $s | ($s.containers[0].env | map({key:.name,value:.value}) | from_entries) as $e |
-       $s.serviceAccountName == $account and $s.containers[0].image == $image and $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and $e[$key] == $value' >/dev/null
-}
-check_job refresh-company-graph-production COMPANY_GRAPH_QUEUE_BATCH_SIZE 1
-check_job collect-sec-filings-production SEC_FILINGS_COLLECTOR_ENABLED 1
-for service in company-graph-subscriber sec-fundamentals-subscriber; do
-  gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format=json |
-    jq -e --arg sha "$GIT_SHA" --arg service "$service" --arg image "$image" --arg project "$GCP_PROJECT_ID" \
-      '(.spec.template.spec.containers[0].env | map({key:.name,value:.value}) | from_entries) as $e |
-       .status.latestReadyRevisionName as $ready | $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and
-       .spec.template.spec.containers[0].image == $image and
-       ($service != "company-graph-subscriber" or ($e.COMPANY_GRAPH_PROCESSING_ENABLED == "1" and $e.OPENAI_MODEL == "gpt-5.6-sol")) and
-       .status.latestCreatedRevisionName == $ready and any(.status.traffic[]; .revisionName == $ready and .percent == 100)' >/dev/null
-done
-
 pause_schedules() {
   local failed=0
   for job in "${jobs[@]}"; do
@@ -67,21 +54,49 @@ cleanup() {
 }
 trap cleanup EXIT
 pause_schedules
+check_job() {
+  local job="$1" key="$2" value="$3"
+  gcloud run jobs describe "$job" --project "$GCP_PROJECT_ID" --region "$region" --format=json |
+    jq -e --arg sha "$GIT_SHA" --arg key "$key" --arg value "$value" --arg image "$image" --arg project "$GCP_PROJECT_ID" --arg account "directory-sync-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+      '.spec.template.spec.template.spec as $s | ($s.containers[0].env | map({key:.name,value:.value}) | from_entries) as $e |
+       $s.serviceAccountName == $account and $s.containers[0].image == $image and $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and $e[$key] == $value' >/dev/null
+}
+check_job refresh-company-graph-production COMPANY_GRAPH_QUEUE_BATCH_SIZE 1
+check_job collect-sec-filings-production SEC_FILINGS_COLLECTOR_ENABLED 1
+for service in company-graph-subscriber sec-fundamentals-subscriber; do
+  gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format=json |
+    jq -e --arg sha "$GIT_SHA" --arg service "$service" --arg image "$image" --arg project "$GCP_PROJECT_ID" \
+      '(.spec.template.spec.containers[0].env | map({key:.name,value:.value}) | from_entries) as $e |
+       .status.latestReadyRevisionName as $ready | $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and
+       .spec.template.spec.containers[0].image == $image and
+       ($service != "company-graph-subscriber" or ($e.COMPANY_GRAPH_PROCESSING_ENABLED == "1" and $e.OPENAI_MODEL == "gpt-5.6-sol")) and
+       .status.latestCreatedRevisionName == $ready and any(.status.traffic[]; .revisionName == $ready and .percent == 100)' >/dev/null
+done
+
 execution="$(gcloud run jobs execute refresh-company-graph-production \
   --project "$GCP_PROJECT_ID" --region "$region" \
-  --args dist/refresh-company-graph.cjs,--verify-live \
+  --args "dist/refresh-company-graph.cjs,$mode" \
   --update-env-vars "COMPANY_GRAPH_VERIFY_ONLY=0,SEC_GRAPH_ACTIVATION_TREE=$tree,SEC_GRAPH_RELEASE_SHA=$GIT_SHA" --wait --quiet --format='value(metadata.name)')"
 [[ "$execution" =~ ^refresh-company-graph-production-[a-z0-9]+$ ]] || { echo 'Activation execution identity unavailable; inspect before retrying.' >&2; exit 1; }
 gcloud run jobs executions describe "$execution" --project "$GCP_PROJECT_ID" --region "$region" --format=json |
-  jq -e --arg execution "$execution" --arg image "$image" --arg sha "$GIT_SHA" --arg tree "$tree" --arg project "$GCP_PROJECT_ID" \
+  jq -e --arg execution "$execution" --arg image "$image" --arg sha "$GIT_SHA" --arg tree "$tree" --arg project "$GCP_PROJECT_ID" --arg mode "$mode" \
     '.spec.template.spec.containers[0] as $c | ($c.env | map({key:.name,value:.value}) | from_entries) as $e |
      .metadata.name == $execution and $c.image == $image and $c.command == ["node"] and
-     $c.args == ["dist/refresh-company-graph.cjs", "--verify-live"] and
+     $c.args == ["dist/refresh-company-graph.cjs", $mode] and
      $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and $e.SEC_GRAPH_RELEASE_SHA == $sha and $e.SEC_GRAPH_ACTIVATION_TREE == $tree and
      $e.COMPANY_GRAPH_VERIFY_ONLY == "0" and .spec.taskCount == 1 and
      any(.status.conditions[]; .type == "Completed" and .status == "True") and
      .status.succeededCount == 1 and (.status.failedCount // 0) == 0 and
      (.status.cancelledCount // 0) == 0 and (.status.runningCount // 0) == 0' >/dev/null
+if [[ -n "$source_tree" ]]; then
+  # Recovery proves the admitted request and fan-out only. It never goes live.
+  for job in "${jobs[@]}"; do
+    [[ "$(gcloud scheduler jobs describe "$job" --project "$GCP_PROJECT_ID" --location "$region" --format='value(state)')" == PAUSED ]]
+  done
+  activated=1
+  echo 'Recovered the original NVDA response and exact filing fan-out; both existing schedules remain paused.'
+  exit 0
+fi
 for job in "${jobs[@]}"; do
   gcloud scheduler jobs resume "$job" --project "$GCP_PROJECT_ID" --location "$region" --quiet
 done

@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { budgetFixture } from "../helpers/graph-budget";
 import { getGraphBudgetSummary, setGraphBudgetLimit, reserveGraphBudget, recordGraphResponse, settleGraphBudget,
-  GraphBudgetExceededError, GraphBudgetUncertainError, graphReservationMicros, nextGraphBudgetDay, GRAPH_PRICING_VALID_UNTIL } from "../../src/lib/company-graph/budget";
+  readCompanyGraphBudgetAvailability, GraphBudgetExceededError, GraphBudgetUncertainError, graphReservationMicros, nextGraphBudgetDay, GRAPH_PRICING_VALID_UNTIL } from "../../src/lib/company-graph/budget";
 
 const now = Date.parse("2026-10-01T12:00:00Z");
 
 const request = (requestKey: string, inputTokens = 100_000) => ({ requestKey, fingerprint: "payload", model: "gpt-5.6-sol", inputTokens });
-const response = (id: string, input = 100, output = 100) => ({ id, model: "gpt-5.6-sol", status: "completed", usage: { input_tokens: input, output_tokens: output } });
+const response = (id: string, input = 100, output = 100) => ({ id, model: "gpt-5.6-sol", service_tier: "default", status: "completed", usage: { input_tokens: input, output_tokens: output } });
 test("concurrent workers reserve worst-case cost atomically and never exceed the daily limit", async () => {
   const f = budgetFixture();
   const attempts = await Promise.allSettled(Array.from({ length: 30 }, (_, i) => reserveGraphBudget(request(`job_${i}`), f.db, now)));
@@ -28,7 +28,7 @@ test("retry without durable response cannot POST again; valid settlement refunds
   assert.equal(s.reservedUsd, 0); assert.equal(s.spentUsd, 0.0025);
 });
 test("unknown or unbounded usage retains the complete reservation", async () => {
-  for (const change of [{ usage: null }, { model: "unknown" }, { status: "in_progress" }, { id: "resp_wrong" },
+  for (const change of [{ usage: null }, { model: "unknown" }, { service_tier: "priority" }, { service_tier: undefined }, { status: "in_progress" }, { id: "resp_wrong" },
     { usage: { input_tokens: 100001, output_tokens: 1 } }, { usage: { input_tokens: 1, output_tokens: 16385 } }]) {
     const f = budgetFixture(), ticket = await reserveGraphBudget(request("one"), f.db, now);
     await recordGraphResponse(ticket, "resp_one", f.db);
@@ -67,4 +67,28 @@ test("unknown pricing, expired prices, malformed counters and request collisions
   await assert.rejects(reserveGraphBudget({ ...request("one"), fingerprint: "changed" }, f.db, now));
   f.rows.set("company_research_runs/_graph_daily_budget", { day: "2026-10-01", limitMicros: 5e6, spentMicros: 0, reservedMicros: "bad" });
   await assert.rejects(reserveGraphBudget(request("two"), f.db, now));
+});
+
+test("token-count drift never settles a cost greater than the held dollars", async () => {
+  const f = budgetFixture(), ticket = await reserveGraphBudget(request("drift", 11133), f.db, now);
+  await recordGraphResponse(ticket, "resp_drift", f.db); const before = structuredClone([...f.rows]);
+  await assert.rejects(settleGraphBudget({ ...ticket, responseId: "resp_drift" }, response("resp_drift", 11138, 16384), f.db, now), /actual cost exceeds reservation/);
+  assert.deepEqual([...f.rows], before);
+});
+test("raising the daily budget cannot release the new-paid-admission pause", async t => {
+  const previous = process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED; delete process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED;
+  t.after(() => { if (previous === undefined) delete process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED; else process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED = previous; });
+  const f = budgetFixture();
+  assert.equal((await setGraphBudgetLimit(10, f.db, now)).newRequestsPaused, true);
+  assert.equal((await readCompanyGraphBudgetAvailability(f.db, now)).available, false);
+});
+
+test("settlement replay rejects changed response identity or changed token counts even at the same cost", async () => {
+  const f = budgetFixture(), ticket = await reserveGraphBudget(request("replay", 11133), f.db, now);
+  await recordGraphResponse(ticket, "resp_original", f.db); const saved = { ...ticket, responseId: "resp_original" };
+  await settleGraphBudget(saved, response("resp_original", 11138, 3806), f.db, now);
+  const before = structuredClone([...f.rows]);
+  await assert.rejects(settleGraphBudget(saved, response("resp_original", 11142, 3805), f.db, now), /settled usage changed/);
+  await assert.rejects(settleGraphBudget({ ...ticket, responseId: "resp_other" }, response("resp_other", 11138, 3806), f.db, now), /stored response identity/);
+  assert.deepEqual([...f.rows], before);
 });
