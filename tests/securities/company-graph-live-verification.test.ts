@@ -174,3 +174,33 @@ test("both exact filing receipts are required, and incomplete fan-out stops afte
     assert.equal(f.deps.now() - now, 18 * 60_000);
   }
 });
+
+for (const reservation of [undefined, { status: "reserved", responseId: "resp_failed" }, { status: "settled", responseId: "resp_failed" }]) {
+  test(`a failed request stops immediately without replay or refund (${reservation?.status ?? "no reservation"})`, async () => {
+    const f = fixture();
+    let publishes = 0, sleeps = 0;
+    const dependencies = { ...f.deps, sleep: async () => { sleeps++; throw Error("must not poll a failed request"); },
+      publishGraph: async () => {
+        publishes++;
+        const marker = f.rows.get(markerPath)!;
+        if (reservation) f.rows.set(`company_research_runs/_graph_budget_request_${createHash("sha256").update(String(marker.runId)).digest("hex")}`,
+          { ...reservation, reservedMicros: 400000, spentMicros: 200000 });
+        f.rows.set("company_research_requests/NVDA", { ...f.rows.get("company_research_requests/NVDA"), status: "FAILED", error: "SEC document request returned HTTP 503" });
+      } };
+    await assert.rejects(verifyLiveCompanyGraph(f.db, tree, dependencies), /NVDA graph request failed: SEC document request returned HTTP 503/);
+    const saved = structuredClone([...f.rows]);
+    await assert.rejects(verifyLiveCompanyGraph(f.db, tree, dependencies), /Schedules remain paused/);
+    assert.equal(publishes, 1); assert.equal(sleeps, 0); assert.deepEqual([...f.rows], saved);
+    assert.equal(f.publications.length, 0); assert.equal(f.rows.get(markerPath)?.verifiedAt, undefined);
+  });
+}
+test("failed-request diagnostics redact provider credentials before throwing", async () => {
+  const f = fixture();
+  await assert.rejects(verifyLiveCompanyGraph(f.db, tree, { ...f.deps, publishGraph: async () => {
+    f.rows.set("company_research_requests/NVDA", { ...f.rows.get("company_research_requests/NVDA"), status: "FAILED",
+      error: "Authentication failed: Bearer confidential-token; key sk-proj-privatevalue https://example.test/?api_key=privatevalue" });
+  } }), error => {
+    assert.ok(error instanceof Error); assert.match(error.message, /NVDA graph request failed/);
+    assert.doesNotMatch(error.message, /confidential-token|sk-proj-privatevalue|api_key=privatevalue/); return true;
+  });
+});

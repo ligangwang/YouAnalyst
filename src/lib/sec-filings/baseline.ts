@@ -1,5 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { isCurrentCompanyGraph } from "../company-graph/requests";
+import { inspectCompanyGraphRequest } from "../company-graph/inspection";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../maintenance-lease";
 import type { MaintenanceLog } from "../maintenance-log";
 import { createSecFilingDiscovered } from "./event";
@@ -14,15 +15,15 @@ function validateCompany(companyId: string) {
 export async function inspectSecBaseline(db: Firestore, companyId: string) {
   validateCompany(companyId);
   const cursor = await readSecCollectorCursor(db, companyId);
-  const [metadata, latest, request, pending, ...counts] = await Promise.all([
+  const [metadata, latest, graphInspection, pending, ...counts] = await Promise.all([
     secCollectorMetadata(db).get(),
     db.collection("company_research_runs").doc(`${companyId}_latest_10k`).get(),
-    db.collection("company_research_requests").doc(companyId).get(),
+    inspectCompanyGraphRequest(db, companyId),
     db.collection("sec_filings").where("discoveryPending", "==", true).count().get(),
     ...["QUEUED", "PROCESSING", "FAILED", "COMPLETED"].map(status =>
       db.collection("company_research_requests").where("status", "==", status).count().get()),
   ]);
-  const cache = latest.data(), queued = request.data();
+  const cache = latest.data();
   return {
     dryRun: true, mode: "baseline-only", companyId, providerCalls: 0, publication: "disabled",
     baselineState: !cursor ? "new" : cursor.lastCompleteAt !== null ? "already-completed"
@@ -32,8 +33,9 @@ export async function inspectSecBaseline(db: Firestore, companyId: string) {
     collectorLeaseExpiresAtMs: Number(metadata.get("leaseExpiresAtMs")) || 0,
     pendingFilingDocuments: pending.data().count,
     graphLedgerCounts: Object.fromEntries(["QUEUED", "PROCESSING", "FAILED", "COMPLETED"].map((status, i) => [status, counts[i].data().count])),
-    selectedRequestStatus: ["QUEUED", "PROCESSING", "FAILED", "COMPLETED"].includes(queued?.status) ? queued!.status : null,
-    selectedRequestPublished: Boolean(queued?.dispatchedAt),
+    selectedRequestStatus: graphInspection.request.status,
+    selectedRequestPublished: Boolean(graphInspection.request.dispatchedAt),
+    graphInspection,
     graphCacheEligible: isCurrentCompanyGraph(cache),
     pubsubBacklog: "not-inspected",
   };

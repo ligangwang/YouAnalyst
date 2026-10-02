@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { getGraphBudgetSummary, type GraphBudgetSummary } from "./budget";
 import { companyGraphRequestId, parseCompanyGraphRequest, type CompanyGraphRequest } from "./pubsub";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "./types";
+import { redactGraphFailure } from "./inspection";
 import { parseSecFilingDiscovered, secFilingEventId, type SecFilingDiscovered } from "../sec-filings/event";
 
 const TICKER = "NVDA", CIK = "0001045810";
@@ -134,8 +135,11 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
     ]);
     const queued = request.data(), completed = run.data(), budget = reservation.data();
     if (queued?.requestId !== saved.request.requestId) throw new Error("Activation request was superseded; no replacement will be created");
-    if (queued.status === "FAILED" && budget?.status === "reserved" && !budget.responseId) {
-      throw new Error("NVDA provider outcome is ambiguous; its reservation and request are retained for operator review");
+    if (queued.status === "FAILED") {
+      if (budget?.status === "reserved" && !budget.responseId) {
+        throw new Error("NVDA provider outcome is ambiguous; its reservation and request are retained for operator review");
+      }
+      throw new Error(`NVDA graph request failed: ${redactGraphFailure(queued.error)}. Schedules remain paused; inspect the saved request and budget before retrying.`);
     }
     if (Number(queued.budgetDeferredUntilMs) > now()) throw new Error("NVDA live graph request is budget-deferred; schedules remain paused");
     if (queued.status !== "COMPLETED") return false;
