@@ -39,7 +39,7 @@ class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNod
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
 const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; varying float vDepth; varying vec3 vColor; varying float vEmphasis;
-void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;vDepth=emphasis>1.?1.:clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*(emphasis>1.?1.5:1.);}`;
+void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float active=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,active);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*mix(1.,1.5,active);}`;
 const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis;
 void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
 
@@ -141,10 +141,12 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   },[invalidate]);
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const projected = useMemo(() => new Vector3(), []);
-  const [hovered, setHovered] = useState("");
+  const [pointHovered, setPointHovered] = useState("");
+  const [labelHovered, setLabelHovered] = useState("");
+  const hovered = labelHovered || pointHovered;
   const [hoveredEdge, setHoveredEdge] = useState("");
   // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
-  // rather than relying on the geometry swap to invalidate.
+  // while keeping the star geometry mounted throughout the interaction.
   useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
   const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, hovered)])), [layout, selected, activeEdge, showAllEdges, hovered]);
   const displayedEdge=activeEdge||((edgeTargets.get(hoveredEdge) ?? 0) > 0 ? hoveredEdge : "");
@@ -157,14 +159,15 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     edge.id !== displayedEdge && (selected
       ? edge.source !== selected && edge.target !== selected
       : Boolean(sectorFocus) && !sectorMembers.has(edge.source) && !sectorMembers.has(edge.target));
+  const pointTargets = useMemo(() => layout.nodes.map(n => selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : n.id === hovered || edgeEndpoints.has(n.id) ? 2 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints]);
   const geometry = useMemo(() => {
     const g = new BufferGeometry();
     g.setAttribute("position", new Float32BufferAttribute(layout.nodes.flatMap(n => [n.x, n.y, n.z]), 3));
     g.setAttribute("capScale", new Float32BufferAttribute(layout.nodes.map(n => marketCapScale(n.marketCap)), 1));
     g.setAttribute("tint", new Float32BufferAttribute(layout.nodes.flatMap(n => new Color(companySector(n).color).toArray()), 3));
-    g.setAttribute("emphasis", new Float32BufferAttribute(layout.nodes.map(n => selected ? n.id === selected || n.id === hovered || edgeEndpoints.has(n.id) ? 2 : connected.has(n.id) ? 1 : .12 : n.id === hovered || edgeEndpoints.has(n.id) ? 2 : sectorFocus ? sectorMembers.has(n.id) ? 2 : sectorConnected.has(n.id) ? .7 : .15 : 1), 1));
+    g.setAttribute("emphasis", new Float32BufferAttribute(layout.nodes.map(() => 1), 1));
     return g;
-  }, [layout, selected, hovered, connected, sectorFocus, sectorMembers, sectorConnected, edgeEndpoints]);
+  }, [layout]);
   const lines = useMemo(() => {
     const positions = new Map(layout.nodes.map(n => [n.id, n]));
     const g = new BufferGeometry(), p: number[] = [], c: number[] = [], edgeIds: string[] = [];
@@ -310,6 +313,18 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
   useFrame((_, delta) => {
     const colors = lines.getAttribute("color"), positions = lines.getAttribute("position");
     let fading = false, colorsChanged = false;
+    // Change only the highlight buffer. Replacing/disposal of the points geometry
+    // during hover can blank the stars and reset the raycast hover records.
+    const pointEmphasis = geometry.getAttribute("emphasis");
+    let pointsChanged = false;
+    for (let index = 0; index < pointTargets.length; index++) {
+      const current = pointEmphasis.getX(index);
+      const target = pointTargets[index];
+      const next = fadeEdge(current, target, delta, reducedMotion.current);
+      if (Math.abs(next - current) > .000001) { pointEmphasis.setX(index, next); pointsChanged = true; }
+      if (Math.abs(next - target) > .0001) fading = true;
+    }
+    if (pointsChanged) pointEmphasis.needsUpdate = true;
     for (const edge of layout.edges) {
       const target = edgeTargets.get(edge.id) ?? 0;
       const next = fadeEdge(edgeFades.current.get(edge.id) ?? 0, target, delta, reducedMotion.current);
@@ -350,6 +365,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     if(focused)rotation='focused';
     else if(reducedMotion.current)rotation='reduced';
     else if(document.hidden)rotation='hidden';
+    else if(hovered)rotation='hovered';
     else if(returningView.current)rotation='returning';
     else if (introOrbitRef.current && controls.current) {
       rotation='intro';
@@ -534,7 +550,12 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     <TreeStarField height={0}/>
     <TreeGalaxies height={0}/>
     <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
-    <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setHovered(layout.nodes[e.index].id); }} onPointerOut={() => setHovered("")}>
+    <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
+      // A different point in this shared geometry may exit while the current
+      // point remains under the pointer. Only clear the exiting company.
+      const id = e.index === undefined ? undefined : layout.nodes[e.index]?.id;
+      setPointHovered(current => current === id ? "" : current);
+    }}>
       <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
     </points>
     <lineSegments geometry={lines} raycast={raycastEdges} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent depthWrite={false}/></lineSegments>
@@ -542,7 +563,7 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       {edge.directional && <mesh ref={el=>{if(el)arrowElements.current.set(edge.id,el);else arrowElements.current.delete(edge.id);}} position={edge.arrow} quaternion={edge.rotation} visible={false}><coneGeometry args={[.8,3.5,8]}/><meshBasicMaterial color="#829ead" transparent depthWrite={false} opacity={0}/></mesh>}
       <Html key={`${edge.id}:${edge.id===activeEdge}`} position={[edge.x,edge.y,edge.z]} calculatePosition={edge.id===displayedEdge?()=>activeLabelPosition(edge):undefined} onOcclude={edge.id===displayedEdge?()=>{}:undefined} center zIndexRange={edge.id===displayedEdge?[25,24]:[19,0]} style={{pointerEvents:"none"}}><button ref={el=>{if(el){edgeElements.current.set(edge.id,el);invalidate();}else edgeElements.current.delete(edge.id);}} className={styles.edgeLabel3d} data-source={edge.source} data-target={edge.target} data-active={edge.id===activeEdge} style={{visibility:"hidden",pointerEvents:edge.id===activeEdge?"auto":"none",opacity:isBackgroundEdge(edge) ? .18 : 1}} title={`${edge.from} ${edge.directional?"→":"↔"} ${edge.to}: ${edge.summary}`} aria-label={`${edge.from} ${text(...(relationLabels[edge.type]??[edge.type,edge.type]))} ${edge.to}`} onClick={()=>onSelectEdge?.(edge.id)}>{text(...(relationLabels[edge.type]??[edge.type,edge.type]))}</button></Html>
     </group>)}
-    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setHovered(n.id); }} onPointerLeave={() => setHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span></button></Html>)}
+    {layout.nodes.map(n => <Html key={n.id} position={[n.x,n.y,n.z]} center zIndexRange={[20,0]} style={{pointerEvents:"none"}}><button ref={element => { if(element) { labelElements.current.set(n.id,element); invalidate(); } else labelElements.current.delete(n.id); }} className={styles.label3d} data-company-id={n.id} data-company-focus={selected ? n.id===selected ? "selected" : connected.has(n.id) ? "connected" : "background" : undefined} data-sector-emphasis={sectorFocus ? sectorMembers.has(n.id) ? "member" : sectorConnected.has(n.id) ? "connected" : "dimmed" : undefined} data-highlighted={n.id===selected || n.id===hovered || edgeEndpoints.has(n.id)} style={{color:companySector(n).color}} title={[companyName(n,locale), countryName(n.country,locale), marketCapDescription(n.marketCap,locale)].filter(Boolean).join(" · ")} onPointerEnter={e => { if (e.pointerType === "mouse") setLabelHovered(n.id); }} onPointerLeave={() => setLabelHovered("")} onClick={() => onSelect(n.id)} aria-label={[companyName(n,locale), n.symbol, countryName(n.country,locale)].filter(Boolean).join(" · ")}><strong>{companyName(n,locale)}</strong><span>{[n.symbol, graphNodeMarketCapLabel(n.marketCap, locale)].filter(Boolean).join(" · ")}</span></button></Html>)}
   </>;
 }
 
