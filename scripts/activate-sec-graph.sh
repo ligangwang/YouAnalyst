@@ -14,6 +14,9 @@ if [[ -n "$source_tree" ]]; then
   [[ "$source_tree" =~ ^[a-f0-9]{40}$ ]] || { echo 'Invalid original recovery source tree' >&2; exit 1; }
   mode="--resume-live=$source_tree"
 fi
+if [[ "$mode" == --verify-live && "${COMPANY_GRAPH_PAID_ADMISSION_ENABLED:-0}" != 1 ]]; then
+  echo 'Live activation requires the reviewed Flex paid-admission control.' >&2; exit 1
+fi
 [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 && "${COMPANY_GRAPH_PROCESSING_ENABLED:-0}" == 1 && "${SEC_FILINGS_COLLECTOR_ENABLED:-0}" == 1 ]] || {
   echo 'SEC/graph activation requires the reviewed pipeline and both processing flags.' >&2; exit 1;
 }
@@ -57,19 +60,21 @@ pause_schedules
 check_job() {
   local job="$1" key="$2" value="$3"
   gcloud run jobs describe "$job" --project "$GCP_PROJECT_ID" --region "$region" --format=json |
-    jq -e --arg sha "$GIT_SHA" --arg key "$key" --arg value "$value" --arg image "$image" --arg project "$GCP_PROJECT_ID" --arg account "directory-sync-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com" \
+    jq -e --arg sha "$GIT_SHA" --arg key "$key" --arg value "$value" --arg image "$image" --arg project "$GCP_PROJECT_ID" --arg account "directory-sync-runtime@$GCP_PROJECT_ID.iam.gserviceaccount.com" --arg job "$job" --arg mode "$mode" \
       '.spec.template.spec.template.spec as $s | ($s.containers[0].env | map({key:.name,value:.value}) | from_entries) as $e |
-       $s.serviceAccountName == $account and $s.containers[0].image == $image and $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and $e[$key] == $value' >/dev/null
+       $s.serviceAccountName == $account and $s.containers[0].image == $image and $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and $e[$key] == $value and
+       ($job != "refresh-company-graph-production" or $mode != "--verify-live" or $e.COMPANY_GRAPH_PAID_ADMISSION_ENABLED == "1")' >/dev/null
 }
 check_job refresh-company-graph-production COMPANY_GRAPH_QUEUE_BATCH_SIZE 1
 check_job collect-sec-filings-production SEC_FILINGS_COLLECTOR_ENABLED 1
 for service in company-graph-subscriber sec-fundamentals-subscriber; do
   gcloud run services describe "$service" --project "$GCP_PROJECT_ID" --region "$region" --format=json |
-    jq -e --arg sha "$GIT_SHA" --arg service "$service" --arg image "$image" --arg project "$GCP_PROJECT_ID" \
+    jq -e --arg sha "$GIT_SHA" --arg service "$service" --arg image "$image" --arg project "$GCP_PROJECT_ID" --arg mode "$mode" \
       '(.spec.template.spec.containers[0].env | map({key:.name,value:.value}) | from_entries) as $e |
        .status.latestReadyRevisionName as $ready | $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and
        .spec.template.spec.containers[0].image == $image and
-       ($service != "company-graph-subscriber" or ($e.COMPANY_GRAPH_PROCESSING_ENABLED == "1" and $e.OPENAI_MODEL == "gpt-5.6-sol")) and
+       ($service != "company-graph-subscriber" or ($e.COMPANY_GRAPH_PROCESSING_ENABLED == "1" and $e.OPENAI_MODEL == "gpt-5.6-sol" and
+         ($mode != "--verify-live" or $e.COMPANY_GRAPH_PAID_ADMISSION_ENABLED == "1"))) and
        .status.latestCreatedRevisionName == $ready and any(.status.traffic[]; .revisionName == $ready and .percent == 100)' >/dev/null
 done
 
@@ -85,6 +90,7 @@ gcloud run jobs executions describe "$execution" --project "$GCP_PROJECT_ID" --r
      $c.args == ["dist/refresh-company-graph.cjs", $mode] and
      $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and $e.SEC_GRAPH_RELEASE_SHA == $sha and $e.SEC_GRAPH_ACTIVATION_TREE == $tree and
      $e.COMPANY_GRAPH_VERIFY_ONLY == "0" and .spec.taskCount == 1 and
+     ($mode != "--verify-live" or $e.COMPANY_GRAPH_PAID_ADMISSION_ENABLED == "1") and
      any(.status.conditions[]; .type == "Completed" and .status == "True") and
      .status.succeededCount == 1 and (.status.failedCount // 0) == 0 and
      (.status.cancelledCount // 0) == 0 and (.status.runningCount // 0) == 0' >/dev/null

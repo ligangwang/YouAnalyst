@@ -31,6 +31,7 @@ jobs:
       GIT_SHA: ${{ github.sha }}
       COMPANY: ${{ inputs.company }}
       SEC_FILINGS_COLLECTOR_ENABLED: '0'
+      COMPANY_GRAPH_PAID_ADMISSION_ENABLED: ${{ vars.COMPANY_GRAPH_PAID_ADMISSION_ENABLED }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

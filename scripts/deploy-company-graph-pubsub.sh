@@ -10,6 +10,7 @@ case "${1:-}" in
     : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"
     : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"
     case "${COMPANY_GRAPH_PROCESSING_ENABLED:-0}" in 0|1) ;; *) echo 'COMPANY_GRAPH_PROCESSING_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+    case "${COMPANY_GRAPH_PAID_ADMISSION_ENABLED:-0}" in 0|1) ;; *) echo 'COMPANY_GRAPH_PAID_ADMISSION_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
     pipeline_delivery_identity ;;
   *) echo 'Usage: deploy-company-graph-pubsub.sh [--publisher-only]' >&2; exit 1 ;;
 esac
@@ -34,7 +35,7 @@ fi
 umask 077
 env_file="$(mktemp)"
 trap 'rm -f -- "$env_file"' EXIT
-node -e 'const fs=require("fs"),e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,OPENAI_API_KEY:e.OPENAI_API_KEY,OPENAI_MODEL:e.OPENAI_MODEL||"gpt-5.4",COMPANY_GRAPH_SUBSCRIPTION:"company-graph-worker",COMPANY_GRAPH_FILINGS_SUBSCRIPTION:"company-graph-filings",COMPANY_GRAPH_PROCESSING_ENABLED:e.COMPANY_GRAPH_PROCESSING_ENABLED||"0"}; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
+node -e 'const fs=require("fs"),e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,OPENAI_API_KEY:e.OPENAI_API_KEY,OPENAI_MODEL:e.OPENAI_MODEL||"gpt-5.4",COMPANY_GRAPH_SUBSCRIPTION:"company-graph-worker",COMPANY_GRAPH_FILINGS_SUBSCRIPTION:"company-graph-filings",COMPANY_GRAPH_PROCESSING_ENABLED:e.COMPANY_GRAPH_PROCESSING_ENABLED||"0",COMPANY_GRAPH_PAID_ADMISSION_ENABLED:e.COMPANY_GRAPH_PAID_ADMISSION_ENABLED||"0"}; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-company-graph.cjs --min-instances 0 --max-instances 1 \

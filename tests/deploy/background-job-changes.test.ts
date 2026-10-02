@@ -54,7 +54,7 @@ test('worker release waits for successful production release and uses detected t
 test('production rollout persists explicit pipeline flags and reuses only the approved OpenAI configuration', () => {
   const workflow=require('js-yaml').load(readFileSync('.github/workflows/deploy.yml','utf8'));
   const env=workflow.jobs['deploy-background-jobs'].env;
-  for(const name of ['ENABLE_SEC_FILING_PIPELINE','SEC_FILINGS_COLLECTOR_ENABLED','COMPANY_GRAPH_PROCESSING_ENABLED','COMPANY_GRAPH_QUEUE_BATCH_SIZE','OPENAI_MODEL']) {
+  for(const name of ['ENABLE_SEC_FILING_PIPELINE','SEC_FILINGS_COLLECTOR_ENABLED','COMPANY_GRAPH_PROCESSING_ENABLED','COMPANY_GRAPH_PAID_ADMISSION_ENABLED','COMPANY_GRAPH_QUEUE_BATCH_SIZE','OPENAI_MODEL']) {
     assert.equal(env[name], `\${{ vars.${name} }}`);
   }
   assert.equal(env.OPENAI_API_KEY, "${{ vars.ENABLE_SEC_FILING_PIPELINE == '1' && secrets.OPENAI_API_KEY || '' }}");
@@ -75,6 +75,10 @@ test('production rollout persists explicit pipeline flags and reuses only the ap
   assert.match(deploy, /if \[\[ "\$target" == production && "\$\{ENABLE_SEC_FILING_PIPELINE:-0\}" == 1 \]\]; then\s+company_graph_request_topic=company-graph-requests/);
   const cloudbuild=require('js-yaml').load(readFileSync('cloudbuild.yaml','utf8'));
   assert.equal(cloudbuild.substitutions._COMPANY_GRAPH_REQUEST_TOPIC, '');
+  assert.equal(cloudbuild.substitutions._COMPANY_GRAPH_PAID_ADMISSION_ENABLED, '0');
+  assert.equal(workflow.jobs['deploy-production'].env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED, '${{ vars.COMPANY_GRAPH_PAID_ADMISSION_ENABLED }}');
+  assert.equal(workflow.jobs['deploy-staging'].env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED, undefined);
+  assert.ok(cloudbuild.steps[2].args.some((arg:string)=>arg.includes('COMPANY_GRAPH_PAID_ADMISSION_ENABLED=${_COMPANY_GRAPH_PAID_ADMISSION_ENABLED}')));
   assert.ok(cloudbuild.steps[2].args.some((arg:string)=>arg.includes('COMPANY_GRAPH_REQUEST_TOPIC=${_COMPANY_GRAPH_REQUEST_TOPIC}')));
 });
 

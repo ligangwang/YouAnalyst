@@ -187,7 +187,8 @@ export type CompanyGraphProviderInput = {
   budgetNow?: () => number;
 };
 
-export function buildCompanyGraphResponseBody(input: CompanyGraphProviderInput, model = GRAPH_BUDGET_MODEL) {
+// Kept byte-for-byte stable for fingerprints of already admitted Standard requests.
+export function buildLegacyCompanyGraphResponseBody(input: CompanyGraphProviderInput, model = GRAPH_BUDGET_MODEL) {
   return {
       model,
       background: true, store: true, service_tier: "default",
@@ -239,6 +240,12 @@ export function buildCompanyGraphResponseBody(input: CompanyGraphProviderInput, 
     };
 }
 
+export function buildCompanyGraphResponseBody(input: CompanyGraphProviderInput, model = GRAPH_BUDGET_MODEL) {
+  const legacy = buildLegacyCompanyGraphResponseBody(input, model);
+  return { ...legacy, service_tier: "flex", reasoning: { mode: "standard", effort: "medium" },
+    prompt_cache_options: { mode: "explicit" }, text: { ...legacy.text, verbosity: "medium" } };
+}
+
 export async function extractCompanyGraphRelationships(input: CompanyGraphProviderInput): Promise<OpenAiCompanyGraphExtractionResult> {
   const now = input.budgetNow ?? Date.now;
   const model = getOpenAiModel();
@@ -248,21 +255,22 @@ export async function extractCompanyGraphRelationships(input: CompanyGraphProvid
   const headers = { "content-type": "application/json", authorization: `Bearer ${getOpenAiApiKey()}` };
   const db = input.budgetDb ?? getAdminFirestore();
   const requestKey = input.budgetRequestId ?? `direct_${randomUUID()}`;
-  const body = buildCompanyGraphResponseBody(input, model);
-  const fingerprint = graphBudgetFingerprint(body);
   let ticket = await findGraphBudgetTicket(requestKey, db);
+  const body = ticket?.ticketVersion === 1 ? buildLegacyCompanyGraphResponseBody(input, model) : buildCompanyGraphResponseBody(input, model);
+  const fingerprint = graphBudgetFingerprint(body);
   let responseIdToResume = ticket?.responseId ?? input.responseId;
   if (ticket && ticket.fingerprint !== fingerprint) throw new Error("Graph budget request payload changed; paid processing is blocked.");
   if (ticket && !ticket.responseId) throw new GraphBudgetUncertainError();
   if (input.responseId && (!ticket || ticket.responseId !== input.responseId)) throw new Error("Graph provider response has no matching budget reservation; operator review required.");
   if (!ticket) {
-    if (!isGraphPaidAdmissionEnabled()) throw new Error("New paid graph requests are paused while input-token admission bounds are reviewed; saved responses remain recoverable.");
+    if (!isGraphPaidAdmissionEnabled()) throw new Error("New paid graph requests are paused until bounded Flex admission is enabled; saved responses remain recoverable.");
     graphReservationMicros(model, 1, now()); // Expiry blocks new generation, not recovery of an admitted response.
-    // Count the identical structured input, including the system message and JSON
-    // schema. No local character/token estimate can authorize a paid request.
+    // The count remains an application-size guard and telemetry only. The fixed
+    // full-context reservation below authorizes spending independently of it.
+    // Send the same supported input, schema, verbosity and reasoning semantics.
     const countResponse = await fetch("https://api.openai.com/v1/responses/input_tokens", {
       method: "POST", signal, headers,
-      body: JSON.stringify({ model: body.model, input: body.input, text: body.text }),
+      body: JSON.stringify({ model: body.model, input: body.input, text: body.text, reasoning: "reasoning" in body ? body.reasoning : undefined, truncation: body.truncation }),
     });
     const count = await countResponse.json().catch(() => ({}));
     if (!countResponse.ok || count.object !== "response.input_tokens" || !Number.isSafeInteger(count.input_tokens)
@@ -277,6 +285,8 @@ export async function extractCompanyGraphRelationships(input: CompanyGraphProvid
 
   let responseBody = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
+    // Even 429s remain held unless an exact uncharged Resource Unavailable
+    // rejection can be verified. Never retry a POST or fall back to Standard.
     throw new Error(
       `OpenAI company graph extraction failed: ${
         typeof responseBody.error === "object" && responseBody.error && "message" in responseBody.error

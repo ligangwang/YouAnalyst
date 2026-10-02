@@ -14,7 +14,12 @@ gcloud run services describe "$CLOUD_RUN_SERVICE_PRODUCTION" \
         const env = JSON.parse(input).spec.template.spec.containers[0].env;
         const selected = env.filter(item => item.name === "COMPANY_GRAPH_REQUEST_TOPIC");
         if (selected.length !== 1 || selected[0].value !== "company-graph-requests") throw new Error();
+        const admission = env.filter(item => item.name === "COMPANY_GRAPH_PAID_ADMISSION_ENABLED");
+        const expectedAdmission = process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED || "0";
+        if (!["0", "1"].includes(expectedAdmission) || admission.length !== 1
+          || admission[0].value !== expectedAdmission) throw new Error();
         console.log("COMPANY_GRAPH_REQUEST_TOPIC=company-graph-requests");
+        console.log(`COMPANY_GRAPH_PAID_ADMISSION_ENABLED=${expectedAdmission}`);
       } catch {
         console.error("Could not verify the expected web graph topic; service configuration was not printed.");
         process.exitCode = 1;

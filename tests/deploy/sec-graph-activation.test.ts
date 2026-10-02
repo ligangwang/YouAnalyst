@@ -22,7 +22,7 @@ const name=args[3], path=env.STATE+'-'+name;
 const container=(resource)=>({image:env.WRONG_IMAGE===resource ? image.replace(/c/g,'d') : image, command:['node'],
  args:['dist/refresh-company-graph.cjs',env.SEC_GRAPH_RECOVERY_SOURCE_TREE && !env.WRONG_MODE ? '--resume-live='+env.SEC_GRAPH_RECOVERY_SOURCE_TREE : '--verify-live'],env:Object.entries({GIT_SHA:sha,
  GCP_PROJECT_ID:env.WRONG_RUNTIME_PROJECT === resource ? "other-project" : project, COMPANY_GRAPH_QUEUE_BATCH_SIZE:'1', SEC_FILINGS_COLLECTOR_ENABLED:'1',
- COMPANY_GRAPH_PROCESSING_ENABLED:'1', OPENAI_MODEL:env.WRONG_MODEL || 'gpt-5.6-sol', COMPANY_GRAPH_VERIFY_ONLY:'0',
+ COMPANY_GRAPH_PROCESSING_ENABLED:'1', COMPANY_GRAPH_PAID_ADMISSION_ENABLED:env.WRONG_ADMISSION===resource?'0':'1', OPENAI_MODEL:env.WRONG_MODEL || 'gpt-5.6-sol', COMPANY_GRAPH_VERIFY_ONLY:'0',
  SEC_GRAPH_RELEASE_SHA:sha,SEC_GRAPH_ACTIVATION_TREE:tree}).map(([name,value])=>({name,value}))});
 if(args.slice(0,4).join(' ')==='artifacts docker images describe') console.log(env.BAD_DIGEST ? 'untrusted:tag' : image);
 else if(args.slice(0,3).join(' ')==='scheduler jobs describe') {
@@ -49,7 +49,7 @@ else {console.error('Unexpected mock gcloud command');process.exit(2);}
   const result = spawnSync("bash", [resolve("scripts/activate-sec-graph.sh")], {
     encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, RECORD: record, STATE: join(dir, "state"),
       GCP_PROJECT_ID: "ifindata-80905", GCP_REGION: "us-central1", GIT_SHA: sha, SEC_GRAPH_ACTIVATE_TREE: tree,
-      ENABLE_SEC_FILING_PIPELINE: "1", SEC_FILINGS_COLLECTOR_ENABLED: "1", COMPANY_GRAPH_PROCESSING_ENABLED: "1",
+      ENABLE_SEC_FILING_PIPELINE: "1", SEC_FILINGS_COLLECTOR_ENABLED: "1", COMPANY_GRAPH_PROCESSING_ENABLED: "1", COMPANY_GRAPH_PAID_ADMISSION_ENABLED: "1",
       COMPANY_GRAPH_QUEUE_BATCH_SIZE: "1", ...extra },
   });
   const calls = readFileSync(record, "utf8");
@@ -102,7 +102,7 @@ test("failed recovery or mismatched effective execution mode leaves both schedul
   }
 });
 test("matching approval still requires both flags, batch one, exact digest and exact existing schedule targets", () => {
-  for (const extra of [{ COMPANY_GRAPH_PROCESSING_ENABLED: "0" }, { SEC_FILINGS_COLLECTOR_ENABLED: "0" },
+  for (const extra of [{ COMPANY_GRAPH_PROCESSING_ENABLED: "0" }, { COMPANY_GRAPH_PAID_ADMISSION_ENABLED: "0" }, { SEC_FILINGS_COLLECTOR_ENABLED: "0" },
     { COMPANY_GRAPH_QUEUE_BATCH_SIZE: "2" }, { BAD_DIGEST: "1" }, { WRONG_TARGET: "1" }, { WRONG_MODEL: "gpt-other" }]) {
     const r = run(extra); assert.notEqual(r.status, 0, JSON.stringify(extra));
     assert.doesNotMatch(r.calls, /jobs execute|jobs resume/);
@@ -113,6 +113,15 @@ test("both jobs and both subscribers must use the reviewed immutable image", () 
     const r = run({ WRONG_IMAGE }); assert.notEqual(r.status, 0, WRONG_IMAGE);
     assert.doesNotMatch(r.calls, /jobs execute|jobs resume/);
   }
+});
+test("fresh activation requires paid admission on the effective publisher, subscriber and execution", () => {
+  for (const WRONG_ADMISSION of ["refresh-company-graph-production", "company-graph-subscriber", "execution"]) {
+    const r = run({ WRONG_ADMISSION }); assert.notEqual(r.status, 0, WRONG_ADMISSION);
+    assert.doesNotMatch(r.calls, /jobs resume/);
+    if (WRONG_ADMISSION !== "execution") assert.doesNotMatch(r.calls, /jobs execute/);
+  }
+  const recovery = run({ SEC_GRAPH_RECOVERY_SOURCE_TREE: "d".repeat(40), COMPANY_GRAPH_PAID_ADMISSION_ENABLED: "0", WRONG_ADMISSION: "company-graph-subscriber" });
+  assert.equal(recovery.status, 0, recovery.stderr); assert.doesNotMatch(recovery.calls, /jobs resume/);
 });
 test("failed or ambiguous verification leaves both existing schedules paused without a second execution", () => {
   for (const extra of [{ FAIL_CANARY: "1" }, { AMBIGUOUS_EXECUTION: "1" }, { FAIL_EXECUTION: "1" }, { WRONG_IMAGE: "execution" }]) {

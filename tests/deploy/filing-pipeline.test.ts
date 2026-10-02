@@ -136,7 +136,7 @@ test('graph subscriber keeps request and filing delivery isolated and processing
     GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit', SEC_USER_AGENT: 'test contact',
     OPENAI_API_KEY: 'test-existing-key', OPENAI_MODEL: 'test-existing-model',
     COMPANY_GRAPH_SUBSCRIPTION: 'company-graph-worker', COMPANY_GRAPH_FILINGS_SUBSCRIPTION: 'company-graph-filings',
-    COMPANY_GRAPH_PROCESSING_ENABLED: '0',
+    COMPANY_GRAPH_PROCESSING_ENABLED: '0', COMPANY_GRAPH_PAID_ADMISSION_ENABLED: '0',
   });
   assert.equal(r.envFilesRemoved, true);
   assert.doesNotMatch(r.calls, /test-existing-key|test-existing-model|add-iam-policy-binding|secrets |service-accounts create|projects add-iam/);
@@ -166,7 +166,7 @@ test('graph pre-web publication retains requests without worker credentials, del
 test('graph release validates rollout, credentials, processing flags and existing IAM before deployment', () => {
   for (const extra of [
     { ENABLE_SEC_FILING_PIPELINE: '0' }, { OPENAI_API_KEY: '' }, { SEC_USER_AGENT: '' },
-    { COMPANY_GRAPH_PROCESSING_ENABLED: 'true' }, { PUBSUB_BOOTSTRAP_IAM: 'true' }, { MISSING_IAM: '1' },
+    { COMPANY_GRAPH_PROCESSING_ENABLED: 'true' }, { COMPANY_GRAPH_PAID_ADMISSION_ENABLED: 'true' }, { PUBSUB_BOOTSTRAP_IAM: 'true' }, { MISSING_IAM: '1' },
     { WRONG_TOPIC: 'unrelated-topic' },
   ] as Record<string, string>[]) {
     const r = run('scripts/deploy-company-graph-pubsub.sh', extra);
@@ -184,9 +184,11 @@ test('graph publisher is bounded, starts paused and has no paid-provider configu
   assert.ok(r.calls.indexOf('subscriptions update company-graph-worker') < r.calls.indexOf('run jobs deploy refresh-company-graph-production'));
   const job = r.calls.split('\n').find(line => line.startsWith('run jobs deploy'))!;
   assert.doesNotMatch(job, /OPENAI|SEC_USER_AGENT|env-vars-file/);
-  const repeat = run('scripts/deploy-company-graph.sh', { COMPANY_GRAPH_PROCESSING_ENABLED: '1' });
+  const repeat = run('scripts/deploy-company-graph.sh', { COMPANY_GRAPH_PROCESSING_ENABLED: '1', COMPANY_GRAPH_PAID_ADMISSION_ENABLED: '1' });
   assert.equal(repeat.status, 0, repeat.stderr);
   assert.equal(repeat.workerEnv.COMPANY_GRAPH_PROCESSING_ENABLED, '1');
+  assert.equal(repeat.workerEnv.COMPANY_GRAPH_PAID_ADMISSION_ENABLED, '1');
+  assert.match(repeat.calls, /COMPANY_GRAPH_PAID_ADMISSION_ENABLED=1/);
   assert.match(repeat.calls, /scheduler jobs update http refresh-company-graph-production/);
   assert.doesNotMatch(repeat.calls, /scheduler jobs (pause|resume|delete)/);
   const invalid = run('scripts/deploy-company-graph.sh', { COMPANY_GRAPH_QUEUE_BATCH_SIZE: '6' });
@@ -209,7 +211,7 @@ test('full SEC/graph rollout provisions both consumers before the disabled colle
 test('pipeline preflight fails before building or changing existing workers', () => {
   for (const extra of [
     { ENABLE_SEC_FILING_PIPELINE: '0' }, { OPENAI_API_KEY: '' }, { COMPANY_GRAPH_PROCESSING_ENABLED: 'yes' },
-    { SEC_FILINGS_COLLECTOR_ENABLED: 'yes' }, { COMPANY_GRAPH_QUEUE_BATCH_SIZE: '10' },
+    { SEC_FILINGS_COLLECTOR_ENABLED: 'yes' }, { COMPANY_GRAPH_PAID_ADMISSION_ENABLED: 'yes' }, { COMPANY_GRAPH_QUEUE_BATCH_SIZE: '10' },
   ] as Record<string, string>[]) {
     const r = run('scripts/deploy-background-jobs.sh', { TARGET: 'sec-filings', ...extra });
     assert.notEqual(r.status, 0);
