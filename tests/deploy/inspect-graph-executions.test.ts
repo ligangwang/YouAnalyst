@@ -84,7 +84,8 @@ test("known condition reasons distinguish runtime failure and timeout without ex
 });
 
 test("all allowed graph modes and bounded limits are projected as effective args", () => {
-  for (const args of [[], ["--apply"], ["--dry-run", "--limit=5"], ["--verify-delivery"], ["--verify-live"], ["--limit=1"]]) {
+  for (const args of [[], ["--apply"], ["--dry-run", "--limit=5"], ["--verify-delivery"], ["--verify-live"],
+    [`--resume-live=${"a".repeat(40)}`], ["--limit=1"]]) {
     const value = execution();
     value.spec.template.spec.containers[0].args = ["dist/refresh-company-graph.cjs", ...args];
     const result = inspect([value]);
@@ -95,7 +96,8 @@ test("all allowed graph modes and bounded limits are projected as effective args
 
 test("unrecognized and conflicting args fail closed without printing their values", () => {
   for (const args of [[sentinel], ["--company=NVDA"], ["--limit=6"], ["--apply", "--dry-run"],
-    ["--verify-live", "--limit=1"], ["--verify-delivery", "--apply"], ["--limit=1", "--limit=2"], ["--apply", "--apply"]]) {
+    ["--verify-live", "--limit=1"], ["--verify-delivery", "--apply"], ["--limit=1", "--limit=2"], ["--apply", "--apply"],
+    ["--resume-live=main"], [`--resume-live=${"a".repeat(40)}`, "--verify-live"], [`--resume-live=${"a".repeat(40)}`, "--limit=1"]]) {
     const value = execution();
     value.spec.template.spec.containers[0].args = ["dist/refresh-company-graph.cjs", ...args];
     failsClosed([value]);

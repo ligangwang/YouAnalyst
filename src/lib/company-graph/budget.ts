@@ -15,7 +15,10 @@ const OUTPUT_MICROS_PER_TOKEN = 20;
 const DEFAULT_LIMIT_MICROS = 5_000_000;
 const COLLECTION = "company_research_runs";
 const BUDGET_ID = "_graph_daily_budget";
-const fail = () => { throw new Error("Graph budget cannot be verified; paid processing is blocked."); };
+const fail = (reason?: string) => { throw new Error(`Graph budget cannot be verified${reason ? ` (${reason})` : ""}; paid processing is blocked.`); };
+// The observed preflight/usage discrepancy must be resolved before new paid
+// admissions resume. Existing saved responses can still be retrieved and settled.
+export const isGraphPaidAdmissionEnabled = () => process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED === "1";
 const integer = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v) >= 0;
 export class GraphBudgetExceededError extends Error {
   readonly retryAtMs: number;
@@ -26,7 +29,7 @@ export class GraphBudgetUncertainError extends Error {
 }
 export type GraphBudgetSummary = {
   limitUsd: number; spentUsd: number; reservedUsd: number; remainingUsd: number;
-  day: string; timezone: typeof GRAPH_BUDGET_TIMEZONE; blocked: boolean; pricingValidUntil: string;
+  day: string; timezone: typeof GRAPH_BUDGET_TIMEZONE; blocked: boolean; newRequestsPaused: boolean; pricingValidUntil: string;
 };
 type Budget = { day: string; limitMicros: number; spentMicros: number; reservedMicros: number };
 export type GraphBudgetTicket = { id: string; requestKey: string; fingerprint: string; inputTokens: number; reservedMicros: number; responseId: string | null };
@@ -57,14 +60,14 @@ function summary(value: Budget, now: number): GraphBudgetSummary {
     reservedUsd: value.reservedMicros / 1e6, remainingUsd: remaining / 1e6, day: value.day,
     timezone: GRAPH_BUDGET_TIMEZONE, blocked: remaining < GRAPH_MAX_OUTPUT_TOKENS * OUTPUT_MICROS_PER_TOKEN + INPUT_MICROS_PER_TOKEN
       || now >= Date.parse(GRAPH_PRICING_VALID_UNTIL),
-    pricingValidUntil: GRAPH_PRICING_VALID_UNTIL };
+    newRequestsPaused: !isGraphPaidAdmissionEnabled(), pricingValidUntil: GRAPH_PRICING_VALID_UNTIL };
 }
 export async function getGraphBudgetSummary(db = getAdminFirestore(), now = Date.now()) {
   return summary(readBudget((await db.collection(COLLECTION).doc(BUDGET_ID).get()).data(), now), now);
 }
 export async function readCompanyGraphBudgetAvailability(db: Firestore, now = Date.now()) {
   const value = await getGraphBudgetSummary(db, now);
-  return { available: !value.blocked && Math.round(value.remainingUsd * 1e6) >= GRAPH_MAX_OUTPUT_TOKENS * OUTPUT_MICROS_PER_TOKEN + INPUT_MICROS_PER_TOKEN,
+  return { available: !value.blocked && !value.newRequestsPaused && Math.round(value.remainingUsd * 1e6) >= GRAPH_MAX_OUTPUT_TOKENS * OUTPUT_MICROS_PER_TOKEN + INPUT_MICROS_PER_TOKEN,
     retryAtMs: nextGraphBudgetDay(now) };
 }
 export async function setGraphBudgetLimit(limitUsd: number, db = getAdminFirestore(), now = Date.now()) {
@@ -119,7 +122,8 @@ export async function reserveGraphBudget(input: { requestKey: string; fingerprin
 async function checkTicket(tx: Transaction, ticket: GraphBudgetTicket, db: Firestore) {
   const ref = db.collection(COLLECTION).doc(ticket.id), value = (await tx.get(ref)).data();
   if (!value || value.requestKey !== ticket.requestKey || value.fingerprint !== ticket.fingerprint
-    || value.reservedMicros !== ticket.reservedMicros || value.priceVersion !== PRICE_VERSION) return fail();
+    || value.reservedMicros !== ticket.reservedMicros || value.inputTokens !== ticket.inputTokens
+    || value.model !== GRAPH_BUDGET_MODEL || value.priceVersion !== PRICE_VERSION) return fail();
   return { ref, value };
 }
 export async function recordGraphResponse(ticket: GraphBudgetTicket, responseId: string, db: Firestore) {
@@ -133,21 +137,31 @@ export async function recordGraphResponse(ticket: GraphBudgetTicket, responseId:
 /** Release unused reservation only after terminal usage is complete and bounded. */
 export async function settleGraphBudget(ticket: GraphBudgetTicket, response: Record<string, unknown>, db: Firestore, now = Date.now()) {
   const usage = response.usage as Record<string, unknown> | null;
-  if (!ticket.responseId || response.id !== ticket.responseId || response.model !== GRAPH_BUDGET_MODEL
-    || !["completed", "failed", "cancelled", "incomplete"].includes(String(response.status))
-    || !usage || !integer(usage.input_tokens) || usage.input_tokens > ticket.inputTokens
-    || !integer(usage.output_tokens) || usage.output_tokens > GRAPH_MAX_OUTPUT_TOKENS) return fail();
-  const spentMicros = usage.input_tokens * INPUT_MICROS_PER_TOKEN + usage.output_tokens * OUTPUT_MICROS_PER_TOKEN;
-  if (spentMicros > ticket.reservedMicros) return fail();
+  if (!ticket.responseId || response.id !== ticket.responseId) return fail("response identity");
+  if (response.model !== GRAPH_BUDGET_MODEL || response.service_tier !== "default") return fail("unreviewed model or pricing tier");
+  if (!["completed", "failed", "cancelled", "incomplete"].includes(String(response.status))) return fail("response is not terminal");
+  if (!usage || !integer(usage.input_tokens) || usage.input_tokens > GRAPH_MAX_INPUT_TOKENS
+    || !integer(usage.output_tokens) || usage.output_tokens > GRAPH_MAX_OUTPUT_TOKENS) return fail("unverified token usage");
+  // Preflight counts are not a terminal billing invariant: the saved NVDA result
+  // differs by five tokens. The already-held dollars remain the settlement bound.
+  const inputTokens = usage.input_tokens, outputTokens = usage.output_tokens;
+  const spentMicros = inputTokens * INPUT_MICROS_PER_TOKEN + outputTokens * OUTPUT_MICROS_PER_TOKEN;
+  if (!Number.isSafeInteger(spentMicros) || spentMicros > ticket.reservedMicros) return fail("actual cost exceeds reservation");
   const budgetRef = db.collection(COLLECTION).doc(BUDGET_ID);
   await db.runTransaction(async tx => {
     const { ref, value } = await checkTicket(tx, ticket, db);
     const budget = readBudget((await tx.get(budgetRef)).data(), now);
-    if (value.status === "settled") return;
-    if (value.responseId !== ticket.responseId || budget.reservedMicros < ticket.reservedMicros) return fail();
+    if (value.responseId !== ticket.responseId) return fail("stored response identity");
+    if (value.status === "settled") {
+      if (value.spentMicros !== spentMicros || value.usageInputTokens !== inputTokens
+        || value.usageOutputTokens !== outputTokens) return fail("settled usage changed");
+      return;
+    }
+    if (value.status !== "reserved" || budget.reservedMicros < ticket.reservedMicros) return fail("reservation liability");
     budget.reservedMicros -= ticket.reservedMicros;
     budget.spentMicros += spentMicros;
     tx.set(budgetRef, budget, { merge: true });
-    tx.set(ref, { status: "settled", spentMicros, settledDay: budget.day, settledAt: new Date(now).toISOString() }, { merge: true });
+    tx.set(ref, { status: "settled", spentMicros, usageInputTokens: inputTokens, usageOutputTokens: outputTokens,
+      inputTokenDelta: inputTokens - ticket.inputTokens, settledDay: budget.day, settledAt: new Date(now).toISOString() }, { merge: true });
   });
 }

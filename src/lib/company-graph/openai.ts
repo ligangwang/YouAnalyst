@@ -4,7 +4,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "../firebase/admin";
 import { GRAPH_BUDGET_MODEL, GRAPH_MAX_INPUT_TOKENS, GRAPH_MAX_OUTPUT_TOKENS, graphReservationMicros,
   graphBudgetFingerprint, findGraphBudgetTicket, reserveGraphBudget, recordGraphResponse, settleGraphBudget,
-  GraphBudgetUncertainError } from "./budget";
+  GraphBudgetUncertainError, isGraphPaidAdmissionEnabled } from "./budget";
 import { getOpenAiApiKey, getOpenAiModel } from "@/lib/openai-runtime";
 import {
   COMPANY_GRAPH_EDGE_DIRECTIONS,
@@ -256,6 +256,7 @@ export async function extractCompanyGraphRelationships(input: CompanyGraphProvid
   if (ticket && !ticket.responseId) throw new GraphBudgetUncertainError();
   if (input.responseId && (!ticket || ticket.responseId !== input.responseId)) throw new Error("Graph provider response has no matching budget reservation; operator review required.");
   if (!ticket) {
+    if (!isGraphPaidAdmissionEnabled()) throw new Error("New paid graph requests are paused while input-token admission bounds are reviewed; saved responses remain recoverable.");
     graphReservationMicros(model, 1, now()); // Expiry blocks new generation, not recovery of an admitted response.
     // Count the identical structured input, including the system message and JSON
     // schema. No local character/token estimate can authorize a paid request.

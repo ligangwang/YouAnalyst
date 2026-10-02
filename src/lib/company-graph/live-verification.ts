@@ -12,19 +12,84 @@ const MAX_DURATION_MS = 18 * 60_000;
 type Activation = {
   version: 1; tree: string; request: CompanyGraphRequest; event: SecFilingDiscovered;
   runId: string; createdAt: string; graphVerifiedAt?: string; verifiedAt?: string;
+  recovery?: { requestId: string; runId: string; responseId: string; preparedAt: string;
+    releaseTree: string; originalFailure: { error: unknown; failedAt: unknown; attemptCount: unknown } };
 };
 const runIdFor = (request: CompanyGraphRequest, event: SecFilingDiscovered) => `graph_${createHash("sha256")
   .update(JSON.stringify([TICKER, event.accessionNumber, COMPANY_GRAPH_EXTRACTION_VERSION, request.requestId])).digest("hex")}`;
 const budgetIdFor = (runId: string) => `_graph_budget_request_${createHash("sha256").update(runId).digest("hex")}`;
-function assertBudget(budget: GraphBudgetSummary) {
-  if (budget.limitUsd !== 5 || budget.timezone !== "America/New_York" || budget.blocked
+function assertBudget(budget: GraphBudgetSummary, newRequest: boolean) {
+  if (newRequest && budget.newRequestsPaused) throw new Error("New paid graph requests are paused; resume only an existing admitted response");
+  if (budget.limitUsd !== 5 || budget.timezone !== "America/New_York" || (newRequest && budget.blocked)
     || budget.spentUsd + budget.reservedUsd > budget.limitUsd) {
     throw new Error("Live activation requires an available US$5/day America/New_York graph budget; no limit was changed");
   }
 }
 function budgetReport(budget: GraphBudgetSummary) {
-  const { limitUsd, spentUsd, reservedUsd, remainingUsd, day, timezone } = budget;
-  return { limitUsd, spentUsd, reservedUsd, remainingUsd, day, timezone };
+  const { limitUsd, spentUsd, reservedUsd, remainingUsd, day, timezone, newRequestsPaused } = budget;
+  return { limitUsd, spentUsd, reservedUsd, remainingUsd, day, timezone, newRequestsPaused };
+}
+
+function assertRequestIdentity(value: Record<string, unknown> | undefined, saved: Activation): asserts value is Record<string, unknown> {
+  const request = saved.request;
+  if (value?.ticker !== TICKER || value.requestId !== request.requestId || value.generation !== request.generation
+    || value.force !== request.force || value.queuedAt !== request.requestedAt
+    || value.extractionVersion !== COMPANY_GRAPH_EXTRACTION_VERSION) {
+    throw new Error("Activation request was superseded or changed; no replacement will be created");
+  }
+}
+
+/** Recover only an existing admission, atomically retaining its original failure. */
+async function prepareRecovery(db: Firestore, sourceTree: string, releaseTree: string, now: number): Promise<Activation> {
+  const marker = db.collection(COLLECTION).doc(`_graph_activation_${sourceTree}`);
+  return db.runTransaction(async tx => {
+    const raw = (await tx.get(marker)).data();
+    if (!raw) throw new Error("Original activation marker is missing; recovery cannot create one");
+    const saved = readActivation(raw, sourceTree);
+    const requestRef = db.collection("company_research_requests").doc(TICKER);
+    const [requestDoc, sourceDoc, runDoc, budgetDoc, lockDoc] = await Promise.all([
+      tx.get(requestRef), tx.get(db.collection(COLLECTION).doc(`_graph_source_${saved.request.requestId}`)),
+      tx.get(db.collection(COLLECTION).doc(`_graph_run_${saved.runId}`)),
+      tx.get(db.collection(COLLECTION).doc(budgetIdFor(saved.runId))),
+      tx.get(db.collection(COLLECTION).doc(`_graph_lock_${TICKER}`)),
+    ]);
+    const request = requestDoc.data(), source = sourceDoc.data(), run = runDoc.data(), budget = budgetDoc.data();
+    assertRequestIdentity(request, saved);
+    const filingUrl = `https://www.sec.gov/Archives/edgar/data/${Number(CIK)}/${saved.event.accessionNumber.replace(/-/g, "")}/${saved.event.primaryDocument}`;
+    if (source?.company?.ticker !== TICKER || source.company.cik !== CIK
+      || typeof source.company.name !== "string" || !source.company.name.trim() || source.createdAt !== saved.createdAt
+      || source.filing?.accessionNumber !== saved.event.accessionNumber || source.filing.filingDate !== saved.event.filingDate
+      || source.filing.primaryDocument !== saved.event.primaryDocument || source.filing.filingUrl !== filingUrl
+      || run?.ticker !== TICKER || run.accessionNumber !== saved.event.accessionNumber
+      || run.extractionVersion !== COMPANY_GRAPH_EXTRACTION_VERSION) {
+      throw new Error("Original activation source or run is missing or changed; recovery is blocked");
+    }
+    const responseId = run.providerResponseId;
+    if (typeof responseId !== "string" || !/^resp_[A-Za-z0-9_-]+$/.test(responseId)
+      || budget?.responseId !== responseId || budget.requestKey !== saved.runId
+      || !["reserved", "settled"].includes(budget.status)
+      || !Number.isSafeInteger(budget.reservedMicros) || budget.reservedMicros <= 0
+      || (run.providerResult && (run.providerResult.responseId !== responseId || budget.status !== "settled"))) {
+      throw new Error("Original provider response and budget reservation are missing or ambiguous; recovery is blocked");
+    }
+    if (saved.recovery && (saved.recovery.requestId !== saved.request.requestId || saved.recovery.runId !== saved.runId
+      || saved.recovery.responseId !== responseId)) throw new Error("Saved recovery identity changed; operator review required");
+    if (!["FAILED", "QUEUED", "PROCESSING", "COMPLETED"].includes(String(request.status))
+      || (!saved.recovery && request.status !== "FAILED" && request.status !== "COMPLETED")) {
+      throw new Error("Original activation has other unfinished work; recovery cannot replace it");
+    }
+    if (request.status !== "FAILED") return saved;
+    if (Number(request.leaseExpiresAtMs) > now || request.processingRunId
+      || Number(lockDoc.data()?.leaseExpiresAtMs) > now) throw new Error("Original activation is still leased; recovery cannot reset active work");
+    const recovery = saved.recovery ?? { requestId: saved.request.requestId, runId: saved.runId, responseId,
+      preparedAt: new Date(now).toISOString(), releaseTree,
+      originalFailure: { error: request.error ?? null, failedAt: request.failedAt ?? null, attemptCount: request.attemptCount ?? null } };
+    tx.set(marker, { recovery }, { merge: true });
+    tx.set(requestRef, { status: "QUEUED", updatedAt: new Date(now).toISOString(), error: null, failedAt: null,
+      leaseExpiresAtMs: 0, processingRunId: null, processingStartedAt: null, nextAttemptAtMs: 0,
+      budgetDeferredUntilMs: 0, dispatchedAt: null, publishLeaseOwner: null, publishLeaseExpiresAtMs: 0 }, { merge: true });
+    return { ...saved, recovery };
+  });
 }
 function readActivation(value: unknown, tree: string): Activation {
   const saved = value as Activation;
@@ -98,18 +163,23 @@ async function checkpoint(db: Firestore, saved: Activation, field: "graphVerifie
   });
 }
 
-/** One NVDA request and one exact historical filing event. Never drains a queue or resets a run. */
+/** One NVDA request and one exact historical filing event. Never drains a queue or replaces a run. */
 export async function verifyLiveCompanyGraph(db: Firestore, tree: string, dependencies: {
   publishGraph: (request: CompanyGraphRequest) => Promise<unknown>;
   publishFiling: (event: SecFilingDiscovered) => Promise<unknown>;
   now?: () => number; sleep?: (ms: number) => Promise<void>;
+  resumeTree?: string;
+  readBudget?: (now: number) => Promise<GraphBudgetSummary>;
   onPreflight?: (counts: Record<string, number | string>) => void;
 }) {
   if (!/^[a-f0-9]{40}$/.test(tree)) throw new Error("An exact reviewed source tree is required for live activation");
+  const resumeTree = dependencies.resumeTree;
+  if (resumeTree !== undefined && !/^[a-f0-9]{40}$/.test(resumeTree)) throw new Error("An exact original source tree is required for recovery");
   const now = dependencies.now ?? Date.now, sleep = dependencies.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
+  const readBudget = dependencies.readBudget ?? (time => getGraphBudgetSummary(db, time));
   const deadline = now() + MAX_DURATION_MS;
-  const initialBudget = await getGraphBudgetSummary(db, now());
-  assertBudget(initialBudget);
+  const initialBudget = await readBudget(now());
+  assertBudget(initialBudget, !resumeTree);
   const [pending, ...counts] = await Promise.all([
     db.collection("sec_filings").where("discoveryPending", "==", true).count().get(),
     ...["QUEUED", "PROCESSING", "FAILED"].map(status =>
@@ -119,10 +189,10 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
     processingGraphRequests: counts[1].data().count, failedGraphRequests: counts[2].data().count,
     pubsubBacklog: "not-inspected" };
   dependencies.onPreflight?.(preflight);
-  const saved = await prepareActivation(db, tree, now());
+  const saved = resumeTree ? await prepareRecovery(db, resumeTree, tree, now()) : await prepareActivation(db, tree, now());
   const result = { verified: true, ticker: TICKER, tree, requestId: saved.request.requestId,
-    runId: saved.runId, eventId: saved.event.eventId, accessionNumber: saved.event.accessionNumber, preflight };
-  if (saved.verifiedAt) return { ...result, alreadyVerified: true, budget: budgetReport(initialBudget) };
+    runId: saved.runId, eventId: saved.event.eventId, accessionNumber: saved.event.accessionNumber, preflight,
+    ...(resumeTree ? { recoveredFromTree: resumeTree, schedulesRemainPaused: true } : {}) };
   const bounded = async <T>(work: () => Promise<T>): Promise<T> => {
     if (now() >= deadline) throw new Error("Live activation timed out; resume the same saved request/event, never force a new run");
     return work();
@@ -134,7 +204,11 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
       db.collection(COLLECTION).doc(budgetIdFor(saved.runId)).get(),
     ]);
     const queued = request.data(), completed = run.data(), budget = reservation.data();
-    if (queued?.requestId !== saved.request.requestId) throw new Error("Activation request was superseded; no replacement will be created");
+    assertRequestIdentity(queued, saved);
+    if (resumeTree && (!completed?.providerResponseId || completed.providerResponseId !== budget?.responseId
+      || budget?.requestKey !== saved.runId || (saved.recovery && completed.providerResponseId !== saved.recovery.responseId))) {
+      throw new Error("Original provider response or reservation changed before recovery replay; no replacement will be created");
+    }
     if (queued.status === "FAILED") {
       if (budget?.status === "reserved" && !budget.responseId) {
         throw new Error("NVDA provider outcome is ambiguous; its reservation and request are retained for operator review");
@@ -144,8 +218,13 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
     if (Number(queued.budgetDeferredUntilMs) > now()) throw new Error("NVDA live graph request is budget-deferred; schedules remain paused");
     if (queued.status !== "COMPLETED") return false;
     if (completed?.completed !== true || completed.result?.runId !== saved.runId || completed.result?.ticker !== TICKER
+      || completed.result?.cik !== CIK || completed.result?.extractionVersion !== COMPANY_GRAPH_EXTRACTION_VERSION
+      || !Array.isArray(completed.result?.edges)
       || completed.result?.filing?.accessionNumber !== saved.event.accessionNumber
+      || completed.result?.filing?.filingDate !== saved.event.filingDate
+      || completed.result?.filing?.primaryDocument !== saved.event.primaryDocument
       || !completed.providerResponseId || completed.providerResponseId !== budget?.responseId
+      || (saved.recovery && completed.providerResponseId !== saved.recovery.responseId)
       || budget?.requestKey !== saved.runId || budget.status !== "settled"
       || !Number.isSafeInteger(budget.spentMicros) || budget.spentMicros < 0
       || !Number.isSafeInteger(budget.reservedMicros) || budget.reservedMicros <= 0 || budget.spentMicros > budget.reservedMicros) {
@@ -153,16 +232,14 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
     }
     return true;
   };
-  if (!saved.graphVerifiedAt) {
-    if (!await bounded(graphComplete)) {
-      // Re-publication on a retry preserves request identity; subscriber and budget
-      // checkpoints prevent starting another paid request after an uncertain POST.
-      await bounded(() => dependencies.publishGraph(saved.request));
-      while (!await bounded(graphComplete)) await sleep(10_000);
-    }
-    await bounded(() => checkpoint(db, saved, "graphVerifiedAt", now()));
+  if (!await bounded(graphComplete)) {
+    // Re-publication on a retry preserves request identity; subscriber and budget
+    // checkpoints prevent starting another paid request after an uncertain POST.
+    await bounded(() => dependencies.publishGraph(saved.request));
+    while (!await bounded(graphComplete)) await sleep(10_000);
   }
-  assertBudget(await bounded(() => getGraphBudgetSummary(db, now())));
+  if (!saved.graphVerifiedAt) await bounded(() => checkpoint(db, saved, "graphVerifiedAt", now()));
+  assertBudget(await bounded(() => readBudget(now())), !resumeTree);
   const fanoutComplete = async () => {
     const [fundamentals, receipt] = await Promise.all([
       db.collection("company_fundamentals").doc(TICKER).get(),
@@ -184,8 +261,8 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
     await bounded(() => dependencies.publishFiling(saved.event));
     while (!await bounded(fanoutComplete)) await sleep(10_000);
   }
-  const finalBudget = await bounded(() => getGraphBudgetSummary(db, now()));
-  assertBudget(finalBudget);
-  await bounded(() => checkpoint(db, saved, "verifiedAt", now(), finalBudget));
-  return { ...result, alreadyVerified: false, budget: budgetReport(finalBudget) };
+  const finalBudget = await bounded(() => readBudget(now()));
+  assertBudget(finalBudget, !resumeTree);
+  if (!saved.verifiedAt) await bounded(() => checkpoint(db, saved, "verifiedAt", now(), finalBudget));
+  return { ...result, alreadyVerified: Boolean(saved.verifiedAt), budget: budgetReport(finalBudget) };
 }

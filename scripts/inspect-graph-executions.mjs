@@ -23,7 +23,7 @@ function graphArgs(args) {
   const modes = new Set(["--apply", "--dry-run", "--verify-delivery", "--verify-live"]);
   let mode, hasLimit = false;
   for (const arg of args.slice(1)) {
-    if (modes.has(arg)) {
+    if (modes.has(arg) || (typeof arg === "string" && /^--resume-live=[a-f0-9]{40}$/.test(arg))) {
       if (mode) fail();
       mode = arg;
     } else if (typeof arg === "string" && /^--limit=[1-5]$/.test(arg)) {
@@ -31,7 +31,7 @@ function graphArgs(args) {
       hasLimit = true;
     } else fail();
   }
-  if (hasLimit && (mode === "--verify-delivery" || mode === "--verify-live")) fail();
+  if (hasLimit && (mode === "--verify-delivery" || mode === "--verify-live" || mode?.startsWith("--resume-live="))) fail();
   return args;
 }
 

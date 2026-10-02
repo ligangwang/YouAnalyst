@@ -7,6 +7,7 @@ import { parseCompanyGraphPublisherArgs } from "../../src/lib/company-graph/cli"
 import { createSecFilingDiscovered } from "../../src/lib/sec-filings/event";
 import type { CompanyGraphRequest } from "../../src/lib/company-graph/pubsub";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "../../src/lib/company-graph/types";
+import { getGraphBudgetSummary } from "../../src/lib/company-graph/budget";
 
 type Row = Record<string, unknown>;
 const tree = "a".repeat(40), now = Date.parse("2026-10-01T12:00:00Z");
@@ -42,7 +43,8 @@ function fixture() {
   const completeGraph = (request: CompanyGraphRequest) => {
     const marker = rows.get(markerPath)!;
     const runId = String(marker.runId);
-    rows.set(`company_research_runs/_graph_run_${runId}`, { completed: true, providerResponseId: "resp_canary", result: resultFor(runId) });
+    rows.set(`company_research_runs/_graph_run_${runId}`, { completed: true, providerResponseId: "resp_canary", result: resultFor(runId),
+      ticker: "NVDA", accessionNumber: event.accessionNumber, extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION });
     rows.set(`company_research_runs/_graph_budget_request_${createHash("sha256").update(runId).digest("hex")}`,
       { requestKey: runId, status: "settled", responseId: "resp_canary", spentMicros: 100, reservedMicros: 400000 });
     rows.set("company_research_requests/NVDA", { ...rows.get("company_research_requests/NVDA"), requestId: request.requestId, status: "COMPLETED" });
@@ -54,6 +56,7 @@ function fixture() {
       eventId: event.eventId, companyId: "NVDA", accessionNumber: event.accessionNumber, runId });
   };
   const deps = { now: () => clock, sleep: async (ms: number) => { clock += ms; },
+    readBudget: async (time: number) => ({ ...await getGraphBudgetSummary(db, time), newRequestsPaused: false }),
     publishGraph: async (request: CompanyGraphRequest) => { publications.push({ type: "graph", id: request.requestId }); completeGraph(request); },
     publishFiling: async (filing: typeof event) => { assert.deepEqual(filing, event); publications.push({ type: "filing", id: filing.eventId }); completeFiling(); } };
   return { db, rows, paths, publications, deps, completeGraph, completeFiling };
@@ -66,6 +69,112 @@ test("live mode is explicit, NVDA-only, and cannot be combined with publisher or
     assert.throws(() => parseCompanyGraphPublisherArgs(args, {}));
   }
   assert.throws(() => parseCompanyGraphPublisherArgs(["--verify-live"], { COMPANY_GRAPH_VERIFY_ONLY: "1" }));
+});
+
+test("recovery CLI requires an exact original tree and excludes every other publisher mode", () => {
+  assert.equal(parseCompanyGraphPublisherArgs([`--resume-live=${tree}`], {}).resumeLive, tree);
+  for (const args of [["--resume-live"], ["--resume-live=main"], [`--resume-live=${tree}`, "--verify-live"],
+    [`--resume-live=${tree}`, "--apply"], [`--resume-live=${tree}`, "--dry-run"],
+    [`--resume-live=${tree}`, "--verify-delivery"], [`--resume-live=${tree}`, "--limit=1"],
+    [`--resume-live=${tree}`, `--resume-live=${tree}`]]) assert.throws(() => parseCompanyGraphPublisherArgs(args, {}));
+  assert.throws(() => parseCompanyGraphPublisherArgs([`--resume-live=${tree}`], { COMPANY_GRAPH_VERIFY_ONLY: "1" }));
+});
+
+async function failedActivation() {
+  const f = fixture();
+  await assert.rejects(verifyLiveCompanyGraph(f.db, tree, { ...f.deps, publishGraph: async request => {
+    f.completeGraph(request);
+    const runId = String(f.rows.get(markerPath)!.runId);
+    const run = f.rows.get(`company_research_runs/_graph_run_${runId}`)!;
+    delete run.result; run.completed = false;
+    const budget = f.rows.get(`company_research_runs/_graph_budget_request_${createHash("sha256").update(runId).digest("hex")}`)!;
+    budget.status = "reserved"; delete budget.spentMicros;
+    f.rows.set("company_research_requests/NVDA", { ...f.rows.get("company_research_requests/NVDA"), status: "FAILED",
+      error: "Actual input tokens exceeded preflight", failedAt: new Date(now).toISOString(), attemptCount: 1 });
+  } }), /NVDA graph request failed/);
+  return f;
+}
+const recoveryReleaseTree = "c".repeat(40);
+test("normal activation refuses paused new admissions before creating a marker or request", async () => {
+  const f = fixture();
+  await assert.rejects(verifyLiveCompanyGraph(f.db, tree, { ...f.deps, readBudget: undefined }), /New paid graph requests are paused/);
+  assert.equal(f.rows.has(markerPath), false); assert.equal(f.rows.has("company_research_requests/NVDA"), false);
+  assert.equal(f.publications.length, 0);
+});
+test("recovery replays only the original failed request while new admissions are paused", async () => {
+  const f = await failedActivation(), original = structuredClone(f.rows.get(markerPath)!);
+  const requestBefore = structuredClone(f.rows.get("company_research_requests/NVDA")!);
+  const sourcePath = `company_research_runs/_graph_source_${(original.request as CompanyGraphRequest).requestId}`;
+  const source = structuredClone(f.rows.get(sourcePath));
+  const deps = { ...f.deps, resumeTree: tree, readBudget: undefined,
+    publishGraph: async (request: CompanyGraphRequest) => {
+      assert.deepEqual(request, original.request);
+      const requeued = f.rows.get("company_research_requests/NVDA")!;
+      assert.equal(requeued.status, "QUEUED"); assert.equal(requeued.requestedCount, requestBefore.requestedCount);
+      assert.equal(requeued.generation, requestBefore.generation); assert.equal(requeued.queuedAt, requestBefore.queuedAt);
+      assert.equal(requeued.attemptCount, requestBefore.attemptCount);
+      await f.deps.publishGraph(request);
+    } };
+  const recovered = await verifyLiveCompanyGraph(f.db, recoveryReleaseTree, deps);
+  assert.equal(recovered.recoveredFromTree, tree); assert.equal(recovered.schedulesRemainPaused, true);
+  assert.equal(recovered.budget.newRequestsPaused, true);
+  assert.deepEqual(f.publications.map(p => p.type), ["graph", "filing"]);
+  assert.equal(f.rows.has(`company_research_runs/_graph_activation_${recoveryReleaseTree}`), false);
+  assert.deepEqual(f.rows.get(markerPath)!.request, original.request); assert.deepEqual(f.rows.get(sourcePath), source);
+  assert.deepEqual((f.rows.get(markerPath)!.recovery as Row).originalFailure,
+    { error: requestBefore.error, failedAt: requestBefore.failedAt, attemptCount: requestBefore.attemptCount });
+  const afterRecovery = structuredClone([...f.rows]);
+  assert.equal((await verifyLiveCompanyGraph(f.db, recoveryReleaseTree, deps)).alreadyVerified, true);
+  assert.deepEqual([...f.rows], afterRecovery); assert.equal(f.publications.length, 2);
+});
+test("missing or mismatched recovery evidence fails atomically without fallback generation", async () => {
+  for (const mutate of [
+    (f: Awaited<ReturnType<typeof failedActivation>>) => f.rows.delete(markerPath),
+    (f: Awaited<ReturnType<typeof failedActivation>>) => f.rows.delete("company_research_requests/NVDA"),
+    (f: Awaited<ReturnType<typeof failedActivation>>) => { f.rows.get("company_research_requests/NVDA")!.generation = 99; },
+    (f: Awaited<ReturnType<typeof failedActivation>>) => { f.rows.get("company_research_requests/NVDA")!.requestId = "other"; },
+    (f: Awaited<ReturnType<typeof failedActivation>>) => { f.rows.get("company_research_requests/NVDA")!.queuedAt = "2026-10-01T11:00:00Z"; },
+    (f: Awaited<ReturnType<typeof failedActivation>>) => { f.rows.get("company_research_requests/NVDA")!.status = "PROCESSING"; },
+    (f: Awaited<ReturnType<typeof failedActivation>>) => { f.rows.get("company_research_requests/NVDA")!.leaseExpiresAtMs = now + 1; },
+    (f: Awaited<ReturnType<typeof failedActivation>>) => f.rows.set("company_research_runs/_graph_lock_NVDA", { leaseExpiresAtMs: now + 1 }),
+    ...["_graph_source_", "_graph_run_", "_graph_budget_request_"].map(prefix =>
+      (f: Awaited<ReturnType<typeof failedActivation>>) => f.rows.delete([...f.rows.keys()].find(path => path.includes(prefix))!)),
+    ...[null, "resp_different"].flatMap(responseId => ["_graph_run_", "_graph_budget_request_"].map(prefix =>
+      (f: Awaited<ReturnType<typeof failedActivation>>) => {
+        f.rows.get([...f.rows.keys()].find(path => path.includes(prefix))!)![prefix === "_graph_run_" ? "providerResponseId" : "responseId"] = responseId;
+      })),
+  ]) {
+    const f = await failedActivation(); mutate(f); const before = structuredClone([...f.rows]);
+    await assert.rejects(verifyLiveCompanyGraph(f.db, recoveryReleaseTree, { ...f.deps, resumeTree: tree, readBudget: undefined }));
+    assert.deepEqual([...f.rows], before); assert.equal(f.publications.length, 0);
+  }
+});
+test("uncertain recovery publication retries the same identity without replacing failure evidence", async () => {
+  const f = await failedActivation(), identities: CompanyGraphRequest[] = [];
+  await assert.rejects(verifyLiveCompanyGraph(f.db, recoveryReleaseTree, { ...f.deps, resumeTree: tree, readBudget: undefined,
+    publishGraph: async request => { identities.push(request); throw Error("publication outcome unknown"); } }), /outcome unknown/);
+  const recovery = structuredClone(f.rows.get(markerPath)!.recovery);
+  await verifyLiveCompanyGraph(f.db, recoveryReleaseTree, { ...f.deps, resumeTree: tree, readBudget: undefined,
+    publishGraph: async request => { identities.push(request); await f.deps.publishGraph(request); } });
+  assert.deepEqual(identities[0], identities[1]); assert.deepEqual(f.rows.get(markerPath)!.recovery, recovery);
+});
+test("recovery after a lost completion acknowledgement only verifies existing graph and filing results", async () => {
+  const f = await failedActivation();
+  await assert.rejects(verifyLiveCompanyGraph(f.db, recoveryReleaseTree, { ...f.deps, resumeTree: tree, readBudget: undefined,
+    publishGraph: async request => { await f.deps.publishGraph(request); throw Error("completion acknowledgement lost"); } }), /acknowledgement lost/);
+  await verifyLiveCompanyGraph(f.db, recoveryReleaseTree, { ...f.deps, resumeTree: tree, readBudget: undefined });
+  assert.deepEqual(f.publications.map(p => p.type), ["graph", "filing"]);
+});
+test("a concurrent redelivery can complete the original admission before explicit recovery", async () => {
+  const f = await failedActivation(), marker = structuredClone(f.rows.get(markerPath)!);
+  f.completeGraph(marker.request as CompanyGraphRequest);
+  const request = structuredClone(f.rows.get("company_research_requests/NVDA"));
+  const result = await verifyLiveCompanyGraph(f.db, recoveryReleaseTree, { ...f.deps, resumeTree: tree, readBudget: undefined });
+  assert.equal(result.verified, true); assert.equal(result.budget.newRequestsPaused, true);
+  assert.deepEqual(f.publications.map(p => p.type), ["filing"]);
+  assert.deepEqual(f.rows.get("company_research_requests/NVDA"), request);
+  assert.deepEqual(f.rows.get(markerPath)!.request, marker.request);
+  assert.equal(f.rows.has(`company_research_runs/_graph_activation_${recoveryReleaseTree}`), false);
 });
 test("canary commits its exact source once, verifies budget/provider completion, then publishes only the saved filing", async () => {
   const f = fixture(), baseline = structuredClone(f.rows.get(`sec_filings/${event.accessionNumber}`));

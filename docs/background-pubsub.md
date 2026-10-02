@@ -259,7 +259,7 @@ source selection, provider-response and final-write checkpoints remain in existi
 `company_research_runs`, `sec_filings`, and `sec_filing_sections`. Retry the same
 request or event so durable checkpoints can be reused. Completed accessions and
 obsolete request generations are skipped; older filing delivery does not regress
-the latest graph. Pub/Sub is at least once. The graph budget now reserves worst-case cost before
+the latest graph. Pub/Sub is at least once. The graph budget records a held dollar reservation before
 provider submission. A lost response identity retains the reservation and requires
 operator review; it cannot automatically start another paid request. An explicit
 new extraction generation requires its own reservation. This is not a provider
@@ -443,24 +443,34 @@ operator extraction, including paid dry-run requests. Other YouAnalyst AI featur
 ChatGPT/Codex allowances, cloud infrastructure charges, taxes and the provider's
 account-wide bill are outside this pipeline limit.
 
-Before generation, the exact messages and structured-output schema are sent to
-Responses input-token counting. Unknown/malformed counts or more than 100,000 input
-tokens block generation. Requests use Standard processing, no tools or external
-model context, and max_output_tokens 16,384 (including reasoning and formatting).
-Only the verified gpt-5.6-sol price schedule is admitted: reserve all input at the
-higher cache-write rate of US$5/million and output at US$20/million. A request's
-reservation is at most US$0.82768. Cached-token discounts are deliberately not used
-to admit more work. The reviewed price version expires at 2026-11-22T00:00:00Z;
-unknown models, expired prices or unavailable budget storage stop new generation.
-Sources: https://developers.openai.com/api/docs/models/gpt-5.6-sol and
+New paid admissions are currently paused independently of the editable daily limit.
+The completed NVDA response reported 11,138 input tokens after preflight counted
+11,133. The cause of that five-token discrepancy is not established; a preflight
+estimate or arbitrary padding is not a demonstrated prospective billing bound.
+COMPANY_GRAPH_PAID_ADMISSION_ENABLED therefore defaults to disabled and is not
+passed by the deployment scripts. Raising the daily limit does not enable it.
+Do not enable new paid requests until the count contract or another enforceable
+admission bound is validated. Cached work and retrieval of an already-created,
+matching provider response remain available.
+
+The existing admitted request used Standard processing, no tools or external model
+context, max_output_tokens 16,384 (including reasoning and formatting), and a
+preflight-based reservation at US$5/million input (including cache writes) and
+US$20/million output. The reviewed gpt-5.6-sol price version expires at
+2026-11-22T00:00:00Z. Unknown models, pricing tiers, token usage or unavailable
+budget storage fail closed. Official references:
+https://developers.openai.com/api/docs/models/gpt-5.6-sol and
 https://developers.openai.com/api/docs/guides/token-counting.
 
 The aggregate and individual reservations use existing company_research_runs
 documents. Transactions reserve before POST across concurrent web/worker calls.
 A response ID is saved before normal service checkpointing; retries retrieve that
 same response. Missing/ambiguous response IDs retain the full reservation and
-require operator review. Only valid terminal usage within the admitted token
-bounds releases unused liability; settlement is idempotent. The settled value
+require operator review. Only matching terminal usage for the approved model and Standard tier, within
+100,000 input/16,384 output tokens, and a computed cost no greater than the held
+dollars releases unused liability. Settlement records actual input/output counts
+and the preflight delta, and is idempotent. The known NVDA response settles at
+US$0.13181 against its existing US$0.383345 hold; it needs no new generation. The settled value
 is a conservative estimate, not the OpenAI invoice. No new collection or IAM
 permission is required.
 
@@ -469,11 +479,13 @@ for later replay before acknowledging delivery. The existing graph publisher
 shares its 1–5 publication limit between manual requests and deferred exact filing
 events, respecting next-attempt time and budget availability. Budget exhaustion
 does not consume Pub/Sub failure retries. Lowering the budget cannot cancel an
-already admitted provider request; its full worst-case amount was reserved.
+already admitted provider request; its existing reservation remains held until
+verified settlement. The admission pause also prevents ordinary queue publication.
 
-The existing production release owns the final activation. Set its production
-SEC_GRAPH_ACTIVATE_TREE variable to the exact reviewed Git tree, enable both
-processing flags, and retain batch size 1. Only that source tree can run the live
+Normal activation is blocked while new paid admissions are paused. The existing
+production release owns the reviewed activation/recovery operation. Its production
+SEC_GRAPH_ACTIVATE_TREE variable identifies the exact reviewed Git tree; both
+processing flags and batch size 1 must match the reviewed configuration. Only that source tree can run the live
 activation step after existing delivery checks. It verifies the approved project,
 region, exact image digest and model, then uses the existing publisher job for one
 saved NVDA forced extraction and one exact baseline 10-K event. The source,
@@ -487,3 +499,11 @@ The live result records safe queue-ledger counts and final budget amounts. These
 counts are not Pub/Sub backlog metrics. Enabling processing can deliver previously
 published work too; all graph requests share the same atomic budget. A later
 source tree skips activation, and normal deployments preserve schedule state.
+
+For recovery only, SEC_GRAPH_RECOVERY_SOURCE_TREE identifies the original saved
+activation marker. The current release still must match SEC_GRAPH_ACTIVATE_TREE
+and its immutable image. Recovery requires the exact original request, frozen
+source, run and matching saved response reservation; it never creates a replacement
+request or provider generation. It preserves failure evidence, resumes only that
+generation (or accepts its already-completed result), and checks graph settlement
+and exact filing fan-out. Both schedules remain paused after successful recovery.

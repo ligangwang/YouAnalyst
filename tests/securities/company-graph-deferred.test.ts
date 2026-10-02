@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
 import type { MaintenanceLog } from "../../src/lib/maintenance-log";
@@ -12,6 +12,10 @@ import type { CompanyGraphExtractionResult } from "../../src/lib/company-graph/t
 import { runLatest10KCompanyGraphExtraction } from "../../src/lib/company-graph/service";
 
 type Data = Record<string, unknown>;
+function enableMockedAdmission(t: TestContext) {
+  const previous = process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED; process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED = "1";
+  t.after(() => { if (previous === undefined) delete process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED; else process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED = previous; });
+}
 function fixture() {
   const rows = new Map<string, Data>();
   const writes: string[] = [], queries: number[] = [];
@@ -65,7 +69,8 @@ const pathFor = (event: SecFilingDiscovered) => `company_research_runs/_graph_de
 const exhausted = { enabled: true, now: () => now, extract: async () => { throw new GraphBudgetExceededError(now); } };
 const success = { enabled: true, now: () => retryAtMs, extract: async () => ({ ticker: "AMD", runId: "completed", edges: [], cached: false } as unknown as CompanyGraphExtractionResult) };
 
-test("typed budget exhaustion durably defers the same manual generation and ACKs early duplicate delivery", async () => {
+test("typed budget exhaustion durably defers the same manual generation and ACKs early duplicate delivery", async t => {
+  enableMockedAdmission(t);
   const f = fixture(), queued = await enqueueCompanyGraphRequest("AMD", { db: f.db, now });
   f.rows.set("company_research_requests/AMD", { ...f.rows.get("company_research_requests/AMD"), dispatchedAt: "published" });
   assert.equal((await processCompanyGraphJob(queued.request!, f.db, log, exhausted)).status, "deferred");
@@ -102,7 +107,8 @@ test("budget exhaustion is not ACKed when durable deferral fails or manual owner
   await assert.rejects(deferCompanyGraphRequest(queued.request!, "obsolete-owner", retryAtMs, f.db, now), /ownership changed/);
 });
 
-test("filing deferral preserves the exact event through due replay and records successful consumption", async () => {
+test("filing deferral preserves the exact event through due replay and records successful consumption", async t => {
+  enableMockedAdmission(t);
   const f = fixture(), event = filing();
   const result = await processCompanyGraphJob(event, f.db, log, exhausted);
   assert.equal(result.status, "deferred"); assert.deepEqual(f.rows.get(pathFor(event))?.event, event);
@@ -122,7 +128,8 @@ test("filing deferral preserves the exact event through due replay and records s
   assert.equal((await listDeferredCompanyGraphFilings(5, f.db, retryAtMs)).length, 0);
 });
 
-test("manual and filing replay share the five-publication cap and alternate one-slot sweeps fairly", async () => {
+test("manual and filing replay share the five-publication cap and alternate one-slot sweeps fairly", async t => {
+  enableMockedAdmission(t);
   const f = fixture();
   for (const ticker of ["A", "B", "C", "D", "E", "F"]) {
     await enqueueCompanyGraphRequest(ticker, { db: f.db, now });

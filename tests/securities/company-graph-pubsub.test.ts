@@ -253,11 +253,12 @@ function providerInput(db: Firestore) {
     filingDate: filing.filingDate, extractionText: "text", budgetDb: db, budgetRequestId: "provider_test", budgetNow: () => now };
 }
 function providerEnvironment(t: TestContext) {
-  const priorKey = process.env.OPENAI_API_KEY, priorModel = process.env.OPENAI_MODEL;
-  process.env.OPENAI_API_KEY = "mock-local-test-only"; process.env.OPENAI_MODEL = "gpt-5.6-sol";
+  const priorKey = process.env.OPENAI_API_KEY, priorModel = process.env.OPENAI_MODEL, priorAdmission = process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED;
+  process.env.OPENAI_API_KEY = "mock-local-test-only"; process.env.OPENAI_MODEL = "gpt-5.6-sol"; process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED = "1";
   t.after(() => {
     if (priorKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = priorKey;
     if (priorModel === undefined) delete process.env.OPENAI_MODEL; else process.env.OPENAI_MODEL = priorModel;
+    if (priorAdmission === undefined) delete process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED; else process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED = priorAdmission;
   });
 }
 async function savedProvider() {
@@ -272,7 +273,7 @@ test("provider resumes stored response via GET and never starts another paid POS
   const calls: Array<{ url: string; method?: string; body?: unknown }> = [];
   t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
     calls.push({ url, method: init?.method, body: init?.body });
-    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", status: "completed", output_text: '{"relationships":[]}', usage: { input_tokens: 100, output_tokens: 20 } });
+    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", service_tier: "default", status: "completed", output_text: '{"relationships":[]}', usage: { input_tokens: 100, output_tokens: 20 } });
   });
   const result = await extractCompanyGraphRelationships(input);
   assert.equal(calls.length, 1); assert.equal(calls[0].method, "GET"); assert.equal(calls[0].body, undefined);
@@ -292,7 +293,7 @@ test("provider creation saves response identity before polling; checkpoint failu
 for (const status of ["failed", "incomplete", "cancelled"]) test(`provider terminal ${status} requests operator review without another POST`, async t => {
   providerEnvironment(t); const { input } = await savedProvider(); let calls = 0;
   t.mock.method(globalThis, "fetch", async (_url: string, init?: RequestInit) => { calls++; assert.equal(init?.method, "GET");
-    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", status, usage: { input_tokens: 100, output_tokens: 20 } }); });
+    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", service_tier: "default", status, usage: { input_tokens: 100, output_tokens: 20 } }); });
   await assert.rejects(extractCompanyGraphRelationships(input), /operator review/);
   assert.equal(calls, 1);
 });

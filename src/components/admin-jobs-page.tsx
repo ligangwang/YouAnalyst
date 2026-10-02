@@ -96,6 +96,7 @@ function AdminGraphBudget() {
     <p className="mt-2 text-sm text-slate-400">{text("Daily cap for company graph OpenAI API calls. Usage is an estimate for this pipeline, not your provider invoice or ChatGPT allowance.", "公司关系图 OpenAI API 调用的每日上限。此处为该流程的用量估算，并非供应商账单或 ChatGPT 额度。")}</p>
     {busy && <p role="status" className="mt-4 text-sm">{text("Loading graph budget…", "正在加载关系图预算…")}</p>}
     {!busy && budget && <>
+      {budget.newRequestsPaused && <p id="graph-paid-request-pause" role="status" className="mt-4 rounded-lg border border-amber-500/40 bg-amber-950/30 p-3 text-sm text-amber-200">{text("New paid requests are temporarily paused while spending safeguards are reviewed. You can still edit the daily limit, but raising it will not resume new paid requests.", "费用控制措施审核期间，新的付费请求已临时暂停。您仍可编辑每日限额，但提高限额不会恢复新的付费请求。")}</p>}
       <p className="mt-3 text-sm text-slate-400">{text("Budget day", "预算日期")}: {budget.day} · {budget.timezone}</p>
       <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[[text("Daily limit", "每日上限"), budget.limitUsd], [text("Settled estimate", "已结算估算"), budget.spentUsd], [text("Reserved", "已预留"), budget.reservedUsd], [text("Remaining", "剩余额度"), budget.remainingUsd]].map(([label, value]) => <div key={label} className="min-w-0 rounded-lg bg-slate-950 p-3"><dt className="text-xs text-slate-400">{label}</dt><dd className="mt-1 break-all text-lg font-semibold">{graphBudgetMoney(Number(value))}</dd></div>)}
@@ -103,7 +104,7 @@ function AdminGraphBudget() {
       {budget.blocked && <p role="status" className="mt-3 text-sm text-amber-300">{budget.limitUsd === 0 ? text("Paused. New OpenAI calls are blocked.", "已暂停。新的 OpenAI 调用已被阻止。") : text("New OpenAI calls are blocked by the budget or pricing validity checks.", "预算或定价有效期检查已阻止新的 OpenAI 调用。")}</p>}
       <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void save(); }}>
         <label className="grid gap-2 text-sm" htmlFor="graph-budget-limit">{text("Daily limit (USD)", "每日限额（美元）")}
-          <input id="graph-budget-limit" className="w-48 max-w-full rounded-lg border border-slate-600 bg-slate-950 p-2" type="number" min="0" max="1000000" step="0.01" required value={limit} disabled={saving} onChange={event => { setLimit(event.target.value); setSaved(false); }} aria-describedby="graph-budget-help" />
+          <input id="graph-budget-limit" className="w-48 max-w-full rounded-lg border border-slate-600 bg-slate-950 p-2" type="number" min="0" max="1000000" step="0.01" required value={limit} disabled={saving} onChange={event => { setLimit(event.target.value); setSaved(false); }} aria-describedby={budget.newRequestsPaused ? "graph-paid-request-pause graph-budget-help" : "graph-budget-help"} />
         </label>
         <button className={button} disabled={saving} type="submit">{saving ? text("Saving budget…", "正在保存预算…") : text("Save daily limit", "保存每日限额")}</button>
       </form>

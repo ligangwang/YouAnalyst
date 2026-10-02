@@ -58,7 +58,7 @@ test("failure diagnostics read only the exact request, frozen source, run and re
   assert.equal(result.reservation?.status, "reserved"); assert.equal(result.reservation?.reservedUsd, 0.5);
   assert.equal(result.reservation?.spentUsd, null); assert.equal(result.reservation?.matchesRunResponse, true);
   assert.deepEqual(result.dailyBudget, { limitUsd: 5, spentUsd: 0.1, reservedUsd: 0.5, remainingUsd: 4.4,
-    day: "2026-10-01", timezone: "America/New_York", blocked: false, pricingValidUntil: "2026-11-22T00:00:00.000Z" });
+    day: "2026-10-01", timezone: "America/New_York", blocked: false, newRequestsPaused: true, pricingValidUntil: "2026-11-22T00:00:00.000Z" });
   assert.doesNotMatch(JSON.stringify(result), /PRIVATE_PROVIDER_CONTENT|resp_private_identity|fingerprint|inputTokens|filingUrl|edges/);
 });
 
