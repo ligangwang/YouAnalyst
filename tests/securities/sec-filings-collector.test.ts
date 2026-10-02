@@ -403,12 +403,16 @@ test("baseline CLI requires a paired explicit issuer and never falls through to 
   assert.equal(parseSecCollectorArgs(["--apply", "--baseline-only", "--company=NVDA"], {}).apply, true);
   assert.equal(parseSecCollectorArgs([], {}).apply, false);
 });
-test("read-only diagnostic workflow has no provider secret, apply mode, resource or IAM writes", () => {
+test("default diagnostic has no provider secret and the optional saved-response read has no apply or IAM writes", () => {
   const workflow = readFileSync(".github/workflows/inspect-sec-graph.yml", "utf8");
   assert.match(workflow, /--dry-run --baseline-only "--company=\$COMPANY"/);
   assert.match(workflow, /SEC_FILINGS_COLLECTOR_ENABLED: '0'/);
   assert.match(workflow, /github.ref == 'refs\/heads\/main'/);
-  assert.doesNotMatch(workflow, /OPENAI_API_KEY|--apply|add-iam-policy-binding|workflow_call/);
+  const [defaultInspection, providerInspection] = workflow.split("      - name: Read only the already-created NVDA provider response metadata");
+  assert.doesNotMatch(defaultInspection, /OPENAI_API_KEY/);
+  assert.match(providerInspection, /inputs\.company == 'NVDA' && inputs\.saved_nvda_request != ''/);
+  assert.match(providerInspection, /run: node_modules\/\.bin\/tsx scripts\/inspect-saved-graph-response\.ts/);
+  assert.doesNotMatch(workflow, /--apply|add-iam-policy-binding|workflow_call/);
   assert.match(workflow, /bash scripts\/inspect-graph-topic.sh/);
   const baseline = readFileSync("src/lib/sec-filings/baseline.ts", "utf8");
   assert.doesNotMatch(baseline, /publishJobMessage|listPendingSecFilings|markSecFilingPublished|source\.archive|afterCompanyId/);
