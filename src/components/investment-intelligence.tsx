@@ -1,4 +1,5 @@
 "use client";
+import { IntelligenceSectorLegend } from './intelligence-sector-legend';
 import { lazy, Suspense, useEffect, useEffectEvent, useMemo, useState, useSyncExternalStore } from 'react';
 import { LocalizedLink as Link } from './localized-link';
 import Image from 'next/image';
@@ -75,7 +76,7 @@ export function InvestmentIntelligence(){
     <section className={styles.center} aria-label="Graph universe">
       <div className={styles.graphToolbar}><div>{!leftOpen&&<button aria-label="Expand left panel" onClick={()=>setLeftOpen(true)}>☰ Explore</button>}<strong>Graph Universe</strong><span>{sector?GRAPH_SECTORS.find(s=>s.id===sector)?.en:'AI'}</span></div><div><span className={styles.monitor}><i/>{mode==='live'?'Demo monitoring':`Replay · ${clock(minute)}`}</span><button onClick={()=>{setSelected('');setSector('');setEdgeId('');setEventId('');setPropagating(false);setReset(v=>v+1);}} aria-label="Reset universe view">Reset ⤢</button>{!rightOpen&&<button onClick={()=>setRightOpen(true)}>Events ›</button>}</div></div>
       <div className={styles.graph}><Suspense fallback={<p className={styles.loading} role="status">Loading universe…</p>}><Universe graph={demoGraph} selected={selected} onSelect={focusCompany} sectorFocus={sector} cameraRequest={camera} reset={reset} onReset={()=>setReset(v=>v+1)} intelligence={intelligence} companyFocus={filteredCompanyIds} highlightedEdges={intelligence.edges} activeEdge={edgeId} onSelectEdge={setEdgeId} hideReset/></Suspense>
-        <div className={styles.graphLegend}>{GRAPH_SECTORS.map(s=><span key={s.id}><i style={{background:s.color}}/>{s.en}</span>)}</div>
+        <IntelligenceSectorLegend/>
         {event&&<div className={styles.eventOverlay}><span className={styles.sectionLabel}>{propagating?'EVENT PROPAGATION':'SELECTED EVENT'} · {event.time}</span><strong>{event.title}</strong><span>{event.targets.length} research paths · illustrative relationships</span></div>}
       </div>
       {mode==='replay'&&<section id="intraday-replay" className={styles.timeline} aria-label="Today's intraday replay">
