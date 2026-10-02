@@ -47,6 +47,15 @@ export function intelligenceSession(now:Date) {
   return {date,timeZone:'America/New_York' as const,startAt:midnight(date),endAt:midnight(next)};
 }
 
+/** A recent failed or unfinished run does not establish current SEC coverage. */
+export function secCollectorIsFresh(lastRun:unknown,result:unknown,now:Date):boolean {
+  const seen=observation(lastRun);
+  if(!seen?.at||Date.parse(seen.at)>now.getTime()||now.getTime()-Date.parse(seen.at)>2*3_600_000)return false;
+  if(!result||typeof result!=='object')return false;
+  const run=result as Record<string,unknown>;
+  return run.failed===0&&run.partial===0&&run.remaining===0&&run.outboxIncomplete===false;
+}
+
 export function canonicalEvidenceUrl(raw:string):string|null {
   try{
     const url=new URL(raw);

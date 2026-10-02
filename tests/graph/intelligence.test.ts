@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canonicalEvidenceUrl, intelligenceSession, observation, sourceChannel, summarizeIntelligence } from '../../src/lib/intelligence/model';
+import { canonicalEvidenceUrl, intelligenceSession, observation, secCollectorIsFresh, sourceChannel, summarizeIntelligence } from '../../src/lib/intelligence/model';
 import { mergeIntelligenceEvents, projectResearchIntelligence } from '../../src/lib/intelligence/project';
 import { projectSecIntelligence } from '../../src/lib/intelligence/sec-events';
 import { createSecFilingDiscovered } from '../../src/lib/sec-filings/event';
@@ -8,6 +8,15 @@ import { firstIntelligenceObservation } from '../../src/lib/sec-filings/store';
 import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
 
 const now=new Date('2026-10-02T16:00:00Z');
+test('a recent SEC run is fresh only when collection and publication completed without failure',()=>{
+  const complete={failed:0,partial:0,remaining:0,outboxIncomplete:false};
+  assert.equal(secCollectorIsFresh(now.toISOString(),complete,now),true);
+  for(const field of ['failed','partial','remaining'])assert.equal(secCollectorIsFresh(now.toISOString(),{...complete,[field]:1},now),false);
+  assert.equal(secCollectorIsFresh(now.toISOString(),{...complete,outboxIncomplete:true},now),false);
+  assert.equal(secCollectorIsFresh(now.toISOString(),undefined,now),false);
+  assert.equal(secCollectorIsFresh('2026-10-02T12:00:00Z',complete,now),false);
+  assert.equal(secCollectorIsFresh('2026-10-02T17:00:00Z',complete,now),false);
+});
 const graph:KnowledgeGraph={asOf:'2026-10-01',nodes:['AMD','MU','NVDA'].map((symbol,order)=>({id:`US:${symbol}`,kind:'COMPANY',symbol,name:symbol,order})),sources:[{id:'release',title:'AMD release',url:'https://ir.amd.com/release?utm_source=test#details',sourceDate:'2026-09-01'}],relationships:[{id:'amd-mu',source:'US:AMD',target:'US:MU',type:'SUPPLIER_OF',summary:'Memory supply evidence',sourceIds:['release'],commercialStatus:'DOCUMENTED',publishedAt:'2026-09-01T12:00:00Z',researchReviewedAt:'2026-10-01'},{id:'amd-nvda',source:'US:AMD',target:'US:NVDA',type:'COMPETES_WITH',summary:'Comparison evidence',sourceIds:['release'],commercialStatus:'DOCUMENTED',researchReviewedAt:'2026-10-01'}]};
 
 test('intraday boundaries follow Eastern DST rather than a fixed UTC offset',()=>{

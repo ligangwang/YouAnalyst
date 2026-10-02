@@ -3,7 +3,7 @@ import { getAdminFirestore } from '../firebase/admin';
 import { loadKnowledgeGraph } from '../knowledge-graph/service';
 import { curatedEvents } from '../knowledge-graph/curated-events';
 import { SEC_FILINGS_COLLECTION, secCollectorMetadata } from '../sec-filings/store';
-import { INTELLIGENCE_SOURCES, intelligenceSession, sourceChannel, type IntelligenceSnapshot } from './model';
+import { INTELLIGENCE_SOURCES, intelligenceSession, secCollectorIsFresh, sourceChannel, type IntelligenceSnapshot } from './model';
 import { mergeIntelligenceEvents, projectResearchIntelligence } from './project';
 import { projectSecIntelligence } from './sec-events';
 
@@ -21,7 +21,7 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
       ?await fetch('https://youanalyst.com/api/knowledge-graph',{cache:'no-store',signal:AbortSignal.timeout(15_000)}).then(async response=>{if(!response.ok)throw new Error('Published graph unavailable');return await response.json() as Awaited<ReturnType<typeof loadKnowledgeGraph>>;})
       :await loadKnowledgeGraph();
     const warnings:string[]=[];
-    let filings:ReturnType<typeof projectSecIntelligence>=[],secAvailable=false,truncated=false;
+    let filings:ReturnType<typeof projectSecIntelligence>=[],secAvailable=false,secFresh=false,truncated=false;
     const earliestDay=new Date(Date.parse(`${session.date}T12:00:00Z`)-30*86_400_000).toISOString().slice(0,10);
     if(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'){
       warnings.push('Local preview reads the published production graph. The SEC arrival feed is available only on the connected server.');
@@ -29,7 +29,8 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
       const db=getAdminFirestore();
       const metadata=await secCollectorMetadata(db).get();
       const lastRun=metadata.get('lastRunAt');
-      if(typeof lastRun!=='string'||!Number.isFinite(Date.parse(lastRun))||now.getTime()-Date.parse(lastRun)>2*3_600_000){
+      secFresh=secCollectorIsFresh(lastRun,metadata.get('result'),now);
+      if(!secFresh){
         warnings.push('SEC collector freshness is unverified. Filing records reflect stored discoveries, not guaranteed current coverage.');
       }
       const page=await db.collection(SEC_FILINGS_COLLECTION).where('intelligenceObservedAt','>=',`${earliestDay}T00:00:00.000Z`).orderBy('intelligenceObservedAt','desc').limit(LIMIT+1).get();
@@ -54,7 +55,8 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
     const events=mergeIntelligenceEvents(filings,projected).filter(event=>event.observedDate>=earliestDay&&event.observedDate<=session.date).sort((a,b)=>(b.observedAt??b.observedDate).localeCompare(a.observedAt??a.observedDate)||a.id.localeCompare(b.id));
     const graphVersion=createHash('sha256').update(JSON.stringify(graph)).digest('hex');
     const evidenceChannels=new Set(graph.sources.map(source=>sourceChannel(source.url)));
-    const value:IntelligenceSnapshot={graph,graphVersion,events,generatedAt:now.toISOString(),session,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:channel==='SEC'&&secAvailable?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
+    for(const event of events)for(const source of event.evidence)evidenceChannels.add(source.channel);
+    const value:IntelligenceSnapshot={graph,graphVersion,events,generatedAt:now.toISOString(),session,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:channel==='SEC'&&secAvailable&&secFresh?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
     cached={value,expires:now.getTime()+CACHE_MS};
     return value;
   })();
