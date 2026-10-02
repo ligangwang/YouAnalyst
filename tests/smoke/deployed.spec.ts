@@ -61,7 +61,7 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
 test("English and Chinese map URLs retain SEO and load company links on expansion", async ({ request, page }) => {
   test.setTimeout(90_000);
   for (const [prefix, language, heading] of [["en", "en", "AI Industry Map"], ["zh-cn", "zh-CN", "AI 产业图谱"]]) {
-    const response = await request.get(`/${prefix}`);
+    const response = await request.get(`/${prefix}?view=graph`);
     expect(response.status()).toBe(200);
     const html = await response.text();
     expect(html).toContain(`lang="${language}"`);
@@ -75,7 +75,7 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
     expect(directoryHtml).toBeTruthy();
     expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/NVDA"`);
     expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/XSHG:688041"`);
-    await page.goto(`/${prefix}`);
+    await page.goto(`/${prefix}?view=graph`);
     const directory = page.getByRole("region", { name: directoryLabel, exact: true });
     await expect(directory.locator("li")).toHaveCount(0);
     await directory.locator("summary").click();
@@ -92,6 +92,34 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
   expect(target.searchParams.get("market")).toBe("CN_A");
 });
 
+test("Investment Intelligence homepage renders real data and crawlable research links", async ({ request, page }) => {
+  test.setTimeout(90_000);
+  const response = await request.get("/api/intelligence");
+  expect(response.status()).toBe(200);
+  const snapshot = await response.json();
+  expect(snapshot.graph.nodes.some((node: { id: string }) => node.id === "US:NVDA")).toBe(true);
+  expect(snapshot.graphVersion).toBeTruthy();
+  expect(Array.isArray(snapshot.events)).toBe(true);
+  expect(snapshot.coverage.find((source: { channel: string }) => source.channel === "SEC")).toBeTruthy();
+  for (const event of snapshot.events) {
+    expect(event.evidence.length).toBeGreaterThan(0);
+    for (const source of event.evidence) expect(source.url.startsWith("https://")).toBe(true);
+  }
+  for (const [prefix, heading] of [["en", "Investment Intelligence"], ["zh-cn", "投资情报"]]) {
+    const home = await request.get(`/${prefix}`);
+    expect(home.status()).toBe(200);
+    const html = await home.text();
+    expect(html).toContain(heading);
+    expect(html).toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
+    expect(html).toContain(`href="/${prefix}/research/amd-ai-ecosystem"`);
+    await page.goto(`/${prefix}`);
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Sector color legend", exact: true })).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("canvas")).toBeVisible();
+    await expect(page.locator('[data-company-id="US:NVDA"]')).toHaveCount(1, { timeout: 20_000 });
+    await expect.poll(() => page.locator('[data-company-id][data-visible="false"]').evaluateAll(elements => elements.length > 0 && elements.every(el => getComputedStyle(el).visibility === "hidden" && Number(getComputedStyle(el).opacity) === 0))).toBe(true);
+  }
+});
 test("retired filing event API is unavailable", async ({ request }) => {
   expect((await request.get("/api/events")).status()).toBe(404);
   expect((await request.get("/api/events/stream")).status()).toBe(404);
