@@ -138,6 +138,12 @@ Serialize this sequence against other main-branch production releases:
    review reasons. A manual canary alone is not evidence of scheduled collection.
    Report actual supported coverage and any partial/unsupported sources.
 
+The manual workflow prints bounded read-only diagnostics and public financial
+record samples directly into its logs using the existing release identity. It
+does not require Cloud Console access or print raw documents/provider secrets.
+If that identity lacks Firestore read access, stop and report the missing
+permission; do not add a grant or impersonate another identity.
+
 Rollback pauses the earnings schedule and resets earnings flags on its job,
 subscriber and SEC observer, preserving existing SEC/graph configuration. Persist
 and read back `EARNINGS_COLLECTION_ENABLED=0` and

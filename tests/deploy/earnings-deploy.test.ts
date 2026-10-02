@@ -214,7 +214,15 @@ test("manual earnings operations require explicit exact-main approval and isolat
   assert.match(commands, /deploy-background-jobs.sh earnings/);
   assert.match(commands, /run jobs describe collect-earnings-production/);
   assert.match(commands, /run services describe earnings-subscriber/);
-  for (const flag of ["dry-run", "verify-delivery", "diagnostics"]) assert.ok(commands.includes(`--args dist/collect-earnings.cjs,--${flag}`));
+  assert.ok(commands.includes("--args dist/collect-earnings.cjs,--verify-delivery"));
+  for (const mode of ["dry-run", "diagnostics"]) {
+    const step = job.steps.find((value: { if?: string }) => value.if === `inputs.action == '${mode}'`);
+    assert.equal(step.run, `node --import tsx scripts/collect-earnings.ts --${mode}`);
+    assert.doesNotMatch(step.run, /run jobs execute|--apply|add-iam|impersonat/);
+  }
+  const proof = job.steps.find((value: { name?: string }) => value.name === "Report durable earnings proof after the operation");
+  assert.match(proof.if, /always\(\).*steps.approval.outcome == 'success'.*steps.cloud_auth.outcome == 'success'/);
+  assert.equal(proof.run, "node --import tsx scripts/collect-earnings.ts --diagnostics");
   assert.match(commands, /operate-earnings.sh "\$EARNINGS_OPERATION"/);
   assert.doesNotMatch(commands, /scheduler jobs resume|EARNINGS_(?:COLLECTION|PROCESSING)_ENABLED=1|OPENAI|COMPANY_GRAPH|SEC_FILINGS_COLLECTOR_ENABLED/);
 });

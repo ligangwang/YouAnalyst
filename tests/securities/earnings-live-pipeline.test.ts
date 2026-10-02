@@ -63,6 +63,9 @@ test("worker commits provenance and revision once, retains changed-source histor
   assert.equal(downloads, 1); assert.equal(records(fx).length, 1);
   const first = records(fx)[0][1].record as EarningsRecord;
   assert.equal(first.metrics[0].value, fixture.expected.revenue); assert.equal(first.period.type, "half_year");
+  const beforeInspection = fx.writes.length, inspection = await inspectLiveEarnings(fx.db);
+  assert.equal(inspection.recordSamples[0].kind, "actual"); assert.equal(inspection.recordSamples[0].period.type, "half_year");
+  assert.equal(inspection.recordSamples[0].metrics[0].value, fixture.expected.revenue); assert.equal(fx.writes.length, beforeInspection);
   await discoverEarningsSource(fx.db, source, "document", fx.now(), { force: true });
   const next = earningsSourceEvent(event.sourceId, 2);
   await processEarningsJob(next, fx.db, log, options(fx, Buffer.concat([bytes, Buffer.from("\nReviewed source formatting changed")])));

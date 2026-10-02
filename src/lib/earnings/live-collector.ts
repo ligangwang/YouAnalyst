@@ -4,7 +4,7 @@ import type { MaintenanceLog } from "../maintenance-log";
 import { discoverEarningsSource, earningsMetadata, EARNINGS_RECORDS, EARNINGS_SOURCES, publishEarningsOutbox, type EarningsWork } from "./live-store";
 import { earningsPilot } from "./pilot";
 import { earningsScanWindow } from "./sec-observer";
-import type { EarningsSource } from "./model";
+import type { EarningsRecord, EarningsSource } from "./model";
 import type { EarningsSourceDiscovered } from "./live-event";
 
 export type EarningsDiscovery = (companyId: string, from: string, to: string, firstSeenAt: string) => Promise<EarningsSource[]>;
@@ -59,6 +59,7 @@ export async function inspectLiveEarnings(db: Firestore) {
   const sources = await db.collection(EARNINGS_SOURCES).where("recordType", "==", "source").limit(501).get();
   const records = await db.collection(EARNINGS_RECORDS).where("recordType", "==", "revision").limit(201).get();
   const sourceRows = sources.docs.slice(0, 500).map(doc => doc.data() as EarningsWork);
+  const savedRecords = records.docs.slice(0, 200).map(doc => doc.get("record") as EarningsRecord).filter(record => record?.version === 1);
   const states: Record<string, number> = {};
   for (const row of sourceRows) states[row.status] = (states[row.status] ?? 0) + 1;
   const cursors: Record<string, unknown> = {};
@@ -68,6 +69,12 @@ export async function inspectLiveEarnings(db: Firestore) {
     unsupported: sourceRows.filter(row => row.status === "review_required").slice(0, 30).map(row => ({ sourceId: row.sourceId, companyId: row.source.companyId, reason: row.reason, sourceUrl: row.source.url })),
     byCompany: earningsPilot.map(company => ({ companyId: company.companyId, sourceCount: sourceRows.filter(row => row.source.companyId === company.companyId).length,
       extractedSourceCount: sourceRows.filter(row => row.source.companyId === company.companyId && row.status === "extracted").length })),
+    recordSamples: earningsPilot.flatMap(company => savedRecords.filter(record => record.companyId === company.companyId)
+      .sort((a, b) => b.period.end.localeCompare(a.period.end) || b.extractedAt.localeCompare(a.extractedAt)).slice(0, 3)
+      .map(record => ({ companyId: record.companyId, kind: record.kind, period: record.period, revisionId: record.revisionId,
+        sourceUrl: record.source.url, rawSha256: record.rawSha256, announcementDate: record.announcementDate,
+        metrics: record.metrics.filter(metric => metric.scope === "consolidated").map(metric => ({ name: metric.name, value: metric.value,
+          low: metric.low ?? null, high: metric.high ?? null, currency: metric.currency, unit: metric.unit, scale: metric.scale })) }))),
     cursors, lastRun: (await earningsMetadata(db, "collector").get()).get("lastRun") ?? null,
     lastProbe: (await earningsMetadata(db, "last_probe").get()).data() ?? null,
     lastCanary: (await earningsMetadata(db, "last_canary").get()).data() ?? null,

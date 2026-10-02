@@ -54,6 +54,7 @@ jobs:
       EARNINGS_PROCESSING_ENABLED: '0'
     steps:
       - name: Require explicit approval and the exact successful main release
+        id: approval
         uses: actions/github-script@v7
         env:
           APPROVED_COMMIT: ${{ inputs.approved_commit }}
@@ -88,7 +89,13 @@ jobs:
               core.setFailed('The exact main commit must finish its production release before earnings operations.');
             }
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
       - uses: google-github-actions/auth@v2
+        id: cloud_auth
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: google-github-actions/setup-gcloud@v2
@@ -107,10 +114,7 @@ jobs:
             jq -e --arg sha "$GIT_SHA" '.spec.template.spec.containers[0].env | any(.name == "GIT_SHA" and .value == $sha)' >/dev/null
       - name: Preview collection without provider calls or writes
         if: inputs.action == 'dry-run'
-        run: >-
-          gcloud run jobs execute collect-earnings-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/collect-earnings.cjs,--dry-run --wait --quiet
+        run: node --import tsx scripts/collect-earnings.ts --dry-run
       - name: Verify authenticated earnings delivery without provider calls
         if: inputs.action == 'setup-paused' || inputs.action == 'verify-delivery'
         run: >-
@@ -119,13 +123,16 @@ jobs:
           --args dist/collect-earnings.cjs,--verify-delivery --wait --quiet
       - name: Inspect earnings state without writes
         if: inputs.action == 'diagnostics'
-        run: >-
-          gcloud run jobs execute collect-earnings-production
-          --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-          --args dist/collect-earnings.cjs,--diagnostics --wait --quiet
+        # Print bounded source/record proof directly into this workflow's logs.
+        # The existing release identity already reads Firestore; missing access
+        # fails closed, with no impersonation or new permission fallback.
+        run: node --import tsx scripts/collect-earnings.ts --diagnostics
       - name: Run the approved earnings canary, activation, or rollback
         if: inputs.action == 'canary' || inputs.action == 'activate' || inputs.action == 'rollback'
         env:
           EARNINGS_OPERATION_APPROVED_SHA: ${{ inputs.approved_commit }}
           EARNINGS_OPERATION: ${{ inputs.action }}
         run: bash scripts/operate-earnings.sh "$EARNINGS_OPERATION"
+      - name: Report durable earnings proof after the operation
+        if: always() && steps.approval.outcome == 'success' && steps.cloud_auth.outcome == 'success' && inputs.action != 'dry-run' && inputs.action != 'diagnostics'
+        run: node --import tsx scripts/collect-earnings.ts --diagnostics
