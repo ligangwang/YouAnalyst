@@ -431,7 +431,9 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       }
       if(companyGap!==undefined)labelVisibility.current.set(element,visible);
       // An intentional hover may reveal this name without altering the saved layout.
-      if(exploring && reveal && offset)visible=true;
+      // Keep the pointer target present throughout hover, including the initial
+      // orbit. Collision culling must not hide it and trigger pointer-leave.
+      if(reveal && offset)visible=true;
       if(companyGap!==undefined){
         // Track the rendered state too: a hover reveal deliberately does not
         // alter saved collision visibility, but its exit still needs a reservation.
@@ -460,7 +462,8 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
     const blend=1-Math.exp(-Math.min(delta,.05)/.12);
     for(const n of layout.nodes){
       const element=labelElements.current.get(n.id);if(!element)continue;
-      const targetScale=n.id===selected||n.id===hovered?1.5:labelScale(n.x,n.y,n.z);
+      // Hover emphasizes color/glow without resizing the pointer target.
+      const targetScale=n.id===selected?1.5:labelScale(n.x,n.y,n.z);
       const previous=companyScales.current.get(element)??targetScale;
       const next=reducedMotion.current?targetScale:previous+(targetScale-previous)*blend;
       const scale=Math.abs(next-targetScale)<.001?targetScale:next;
@@ -514,9 +517,10 @@ function Scene({ showAllEdges = false, cameraRequest, graph, selected, onSelect,
       const element=labelElements.current.get(n.id);if(!element)continue;
       const {width,height}=measurements.get(element)!;
       const depth=-projected.set(n.x,n.y,n.z).applyMatrix4(camera.matrixWorldInverse).z;
-      const emphasis=geometry.getAttribute("emphasis").getX(layout.nodes.indexOf(n));
       // Match the point shader's physical pixel diameter, then convert to CSS pixels.
-      const pointDiameter=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*(emphasis>1?1.5:1);
+      // Hover glow must not move the label out from under a stationary pointer.
+      const enlarged=n.id===selected || edgeEndpoints.has(n.id) || (!selected && sectorMembers.has(n.id));
+      const pointDiameter=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*(enlarged?1.5:1);
       const gap=pointDiameter/(2*gl.getPixelRatio())+3;
       if(place(element,n.x,n.y,n.z,true,width,height,gap,n.id===hovered)){shown++;visibleCompanies.add(n.id);}
       if(shown===1&&!edgesPlaced){placeEdges(true);placeEdges();edgesPlaced=true;}
