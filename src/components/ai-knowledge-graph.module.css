@@ -121,8 +121,9 @@
 .edgeLabel3d[data-active="true"] { width:max-content; max-width:224px; white-space:normal; overflow:visible; border-color:#8ac4d4; }
 
 /* Company names echo their sector; tickers retain their secondary muted color. */
-.label3d strong { color:color-mix(in srgb, currentColor 78%, white); }
+.label3d strong { color:color-mix(in srgb, currentColor 78%, white); transition:color .28s ease, text-shadow .28s ease; }
 .label3d:hover strong, .label3d:focus-visible strong, .label3d[data-highlighted="true"] strong { color:#fff; }
+.label3d:hover strong, .label3d:focus-visible strong { text-shadow:0 0 12px currentColor; }
 
 .sectorLegend button { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 5px 9px; border: 1px solid transparent; border-radius: 20px; background: transparent; font: inherit; cursor: pointer; }
 .sectorLegend button:hover, .sectorLegend button[aria-pressed="true"] { background: #ffffff0d; border-color: currentColor; }
@@ -270,6 +271,7 @@
 .label3d[data-visible="true"] { opacity:var(--label-emphasis,1); visibility:visible; pointer-events:auto; transition-delay:0s; }
 @media (prefers-reduced-motion:reduce) {
   .label3d { transition:none; }
+  .label3d strong { transition:none; }
 }
 
 
