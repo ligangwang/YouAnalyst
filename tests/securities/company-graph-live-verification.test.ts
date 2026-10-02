@@ -7,7 +7,7 @@ import { parseCompanyGraphPublisherArgs } from "../../src/lib/company-graph/cli"
 import { createSecFilingDiscovered } from "../../src/lib/sec-filings/event";
 import type { CompanyGraphRequest } from "../../src/lib/company-graph/pubsub";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "../../src/lib/company-graph/types";
-import { getGraphBudgetSummary } from "../../src/lib/company-graph/budget";
+import { getGraphBudgetSummary, GRAPH_FLEX_PRICE_VERSION, GRAPH_FLEX_RESERVATION_MICROS } from "../../src/lib/company-graph/budget";
 
 type Row = Record<string, unknown>;
 const tree = "a".repeat(40), now = Date.parse("2026-10-01T12:00:00Z");
@@ -46,7 +46,10 @@ function fixture() {
     rows.set(`company_research_runs/_graph_run_${runId}`, { completed: true, providerResponseId: "resp_canary", result: resultFor(runId),
       ticker: "NVDA", accessionNumber: event.accessionNumber, extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION });
     rows.set(`company_research_runs/_graph_budget_request_${createHash("sha256").update(runId).digest("hex")}`,
-      { requestKey: runId, status: "settled", responseId: "resp_canary", spentMicros: 100, reservedMicros: 400000 });
+      { requestKey: runId, status: "settled", responseId: "resp_canary", spentMicros: 100, reservedMicros: GRAPH_FLEX_RESERVATION_MICROS, priceVersion: GRAPH_FLEX_PRICE_VERSION,
+        model: "gpt-5.6-sol", fingerprint: "mock-canary", inputTokens: 100, ticketVersion: 2, expectedServiceTier: "flex",
+        promptCacheBreakpoints: 0, maxContextTokens: 1_050_000, maxOutputTokens: 16_384,
+        serviceTier: "flex", cacheWriteTokens: 0, cachedTokens: 0, reasoningMode: "standard", promptCacheMode: "explicit" });
     rows.set("company_research_requests/NVDA", { ...rows.get("company_research_requests/NVDA"), requestId: request.requestId, status: "COMPLETED" });
   };
   const completeFiling = (runId = String(rows.get(markerPath)!.runId)) => {
@@ -78,6 +81,62 @@ test("recovery CLI requires an exact original tree and excludes every other publ
     [`--resume-live=${tree}`, "--verify-delivery"], [`--resume-live=${tree}`, "--limit=1"],
     [`--resume-live=${tree}`, `--resume-live=${tree}`]]) assert.throws(() => parseCompanyGraphPublisherArgs(args, {}));
   assert.throws(() => parseCompanyGraphPublisherArgs([`--resume-live=${tree}`], { COMPANY_GRAPH_VERIFY_ONLY: "1" }));
+});
+
+test("fresh activation rejects legacy pricing or unverified Flex settlement before filing fan-out", async () => {
+  for (const invalid of [{ priceVersion: "gpt-5.6-sol-standard-2026-10-01" }, { reservedMicros: 400_000 },
+    { serviceTier: "default" }, { cacheWriteTokens: 1 }, { cachedTokens: 1 }, { reasoningMode: "pro" }, { promptCacheMode: "implicit" }]) {
+    const f = fixture();
+    await assert.rejects(verifyLiveCompanyGraph(f.db, tree, { ...f.deps, publishGraph: async request => {
+      f.completeGraph(request);
+      const runId = String(f.rows.get(markerPath)!.runId);
+      const path = `company_research_runs/_graph_budget_request_${createHash("sha256").update(runId).digest("hex")}`;
+      Object.assign(f.rows.get(path)!, invalid);
+    } }), /Fresh NVDA activation lacks verified Flex/);
+    assert.equal(f.publications.filter(p => p.type === "filing").length, 0);
+    assert.equal(f.rows.get(markerPath)?.verifiedAt, undefined);
+  }
+});
+
+test("successful activation may leave too little daily balance for another full reservation", async () => {
+  const f = fixture(); let reads = 0;
+  const deps = { ...f.deps, readBudget: async (time: number) => {
+    const budget = await f.deps.readBudget(time);
+    return ++reads === 1 ? budget : { ...budget, spentUsd: 4.9, remainingUsd: 0.1, blocked: true };
+  } };
+  const result = await verifyLiveCompanyGraph(f.db, tree, deps);
+  assert.equal(result.verified, true);
+  assert.equal(result.budget.remainingUsd, 0.1);
+  const publications = f.publications.length;
+  const replay = await verifyLiveCompanyGraph(f.db, tree, deps);
+  assert.equal(replay.alreadyVerified, true); assert.equal(f.publications.length, publications);
+});
+
+test("same-tree activation retry can finish its own held response without requiring a second reservation", async () => {
+  const f = fixture(), ids: string[] = [];
+  await assert.rejects(verifyLiveCompanyGraph(f.db, tree, { ...f.deps, publishGraph: async request => {
+    ids.push(request.requestId); f.completeGraph(request);
+    const runId = String(f.rows.get(markerPath)!.runId);
+    f.rows.get(`company_research_runs/_graph_run_${runId}`)!.completed = false;
+    f.rows.get("company_research_requests/NVDA")!.status = "PROCESSING";
+    const reservation = f.rows.get(`company_research_runs/_graph_budget_request_${createHash("sha256").update(runId).digest("hex")}`)!;
+    reservation.status = "reserved"; delete reservation.spentMicros;
+    f.rows.set("company_research_runs/_graph_daily_budget", { day: "2026-10-01", limitMicros: 5_000_000, spentMicros: 0, reservedMicros: GRAPH_FLEX_RESERVATION_MICROS });
+    throw Error("lost publication acknowledgement");
+  } }), /lost publication/);
+  const result = await verifyLiveCompanyGraph(f.db, tree, { ...f.deps, publishGraph: async request => {
+    ids.push(request.requestId); f.completeGraph(request);
+    f.rows.set("company_research_runs/_graph_daily_budget", { day: "2026-10-01", limitMicros: 5_000_000, spentMicros: 100, reservedMicros: 0 });
+  } });
+  assert.equal(result.verified, true); assert.equal(ids.length, 2); assert.equal(ids[0], ids[1]);
+  assert.equal((f.rows.get(markerPath)!.request as CompanyGraphRequest).generation, 1);
+});
+
+test("missing activation marker cannot bypass an insufficient full reservation", async () => {
+  const f = fixture();
+  f.rows.set("company_research_runs/_graph_daily_budget", { day: "2026-10-01", limitMicros: 5_000_000, spentMicros: 600_000, reservedMicros: 0 });
+  await assert.rejects(verifyLiveCompanyGraph(f.db, tree, f.deps), /US\$5/);
+  assert.equal(f.rows.has(markerPath), false); assert.equal(f.publications.length, 0);
 });
 
 async function failedActivation() {
@@ -244,7 +303,7 @@ test("initial activation requires an exact completed baseline and matching cache
   }
 });
 test("completed request is insufficient without its exact settled provider reservation", async () => {
-  for (const changed of [{ status: "reserved" }, { responseId: "resp_wrong" }, { spentMicros: 999999 }, { requestKey: "wrong" }]) {
+  for (const changed of [{ status: "reserved" }, { responseId: "resp_wrong" }, { spentMicros: GRAPH_FLEX_RESERVATION_MICROS + 1 }, { requestKey: "wrong" }]) {
     const f = fixture(); await assert.rejects(verifyLiveCompanyGraph(f.db, tree, { ...f.deps, publishGraph: async request => {
       await f.deps.publishGraph(request);
       const key = [...f.rows.keys()].find(path => path.includes("_graph_budget_request_"))!;

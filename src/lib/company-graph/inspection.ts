@@ -90,6 +90,11 @@ export async function inspectCompanyGraphRequest(db: Firestore, ticker: string, 
       createdAt: date(reservation?.createdAt), settledAt: date(reservation?.settledAt),
       providerResponsePresent: responsePresent(reservation?.responseId),
       matchesRunResponse: responsePresent(run?.providerResponseId) && run!.providerResponseId === reservation?.responseId,
+      priceVersion: status(reservation?.priceVersion, ["gpt-5.6-sol-standard-2026-10-01", "gpt-5.6-sol-flex-full-context-2026-10-02"]),
+      serviceTier: status(reservation?.serviceTier, ["default", "flex"]),
+      cacheWriteTokens: count(reservation?.cacheWriteTokens), cachedTokens: count(reservation?.cachedTokens),
+      usageInputTokens: count(reservation?.usageInputTokens), usageOutputTokens: count(reservation?.usageOutputTokens),
+      reasoningMode: status(reservation?.reasoningMode, ["standard"]), promptCacheMode: status(reservation?.promptCacheMode, ["explicit"]),
     },
   };
 }

@@ -273,7 +273,7 @@ test("provider resumes stored response via GET and never starts another paid POS
   const calls: Array<{ url: string; method?: string; body?: unknown }> = [];
   t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
     calls.push({ url, method: init?.method, body: init?.body });
-    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", service_tier: "default", status: "completed", output_text: '{"relationships":[]}', usage: { input_tokens: 100, output_tokens: 20 } });
+    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", service_tier: "flex", reasoning: { mode: "standard" }, prompt_cache_options: { mode: "explicit" }, status: "completed", output_text: '{"relationships":[]}', usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120, input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 } } });
   });
   const result = await extractCompanyGraphRelationships(input);
   assert.equal(calls.length, 1); assert.equal(calls[0].method, "GET"); assert.equal(calls[0].body, undefined);
@@ -293,7 +293,7 @@ test("provider creation saves response identity before polling; checkpoint failu
 for (const status of ["failed", "incomplete", "cancelled"]) test(`provider terminal ${status} requests operator review without another POST`, async t => {
   providerEnvironment(t); const { input } = await savedProvider(); let calls = 0;
   t.mock.method(globalThis, "fetch", async (_url: string, init?: RequestInit) => { calls++; assert.equal(init?.method, "GET");
-    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", service_tier: "default", status, usage: { input_tokens: 100, output_tokens: 20 } }); });
+    return Response.json({ id: "resp_saved", model: "gpt-5.6-sol", service_tier: "flex", reasoning: { mode: "standard" }, prompt_cache_options: { mode: "explicit" }, status, usage: { input_tokens: 100, output_tokens: 20, total_tokens: 120, input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 } } }); });
   await assert.rejects(extractCompanyGraphRelationships(input), /operator review/);
   assert.equal(calls, 1);
 });

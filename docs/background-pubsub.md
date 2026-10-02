@@ -443,36 +443,58 @@ operator extraction, including paid dry-run requests. Other YouAnalyst AI featur
 ChatGPT/Codex allowances, cloud infrastructure charges, taxes and the provider's
 account-wide bill are outside this pipeline limit.
 
-New paid admissions are currently paused independently of the editable daily limit.
-The completed NVDA response reported 11,138 input tokens after preflight counted
-11,133. The cause of that five-token discrepancy is not established; a preflight
-estimate or arbitrary padding is not a demonstrated prospective billing bound.
-COMPANY_GRAPH_PAID_ADMISSION_ENABLED therefore defaults to disabled and is not
-passed by the deployment scripts. Raising the daily limit does not enable it.
-Do not enable new paid requests until the count contract or another enforceable
-admission bound is validated. Cached work and retrieval of an already-created,
-matching provider response remain available.
+New requests use gpt-5.6-sol with explicit Flex processing, standard reasoning,
+no tools or external model context, and `prompt_cache_options.mode=explicit`
+without cache breakpoints. OpenAI documents that this cache setting creates no
+cache writes. There is no Standard-tier fallback or automatic generation retry.
+Flex can take longer or reject requests when capacity is unavailable.
 
-The existing admitted request used Standard processing, no tools or external model
-context, max_output_tokens 16,384 (including reasoning and formatting), and a
-preflight-based reservation at US$5/million input (including cache writes) and
-US$20/million output. The reviewed gpt-5.6-sol price version expires at
-2026-11-22T00:00:00Z. Unknown models, pricing tiers, token usage or unavailable
-budget storage fail closed. Official references:
-https://developers.openai.com/api/docs/models/gpt-5.6-sol and
-https://developers.openai.com/api/docs/guides/token-counting.
+Every new request reserves US$4.445760 before POST: the full documented
+1,050,000-token context window at the long-context Flex input rate of US$4/million,
+plus the 16,384 output-token ceiling at US$15/million. This independent sum is
+conservative even without subtracting output from the context window. Reasoning
+and formatting tokens are included in the output ceiling. Preflight token counts
+remain a 100,000-token application input check, not the billing bound. The known
+11,133/11,138 discrepancy therefore cannot under-reserve a new request. The model,
+Flex rates and pricing expiry are pinned; new admissions fail closed on
+2026-11-22T00:00:00Z until pricing is reviewed again.
 
-The aggregate and individual reservations use existing company_research_runs
-documents. Transactions reserve before POST across concurrent web/worker calls.
+The aggregate and versioned individual reservations use existing
+company_research_runs documents. Transactions enforce the limit across all web,
+worker and filing paths. At a US$5 limit, only one new request can be in flight.
+Matching terminal usage settles the verified actual Flex cost and releases the
+unused hold, allowing subsequent jobs while the available balance can cover the
+full reservation. The pipeline can stop below the nominal daily limit: once
+remaining budget is below US$4.445760, no further request is admitted. The Admin
+Tasks page shows the required reservation and explains this conservative behavior.
+Unsettled reservations alone cause a short defer; insufficient daily balance
+waits until the next New York budget day. No limit is automatically increased.
+
+COMPANY_GRAPH_PAID_ADMISSION_ENABLED defaults to 0. Reviewed production releases
+pass the explicit opt-in to the website, graph subscriber and queue publisher.
+Raising the daily limit does not turn this control on. Cached work and retrieval
+of an already-created matching response remain available while admission is off.
 A response ID is saved before normal service checkpointing; retries retrieve that
-same response. Missing/ambiguous response IDs retain the full reservation and
-require operator review. Only matching terminal usage for the approved model and Standard tier, within
-100,000 input/16,384 output tokens, and a computed cost no greater than the held
-dollars releases unused liability. Settlement records actual input/output counts
-and the preflight delta, and is idempotent. The known NVDA response settles at
-US$0.13181 against its existing US$0.383345 hold; it needs no new generation. The settled value
-is a conservative estimate, not the OpenAI invoice. No new collection or IAM
-permission is required.
+same response. Missing or ambiguous IDs retain the full hold for operator review,
+including unclassified 429 or timeout outcomes. The worker never retries a POST
+or falls back to Standard to recover an uncertain result.
+
+New Flex settlement verifies the model, actual service tier, standard reasoning,
+cache mode, zero cache reads/writes, complete usage within model/output bounds,
+and cost no greater than the held dollars. Legacy Standard tickets preserve their
+original payload fingerprints and price version for GET recovery and idempotent
+settlement. The original NVDA response settled at US$0.13181 against its existing
+US$0.383345 hold without another generation. Unknown pricing, response metadata or
+unavailable budget storage fail closed. The settled figure is this pipeline's
+conservative estimate, not the provider invoice. No new collection or IAM grant
+is required.
+
+Official references:
+- https://developers.openai.com/api/docs/models/gpt-5.6-sol
+- https://developers.openai.com/api/docs/pricing?latest-pricing=flex (All models)
+- https://developers.openai.com/api/docs/guides/prompt-caching
+- https://developers.openai.com/api/docs/guides/flex-processing
+- https://developers.openai.com/api/docs/guides/token-counting
 
 When the remaining budget cannot admit a request, manual and filing work is saved
 for later replay before acknowledging delivery. The existing graph publisher
@@ -490,7 +512,8 @@ activation step after existing delivery checks. It verifies the approved project
 region, exact image digest and model, then uses the existing publisher job for one
 saved NVDA forced extraction and one exact baseline 10-K event. The source,
 request and activation marker are committed atomically; retries reuse them.
-Successful graph/provider/budget completion and both filing-consumer receipts are
+A fresh activation also requires the full Flex reservation and verified cache-free
+Flex settlement. Successful graph/provider/budget completion and both filing-consumer receipts are
 required before resuming the existing 5-minute/15-minute schedules. Failure leaves
 both paused; a partial resume is rolled back. No new deployment workflow, cloud
 resource, collection or IAM grant is involved.

@@ -28,6 +28,7 @@ for target in "${targets[@]}"; do
     : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"
     case "${COMPANY_GRAPH_QUEUE_BATCH_SIZE:-1}" in [1-5]) ;; *) echo 'COMPANY_GRAPH_QUEUE_BATCH_SIZE must be 1 through 5' >&2; exit 1 ;; esac
     case "${COMPANY_GRAPH_PROCESSING_ENABLED:-0}" in 0|1) ;; *) echo 'COMPANY_GRAPH_PROCESSING_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+    case "${COMPANY_GRAPH_PAID_ADMISSION_ENABLED:-0}" in 0|1) ;; *) echo 'COMPANY_GRAPH_PAID_ADMISSION_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
     case "${SEC_FILINGS_COLLECTOR_ENABLED:-0}" in 0|1) ;; *) echo 'SEC_FILINGS_COLLECTOR_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
   fi
   WEB_RUNTIME_SERVICE_ACCOUNT="$(bash scripts/lib/maintenance-job-iam.sh --check "$job")"

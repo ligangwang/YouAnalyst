@@ -252,7 +252,7 @@ test("company graph publisher and subscriber histories distinguish queue accepta
   await expect(page.getByRole("button", { name: "Run SEC fundamentals now", exact: true })).toHaveCount(0);
 });
 
-const initialGraphBudget = { limitUsd: 5, spentUsd: 1.25, reservedUsd: 0.5, remainingUsd: 3.25, day: "2026-10-01", timezone: "America/New_York", blocked: false, newRequestsPaused: false, pricingValidUntil: "2026-10-31T00:00:00Z" };
+const initialGraphBudget = { limitUsd: 5, spentUsd: 0.1, reservedUsd: 0.4, remainingUsd: 4.5, day: "2026-10-01", timezone: "America/New_York", blocked: false, newRequestsPaused: false, requestReservationUsd: 4.44576, pricingValidUntil: "2026-10-31T00:00:00Z" };
 
 test("new paid request pause stays visible with available budget and failed history after the limit is raised", async ({ page }, testInfo) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
@@ -282,7 +282,7 @@ test("new paid request pause stays visible with available budget and failed hist
   await expect(pause).toContainText("raising it will not resume new paid requests");
   await expect(input).toHaveValue("5.00");
   await expect(input).toBeEnabled();
-  for (const value of ["US$5.00", "US$1.25", "US$0.50", "US$3.25"]) {
+  for (const value of ["US$5.00", "US$0.10", "US$0.40", "US$4.50"]) {
     await expect(panel.getByText(value, { exact: true })).toBeVisible();
   }
   await expect(panel.getByText("New OpenAI calls are blocked by the budget or pricing validity checks.", { exact: true })).toHaveCount(0);
@@ -291,7 +291,7 @@ test("new paid request pause stays visible with available budget and failed hist
   await panel.getByRole("button", { name: "Save daily limit", exact: true }).click();
   await expect(panel.getByText("Daily limit saved.", { exact: true })).toBeVisible();
   await expect(input).toHaveValue("10.00");
-  for (const value of ["US$10.00", "US$1.25", "US$0.50", "US$8.25"]) {
+  for (const value of ["US$10.00", "US$0.10", "US$0.40", "US$9.50"]) {
     await expect(panel.getByText(value, { exact: true })).toBeVisible();
   }
   await expect(pause).toBeVisible();
@@ -329,13 +329,15 @@ test("graph budget remains editable when job history fails and zero pauses new c
   const panel = page.getByRole("region", { name: "Company graph OpenAI budget" });
   await expect(page.getByRole("alert").filter({ hasText: "Cloud Logging history is unavailable." })).toBeVisible();
   await expect(panel.getByText("US$5.00", { exact: true })).toBeVisible();
-  await expect(panel.getByText("US$1.25", { exact: true })).toBeVisible();
-  await expect(panel.getByText("US$0.50", { exact: true })).toBeVisible();
-  await expect(panel.getByText("US$3.25", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.10", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.40", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$4.50", { exact: true })).toBeVisible();
   await expect(panel.getByText(/New paid requests are temporarily paused/)).toHaveCount(0);
   await expect(panel.getByText("Budget day: 2026-10-01 · America/New_York", { exact: true })).toBeVisible();
   await expect(panel.getByText(/not your provider invoice or ChatGPT allowance/)).toBeVisible();
   await expect(panel.getByText(/does not reverse charges/)).toBeVisible();
+  await expect(panel.getByText(/Each new Flex request needs an available reservation of US\$4\.44576/)).toBeVisible();
+  await expect(panel.getByText(/part of the daily budget may remain unused/)).toBeVisible();
   await panel.getByLabel("Daily limit (USD)", { exact: true }).fill("0");
   await panel.getByRole("button", { name: "Save daily limit", exact: true }).click();
   await expect(panel.getByRole("button", { name: "Saving budget…", exact: true })).toBeDisabled();
@@ -345,7 +347,7 @@ test("graph budget remains editable when job history fails and zero pauses new c
   await expect(panel.getByText("Daily limit saved.", { exact: true })).toBeVisible();
   await expect(panel.getByText("Paused. New OpenAI calls are blocked.", { exact: true })).toBeVisible();
   await expect(panel.getByLabel("Daily limit (USD)", { exact: true })).toHaveValue("0.00");
-  await expect(panel.getByText("US$1.25", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.10", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("admin-graph-budget-paused.png"), fullPage: true });
 });
@@ -374,8 +376,8 @@ test("graph budget saves cents and displays authoritative amounts when lowered b
   await panel.getByRole("button", { name: "Save daily limit", exact: true }).click();
   await expect(panel.getByText("Daily limit saved.", { exact: true })).toBeVisible();
   await expect(panel.getByText("US$0.29", { exact: true })).toBeVisible();
-  await expect(panel.getByText("US$1.25", { exact: true })).toBeVisible();
-  await expect(panel.getByText("US$0.50", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.10", { exact: true })).toBeVisible();
+  await expect(panel.getByText("US$0.40", { exact: true })).toBeVisible();
   await expect(panel.getByText("US$0.00", { exact: true })).toBeVisible();
   await expect(panel.getByText("New OpenAI calls are blocked by the budget or pricing validity checks.", { exact: true })).toBeVisible();
   expect(writes).toEqual([0.29]);

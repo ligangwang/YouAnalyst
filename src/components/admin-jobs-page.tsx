@@ -101,6 +101,7 @@ function AdminGraphBudget() {
       <dl className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[[text("Daily limit", "每日上限"), budget.limitUsd], [text("Settled estimate", "已结算估算"), budget.spentUsd], [text("Reserved", "已预留"), budget.reservedUsd], [text("Remaining", "剩余额度"), budget.remainingUsd]].map(([label, value]) => <div key={label} className="min-w-0 rounded-lg bg-slate-950 p-3"><dt className="text-xs text-slate-400">{label}</dt><dd className="mt-1 break-all text-lg font-semibold">{graphBudgetMoney(Number(value))}</dd></div>)}
       </dl>
+      <p className="mt-3 text-sm text-slate-400">{text("Each new Flex request needs an available reservation of", "每个新的 Flex 请求需要可用预留额度")}{" "}{graphBudgetMoney(budget.requestReservationUsd)}. {text("Only actual verified usage is settled; the rest becomes available again. Requests wait when the remaining balance cannot cover this reservation, so part of the daily budget may remain unused.", "仅结算已验证的实际用量，其余额度随后释放。如果剩余额度不足以覆盖该预留额，请求将等待，因此部分每日预算可能不会用完。")}</p>
       {budget.blocked && <p role="status" className="mt-3 text-sm text-amber-300">{budget.limitUsd === 0 ? text("Paused. New OpenAI calls are blocked.", "已暂停。新的 OpenAI 调用已被阻止。") : text("New OpenAI calls are blocked by the budget or pricing validity checks.", "预算或定价有效期检查已阻止新的 OpenAI 调用。")}</p>}
       <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void save(); }}>
         <label className="grid gap-2 text-sm" htmlFor="graph-budget-limit">{text("Daily limit (USD)", "每日限额（美元）")}

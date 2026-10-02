@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
-import { getGraphBudgetSummary, type GraphBudgetSummary } from "./budget";
+import { getGraphBudgetSummary, findGraphBudgetTicket, GRAPH_FLEX_PRICE_VERSION, GRAPH_FLEX_RESERVATION_MICROS, type GraphBudgetSummary } from "./budget";
 import { companyGraphRequestId, parseCompanyGraphRequest, type CompanyGraphRequest } from "./pubsub";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "./types";
 import { redactGraphFailure } from "./inspection";
@@ -179,7 +179,15 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
   const readBudget = dependencies.readBudget ?? (time => getGraphBudgetSummary(db, time));
   const deadline = now() + MAX_DURATION_MS;
   const initialBudget = await readBudget(now());
-  assertBudget(initialBudget, !resumeTree);
+  // A same-tree retry reuses its admitted response. Its own hold or settled cost
+  // must not be mistaken for a second request needing another full reservation.
+  let alreadyAdmitted = false;
+  if (!resumeTree) {
+    if (initialBudget.newRequestsPaused) throw new Error("New paid graph requests are paused; resume only an existing admitted response");
+    const prior = (await db.collection(COLLECTION).doc(`_graph_activation_${tree}`).get()).data();
+    if (prior && initialBudget.blocked) alreadyAdmitted = Boolean(await findGraphBudgetTicket(readActivation(prior, tree).runId, db));
+  }
+  assertBudget(initialBudget, !resumeTree && !alreadyAdmitted);
   const [pending, ...counts] = await Promise.all([
     db.collection("sec_filings").where("discoveryPending", "==", true).count().get(),
     ...["QUEUED", "PROCESSING", "FAILED"].map(status =>
@@ -230,6 +238,11 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
       || !Number.isSafeInteger(budget.reservedMicros) || budget.reservedMicros <= 0 || budget.spentMicros > budget.reservedMicros) {
       throw new Error("Completed NVDA request lacks matching durable provider and settled budget evidence");
     }
+    if (!resumeTree && (budget.priceVersion !== GRAPH_FLEX_PRICE_VERSION || budget.reservedMicros !== GRAPH_FLEX_RESERVATION_MICROS
+      || budget.serviceTier !== "flex" || budget.cacheWriteTokens !== 0 || budget.cachedTokens !== 0
+      || budget.reasoningMode !== "standard" || budget.promptCacheMode !== "explicit")) {
+      throw new Error("Fresh NVDA activation lacks verified Flex pricing and cache-free settlement");
+    }
     return true;
   };
   if (!await bounded(graphComplete)) {
@@ -239,7 +252,7 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
     while (!await bounded(graphComplete)) await sleep(10_000);
   }
   if (!saved.graphVerifiedAt) await bounded(() => checkpoint(db, saved, "graphVerifiedAt", now()));
-  assertBudget(await bounded(() => readBudget(now())), !resumeTree);
+  assertBudget(await bounded(() => readBudget(now())), false);
   const fanoutComplete = async () => {
     const [fundamentals, receipt] = await Promise.all([
       db.collection("company_fundamentals").doc(TICKER).get(),
@@ -262,7 +275,7 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
     while (!await bounded(fanoutComplete)) await sleep(10_000);
   }
   const finalBudget = await bounded(() => readBudget(now()));
-  assertBudget(finalBudget, !resumeTree);
+  assertBudget(finalBudget, false);
   if (!saved.verifiedAt) await bounded(() => checkpoint(db, saved, "verifiedAt", now(), finalBudget));
   return { ...result, alreadyVerified: Boolean(saved.verifiedAt), budget: budgetReport(finalBudget) };
 }
