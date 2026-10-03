@@ -23,21 +23,21 @@ function initials(name: string | null | undefined, email: string | null | undefi
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
-function AvatarButton({ photoURL, displayName, email }: { photoURL: string | null; displayName: string | null; email: string | null }) {
+export function AvatarButton({ photoURL, displayName, email, compact=false }: { photoURL: string | null; displayName: string | null; email: string | null; compact?:boolean }) {
   if (photoURL) {
     return (
       <Image
         src={photoURL}
         alt={displayName ?? email ?? "User avatar"}
-        width={36}
-        height={36}
-        className="h-9 w-9 rounded-full object-cover ring-1 ring-cyan-400/40"
+        width={compact?28:36}
+        height={compact?28:36}
+        className={`${compact?'h-7 w-7':'h-9 w-9'} rounded-full object-cover ring-1 ring-cyan-400/40`}
         referrerPolicy="no-referrer"
       />
     );
   }
   return (
-    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-cyan-600/25 text-sm font-semibold text-cyan-100 ring-1 ring-cyan-400/40">
+    <span className={`inline-flex ${compact?'h-7 w-7 text-xs':'h-9 w-9 text-sm'} items-center justify-center rounded-full bg-cyan-600/25 font-semibold text-cyan-100 ring-1 ring-cyan-400/40`}>
       {initials(displayName, email)}
     </span>
   );

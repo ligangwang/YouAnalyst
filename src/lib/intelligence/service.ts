@@ -7,6 +7,7 @@ import { INTELLIGENCE_SOURCES, intelligenceSession, secCollectorIsFresh, sourceC
 import { mergeIntelligenceEvents, projectResearchIntelligence } from './project';
 import { projectSecIntelligence } from './sec-events';
 import { loadCollectedNews } from './collectors/projection';
+import { NEWS_SOURCES } from './collectors/sources';
 
 const LIMIT=200,CACHE_MS=60_000;
 let cached:{value:IntelligenceSnapshot;expires:number}|undefined;
@@ -54,6 +55,10 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
     let news:Awaited<ReturnType<typeof loadCollectedNews>>|undefined;
     if(process.env.INTELLIGENCE_NEWS_ENABLED==='1'&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay,LIMIT);
+      const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id);
+      const configured=new Set(NEWS_SOURCES.map(source=>source.companyId));
+      const covered=companyIds.filter(id=>configured.has(id)).length;
+      if(covered<companyIds.length)warnings.push(`Company IR/news feeds cover ${covered} of ${companyIds.length} AI Map companies. Other companies do not yet have verified news collectors.`);
       truncated=truncated||news.truncated;
       if(!news.fresh)warnings.push(`Company news collector freshness is unverified: ${news.unhealthy.join(', ')}.`);
     }catch(error){console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}
