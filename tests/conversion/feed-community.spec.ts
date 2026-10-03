@@ -69,10 +69,10 @@ async function serve(page: Page, rankedAnalysts: number) {
 }
 const noHorizontalScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
-test("feed explains later collection once, orders by event date and groups evidence under its event", async ({ page }, info) => {
+test("feed uses publication date, keeps pipeline dates private and groups source evidence", async ({ page }, info) => {
   await serve(page, 3);
   await page.goto(origin + "/en/feed");
-  await expect(page.getByText("marks an earlier event that was collected recently.", { exact: false })).toHaveCount(1);
+  await expect(page.getByText("marks an earlier event that was collected recently.", { exact: false })).toHaveCount(0);
   await expect(page.getByText("Earlier event, added later. Collection is not a new business event.", { exact: true })).toHaveCount(0);
   const cards = page.getByRole("article");
   await expect(cards).toHaveCount(3);
@@ -81,16 +81,14 @@ test("feed explains later collection once, orders by event date and groups evide
   await expect(cards.nth(2).getByRole("heading")).toHaveText("Micron announces HBM capacity plan");
   const humain = cards.nth(1);
   await expect(humain.locator("time")).toHaveText("2026-08-31");
-  await expect(humain.getByTitle("Earlier event, added later. Collection is not a new business event.")).toBeVisible();
+  await expect(humain.getByTitle("Earlier event, added later. Collection is not a new business event.")).toHaveCount(0);
   await expect(humain).toContainText("it is not delivered capacity");
   await expect(cards.nth(0).getByText("Added later")).toHaveCount(0);
   await humain.getByText("Evidence added / reviewed for this event (1)").click();
   await expect(humain.getByRole("link", { name: "HUMAIN deployment review ↗" })).toHaveAttribute("href", "https://example.com/humain-review");
   await expect(page.getByText("Evidence added / reviewed", { exact: true })).toHaveCount(1);
-  await page.getByRole("button", { name: "Recently added", exact: true }).click();
-  await expect(cards.nth(0).getByRole("heading")).toHaveText("Micron announces HBM capacity plan");
-  await page.getByRole("button", { name: "Event date", exact: true }).click();
-  await expect(cards.nth(0)).toContainText("2026-09-10");
+  await expect(page.getByRole("button", { name: "Recently added", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Collected / reviewed", {exact:false})).toHaveCount(0);
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.screenshot({ path: info.outputPath("feed.png"), fullPage: true });
 });
@@ -113,10 +111,10 @@ test("Chinese feed keeps the marker accessible and the planned caveat in item te
   await serve(page, 3);
   await page.goto(origin + "/zh-cn/feed");
   await expect(page.getByRole("heading", { name: "公司研究动态" })).toBeVisible();
-  await expect(page.getByText("表示较早发生、近期才收录的事件", { exact: false })).toHaveCount(1);
-  await expect(page.getByTitle("历史事件后续收录，收录日期不代表新发生的业务事件。")).toHaveCount(2);
+  await expect(page.getByText("表示较早发生、近期才收录的事件", { exact: false })).toHaveCount(0);
+  await expect(page.getByTitle("历史事件后续收录，收录日期不代表新发生的业务事件。")).toHaveCount(0);
   await expect(page.getByText("计划扩产，不代表已完成交付。", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "最近收录", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "最近收录", exact: true })).toHaveCount(0);
   await expect(page.getByText("该事件的证据收录／复核（1）", { exact: true })).toBeVisible();
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.screenshot({ path: info.outputPath("feed-zh.png"), fullPage: true });

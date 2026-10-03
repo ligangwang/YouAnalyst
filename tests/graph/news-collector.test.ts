@@ -21,12 +21,12 @@ test('verified article aliases use the public canonical host without allowing fe
 });
 test('official RSS is canonicalized, markup is stripped, and the publisher timezone is retained',()=>{
   const page=parseNewsFeed(rss(entry('a')+'<item><title>AMD &amp; NVIDIA</title><link>https://nvidianews.nvidia.com/releases/b?utm_source=x</link><pubDate>2026-10-01</pubDate></item>'+entry('a')),source);
-  assert.equal(page.items.length,2);assert.equal(page.items[0].publishedAt,'2026-10-02T12:00:00.000Z');assert.equal(page.items[0].summary,'Company update');
-  assert.equal(page.items[1].title,'AMD & NVIDIA');assert.equal(page.items[1].url,'https://nvidianews.nvidia.com/releases/b');assert.equal(page.items[1].publishedAt,null);
+  assert.equal(page.items.length,2);assert.equal(page.items[0].published_at,'2026-10-02T12:00:00.000Z');assert.equal(page.items[0].summary,'Company update');
+  assert.equal(page.items[1].title,'AMD & NVIDIA');assert.equal(page.items[1].url,'https://nvidianews.nvidia.com/releases/b');assert.equal(page.items[1].published_at,null);
 });
 test('Atom chooses the article link instead of its self link; missing timezone stays unknown',()=>{
   const xml='<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>Update</title><link rel="self" href="https://nvidianews.nvidia.com/feed"/><link rel="alternate" href="https://nvidianews.nvidia.com/article"/><published>2026-10-02T12:00:00</published></entry></feed>';
-  const page=parseNewsFeed(xml,source);assert.equal(page.items[0].url,'https://nvidianews.nvidia.com/article');assert.equal(page.items[0].publishedAt,null);
+  const page=parseNewsFeed(xml,source);assert.equal(page.items[0].url,'https://nvidianews.nvidia.com/article');assert.equal(page.items[0].published_at,null);
 });
 test('malformed XML, entities, non-feeds, oversized responses and unapproved article hosts are rejected',()=>{
   for(const xml of ['<rss>', '<html/>','<rss/>','<!DOCTYPE rss [<!ENTITY x "hello">]><rss/>'])assert.throws(()=>parseNewsFeed(xml,source));
@@ -64,14 +64,14 @@ test('initial history starts on January 1, 2026 and older publications never res
   const {db,records}=memoryDb(),store=firestoreNewsStore(db);
   const response=page('cutoff');assert.equal(response.status,'modified');if(response.status!=='modified')return;
   const sample=response.page.items[0];
-  const historical:NewsResponse={...response,page:{items:[{...sample,id:'a'.repeat(64),publishedDate:'2025-12-31'},{...sample,id:'b'.repeat(64),publishedDate:'2026-01-01'},{...sample,id:'c'.repeat(64),publishedDate:null,publishedAt:null}],invalid:0,truncated:false}};
+  const historical:NewsResponse={...response,page:{items:[{...sample,id:'a'.repeat(64),publication_date:'2025-12-31'},{...sample,id:'b'.repeat(64),publication_date:'2026-01-01'},{...sample,id:'c'.repeat(64),publication_date:null,published_at:null}],invalid:0,truncated:false}};
   const first=await store.acquire(source,at,'first');assert.ok(first);await store.commit(source,first,historical,at);
   assert.equal([...records.keys()].filter(key=>key.startsWith('events/')).length,1);
   assert.equal(records.get(`events/${eventDocumentId('company_news','b'.repeat(64))}`)?.baseline,true);
   const nextAt=new Date(at.getTime()+source.pollMs),next=await store.acquire(source,nextAt,'next');assert.ok(next);
-  await store.commit(source,next,{...response,page:{items:[{...sample,id:'d'.repeat(64),publishedDate:'2025-12-31'},{...sample,id:'e'.repeat(64),publishedDate:null,publishedAt:null}],invalid:0,truncated:false}},nextAt);
+  await store.commit(source,next,{...response,page:{items:[{...sample,id:'d'.repeat(64),publication_date:'2025-12-31'},{...sample,id:'e'.repeat(64),publication_date:null,published_at:null}],invalid:0,truncated:false}},nextAt);
   assert.equal(records.has(`events/${eventDocumentId('company_news','d'.repeat(64))}`),false);
-  assert.equal(records.get(`events/${eventDocumentId('company_news','e'.repeat(64))}`)?.firstObservedAt,nextAt.toISOString());
+  assert.equal(records.get(`events/${eventDocumentId('company_news','e'.repeat(64))}`)?.collected_at,nextAt.toISOString());
 });
 test('successful hourly scans stay due at the next hour despite completion jitter',async()=>{
   const {db,records}=memoryDb(),store=firestoreNewsStore(db),completion=new Date('2026-10-02T16:00:20Z');
@@ -83,7 +83,7 @@ test('the shared events collection preserves other event kinds and keeps the new
   const {db,records}=memoryDb(),store=firestoreNewsStore(db),response=page('shared');assert.equal(response.status,'modified');
   if(response.status!=='modified')return;
   const item=response.page.items[0],otherId=eventDocumentId('sec_filing',item.id);
-  const other={...item,id:otherId,version:1,type:'sec_filing',sourceType:'sec',companyIds:[source.companyId],baseline:false,firstObservedAt:at.toISOString()};
+  const other={...item,id:otherId,version:1,type:'sec_filing',sourceType:'sec',companyIds:[source.companyId],baseline:false,collected_at:at.toISOString()};
   records.set(`${EVENTS_COLLECTION}/${otherId}`,other);
   const cursor=await store.acquire(source,at,'news');assert.ok(cursor);await store.commit(source,cursor,response,at);
   assert.equal(NEWS_EVENTS_COLLECTION,'events');assert.equal(records.get(`${EVENTS_COLLECTION}/${otherId}`),other);
@@ -100,11 +100,11 @@ test('initial history remains baseline; later arrivals are immutable and retries
   const nextAt=new Date(at.getTime()+source.pollMs),next=await store.acquire(source,nextAt,'next');assert.ok(next);
   await store.commit(source,next,page('new'),nextAt);
   const values=[...records.entries()].filter(([key])=>key.startsWith(NEWS_EVENTS_COLLECTION+'/')).map(([,value])=>value);
-  assert.equal(values.length,2);assert.equal(values[0].baseline,true);assert.equal(values[1].baseline,false);assert.equal(values[1].firstObservedAt,nextAt.toISOString());
+  assert.equal(values.length,2);assert.equal(values[0].baseline,true);assert.equal(values[1].baseline,false);assert.equal(values[1].collected_at,nextAt.toISOString());
   const retryAt=new Date(nextAt.getTime()+source.pollMs),retry=await store.acquire(source,retryAt,'retry');assert.ok(retry);await store.commit(source,retry,page('new'),retryAt);
-  assert.equal(values[1].firstObservedAt,nextAt.toISOString());assert.equal(records.size,3);
+  assert.equal(values[1].collected_at,nextAt.toISOString());assert.equal(records.size,3);
   const graph:KnowledgeGraph={nodes:[{id:source.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-02'};
-  const projected=projectCollectedNews(values,graph,retryAt);assert.equal(projected.length,1);assert.equal(projected[0].observedAt,nextAt.toISOString());assert.deepEqual(projected[0].edgeIds,[]);
+  const projected=projectCollectedNews(values,graph,retryAt);assert.equal(projected.length,2);assert.equal(projected[0].published_at,'2026-10-02T12:00:00.000Z');assert.equal('collected_at' in projected[0],false);assert.equal('processed_at' in projected[0],false);assert.deepEqual(projected[0].edgeIds,[]);
 });
 test('failed scans keep their previous validators and first-seen state; stale leases cannot commit',async()=>{
   const {db,records}=memoryDb(),store=firestoreNewsStore(db),first=await store.acquire(source,at,'first');assert.ok(first);
@@ -117,4 +117,25 @@ test('failed scans keep their previous validators and first-seen state; stale le
 test('runner respects provider backoff without losing prior collector health',async()=>{
   const {db,records}=memoryDb();await collectNewsSources([source],firestoreNewsStore(db),async()=>{throw new NewsFetchError('HTTP 429',7_200_000);},()=>at);
   assert.equal(records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)?.nextPollAt,new Date(at.getTime()+7_200_000).toISOString());
+});
+
+test('publication time owns replay even when collection is delayed; operational fields stay private',()=>{
+  const graph:KnowledgeGraph={nodes:[{id:source.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-02'};
+  const item=parseNewsFeed(rss(entry('delayed')),source).items[0];
+  const record={...item,id:'delayed',version:1,type:'company_news',sourceType:'company_ir',companyIds:[source.companyId],baseline:true,collected_at:'2026-10-02T16:00:00Z',processed_at:'2026-10-02T16:00:03Z'};
+  const [event]=projectCollectedNews([record],graph,at);
+  assert.equal(event.published_at,'2026-10-02T12:00:00.000Z');
+  assert.equal('collected_at' in event,false);assert.equal('processed_at' in event,false);
+  const [dateOnly]=projectCollectedNews([{...record,published_at:null,publication_date:'2026-10-01'}],graph,at);
+  assert.equal(dateOnly.published_at,null);assert.equal(dateOnly.publication_date,'2026-10-01');
+  assert.equal(projectCollectedNews([{...record,published_at:null,publication_date:null}],graph,at).length,0);
+});
+
+test('collection and normalization completion are stored separately and survive retries',async()=>{
+  const {db,records}=memoryDb(),store=firestoreNewsStore(db),cursor=await store.acquire(source,at,'first');assert.ok(cursor);
+  const response=page('timed');if(response.status!=='modified')throw new Error('Expected response');
+  await store.commit(source,cursor,{...response,collected_at:'2026-10-02T15:59:58.000Z'},at);
+  const record=[...records.entries()].find(([key])=>key.startsWith('events/'))![1];
+  assert.equal(record.published_at,'2026-10-02T12:00:00.000Z');
+  assert.equal(record.collected_at,'2026-10-02T15:59:58.000Z');assert.equal(record.processed_at,at.toISOString());
 });

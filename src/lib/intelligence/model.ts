@@ -5,7 +5,7 @@ export type IntelligenceSource = typeof INTELLIGENCE_SOURCES[number];
 export type IntelligenceEvidence = { id:string; url:string; title:string; sourceDate:string|null; channel:IntelligenceSource };
 export type IntelligenceEvent = {
   id:string; origin:string; companyIds:string[]; edgeIds:string[]; category:'FILING'|'RESEARCH'|'BUSINESS';
-  title:string; summary:string; observedAt:string|null; observedDate:string; eventDate:string|null;
+  title:string; summary:string; published_at:string|null; publication_date:string; eventDate:string|null;
   evidence:IntelligenceEvidence[]; planned:boolean;
 };
 export type IntelligenceSnapshot = {
@@ -84,7 +84,7 @@ export function sourceChannel(raw:string):IntelligenceSource {
 /** The same source document shared by several relationships counts once. */
 export function summarizeIntelligence(events:IntelligenceEvent[],companyIds:string[],channel:IntelligenceSource|'',cutoff?:number) {
   const scope=new Set(companyIds);
-  const visible=events.filter(event=>event.companyIds.some(id=>scope.has(id))&&(!channel||event.evidence.some(source=>source.channel===channel))&&(cutoff===undefined||Boolean(event.observedAt&&Date.parse(event.observedAt)<=cutoff)));
+  const visible=events.filter(event=>event.companyIds.some(id=>scope.has(id))&&(!channel||event.evidence.some(source=>source.channel===channel))&&(cutoff===undefined||Boolean(event.published_at&&Date.parse(event.published_at)<=cutoff)));
   const evidence=new Map<string,IntelligenceEvidence>();
   for(const event of visible)for(const source of event.evidence)if(!channel||source.channel===channel)evidence.set(source.url,source);
   const active=new Set(visible.flatMap(event=>event.companyIds).filter(id=>scope.has(id)));

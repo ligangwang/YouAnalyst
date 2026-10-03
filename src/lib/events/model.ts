@@ -11,9 +11,10 @@ export type StoredEvent = {
   title:string;
   summary:string;
   url:string;
-  publishedAt:string|null;
-  publishedDate:string|null;
-  firstObservedAt:string;
+  published_at:string|null;
+  publication_date:string|null;
+  collected_at:string;
+  processed_at:string;
   baseline:boolean;
 };
 

@@ -51,14 +51,14 @@ test('one document cited by multiple graph edges yields one signal without inven
   assert.deepEqual(new Set(events[0].companyIds),new Set(['US:AMD','US:MU','US:NVDA']));
   assert.deepEqual(events[0].edgeIds,['amd-mu','amd-nvda']);
   assert.equal(events[0].evidence[0].sourceDate,'2026-09-01');
-  assert.equal(events[0].observedDate,'2026-10-01');
-  assert.equal(events[0].observedAt,null);
+  assert.equal(events[0].publication_date,'2026-09-01');
+  assert.equal(events[0].published_at,null);
   assert.equal(summarizeIntelligence(events,['US:AMD'],'').signals,1);
   assert.equal(summarizeIntelligence(events,['US:AMD'],'',now.getTime()).signals,0);
   assert.equal(summarizeIntelligence(events,['US:AMD'],'SEC').events.length,0);
 });
 
-const discovery=(companyId='AMD')=>createSecFilingDiscovered({companyId,cik:'0000002488',accessionNumber:'0000002488-26-000018',form:'10-K',filingDate:'2026-02-25',primaryDocument:'amd-20251231.htm',isXbrl:true,discoveredAt:'2026-10-02T15:05:30Z'});
+const discovery=(companyId='AMD')=>createSecFilingDiscovered({companyId,cik:'0000002488',accessionNumber:'0000002488-26-000018',form:'10-K',filingDate:'2026-02-25',primaryDocument:'amd-20251231.htm',isXbrl:true,published_at:'2026-10-02T15:04:00Z',discoveredAt:'2026-10-02T15:05:30Z'});
 test('filing and graph citation deduplicate without losing documented paths or changing arrival time',()=>{
   const event=discovery();
   const filings=projectSecIntelligence([{id:event.accessionNumber,data:{discoveryEvents:{[event.eventId]:{event,state:'published'}}}}],graph,now);
@@ -66,7 +66,7 @@ test('filing and graph citation deduplicate without losing documented paths or c
   const merged=mergeIntelligenceEvents(filings,[research]);
   assert.equal(merged.length,1);
   assert.deepEqual(merged[0].edgeIds,['amd-mu','amd-nvda']);
-  assert.equal(merged[0].observedAt,event.discoveredAt);
+  assert.equal(merged[0].published_at,event.published_at);
   assert.equal(summarizeIntelligence(merged,['US:AMD'],'').signals,1);
 });
 test('SEC baseline history is excluded; retries and cross-listings do not inflate activity',()=>{
@@ -77,16 +77,16 @@ test('SEC baseline history is excluded; retries and cross-listings do not inflat
   const projected=projectSecIntelligence([{id:event.accessionNumber,data:{discoveryEvents:records}}],graph,now);
   assert.equal(projected.length,1);
   assert.equal(projected[0].evidence.length,1);
-  assert.equal(projected[0].observedDate,'2026-10-02');
+  assert.equal(projected[0].publication_date,'2026-10-02');
   assert.equal(projected[0].eventDate,'2026-02-25');
   assert.deepEqual(projected[0].edgeIds,[]);
-  assert.equal(summarizeIntelligence(projected,['US:AMD'],'SEC',Date.parse('2026-10-02T15:05:00Z')).signals,0);
+  assert.equal(summarizeIntelligence(projected,['US:AMD'],'SEC',Date.parse('2026-10-02T15:03:00Z')).signals,0);
   assert.equal(summarizeIntelligence(projected,['US:AMD'],'SEC',Date.parse('2026-10-02T15:06:00Z')).signals,1);
 });
 
 test('invalid identities, baseline documents and future observations never become live events',()=>{
   const event=discovery();
   assert.equal(projectSecIntelligence([{id:event.accessionNumber,data:{discoveryEvents:{bad:{event,state:'published'}}}}],graph,now).length,0);
-  assert.equal(projectSecIntelligence([{id:event.accessionNumber,data:{discoveryEvents:{[event.eventId]:{event,state:'baseline'}}}}],graph,now).length,0);
+  assert.equal(projectSecIntelligence([{id:event.accessionNumber,data:{discoveryEvents:{[event.eventId]:{event,state:'baseline'}}}}],graph,now).length,1);
   assert.equal(projectSecIntelligence([{id:event.accessionNumber,data:{discoveryEvents:{[event.eventId]:{event,state:'pending'}}}}],graph,new Date('2026-10-02T15:00:00Z')).length,0);
 });

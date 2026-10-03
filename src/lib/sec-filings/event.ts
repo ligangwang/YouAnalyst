@@ -17,6 +17,9 @@ export type SecFilingDiscovered = {
   primaryDocument: string;
   isXbrl: boolean;
   discoveredAt: string;
+  /** Source SEC acceptance time; legacy messages can omit it. */
+  published_at?: string | null;
+  collected_at?: string;
 };
 
 export function isSecFilingDate(value: unknown): value is string {
@@ -48,7 +51,14 @@ export function parseSecFilingDiscovered(value: unknown): SecFilingDiscovered {
   if (v.eventId !== secFilingEventId(v.companyId, v.cik, v.accessionNumber)) throw new Error("Invalid SEC filing event identity");
   return { version: 1, type: "sec.filing.discovered", eventId: v.eventId, batchId: v.eventId,
     companyId: v.companyId, cik: v.cik, accessionNumber: v.accessionNumber, form: v.form,
-    filingDate: v.filingDate, primaryDocument: v.primaryDocument, isXbrl: v.isXbrl, discoveredAt: v.discoveredAt };
+    filingDate: v.filingDate, primaryDocument: v.primaryDocument, isXbrl: v.isXbrl, discoveredAt: v.discoveredAt,
+    published_at: sourcePublication(v.published_at), collected_at: v.discoveredAt };
+}
+
+/** A SEC source datetime must have an explicit timezone. */
+export function sourcePublication(value:unknown):string|null {
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(value)||!isSecFilingDate(value.slice(0,10))||!Number.isFinite(Date.parse(value)))return null;
+  return new Date(value).toISOString();
 }
 
 export function createSecFilingDiscovered(input: Omit<SecFilingDiscovered, "version" | "type" | "eventId" | "batchId">) {

@@ -1,8 +1,9 @@
 import { updateReasons, eventMapUrl, type UpdateReason, type BusinessEvent } from "./business-events";
 import type { KnowledgeGraph } from "./model";
 import { relationAnchor, researchCompanyUrl } from "./research-view";
+import { observation } from '../intelligence/model';
 
-export type CompanyUpdate = { id: string; kind: "RESEARCH" | "BUSINESS"; reasons?: UpdateReason[]; business?: BusinessEvent; mapHref?: string; companyIds: string[]; collectedAt: string; eventDate: string | null; sourceDate: string | null; sourceUrl: string; sourceTitle: string; description: string; href: string; edgeId?: string; factId?: string; state?: string };
+export type CompanyUpdate = { id: string; kind: "RESEARCH" | "BUSINESS"; reasons?: UpdateReason[]; business?: Omit<BusinessEvent,'collectedAt'>; mapHref?: string; companyIds: string[]; published_at?:string|null; collectedAt?: string; eventDate: string | null; sourceDate: string | null; sourceUrl: string; sourceTitle: string; description: string; href: string; edgeId?: string; factId?: string; state?: string };
 const date = (value: unknown): string | null => typeof value === "string" && /^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
 export function companyUpdates(graph: KnowledgeGraph, followedIds: string[], events: BusinessEvent[] = []): CompanyUpdate[] {
   const followed = new Set(followedIds), nodes = new Map(graph.nodes.filter(n => n.kind === "COMPANY").map(n => [n.id, n]));
@@ -34,5 +35,12 @@ export function companyUpdates(graph: KnowledgeGraph, followedIds: string[], eve
     item.reasons ??= updateReasons(graph, followedIds, item.companyIds).filter(r => !r.edgeId);
     item.mapHref ??= eventMapUrl(item.reasons[0]?.companyId ?? item.companyIds[0], undefined, item.edgeId);
   }
-  return [...new Map(items.map(i => [i.id,i])).values()].sort((a,b) => b.collectedAt.localeCompare(a.collectedAt) || a.id.localeCompare(b.id));
+  return [...new Map(items.map(i => [i.id,i])).values()].map(item=>{
+    // The public response deliberately omits operational timestamps, including nested history.
+    const {collectedAt: _collectedAt,business,...publicItem}=item;
+    void _collectedAt;
+    const published_at=observation(item.sourceDate)?.at??null;
+    if(business){const {collectedAt: _businessCollectedAt,...publicBusiness}=business as BusinessEvent;void _businessCollectedAt;return {...publicItem,published_at,business:publicBusiness};}
+    return {...publicItem,published_at};
+  }).sort((a,b) => (b.published_at??b.sourceDate??'').localeCompare(a.published_at??a.sourceDate??'') || a.id.localeCompare(b.id));
 }

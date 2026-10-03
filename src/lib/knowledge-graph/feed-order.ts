@@ -1,17 +1,11 @@
 import type { CompanyUpdate } from "./company-updates";
 
-/** "event": event/announcement date, newest first (source date, then collected date when no event date). "added": collected date. */
+/** Legacy order selectors are accepted; investor ordering always uses source publication. */
 export type FeedOrder = "event" | "added";
 /** One feed card: a primary update plus evidence updates that describe the same event. */
 export type FeedEntry = { item: CompanyUpdate; evidence: CompanyUpdate[] };
 
 const day = (value: string | null | undefined): string | null => value ? value.slice(0, 10) : null;
-
-/** The event happened before it was collected, so the collection date is not a new business event. */
-export function collectedLater(item: CompanyUpdate): boolean {
-  const eventDay = day(item.eventDate);
-  return Boolean(eventDay && day(item.collectedAt)! > eventDay);
-}
 
 function sameEvent(evidence: CompanyUpdate, event: CompanyUpdate): boolean {
   if (evidence.sourceUrl && evidence.sourceUrl === event.sourceUrl) return true;
@@ -33,16 +27,12 @@ export function groupFeedUpdates(items: CompanyUpdate[]): FeedEntry[] {
     if (event) entries.get(event.id)!.evidence.push(item);
     else standalone.push({ item, evidence: [] });
   }
-  for (const entry of entries.values()) entry.evidence.sort((a, b) => b.collectedAt.localeCompare(a.collectedAt) || a.id.localeCompare(b.id));
+  for (const entry of entries.values()) entry.evidence.sort((a, b) => (b.published_at??b.sourceDate??'').localeCompare(a.published_at??a.sourceDate??'') || a.id.localeCompare(b.id));
   return [...entries.values(), ...standalone];
 }
 
-/** Most recent collection/review time across a card and its grouped evidence. */
-export function entryCollectedAt(entry: FeedEntry): string {
-  return entry.evidence.reduce((latest, item) => item.collectedAt > latest ? item.collectedAt : latest, entry.item.collectedAt);
-}
-
 export function orderFeed(entries: FeedEntry[], order: FeedOrder = "event"): FeedEntry[] {
-  const key = (entry: FeedEntry) => order === "event" ? day(entry.item.eventDate) ?? day(entry.item.sourceDate) ?? day(entry.item.collectedAt) ?? "" : entryCollectedAt(entry);
-  return [...entries].sort((a, b) => key(b).localeCompare(key(a)) || entryCollectedAt(b).localeCompare(entryCollectedAt(a)) || a.item.id.localeCompare(b.item.id));
+  void order; // Legacy URLs still resolve to the publication-ordered investor feed.
+  const key = (entry: FeedEntry) => entry.item.published_at??entry.item.sourceDate??'';
+  return [...entries].sort((a, b) => key(b).localeCompare(key(a)) || a.item.id.localeCompare(b.item.id));
 }
