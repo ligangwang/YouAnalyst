@@ -82,7 +82,7 @@ function IntelligenceWorkspace({snapshot,error,reconnect,onReplayChange}:{snapsh
   const inWindow=snapshot.events.filter(event=>window==='recent'||event.publication_date===snapshot.session.date);
   const scopeIds=scope.map(node=>node.id);
   const activity=summarizeIntelligence(inWindow,scopeIds,sourceFilter,cutoff);
-  const sourceActivity=summarizeIntelligence(inWindow,scopeIds,'',cutoff).sources;
+  const sourceActivity=summarizeIntelligence(inWindow,scopeIds,'',cutoff).sources.filter(source=>snapshot.coverage.some(item=>item.channel===source.name&&item.status!=='unavailable')&&(source.name!=='Other'||source.count>0));
   const events=activity.events;
   const recentFallback=mode==='live'&&window==='today'&&!events.length;
   const overviewEvents=recentFallback?summarizeIntelligence(snapshot.events,scopeIds,sourceFilter).events:events;
