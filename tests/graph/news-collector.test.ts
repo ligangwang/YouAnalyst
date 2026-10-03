@@ -181,3 +181,18 @@ test('publisher concurrency is bounded, failures are isolated and result order i
   assert.equal(max,2);assert.deepEqual(results.map(result=>result.sourceId),sources.map(source=>source.id));
   assert.equal(results[1].status,'failed');assert.equal(results.filter(result=>result.status==='ok').length,4);
 });
+
+
+test('unresolved article dates fail without advancing the checkpoint and are retried',async()=>{
+  const apple=NEWS_SOURCES.find(source=>source.id==='apple-news')!,{db,records}=memoryDb(),store=firestoreNewsStore(db);
+  const xml='<feed><entry><title>Update</title><link href="https://www.apple.com/newsroom/article"/><updated>2026-10-02T15:00:00Z</updated></entry></feed>';
+  let resolved=false,articleReads=0;
+  const request:typeof fetch=async url=>{if(String(url).endsWith('.rss'))return new Response(xml,{headers:{etag:'new-version'}});articleReads++;return new Response(resolved?'<span class="category-eyebrow__date">October 2, 2026</span>':'<html>No original date yet</html>');};
+  const read:typeof fetchNews=(source,validators,_request,known)=>fetchNews(source,validators,request,known);
+  const first=await collectNewsSources([apple],store,read,()=>at);assert.equal(first[0].status,'failed');
+  const state=records.get(`collectors/${apple.id}`)!;assert.deepEqual(state.validators,{});assert.deepEqual(state.itemIds,[]);assert.equal(state.lastSuccessAt,null);
+  assert.equal([...records.keys()].filter(key=>key.startsWith('events/')).length,0);
+  resolved=true;const later=new Date(at.getTime()+apple.pollMs);
+  const next=await collectNewsSources([apple],store,read,()=>later);assert.equal(next[0].status,'ok');assert.equal(next[0].created,1);assert.equal(articleReads,2);
+  const event=[...records.entries()].find(([key])=>key.startsWith('events/'))![1];assert.equal(event.publication_date,'2026-10-02');assert.equal(event.published_at,null);
+});

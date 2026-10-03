@@ -20,7 +20,9 @@ publisher failure does not discard successful collection from another.
 Apple's Atom feed has `updated` without `published`. Its adapter reads the
 visible `category-eyebrow__date` from the article and keeps `published_at: null`;
 Atom update timestamps and article modification dates never enter replay.
-Missing visible dates mark the scan partial. Only unseen article IDs are fetched.
+Missing visible dates fail the scan without advancing validators or known IDs,
+so the same articles are retried after backoff. Only resolved article IDs become
+known. Subsequent scans fetch only unseen articles.
 
 CoreWeave's RSS and JSON-LD publication fields can reflect a CMS rebuild rather
 than original publication. Its collector reads the article's visible `Published

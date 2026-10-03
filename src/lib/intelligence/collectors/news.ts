@@ -109,9 +109,10 @@ export async function fetchNews(source:NewsSource,validators:NewsValidators={},r
     const xml=Buffer.concat(chunks).toString('utf8');
     const page=parseNewsFeed(xml,source);
     if(source.publicationFromArticle){
-      const known=new Set(knownIds),pending=page.items.filter(item=>!known.has(item.id)),articleSignal=AbortSignal.timeout(60_000);let next=0;
+      const known=new Set(knownIds),pending=page.items.filter(item=>!known.has(item.id)),articleSignal=AbortSignal.timeout(60_000);let next=0,unresolved=0;
       // Bound concurrency and only fetch newly discovered articles on later scans.
-      await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{while(next<pending.length){const item=pending[next++];item.publication_date=await readArticleDay(item,source,request,articleSignal);if(!item.publication_date)page.invalid++;}}));
+      await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{while(next<pending.length){const item=pending[next++];item.publication_date=await readArticleDay(item,source,request,articleSignal);if(!item.publication_date)unresolved++;}}));
+      if(unresolved)throw new NewsFetchError(`Original publication date unavailable for ${unresolved} article(s)`,source.pollMs);
     }
     return {status:'modified',collected_at,page,validators:{...(response.headers.get('etag')?{etag:response.headers.get('etag')!}:{}),...(response.headers.get('last-modified')?{lastModified:response.headers.get('last-modified')!}:{})}};
   }
