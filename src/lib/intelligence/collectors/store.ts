@@ -30,7 +30,10 @@ export function firestoreNewsStore(db:Firestore):NewsStore{
         const event:CollectedNews={...item,id:eventDocumentId('company_news',item.id),version:1,type:'company_news',sourceType:'company_ir',companyIds:[source.companyId],firstObservedAt:at.toISOString(),baseline};
         tx.create(refs[index],event);created++;
       });
-      tx.set(ref,{...state,baselineAt:state.baselineAt??at.toISOString(),lastSuccessAt:at.toISOString(),nextPollAt:new Date(at.getTime()+source.pollMs).toISOString(),failures:0,lastError:null,leaseId:'',leaseUntil:at.toISOString(),validators:response.status==='modified'?response.validators:state.validators,itemIds:response.status==='modified'?items.map(item=>item.id):state.itemIds,partial:response.status==='modified'?(response.page.invalid>0||response.page.truncated):state.partial});
+      // Align successful scans to the next schedule boundary, not an hour after
+      // completion; otherwise a few seconds of jitter can skip the next run.
+      const nextPollAt=new Date((Math.floor(at.getTime()/source.pollMs)+1)*source.pollMs).toISOString();
+      tx.set(ref,{...state,baselineAt:state.baselineAt??at.toISOString(),lastSuccessAt:at.toISOString(),nextPollAt,failures:0,lastError:null,leaseId:'',leaseUntil:at.toISOString(),validators:response.status==='modified'?response.validators:state.validators,itemIds:response.status==='modified'?items.map(item=>item.id):state.itemIds,partial:response.status==='modified'?(response.page.invalid>0||response.page.truncated):state.partial});
       return {created,baseline};
     }),
     fail:(source,cursor,error,retryAt)=>db.runTransaction(async tx=>{

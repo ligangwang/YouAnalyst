@@ -60,6 +60,12 @@ function memoryDb(){
   return {db:db as unknown as Firestore,records};
 }
 const page=(id:string):NewsResponse=>({status:'modified',page:parseNewsFeed(rss(entry(id)),source),validators:{etag:id}});
+test('successful hourly scans stay due at the next hour despite completion jitter',async()=>{
+  const {db,records}=memoryDb(),store=firestoreNewsStore(db),completion=new Date('2026-10-02T16:00:20Z');
+  const cursor=await store.acquire(source,at,'first');assert.ok(cursor);await store.commit(source,cursor,page('history'),completion);
+  assert.equal(records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)?.nextPollAt,'2026-10-02T17:00:00.000Z');
+  assert.ok(await store.acquire(source,new Date('2026-10-02T17:00:01Z'),'next'));
+});
 test('the shared events collection preserves other event kinds and keeps the news projection typed',async()=>{
   const {db,records}=memoryDb(),store=firestoreNewsStore(db),response=page('shared');assert.equal(response.status,'modified');
   if(response.status!=='modified')return;

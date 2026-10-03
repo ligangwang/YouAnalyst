@@ -9,7 +9,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib/maintenance-job-iam.sh"
 check_maintenance_job_iam "$job"
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --tasks 1 --parallelism 1 \
-  --max-retries 1 --task-timeout 5m --memory 512Mi --cpu 1 \
+  --max-retries 0 --task-timeout 5m --memory 512Mi --cpu 1 \
   --command node --args dist/collect-intelligence-news.cjs,--apply \
   --set-env-vars "GCP_PROJECT_ID=$GCP_PROJECT_ID,GIT_SHA=${GIT_SHA:-unknown},INTELLIGENCE_NEWS_COLLECTOR_ENABLED=${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" --quiet
 ensure_maintenance_job_iam "$job"

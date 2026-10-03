@@ -57,6 +57,7 @@ test('official news deploy is isolated, bounded and disabled by default',()=>{
   assert.equal(r.calls.match(/builds submit/g)?.length,1);
   assert.match(r.calls,/run jobs deploy collect-intelligence-news-production .*--tasks 1 --parallelism 1/);
   assert.match(r.calls,/--task-timeout 5m/);
+  assert.match(r.calls,/--max-retries 0/);
   assert.match(r.calls,/--args dist\/collect-intelligence-news.cjs,--apply/);
   assert.match(r.calls,/INTELLIGENCE_NEWS_COLLECTOR_ENABLED=0/);
   assert.doesNotMatch(r.calls,/pubsub|run jobs execute|scheduler jobs resume|run deploy/);
