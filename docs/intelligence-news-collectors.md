@@ -8,12 +8,12 @@ after checking its feed, company identity and exact article hosts.
 ## Storage and time semantics
 
 The user-approved universal `events` collection stores normalized events across
-source types. Its shared envelope includes `kind`, `sourceType`, `sourceId`,
+source types. Its shared envelope includes `type`, `sourceType`, `sourceId`,
 `companyIds`, canonical source URL, title, summary, publication dates and
 immutable first-observed timestamps. This first collector writes
-`kind: company_news`, `sourceType: company_ir`. Event IDs are namespaced by kind
+`type: company_news`, `sourceType: company_ir`. Event IDs are namespaced by kind
 so other event types sharing a URL cannot collide. The news reader filters by
-kind and source type before applying its bounded arrival window.
+event type and source type before applying its bounded arrival window.
 
 The user-selected shared `collectors` collection stores per-feed checkpoints,
 HTTP validators, leases, baseline state and run health. Each collector owns one
@@ -43,7 +43,7 @@ replay. Failed, partial or stale feeds cannot report current IR coverage.
    This path never initializes Firestore.
 2. Run `npx tsx --test tests/graph/news-collector.test.ts tests/graph/intelligence-service.test.ts`.
 3. Apply the `events` composite index
-   (`kind ASC`, `sourceType ASC`, `baseline ASC`, `firstObservedAt DESC`)
+   (`type ASC`, `sourceType ASC`, `baseline ASC`, `firstObservedAt DESC`)
    and wait until ready.
 4. Build/deploy the isolated worker with
    `INTELLIGENCE_NEWS_COLLECTOR_ENABLED=1 bash scripts/deploy-background-jobs.sh intelligence-news`.

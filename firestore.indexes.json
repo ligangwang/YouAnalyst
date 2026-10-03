@@ -4,7 +4,7 @@
       "collectionGroup": "events",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "sourceType", "order": "ASCENDING" },
         { "fieldPath": "baseline", "order": "ASCENDING" },
         { "fieldPath": "firstObservedAt", "order": "DESCENDING" }

@@ -4,7 +4,7 @@ import type {NewsSource} from './sources';
 import type {StoredEvent} from '../../events/model';
 
 export type NewsCursor={version:1;sourceId:string;baselineAt:string|null;lastSuccessAt:string|null;nextPollAt:string;failures:number;validators:NewsValidators;itemIds:string[];leaseId:string;leaseUntil:string;lastError:string|null;partial:boolean};
-export type CollectedNews=NewsItem&StoredEvent&{kind:'company_news';sourceType:'company_ir'};
+export type CollectedNews=NewsItem&StoredEvent&{type:'company_news';sourceType:'company_ir'};
 export interface NewsStore{
   acquire(source:NewsSource,at:Date,leaseId:string):Promise<NewsCursor|null>;
   commit(source:NewsSource,cursor:NewsCursor,response:NewsResponse,at:Date):Promise<{created:number;baseline:boolean}>;

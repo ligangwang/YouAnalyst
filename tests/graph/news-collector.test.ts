@@ -64,12 +64,12 @@ test('the shared events collection preserves other event kinds and keeps the new
   const {db,records}=memoryDb(),store=firestoreNewsStore(db),response=page('shared');assert.equal(response.status,'modified');
   if(response.status!=='modified')return;
   const item=response.page.items[0],otherId=eventDocumentId('sec_filing',item.id);
-  const other={...item,id:otherId,version:1,kind:'sec_filing',sourceType:'sec',companyIds:[source.companyId],baseline:false,firstObservedAt:at.toISOString()};
+  const other={...item,id:otherId,version:1,type:'sec_filing',sourceType:'sec',companyIds:[source.companyId],baseline:false,firstObservedAt:at.toISOString()};
   records.set(`${EVENTS_COLLECTION}/${otherId}`,other);
   const cursor=await store.acquire(source,at,'news');assert.ok(cursor);await store.commit(source,cursor,response,at);
   assert.equal(NEWS_EVENTS_COLLECTION,'events');assert.equal(records.get(`${EVENTS_COLLECTION}/${otherId}`),other);
   const news=records.get(`${EVENTS_COLLECTION}/${eventDocumentId('company_news',item.id)}`)!;
-  assert.equal(news.kind,'company_news');assert.equal(news.sourceType,'company_ir');assert.deepEqual(news.companyIds,[source.companyId]);
+  assert.equal(news.type,'company_news');assert.equal(news.sourceType,'company_ir');assert.deepEqual(news.companyIds,[source.companyId]);
   const graph:KnowledgeGraph={nodes:[{id:source.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-02'};
   assert.equal(projectCollectedNews([other,{...news,baseline:false}],graph,at).length,1);
   assert.equal(projectCollectedNews([{...news,baseline:false,sourceType:'sec'}],graph,at).length,0);

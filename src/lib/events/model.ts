@@ -1,10 +1,10 @@
-/** Shared storage envelope for collected events; kind identifies the payload. */
+/** Shared storage envelope for collected events; type identifies the payload. */
 export const EVENTS_COLLECTION='events';
 
 export type StoredEvent = {
   version:1;
   id:string;
-  kind:string;
+  type:string;
   sourceType:string;
   sourceId:string;
   companyIds:string[];
