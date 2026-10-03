@@ -52,9 +52,9 @@ export type NewsResponse={status:'modified';page:NewsPage;validators:NewsValidat
 export class NewsFetchError extends Error{
   constructor(message:string,readonly retryAfterMs:number){super(message);}
 }
-/** CoreWeave's visible Published on date survives CMS rebuilds; its JSON-LD does not. */
-export function articlePublicationDay(html:string):string|null{
-  const value=html.match(/class=["'][^"']*\barticle-date-wrapper\b[^"']*["'][^>]*>\s*<div[^>]*>\s*Published on\s*<\/div>\s*<div[^>]*>([^<]+)<\/div>/i)?.[1]?.trim();
+/** Publisher-specific visible dates; CMS/Atom update times are never publication. */
+export function articlePublicationDay(html:string,format?:NewsSource['articleDateFormat']):string|null{
+  const value=format==='apple-newsroom'?html.match(/<span[^>]*class=["'][^"']*\bcategory-eyebrow__date\b[^"']*["'][^>]*>([^<]+)<\/span>/i)?.[1]?.trim():html.match(/class=["'][^"']*\barticle-date-wrapper\b[^"']*["'][^>]*>\s*<div[^>]*>\s*Published on\s*<\/div>\s*<div[^>]*>([^<]+)<\/div>/i)?.[1]?.trim();
   const match=value?.match(/^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})$/);
   if(!match)return null;
   const month=['January','February','March','April','May','June','July','August','September','October','November','December'].indexOf(match[1])+1;
@@ -66,7 +66,7 @@ async function readArticleDay(item:NewsItem,source:NewsSource,request:typeof fet
   let url=item.url;
   for(let redirects=0;redirects<=3;redirects++){
     if(!approvedNewsUrl(url,source))throw new Error('Unapproved article host');
-    const response=await request(url,{headers:{'User-Agent':'YouAnalyst/1.0 (+https://youanalyst.com)','Accept':'text/html'},redirect:'manual',signal});
+    const response=await request(url,{headers:{'User-Agent':'YouAnalyst/1.0','Accept':'text/html'},redirect:'manual',signal});
     if([301,302,303,307,308].includes(response.status)){
       const location=response.headers.get('location');await response.body?.cancel();
       if(!location)throw new Error('Article redirect has no location');url=new URL(location,url).toString();continue;
@@ -76,7 +76,7 @@ async function readArticleDay(item:NewsItem,source:NewsSource,request:typeof fet
     if(!response.body)throw new Error('Article response has no body');
     const reader=response.body.getReader(),chunks:Uint8Array[]=[];let bytes=0;
     try{while(true){const chunk=await reader.read();if(chunk.done)break;bytes+=chunk.value.byteLength;if(bytes>MAX_FEED_BYTES)throw new Error('Article exceeds size limit');chunks.push(chunk.value);}}finally{await reader.cancel();}
-    return articlePublicationDay(Buffer.concat(chunks).toString('utf8'));
+    return articlePublicationDay(Buffer.concat(chunks).toString('utf8'),source.articleDateFormat);
   }
   throw new Error('Too many article redirects');
 }
@@ -84,7 +84,7 @@ async function readArticleDay(item:NewsItem,source:NewsSource,request:typeof fet
 export async function fetchNews(source:NewsSource,validators:NewsValidators={},request:typeof fetch=fetch,knownIds:readonly string[]=[]):Promise<NewsResponse>{
   let url=source.url;
   const signal=AbortSignal.timeout(20_000);
-  const headers:Record<string,string>={'User-Agent':'YouAnalyst/1.0 (+https://youanalyst.com)','Accept':'application/rss+xml, application/atom+xml, application/xml, text/xml'};
+  const headers:Record<string,string>={'User-Agent':'YouAnalyst/1.0','Accept':'application/rss+xml, application/atom+xml, application/xml, text/xml'};
   if(validators.etag)headers['If-None-Match']=validators.etag;
   else if(validators.lastModified)headers['If-Modified-Since']=validators.lastModified;
   for(let redirects=0;redirects<=3;redirects++){
@@ -111,7 +111,7 @@ export async function fetchNews(source:NewsSource,validators:NewsValidators={},r
     if(source.publicationFromArticle){
       const known=new Set(knownIds),pending=page.items.filter(item=>!known.has(item.id)),articleSignal=AbortSignal.timeout(60_000);let next=0;
       // Bound concurrency and only fetch newly discovered articles on later scans.
-      await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{while(next<pending.length){const item=pending[next++];item.publication_date=await readArticleDay(item,source,request,articleSignal);}}));
+      await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{while(next<pending.length){const item=pending[next++];item.publication_date=await readArticleDay(item,source,request,articleSignal);if(!item.publication_date)page.invalid++;}}));
     }
     return {status:'modified',collected_at,page,validators:{...(response.headers.get('etag')?{etag:response.headers.get('etag')!}:{}),...(response.headers.get('last-modified')?{lastModified:response.headers.get('last-modified')!}:{})}};
   }

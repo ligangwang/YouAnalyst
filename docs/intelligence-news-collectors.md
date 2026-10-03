@@ -1,9 +1,26 @@
 # Official company news collectors
 
-The initial registry covers NVIDIA Newsroom, AMD Newsroom, Microsoft Corporate
-Blog, and CoreWeave Blog. These use publisher-owned public RSS feeds, without
-social providers, credentials, or paid enrichment. Add a publisher only
-after checking its feed, company identity and exact article hosts.
+The verified registry covers 19 AI Map companies: NVIDIA, AMD, Microsoft,
+CoreWeave, Broadcom, Marvell, KLA, Applied Materials, Lam Research, NXP,
+GlobalFoundries, Datadog, Arm, Alphabet/Google, Amazon, Apple, Intel, Arista,
+and Samsung Electronics. Sources are publisher-owned public RSS/Atom news,
+IR and corporate research feeds, without social providers or paid enrichment.
+Their configured company IDs are checked against the published AI Map. This
+is partial company coverage, not a claim that every AI Map company is monitored.
+Feed windows contain recent publications and are not complete 2026 archives.
+Each publisher was tested for valid articles, original publication fields,
+exact article hosts, and the January 1, 2026 history cutoff.
+
+The collector identifies itself as `YouAnalyst/1.0`. Including a parenthesized
+contact URL in the User-Agent caused otherwise valid IR feeds to time out.
+Two independent publishers run concurrently, retaining individual leases,
+conditional HTTP validators, retry backoff, and stable result ordering. One
+publisher failure does not discard successful collection from another.
+
+Apple's Atom feed has `updated` without `published`. Its adapter reads the
+visible `category-eyebrow__date` from the article and keeps `published_at: null`;
+Atom update timestamps and article modification dates never enter replay.
+Missing visible dates mark the scan partial. Only unseen article IDs are fetched.
 
 CoreWeave's RSS and JSON-LD publication fields can reflect a CMS rebuild rather
 than original publication. Its collector reads the article's visible `Published
@@ -53,8 +70,8 @@ alias. Transactions commit events and checkpoints together. HTTP validators,
 hourly per-source checkpoints, two-minute leases, bounded response sizes
 and provider Retry-After backoff keep collection bounded.
 
-The snapshot reads at most 201 exact-time and 201 date-only records over 30 days, returns at most 200 events, and reads four health
-documents, sharing its existing 60-second cache across browsers. The existing
+The snapshot reads at most 201 exact-time and 201 date-only records over 30 days, returns at most 200 events, and reads one health
+document per configured feed, sharing its existing 60-second cache across browsers. The existing
 UI refresh integrates publications into activity counts, event evidence and today's
 replay. Failed, partial or stale feeds cannot report current IR coverage.
 
@@ -80,3 +97,19 @@ replay. Failed, partial or stale feeds cannot report current IR coverage.
 The collector is disabled by default, separately from the web read flag. Setting
 `INTELLIGENCE_NEWS_ENABLED=0` and pausing the scheduler rolls the feature back
 without deleting evidence. No browser accesses these collections directly.
+
+## Compact dashboard summary
+
+The bottom bar exposes an explicit Today / 30d activity period, using the same
+filters as the evidence panel. Today always means original publication date in
+New York time; it can correctly be zero after midnight or on quiet days. 30d
+shows retained evidence from the existing bounded 30-day API window. Neither
+backfilling nor polling changes an article's publication position.
+
+`newsCoverage` exposes configured, healthy and total company counts, without
+operational timestamps. The compact News N/total badge shows configured feed
+coverage; its tooltip separately reports healthy collectors. Unknown/unconnected
+GitHub, X and Reddit sources remain unavailable rather than showing fake zeros.
+Collector freshness follows the approved weekday hourly schedule. Weekend
+pauses do not make a successful Friday collector stale; a missed Monday run,
+failed scan or partial scan still does.

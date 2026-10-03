@@ -46,11 +46,13 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
       warnings.push('SEC discovery feed is temporarily unavailable. Stored research evidence remains available.');
     }
     let news:Awaited<ReturnType<typeof loadCollectedNews>>|undefined;
+    let newsCoverage:IntelligenceSnapshot['newsCoverage'];
     if(process.env.INTELLIGENCE_NEWS_ENABLED==='1'&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay,LIMIT);
       const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id);
       const configured=new Set(NEWS_SOURCES.map(source=>source.companyId));
       const covered=companyIds.filter(id=>configured.has(id)).length;
+      newsCoverage={configured:covered,total:companyIds.length,healthy:companyIds.filter(id=>news!.healthyCompanyIds.includes(id)).length};
       if(covered<companyIds.length)warnings.push(`Company IR/news feeds cover ${covered} of ${companyIds.length} AI Map companies. Other companies do not yet have verified news collectors.`);
       truncated=truncated||news.truncated;
       if(!news.fresh)warnings.push(`Company news collector freshness is unverified: ${news.unhealthy.join(', ')}.`);
@@ -62,7 +64,7 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
     const graphVersion=createHash('sha256').update(JSON.stringify(graph)).digest('hex');
     const evidenceChannels=new Set(graph.sources.map(source=>sourceChannel(source.url)));
     for(const event of events)for(const source of event.evidence)evidenceChannels.add(source.channel);
-    const value:IntelligenceSnapshot={graph,graphVersion,events,generatedAt:now.toISOString(),session,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
+    const value:IntelligenceSnapshot={graph,graphVersion,events,generatedAt:now.toISOString(),session,newsCoverage,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
     cached={value,expires:now.getTime()+CACHE_MS};
     return value;
   })();

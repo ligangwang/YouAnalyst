@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'esbuild';
 import { createRequire } from 'node:module';
+import {NEWS_SOURCES} from '../../src/lib/intelligence/collectors/sources';
 import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
 
 const now=new Date('2026-10-02T16:00:00Z');
@@ -65,10 +66,11 @@ test('enabled official news arrives through the shared snapshot with current sou
     let newsReads=0;const filters:unknown[][]=[];
     const db={collection:(name:string)=>{
       const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,201);return query;},get:async()=>{if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
-    },getAll:async(...refs:unknown[])=>{assert.equal(refs.length,4);return refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}));}};
+    },getAll:async(...refs:unknown[])=>{assert.equal(refs.length,NEWS_SOURCES.length);return refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}));}};
     const service=await isolated(db,async()=>graph);
     const snapshot=await service.loadIntelligenceSnapshot(now);
     assert.equal(snapshot.coverage.find(item=>item.channel==='IR')?.status,'connected');
+    assert.deepEqual(snapshot.newsCoverage,{configured:1,healthy:1,total:2});
     assert.deepEqual(filters.slice(0,3),[['type','==','company_news'],['sourceType','==','company_ir'],['published_at','>=','2026-09-02T00:00:00.000Z']]);
     const arrival=snapshot.events.find(event=>event.id==='news-amd-release');assert.ok(arrival);
     assert.equal(arrival.published_at,'2026-10-02T12:05:00.000Z');assert.equal('collected_at' in arrival,false);assert.equal('processed_at' in arrival,false);assert.equal(arrival.evidence[0].channel,'IR');assert.deepEqual(arrival.edgeIds,[]);

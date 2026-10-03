@@ -5,7 +5,7 @@ import {NEWS_SOURCES} from '../../src/lib/intelligence/collectors/sources';
 import {articlePublicationDay,approvedNewsUrl,fetchNews,parseNewsFeed,MAX_FEED_BYTES,NewsFetchError,type NewsResponse} from '../../src/lib/intelligence/collectors/news';
 import {firestoreNewsStore,NEWS_EVENTS_COLLECTION,NEWS_COLLECTORS_COLLECTION} from '../../src/lib/intelligence/collectors/store';
 import {collectNewsSources} from '../../src/lib/intelligence/collectors/collector';
-import {projectCollectedNews} from '../../src/lib/intelligence/collectors/projection';
+import {projectCollectedNews,newsCollectorIsFresh} from '../../src/lib/intelligence/collectors/projection';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
 import {EVENTS_COLLECTION,eventDocumentId} from '../../src/lib/events/model';
 
@@ -152,4 +152,32 @@ test('collection and normalization completion are stored separately and survive 
   const record=[...records.entries()].find(([key])=>key.startsWith('events/'))![1];
   assert.equal(record.published_at,'2026-10-02T12:00:00.000Z');
   assert.equal(record.collected_at,'2026-10-02T15:59:58.000Z');assert.equal(record.processed_at,at.toISOString());
+});
+
+
+test('weekday hourly collector health remains valid through weekend pauses',()=>{
+  const hour=3_600_000,success='2026-10-03T03:00:05Z'; // Friday 23:00 ET
+  assert.equal(newsCollectorIsFresh(success,0,false,new Date('2026-10-04T16:00:00Z'),hour),true);
+  assert.equal(newsCollectorIsFresh(success,0,false,new Date('2026-10-05T08:00:00Z'),hour),false);
+  assert.equal(newsCollectorIsFresh(success,1,false,new Date('2026-10-04T16:00:00Z'),hour),false);
+  assert.equal(newsCollectorIsFresh(success,0,true,new Date('2026-10-04T16:00:00Z'),hour),false);
+  assert.equal(newsCollectorIsFresh('2026-10-04T17:00:00Z',0,false,new Date('2026-10-04T16:00:00Z'),hour),false);
+});
+test('Apple article date owns publication; Atom update time never becomes publication',async()=>{
+  const apple=NEWS_SOURCES.find(source=>source.id==='apple-news')!;
+  const xml='<feed><entry><title>Update</title><link href="https://www.apple.com/newsroom/article"/><updated>2026-10-02T15:00:00Z</updated></entry></feed>';
+  const html='<script>{"dateModified":"2026-10-02T15:00:00Z"}</script><span class="category-eyebrow__date">September 29, 2026</span>';
+  const response=await fetchNews(apple,{},async url=>new Response(String(url).endsWith('.rss')?xml:html));
+  assert.equal(response.status,'modified');if(response.status==='modified'){assert.equal(response.page.items[0].publication_date,'2026-09-29');assert.equal(response.page.items[0].published_at,null);}
+  assert.equal(articlePublicationDay(html.replace('September 29, 2026','February 30, 2026'),'apple-newsroom'),null);
+});
+test('publisher concurrency is bounded, failures are isolated and result order is stable',async()=>{
+  const sources=NEWS_SOURCES.slice(0,5),{db}=memoryDb();let running=0,max=0;
+  const results=await collectNewsSources(sources,firestoreNewsStore(db),async source=>{
+    running++;max=Math.max(max,running);await new Promise(resolve=>setTimeout(resolve,10));running--;
+    if(source.id===sources[1].id)throw new Error('publisher unavailable');
+    return {status:'modified',page:{items:[],invalid:0,truncated:false},validators:{}};
+  },()=>at);
+  assert.equal(max,2);assert.deepEqual(results.map(result=>result.sourceId),sources.map(source=>source.id));
+  assert.equal(results[1].status,'failed');assert.equal(results.filter(result=>result.status==='ok').length,4);
 });

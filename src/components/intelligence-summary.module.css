@@ -16,3 +16,6 @@
 .sourceMeter i { display:block; height:100%; border-radius:2px; }
 .sourceMeter[data-available=false] { opacity:.4; background:repeating-linear-gradient(90deg,#496070 0 2px,transparent 2px 4px); }
 @media(max-width:850px) { .summary { gap:4px 8px; padding:5px 8px; } .context { width:100%; } }
+
+.period { display:inline-flex; gap:1px; border:1px solid #263c4b; border-radius:4px; overflow:hidden; }
+.period button { font-size:9px; padding:2px 5px; }
