@@ -1,4 +1,4 @@
-.summary { display:flex; align-items:center; flex-wrap:wrap; gap:4px 12px; padding:6px 12px; min-height:34px; border-top:1px solid #213242; background:#0a1520; flex-shrink:0; font-size:10px; font-variant-numeric:tabular-nums; }
+.summary { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; padding:6px 12px; min-height:34px; border-top:1px solid #213242; background:#0a1520; flex-shrink:0; font-size:10px; font-variant-numeric:tabular-nums; }
 .summary button { padding:3px 4px; color:#9ab0c3; white-space:nowrap; }
 .summary button strong { color:#e4edf5; font-weight:500; margin-left:5px; }
 .summary button[aria-pressed=true] { background:#203a3e; color:#98e7d6; }
