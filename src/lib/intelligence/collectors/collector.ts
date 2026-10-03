@@ -3,6 +3,9 @@ import {fetchNews,NewsFetchError,type NewsItem,type NewsResponse,type NewsValida
 import type {NewsSource} from './sources';
 import type {StoredEvent} from '../../events/model';
 
+/** Initial archive starts in the launch year; keep publication and arrival time separate. */
+export const NEWS_HISTORY_START='2026-01-01';
+
 export type NewsCursor={version:1;sourceId:string;baselineAt:string|null;lastSuccessAt:string|null;nextPollAt:string;failures:number;validators:NewsValidators;itemIds:string[];leaseId:string;leaseUntil:string;lastError:string|null;partial:boolean};
 export type CollectedNews=NewsItem&StoredEvent&{type:'company_news';sourceType:'company_ir'};
 export interface NewsStore{

@@ -60,6 +60,19 @@ function memoryDb(){
   return {db:db as unknown as Firestore,records};
 }
 const page=(id:string):NewsResponse=>({status:'modified',page:parseNewsFeed(rss(entry(id)),source),validators:{etag:id}});
+test('initial history starts on January 1, 2026 and older publications never resurface as new arrivals',async()=>{
+  const {db,records}=memoryDb(),store=firestoreNewsStore(db);
+  const response=page('cutoff');assert.equal(response.status,'modified');if(response.status!=='modified')return;
+  const sample=response.page.items[0];
+  const historical:NewsResponse={...response,page:{items:[{...sample,id:'a'.repeat(64),publishedDate:'2025-12-31'},{...sample,id:'b'.repeat(64),publishedDate:'2026-01-01'},{...sample,id:'c'.repeat(64),publishedDate:null,publishedAt:null}],invalid:0,truncated:false}};
+  const first=await store.acquire(source,at,'first');assert.ok(first);await store.commit(source,first,historical,at);
+  assert.equal([...records.keys()].filter(key=>key.startsWith('events/')).length,1);
+  assert.equal(records.get(`events/${eventDocumentId('company_news','b'.repeat(64))}`)?.baseline,true);
+  const nextAt=new Date(at.getTime()+source.pollMs),next=await store.acquire(source,nextAt,'next');assert.ok(next);
+  await store.commit(source,next,{...response,page:{items:[{...sample,id:'d'.repeat(64),publishedDate:'2025-12-31'},{...sample,id:'e'.repeat(64),publishedDate:null,publishedAt:null}],invalid:0,truncated:false}},nextAt);
+  assert.equal(records.has(`events/${eventDocumentId('company_news','d'.repeat(64))}`),false);
+  assert.equal(records.get(`events/${eventDocumentId('company_news','e'.repeat(64))}`)?.firstObservedAt,nextAt.toISOString());
+});
 test('successful hourly scans stay due at the next hour despite completion jitter',async()=>{
   const {db,records}=memoryDb(),store=firestoreNewsStore(db),completion=new Date('2026-10-02T16:00:20Z');
   const cursor=await store.acquire(source,at,'first');assert.ok(cursor);await store.commit(source,cursor,page('history'),completion);

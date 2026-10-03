@@ -2,6 +2,7 @@ import type {Firestore} from 'firebase-admin/firestore';
 import type {NewsSource} from './sources';
 import type {NewsResponse} from './news';
 import type {CollectedNews,NewsCursor,NewsStore} from './collector';
+import {NEWS_HISTORY_START} from './collector';
 import {EVENTS_COLLECTION,eventDocumentId} from '../../events/model';
 
 export const NEWS_EVENTS_COLLECTION=EVENTS_COLLECTION;
@@ -21,7 +22,9 @@ export function firestoreNewsStore(db:Firestore):NewsStore{
       if(state?.leaseId!==cursor.leaseId||Date.parse(state.leaseUntil)<at.getTime())throw new Error('Collector lease expired');
       const baseline=!state.baselineAt,known=new Set(state.itemIds);
       const items=response.status==='modified'?response.page.items:[];
-      const candidates=items.filter(item=>!known.has(item.id));
+      // Older publications never become new arrivals merely by resurfacing in a
+      // feed. Undated entries are excluded from initial historical backfill.
+      const candidates=items.filter(item=>!known.has(item.id)&&(item.publishedDate?item.publishedDate>=NEWS_HISTORY_START:!baseline));
       const refs=candidates.map(item=>db.collection(NEWS_EVENTS_COLLECTION).doc(eventDocumentId('company_news',item.id)));
       const existing=refs.length?await tx.getAll(...refs):[];
       let created=0;

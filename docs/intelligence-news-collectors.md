@@ -25,6 +25,12 @@ arrivals with the actual collector observation time. Publisher dates remain
 separate; missing publication time is never manufactured. An event identifies
 its publisher company and makes no automatic relationship or impact claims.
 
+Historical collection starts at publication date **2026-01-01**, inclusive.
+Older articles are excluded even if they resurface later. Undated articles are
+excluded from the first historical scan; subsequent discoveries can retain an
+unknown publication date and their real observation time. Feed windows are
+bounded and do not guarantee a complete archive since January.
+
 Canonical URL hashes prevent duplicates, including reruns and articles that
 disappear from and later return to the feed. CoreWeave's verified Webflow article
 alias is normalized to its public canonical host; fetch targets cannot use that
