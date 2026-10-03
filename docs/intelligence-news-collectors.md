@@ -7,11 +7,17 @@ after checking its feed, company identity and exact article hosts.
 
 ## Storage and time semantics
 
-**Pending exact-name approval under AGENTS.md:** `intelligence_events` stores
-normalized source documents, company identities, canonical URLs, publication
-dates and immutable first-observed timestamps. `intelligence_collectors` stores
-per-feed checkpoints, HTTP validators, leases, baseline state and run health.
-Do not enable writes or create these collections until approval is recorded.
+The user-approved universal `events` collection stores normalized events across
+source types. Its shared envelope includes `kind`, `sourceType`, `sourceId`,
+`companyIds`, canonical source URL, title, summary, publication dates and
+immutable first-observed timestamps. This first collector writes
+`kind: company_news`, `sourceType: company_ir`. Event IDs are namespaced by kind
+so other event types sharing a URL cannot collide. The news reader filters by
+kind and source type before applying its bounded arrival window.
+
+**Still pending exact-name approval under AGENTS.md:** `intelligence_collectors`
+stores per-feed checkpoints, HTTP validators, leases, baseline state and run
+health. Do not enable collector writes until that approval is recorded.
 
 The first successful scan seeds baseline history. Baseline records do not count
 as live arrivals or appear in intraday replay. Later newly discovered URLs become
@@ -36,8 +42,9 @@ replay. Failed, partial or stale feeds cannot report current IR coverage.
 1. Run `npx tsx scripts/collect-intelligence-news.ts` for read-only feed checks.
    This path never initializes Firestore.
 2. Run `npx tsx --test tests/graph/news-collector.test.ts tests/graph/intelligence-service.test.ts`.
-3. After storage approval, apply the `intelligence_events` composite index
-   (`baseline ASC`, `firstObservedAt DESC`) and wait until ready.
+3. After checkpoint-storage approval, apply the `events` composite index
+   (`kind ASC`, `sourceType ASC`, `baseline ASC`, `firstObservedAt DESC`)
+   and wait until ready.
 4. Build/deploy the isolated worker with
    `INTELLIGENCE_NEWS_COLLECTOR_ENABLED=1 bash scripts/deploy-background-jobs.sh intelligence-news`.
    Reuse the established maintenance runtime and scheduler identities.

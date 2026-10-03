@@ -2,8 +2,9 @@ import type {Firestore} from 'firebase-admin/firestore';
 import type {NewsSource} from './sources';
 import type {NewsResponse} from './news';
 import type {CollectedNews,NewsCursor,NewsStore} from './collector';
+import {EVENTS_COLLECTION,eventDocumentId} from '../../events/model';
 
-export const NEWS_EVENTS_COLLECTION='intelligence_events';
+export const NEWS_EVENTS_COLLECTION=EVENTS_COLLECTION;
 export const NEWS_COLLECTORS_COLLECTION='intelligence_collectors';
 /** Collection creation requires the exact-name approval specified in AGENTS.md. */
 export function firestoreNewsStore(db:Firestore):NewsStore{
@@ -21,12 +22,12 @@ export function firestoreNewsStore(db:Firestore):NewsStore{
       const baseline=!state.baselineAt,known=new Set(state.itemIds);
       const items=response.status==='modified'?response.page.items:[];
       const candidates=items.filter(item=>!known.has(item.id));
-      const refs=candidates.map(item=>db.collection(NEWS_EVENTS_COLLECTION).doc(item.id));
+      const refs=candidates.map(item=>db.collection(NEWS_EVENTS_COLLECTION).doc(eventDocumentId('company_news',item.id)));
       const existing=refs.length?await tx.getAll(...refs):[];
       let created=0;
       candidates.forEach((item,index)=>{
         if(existing[index].exists)return;
-        const event:CollectedNews={...item,version:1,firstObservedAt:at.toISOString(),baseline};
+        const event:CollectedNews={...item,id:eventDocumentId('company_news',item.id),version:1,kind:'company_news',sourceType:'company_ir',companyIds:[source.companyId],firstObservedAt:at.toISOString(),baseline};
         tx.create(refs[index],event);created++;
       });
       tx.set(ref,{...state,baselineAt:state.baselineAt??at.toISOString(),lastSuccessAt:at.toISOString(),nextPollAt:new Date(at.getTime()+source.pollMs).toISOString(),failures:0,lastError:null,leaseId:'',leaseUntil:at.toISOString(),validators:response.status==='modified'?response.validators:state.validators,itemIds:response.status==='modified'?items.map(item=>item.id):state.itemIds,partial:response.status==='modified'?(response.page.invalid>0||response.page.truncated):state.partial});

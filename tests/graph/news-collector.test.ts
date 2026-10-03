@@ -7,6 +7,7 @@ import {firestoreNewsStore,NEWS_EVENTS_COLLECTION,NEWS_COLLECTORS_COLLECTION} fr
 import {collectNewsSources} from '../../src/lib/intelligence/collectors/collector';
 import {projectCollectedNews} from '../../src/lib/intelligence/collectors/projection';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
+import {EVENTS_COLLECTION,eventDocumentId} from '../../src/lib/events/model';
 
 const source=NEWS_SOURCES[0],at=new Date('2026-10-02T16:00:00Z');
 const rss=(items:string)=>`<rss version="2.0"><channel>${items}</channel></rss>`;
@@ -59,6 +60,20 @@ function memoryDb(){
   return {db:db as unknown as Firestore,records};
 }
 const page=(id:string):NewsResponse=>({status:'modified',page:parseNewsFeed(rss(entry(id)),source),validators:{etag:id}});
+test('the shared events collection preserves other event kinds and keeps the news projection typed',async()=>{
+  const {db,records}=memoryDb(),store=firestoreNewsStore(db),response=page('shared');assert.equal(response.status,'modified');
+  if(response.status!=='modified')return;
+  const item=response.page.items[0],otherId=eventDocumentId('sec_filing',item.id);
+  const other={...item,id:otherId,version:1,kind:'sec_filing',sourceType:'sec',companyIds:[source.companyId],baseline:false,firstObservedAt:at.toISOString()};
+  records.set(`${EVENTS_COLLECTION}/${otherId}`,other);
+  const cursor=await store.acquire(source,at,'news');assert.ok(cursor);await store.commit(source,cursor,response,at);
+  assert.equal(NEWS_EVENTS_COLLECTION,'events');assert.equal(records.get(`${EVENTS_COLLECTION}/${otherId}`),other);
+  const news=records.get(`${EVENTS_COLLECTION}/${eventDocumentId('company_news',item.id)}`)!;
+  assert.equal(news.kind,'company_news');assert.equal(news.sourceType,'company_ir');assert.deepEqual(news.companyIds,[source.companyId]);
+  const graph:KnowledgeGraph={nodes:[{id:source.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-02'};
+  assert.equal(projectCollectedNews([other,{...news,baseline:false}],graph,at).length,1);
+  assert.equal(projectCollectedNews([{...news,baseline:false,sourceType:'sec'}],graph,at).length,0);
+});
 test('initial history remains baseline; later arrivals are immutable and retries do not duplicate them',async()=>{
   const {db,records}=memoryDb(),store=firestoreNewsStore(db);
   const first=await store.acquire(source,at,'first');assert.ok(first);assert.equal(await store.acquire(source,at,'other'),null);

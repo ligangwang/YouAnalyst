@@ -8,7 +8,7 @@ export function projectCollectedNews(records:Record<string,unknown>[],graph:Know
   const companies=new Set(graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id));
   return records.flatMap(record=>{
     const source=NEWS_SOURCES.find(source=>source.id===record.sourceId);
-    if(!source||record.version!==1||record.baseline!==false||record.companyId!==source.companyId||!companies.has(source.companyId))return [];
+    if(!source||record.version!==1||record.kind!=='company_news'||record.sourceType!=='company_ir'||record.baseline!==false||record.companyId!==source.companyId||!Array.isArray(record.companyIds)||!record.companyIds.includes(source.companyId)||!companies.has(source.companyId))return [];
     const url=typeof record.url==='string'?canonicalEvidenceUrl(record.url):null;
     const observed=typeof record.firstObservedAt==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(record.firstObservedAt)?Date.parse(record.firstObservedAt):NaN;
     if(!url||!source.allowedHosts.includes(new URL(url).hostname)||!Number.isFinite(observed)||observed>now.getTime()||typeof record.title!=='string'||!record.title||typeof record.id!=='string')return [];
@@ -18,7 +18,7 @@ export function projectCollectedNews(records:Record<string,unknown>[],graph:Know
 }
 export async function loadCollectedNews(db:Firestore,graph:KnowledgeGraph,now:Date,earliestDay:string,limit:number){
   const [page,states]=await Promise.all([
-    db.collection(NEWS_EVENTS_COLLECTION).where('baseline','==',false).where('firstObservedAt','>=',`${earliestDay}T00:00:00.000Z`).orderBy('firstObservedAt','desc').limit(limit+1).get(),
+    db.collection(NEWS_EVENTS_COLLECTION).where('kind','==','company_news').where('sourceType','==','company_ir').where('baseline','==',false).where('firstObservedAt','>=',`${earliestDay}T00:00:00.000Z`).orderBy('firstObservedAt','desc').limit(limit+1).get(),
     db.getAll(...NEWS_SOURCES.map(source=>db.collection(NEWS_COLLECTORS_COLLECTION).doc(source.id))),
   ]);
   const unhealthy=NEWS_SOURCES.filter((source,index)=>{

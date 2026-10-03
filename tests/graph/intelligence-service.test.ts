@@ -61,14 +61,15 @@ test('a recent failed collector run never reports SEC as connected despite succe
 test('enabled official news arrives through the shared snapshot with current source health',async()=>{
   const previous=process.env.INTELLIGENCE_NEWS_ENABLED;process.env.INTELLIGENCE_NEWS_ENABLED='1';
   try{
-    const news={version:1,id:'amd-release',sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'Official announcement',summary:'Publisher evidence',url:'https://newsroom.amd.com/news/announcement/',firstObservedAt:now.toISOString(),publishedDate:'2026-10-02'};
-    let newsReads=0;
+    const news={version:1,id:'amd-release',kind:'company_news',sourceType:'company_ir',companyIds:['US:AMD'],sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'Official announcement',summary:'Publisher evidence',url:'https://newsroom.amd.com/news/announcement/',firstObservedAt:now.toISOString(),publishedDate:'2026-10-02'};
+    let newsReads=0;const filters:unknown[][]=[];
     const db={collection:(name:string)=>{
-      const query={where:()=>query,orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,201);return query;},get:async()=>{if(name==='intelligence_events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
+      const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,201);return query;},get:async()=>{if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
     },getAll:async(...refs:unknown[])=>{assert.equal(refs.length,4);return refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}));}};
     const service=await isolated(db,async()=>graph);
     const snapshot=await service.loadIntelligenceSnapshot(now);
     assert.equal(snapshot.coverage.find(item=>item.channel==='IR')?.status,'connected');
+    assert.deepEqual(filters.slice(0,3),[['kind','==','company_news'],['sourceType','==','company_ir'],['baseline','==',false]]);
     const arrival=snapshot.events.find(event=>event.id==='news-amd-release');assert.ok(arrival);
     assert.equal(arrival.observedAt,now.toISOString());assert.equal(arrival.evidence[0].channel,'IR');assert.deepEqual(arrival.edgeIds,[]);
     await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.equal(newsReads,1);
