@@ -94,6 +94,8 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
 
 test("Investment Intelligence homepage renders real data and crawlable research links", async ({ request, page }) => {
   test.setTimeout(90_000);
+  // Check settled label visibility without sampling the continuous tour's fades.
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const response = await request.get("/api/intelligence");
   expect(response.status()).toBe(200);
   const snapshot = await response.json();
