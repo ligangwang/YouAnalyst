@@ -39,7 +39,8 @@ export function parseNewsFeed(xml:string,source:NewsSource):NewsPage{
     const item=object(entry),link=array(item.link).filter(value=>typeof value==='string'||!object(value)['@_rel']||object(value)['@_rel']==='alternate').map(value=>typeof value==='string'?value:object(value)['@_href']).find(value=>typeof value==='string'&&value.startsWith('https:'));
     const url=typeof link==='string'?approvedNewsUrl(link,source,true):null,title=plainText(item.title,240);
     if(!url||!title){invalid++;continue;}
-    const date=publication(item.pubDate??item.published);
+    // Some publisher CMS feeds expose site-rebuild dates as pubDate.
+    const date=source.publicationFromArticle?{at:null,day:null}:publication(item.pubDate??item.published);
     const id=createHash('sha256').update(url).digest('hex');
     items.set(id,{id,sourceId:source.id,companyId:source.companyId,url,title,summary:plainText(item.description??item.summary??item.content),published_at:date.at,publication_date:date.day});
   }
@@ -51,7 +52,36 @@ export type NewsResponse={status:'modified';page:NewsPage;validators:NewsValidat
 export class NewsFetchError extends Error{
   constructor(message:string,readonly retryAfterMs:number){super(message);}
 }
-export async function fetchNews(source:NewsSource,validators:NewsValidators={},request:typeof fetch=fetch):Promise<NewsResponse>{
+/** CoreWeave's visible Published on date survives CMS rebuilds; its JSON-LD does not. */
+export function articlePublicationDay(html:string):string|null{
+  const value=html.match(/class=["'][^"']*\barticle-date-wrapper\b[^"']*["'][^>]*>\s*<div[^>]*>\s*Published on\s*<\/div>\s*<div[^>]*>([^<]+)<\/div>/i)?.[1]?.trim();
+  const match=value?.match(/^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})$/);
+  if(!match)return null;
+  const month=['January','February','March','April','May','June','July','August','September','October','November','December'].indexOf(match[1])+1;
+  const day=`${match[3]}-${String(month).padStart(2,'0')}-${match[2].padStart(2,'0')}`;
+  return observation(day)?.day??null;
+}
+
+async function readArticleDay(item:NewsItem,source:NewsSource,request:typeof fetch,signal:AbortSignal){
+  let url=item.url;
+  for(let redirects=0;redirects<=3;redirects++){
+    if(!approvedNewsUrl(url,source))throw new Error('Unapproved article host');
+    const response=await request(url,{headers:{'User-Agent':'YouAnalyst/1.0 (+https://youanalyst.com)','Accept':'text/html'},redirect:'manual',signal});
+    if([301,302,303,307,308].includes(response.status)){
+      const location=response.headers.get('location');await response.body?.cancel();
+      if(!location)throw new Error('Article redirect has no location');url=new URL(location,url).toString();continue;
+    }
+    if(!response.ok){await response.body?.cancel();throw new NewsFetchError(`Article returned HTTP ${response.status}`,source.pollMs);}
+    if(Number(response.headers.get('content-length'))>MAX_FEED_BYTES){await response.body?.cancel();throw new Error('Article exceeds size limit');}
+    if(!response.body)throw new Error('Article response has no body');
+    const reader=response.body.getReader(),chunks:Uint8Array[]=[];let bytes=0;
+    try{while(true){const chunk=await reader.read();if(chunk.done)break;bytes+=chunk.value.byteLength;if(bytes>MAX_FEED_BYTES)throw new Error('Article exceeds size limit');chunks.push(chunk.value);}}finally{await reader.cancel();}
+    return articlePublicationDay(Buffer.concat(chunks).toString('utf8'));
+  }
+  throw new Error('Too many article redirects');
+}
+
+export async function fetchNews(source:NewsSource,validators:NewsValidators={},request:typeof fetch=fetch,knownIds:readonly string[]=[]):Promise<NewsResponse>{
   let url=source.url;
   const signal=AbortSignal.timeout(20_000);
   const headers:Record<string,string>={'User-Agent':'YouAnalyst/1.0 (+https://youanalyst.com)','Accept':'application/rss+xml, application/atom+xml, application/xml, text/xml'};
@@ -77,7 +107,13 @@ export async function fetchNews(source:NewsSource,validators:NewsValidators={},r
     try{while(true){const chunk=await reader.read();if(chunk.done)break;length+=chunk.value.byteLength;if(length>MAX_FEED_BYTES)throw new Error('Feed exceeds size limit');chunks.push(chunk.value);}}finally{await reader.cancel();}
     const collected_at=new Date().toISOString();
     const xml=Buffer.concat(chunks).toString('utf8');
-    return {status:'modified',collected_at,page:parseNewsFeed(xml,source),validators:{...(response.headers.get('etag')?{etag:response.headers.get('etag')!}:{}),...(response.headers.get('last-modified')?{lastModified:response.headers.get('last-modified')!}:{})}};
+    const page=parseNewsFeed(xml,source);
+    if(source.publicationFromArticle){
+      const known=new Set(knownIds),pending=page.items.filter(item=>!known.has(item.id)),articleSignal=AbortSignal.timeout(60_000);let next=0;
+      // Bound concurrency and only fetch newly discovered articles on later scans.
+      await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{while(next<pending.length){const item=pending[next++];item.publication_date=await readArticleDay(item,source,request,articleSignal);}}));
+    }
+    return {status:'modified',collected_at,page,validators:{...(response.headers.get('etag')?{etag:response.headers.get('etag')!}:{}),...(response.headers.get('last-modified')?{lastModified:response.headers.get('last-modified')!}:{})}};
   }
   throw new Error('Too many feed redirects');
 }

@@ -1,9 +1,19 @@
 # Official company news collectors
 
 The initial registry covers NVIDIA Newsroom, AMD Newsroom, Microsoft Corporate
-Blog, and CoreWeave Blog. These are publisher-owned public RSS feeds, without
-social providers, scraping, credentials, or paid enrichment. Add a publisher only
+Blog, and CoreWeave Blog. These use publisher-owned public RSS feeds, without
+social providers, credentials, or paid enrichment. Add a publisher only
 after checking its feed, company identity and exact article hosts.
+
+CoreWeave's RSS and JSON-LD publication fields can reflect a CMS rebuild rather
+than original publication. Its collector reads the article's visible `Published
+on` date instead, leaves `published_at` null, and excludes these date-only items
+from intraday replay. Article requests use the same approved hosts and size
+limits, a 60-second total budget and concurrency of four. Later scans fetch only
+previously unseen article IDs. Original dates before January 1, 2026 are excluded
+from the initial import. The one-time repair script defaults to a read-only plan,
+preserves `collected_at`, and retains out-of-window records with an unsupported
+version so they cannot enter public timelines.
 
 ## Storage and time semantics
 
