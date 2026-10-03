@@ -7,8 +7,8 @@ case "${1:-}" in
   all) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance directory) ;;
   fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance) ;;
   sec-filings) targets=(sec-fundamentals company-graph sec-filings) ;;
-  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|eod-maintenance|directory|company-graph|earnings) targets=("$1") ;;
-  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync, eod-maintenance, company-graph, sec-filings, earnings or directory' >&2; exit 1 ;;
+  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|eod-maintenance|directory|company-graph|earnings|intelligence-news) targets=("$1") ;;
+  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync, eod-maintenance, company-graph, sec-filings, earnings, intelligence-news or directory' >&2; exit 1 ;;
 esac
 # The filing/graph pipeline is an explicit production rollout. Disabled releases
 # keep every existing worker path and schedule unchanged.
@@ -27,6 +27,10 @@ fi
 if [[ "${EARNINGS_BOOTSTRAP_IAM:-0}" != 0 && "$1" != earnings ]]; then
   echo 'Earnings resource setup must use the isolated earnings target.' >&2; exit 1
 fi
+case "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" in 0|1) ;; *) echo 'INTELLIGENCE_NEWS_COLLECTOR_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 && ( "$1" == all || "$1" == fundamentals ) ]]; then
+  targets+=(intelligence-news)
+fi
 # Validate every selected target before any build or mutation.
 for target in "${targets[@]}"; do
   if [[ "$target" == earnings ]]; then
@@ -36,6 +40,7 @@ for target in "${targets[@]}"; do
   job="refresh-$target-production"
   if [[ "$target" == directory ]]; then job=sync-cni-directory-production; fi
   if [[ "$target" == sec-filings ]]; then job=collect-sec-filings-production; fi
+  if [[ "$target" == intelligence-news ]]; then job=collect-intelligence-news-production; fi
   if [[ "$target" == sec-fundamentals ]]; then : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"; fi
   if [[ "$target" == company-graph || "$target" == sec-filings ]]; then
     [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 ]] || { echo 'Set ENABLE_SEC_FILING_PIPELINE=1 only after rollout review' >&2; exit 1; }

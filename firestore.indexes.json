@@ -1,6 +1,16 @@
 {
   "indexes": [
     {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "sourceType", "order": "ASCENDING" },
+        { "fieldPath": "baseline", "order": "ASCENDING" },
+        { "fieldPath": "firstObservedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "predictions",
       "queryScope": "COLLECTION",
       "fields": [
