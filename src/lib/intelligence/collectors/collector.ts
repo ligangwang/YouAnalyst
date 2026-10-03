@@ -14,22 +14,24 @@ export interface NewsStore{
   fail(source:NewsSource,cursor:NewsCursor,error:string,retryAt:Date):Promise<void>;
 }
 export async function collectNewsSources(sources:readonly NewsSource[],store:NewsStore,read:typeof fetchNews=fetchNews,clock=()=>new Date()){
-  const results:{sourceId:string;status:'ok'|'skipped'|'failed';created?:number;baseline?:boolean;error?:string}[]=[];
-  // Publisher requests are sequential and each source has its own durable lease.
-  for(const source of sources){
+  const results:{sourceId:string;status:'ok'|'skipped'|'failed';created?:number;baseline?:boolean;error?:string}[]=Array(sources.length);
+  // Two independent publishers at a time; each keeps its own durable lease.
+  let next=0;
+  await Promise.all(Array.from({length:Math.min(2,sources.length)},async()=>{while(next<sources.length){
+    const index=next++,source=sources[index];
     const cursor=await store.acquire(source,clock(),randomUUID());
-    if(!cursor){results.push({sourceId:source.id,status:'skipped'});continue;}
+    if(!cursor){results[index]={sourceId:source.id,status:'skipped'};continue;}
     try{
       const response=await read(source,cursor.validators,undefined,cursor.itemIds);
       if(response.status==='unchanged'&&!cursor.baselineAt)throw new Error('Uninitialized collector received HTTP 304');
       const result=await store.commit(source,cursor,response,clock());
-      results.push({sourceId:source.id,status:'ok',...result});
+      results[index]={sourceId:source.id,status:'ok',...result};
     }catch(error){
       const message=error instanceof Error?error.message:'Collector failed';
       const delay=Math.max(source.pollMs*Math.min(64,2**Math.min(6,cursor.failures)),error instanceof NewsFetchError?error.retryAfterMs:0);
       await store.fail(source,cursor,message,new Date(clock().getTime()+delay));
-      results.push({sourceId:source.id,status:'failed',error:message});
+      results[index]={sourceId:source.id,status:'failed',error:message};
     }
-  }
+  }}));
   return results;
 }

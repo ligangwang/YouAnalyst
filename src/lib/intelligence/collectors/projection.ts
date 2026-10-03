@@ -4,6 +4,18 @@ import {canonicalEvidenceUrl,observation,type IntelligenceEvent} from '../model'
 import {NEWS_SOURCES} from './sources';
 import {NEWS_COLLECTORS_COLLECTION,NEWS_EVENTS_COLLECTION} from './store';
 
+/** Weekend pauses are expected; compare against the latest weekday poll slot. */
+export function newsCollectorIsFresh(lastSuccess:unknown,failures:unknown,partial:unknown,now:Date,pollMs:number){
+  const success=typeof lastSuccess==='string'?Date.parse(lastSuccess):NaN;
+  let slot=Math.floor(now.getTime()/pollMs)*pollMs;
+  const weekday=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short'});
+  for(let hours=0;hours<72;hours++){
+    if(!['Sat','Sun'].includes(weekday.format(new Date(slot))))break;
+    slot-=pollMs;
+  }
+  return Number.isFinite(success)&&success<=now.getTime()&&success>=slot-2*pollMs&&failures===0&&partial===false;
+}
+
 /** Explicit public projection: ingestion and processing timestamps never leave this boundary. */
 export function projectCollectedNews(records:Record<string,unknown>[],graph:KnowledgeGraph,now:Date):IntelligenceEvent[]{
   const companies=new Set(graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id));
@@ -24,9 +36,9 @@ export async function loadCollectedNews(db:Firestore,graph:KnowledgeGraph,now:Da
     db.getAll(...NEWS_SOURCES.map(source=>db.collection(NEWS_COLLECTORS_COLLECTION).doc(source.id))),
   ]);
   const unhealthy=NEWS_SOURCES.filter((source,index)=>{
-    const state=states[index].data();const success=typeof state?.lastSuccessAt==='string'?Date.parse(state.lastSuccessAt):NaN;
-    return !Number.isFinite(success)||success>now.getTime()||now.getTime()-success>source.pollMs*3||state?.failures!==0||state?.partial!==false;
+    const state=states[index].data();
+    return !newsCollectorIsFresh(state?.lastSuccessAt,state?.failures,state?.partial,now,source.pollMs);
   });
   const events=[...new Map(projectCollectedNews([...page.docs,...dated.docs].map(doc=>doc.data()),graph,now).map(event=>[event.id,event])).values()].sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date));
-  return {events:events.slice(0,limit),truncated:page.size>limit||dated.size>limit||events.length>limit,fresh:unhealthy.length===0,unhealthy:unhealthy.map(source=>source.name)};
+  return {events:events.slice(0,limit),truncated:page.size>limit||dated.size>limit||events.length>limit,fresh:unhealthy.length===0,unhealthy:unhealthy.map(source=>source.name),healthyCompanyIds:NEWS_SOURCES.filter(source=>!unhealthy.includes(source)).map(source=>source.companyId)};
 }
