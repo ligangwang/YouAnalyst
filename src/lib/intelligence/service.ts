@@ -35,17 +35,10 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
       if(!secFresh){
         warnings.push('SEC collector freshness is unverified. Filing records reflect stored discoveries, not guaranteed current coverage.');
       }
-      const page=await db.collection(SEC_FILINGS_COLLECTION).where('intelligenceObservedAt','>=',`${earliestDay}T00:00:00.000Z`).orderBy('intelligenceObservedAt','desc').limit(LIMIT+1).get();
+      const page=await db.collection(SEC_FILINGS_COLLECTION).where('filingDate','>=',earliestDay).orderBy('filingDate','desc').limit(LIMIT+1).get();
       truncated=page.size>LIMIT;
-      let docs=page.docs.slice(0,LIMIT).map(doc=>({id:doc.id,data:doc.data()}));
-      // Bridge pre-release discovery records while the collector writes the index.
-      if(!metadata.get('intelligenceIndexReadyAt')){
-        const legacy=await db.collection(SEC_FILINGS_COLLECTION).where('filingDate','>=',earliestDay).orderBy('filingDate','desc').limit(LIMIT+1).get();
-        docs=[...new Map([...docs,...legacy.docs.slice(0,LIMIT).map(doc=>({id:doc.id,data:doc.data()}))].map(doc=>[doc.id,doc])).values()];
-        truncated=truncated||legacy.size>LIMIT;
-        if(legacy.size)warnings.push('SEC coverage uses a bounded legacy filing window until the discovery index is backfilled.');
-      }
-      filings=projectSecIntelligence(docs,graph,now).sort((a,b)=>b.observedAt!.localeCompare(a.observedAt!));
+      const docs=page.docs.slice(0,LIMIT).map(doc=>({id:doc.id,data:doc.data()}));
+      filings=projectSecIntelligence(docs,graph,now).sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date));
       if(filings.length>LIMIT){filings=filings.slice(0,LIMIT);truncated=true;}
       secAvailable=true;
     }catch(error){
@@ -64,7 +57,8 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
     }catch(error){console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}
     const projected=projectResearchIntelligence(graph,curatedEvents,now);
     // A discovery and a research citation of the same filing are one document.
-    const events=mergeIntelligenceEvents([...filings,...(news?.events??[])],projected).filter(event=>event.observedDate>=earliestDay&&event.observedDate<=session.date).sort((a,b)=>(b.observedAt??b.observedDate).localeCompare(a.observedAt??a.observedDate)||a.id.localeCompare(b.id));
+    const ordered=mergeIntelligenceEvents([...filings,...(news?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date).sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
+    const events=ordered.slice(0,LIMIT);truncated=truncated||ordered.length>LIMIT;
     const graphVersion=createHash('sha256').update(JSON.stringify(graph)).digest('hex');
     const evidenceChannels=new Set(graph.sources.map(source=>sourceChannel(source.url)));
     for(const event of events)for(const source of event.evidence)evidenceChannels.add(source.channel);

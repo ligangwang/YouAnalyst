@@ -24,13 +24,13 @@ export function firestoreNewsStore(db:Firestore):NewsStore{
       const items=response.status==='modified'?response.page.items:[];
       // Older publications never become new arrivals merely by resurfacing in a
       // feed. Undated entries are excluded from initial historical backfill.
-      const candidates=items.filter(item=>!known.has(item.id)&&(item.publishedDate?item.publishedDate>=NEWS_HISTORY_START:!baseline));
+      const candidates=items.filter(item=>!known.has(item.id)&&(item.publication_date?item.publication_date>=NEWS_HISTORY_START:!baseline));
       const refs=candidates.map(item=>db.collection(NEWS_EVENTS_COLLECTION).doc(eventDocumentId('company_news',item.id)));
       const existing=refs.length?await tx.getAll(...refs):[];
       let created=0;
       candidates.forEach((item,index)=>{
         if(existing[index].exists)return;
-        const event:CollectedNews={...item,id:eventDocumentId('company_news',item.id),version:1,type:'company_news',sourceType:'company_ir',companyIds:[source.companyId],firstObservedAt:at.toISOString(),baseline};
+        const event:CollectedNews={...item,id:eventDocumentId('company_news',item.id),version:1,type:'company_news',sourceType:'company_ir',companyIds:[source.companyId],collected_at:response.status==='modified'?response.collected_at??at.toISOString():at.toISOString(),processed_at:at.toISOString(),baseline};
         tx.create(refs[index],event);created++;
       });
       // Align successful scans to the next schedule boundary, not an hour after

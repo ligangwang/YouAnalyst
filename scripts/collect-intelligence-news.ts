@@ -11,7 +11,7 @@ async function main(){
     // Dry run never initializes Firestore or writes a checkpoint.
     for(const source of NEWS_SOURCES){try{
       const response=await fetchNews(source);
-      console.log(JSON.stringify({sourceId:source.id,companyId:source.companyId,historyStart:NEWS_HISTORY_START,...(response.status==='modified'?{items:response.page.items.length,eligibleHistory:response.page.items.filter(item=>item.publishedDate&&item.publishedDate>=NEWS_HISTORY_START).length,invalid:response.page.invalid,truncated:response.page.truncated,sample:response.page.items.slice(0,3).map(item=>({title:item.title,url:item.url,publishedAt:item.publishedAt,publishedDate:item.publishedDate}))}:{unchanged:true})}));
+      console.log(JSON.stringify({sourceId:source.id,companyId:source.companyId,historyStart:NEWS_HISTORY_START,...(response.status==='modified'?{items:response.page.items.length,eligibleHistory:response.page.items.filter(item=>item.publication_date&&item.publication_date>=NEWS_HISTORY_START).length,invalid:response.page.invalid,truncated:response.page.truncated,sample:response.page.items.slice(0,3).map(item=>({title:item.title,url:item.url,published_at:item.published_at,publication_date:item.publication_date}))}:{unchanged:true})}));
     }catch(error){console.log(JSON.stringify({sourceId:source.id,error:error instanceof Error?error.message:'Collector failed'}));process.exitCode=1;}}
     return;
   }

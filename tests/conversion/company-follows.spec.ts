@@ -27,8 +27,8 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
   await expect(page.getByRole("heading",{name:"Customer expansion"})).toBeVisible();
   await expect(page.getByRole("region", { name: "Research summary", exact: true })).toContainText("Customer expansion");
   await expect(page.getByLabel("Why this appears")).toContainText("recorded customer of AMD");
-  await expect(page.getByTitle("Earlier event, added later. Collection is not a new business event.")).toBeVisible();
-  await expect(page.getByText("marks an earlier event that was collected recently.", { exact: false })).toHaveCount(1);
+  await expect(page.getByTitle("Earlier event, added later. Collection is not a new business event.")).toHaveCount(0);
+  await expect(page.getByText("marks an earlier event that was collected recently.", { exact: false })).toHaveCount(0);
   await expect(page.getByRole("link",{name:"Open in map"})).toHaveAttribute("href","/en?company=ORG%3AOPENAI&event=customer-expansion");
   await page.getByText("View evidence",{exact:true}).click();
   await expect(page.getByRole("link",{name:"Original announcement ↗"})).toHaveAttribute("href","https://example.com/event");
@@ -114,7 +114,7 @@ test("private list separates historic source dates and clears when the account c
   await page.getByText("查看证据", {exact:true}).click();
   await expect(page.getByRole("article").locator("details").getByText("资料发布日期: 2024-01-02", { exact: true })).toBeVisible();
   await expect(page.getByRole("article").getByText("事件发生日期未明确；上方日期不代表新发生的业务事件。", { exact: true })).toBeVisible();
-  await expect(page.getByText("收录／复核: 2026-09-15", { exact: true })).toBeVisible();
+  await expect(page.getByText("收录／复核: 2026-09-15", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "在图谱中打开" })).toHaveAttribute("href", "/zh-cn?company=US%3AAMD&relationship=amd-openai");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("following.png"), fullPage: true });

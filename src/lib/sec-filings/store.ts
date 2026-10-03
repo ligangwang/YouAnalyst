@@ -89,6 +89,9 @@ export async function persistSecFilingDiscovery(db: Firestore, event: SecFilingD
     tx.set(ref, {
       accessionNumber: event.accessionNumber, cik: event.cik, ticker: stored?.ticker ?? event.companyId,
       form: event.form, filingDate: event.filingDate, primaryDocument: event.primaryDocument,
+      published_at: event.published_at??null,
+      collected_at: stored?.collected_at??event.discoveredAt,
+      processed_at: stored?.processed_at??new Date().toISOString(),
       discoveryEvents: { [event.eventId]: { event, state } },
       discoveryPending: !baseline || stored?.discoveryPending === true,
       ...(observedAt?{intelligenceObservedAt:observedAt}:{}),

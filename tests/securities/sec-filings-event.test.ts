@@ -65,3 +65,8 @@ test("submissions issuer mismatches and duplicate accession metadata fail closed
     form: ["10-K", "10-Q"], filingDate: [input.filingDate, input.filingDate],
     primaryDocument: [input.primaryDocument, input.primaryDocument], isXBRL: [1, 1] }), /Conflicting/);
 });
+
+test('SEC acceptance time is retained in UTC; absent or local datetimes are never replaced by detection',()=>{
+  const rows=parseSecFilingRows({form:['10-K'],accessionNumber:['0000002488-26-000018'],filingDate:['2026-02-25'],primaryDocument:['amd.htm'],isXBRL:[1],acceptanceDateTime:['2026-02-25T16:05:13-05:00']});
+  assert.equal(rows[0].published_at,'2026-02-25T21:05:13.000Z');
+});

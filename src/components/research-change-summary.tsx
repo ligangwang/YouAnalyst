@@ -22,15 +22,15 @@ export function ResearchChangeSummary({ items, graph, following = false }: { ite
         const edge = graph.relationships.find(candidate => candidate.id === item.edgeId);
         const fact = edge?.facts?.find(candidate => candidate.id === item.factId);
         const title = event ? (chinese ? event.titleZh : event.title) : edge ? relationshipExplanation(fact ? { ...edge, facts: [fact] } : edge, graph, chinese) : item.sourceTitle;
-        const day = (item.eventDate ?? item.sourceDate)?.slice(0, 10);
+        const day = item.sourceDate?.slice(0, 10);
         const companies = item.companyIds.map(id => { const node = graph.nodes.find(n => n.id === id); return node ? companyName(node, locale) : id; }).join(" · ");
         return <li key={item.id} className="min-w-0 rounded-xl border border-cyan-900/50 p-3">
           <p className="text-xs text-slate-400">{companies}</p>
           <p className="mt-1 font-medium"><Link className="text-cyan-100 underline decoration-cyan-800 underline-offset-4" href={item.href} onClick={() => trackEvent("company_event_open", { entry_point: following ? "following_summary" : "public_feed_summary" })}>{title}</Link></p>
           <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-300">{text("Reported change: ", "来源所述进展：")}{event && chinese ? event.summaryZh : item.description}</p>
           <p className="mt-2 text-xs text-amber-100/80">{event?.planned ? text("Announced plan; completed delivery is not established by this item.", "已宣布计划；本条资料未证实已完成交付。") : text("Read the source for its scope; no prior-state comparison is recorded here.", "请核查原文范围；本条未记录可用于前后对比的历史基线。")}</p>
-          <p className="mt-2 text-xs text-slate-400">{item.eventDate ? text("Event / announcement", "事件／宣布日期") : text("Source published", "资料发布日期")}: {day ? <time dateTime={day}>{day}</time> : text("Not stated", "未注明")} · {text("Collected / reviewed", "收录／复核")}: {item.collectedAt.slice(0, 10)}</p>
-          {!item.eventDate && <p className="mt-1 text-xs text-slate-400">{text("Event timing is not stated; publication and collection are separate dates.", "事件发生日期未明确；发布日期与收录日期分别列示。")}</p>}
+          <p className="mt-2 text-xs text-slate-400">{text("Source published", "资料发布日期")}: {day ? <time dateTime={day}>{day}</time> : text("Not stated", "未注明")}</p>
+          {!item.eventDate && <p className="mt-1 text-xs text-slate-400">{text("Event timing is not stated; the source publication date is shown.", "事件发生日期未明确；此处展示来源发布日期。")}</p>}
           <a className="mt-2 inline-block text-xs text-cyan-200 underline" href={item.sourceUrl} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("company_evidence_view", { entry_point: "research_summary_source" })}>{text("Read source: ", "查看来源：")}{item.sourceTitle}</a>
         </li>;
       })}

@@ -4,7 +4,7 @@ import {canonicalEvidenceUrl,observation} from '../model';
 import type {NewsSource} from './sources';
 
 export const MAX_FEED_BYTES=2_000_000,MAX_FEED_ITEMS=100;
-export type NewsItem={id:string;sourceId:string;companyId:string;title:string;summary:string;url:string;publishedAt:string|null;publishedDate:string|null};
+export type NewsItem={id:string;sourceId:string;companyId:string;title:string;summary:string;url:string;published_at:string|null;publication_date:string|null};
 export type NewsPage={items:NewsItem[];invalid:number;truncated:boolean};
 const array=(value:unknown):unknown[]=>Array.isArray(value)?value:value?[value]:[];
 const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'?value as Record<string,unknown>:{};
@@ -39,15 +39,15 @@ export function parseNewsFeed(xml:string,source:NewsSource):NewsPage{
     const item=object(entry),link=array(item.link).filter(value=>typeof value==='string'||!object(value)['@_rel']||object(value)['@_rel']==='alternate').map(value=>typeof value==='string'?value:object(value)['@_href']).find(value=>typeof value==='string'&&value.startsWith('https:'));
     const url=typeof link==='string'?approvedNewsUrl(link,source,true):null,title=plainText(item.title,240);
     if(!url||!title){invalid++;continue;}
-    const date=publication(item.pubDate??item.published??item.updated);
+    const date=publication(item.pubDate??item.published);
     const id=createHash('sha256').update(url).digest('hex');
-    items.set(id,{id,sourceId:source.id,companyId:source.companyId,url,title,summary:plainText(item.description??item.summary??item.content),publishedAt:date.at,publishedDate:date.day});
+    items.set(id,{id,sourceId:source.id,companyId:source.companyId,url,title,summary:plainText(item.description??item.summary??item.content),published_at:date.at,publication_date:date.day});
   }
   return {items:[...items.values()],invalid,truncated:entries.length>MAX_FEED_ITEMS};
 }
 
 export type NewsValidators={etag?:string;lastModified?:string};
-export type NewsResponse={status:'modified';page:NewsPage;validators:NewsValidators}|{status:'unchanged'};
+export type NewsResponse={status:'modified';page:NewsPage;validators:NewsValidators;collected_at?:string}|{status:'unchanged'};
 export class NewsFetchError extends Error{
   constructor(message:string,readonly retryAfterMs:number){super(message);}
 }
@@ -75,8 +75,9 @@ export async function fetchNews(source:NewsSource,validators:NewsValidators={},r
     if(!response.body)throw new Error('Feed response has no body');
     const reader=response.body.getReader(),chunks:Uint8Array[]=[];let length=0;
     try{while(true){const chunk=await reader.read();if(chunk.done)break;length+=chunk.value.byteLength;if(length>MAX_FEED_BYTES)throw new Error('Feed exceeds size limit');chunks.push(chunk.value);}}finally{await reader.cancel();}
+    const collected_at=new Date().toISOString();
     const xml=Buffer.concat(chunks).toString('utf8');
-    return {status:'modified',page:parseNewsFeed(xml,source),validators:{...(response.headers.get('etag')?{etag:response.headers.get('etag')!}:{}),...(response.headers.get('last-modified')?{lastModified:response.headers.get('last-modified')!}:{})}};
+    return {status:'modified',collected_at,page:parseNewsFeed(xml,source),validators:{...(response.headers.get('etag')?{etag:response.headers.get('etag')!}:{}),...(response.headers.get('last-modified')?{lastModified:response.headers.get('last-modified')!}:{})}};
   }
   throw new Error('Too many feed redirects');
 }

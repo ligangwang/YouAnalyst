@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { companyUpdates } from "../../src/lib/knowledge-graph/company-updates";
-import { collectedLater, groupFeedUpdates, orderFeed } from "../../src/lib/knowledge-graph/feed-order";
+import { groupFeedUpdates, orderFeed } from "../../src/lib/knowledge-graph/feed-order";
 import type { BusinessEvent } from "../../src/lib/knowledge-graph/business-events";
 import type { KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 
@@ -36,16 +36,15 @@ test("evidence for the same event is grouped under its event card", () => {
   assert.equal(entries.length, updates.length - 1);
 });
 
-test("feed orders by event date, then source publication, with collection kept separate", () => {
+test("investor feed and legacy added-order URLs both use publication date", () => {
   const byEvent = orderFeed(groupFeedUpdates(updates), "event").map(e => e.item.id);
-  assert.deepEqual(byEvent, ["mu-amd:hbm", humain.id, "mu-amd:undated", "older"]);
+  assert.deepEqual(byEvent, ["mu-amd:hbm", humain.id, "older", "mu-amd:undated"]);
   const byAdded = orderFeed(groupFeedUpdates(updates), "added").map(e => e.item.id);
-  assert.deepEqual(byAdded, ["older", "mu-amd:undated", humain.id, "mu-amd:hbm"]);
+  assert.deepEqual(byAdded, ["mu-amd:hbm", humain.id, "older", "mu-amd:undated"]);
 });
 
-test("later collection is flagged only when the event predates collection", () => {
-  const find = (id: string) => updates.find(u => u.id === id)!;
-  assert.equal(collectedLater(find(humain.id)), true);
-  assert.equal(collectedLater(find("mu-amd:undated")), false);
-  assert.equal(collectedLater({ ...find("mu-amd:hbm"), collectedAt: "2026-09-10T20:00:00Z" }), false);
+test("public updates omit ingestion times, including nested business records", () => {
+  assert(updates.every(item=>!("collectedAt" in item)));
+  assert(updates.filter(item=>item.business).every(item=>!("collectedAt" in item.business!)));
+
 });

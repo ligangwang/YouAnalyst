@@ -6,8 +6,17 @@
       "fields": [
         { "fieldPath": "type", "order": "ASCENDING" },
         { "fieldPath": "sourceType", "order": "ASCENDING" },
-        { "fieldPath": "baseline", "order": "ASCENDING" },
-        { "fieldPath": "firstObservedAt", "order": "DESCENDING" }
+        { "fieldPath": "published_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "sourceType", "order": "ASCENDING" },
+        { "fieldPath": "published_at", "order": "ASCENDING" },
+        { "fieldPath": "publication_date", "order": "DESCENDING" }
       ]
     },
     {

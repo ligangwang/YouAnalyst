@@ -73,7 +73,7 @@ test("updates match either endpoint once and never turn collection date into eve
   assert.equal(updates.length, 1);
   assert.equal(updates[0].eventDate, null);
   assert.equal(updates[0].sourceDate, "2024-01-01");
-  assert.equal(updates[0].collectedAt, "2026-09-15");
+  assert.equal(updates[0].collectedAt, undefined);
   assert.equal(updates[0].state, "ANNOUNCED");
   assert.equal(updates[0].href, `/ticker/AMD#${relationAnchor("edge")}`);
   const noSources = { ...graph, sources: [] };
@@ -125,6 +125,6 @@ test("published research retains each fact's status, scope, limitation and origi
   ]);
   const updates = companyUpdates(projected, ["US:AMD", "ORG:OPENAI"]);
   assert.equal(updates.length, 2);
-  assert.deepEqual(updates.map(i => [i.state, i.collectedAt, i.eventDate]), [["ANNOUNCED", "2026-09-15", null], ["DOCUMENTED", "2026-09-14", null]]);
+  assert.deepEqual(updates.map(i => [i.state, i.collectedAt, i.eventDate]), [["ANNOUNCED", undefined, null], ["DOCUMENTED", undefined, null]]);
   assert.equal(updates[0].sourceUrl, graph.sources[0].url);
 });

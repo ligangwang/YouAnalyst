@@ -1,7 +1,7 @@
 import { secRequest } from "../sec-request";
-import { createSecFilingDiscovered, isSecFilingDate, isSecFinancialForm, type SecFinancialForm } from "./event";
+import { createSecFilingDiscovered, isSecFilingDate, isSecFinancialForm, sourcePublication, type SecFinancialForm } from "./event";
 
-export type SecFiling = { accessionNumber: string; form: SecFinancialForm; filingDate: string; primaryDocument: string; isXbrl: boolean };
+export type SecFiling = { accessionNumber: string; form: SecFinancialForm; filingDate: string; primaryDocument: string; isXbrl: boolean; published_at?:string|null };
 export type SecSubmissionsFile = { name: string; filingFrom: string; filingTo: string };
 export type SecSubmissions = { recent: SecFiling[]; files: SecSubmissionsFile[] };
 export type SecFilingsSource = {
@@ -36,7 +36,8 @@ export function parseSecFilingRows(value: unknown): SecFiling[] {
     const event = createSecFilingDiscovered({ companyId: "CHECK", cik: "0000000001", form, isXbrl,
       accessionNumber: (v.accessionNumber as string[])[i], filingDate: (v.filingDate as string[])[i],
       primaryDocument: (v.primaryDocument as string[])[i], discoveredAt: "2000-01-01T00:00:00Z" });
-    const row = { accessionNumber: event.accessionNumber, form, filingDate: event.filingDate, primaryDocument: event.primaryDocument, isXbrl };
+    const row = { accessionNumber: event.accessionNumber, form, filingDate: event.filingDate, primaryDocument: event.primaryDocument, isXbrl,
+      published_at:sourcePublication(Array.isArray(v.acceptanceDateTime)?v.acceptanceDateTime[i]:null) };
     const previous = accessions.get(row.accessionNumber);
     if (previous && JSON.stringify(previous) !== JSON.stringify(row)) throw new Error("Conflicting SEC accession metadata");
     if (!previous) rows.push(row);

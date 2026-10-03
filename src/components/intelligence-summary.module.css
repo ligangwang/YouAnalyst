@@ -6,4 +6,13 @@
 .sources { display:flex; align-items:center; gap:3px; flex-wrap:wrap; }
 .sources > span { color:#849bae; margin-right:3px; }
 .summary .clear { color:#98e7d6; margin-left:auto; }
+.summary button { display:inline-flex; align-items:center; gap:5px; position:relative; }
+.summary button strong { margin-left:0; }
+.activeMeter { display:inline-block; width:28px; height:4px; background:#213746; border-radius:2px; overflow:hidden; }
+.activeMeter i { display:block; height:100%; background:#98e7d6; border-radius:2px; }
+.sparkline { display:block; width:54px; height:14px; flex-shrink:0; }
+.sources button { padding-bottom:6px; }
+.sourceMeter { position:absolute; left:4px; right:4px; bottom:0; height:2px; background:#243746; border-radius:2px; overflow:hidden; }
+.sourceMeter i { display:block; height:100%; border-radius:2px; }
+.sourceMeter[data-available=false] { opacity:.4; background:repeating-linear-gradient(90deg,#496070 0 2px,transparent 2px 4px); }
 @media(max-width:850px) { .summary { gap:4px 8px; padding:5px 8px; } .context { width:100%; } }

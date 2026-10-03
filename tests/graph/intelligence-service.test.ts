@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
 
 const now=new Date('2026-10-02T16:00:00Z');
-const graph:KnowledgeGraph={asOf:'2026-10-02',nodes:[{id:'US:AMD',name:'AMD',kind:'COMPANY',order:0},{id:'US:MU',name:'Micron',kind:'COMPANY',order:1}],sources:[{id:'s',title:'Filing',url:'https://www.sec.gov/Archives/filing.htm',sourceDate:'2026-09-01'}],relationships:[{id:'edge',source:'US:MU',target:'US:AMD',type:'SUPPLIER_OF',summary:'Stored evidence',sourceIds:['s'],commercialStatus:'DOCUMENTED',researchReviewedAt:'2026-10-01'}]};
+const graph:KnowledgeGraph={asOf:'2026-10-02',nodes:[{id:'US:AMD',name:'AMD',kind:'COMPANY',order:0},{id:'US:MU',name:'Micron',kind:'COMPANY',order:1}],sources:[{id:'s',title:'Filing',url:'https://www.sec.gov/Archives/filing.htm',sourceDate:'2026-09-03'}],relationships:[{id:'edge',source:'US:MU',target:'US:AMD',type:'SUPPLIER_OF',summary:'Stored evidence',sourceIds:['s'],commercialStatus:'DOCUMENTED',researchReviewedAt:'2026-10-01'}]};
 
 async function isolated(db:unknown,loadGraph:()=>Promise<KnowledgeGraph>,collectorResult:unknown={failed:0,partial:0,remaining:0,outboxIncomplete:false}){
   const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store']});
@@ -24,7 +24,7 @@ async function isolated(db:unknown,loadGraph:()=>Promise<KnowledgeGraph>,collect
 
 test('concurrent browsers share one bounded read and the 60-second snapshot cache',async()=>{
   let reads=0,graphReads=0;
-  const db={collection:(name:string)=>{assert.equal(name,'sec_filings');return {where:(field:string,operator:string)=>{assert.equal(field,'intelligenceObservedAt');assert.equal(operator,'>=');return {orderBy:()=>({limit:(limit:number)=>{assert.equal(limit,201);return {get:async()=>{reads++;return {size:0,docs:[]};}};}})};}};}};
+  const db={collection:(name:string)=>{assert.equal(name,'sec_filings');return {where:(field:string,operator:string)=>{assert.equal(field,'filingDate');assert.equal(operator,'>=');return {orderBy:()=>({limit:(limit:number)=>{assert.equal(limit,201);return {get:async()=>{reads++;return {size:0,docs:[]};}};}})};}};}};
   const service=await isolated(db,async()=>{graphReads++;return graph;});
   const [first,second]=await Promise.all([service.loadIntelligenceSnapshot(now),service.loadIntelligenceSnapshot(now)]);
   assert.equal(first,second);
@@ -40,7 +40,7 @@ test('unavailable SEC reads preserve real evidence and explicitly disclose parti
   const service=await isolated({collection:()=>{throw new Error('test permission denied');}},async()=>graph);
   const snapshot=await service.loadIntelligenceSnapshot(now);
   assert.equal(snapshot.events.length,1);
-  assert.equal(snapshot.events[0].observedAt,null);
+  assert.equal(snapshot.events[0].published_at,null);
   assert.equal(snapshot.coverage.find(item=>item.channel==='SEC')?.status,'stored_evidence');
   assert(snapshot.warnings.some(warning=>warning.includes('temporarily unavailable')));
 });
@@ -61,7 +61,7 @@ test('a recent failed collector run never reports SEC as connected despite succe
 test('enabled official news arrives through the shared snapshot with current source health',async()=>{
   const previous=process.env.INTELLIGENCE_NEWS_ENABLED;process.env.INTELLIGENCE_NEWS_ENABLED='1';
   try{
-    const news={version:1,id:'amd-release',type:'company_news',sourceType:'company_ir',companyIds:['US:AMD'],sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'Official announcement',summary:'Publisher evidence',url:'https://newsroom.amd.com/news/announcement/',firstObservedAt:now.toISOString(),publishedDate:'2026-10-02'};
+    const news={version:1,id:'amd-release',type:'company_news',sourceType:'company_ir',companyIds:['US:AMD'],sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'Official announcement',summary:'Publisher evidence',url:'https://newsroom.amd.com/news/announcement/',collected_at:now.toISOString(),processed_at:now.toISOString(),published_at:'2026-10-02T12:05:00.000Z',publication_date:'2026-10-02'};
     let newsReads=0;const filters:unknown[][]=[];
     const db={collection:(name:string)=>{
       const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,201);return query;},get:async()=>{if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
@@ -69,9 +69,9 @@ test('enabled official news arrives through the shared snapshot with current sou
     const service=await isolated(db,async()=>graph);
     const snapshot=await service.loadIntelligenceSnapshot(now);
     assert.equal(snapshot.coverage.find(item=>item.channel==='IR')?.status,'connected');
-    assert.deepEqual(filters.slice(0,3),[['type','==','company_news'],['sourceType','==','company_ir'],['baseline','==',false]]);
+    assert.deepEqual(filters.slice(0,3),[['type','==','company_news'],['sourceType','==','company_ir'],['published_at','>=','2026-09-02T00:00:00.000Z']]);
     const arrival=snapshot.events.find(event=>event.id==='news-amd-release');assert.ok(arrival);
-    assert.equal(arrival.observedAt,now.toISOString());assert.equal(arrival.evidence[0].channel,'IR');assert.deepEqual(arrival.edgeIds,[]);
-    await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.equal(newsReads,1);
+    assert.equal(arrival.published_at,'2026-10-02T12:05:00.000Z');assert.equal('collected_at' in arrival,false);assert.equal('processed_at' in arrival,false);assert.equal(arrival.evidence[0].channel,'IR');assert.deepEqual(arrival.edgeIds,[]);
+    await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.equal(newsReads,2);
   }finally{if(previous===undefined)delete process.env.INTELLIGENCE_NEWS_ENABLED;else process.env.INTELLIGENCE_NEWS_ENABLED=previous;}
 });
