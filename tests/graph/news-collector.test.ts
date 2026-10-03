@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type {Firestore} from 'firebase-admin/firestore';
 import {NEWS_SOURCES} from '../../src/lib/intelligence/collectors/sources';
-import {approvedNewsUrl,fetchNews,parseNewsFeed,MAX_FEED_BYTES,NewsFetchError,type NewsResponse} from '../../src/lib/intelligence/collectors/news';
+import {articlePublicationDay,approvedNewsUrl,fetchNews,parseNewsFeed,MAX_FEED_BYTES,NewsFetchError,type NewsResponse} from '../../src/lib/intelligence/collectors/news';
 import {firestoreNewsStore,NEWS_EVENTS_COLLECTION,NEWS_COLLECTORS_COLLECTION} from '../../src/lib/intelligence/collectors/store';
 import {collectNewsSources} from '../../src/lib/intelligence/collectors/collector';
 import {projectCollectedNews} from '../../src/lib/intelligence/collectors/projection';
@@ -12,6 +12,20 @@ import {EVENTS_COLLECTION,eventDocumentId} from '../../src/lib/events/model';
 const source=NEWS_SOURCES[0],at=new Date('2026-10-02T16:00:00Z');
 const rss=(items:string)=>`<rss version="2.0"><channel>${items}</channel></rss>`;
 const entry=(id:string)=>`<item><title>Announcement ${id}</title><link>https://nvidianews.nvidia.com/releases/${id}</link><pubDate>Fri, 02 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<p>Company update</p>]]></description></item>`;
+
+test('CMS rebuild timestamps never become original CoreWeave publication times',async()=>{
+  const core=NEWS_SOURCES.find(source=>source.id==='coreweave-news')!;
+  const xml=rss('<item><title>Historic article</title><link>https://wf.coreweave.com/blog/old</link><pubDate>Fri, 02 Oct 2026 14:12:41 GMT</pubDate></item>');
+  const raw=parseNewsFeed(xml,core);assert.equal(raw.items[0].published_at,null);assert.equal(raw.items[0].publication_date,null);
+  const html='<script type="application/ld+json">{"datePublished":"2026-10-02T14:12:41Z"}</script><div class="article-date-wrapper"><div>Published on</div><div>June 27, 2023</div></div>';
+  assert.equal(articlePublicationDay(html),'2023-06-27');assert.equal(articlePublicationDay(html.replace('June 27, 2023','February 30, 2026')),null);assert.equal(articlePublicationDay('<script>{"datePublished":"2026-10-02T14:12:41Z"}</script>'),null);
+  let articleRequests=0;
+  const request:typeof fetch=async url=>{if(String(url).endsWith('rss.xml'))return new Response(xml);articleRequests++;return new Response(html);};
+  const response=await fetchNews(core,{},request);assert.equal(response.status,'modified');if(response.status==='modified'){assert.equal(response.page.items[0].publication_date,'2023-06-27');assert.equal(response.page.items[0].published_at,null);}
+  assert.equal(articleRequests,1);
+  await fetchNews(core,{},request,[raw.items[0].id]);assert.equal(articleRequests,1);
+  await assert.rejects(fetchNews(core,{},async url=>String(url).endsWith('rss.xml')?new Response(xml):new Response(null,{status:302,headers:{location:'https://evil.example/article'}})),/Unapproved article host/);
+});
 test('verified article aliases use the public canonical host without allowing fetch redirects to that alias',()=>{
   const core=NEWS_SOURCES.find(source=>source.id==='coreweave-news')!;
   assert.equal(approvedNewsUrl('https://wf.coreweave.com/blog/a',core,true),'https://www.coreweave.com/blog/a');

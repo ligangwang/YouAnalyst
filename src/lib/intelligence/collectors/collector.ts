@@ -20,7 +20,7 @@ export async function collectNewsSources(sources:readonly NewsSource[],store:New
     const cursor=await store.acquire(source,clock(),randomUUID());
     if(!cursor){results.push({sourceId:source.id,status:'skipped'});continue;}
     try{
-      const response=await read(source,cursor.validators);
+      const response=await read(source,cursor.validators,undefined,cursor.itemIds);
       if(response.status==='unchanged'&&!cursor.baselineAt)throw new Error('Uninitialized collector received HTTP 304');
       const result=await store.commit(source,cursor,response,clock());
       results.push({sourceId:source.id,status:'ok',...result});
