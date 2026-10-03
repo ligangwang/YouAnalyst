@@ -44,7 +44,7 @@ test('conditional fetches retain validators and treat 304 as unchanged',async()=
 });
 test('redirects cannot escape publisher hosts and rate limits preserve Retry-After',async()=>{
   let calls=0;await assert.rejects(fetchNews(source,{},async()=>{calls++;return new Response(null,{status:302,headers:{location:'https://127.0.0.1/private'}});}),/Unapproved/);assert.equal(calls,1);
-  await assert.rejects(fetchNews(source,{},async()=>new Response(null,{status:429,headers:{'retry-after':'1200'}})),error=>error instanceof NewsFetchError&&error.retryAfterMs===1_200_000);
+  await assert.rejects(fetchNews(source,{},async()=>new Response(null,{status:429,headers:{'retry-after':'7200'}})),error=>error instanceof NewsFetchError&&error.retryAfterMs===7_200_000);
   await assert.rejects(fetchNews(source,{},async()=>new Response('x'.repeat(MAX_FEED_BYTES+1))),/size limit/);
 });
 
@@ -96,6 +96,6 @@ test('failed scans keep their previous validators and first-seen state; stale le
   const state=records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)!;assert.deepEqual(state.validators,{etag:'history'});assert.equal(state.lastSuccessAt,at.toISOString());assert.equal(state.failures,1);assert.equal(records.size,2);
 });
 test('runner respects provider backoff without losing prior collector health',async()=>{
-  const {db,records}=memoryDb();await collectNewsSources([source],firestoreNewsStore(db),async()=>{throw new NewsFetchError('HTTP 429',1_200_000);},()=>at);
-  assert.equal(records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)?.nextPollAt,new Date(at.getTime()+1_200_000).toISOString());
+  const {db,records}=memoryDb();await collectNewsSources([source],firestoreNewsStore(db),async()=>{throw new NewsFetchError('HTTP 429',7_200_000);},()=>at);
+  assert.equal(records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)?.nextPollAt,new Date(at.getTime()+7_200_000).toISOString());
 });

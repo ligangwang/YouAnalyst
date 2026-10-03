@@ -29,7 +29,7 @@ Canonical URL hashes prevent duplicates, including reruns and articles that
 disappear from and later return to the feed. CoreWeave's verified Webflow article
 alias is normalized to its public canonical host; fetch targets cannot use that
 alias. Transactions commit events and checkpoints together. HTTP validators,
-five-minute per-source checkpoints, two-minute leases, bounded response sizes
+hourly per-source checkpoints, two-minute leases, bounded response sizes
 and provider Retry-After backoff keep collection bounded.
 
 The snapshot reads at most 201 arrival records over 30 days and four health
@@ -49,7 +49,7 @@ replay. Failed, partial or stale feeds cannot report current IR coverage.
    `INTELLIGENCE_NEWS_COLLECTOR_ENABLED=1 bash scripts/deploy-background-jobs.sh intelligence-news`.
    Reuse the established maintenance runtime and scheduler identities.
 5. Execute `collect-intelligence-news-production` once and verify all four
-   checkpoints have a baseline, no failures and no partial coverage. A new
+   checkpoints have a baseline, no failures and no partial coverage. The scheduler runs hourly Monday through Friday in America/New_York time. A new
    scheduler starts paused; resume it explicitly after the baseline succeeds.
 6. Set production repository/environment variable `INTELLIGENCE_NEWS_ENABLED=1`
    and `INTELLIGENCE_NEWS_COLLECTOR_ENABLED=1`, then release the web application.

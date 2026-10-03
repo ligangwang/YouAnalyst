@@ -13,7 +13,7 @@ gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --command node --args dist/collect-intelligence-news.cjs,--apply \
   --set-env-vars "GCP_PROJECT_ID=$GCP_PROJECT_ID,GIT_SHA=${GIT_SHA:-unknown},INTELLIGENCE_NEWS_COLLECTOR_ENABLED=${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" --quiet
 ensure_maintenance_job_iam "$job"
-args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '*/5 * * * *' --time-zone UTC
+args=(--project "$GCP_PROJECT_ID" --location "$region" --schedule '0 * * * 1-5' --time-zone America/New_York
   --uri "https://run.googleapis.com/v2/projects/$GCP_PROJECT_ID/locations/$region/jobs/$job:run"
   --http-method POST --oauth-service-account-email "$maintenance_scheduler_account" --message-body '{}'
   --attempt-deadline 180s --max-retry-attempts 0 --quiet)
