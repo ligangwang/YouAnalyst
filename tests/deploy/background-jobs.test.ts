@@ -52,6 +52,17 @@ test('directory-only deploy avoids shared build and schedule changes',()=>{
   assert.ok(r.calls.indexOf('subscriptions update cni-directory-worker') < r.calls.indexOf('run jobs update sync-cni-directory-production'));
 });
 
+test('official news deploy is isolated, bounded and disabled by default',()=>{
+  const r=run('intelligence-news');assert.equal(r.status,0,r.stderr);
+  assert.equal(r.calls.match(/builds submit/g)?.length,1);
+  assert.match(r.calls,/run jobs deploy collect-intelligence-news-production .*--tasks 1 --parallelism 1/);
+  assert.match(r.calls,/--task-timeout 5m/);
+  assert.match(r.calls,/--args dist\/collect-intelligence-news.cjs,--apply/);
+  assert.match(r.calls,/INTELLIGENCE_NEWS_COLLECTOR_ENABLED=0/);
+  assert.doesNotMatch(r.calls,/pubsub|run jobs execute|scheduler jobs resume|run deploy/);
+  assert.doesNotMatch(run('all').calls,/collect-intelligence-news-production/);
+});
+
 test('A-share subscriber is provisioned before publication and preserves schedule state',()=>{
   const r=run('cn-fundamentals');assert.equal(r.status,0,r.stderr);
   assert.match(r.calls,/run deploy cn-fundamentals-subscriber.*--no-allow-unauthenticated.*--concurrency 1/);

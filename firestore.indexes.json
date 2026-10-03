@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "intelligence_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "baseline", "order": "ASCENDING" },
+        { "fieldPath": "firstObservedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "predictions",
       "queryScope": "COLLECTION",
       "fields": [

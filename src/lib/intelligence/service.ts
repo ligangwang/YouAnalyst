@@ -6,6 +6,7 @@ import { SEC_FILINGS_COLLECTION, secCollectorMetadata } from '../sec-filings/sto
 import { INTELLIGENCE_SOURCES, intelligenceSession, secCollectorIsFresh, sourceChannel, type IntelligenceSnapshot } from './model';
 import { mergeIntelligenceEvents, projectResearchIntelligence } from './project';
 import { projectSecIntelligence } from './sec-events';
+import { loadCollectedNews } from './collectors/projection';
 
 const LIMIT=200,CACHE_MS=60_000;
 let cached:{value:IntelligenceSnapshot;expires:number}|undefined;
@@ -50,13 +51,19 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
       console.error('Intelligence SEC discovery feed unavailable',error);
       warnings.push('SEC discovery feed is temporarily unavailable. Stored research evidence remains available.');
     }
+    let news:Awaited<ReturnType<typeof loadCollectedNews>>|undefined;
+    if(process.env.INTELLIGENCE_NEWS_ENABLED==='1'&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
+      news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay,LIMIT);
+      truncated=truncated||news.truncated;
+      if(!news.fresh)warnings.push(`Company news collector freshness is unverified: ${news.unhealthy.join(', ')}.`);
+    }catch(error){console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}
     const projected=projectResearchIntelligence(graph,curatedEvents,now);
     // A discovery and a research citation of the same filing are one document.
-    const events=mergeIntelligenceEvents(filings,projected).filter(event=>event.observedDate>=earliestDay&&event.observedDate<=session.date).sort((a,b)=>(b.observedAt??b.observedDate).localeCompare(a.observedAt??a.observedDate)||a.id.localeCompare(b.id));
+    const events=mergeIntelligenceEvents([...filings,...(news?.events??[])],projected).filter(event=>event.observedDate>=earliestDay&&event.observedDate<=session.date).sort((a,b)=>(b.observedAt??b.observedDate).localeCompare(a.observedAt??a.observedDate)||a.id.localeCompare(b.id));
     const graphVersion=createHash('sha256').update(JSON.stringify(graph)).digest('hex');
     const evidenceChannels=new Set(graph.sources.map(source=>sourceChannel(source.url)));
     for(const event of events)for(const source of event.evidence)evidenceChannels.add(source.channel);
-    const value:IntelligenceSnapshot={graph,graphVersion,events,generatedAt:now.toISOString(),session,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:channel==='SEC'&&secAvailable&&secFresh?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
+    const value:IntelligenceSnapshot={graph,graphVersion,events,generatedAt:now.toISOString(),session,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
     cached={value,expires:now.getTime()+CACHE_MS};
     return value;
   })();
