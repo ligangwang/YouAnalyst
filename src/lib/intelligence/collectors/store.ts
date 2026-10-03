@@ -5,8 +5,8 @@ import type {CollectedNews,NewsCursor,NewsStore} from './collector';
 import {EVENTS_COLLECTION,eventDocumentId} from '../../events/model';
 
 export const NEWS_EVENTS_COLLECTION=EVENTS_COLLECTION;
-export const NEWS_COLLECTORS_COLLECTION='intelligence_collectors';
-/** Collection creation requires the exact-name approval specified in AGENTS.md. */
+export const NEWS_COLLECTORS_COLLECTION='collectors';
+/** User-approved shared collector state, separate from the event documents. */
 export function firestoreNewsStore(db:Firestore):NewsStore{
   const metadata=(source:NewsSource)=>db.collection(NEWS_COLLECTORS_COLLECTION).doc(source.id);
   return {
