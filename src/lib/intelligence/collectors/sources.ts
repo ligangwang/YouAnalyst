@@ -3,6 +3,7 @@ export type NewsSource = {
 };
 
 /** Publisher-owned feeds, verified individually. No user-supplied fetch targets. */
+// Samsung Global Newsroom returns HTTP 403 from Cloud Run; exclude until verified there.
 export const NEWS_SOURCES:readonly NewsSource[] = [
   {id:'nvidia-news',companyId:'US:NVDA',name:'NVIDIA Newsroom',url:'https://nvidianews.nvidia.com/cats/press_release.xml',allowedHosts:['nvidianews.nvidia.com'],pollMs:60*60_000},
   {id:'amd-news',companyId:'US:AMD',name:'AMD Newsroom',url:'https://newsroom.amd.com/rss.xml',allowedHosts:['newsroom.amd.com','www.amd.com','ir.amd.com'],pollMs:60*60_000},
@@ -22,5 +23,4 @@ export const NEWS_SOURCES:readonly NewsSource[] = [
   {id:'apple-news',companyId:'US:AAPL',name:'Apple Newsroom',publicationFromArticle:true,articleDateFormat:'apple-newsroom',url:'https://www.apple.com/newsroom/rss-feed.rss',allowedHosts:['www.apple.com'],pollMs:60*60_000},
   {id:'intel-news',companyId:'US:INTC',name:'Intel Investor News',url:'https://www.intc.com/news-events/press-releases/rss',allowedHosts:['www.intc.com'],pollMs:60*60_000},
   {id:'arista-news',companyId:'US:ANET',name:'Arista Press Releases',url:'https://www.arista.com/en/company/news/press-release-rss',allowedHosts:['www.arista.com'],pollMs:60*60_000},
-  {id:'samsung-news',companyId:'ORG:SAMSUNG-ELECTRONICS',name:'Samsung Global Newsroom',url:'https://news.samsung.com/global/feed',allowedHosts:['news.samsung.com'],pollMs:60*60_000},
 ];

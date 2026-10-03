@@ -1,12 +1,18 @@
 # Official company news collectors
 
-The verified registry covers 19 AI Map companies: NVIDIA, AMD, Microsoft,
+The verified registry covers 18 AI Map companies: NVIDIA, AMD, Microsoft,
 CoreWeave, Broadcom, Marvell, KLA, Applied Materials, Lam Research, NXP,
-GlobalFoundries, Datadog, Arm, Alphabet/Google, Amazon, Apple, Intel, Arista,
-and Samsung Electronics. Sources are publisher-owned public RSS/Atom news,
+GlobalFoundries, Datadog, Arm, Alphabet/Google, Amazon, Apple, Intel,
+and Arista. Sources are publisher-owned public RSS/Atom news,
 IR and corporate research feeds, without social providers or paid enrichment.
 Their configured company IDs are checked against the published AI Map. This
 is partial company coverage, not a claim that every AI Map company is monitored.
+Samsung Global Newsroom passed local validation but returned HTTP 403 from Cloud
+Run during the initial import. It is excluded from active coverage until verified
+from the production runtime; its failed checkpoint is retained for audit. The
+18 active collectors imported 168 new articles, bringing eligible stored 2026
+news to 265.
+
 Feed windows contain recent publications and are not complete 2026 archives.
 Each publisher was tested for valid articles, original publication fields,
 exact article hosts, and the January 1, 2026 history cutoff.
