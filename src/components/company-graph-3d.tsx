@@ -596,7 +596,7 @@ function GraphUnavailable({onRetry}:{onRetry:()=>void}) {
 }
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
-  const introOrbitRef = useRef(!props.intelligence);
+  const introOrbitRef = useRef(true);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [contextLost,setContextLost]=useState(false);
   const [pointerOverCanvas,setPointerOverCanvas]=useState(false);
