@@ -1,9 +1,9 @@
-.summary { display:flex; align-items:center; flex-wrap:wrap; gap:4px 8px; padding:6px 12px; min-height:34px; border-top:1px solid #213242; background:#0a1520; flex-shrink:0; font-size:10px; font-variant-numeric:tabular-nums; }
+.summary { display:flex; align-items:center; flex-wrap:wrap; gap:4px 4px; padding:6px 10px; min-height:34px; border-top:1px solid #213242; background:#0a1520; flex-shrink:0; font-size:10px; font-variant-numeric:tabular-nums; }
 .summary button { padding:3px 4px; color:#9ab0c3; white-space:nowrap; }
 .summary button strong { color:#e4edf5; font-weight:500; margin-left:5px; }
 .summary button[aria-pressed=true] { background:#203a3e; color:#98e7d6; }
 .context { font-size:9px; color:#849bae; white-space:nowrap; }
-.sources { display:flex; align-items:center; gap:3px; flex-wrap:wrap; }
+.sources { display:flex; align-items:center; gap:1px; flex-wrap:wrap; }
 .sources > span { color:#849bae; margin-right:3px; }
 .summary .clear { color:#98e7d6; margin-left:auto; }
 .summary button { display:inline-flex; align-items:center; gap:5px; position:relative; }
@@ -11,7 +11,7 @@
 .activeMeter { display:inline-block; width:28px; height:4px; background:#213746; border-radius:2px; overflow:hidden; }
 .activeMeter i { display:block; height:100%; background:#98e7d6; border-radius:2px; }
 .sparkline { display:block; width:54px; height:14px; flex-shrink:0; }
-.sources button { padding-bottom:6px; }
+.sources button { padding:3px 2px 6px; }
 .sourceMeter { position:absolute; left:4px; right:4px; bottom:0; height:2px; background:#243746; border-radius:2px; overflow:hidden; }
 .sourceMeter i { display:block; height:100%; border-radius:2px; }
 .sourceMeter[data-available=false] { opacity:.4; background:repeating-linear-gradient(90deg,#496070 0 2px,transparent 2px 4px); }
