@@ -40,6 +40,12 @@ export function projectResearchIntelligence(graph:KnowledgeGraph,business:Busine
 
 /** Source publication owns the timestamp; its existing research paths remain visible. */
 export function mergeIntelligenceEvents(filings:IntelligenceEvent[],research:IntelligenceEvent[]):IntelligenceEvent[]{
+  const observed=new Map<string,IntelligenceEvent>();
+  for(const event of filings){
+    const key=event.evidence[0]?.url??event.id,previous=observed.get(key);
+    observed.set(key,previous?{...previous,companyIds:[...new Set([...previous.companyIds,...event.companyIds])],edgeIds:[...new Set([...previous.edgeIds,...event.edgeIds])],evidence:[...new Map([...previous.evidence,...event.evidence].map(source=>[source.url,source])).values()]}:event);
+  }
+  filings=[...observed.values()];
   const byUrl=new Map(research.flatMap(event=>event.evidence.map(source=>[source.url,event] as const)));
   const filingUrls=new Set(filings.flatMap(event=>event.evidence.map(source=>source.url)));
   return [...filings.map(filing=>{

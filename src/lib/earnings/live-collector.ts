@@ -12,13 +12,14 @@ export type EarningsDiscovery = (companyId: string, from: string, to: string, fi
 export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, options: {
   discoverCn: EarningsDiscovery; publish: (event: EarningsSourceDiscovered) => Promise<string>;
   deadline: number; now?: () => number;
+  discoveryOwnedByMap?: boolean;
 }) {
   const now = options.now ?? Date.now, meta = earningsMetadata(db, "collector"), startedAt = now();
   if (!Number.isFinite(options.deadline) || options.deadline <= startedAt || options.deadline - startedAt > 15 * 60_000) throw new Error("Invalid earnings collector deadline");
   if (!await acquireMaintenanceLease(meta, log.runId, startedAt, cloudRunTaskAttempt())) throw new Error("Earnings collector is busy");
   const result = { companies: 0, skipped: 0, candidates: 0, queued: 0, published: 0, failed: 0, deferred: 0 };
   try {
-    for (const company of earningsPilot.filter(item => !item.cik)) {
+    for (const company of earningsPilot.filter(item => !item.cik && !options.discoveryOwnedByMap)) {
       if (now() + 30_000 >= options.deadline) { result.deferred++; continue; }
       const cursorRef = earningsMetadata(db, `cn_${company.companyId}`), cursor = (await cursorRef.get()).data();
       if (Number(cursor?.nextPollAtMs) > now()) { result.skipped++; continue; }

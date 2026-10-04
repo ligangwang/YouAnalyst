@@ -8,6 +8,7 @@ import { mergeIntelligenceEvents, projectResearchIntelligence } from './project'
 import { projectSecIntelligence } from './sec-events';
 import { loadCollectedNews } from './collectors/projection';
 import { NEWS_SOURCES } from './collectors/sources';
+import {loadMapDisclosures} from '../events/disclosure-projection';
 
 const LIMIT=200,CACHE_MS=60_000;
 let cached:{value:IntelligenceSnapshot;expires:number}|undefined;
@@ -49,17 +50,22 @@ export async function loadIntelligenceSnapshot(now=new Date()):Promise<Intellige
     let newsCoverage:IntelligenceSnapshot['newsCoverage'];
     if(process.env.INTELLIGENCE_NEWS_ENABLED==='1'&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay,LIMIT);
-      const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id);
+      const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY'&&node.id.startsWith('US:')).map(node=>node.id);
       const configured=new Set(NEWS_SOURCES.map(source=>source.companyId));
       const covered=companyIds.filter(id=>configured.has(id)).length;
       newsCoverage={configured:covered,total:companyIds.length,healthy:companyIds.filter(id=>news!.healthyCompanyIds.includes(id)).length};
-      if(covered<companyIds.length)warnings.push(`Company IR/news feeds cover ${covered} of ${companyIds.length} AI Map companies. Other companies do not yet have verified news collectors.`);
+      if(covered<companyIds.length)warnings.push(`Verified IR/news feeds cover ${covered} of ${companyIds.length} US-listed AI Map companies. SEC disclosures cover companies awaiting an IR adapter.`);
       truncated=truncated||news.truncated;
       if(!news.fresh)warnings.push(`Company news collector freshness is unverified: ${news.unhealthy.join(', ')}.`);
     }catch(error){console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}
     const projected=projectResearchIntelligence(graph,curatedEvents,now);
+    let disclosures:Awaited<ReturnType<typeof loadMapDisclosures>>|undefined;
+    if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
+      disclosures=await loadMapDisclosures(getAdminFirestore(),graph,now,earliestDay,LIMIT);
+      truncated=truncated||disclosures.truncated;
+    }catch(error){console.error('Map disclosure feed unavailable',error);warnings.push('Company disclosure arrivals are temporarily unavailable.');}
     // A discovery and a research citation of the same filing are one document.
-    const ordered=mergeIntelligenceEvents([...filings,...(news?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date).sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
+    const ordered=mergeIntelligenceEvents([...filings,...(news?.events??[]),...(disclosures?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date).sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
     const events=ordered.slice(0,LIMIT);truncated=truncated||ordered.length>LIMIT;
     const graphVersion=createHash('sha256').update(JSON.stringify(graph)).digest('hex');
     const evidenceChannels=new Set(graph.sources.map(source=>sourceChannel(source.url)));

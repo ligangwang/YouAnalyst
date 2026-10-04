@@ -1,5 +1,8 @@
+import mapIrFeeds from './map-ir-feeds.json';
 export type NewsSource = {
   id:string; companyId:string; name:string; url:string; allowedHosts:string[]; articleHostAliases?:Record<string,string>; publicationFromArticle?:boolean; articleDateFormat?:'apple-newsroom'; pollMs:number;
+  format?:'html'; articlePathPattern?:string; transport?:'https'; articleDateOnly?:boolean; upgradeArticleHttp?:boolean;
+  indexDateFormat?:'alibaba'|'vistra'; articleVisibleDate?:'linde'; reviewRequired?:string;
 };
 
 /** Publisher-owned feeds, verified individually. No user-supplied fetch targets. */
@@ -23,4 +26,6 @@ export const NEWS_SOURCES:readonly NewsSource[] = [
   {id:'apple-news',companyId:'US:AAPL',name:'Apple Newsroom',publicationFromArticle:true,articleDateFormat:'apple-newsroom',url:'https://www.apple.com/newsroom/rss-feed.rss',allowedHosts:['www.apple.com'],pollMs:60*60_000},
   {id:'intel-news',companyId:'US:INTC',name:'Intel Investor News',url:'https://www.intc.com/news-events/press-releases/rss',allowedHosts:['www.intc.com'],pollMs:60*60_000},
   {id:'arista-news',companyId:'US:ANET',name:'Arista Press Releases',url:'https://www.arista.com/en/company/news/press-release-rss',allowedHosts:['www.arista.com'],pollMs:60*60_000},
+  ...(mapIrFeeds as NewsSource[]).filter(source=>!source.reviewRequired),
 ];
+export const IR_SOURCES_REQUIRING_REVIEW=(mapIrFeeds as NewsSource[]).filter(source=>source.reviewRequired);
