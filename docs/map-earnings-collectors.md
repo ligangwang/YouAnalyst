@@ -10,6 +10,9 @@ events, and earnings discovery. SEC Item 2.02 current reports supply official
 EX-99 exhibits. Foreign issuer 6-K exhibits remain candidates. Scanner identity
 checkpoints in `collectors` bind queued sources to map companies; downloaded
 documents cannot enroll an issuer or change its CIK.
+Each listing has its own earnings cursor, including share classes with a shared
+CIK. Existing source IDs remain stable; a second listing of the same source gets
+an independent intake identity without replacing the first listing's record.
 
 The exchange map collector supplies earnings candidates from its existing
 CNINFO pages for every mainland map company. `earningsCoverageVersion: 2` is

@@ -9,7 +9,7 @@ import {captureEarningsDocument,validateSource} from '../../src/lib/earnings/doc
 import {makeUsEarningsPlan} from '../../src/lib/earnings/live-us';
 import {makeCnEarningsPlan,parseCnEarningsOrg} from '../../src/lib/earnings/live-cn';
 import {extractEarnings} from '../../src/lib/earnings/extract';
-import {createSecEarningsObserver} from '../../src/lib/earnings/sec-observer';
+import {createSecEarningsObserver,secEarningsCursorId} from '../../src/lib/earnings/sec-observer';
 import {loadEarningsMap} from '../../src/lib/earnings/map-issuers';
 import {earningsFirestore} from '../helpers/earnings-firestore';
 import type {MaintenanceLog} from '../../src/lib/maintenance-log';
@@ -43,6 +43,23 @@ test('Micron discovery uses the shared SEC response and preserves original accep
   assert.throws(()=>discoverSecEarnings('US:AMAT',payload,now));
   assert.throws(()=>validateSource({...source,issuerId:'sec:0000006951'}));
   assert.throws(()=>validateSource({...source,url:source.url.replace('/723125/','/6951/')}));
+});
+test('shared-CIK listings get independent full windows and durable intake without changing existing source IDs',async()=>{
+  const shared={...graph,nodes:[...graph.nodes,{...graph.nodes[0],id:'US:MU.B'}]};
+  configureEarningsMap(shared,new Map([...ids,['US:MU.B','0000723125']]));
+  const fx=earningsFirestore(),observer=createSecEarningsObserver(fx.db,{runId:'aliases',emit:()=>{}} as unknown as MaintenanceLog,{deadline:fx.now()+60000,now:fx.now});
+  const raw={...payload,filings:{files:[],recent:{form:['8-K','8-K'],accessionNumber:['0000723125-26-000018','0000723125-26-000010'],filingDate:['2026-09-30','2026-06-01'],primaryDocument:['mu-20260930.htm','older.htm']}}};
+  await observer.observe('0000723125',raw,async()=>{throw new Error('Unexpected archive');});
+  assert.equal(observer.failed.size,0);assert.equal(observer.observed.size,2);
+  for(const id of ['US:MU','US:MU.B'])assert.equal(fx.rows.get(`earnings_collectors/${secEarningsCursorId(id)}`)?.candidates,2);
+  const sources=[...fx.rows.values()].filter(row=>row.recordType==='source');assert.equal(sources.length,4);
+  assert.equal(sources.filter(row=>(row.source as {companyId:string}).companyId==='US:MU.B').length,2);
+  const before=new Map(sources.map(row=>[row.sourceId,row.firstSeenAt]));
+  const repeat=createSecEarningsObserver(fx.db,{runId:'again',emit:()=>{}} as unknown as MaintenanceLog,{deadline:fx.now()+60000,now:fx.now});
+  await repeat.observe('0000723125',raw,async()=>{throw new Error('Unexpected archive');});
+  assert.equal(repeat.failed.size,0);
+  const after=[...fx.rows.values()].filter(row=>row.recordType==='source');assert.equal(after.length,4);
+  for(const row of after)assert.equal(row.firstSeenAt,before.get(row.sourceId));
 });
 test('Micron quarterly revenue uses its 14-week period and cannot absorb annual or reordered columns',()=>{
   configureEarningsMap(graph,ids);

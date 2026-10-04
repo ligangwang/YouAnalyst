@@ -9,6 +9,10 @@ import { validDate } from "./model";
 export const EARNINGS_INITIAL_LOOKBACK_DAYS = 180;
 export const EARNINGS_OVERLAP_DAYS = 7;
 const DAY = 86_400_000;
+export function secEarningsCursorId(companyId: string) {
+  if (!/^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(companyId)) throw new Error('Invalid earnings cursor listing');
+  return `us_${companyId.replaceAll('.', '_')}`;
+}
 export function earningsScanWindow(cursor: Record<string, unknown> | undefined, now: number, localOffsetHours = 0) {
   const reconcile = !Number.isFinite(Date.parse(String(cursor?.lastReconcileAt))) || now - Date.parse(String(cursor?.lastReconcileAt)) >= DAY;
   const previous = Date.parse(String(cursor?.lastCompleteAt));
@@ -25,9 +29,12 @@ export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, op
   const observe: SecRawSubmissionsObserver = async (cik, value, archive) => {
     for (const company of earningsCompanies().filter(item => item.cik === cik)) {
     if (observed.has(company.companyId)) continue;
-    const meta = earningsMetadata(db, `us_${cik}`);
+    const meta = earningsMetadata(db, secEarningsCursorId(company.companyId));
     try {
-      const cursor = (await meta.get()).data(), window = earningsScanWindow(cursor, now());
+      const saved = (await meta.get()).data();
+      const legacy = saved ? undefined : (await earningsMetadata(db, `us_${cik}`).get()).data();
+      const cursor = saved ?? (legacy?.companyId === company.companyId ? legacy : undefined);
+      const window = earningsScanWindow(cursor, now());
       const payload = value as { cik?: unknown; filings?: { recent?: Record<string, unknown>; files?: Array<{ name: string; filingFrom: string; filingTo: string }> } };
       if (!payload.filings || !Array.isArray(payload.filings.files)) throw new Error("Missing SEC archive coverage metadata");
       const recent = payload.filings.recent;

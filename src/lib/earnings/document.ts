@@ -20,6 +20,7 @@ export function validateSource(source: EarningsSource) {
   const company = earningsCompany(source.companyId);
   if (!["sec", "cninfo", "issuer_ir"].includes(source.provider) || !["en", "zh"].includes(source.language)) throw new Error("Invalid source provider or language");
   if (source.issuerId !== company.issuerId || !source.documentId || source.documentId.length > 500 || !source.title || source.title.length > 1000) throw new Error("Invalid earnings source identity");
+  if (source.listingId !== undefined && source.listingId !== source.companyId) throw new Error('Invalid earnings listing identity');
   validateSourceUrl(source.companyId, source.url, source.provider);
   if (!validTimestamp(source.firstSeenAt)) throw new Error("Invalid first-seen timestamp");
   if (source.publishedAt) {

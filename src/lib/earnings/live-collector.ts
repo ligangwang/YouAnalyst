@@ -3,7 +3,7 @@ import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease }
 import type { MaintenanceLog } from "../maintenance-log";
 import { discoverEarningsSource, earningsMetadata, EARNINGS_RECORDS, EARNINGS_SOURCES, publishEarningsOutbox, type EarningsWork } from "./live-store";
 import { earningsCompanies } from "./issuers";
-import { earningsScanWindow } from "./sec-observer";
+import { earningsScanWindow, secEarningsCursorId } from "./sec-observer";
 import type { EarningsRecord, EarningsSource } from "./model";
 import type { EarningsSourceDiscovered } from "./live-event";
 import { inspectAlibabaMarchReplay } from "./live-replay";
@@ -72,7 +72,7 @@ export async function inspectLiveEarnings(db: Firestore) {
   const states: Record<string, number> = {};
   for (const row of sourceRows) states[row.status] = (states[row.status] ?? 0) + 1;
   const cursors: Record<string, unknown> = {};
-  for (const company of earningsCompanies()) cursors[company.companyId] = (await earningsMetadata(db, company.cik ? `us_${company.cik}` : `cn_${company.companyId}`).get()).data() ?? null;
+  for (const company of earningsCompanies()) cursors[company.companyId] = (await earningsMetadata(db, company.cik ? secEarningsCursorId(company.companyId) : `cn_${company.companyId}`).get()).data() ?? null;
   return { status: "read_only", revision: process.env.GIT_SHA ?? "local", sources: sourceRows.length, sourceStates: states,
     validatedRevisions: Math.min(records.size, 200), sampleTruncated: sources.size > 500 || records.size > 200,
     unsupported: sourceRows.filter(row => row.status === "review_required").slice(0, 30).map(row => ({ sourceId: row.sourceId, companyId: row.source.companyId, reason: row.reason, sourceUrl: row.source.url })),
