@@ -117,6 +117,13 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Cache Playwright browser download
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('package-lock.json') }}
+      # OS dependencies are installed on every fresh runner; Playwright reuses
+      # only the version-matched browser binary from the cache.
       - name: Install conversion test browser
         run: npx playwright install --with-deps --only-shell chromium
 
@@ -462,6 +469,13 @@ jobs:
               --uri "$uri" --http-method POST --headers "$headers" --message-body "$china_body"
           fi
 
+      - name: Cache Playwright browser download
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('package-lock.json') }}
+      # OS dependencies are installed on every fresh runner; Playwright reuses
+      # only the version-matched browser binary from the cache.
       - name: Install Playwright browsers
         run: npx playwright install --with-deps --only-shell chromium
 
@@ -714,6 +728,13 @@ jobs:
               --uri "$uri" --http-method POST --headers "$headers" --message-body "$china_body"
           fi
 
+      - name: Cache Playwright browser download
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('package-lock.json') }}
+      # OS dependencies are installed on every fresh runner; Playwright reuses
+      # only the version-matched browser binary from the cache.
       - name: Install Playwright browsers
         run: npx playwright install --with-deps --only-shell chromium
 

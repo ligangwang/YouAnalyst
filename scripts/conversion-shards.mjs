@@ -7,8 +7,13 @@ import { resolve } from 'node:path';
 // even before timing history exists. Balance WebGL work across every runner.
 export function testWeight(test) {
   if(test.file !== 'knowledge-graph.spec.ts')return 1;
-  if(/overview pauses|resumes gently|zoomed and panned/.test(test.title))return 30;
-  if(/cinematic introduction|tree approaches and visits|tree continuously surrounds/.test(test.title))return 12;
+  // Observed release timings: these two tree scenarios take 60–70 seconds.
+  // Keep their real motion assertions; balance them before the short UI tests.
+  if(/tree tour pauses on hold/.test(test.title))return 75;
+  if(/tree continuously surrounds/.test(test.title))return 65;
+  if(/overview pauses|resumes gently|zoomed and panned|tree layer changes/.test(test.title))return 30;
+  if(/blank clicks recover|vertical tree labels fade|filtering from external graph search/.test(test.title))return 20;
+  if(/cinematic introduction|tree approaches and visits|every sector dims|selected relationships stay readable/.test(test.title))return 12;
   return 5;
 }
 /** @typedef {{file:string,project:string,title:string,id:string}} BrowserTest */
