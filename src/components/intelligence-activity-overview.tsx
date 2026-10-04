@@ -1,32 +1,33 @@
 "use client";
 import type { GraphNode } from '@/lib/knowledge-graph/model';
 import { companySector, GRAPH_SECTORS } from '@/lib/knowledge-graph/sectors';
-import { summarizeIntelligence, type IntelligenceEvent, type IntelligenceSource } from '@/lib/intelligence/model';
+import { sourceDocumentsForEvents, summarizeSourceDocuments, type IntelligenceSourceDocument, type IntelligenceEvent, type IntelligenceSource } from '@/lib/intelligence/model';
 import { useLocale } from './providers/locale-provider';
 import styles from './intelligence-activity-overview.module.css';
 
 const sourceColors:Record<IntelligenceSource,string>={SEC:'#ff9eae',IR:'#67e6bc',Exchange:'#65d9ff',GitHub:'#c4a0ff',X:'#f4eb87',Reddit:'#ffc57a',Other:'#8faaff'};
 
-export function IntelligenceActivityOverview({events,companies,recentFallback,period,sourceFilter,limit,truncated,onSector,onSource,onEvent}:{
-  events:IntelligenceEvent[];companies:GraphNode[];recentFallback:boolean;period:'today'|'recent'|'replay';sourceFilter:IntelligenceSource|'';limit:number;truncated:boolean;
+export function IntelligenceActivityOverview({events,documents,complete=false,companies,recentFallback,period,sourceFilter,limit,truncated,onSector,onSource,onEvent}:{
+  events:IntelligenceEvent[];documents?:IntelligenceSourceDocument[];complete?:boolean;companies:GraphNode[];recentFallback:boolean;period:'today'|'recent'|'replay';sourceFilter:IntelligenceSource|'';limit:number;truncated:boolean;
   onSector:(id:string)=>void;onSource:(source:IntelligenceSource)=>void;onEvent:(id:string)=>void;
 }){
   const {text,chinese}=useLocale();
-  const activity=summarizeIntelligence(events,companies.map(company=>company.id),sourceFilter);
+  const sourceDocuments=documents??sourceDocumentsForEvents(events);
+  const activity=summarizeSourceDocuments(sourceDocuments,companies.map(company=>company.id),sourceFilter);
   const sources=activity.sources.filter(source=>source.count>0);
   const sectors=GRAPH_SECTORS.map(sector=>{
     const ids=new Set(companies.filter(company=>companySector(company).id===sector.id).map(company=>company.id));
-    return {...sector,count:summarizeIntelligence(events,[...ids],sourceFilter).signals};
+    return {...sector,count:summarizeSourceDocuments(sourceDocuments,[...ids],sourceFilter).signals};
   }).filter(sector=>sector.count>0).sort((a,b)=>b.count-a.count);
   const largest=Math.max(1,...sectors.map(sector=>sector.count));
-  if(!events.length)return null;
-  return <section className={styles.overview} aria-label={text('Loaded source activity overview','已加载来源活动概览')}>
-    <div className={styles.heading}><strong>{text('Source activity','来源活动')}</strong><span>{period==='recent'?text('Loaded · 30d','已加载 · 30 天'):period==='replay'?text('Loaded · replay','已加载 · 回放'):text('Loaded · today','已加载 · 今日')}</span></div>
+  if(!sourceDocuments.length)return null;
+  return <section className={styles.overview} aria-label={text('Source activity overview','来源活动概览')}>
+    <div className={styles.heading}><strong>{text('Source activity','来源活动')}</strong><span>{period==='recent'?text('Last 30 days','近 30 天'):period==='replay'?text('Replay','回放'):text('Today','今日')}{!complete&&text(' · Partial data',' · 部分数据')}</span></div>
     <div className={styles.metrics}>
       <div><strong>{activity.activeIds.length}</strong><span>{text('Active companies','活跃公司')}</span></div>
       <div><strong>{activity.signals}</strong><span>{text('Source documents','来源文档')}</span></div>
     </div>
-    <p className={styles.scopeNote}>{truncated?text(`Feed limited to ${limit} entries; counts cover loaded sources only.`,`列表最多加载 ${limit} 条；统计仅涵盖已加载来源。`):text('Counts cover loaded sources only, not full-period totals.','统计仅涵盖已加载来源，并非整个时段的总量。')}</p>
+    <p className={styles.scopeNote}>{!complete?text('Some sources are unavailable; totals are partial.','部分来源暂不可用；统计数据不完整。'):truncated?text(`Latest ${limit} entries shown; totals include all recorded sources in this period.`,`列表显示最新 ${limit} 条；统计涵盖该时段所有已收录来源。`):text('Totals include all recorded sources in this period.','统计涵盖该时段所有已收录来源。')}</p>
     <div className={styles.heading}><span>{text('Source documents by sector','各行业来源文档')}</span></div>
     <div className={styles.sectors}>{sectors.map(sector=><button key={sector.id} onClick={()=>onSector(sector.id)} title={text('Explore this sector','探索此行业')}>
       <span>{chinese?sector.zh:sector.en}</span><i><b style={{width:`${sector.count/largest*100}%`,background:sector.color}}/></i><strong>{sector.count}</strong>

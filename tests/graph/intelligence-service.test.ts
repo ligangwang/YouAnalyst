@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'esbuild';
 import { createRequire } from 'node:module';
+import {createSecFilingDiscovered} from '../../src/lib/sec-filings/event';
+import {summarizeIntelligence,summarizeSourceDocuments} from '../../src/lib/intelligence/model';
 import {NEWS_SOURCES} from '../../src/lib/intelligence/collectors/sources';
 import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
 
@@ -23,9 +25,9 @@ async function isolated(db:unknown,loadGraph:()=>Promise<KnowledgeGraph>,collect
   return evaluated.exports as typeof import('../../src/lib/intelligence/service');
 }
 
-test('concurrent browsers share one bounded read and the 60-second snapshot cache',async()=>{
+test('concurrent browsers share one paginated period read and the 60-second snapshot cache',async()=>{
   let reads=0,graphReads=0;
-  const db={collection:(name:string)=>{assert.equal(name,'sec_filings');return {where:(field:string,operator:string)=>{assert.equal(field,'filingDate');assert.equal(operator,'>=');return {orderBy:()=>({limit:(limit:number)=>{assert.equal(limit,201);return {get:async()=>{reads++;return {size:0,docs:[]};}};}})};}};}};
+  const db={collection:(name:string)=>{assert.equal(name,'sec_filings');return {where:(field:string,operator:string)=>{assert.equal(field,'filingDate');assert.equal(operator,'>=');return {orderBy:()=>({limit:(limit:number)=>{assert.equal(limit,500);return {get:async()=>{reads++;return {size:0,docs:[]};}};}})};}};}};
   const service=await isolated(db,async()=>{graphReads++;return graph;});
   const [first,second]=await Promise.all([service.loadIntelligenceSnapshot(now),service.loadIntelligenceSnapshot(now)]);
   assert.equal(first,second);
@@ -42,6 +44,7 @@ test('unavailable SEC reads preserve real evidence and explicitly disclose parti
   const snapshot=await service.loadIntelligenceSnapshot(now);
   assert.equal(snapshot.events.length,1);
   assert.equal(snapshot.events[0].published_at,null);
+  assert.equal(snapshot.statisticsComplete,false);
   assert.equal(snapshot.coverage.find(item=>item.channel==='SEC')?.status,'stored_evidence');
   assert(snapshot.warnings.some(warning=>warning.includes('temporarily unavailable')));
 });
@@ -65,15 +68,39 @@ test('enabled official news arrives through the shared snapshot with current sou
     const news={version:1,id:'amd-release',type:'company_news',sourceType:'company_ir',companyIds:['US:AMD'],sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'Official announcement',summary:'Publisher evidence',url:'https://newsroom.amd.com/news/announcement/',collected_at:now.toISOString(),processed_at:now.toISOString(),published_at:'2026-10-02T12:05:00.000Z',publication_date:'2026-10-02'};
     let newsReads=0;const filters:unknown[][]=[];
     const db={collection:(name:string)=>{
-      const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,201);return query;},get:async()=>{if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
+      const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,500);return query;},get:async()=>{if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
     },getAll:async(...refs:unknown[])=>{assert.equal(refs.length,NEWS_SOURCES.length);return refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}));}};
     const service=await isolated(db,async()=>graph);
     const snapshot=await service.loadIntelligenceSnapshot(now);
     assert.equal(snapshot.coverage.find(item=>item.channel==='IR')?.status,'connected');
     assert.deepEqual(snapshot.newsCoverage,{configured:2,healthy:2,total:2});
-    assert.deepEqual(filters.slice(0,3),[['type','==','company_news'],['sourceType','==','company_ir'],['published_at','>=','2026-09-02T00:00:00.000Z']]);
+    assert.deepEqual(filters.slice(0,3),[['type','==','company_news'],['sourceType','==','company_ir'],['published_at','>=','2026-09-03T00:00:00.000Z']]);
     const arrival=snapshot.events.find(event=>event.id==='news-amd-release');assert.ok(arrival);
     assert.equal(arrival.published_at,'2026-10-02T12:05:00.000Z');assert.equal('collected_at' in arrival,false);assert.equal('processed_at' in arrival,false);assert.equal(arrival.evidence[0].channel,'IR');assert.deepEqual(arrival.edgeIds,[]);
     await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.equal(newsReads,4);
   }finally{if(previous===undefined)delete process.env.INTELLIGENCE_NEWS_ENABLED;else process.env.INTELLIGENCE_NEWS_ENABLED=previous;}
+});
+
+
+test('full-period statistics include sources beyond the 200-entry feed and paginate without double counting',async()=>{
+  const documents=Array.from({length:620},(_,index)=>{
+    const accessionNumber=`0000002488-26-${String(index).padStart(6,'0')}`;
+    const event=createSecFilingDiscovered({companyId:index%2?'AMD':'MU',cik:'0000002488',accessionNumber,form:'10-Q',filingDate:'2026-10-01',primaryDocument:'release.htm',isXbrl:false,published_at:'2026-10-01T12:00:00Z',discoveredAt:'2026-10-02T12:00:00Z'});
+    return {id:accessionNumber,data:()=>({discoveryEvents:{[event.eventId]:{event,state:'published'}}})};
+  });
+  const reads:number[]=[];
+  const query=(name:string,offset=0)=>({where:()=>query(name,offset),orderBy:()=>query(name,offset),startAfter:(doc:{id:string})=>query(name,documents.findIndex(candidate=>candidate.id===doc.id)+1),limit:(limit:number)=>({get:async()=>{const docs=name==='sec_filings'?documents.slice(offset,offset+limit):[];if(name==='sec_filings')reads.push(offset);return {size:docs.length,docs};}})});
+  const periodGraph={...graph,nodes:[...graph.nodes,{id:'US:OLD',name:'Older source company',kind:'COMPANY' as const,order:2}],sources:[{...graph.sources[0],id:'hidden',url:'https://www.sec.gov/Archives/hidden.htm',sourceDate:'2026-09-03'},...graph.sources,{...graph.sources[0],id:'old',url:'https://www.sec.gov/Archives/older.htm',sourceDate:'2026-09-02'}],relationships:[{...graph.relationships[0],id:'hidden-edge',source:'US:OLD',target:'US:OLD',sourceIds:['hidden']},...graph.relationships,{...graph.relationships[0],id:'older-edge',sourceIds:['old']}]};
+  const service=await isolated({collection:(name:string)=>query(name)},async()=>periodGraph);
+  const snapshot=await service.loadIntelligenceSnapshot(now);
+  assert.equal(snapshot.events.length,200);assert.equal(snapshot.truncated,true);assert.equal(snapshot.statisticsComplete,true);
+  // The graph's September source is also in this exact 30-calendar-day period.
+  assert.equal(snapshot.sourceDocuments?.length,622);assert.deepEqual(reads,[0,500]);
+  assert.equal(summarizeIntelligence(snapshot.events,['US:OLD'],'').events.length,0);
+  assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:OLD'],'').signals,1);
+  const stats=summarizeSourceDocuments(snapshot.sourceDocuments!,['US:AMD'],'SEC');
+  assert.equal(stats.signals,311);assert.equal(stats.sources.find(source=>source.name==='SEC')?.count,311);
+  assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:MU'],'IR').signals,0);
+  assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:AMD'],'SEC',Date.parse('2026-10-01T11:59:00Z')).signals,0);
+  await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.deepEqual(reads,[0,500]);
 });

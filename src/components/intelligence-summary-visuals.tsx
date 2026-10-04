@@ -6,7 +6,7 @@ import styles from './intelligence-summary.module.css';
 export const intelligenceSourceColors:Record<IntelligenceSource,string>={SEC:'#ff9eae',IR:'#67e6bc',Exchange:'#65d9ff',GitHub:'#c4a0ff',X:'#f4eb87',Reddit:'#ffc57a',Other:'#8faaff'};
 
 /** Only real, exact publisher datetimes contribute to an intraday chart. */
-export function PublicationActivity({events,start,end,label}:{events:IntelligenceEvent[];start:number;end:number;label:string}){
+export function PublicationActivity({events,start,end,label}:{events:Pick<IntelligenceEvent,'published_at'>[];start:number;end:number;label:string}){
   const bins=Array<number>(24).fill(0),span=Math.max(1,end-start);
   for(const event of events){
     if(!event.published_at)continue;

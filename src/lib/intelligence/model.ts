@@ -8,11 +8,13 @@ export type IntelligenceEvent = {
   title:string; summary:string; published_at:string|null; publication_date:string; eventDate:string|null;
   evidence:IntelligenceEvidence[]; planned:boolean;
 };
+export type IntelligenceSourceDocument = {id:string;channel:IntelligenceSource;companyIds:string[];published_at:string|null;publication_date:string};
 export type IntelligenceSnapshot = {
   graph:KnowledgeGraph; graphVersion:string; events:IntelligenceEvent[]; generatedAt:string;
   session:{date:string;timeZone:'America/New_York';startAt:string;endAt:string};
   coverage:{channel:IntelligenceSource;status:'connected'|'stored_evidence'|'unavailable'}[];
   newsCoverage?:{configured:number;healthy:number;total:number};
+  sourceDocuments?:IntelligenceSourceDocument[]; statisticsComplete?:boolean;
   warnings:string[]; truncated:boolean; limit:number;
 };
 
@@ -91,4 +93,22 @@ export function summarizeIntelligence(events:IntelligenceEvent[],companyIds:stri
   const active=new Set(visible.flatMap(event=>event.companyIds).filter(id=>scope.has(id)));
   const sources=INTELLIGENCE_SOURCES.map(name=>({name,count:[...evidence.values()].filter(source=>source.channel===name).length}));
   return {events:visible,activeIds:[...active],signals:evidence.size,sources};
+}
+
+/** Compact, deduplicated source facts retain company associations for arbitrary UI filters. */
+export function sourceDocumentsForEvents(events:IntelligenceEvent[]):IntelligenceSourceDocument[]{
+  const documents=new Map<string,IntelligenceSourceDocument>();
+  for(const event of events)for(const source of event.evidence){
+    const id=canonicalEvidenceUrl(source.url);if(!id)continue;
+    const existing=documents.get(id);
+    if(existing)existing.companyIds=[...new Set([...existing.companyIds,...event.companyIds])];
+    else documents.set(id,{id,channel:source.channel,companyIds:[...new Set(event.companyIds)],published_at:event.published_at,publication_date:event.publication_date});
+  }
+  return [...documents.values()];
+}
+
+export function summarizeSourceDocuments(documents:IntelligenceSourceDocument[],companyIds:string[],channel:IntelligenceSource|'',cutoff?:number){
+  const scope=new Set(companyIds);
+  const visible=documents.filter(document=>document.companyIds.some(id=>scope.has(id))&&(!channel||document.channel===channel)&&(cutoff===undefined||Boolean(document.published_at&&Date.parse(document.published_at)<=cutoff)));
+  return {documents:visible,activeIds:[...new Set(visible.flatMap(document=>document.companyIds).filter(id=>scope.has(id)))],signals:visible.length,sources:INTELLIGENCE_SOURCES.map(name=>({name,count:visible.filter(document=>document.channel===name).length}))};
 }
