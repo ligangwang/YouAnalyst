@@ -1,3 +1,5 @@
+.theme{display:flex;align-items:center;gap:4px;flex-shrink:0;padding-right:10px;border-right:1px solid #213242;white-space:nowrap}
+.theme strong{color:#98e7d6}
 .tabs{display:flex;align-items:center;gap:2px;flex-shrink:0}
 .tabs button{padding:5px 9px!important;font-size:11px!important;color:#9ab0c3!important}
 .tabs button[aria-selected=true]{background:#203a3e;color:#98e7d6!important}
@@ -10,5 +12,5 @@
 .table table th,.table table td{font-size:11px;padding:8px 10px}
 .table table th button{padding:4px 0}
 .table table td button{min-height:28px;padding:2px 0}
-@media(max-width:850px){.tabs button{padding:5px 6px!important;font-size:10px!important}}
+@media(max-width:850px){.theme{padding-right:7px}.tabs button{padding:5px 6px!important;font-size:10px!important}}
 @media(pointer:coarse){.table table td button{min-height:32px}}

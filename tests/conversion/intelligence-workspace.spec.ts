@@ -24,6 +24,13 @@ async function open(page:import('@playwright/test').Page,zh=false){
 test('shared periods, exact ticker search and selected sources remain visible above a capped feed',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Desktop workspace checks');await page.setViewportSize({width:1500,height:800});await open(page);
   const panel=page.getByRole('complementary',{name:'Events and sources'});
+  const theme=page.getByRole('group',{name:'Investment theme: AI',exact:true});
+  await expect(theme).toBeVisible();
+  await expect(theme).toContainText('Theme ·AI');
+  await expect(theme.getByRole('button')).toHaveCount(0);
+  const tabs=page.getByRole('tablist');
+  await expect(tabs.getByRole('tab')).toHaveCount(4);
+  expect((await theme.boundingBox())!.x+(await theme.boundingBox())!.width).toBeLessThan((await tabs.boundingBox())!.x);
   await expect(panel.getByRole('button',{name:'30d',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('350');
   await expect(panel.getByText('200 loaded source documents')).toBeVisible();
@@ -86,6 +93,7 @@ test('mobile navigation exposes saved companies and event details retain their C
   await page.getByText('更多 ▾',{exact:true}).click();await expect(page.getByRole('navigation',{name:'More navigation'}).getByRole('link',{name:'自选股',exact:true})).toHaveAttribute('href','/zh-cn/watchlists/following');
   await page.getByText('更多 ▾',{exact:true}).click();
   const center=page.getByRole('region',{name:'Graph universe'});
+  await expect(center.getByRole('group',{name:'投资主题：AI',exact:true})).toBeVisible();
   await center.getByRole('tab',{name:'公司列表',exact:true}).click();
   await expect(center.getByRole('region',{name:'公司列表',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
