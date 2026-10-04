@@ -3,7 +3,7 @@ import test from 'node:test';
 import { build } from 'esbuild';
 import { createRequire } from 'node:module';
 import {createSecFilingDiscovered} from '../../src/lib/sec-filings/event';
-import {summarizeSourceDocuments} from '../../src/lib/intelligence/model';
+import {summarizeIntelligence,summarizeSourceDocuments} from '../../src/lib/intelligence/model';
 import {NEWS_SOURCES} from '../../src/lib/intelligence/collectors/sources';
 import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
 
@@ -90,12 +90,14 @@ test('full-period statistics include sources beyond the 200-entry feed and pagin
   });
   const reads:number[]=[];
   const query=(name:string,offset=0)=>({where:()=>query(name,offset),orderBy:()=>query(name,offset),startAfter:(doc:{id:string})=>query(name,documents.findIndex(candidate=>candidate.id===doc.id)+1),limit:(limit:number)=>({get:async()=>{const docs=name==='sec_filings'?documents.slice(offset,offset+limit):[];if(name==='sec_filings')reads.push(offset);return {size:docs.length,docs};}})});
-  const periodGraph={...graph,sources:[...graph.sources,{...graph.sources[0],id:'old',url:'https://www.sec.gov/Archives/older.htm',sourceDate:'2026-09-02'}],relationships:[...graph.relationships,{...graph.relationships[0],id:'older-edge',sourceIds:['old']}]};
+  const periodGraph={...graph,nodes:[...graph.nodes,{id:'US:OLD',name:'Older source company',kind:'COMPANY' as const,order:2}],sources:[{...graph.sources[0],id:'hidden',url:'https://www.sec.gov/Archives/hidden.htm',sourceDate:'2026-09-03'},...graph.sources,{...graph.sources[0],id:'old',url:'https://www.sec.gov/Archives/older.htm',sourceDate:'2026-09-02'}],relationships:[{...graph.relationships[0],id:'hidden-edge',source:'US:OLD',target:'US:OLD',sourceIds:['hidden']},...graph.relationships,{...graph.relationships[0],id:'older-edge',sourceIds:['old']}]};
   const service=await isolated({collection:(name:string)=>query(name)},async()=>periodGraph);
   const snapshot=await service.loadIntelligenceSnapshot(now);
   assert.equal(snapshot.events.length,200);assert.equal(snapshot.truncated,true);assert.equal(snapshot.statisticsComplete,true);
   // The graph's September source is also in this exact 30-calendar-day period.
-  assert.equal(snapshot.sourceDocuments?.length,621);assert.deepEqual(reads,[0,500]);
+  assert.equal(snapshot.sourceDocuments?.length,622);assert.deepEqual(reads,[0,500]);
+  assert.equal(summarizeIntelligence(snapshot.events,['US:OLD'],'').events.length,0);
+  assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:OLD'],'').signals,1);
   const stats=summarizeSourceDocuments(snapshot.sourceDocuments!,['US:AMD'],'SEC');
   assert.equal(stats.signals,311);assert.equal(stats.sources.find(source=>source.name==='SEC')?.count,311);
   assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:MU'],'IR').signals,0);
