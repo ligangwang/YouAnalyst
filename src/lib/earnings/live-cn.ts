@@ -3,7 +3,7 @@ import { validateSource } from "./document";
 import { datesInEvidence } from "./dates";
 import { type ExtractionPlan, type MetricRule } from "./extract";
 import { type EarningsKind, type Period, type RawEarningsDocument, sha256, validDate, validTimestamp } from "./model";
-import { pilotCompany } from "./pilot";
+import { earningsCompany } from "./issuers";
 
 const ORG_ENDPOINT = "https://www.cninfo.com.cn/new/information/topSearch/query";
 const ANNOUNCEMENT_ENDPOINT = "https://www.cninfo.com.cn/new/hisAnnouncement/query";
@@ -12,7 +12,7 @@ export const CN_EARNINGS_ORGS = {
   "XSHG:688981": "gshk0000981", "XSHE:301308": "9900048787",
   "XSHG:688256": "nssc1000595", "XSHE:300308": "9900022016",
 } as const; // Verified against CNINFO topSearch on 2026-10-02; rechecked on each discovery.
-export type CnEarningsCompanyId = keyof typeof CN_EARNINGS_ORGS;
+export type CnEarningsCompanyId = `${'XSHG' | 'XSHE'}:${string}`;
 export type CnEarningsRequestContext = { operation: "cninfo_earnings_org" | "cninfo_earnings_announcements"; companyId: string };
 export type CnEarningsJsonRequest = (url: string, init: RequestInit & CnEarningsRequestContext) => Promise<unknown>;
 export type CnEarningsBlock = { host: string; code: number | string; retryAfter: string | null };
@@ -111,15 +111,17 @@ export function createCnEarningsRequester(options: {
 
 const form = (body: Record<string, string>) => ({ method: "POST", body: new URLSearchParams(body).toString() });
 function cnCompany(companyId: string): CnEarningsCompanyId {
-  pilotCompany(companyId);
-  if (!(companyId in CN_EARNINGS_ORGS)) throw new Error("Company is outside the mainland earnings pilot");
+  const company = earningsCompany(companyId);
+  if (company.cik || !/^(?:XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(companyId)) throw new Error("Company is not a verified mainland map issuer");
   return companyId as CnEarningsCompanyId;
 }
 export function parseCnEarningsOrg(companyId: string, payload: unknown): string {
   const id = cnCompany(companyId), code = id.split(":")[1];
   if (!Array.isArray(payload)) throw new Error("Invalid CNINFO issuer lookup");
   const matches = payload.filter(row => row && typeof row === "object" && row.code === code && row.category === "A股");
-  if (matches.length !== 1 || matches[0].orgId !== CN_EARNINGS_ORGS[id] || !pilotCompany(id).aliases.some(alias => String(matches[0].zwjc ?? "").includes(alias))) throw new Error("CNINFO issuer lookup changed or ambiguous: review required");
+  const reviewed = CN_EARNINGS_ORGS[id as keyof typeof CN_EARNINGS_ORGS];
+  if (matches.length !== 1 || typeof matches[0].orgId !== 'string' || !/^\w{1,40}$/.test(matches[0].orgId) || (reviewed && matches[0].orgId !== reviewed)
+    || !earningsCompany(id).aliases.some(alias => String(matches[0].zwjc ?? "").includes(alias))) throw new Error("CNINFO issuer lookup changed or ambiguous: review required");
   return matches[0].orgId as string;
 }
 export function createCnEarningsSources(request: CnEarningsJsonRequest) {
@@ -133,6 +135,7 @@ export function createCnEarningsSources(request: CnEarningsJsonRequest) {
         const payload = await request(ANNOUNCEMENT_ENDPOINT, { ...form({ pageNum: String(page), pageSize: "30", column: companyId.startsWith("XSHG:") ? "sse" : "szse",
           tabName: "fulltext", plate: "", stock: `${code},${orgId}`, searchkey: "", secid: "", category: "", trade: "", seDate: `${options.from}~${options.to}`,
           sortName: "", sortType: "", isHLtitle: "true" }), operation: "cninfo_earnings_announcements", companyId });
+        if (payload && typeof payload === 'object' && (payload as AnnouncementPage).announcements === null && (payload as AnnouncementPage).hasMore === false && (payload as AnnouncementPage).totalAnnouncement === 0) (payload as AnnouncementPage).announcements = [];
         if (!payload || typeof payload !== "object" || !Array.isArray((payload as AnnouncementPage).announcements) || ((payload as AnnouncementPage).announcements as unknown[]).length > 30
           || !Number.isSafeInteger((payload as AnnouncementPage).totalAnnouncement) || ((payload as AnnouncementPage).totalAnnouncement as number) < 0) throw new Error("Invalid bounded CNINFO page");
         for (const value of (payload as AnnouncementPage).announcements as unknown[]) {
@@ -175,7 +178,7 @@ export function makeCnEarningsPlan(document: RawEarningsDocument): ExtractionPla
     cnCompany(document.source.companyId); validateSource(document.source);
     if (document.source.provider !== "cninfo" || document.completeness !== "full" || document.mediaType !== "application/pdf" || document.textMethod !== "pdftotext-layout"
       || document.textSha256 !== sha256(document.text)) return null;
-    const company = pilotCompany(document.source.companyId);
+    const company = earningsCompany(document.source.companyId);
     if (!company.aliases.some(alias => document.text.slice(0, 2500).includes(alias))) return null;
     const report = reportPeriod(document);
     if (!report) return null;

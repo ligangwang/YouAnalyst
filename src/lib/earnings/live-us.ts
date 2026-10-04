@@ -232,6 +232,33 @@ function alibaba(document: RawEarningsDocument): ExtractionPlan {
     metrics: rules(row, 1, 3, "CNY", row.header.slice(row.header.indexOf("RMB"))) };
 }
 
+/** Micron's 52/53-week calendar is established by adjacent quarter-end dates,
+ * never a calendar-month assumption. Annual columns remain separate. */
+function micron(document: RawEarningsDocument): ExtractionPlan {
+  const {text}=document;
+  const label=one(text.slice(0,2500), /Fiscal\s+Q([1-4])\s+(20\d{2})\s+Highlights/g);
+  const row=rowInSection(text,/^CONSOLIDATED STATEMENTS OF OPERATIONS\s*$/gim,/^Cost of goods sold\s*\|/mi,/^Revenue\s*\|[^\n]+/gim);
+  const q=Number(label[1]),fy=Number(label[2]),prev=q===1?4:q-1;
+  const expected=new RegExp(`\\|\\s*${q}(?:st|nd|rd|th) Qtr\\.\\s*\\|\\s*${prev}(?:st|nd|rd|th) Qtr\\.\\s*\\|\\s*${q}(?:st|nd|rd|th) Qtr\\.`,'i');
+  requireMatch(expected.test(row.header));
+  const dated=[...row.header.matchAll(new RegExp(DATE,'gi'))].map(match=>literalDate(match[0]));
+  requireMatch(dated.length===3 || dated.length===5);
+  requireMatch(Date.parse(dated[0])>Date.parse(dated[1]) && Date.parse(dated[1])>Date.parse(dated[2]));
+  if(dated.length===5)requireMatch(dated[3]===dated[0]&&dated[4]===dated[2]&&/Year Ended/.test(row.header));
+  const start=new Date(Date.parse(dated[1])+DAY).toISOString().slice(0,10);
+  const period:Period={start,end:dated[0],type:'quarter',fiscalYear:fy,fiscalQuarter:q};validatePeriod(period);
+  const unit=/\(In millions, except per share amounts\)/i.exec(row.header);requireMatch(unit);
+  const values=cells(row.line).slice(1).filter(value=>value!=='$');
+  requireMatch(values.length===dated.length && /\$/.test(row.line)); values.forEach(money);
+  const summary=rowInSection(text,/^Quarterly Financial Results\s*\|?\s*$/gim,/^Gross margin\s*\|/mi,/^Revenue\s*\|[^\n]+/gim);
+  requireMatch(clean(summary.header).includes(`FQ${q}-${String(fy).slice(-2)}`)&&/GAAP \(1\).*Non-GAAP \(2\)/.test(clean(summary.header)));
+  const amounts=cells(summary.line).slice(1).filter(value=>value!=='$');
+  requireMatch(amounts.length===6&&amounts.slice(0,3).every((value,index)=>money(value)===money(values[index])));
+  return {kind:'actual',period,periodEvidence:[label[0],row.header],periodStartDerivation:'Day after the explicitly dated preceding fiscal quarter; quarterly statement column only',
+    metrics:[{name:'revenue',label:'Revenue',rowLabel:row.prefix,sectionStart:row.sectionStart,sectionEnd:row.sectionEnd,header:row.header,
+      currency:'USD',scale:1e6,unit:'currency',unitEvidence:unit[0],kind:'actual',basis:'US_GAAP',scope:'consolidated'}]};
+}
+
 /** Returns null for unsupported, ambiguous, non-results, or changed formats.
  * No network calls, discovery loop, model API, guessed values, or YTD subtraction.
  * Segments and guidance remain explicitly not_extracted in this bounded pilot.
@@ -245,7 +272,7 @@ export function makeUsEarningsPlan(document: RawEarningsDocument): ExtractionPla
     requireMatch(kind === "actual" || kind === "unknown");
     requireMatch(!/preliminary (?:financial |earnings )?results|(?:raises?|lowers?|updates?) (?:revenue )?(?:outlook|guidance)/i.test(document.text.slice(0, 10_000)));
     const adapters: Record<string, (document: RawEarningsDocument) => ExtractionPlan> = {
-      "US:NVDA": nvidia, "US:AMD": amd, "US:MSFT": microsoft, "US:BABA": alibaba,
+      "US:NVDA": nvidia, "US:AMD": amd, "US:MSFT": microsoft, "US:BABA": alibaba, "US:MU": micron,
     };
     const adapter = adapters[document.source.companyId]; requireMatch(adapter);
     const base = adapter(document);

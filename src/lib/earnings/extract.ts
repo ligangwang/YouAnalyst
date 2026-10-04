@@ -1,7 +1,7 @@
 import { EARNINGS_PARSER_VERSION, type EarningsKind, type EarningsMetric, type EarningsRecord, type Evidence, type ExtractionOutcome, type Period, type MetricPeriod, type RawEarningsDocument, sha256, stableId, canonicalJson, validatePeriod, validateMetricPeriod, validDate, validTimestamp } from "./model";
 import { datesInEvidence, assertEnglishFiscalLabel, assertChineseReportPeriod, assertGuidancePeriod } from "./dates";
 import { classifyEarningsTitle } from "./discovery";
-import { pilotCompany, validateSourceUrl } from "./pilot";
+import { earningsCompany, validateSourceUrl } from "./issuers";
 
 export type MetricRule = {
   name: EarningsMetric["name"]; pointIndex?: number; label: string; rowLabel: string;
@@ -136,7 +136,7 @@ export function extractEarnings(document: RawEarningsDocument, plan: ExtractionP
   try {
     if (document.textSha256 !== sha256(document.text)) throw new Error("Raw text integrity mismatch");
     if (!validTimestamp(extractedAt)) throw new Error("Invalid extraction time");
-    const company = pilotCompany(document.source.companyId);
+    const company = earningsCompany(document.source.companyId);
     // Identity must appear in the opening document context, not just in a later
     // customer, supplier or competitor mention.
     if (!company.aliases.some(alias => document.text.slice(0, 2500).toLowerCase().includes(alias.toLowerCase()))) throw new Error("Issuer not established in document heading");
@@ -183,7 +183,7 @@ export function extractEarnings(document: RawEarningsDocument, plan: ExtractionP
       kind, period: plan.period, periodEvidence, periodStartDerivation: plan.periodStartDerivation ?? "reviewed_fiscal_calendar", source: document.source, announcementDate, announcementDateEvidence,
       rawSha256: document.rawSha256, textSha256: document.textSha256, parserVersion: plan.adapterVersion ? `${EARNINGS_PARSER_VERSION}/${plan.adapterVersion}` : EARNINGS_PARSER_VERSION,
       extractedAt, completeness: document.completeness, metrics,
-      warnings: ["reviewed_pilot_adapter", ...(document.completeness === "excerpt" ? ["excerpt_not_full_document_coverage"] : [])],
+      warnings: ["reviewed_source_adapter", ...(document.completeness === "excerpt" ? ["excerpt_not_full_document_coverage"] : [])],
       coverage: { revenue: "extracted", segments: metrics.some(m => m.scope === "segment") ? "extracted" : "not_extracted", guidance: metrics.some(m => m.kind === "forecast") ? "extracted" : "not_extracted" },
       ...(document.source.correctionOf ? { supersedes: document.source.correctionOf } : {}) };
     return { status: "extracted", record };

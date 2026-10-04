@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const EARNINGS_SCHEMA_VERSION = 1 as const;
-export const EARNINGS_PARSER_VERSION = "pilot-1";
+export const EARNINGS_PARSER_VERSION = "map-1";
 export type EarningsKind = "actual" | "preliminary" | "forecast";
 export type Period = { start: string; end: string; type: "quarter" | "half_year" | "nine_month_ytd" | "annual"; fiscalYear: number; fiscalQuarter?: number };
 export type ForecastPeriod = { start: null; end: null; type: "quarter"; fiscalYear: number; fiscalQuarter: number };

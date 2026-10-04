@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { captureEarningsDocument } from "../../src/lib/earnings/document";
 import { extractEarnings } from "../../src/lib/earnings/extract";
 import { makeUsEarningsPlan } from "../../src/lib/earnings/live-us";
-import { earningsPilot } from "../../src/lib/earnings/pilot";
+import { reviewedEarningsIssuers } from "../../src/lib/earnings/issuers";
 import type { EarningsSource, RawEarningsDocument } from "../../src/lib/earnings/model";
 
 const now = "2026-10-02T11:00:00Z";
@@ -19,7 +19,7 @@ const examples = {
 type Example = keyof typeof examples;
 function body(name: Example) { return readFileSync(resolve(fixtures, `${name}.html`), "utf8"); }
 function document(name: Example, html = body(name), overrides: Partial<EarningsSource> = {}) {
-  const example = examples[name], company = earningsPilot.find(value => value.companyId === example.companyId)!;
+  const example = examples[name], company = reviewedEarningsIssuers.find(value => value.companyId === example.companyId)!;
   return captureEarningsDocument({ provider: "sec", companyId: company.companyId, issuerId: company.issuerId,
     documentId: `authored-live-us-${name}`, url: example.url, title: "EX-99.1", publishedAt: null,
     firstSeenAt: now, filingDate: "2026-08-26", language: "en", ...overrides }, Buffer.from(html),

@@ -3,7 +3,7 @@ import type { MaintenanceLog } from "../maintenance-log";
 import type { SecFilingsSource, SecRawSubmissionsObserver } from "../sec-filings/source";
 import { discoverSecEarnings } from "./discovery";
 import { discoverEarningsSource, earningsMetadata } from "./live-store";
-import { earningsPilot } from "./pilot";
+import { earningsCompanies } from "./issuers";
 import { validDate } from "./model";
 
 export const EARNINGS_INITIAL_LOOKBACK_DAYS = 180;
@@ -23,8 +23,8 @@ export function earningsScanWindow(cursor: Record<string, unknown> | undefined, 
 export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, options: { now?: () => number; deadline: number }) {
   const now = options.now ?? Date.now, observed = new Set<string>(), failed = new Set<string>();
   const observe: SecRawSubmissionsObserver = async (cik, value, archive) => {
-    const company = earningsPilot.find(item => item.cik === cik);
-    if (!company || observed.has(cik)) return;
+    for (const company of earningsCompanies().filter(item => item.cik === cik)) {
+    if (observed.has(company.companyId)) continue;
     const meta = earningsMetadata(db, `us_${cik}`);
     try {
       const cursor = (await meta.get()).data(), window = earningsScanWindow(cursor, now());
@@ -52,22 +52,24 @@ export function createSecEarningsObserver(db: Firestore, log: MaintenanceLog, op
       await meta.set({ companyId: company.companyId, lastCompleteAt: completedAt, ...(window.reconcile ? { lastReconcileAt: completedAt } : {}),
         revision: process.env.GIT_SHA ?? "local", execution: process.env.CLOUD_RUN_EXECUTION ?? null,
         from: window.from, to: window.to, candidates: candidates.length, queued, archives: files.length, status: "complete", lastError: null }, { merge: true });
-      observed.add(cik); failed.delete(cik);
+      observed.add(company.companyId); failed.delete(company.companyId);
       log.emit("INFO", "earnings_sec_snapshot", { companyId: company.companyId, candidates: candidates.length, queued, archives: files.length });
     } catch (error) {
-      failed.add(cik);
+      failed.add(company.companyId);
       const message = error instanceof Error ? error.message : "SEC earnings discovery failed";
       await meta.set({ companyId: company.companyId, status: "partial", lastAttemptAt: new Date(now()).toISOString(), lastError: message.slice(0, 1000) }, { merge: true });
       log.emit("WARNING", "earnings_sec_snapshot_incomplete", { companyId: company.companyId, reason: message });
     }
+    }
   };
   return { observe, observed, failed,
-    async scanPilot(source: SecFilingsSource, companyIds = earningsPilot.filter(item => item.cik).map(item => item.companyId as string)) {
-      for (const company of earningsPilot.filter(item => item.cik && companyIds.includes(item.companyId))) {
-        if (observed.has(company.cik!)) continue;
-        if (now() + 30_000 >= options.deadline) { failed.add(company.cik!); continue; }
-        try { await source.submissions(company.cik!); }
-        catch (error) { failed.add(company.cik!); log.emit("WARNING", "earnings_sec_request_incomplete", { companyId: company.companyId, reason: error instanceof Error ? error.message : "SEC source failed" }); }
+    async scanMap(source: SecFilingsSource, tickers: readonly string[]) {
+      for (const ticker of tickers) {
+        const companyId = `US:${ticker}`;
+        if (observed.has(companyId)) continue;
+        if (now() + 30_000 >= options.deadline) { failed.add(companyId); continue; }
+        try { await source.submissions(await source.resolveCik(ticker)); }
+        catch (error) { failed.add(companyId); log.emit("WARNING", "earnings_sec_request_incomplete", { companyId, reason: error instanceof Error ? error.message : "SEC source failed" }); }
       }
       return { observed: observed.size, failed: failed.size };
     },

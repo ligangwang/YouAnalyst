@@ -9,6 +9,7 @@ import { EARNINGS_TOPIC, type EarningsJob } from "../src/lib/earnings/live-event
 import { createEarningsRequestGate } from "../src/lib/earnings/live-transport";
 import { checkEarningsCanary, discoverEarningsCanary, runEarningsCanary, verifyEarningsDelivery } from "../src/lib/earnings/live-verification";
 import { ALIBABA_MARCH_REPLAY, replayAlibabaMarch2026 } from "../src/lib/earnings/live-replay";
+import {loadEarningsMap} from '../src/lib/earnings/map-issuers';
 
 const log = createMaintenanceLog("collect-earnings");
 async function main() {
@@ -22,6 +23,7 @@ async function main() {
   if (!process.env.GCP_PROJECT_ID) throw new Error("GCP_PROJECT_ID is required");
   initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
   const db = getFirestore();
+  await loadEarningsMap(db);
   if (mode === "dry-run" || mode === "diagnostics") { log.emit("INFO", "run_completed", await inspectLiveEarnings(db)); return; }
   const revision = process.env.GIT_SHA ?? "";
   if (mode === "check-canary") { log.emit("INFO", "run_completed", await checkEarningsCanary(db, revision)); return; }

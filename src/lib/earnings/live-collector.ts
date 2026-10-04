@@ -2,7 +2,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../maintenance-lease";
 import type { MaintenanceLog } from "../maintenance-log";
 import { discoverEarningsSource, earningsMetadata, EARNINGS_RECORDS, EARNINGS_SOURCES, publishEarningsOutbox, type EarningsWork } from "./live-store";
-import { earningsPilot } from "./pilot";
+import { earningsCompanies } from "./issuers";
 import { earningsScanWindow } from "./sec-observer";
 import type { EarningsRecord, EarningsSource } from "./model";
 import type { EarningsSourceDiscovered } from "./live-event";
@@ -20,11 +20,11 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
   if (!await acquireMaintenanceLease(meta, log.runId, startedAt, cloudRunTaskAttempt())) throw new Error("Earnings collector is busy");
   const result = { companies: 0, skipped: 0, candidates: 0, queued: 0, published: 0, failed: 0, deferred: 0 };
   try {
-    for (const company of earningsPilot.filter(item => !item.cik)) {
+    for (const company of earningsCompanies().filter(item => !item.cik)) {
       if (now() + 30_000 >= options.deadline) { result.deferred++; continue; }
       if(options.discoveryOwnedByMap){
         const mapped=(await db.collection('collectors').doc(`exchange-${company.companyId}`).get()).data();
-        if(mapped?.status==='complete'&&newsCollectorIsFresh(mapped.lastSuccessAt,0,false,new Date(now()),3600000)){
+        if(mapped?.status==='complete'&&mapped.earningsCoverageVersion===2&&newsCollectorIsFresh(mapped.lastSuccessAt,0,false,new Date(now()),3600000)){
           result.skipped++;continue;
         }
       }
@@ -72,13 +72,13 @@ export async function inspectLiveEarnings(db: Firestore) {
   const states: Record<string, number> = {};
   for (const row of sourceRows) states[row.status] = (states[row.status] ?? 0) + 1;
   const cursors: Record<string, unknown> = {};
-  for (const company of earningsPilot) cursors[company.companyId] = (await earningsMetadata(db, company.cik ? `us_${company.cik}` : `cn_${company.companyId}`).get()).data() ?? null;
+  for (const company of earningsCompanies()) cursors[company.companyId] = (await earningsMetadata(db, company.cik ? `us_${company.cik}` : `cn_${company.companyId}`).get()).data() ?? null;
   return { status: "read_only", revision: process.env.GIT_SHA ?? "local", sources: sourceRows.length, sourceStates: states,
     validatedRevisions: Math.min(records.size, 200), sampleTruncated: sources.size > 500 || records.size > 200,
     unsupported: sourceRows.filter(row => row.status === "review_required").slice(0, 30).map(row => ({ sourceId: row.sourceId, companyId: row.source.companyId, reason: row.reason, sourceUrl: row.source.url })),
-    byCompany: earningsPilot.map(company => ({ companyId: company.companyId, sourceCount: sourceRows.filter(row => row.source.companyId === company.companyId).length,
+    byCompany: earningsCompanies().map(company => ({ companyId: company.companyId, sourceCount: sourceRows.filter(row => row.source.companyId === company.companyId).length,
       extractedSourceCount: sourceRows.filter(row => row.source.companyId === company.companyId && row.status === "extracted").length })),
-    recordSamples: earningsPilot.flatMap(company => savedRecords.filter(record => record.companyId === company.companyId)
+    recordSamples: earningsCompanies().flatMap(company => savedRecords.filter(record => record.companyId === company.companyId)
       .sort((a, b) => b.period.end.localeCompare(a.period.end) || b.extractedAt.localeCompare(a.extractedAt)).slice(0, 3)
       .map(record => ({ companyId: record.companyId, kind: record.kind, period: record.period, revisionId: record.revisionId,
         sourceUrl: record.source.url, rawSha256: record.rawSha256, announcementDate: record.announcementDate,
