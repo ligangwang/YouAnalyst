@@ -39,6 +39,7 @@ function announcementByline(document: RawEarningsDocument, period: Period): Pick
     "US:AMD": [`SANTA\\s+CLARA,\\s*Calif\\.\\s*${dash}\\s*${date}(?=\\s*(?:\\(GLOBE NEWSWIRE\\)\\s*)?${dash}{1,2}\\s*AMD\\b)`],
     "US:MSFT": [`REDMOND,\\s*Wash\\.\\s*${dash}\\s*${date}(?=\\s*${dash}\\s*Microsoft\\s+Corp\\.)`],
     "US:BABA": [`Hong\\s+Kong,\\s*China,\\s*${date}(?=\\s*${dash}\\s*Alibaba\\s+Group\\s+Holding\\s+Limited\\b)`],
+    "US:MU": [`BOISE,\\s*Idaho,\\s*${date}(?=\\s*${dash}\\s*Micron\\s+Technology,\\s*Inc\\.)`],
   };
   const candidates = (patterns[document.source.companyId] ?? []).flatMap(pattern =>
     [...document.text.slice(0, 6000).matchAll(new RegExp(pattern, "gim"))]);

@@ -55,6 +55,7 @@ test('Micron quarterly revenue uses its 14-week period and cannot absorb annual 
   if(outcome.status==='extracted'){
     assert.deepEqual(outcome.record.period,{start:'2026-05-29',end:'2026-09-03',type:'quarter',fiscalYear:2026,fiscalQuarter:4});
     assert.equal(outcome.record.metrics[0].value,54229000000);
+    assert.equal(outcome.record.announcementDate,'2026-09-30');
   }
   for(const change of [text.replace('May 28, 2026','March 28, 2026'),text.replace('4th Qtr. | 3rd Qtr.','3rd Qtr. | 4th Qtr.'),text.replace('Fiscal Q4 2026 Highlights','Fiscal Q1 2026 Highlights'),text.replaceAll('Micron','Other').replaceAll('MICRON','OTHER')])assert.equal(makeUsEarningsPlan(document(change)),null);
 });
