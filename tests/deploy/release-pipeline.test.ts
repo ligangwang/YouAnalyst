@@ -57,3 +57,16 @@ test('parallel release preparation cannot deploy and both environments require t
     assert(deploy.steps.some((s: { run?: string }) => s.run === 'npm run smoke:test'));
   }
 });
+
+
+test('browser downloads are reused without skipping fresh-runner OS setup or release tests',()=>{
+ for(const name of ['browser-shard','deploy-staging','deploy-production']){
+  const steps=workflow.jobs[name].steps;
+  const cache=steps.find((s:{name?:string})=>s.name==='Cache Playwright browser download');
+  assert.equal(cache.with.path,'~/.cache/ms-playwright');
+  assert(cache.with.key.includes("hashFiles('package-lock.json')"));
+  const install=steps.find((s:{run?:string})=>s.run==='npx playwright install --with-deps --only-shell chromium');
+  assert(install);assert.equal(install.if,undefined);
+  assert(steps.indexOf(cache)<steps.indexOf(install));
+ }
+});

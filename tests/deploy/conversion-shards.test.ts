@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { collectTests, balanceTests } from '../../scripts/conversion-shards.mjs';
+import { collectTests, balanceTests, testWeight } from '../../scripts/conversion-shards.mjs';
 
 const fixture={suites:[{title:'knowledge-graph.spec.ts',line:0,specs:[
  {file:'knowledge-graph.spec.ts',title:'tree overview pauses',tests:[{projectName:'desktop'},{projectName:'mobile'}]},
@@ -30,4 +30,16 @@ test('deployment uses balanced selection without disabling required browser cove
  assert(workflow.includes('node scripts/conversion-shards.mjs ${{ matrix.shard }}/4 --reporter=line,json'));
  assert(workflow.includes('needs: [browser-shard]'));
  assert(workflow.includes('test "$SHARD_RESULT" = success'));
+});
+
+
+test('long tree scenarios are balanced ahead of short UI cases using observed release costs',()=>{
+ const slow={file:'knowledge-graph.spec.ts',project:'desktop',title:'tree tour pauses on hold and smoothly resumes the released view',id:'slow'};
+ const continuous={...slow,title:'tree continuously surrounds the trunk and resumes after company details',id:'continuous'};
+ const light={...slow,title:'opening relationship evidence preserves the current company',id:'light'};
+ assert(testWeight(slow)>testWeight(continuous));
+ assert(testWeight(continuous)>testWeight(light)*10);
+ const shards=balanceTests([slow,continuous,...Array.from({length:30},(_,i)=>({...light,id:`light-${i}`}))],4);
+ assert.notEqual(shards.findIndex(s=>s.tests.some(t=>t.id===slow.id)),shards.findIndex(s=>s.tests.some(t=>t.id===continuous.id)));
+ assert.equal(new Set(shards.flatMap(s=>s.tests.map(t=>t.id))).size,32);
 });
