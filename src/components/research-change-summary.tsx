@@ -15,7 +15,7 @@ export function ResearchChangeSummary({ items, graph, following = false }: { ite
   const business = summary[0].kind === "BUSINESS";
   return <section aria-label={text("Research summary", "研究摘要")} className="my-6 rounded-2xl border border-cyan-400/25 bg-cyan-950/20 p-5">
     <h2 className="text-lg font-semibold text-cyan-100">{following ? text("What changed for companies you follow?", "关注公司的资料有什么变化？") : text("Start with these developments", "先看这些进展")}</h2>
-    <p className="mt-2 text-xs leading-5 text-slate-400">{business ? text("Selected company reports, ordered by event date or source publication date. A report is not proof of a new order, completed delivery or financial impact.", "精选公司披露，按事件日期或资料发布日期排列。披露不代表新订单、已完成交付或财务影响。") : text("Evidence added or reviewed. These are research updates; a review date does not establish when the business changed.", "以下为证据收录或复核。研究更新的日期不能用来推断业务发生变化的时间。")}</p>
+    <p className="mt-2 text-xs leading-5 text-slate-400">{business ? text("Selected company reports, ordered by event date or source publication date. A report is not proof of a new order, completed delivery or financial impact.", "精选公司披露，按事件日期或资料发布日期排列。披露不代表新订单、已完成交付或财务影响。") : text("Sources added or reviewed. These are research updates; a review date does not establish when the business changed.", "以下为来源收录或复核。研究更新的日期不能用来推断业务发生变化的时间。")}</p>
     <ul className="mt-4 grid gap-4 md:grid-cols-3">
       {summary.map(item => {
         const event = item.business;

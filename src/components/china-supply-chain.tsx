@@ -43,7 +43,7 @@ export function ChinaSupplyChain({ embedded = false, initialQuery = "" }: { embe
     {embedded ? <header className={overview.sectionHeading}><h2 id="a-share-heading">{text("A-share companies", "A 股公司")}</h2><p>{text("Explore business roles and original disclosures.", "了解产业环节，查看原始披露。")}</p></header> : <>
     <p className="text-xs font-medium tracking-widest text-cyan-200">{text("CHINA · A-SHARES", "中国 · A 股")}</p>
     <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-5xl">{text("Explore A-share industries", "探索 A 股产业")}</h1>
-    <p className="mt-5 max-w-2xl text-base leading-8 text-slate-400">{text("Discover companies by their business and industry role. Start with the overview, then read the evidence.", "按业务与产业环节发现公司。先了解业务，再查看原始披露。")}</p></>}
+    <p className="mt-5 max-w-2xl text-base leading-8 text-slate-400">{text("Discover companies by their business and industry role. Start with the overview, then read the sources.", "按业务与产业环节发现公司。先了解业务，再查看原始披露。")}</p></>}
     <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <label className="w-full sm:max-w-sm"><span className="sr-only">{text("Search A-shares", "搜索 A 股公司")}</span><input value={query} onChange={event => setQuery(event.target.value)} placeholder={text("Company, ticker or business", "搜索公司、代码或业务")} className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm outline-none focus:border-cyan-300" /></label>
       <span className="text-xs text-slate-400">{!loading && !failed ? `${companies.length} / ${directory.length} · ` : ""}{text("Company directory", "公司资料库")}</span>

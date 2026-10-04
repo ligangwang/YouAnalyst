@@ -712,7 +712,7 @@ test("event deep link opens source evidence beside the selected company", async 
   page.on("pageerror", error => { throw error; });
   await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en&company=US%3AAMD&event=amd-cisco-humain-live-20260831");
-  const evidence=page.getByRole("region",{name:"Selected event evidence"});
+  const evidence=page.getByRole("region",{name:"Selected event sources"});
   await expect(evidence.getByRole("heading",{name:"AMD and Cisco report HUMAIN systems are live"})).toBeVisible();
   await expect(evidence.getByRole("link")).toHaveAttribute("href",/ir.amd.com\/news-events\/press-releases\/detail\/1298/);
   await expect(evidence).toContainText("2026-08-31");
@@ -1824,7 +1824,7 @@ for (const language of ["en", "zh-CN"]) test(`homepage keeps the intro, compact 
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: graph }) : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto(`http://graph.test/map?lang=${language}&homepage=1`);
   const intro = page.getByRole("region", { name: language === "en" ? "Start your investment research" : "开始投资研究" });
-  const evidence = page.getByRole("region", { name: language === "en" ? "Research and evidence" : "研究与证据" });
+  const evidence = page.getByRole("region", { name: language === "en" ? "Research and sources" : "研究与来源" });
   const workspace = page.getByRole("tabpanel");
   const header = page.locator("main > header");
   await expect(intro.locator("p")).toHaveCount(1);
@@ -1842,7 +1842,7 @@ for (const language of ["en", "zh-CN"]) test(`homepage keeps the intro, compact 
       const headerBounds = (await header.boundingBox())!;
       expect(workspaceBounds.y - headerBounds.y - headerBounds.height).toBeLessThanOrEqual(16);
     }
-    expect(await intro.evaluate(element => element.nextElementSibling?.getAttribute("aria-label"))).toBe(language === "en" ? "Research and evidence" : "研究与证据");
+    expect(await intro.evaluate(element => element.nextElementSibling?.getAttribute("aria-label"))).toBe(language === "en" ? "Research and sources" : "研究与来源");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
 });

@@ -30,7 +30,7 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
   await expect(page.getByTitle("Earlier event, added later. Collection is not a new business event.")).toHaveCount(0);
   await expect(page.getByText("marks an earlier event that was collected recently.", { exact: false })).toHaveCount(0);
   await expect(page.getByRole("link",{name:"Open in map"})).toHaveAttribute("href","/en?company=ORG%3AOPENAI&event=customer-expansion");
-  await page.getByText("View evidence",{exact:true}).click();
+  await page.getByText("View sources",{exact:true}).click();
   await expect(page.getByRole("link",{name:"Original announcement ↗"})).toHaveAttribute("href","https://example.com/event");
   await page.getByRole("checkbox",{name:"Include one-hop suppliers / customers"}).uncheck();
   await expect(page.getByText("No reliable updates available for these companies yet.")).toBeVisible();
@@ -110,8 +110,8 @@ test("private list separates historic source dates and clears when the account c
   await page.goto(origin + "/zh-cn/watchlists/following");
   await expect(page.getByRole("heading", { name: "我的关注", exact: true })).toBeVisible();
   await page.getByRole("button",{name:"更新",exact:true}).click();
-  await page.getByRole("button", {name:"证据更新",exact:true}).click();
-  await page.getByText("查看证据", {exact:true}).click();
+  await page.getByRole("button", {name:"来源更新",exact:true}).click();
+  await page.getByText("查看来源", {exact:true}).click();
   await expect(page.getByRole("article").locator("details").getByText("资料发布日期: 2024-01-02", { exact: true })).toBeVisible();
   await expect(page.getByRole("article").getByText("事件发生日期未明确；上方日期不代表新发生的业务事件。", { exact: true })).toBeVisible();
   await expect(page.getByText("收录／复核: 2026-09-15", { exact: true })).toHaveCount(0);
@@ -137,7 +137,7 @@ test("company research exposes planned business, sources and localized continuat
   await expect(page.getByRole("heading", { name: "AI 产业链角色" })).toBeVisible();
   await expect(page.getByText("含已宣布／计划中事项",{exact:true})).toBeVisible();
   await expect(page.getByRole("link", { name: "Historic capacity announcement ↗" })).not.toBeVisible();
-  await page.getByText("查看证据",{exact:true}).click();
+  await page.getByText("查看来源",{exact:true}).click();
   await expect(page.getByText("已宣布／计划中，尚不代表已交付", { exact: true })).toBeVisible();
   await expect(page.getByText("超威半导体已宣布计划向OpenAI提供产品或服务。", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "OpenAI", exact: true })).toHaveAttribute("href", "/zh-cn/company/ORG%3AOPENAI");
