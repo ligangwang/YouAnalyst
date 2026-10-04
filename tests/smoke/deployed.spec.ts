@@ -196,7 +196,7 @@ test("Cloud Run service identity does not grant access to saved companies", asyn
 
 test("feed shows research updates without filing features", async ({ page, request }) => {
   await page.goto("/feed");
-  await expect(page.getByRole("heading", { name: "Company research updates", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Curated research updates", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Event types" })).toHaveCount(0);
   for (const path of ["/en/institutions", "/zh-cn/daily/insiders", "/daily/institutional", "/api/insider-transactions/AMD", "/api/institutional-holdings/AMD"]) {
     expect((await request.get(path)).status()).toBe(404);
