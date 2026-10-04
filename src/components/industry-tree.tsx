@@ -10,7 +10,7 @@ import { useWheelZoomGate, WheelZoomHint } from './wheel-zoom-gate';
 import styles from './industry-tree.module.css';
 
 const Scene=lazy(()=>import('./industry-tree-scene'));
-type Props={musicControls?:boolean;companies:GraphNode[];selected:string;onSelect:(id:string)=>void;followedIds:string[];active:boolean;vertical?:boolean;showCard?:boolean;revealCard?:boolean;closing?:boolean};
+type Props={musicControls?:boolean;companies:GraphNode[];selected:string;onSelect:(id:string)=>void;followedIds:string[];active:boolean;vertical?:boolean;showCard?:boolean;revealCard?:boolean;closing?:boolean;embedded?:boolean};
 // Both trees share one page, so each one only starts WebGL once it scrolls into view and pauses its
 // render loop while off-screen. Without IntersectionObserver both simply stay live.
 function useOnScreen(active:boolean){
@@ -27,7 +27,7 @@ function useOnScreen(active:boolean){
 function IconButton({label,onClick,children}:{label:string;onClick:()=>void;children:ReactNode}){
   return <button type="button" aria-label={label} title={label} onClick={onClick}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg></button>;
 }
-export function IndustryStructure({musicControls=false,companies,selected,onSelect,followedIds,active,vertical=false,showCard=true,revealCard=false,closing=false}:Props){
+export function IndustryStructure({musicControls=false,companies,selected,onSelect,followedIds,active,vertical=false,showCard=true,revealCard=false,closing=false,embedded=false}:Props){
   const {text,locale}=useLocale();
   const company=companies.find(c=>c.id===selected);
   const layers=useMemo(()=>industryTree(companies),[companies]);
@@ -55,11 +55,11 @@ export function IndustryStructure({musicControls=false,companies,selected,onSele
     setOpen(current=>closing?current.filter(key=>key!==id):[...current,id]);
     if(!vertical){setFocus(closing||id==='root'?'':id);setRequest(n=>n+1);}
   }
-  return <section className={`${styles.tree} ${vertical?styles.vertical:''}`} aria-labelledby={headingId} data-industry-section={vertical?'vertical':'horizontal'}>
+  return <section className={`${styles.tree} ${vertical?styles.vertical:''} ${embedded?styles.embedded:''}`} aria-labelledby={headingId} data-industry-section={vertical?'vertical':'horizontal'}>
     <header className={styles.toolbar}><div><h2 id={headingId}>{vertical?text('Vertical tree','垂直树状图'):text('Horizontal tree','水平树状图')}</h2><p>{companies.length} {text('unique companies · Five layers','家去重公司 · 五层产业结构')}</p></div><div className={styles.actions}>
       <IconButton label={text('Expand all','全部展开')} onClick={()=>{setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);setFocus('');if(!vertical)setRequest(n=>n+1);}}><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></IconButton>
       <IconButton label={text('Collapse all','全部折叠')} onClick={()=>{setOpen([]);setFocus('');if(!vertical)setRequest(n=>n+1);}}><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></IconButton>
-      <IconButton label={text('Reset view','复位视角')} onClick={()=>{setFocus('');if(vertical){setOpen(matchMedia('(prefers-reduced-motion: reduce)').matches?['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]:['root']);onSelect('');}setRequest(n=>n+1);}}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4v4h4"/></IconButton>
+      {!embedded&&<IconButton label={text('Reset view','复位视角')} onClick={()=>{setFocus('');if(vertical){setOpen(matchMedia('(prefers-reduced-motion: reduce)').matches?['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]:['root']);onSelect('');}setRequest(n=>n+1);}}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4 4v4h4"/></IconButton>}
     </div></header>
     <div ref={attachScene} className={styles.scene} data-industry-tree={vertical?'vertical':'3d'}>
       {musicControls&&active&&<UniverseMusicToggle/>}

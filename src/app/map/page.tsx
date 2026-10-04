@@ -1,18 +1,17 @@
-import type { Metadata } from "next";
-import { AiKnowledgeGraph } from "@/components/ai-knowledge-graph";
-import { redirect } from "next/navigation";
-import { localizedMetadata } from "@/lib/i18n/server";
-import { ResearchDiscovery } from "@/components/research-discovery";
-import { ResearchQuickLinks, ResearchStartingPoints } from "@/components/research-starting-points";
-import { researchStartingPoints } from "@/lib/research/starting-points";
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { parseLocale } from '@/lib/locale';
+import { localizedPath } from '@/lib/i18n/urls';
 
-export const dynamic = "force-dynamic";
-type MapSearchParams = { event?: string | string[]; relationship?: string | string[]; company?: string | string[]; market?: string | string[]; q?: string | string[]; view?: string | string[] };
-export async function generateMetadata(): Promise<Metadata> {
-  return localizedMetadata({ title: "AI Industry Map: AI Stocks & Companies | YouAnalyst", description: "Visual intelligence for investment research. Explore AI stocks, companies, and supply-chain relationships across US and China A-share markets.", alternates: { canonical: "/" } });
-}
-export default async function Home({ searchParams }: { searchParams: Promise<MapSearchParams> }) {
-  const { company, view, q, event, relationship } = await searchParams;
-  if (view === "filings") redirect("/feed");
-  return <AiKnowledgeGraph startingPoints={<ResearchQuickLinks entries={researchStartingPoints}/>} introduction={<><ResearchStartingPoints entries={researchStartingPoints}/><ResearchDiscovery/></>} key={JSON.stringify([company,event,relationship])} initialEvent={typeof event === "string" ? event : ""} initialEdge={typeof relationship === "string" ? relationship : ""} initialCompany={typeof company === "string" ? company : ""} initialQuery={typeof q === "string" ? q : ""} />;
+// Compatibility only: the homepage now owns every industry view.
+export default async function MapPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
+  const params=await searchParams;
+  const locale=parseLocale((await headers()).get('x-ya-language'))??'en';
+  if(params.view==='filings')redirect(localizedPath('/feed',locale));
+  const query=new URLSearchParams();
+  for(const [key,value] of Object.entries(params)){
+    if(Array.isArray(value))for(const item of value)query.append(key,item);
+    else if(typeof value==='string')query.set(key,value);
+  }
+  redirect(`${localizedPath('/',locale)}${query.size?'?'+query:''}`);
 }

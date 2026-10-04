@@ -10,7 +10,7 @@ import styles from './industry-hierarchy.module.css';
 import {useNodePresence} from './use-node-presence';
 import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
 type Node={id:string;parent?:string;x:number;y:number;label:string;color:string;company?:GraphNode};
-export function IndustryHierarchy({companies,selected,onSelect,closing}:{companies:GraphNode[];selected:string;onSelect:(id:string)=>void;closing:boolean}){
+export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=false}:{companies:GraphNode[];selected:string;onSelect:(id:string)=>void;closing:boolean;embedded?:boolean}){
  const {text,locale}=useLocale();
  const speed=2; // Short manual transitions are independent of automatic tour settings.
  const layers=useMemo(()=>industryTree(companies),[companies]);
@@ -79,7 +79,7 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
   if(!selected&&previousSelection.current&&savedSelectionView.current){shot.current=savedSelectionView.current;savedSelectionView.current=null;}
   previousSelection.current=selected;
  },[selected]);
- const chartWidth=Math.max(120,size.width-(selected&&size.width>800?364:0)),chartHeight=Math.max(120,size.height-(selected&&size.width<=800?220:0));
+ const chartWidth=Math.max(120,size.width-(!embedded&&selected&&size.width>800?364:0)),chartHeight=Math.max(120,size.height-(!embedded&&selected&&size.width<=800?220:0));
  const toggle=(n:Node)=>{
   if(n.company){onSelect(n.company.id);return;}
   const expanded=!open.includes(n.id);
@@ -88,7 +88,7 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
   setOpen(v=>expanded?[...v,n.id]:v.filter(id=>id!==n.id&&!id.startsWith(n.id+'/')));
   if(selected)onSelect('');
  };
- return <section aria-label={text('Company hierarchy','公司层级图')} data-industry-section="hierarchy">
+ return <section className={embedded?styles.embedded:undefined} aria-label={text('Company hierarchy','公司层级图')} data-industry-section="hierarchy">
   <div className={styles.tools}><button onClick={()=>{stopMotion();setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);}}>{text('Expand all','全部展开')}</button><button onClick={()=>{stopMotion();setOpen(['root']);shot.current={x:440,y:260,zoom:.7};}}>{text('Collapse all','全部折叠')}</button><button onClick={()=>{stopMotion();setOpen(['root']);shot.current={x:440,y:260,zoom:.8};}}>{text('Reset view','复位视角')}</button></div>
   <div ref={viewport} className={styles.scene} data-industry-tree="hierarchy" data-tour="manual"
    onPointerDown={e=>{if((e.target as Element).closest('button,aside'))return;stopMotion();pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.current.size===2){const [a,b]=[...pointers.current.values()];pinch.current={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:view.zoom};drag.current=null;}else drag.current={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};e.currentTarget.setPointerCapture(e.pointerId);}}
@@ -97,7 +97,7 @@ export function IndustryHierarchy({companies,selected,onSelect,closing}:{compani
     {presence.filter(e=>e.node.parent).map(({node:n,exiting})=>{const p=renderedNodes.find(v=>v.id===n.parent);if(!p)return null;return <path className={exiting?styles.exiting:styles.entering} style={{animationDuration:`${.8/speed}s`}} key={n.id} d={`M${p.x+220},${p.y+32} C${p.x+260},${p.y+32} ${n.x-40},${n.y+32} ${n.x},${n.y+32}`} fill="none" stroke={n.color} opacity=".4"/>;})}
     {presence.map(({node:n,exiting})=><foreignObject className={exiting?styles.exiting:styles.entering} style={{x:n.x,y:n.y,transitionDuration:`${.8/speed}s`,animationDuration:`${.8/speed}s`,pointerEvents:exiting?'none':undefined}} key={n.id} x={n.x} y={n.y} width="240" height="76"><button className={styles.node} style={{borderColor:n.color,animationDuration:`${1.6/speed}s`}} aria-expanded={n.company?undefined:open.includes(n.id)} aria-pressed={n.company?selected===n.company.id:undefined} disabled={exiting} data-exiting={exiting} data-hierarchy-node={n.id} data-tree-company={n.company?.id} title={n.label} onClick={()=>toggle(n)}>{n.company&&<CompanyCountryFlag country={n.company.country} locale={locale}/>} {n.label}<small>{n.company?[n.company.symbol,marketCapLabel(n.company.marketCap)].filter(Boolean).join(" · "):open.includes(n.id)?'−':'+'}</small></button></foreignObject>)}
    </svg>
-   {company&&<TreeCompanyCard key={company.id} company={company} color="#7dd3fc" closing={closing} onClose={()=>onSelect('')}/>}
+   {!embedded&&company&&<TreeCompanyCard key={company.id} company={company} color="#7dd3fc" closing={closing} onClose={()=>onSelect('')}/>}
   </div><p>{text('Drag to pan · Scroll or pinch to zoom · Click nodes to expand or collapse','拖动平移 · 滚轮或双指缩放 · 点击节点展开或收起')}</p>
  </section>;
 }

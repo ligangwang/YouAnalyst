@@ -11,8 +11,8 @@ const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],source
 let html:string;
 test.beforeAll(async()=>{
   const bundled=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(snapshot)}}/>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,outfile:'fixture.js',platform:'browser',jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
-    build.onResolve({filter:/(?:company-graph-3d|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
-    build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='company-follow-button'?`export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
+    build.onResolve({filter:/(?:company-graph-3d|industry-tree-scene|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
+    build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
   }}]});
   html=`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}${bundled.outputFiles.find(file=>file.path.endsWith('.css'))?.text??''}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file=>file.path.endsWith('.js'))!.text.replaceAll('</script','<\\/script')}</script></body></html>`;
   if(process.env.INTELLIGENCE_PREVIEW_OUT){const directory=process.env.INTELLIGENCE_PREVIEW_OUT;mkdirSync(path.join(directory,'api'),{recursive:true});writeFileSync(path.join(directory,'index.html'),html);writeFileSync(path.join(directory,'api/intelligence'),JSON.stringify(snapshot));}
@@ -44,7 +44,40 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await panel.getByRole('button',{name:/Published company update 1 /}).click();
   const selection=panel.getByRole('region',{name:'Selected sources'});await expect(selection).toBeVisible();await expect(selection).toBeFocused();
   const bounds=await selection.boundingBox();expect(bounds!.y).toBeLessThan(180);expect(bounds!.height).toBeLessThan(400);
-  await expect(selection.getByRole('link',{name:/Original release 1/})).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
+  await expect(selection.getByRole('link',{name:/Original release 1/})).toBeVisible();
+  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+  await expect(page.locator('[data-list-company="US:MU"]')).toHaveAttribute('data-selected','true');
+  await expect(page.getByRole('navigation',{name:'Company list pagination'})).toContainText('of 4 companies');
+  await expect(selection.getByRole('link',{name:/Original release 1/})).toBeVisible();
+  await page.getByRole('tab',{name:'Company hierarchy',exact:true}).click();
+  await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
+  await expect(page.locator('[data-industry-tree="vertical"]')).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Tour speed'})).toBeVisible();
+  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(selection).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
+  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+  await input.fill('Micron');
+  await expect(page.locator('[data-list-company]')).toHaveCount(1);
+  await page.reload();
+  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-list-company]')).toHaveCount(1);
+  await page.locator('[data-list-company="US:MU"] button').click();
+  await expect(selection.getByRole('link',{name:'Company research ↗'})).toHaveAttribute('href','/en/ticker/MU');
+  await page.reload();await expect(selection.getByRole('link',{name:'Company research ↗'})).toBeVisible();
+  await input.fill('');
+  await page.getByRole('button',{name:'Filter IR signals',exact:true}).click();
+  await expect(page.locator('[data-list-company]')).toHaveCount(1);
+  await expect(selection).toHaveCount(0);
+  await page.getByRole('button',{name:'Clear activity filters',exact:true}).click();
+  await expect(page.locator('[data-list-company]')).toHaveCount(4);
+  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
+  await page.getByRole('tab',{name:'Relationship graph',exact:true}).press('End');
+  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toBeFocused();
+  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
   await panel.getByRole('button',{name:'Today',exact:true}).click();await expect(panel.getByText('350',{exact:true})).toHaveCount(0);await expect(panel.getByText('No new events in the available records today.')).toBeVisible();
   await expect(page.getByRole('link',{name:'Watchlists',exact:true}).first()).toHaveAttribute('href','/en/watchlists/following');
 });
@@ -52,6 +85,11 @@ test('mobile navigation exposes saved companies and event details retain their C
   test.skip(info.project.name!=='mobile','Mobile workspace checks');await open(page,true);
   await page.getByText('更多 ▾',{exact:true}).click();await expect(page.getByRole('navigation',{name:'More navigation'}).getByRole('link',{name:'自选股',exact:true})).toHaveAttribute('href','/zh-cn/watchlists/following');
   await page.getByText('更多 ▾',{exact:true}).click();
+  const center=page.getByRole('region',{name:'Graph universe'});
+  await center.getByRole('tab',{name:'公司列表',exact:true}).click();
+  await expect(center.getByRole('region',{name:'公司列表',exact:true})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await center.getByRole('tab',{name:'关系图谱',exact:true}).click();
   const panel=page.getByRole('complementary',{name:'Events and sources'});
   const eventRow=panel.getByRole('button',{name:/Published company update 1 /});
   await expect(eventRow.getByText('内存与存储',{exact:true})).toBeVisible();

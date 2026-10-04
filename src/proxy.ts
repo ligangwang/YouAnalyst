@@ -28,7 +28,7 @@ export function proxy(request: NextRequest) {
     const localizable = isLocalizedPage(plain);
     const target = new URL(request.url);
     const retiredResearch = (plain === "/" || plain === "/map") && target.searchParams.get("view") === "filings";
-    const graphAlias = plain === "/map" && target.searchParams.get("view") !== "filings";
+    const graphAlias = (plain === "/map" || plain === "/intelligence") && target.searchParams.get("view") !== "filings";
     if (localizable) {
       target.pathname = localizedPath(retiredResearch ? "/feed" : graphAlias ? "/" : plain, locale);
       target.searchParams.delete("lang");
