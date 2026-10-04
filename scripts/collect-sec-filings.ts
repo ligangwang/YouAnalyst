@@ -10,6 +10,8 @@ import { createSecFilingsSource } from "../src/lib/sec-filings/source";
 import { baselineSecFilings, inspectSecBaseline } from "../src/lib/sec-filings/baseline";
 import { parseSecCollectorArgs } from "../src/lib/sec-filings/cli";
 import { createSecEarningsObserver } from "../src/lib/earnings/sec-observer";
+import {createMapSecObserver} from '../src/lib/events/sec-disclosures';
+import {earningsPilot} from '../src/lib/earnings/pilot';
 
 const log = createMaintenanceLog("collect-sec-filings");
 async function main() {
@@ -48,7 +50,18 @@ async function main() {
   const timeoutMs = 12 * 60_000;
   const deadline = Date.now() + timeoutMs;
   const earnings = process.env.EARNINGS_COLLECTION_ENABLED === "1" ? createSecEarningsObserver(db, log, { deadline }) : null;
-  const source = createSecFilingsSource(process.env.SEC_USER_AGENT, AbortSignal.timeout(timeoutMs), earnings?.observe);
+  const byCik=new Map<string,string[]>();
+  for(const company of earningsPilot)if(company.cik&&companyIds.includes(company.companyId.slice(3)))byCik.set(company.cik,[company.companyId]);
+  const disclosures=createMapSecObserver(db,byCik,{deadline});
+  const source = createSecFilingsSource(process.env.SEC_USER_AGENT, AbortSignal.timeout(timeoutMs), async(cik,value,archive)=>{
+    await disclosures.observe(cik,value,archive);
+    await earnings?.observe(cik,value,archive);
+  });
+  const resolver=source.resolveCik.bind(source);
+  source.resolveCik=async ticker=>{
+    const cik=await resolver(ticker),id=`US:${ticker}`,existing=byCik.get(cik)??[];
+    if(!existing.includes(id))byCik.set(cik,[...existing,id]);return cik;
+  };
   const result = await collectSecFilings(db, companyIds, log, {
     source,
     beforeCollection: earnings ? async () => { await earnings.scanPilot(source); } : undefined,
@@ -60,5 +73,6 @@ async function main() {
     ...(earnings ? { earningsObserved: earnings.observed.size, earningsFailed: earnings.failed.size } : {}) });
   if (result.failed) throw new Error("SEC filing collection had failed companies; durable progress retained");
   if (earnings?.failed.size) throw new Error("Earnings SEC discovery was incomplete; existing financial discovery completed independently");
+  if(disclosures.failed.size)throw new Error(`Map SEC announcement discovery incomplete for ${[...disclosures.failed].join(', ')}`);
 }
 main().catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });

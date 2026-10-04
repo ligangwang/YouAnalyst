@@ -2,6 +2,8 @@ import {createHash} from 'node:crypto';
 import {XMLParser,XMLValidator} from 'fast-xml-parser';
 import {canonicalEvidenceUrl,observation} from '../model';
 import type {NewsSource} from './sources';
+import {parseHtmlNewsIndex,originalArticleMetadata} from './html-news';
+import {publisherFetch} from './publisher-http';
 
 export const MAX_FEED_BYTES=2_000_000,MAX_FEED_ITEMS=100;
 export type NewsItem={id:string;sourceId:string;companyId:string;title:string;summary:string;url:string;published_at:string|null;publication_date:string|null};
@@ -13,6 +15,7 @@ export function plainText(value:unknown,max=320){
   return string(value).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'').replace(/<[^>]*>/g,' ').replace(/&#(x[0-9a-f]+|\d+);/gi,(_,number:string)=>{const code=number[0].toLowerCase()==='x'?parseInt(number.slice(1),16):Number(number);return code>0&&code<=0x10ffff&&!(code>=0xd800&&code<=0xdfff)?String.fromCodePoint(code):'';}).replace(/&(?:amp|lt|gt|quot|apos|nbsp);/g,entity=>({'&amp;':'&','&lt;':'<','&gt;':'>','&quot;':'"','&apos;':"'",'&nbsp;':' '}[entity]!)).replace(/\s+/g,' ').trim().slice(0,max);
 }
 export function approvedNewsUrl(raw:string,source:NewsSource,article=false):string|null{
+  if(article&&source.upgradeArticleHttp&&raw.startsWith('http:')){try{const url=new URL(raw);if(source.allowedHosts.includes(url.hostname)){url.protocol='https:';raw=url.href;}}catch{return null;}}
   let canonical=canonicalEvidenceUrl(raw.replace(/&amp;/g,'&'));if(!canonical)return null;
   if(article){const url=new URL(canonical),alias=source.articleHostAliases?.[url.hostname];if(alias){url.hostname=alias;canonical=url.toString();}}
   return source.allowedHosts.includes(new URL(canonical).hostname)?canonical:null;
@@ -36,7 +39,7 @@ export function parseNewsFeed(xml:string,source:NewsSource):NewsPage{
   const entries=array(parsed.rss?channel.item:feed.entry);
   const items=new Map<string,NewsItem>();let invalid=0;
   for(const entry of entries.slice(0,MAX_FEED_ITEMS)){
-    const item=object(entry),link=array(item.link).filter(value=>typeof value==='string'||!object(value)['@_rel']||object(value)['@_rel']==='alternate').map(value=>typeof value==='string'?value:object(value)['@_href']).find(value=>typeof value==='string'&&value.startsWith('https:'));
+    const item=object(entry),link=array(item.link).filter(value=>typeof value==='string'||!object(value)['@_rel']||object(value)['@_rel']==='alternate').map(value=>typeof value==='string'?value:object(value)['@_href']).find(value=>typeof value==='string'&&(value.startsWith('https:')||source.upgradeArticleHttp&&value.startsWith('http:')));
     const url=typeof link==='string'?approvedNewsUrl(link,source,true):null,title=plainText(item.title,240);
     if(!url||!title){invalid++;continue;}
     // Some publisher CMS feeds expose site-rebuild dates as pubDate.
@@ -76,15 +79,20 @@ async function readArticleDay(item:NewsItem,source:NewsSource,request:typeof fet
     if(!response.body)throw new Error('Article response has no body');
     const reader=response.body.getReader(),chunks:Uint8Array[]=[];let bytes=0;
     try{while(true){const chunk=await reader.read();if(chunk.done)break;bytes+=chunk.value.byteLength;if(bytes>MAX_FEED_BYTES)throw new Error('Article exceeds size limit');chunks.push(chunk.value);}}finally{await reader.cancel();}
-    return articlePublicationDay(Buffer.concat(chunks).toString('utf8'),source.articleDateFormat);
+    const html=Buffer.concat(chunks).toString('utf8');
+    if(source.format==='html'){
+      const metadata=originalArticleMetadata(html,source.articleVisibleDate);item.title=metadata.title||item.title;item.published_at=source.articleDateOnly?null:metadata.at;
+      if(!item.title)throw new Error('Article has no original headline');return metadata.day;
+    }
+    return articlePublicationDay(html,source.articleDateFormat);
   }
   throw new Error('Too many article redirects');
 }
 
-export async function fetchNews(source:NewsSource,validators:NewsValidators={},request:typeof fetch=fetch,knownIds:readonly string[]=[]):Promise<NewsResponse>{
+export async function fetchNews(source:NewsSource,validators:NewsValidators={},request:typeof fetch=source.transport==='https'?publisherFetch:fetch,knownIds:readonly string[]=[]):Promise<NewsResponse>{
   let url=source.url;
   const signal=AbortSignal.timeout(20_000);
-  const headers:Record<string,string>={'User-Agent':'YouAnalyst/1.0','Accept':'application/rss+xml, application/atom+xml, application/xml, text/xml'};
+  const headers:Record<string,string>={'User-Agent':'YouAnalyst/1.0','Accept':'text/html,application/rss+xml,application/atom+xml,application/xml,text/xml'};
   if(validators.etag)headers['If-None-Match']=validators.etag;
   else if(validators.lastModified)headers['If-Modified-Since']=validators.lastModified;
   for(let redirects=0;redirects<=3;redirects++){
@@ -107,14 +115,16 @@ export async function fetchNews(source:NewsSource,validators:NewsValidators={},r
     try{while(true){const chunk=await reader.read();if(chunk.done)break;length+=chunk.value.byteLength;if(length>MAX_FEED_BYTES)throw new Error('Feed exceeds size limit');chunks.push(chunk.value);}}finally{await reader.cancel();}
     const collected_at=new Date().toISOString();
     const xml=Buffer.concat(chunks).toString('utf8');
-    const page=parseNewsFeed(xml,source);
-    if(source.publicationFromArticle){
-      const known=new Set(knownIds),pending=page.items.filter(item=>!known.has(item.id)),articleSignal=AbortSignal.timeout(60_000);let next=0,unresolved=0;
+    const page=source.format==='html'?parseHtmlNewsIndex(xml,source):parseNewsFeed(xml,source);
+    if(source.publicationFromArticle||source.format==='html'){
+      const known=new Set(knownIds),pending=page.items.filter(item=>!known.has(item.id)&&!(source.format==='html'&&item.publication_date)),articleSignal=AbortSignal.timeout(60_000),failed=new Set<string>();let next=0,unresolved=0;
       // Bound concurrency and only fetch newly discovered articles on later scans.
-      await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{while(next<pending.length){const item=pending[next++];item.publication_date=await readArticleDay(item,source,request,articleSignal);if(!item.publication_date)unresolved++;}}));
+      await Promise.all(Array.from({length:Math.min(4,pending.length)},async()=>{while(next<pending.length){const item=pending[next++];try{item.publication_date=await readArticleDay(item,source,request,articleSignal);if(!item.publication_date){if(source.format==='html')failed.add(item.id);else unresolved++;}}catch(error){if(source.format!=='html')throw error;failed.add(item.id);}}}));
       if(unresolved)throw new NewsFetchError(`Original publication date unavailable for ${unresolved} article(s)`,source.pollMs);
+      page.invalid+=failed.size;page.items=page.items.filter(item=>!failed.has(item.id));
+      if(failed.size&&!page.items.length)throw new NewsFetchError('Original publisher articles unavailable',source.pollMs);
     }
-    return {status:'modified',collected_at,page,validators:{...(response.headers.get('etag')?{etag:response.headers.get('etag')!}:{}),...(response.headers.get('last-modified')?{lastModified:response.headers.get('last-modified')!}:{})}};
+    return {status:'modified',collected_at,page,validators:page.invalid?{}:{...(response.headers.get('etag')?{etag:response.headers.get('etag')!}:{}),...(response.headers.get('last-modified')?{lastModified:response.headers.get('last-modified')!}:{})}};
   }
   throw new Error('Too many feed redirects');
 }

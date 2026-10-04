@@ -41,7 +41,8 @@ async function main() {
     const result = await runEarningsCanary(db, { revision, publish, discover: () => discoverEarningsCanary({ userAgent: process.env.SEC_USER_AGENT!, discoverCn }) });
     log.emit("INFO", "run_completed", result); return;
   }
-  const result = await collectLiveEarnings(db, log, { discoverCn, publish, deadline: Date.now() + 8 * 60_000 });
+  const result = await collectLiveEarnings(db, log, { discoverCn, publish, deadline: Date.now() + 8 * 60_000,
+    discoveryOwnedByMap:process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED==='1' });
   log.emit(result.failed || result.deferred ? "WARNING" : "INFO", "run_completed", result);
   if (result.failed) throw new Error("Earnings discovery had incomplete sources; checkpoints retained");
 }

@@ -1,0 +1,663 @@
+[
+  {
+    "id": "alab-ir",
+    "companyId": "US:ALAB",
+    "name": "ALAB Investor News",
+    "url": "https://ir.asteralabs.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "ir.asteralabs.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "amat-ir",
+    "companyId": "US:AMAT",
+    "name": "AMAT Investor News",
+    "url": "https://investor.appliedmaterials.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investor.appliedmaterials.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "amd-ir",
+    "companyId": "US:AMD",
+    "name": "AMD Investor News",
+    "url": "https://ir.amd.com/news-events/press-releases/rss",
+    "allowedHosts": [
+      "ir.amd.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "amkr-ir",
+    "companyId": "US:AMKR",
+    "name": "AMKR Investor News",
+    "url": "https://ir.amkor.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "ir.amkor.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "amzn-ir",
+    "companyId": "US:AMZN",
+    "name": "AMZN Investor News",
+    "url": "https://ir.aboutamazon.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "ir.aboutamazon.com",
+      "www.aboutamazon.com",
+      "aboutamazon.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "anet-ir",
+    "companyId": "US:ANET",
+    "name": "ANET Investor News",
+    "url": "https://investors.arista.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.arista.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "aph-ir",
+    "companyId": "US:APH",
+    "name": "APH Investor News",
+    "url": "https://investor.amphenol.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.amphenol.com",
+      "investors.amphenol.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "arm-ir",
+    "companyId": "US:ARM",
+    "name": "ARM Investor News",
+    "url": "https://investors.arm.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.arm.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "bidu-ir",
+    "companyId": "US:BIDU",
+    "name": "BIDU Investor News",
+    "url": "https://ir.baidu.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "ir.baidu.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "cdns-ir",
+    "companyId": "US:CDNS",
+    "name": "CDNS Investor News",
+    "url": "https://investor.cadence.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.cadence.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "ceg-ir",
+    "companyId": "US:CEG",
+    "name": "CEG Investor News",
+    "url": "https://investors.constellationenergy.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.constellationenergy.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "cls-ir",
+    "companyId": "US:CLS",
+    "name": "CLS Investor News",
+    "url": "https://corporate.celestica.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "corporate.celestica.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "cohr-ir",
+    "companyId": "US:COHR",
+    "name": "COHR Investor News",
+    "url": "https://ir.coherent.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "ir.coherent.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "crdo-ir",
+    "companyId": "US:CRDO",
+    "name": "CRDO Investor News",
+    "url": "https://investors.credosemi.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.credosemi.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "crm-ir",
+    "companyId": "US:CRM",
+    "name": "CRM Investor News",
+    "url": "https://investor.salesforce.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.salesforce.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "crwv-ir",
+    "companyId": "US:CRWV",
+    "name": "CRWV Investor News",
+    "url": "https://investors.coreweave.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.coreweave.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "csco-ir",
+    "companyId": "US:CSCO",
+    "name": "CSCO Investor News",
+    "url": "https://investor.cisco.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.cisco.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "dell-ir",
+    "companyId": "US:DELL",
+    "name": "DELL Investor News",
+    "url": "https://investors.delltechnologies.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.delltechnologies.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "dlr-ir",
+    "companyId": "US:DLR",
+    "name": "DLR Investor News",
+    "url": "https://investor.digitalrealty.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investor.digitalrealty.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "dov-ir",
+    "companyId": "US:DOV",
+    "name": "DOV Investor News",
+    "url": "https://investors.dovercorporation.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.dovercorporation.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "entg-ir",
+    "companyId": "US:ENTG",
+    "name": "ENTG Investor News",
+    "url": "https://investor.entegris.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.entegris.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "eqix-ir",
+    "companyId": "US:EQIX",
+    "name": "EQIX Investor News",
+    "url": "https://investor.equinix.com/news-events/press-releases/rss",
+    "allowedHosts": [
+      "investor.equinix.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "flex-ir",
+    "companyId": "US:FLEX",
+    "name": "FLEX Investor News",
+    "url": "https://investors.flex.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.flex.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "gds-ir",
+    "companyId": "US:GDS",
+    "name": "GDS Investor News",
+    "url": "https://investors.gds-services.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.gds-services.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "glw-ir",
+    "companyId": "US:GLW",
+    "name": "GLW Investor News",
+    "url": "https://investor.corning.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.corning.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "googl-ir",
+    "companyId": "US:GOOGL",
+    "name": "GOOGL Investor News",
+    "url": "https://abc.xyz/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "abc.xyz"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "jbl-ir",
+    "companyId": "US:JBL",
+    "name": "JBL Investor News",
+    "url": "https://investors.jabil.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.jabil.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "lite-ir",
+    "companyId": "US:LITE",
+    "name": "LITE Investor News",
+    "url": "https://investor.lumentum.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.lumentum.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "meta-ir",
+    "companyId": "US:META",
+    "name": "META Investor News",
+    "url": "https://investor.atmeta.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.atmeta.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "mod-ir",
+    "companyId": "US:MOD",
+    "name": "MOD Investor News",
+    "url": "https://investors.modine.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.modine.com",
+      "www.modine.com",
+      "modine.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "mu-ir",
+    "companyId": "US:MU",
+    "name": "MU Investor News",
+    "url": "https://investors.micron.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.micron.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https",
+    "upgradeArticleHttp": true
+  },
+  {
+    "id": "ntap-ir",
+    "companyId": "US:NTAP",
+    "name": "NTAP Investor News",
+    "url": "https://investors.netapp.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.netapp.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "nvda-ir",
+    "companyId": "US:NVDA",
+    "name": "NVDA Investor News",
+    "url": "https://investor.nvidia.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.nvidia.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "orcl-ir",
+    "companyId": "US:ORCL",
+    "name": "ORCL Investor News",
+    "url": "https://investor.oracle.com:443/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.oracle.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "p-ir",
+    "companyId": "US:P",
+    "name": "P Investor News",
+    "url": "https://investor.everpuredata.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.everpuredata.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "qcom-ir",
+    "companyId": "US:QCOM",
+    "name": "QCOM Investor News",
+    "url": "https://investor.qualcomm.com/rss/pressrelease.aspx",
+    "allowedHosts": [
+      "investor.qualcomm.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "skhy-ir",
+    "companyId": "US:SKHY",
+    "name": "SKHY Investor News",
+    "url": "https://news.skhynix.com/en/feed/",
+    "allowedHosts": [
+      "news.skhynix.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "smci-ir",
+    "companyId": "US:SMCI",
+    "name": "SMCI Investor News",
+    "url": "https://ir.supermicro.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "ir.supermicro.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "sndk-ir",
+    "companyId": "US:SNDK",
+    "name": "SNDK Investor News",
+    "url": "https://investor.sandisk.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investor.sandisk.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "snow-ir",
+    "companyId": "US:SNOW",
+    "name": "SNOW Investor News",
+    "url": "https://investors.snowflake.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.snowflake.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "snps-ir",
+    "companyId": "US:SNPS",
+    "name": "SNPS Investor News",
+    "url": "https://investor.synopsys.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investor.synopsys.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "stx-ir",
+    "companyId": "US:STX",
+    "name": "STX Investor News",
+    "url": "https://investors.seagate.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.seagate.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "tt-ir",
+    "companyId": "US:TT",
+    "name": "TT Investor News",
+    "url": "https://investors.tranetechnologies.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.tranetechnologies.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "ttmi-ir",
+    "companyId": "US:TTMI",
+    "name": "TTMI Investor News",
+    "url": "https://investors.ttm.com/news-events/press-releases/rss",
+    "allowedHosts": [
+      "investors.ttm.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "vnet-ir",
+    "companyId": "US:VNET",
+    "name": "VNET Investor News",
+    "url": "https://ir.vnet.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "ir.vnet.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "vrt-ir",
+    "companyId": "US:VRT",
+    "name": "VRT Investor News",
+    "url": "https://investors.vertiv.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "investors.vertiv.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "wdc-ir",
+    "companyId": "US:WDC",
+    "name": "WDC Investor News",
+    "url": "https://investor.wdc.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investor.wdc.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "asml-ir-html",
+    "companyId": "US:ASML",
+    "name": "ASML Official News",
+    "url": "https://www.asml.com/en/news/press-releases",
+    "allowedHosts": [
+      "www.asml.com",
+      "asml.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/en/news/press-releases/[0-9]{4}/",
+    "reviewRequired": "Official IR page requires a verified feed or publisher-specific adapter; SEC disclosure collection remains enabled."
+  },
+  {
+    "id": "baba-ir-html",
+    "companyId": "US:BABA",
+    "name": "BABA Official News",
+    "url": "https://www.alibabagroup.com/en-US/ir-news-filings",
+    "allowedHosts": [
+      "www.alibabagroup.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/en-US/document-",
+    "indexDateFormat": "alibaba"
+  },
+  {
+    "id": "etn-ir-html",
+    "companyId": "US:ETN",
+    "name": "ETN Official News",
+    "url": "https://www.eaton.com/us/en-us/company/news-insights/news-releases.html",
+    "allowedHosts": [
+      "www.eaton.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/us/en-us/company/news-insights/news-releases/[0-9]{4}/",
+    "reviewRequired": "Official IR page requires a verified feed or publisher-specific adapter; SEC disclosure collection remains enabled."
+  },
+  {
+    "id": "gev-ir-html",
+    "companyId": "US:GEV",
+    "name": "GEV Official News",
+    "url": "https://www.gevernova.com/news/subscribe/all/rss.xml",
+    "allowedHosts": [
+      "www.gevernova.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "hpe-ir-html",
+    "companyId": "US:HPE",
+    "name": "HPE Official News",
+    "url": "https://www.hpe.com/us/en/newsroom.html",
+    "allowedHosts": [
+      "www.hpe.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/us/en/newsroom/press-release/[0-9]{4}/"
+  },
+  {
+    "id": "lin-ir-html",
+    "companyId": "US:LIN",
+    "name": "LIN Official News",
+    "url": "https://www.linde.com/news-and-media",
+    "allowedHosts": [
+      "www.linde.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/news-and-media/[0-9]{4}/",
+    "articleVisibleDate": "linde"
+  },
+  {
+    "id": "nbis-ir-html",
+    "companyId": "US:NBIS",
+    "name": "NBIS Official News",
+    "url": "https://nebius.com/newsroom",
+    "allowedHosts": [
+      "nebius.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/newsroom/[^/]+",
+    "articleDateOnly": true
+  },
+  {
+    "id": "now-ir-html",
+    "companyId": "US:NOW",
+    "name": "NOW Official News",
+    "url": "https://newsroom.servicenow.com/rss/PressRelease.aspx?LanguageId=1",
+    "allowedHosts": [
+      "newsroom.servicenow.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "pltr-ir-html",
+    "companyId": "US:PLTR",
+    "name": "PLTR Official News",
+    "url": "https://www.palantir.com/newsroom/press-releases/",
+    "allowedHosts": [
+      "www.palantir.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/newsroom/press-releases/[^/]+",
+    "reviewRequired": "Official IR page requires a verified feed or publisher-specific adapter; SEC disclosure collection remains enabled."
+  },
+  {
+    "id": "tsm-ir-html",
+    "companyId": "US:TSM",
+    "name": "TSM Official News",
+    "url": "https://pr.tsmc.com/english/latest-news",
+    "allowedHosts": [
+      "pr.tsmc.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/english/news/[0-9]+",
+    "transport": "https"
+  },
+  {
+    "id": "vst-ir-html",
+    "companyId": "US:VST",
+    "name": "VST Official News",
+    "url": "https://investor.vistracorp.com/news",
+    "allowedHosts": [
+      "investor.vistracorp.com"
+    ],
+    "pollMs": 3600000,
+    "format": "html",
+    "articlePathPattern": "^/[0-9]{4}-[0-9]{2}-[0-9]{2}-",
+    "indexDateFormat": "vistra"
+  }
+]

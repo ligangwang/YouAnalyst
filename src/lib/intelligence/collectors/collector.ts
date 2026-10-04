@@ -13,12 +13,13 @@ export interface NewsStore{
   commit(source:NewsSource,cursor:NewsCursor,response:NewsResponse,at:Date):Promise<{created:number;baseline:boolean}>;
   fail(source:NewsSource,cursor:NewsCursor,error:string,retryAt:Date):Promise<void>;
 }
-export async function collectNewsSources(sources:readonly NewsSource[],store:NewsStore,read:typeof fetchNews=fetchNews,clock=()=>new Date()){
+export async function collectNewsSources(sources:readonly NewsSource[],store:NewsStore,read:typeof fetchNews=fetchNews,clock=()=>new Date(),options:{deadline?:number}={}){
   const results:{sourceId:string;status:'ok'|'skipped'|'failed';created?:number;baseline?:boolean;error?:string}[]=Array(sources.length);
   // Two independent publishers at a time; each keeps its own durable lease.
   let next=0;
   await Promise.all(Array.from({length:Math.min(2,sources.length)},async()=>{while(next<sources.length){
     const index=next++,source=sources[index];
+    if(options.deadline!==undefined&&clock().getTime()+90_000>=options.deadline){results[index]={sourceId:source.id,status:'skipped'};continue;}
     const cursor=await store.acquire(source,clock(),randomUUID());
     if(!cursor){results[index]={sourceId:source.id,status:'skipped'};continue;}
     try{

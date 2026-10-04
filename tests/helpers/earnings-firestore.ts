@@ -48,6 +48,7 @@ export function earningsFirestore() {
       const pending: Array<{ path: string; value: Data; merge: boolean }> = [];
       const read = async (r: Ref) => { assert.equal(pending.length, 0, "Firestore transactions require all reads before writes"); return snapshot(r.path); };
       const result = await callback({ get: read, getAll: (...refs: Ref[]) => Promise.all(refs.map(read)),
+        create: (r: Ref, value: Data) => { assert(!rows.has(r.path)&&!pending.some(item=>item.path===r.path), 'Document already exists'); pending.push({path:r.path,value,merge:false}); },
         set: (r: Ref, value: Data, options?: { merge?: boolean }) => pending.push({ path: r.path, value, merge: Boolean(options?.merge) }),
       });
       if (pending.some(item => reject(item.path, item.value))) throw new Error("Injected Firestore commit failure");

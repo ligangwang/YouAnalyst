@@ -103,6 +103,7 @@ test("approved earnings setup grants only five resource bindings and leaves a di
     assert.equal(config.EARNINGS_COLLECTION_ENABLED, "0");
     assert.equal(config.EARNINGS_PROCESSING_ENABLED, "0");
     assert.equal(config.EARNINGS_CANARY_ONLY, "0");
+    assert.equal(config.INTELLIGENCE_NEWS_COLLECTOR_ENABLED, "0");
     assert.equal(config.EARNINGS_TOPIC, "earnings-sources-discovered");
     assert.equal(config.EARNINGS_SUBSCRIPTION, "earnings-worker");
     assert.ok(!Object.keys(config).some(key => /OPENAI|COMPANY_GRAPH|API_KEY/.test(key)));
@@ -113,13 +114,14 @@ test("approved earnings setup grants only five resource bindings and leaves a di
 });
 
 test("routine earnings deployment verifies all scoped IAM before revisions and preserves explicit enabled config and schedule state", () => {
-  const r = run({ EARNINGS_COLLECTION_ENABLED: "1", EARNINGS_PROCESSING_ENABLED: "1", EARNINGS_CANARY_ONLY: "1" });
+  const r = run({ EARNINGS_COLLECTION_ENABLED: "1", EARNINGS_PROCESSING_ENABLED: "1", EARNINGS_CANARY_ONLY: "1", INTELLIGENCE_NEWS_COLLECTOR_ENABLED:"1" });
   assert.equal(r.status, 0, r.stderr);
   const checks = r.calls.split("\n").filter(line => line.includes("get-iam-policy"));
   assert.equal(checks.length, 5);
   assert.ok(checks.every(line => r.calls.indexOf(line) < r.calls.indexOf("run deploy earnings-subscriber")));
   for (const config of r.configs) {
     assert.equal(config.EARNINGS_COLLECTION_ENABLED, "1");
+    assert.equal(config.INTELLIGENCE_NEWS_COLLECTOR_ENABLED, "1");
     assert.equal(config.EARNINGS_PROCESSING_ENABLED, "1");
     assert.equal(config.EARNINGS_CANARY_ONLY, "0");
   }

@@ -13,7 +13,7 @@ const profile: CompanyProfile = { checkedAt: "2026-09-13", financialReportStatus
 test("English and Chinese render crawlable report links and distinguish reporting and publication dates", () => {
   for (const locale of ["en", "zh-CN"] as const) {
     const html = renderToStaticMarkup(<LocaleProvider locale={locale}><CompanyProfileDetails profile={profile} /></LocaleProvider>);
-    assert(html.includes(locale === "en" ? "Latest financial report" : "最新财务报告"));
+    assert(html.includes(locale === "en" ? "Financial report at last profile review" : "上次资料核查时的财务报告"));
     assert(html.includes(locale === "en" ? "Period ended" : "报告期末"));
     assert(html.includes(locale === "en" ? "Published" : "披露日期"));
     assert(html.includes('href="https://example.com/report.pdf"'));

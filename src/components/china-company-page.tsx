@@ -15,8 +15,10 @@ import { ChinaMarketCap } from "./china-market-cap";
 import type { PublicCnMarketCap } from "@/lib/fundamentals/cn-service";
 import type { CnAnnual } from '@/lib/fundamentals/cn-annual';
 import { ChinaAnnualFinancials } from './china-annual-financials';
+import {CompanyAnnouncements} from './company-announcements';
+import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 
-export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale=false }: { company: ChinaCompany; marketCap?: PublicCnMarketCap | null; annual?:CnAnnual|null;stale?:boolean }) {
+export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale=false,announcements=[] }: { company: ChinaCompany; marketCap?: PublicCnMarketCap | null; annual?:CnAnnual|null;stale?:boolean;announcements?:CompanyAnnouncement[] }) {
   const { text, locale } = useLocale();
   return <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
     <Link href="/companies" className="text-sm text-cyan-200 hover:underline">{text("Search companies", "搜索公司")} →</Link>
@@ -27,6 +29,7 @@ export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale
       <p className="mt-3 text-sm tabular-nums text-slate-400">{company.id.split(":")[1]} · {company.id.startsWith("XSHG:") ? text("Shanghai", "上交所") : text("Shenzhen", "深交所")}</p>
 
     </header>
+    <CompanyAnnouncements items={announcements}/>
     {company.listingStatus !== "PRIVATE" && <ChinaMarketCap data={marketCap} />}
     {company.listingStatus !== "PRIVATE" && <ChinaAnnualFinancials annual={annual} stale={stale}/>}
     <CompanyResearchPanel companyId={company.id} />

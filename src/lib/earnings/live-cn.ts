@@ -13,7 +13,7 @@ export const CN_EARNINGS_ORGS = {
   "XSHG:688256": "nssc1000595", "XSHE:300308": "9900022016",
 } as const; // Verified against CNINFO topSearch on 2026-10-02; rechecked on each discovery.
 export type CnEarningsCompanyId = keyof typeof CN_EARNINGS_ORGS;
-export type CnEarningsRequestContext = { operation: "cninfo_earnings_org" | "cninfo_earnings_announcements"; companyId: CnEarningsCompanyId };
+export type CnEarningsRequestContext = { operation: "cninfo_earnings_org" | "cninfo_earnings_announcements"; companyId: string };
 export type CnEarningsJsonRequest = (url: string, init: RequestInit & CnEarningsRequestContext) => Promise<unknown>;
 export type CnEarningsBlock = { host: string; code: number | string; retryAfter: string | null };
 export class CnEarningsSourceError extends Error {
@@ -57,7 +57,7 @@ export function createCnEarningsRequester(options: {
         if (signal.aborted) throw new CnEarningsSourceError("CNINFO request timed out", "TIMEOUT");
         lastStarted = Date.now();
         const response = await fetcher(current, { method: "POST", body: init.body, signal, redirect: "manual", cache: "no-store", credentials: "omit",
-          headers: { "user-agent": options.userAgent ?? "YouAnalyst/1.0 (earnings pilot)", "content-type": "application/x-www-form-urlencoded; charset=UTF-8", referer: "https://www.cninfo.com.cn/new/disclosure" } });
+          headers: { "user-agent": options.userAgent ?? "YouAnalyst/1.0 (company disclosures)", "content-type": "application/x-www-form-urlencoded; charset=UTF-8", referer: "https://www.cninfo.com.cn/new/disclosure" } });
         if (response.status >= 300 && response.status < 400) {
           await response.body?.cancel();
           const location = response.headers.get("location");

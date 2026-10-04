@@ -7,11 +7,13 @@ import { earningsScanWindow } from "./sec-observer";
 import type { EarningsRecord, EarningsSource } from "./model";
 import type { EarningsSourceDiscovered } from "./live-event";
 import { inspectAlibabaMarchReplay } from "./live-replay";
+import {newsCollectorIsFresh} from '../intelligence/collectors/projection';
 
 export type EarningsDiscovery = (companyId: string, from: string, to: string, firstSeenAt: string) => Promise<EarningsSource[]>;
 export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, options: {
   discoverCn: EarningsDiscovery; publish: (event: EarningsSourceDiscovered) => Promise<string>;
   deadline: number; now?: () => number;
+  discoveryOwnedByMap?: boolean;
 }) {
   const now = options.now ?? Date.now, meta = earningsMetadata(db, "collector"), startedAt = now();
   if (!Number.isFinite(options.deadline) || options.deadline <= startedAt || options.deadline - startedAt > 15 * 60_000) throw new Error("Invalid earnings collector deadline");
@@ -20,6 +22,12 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
   try {
     for (const company of earningsPilot.filter(item => !item.cik)) {
       if (now() + 30_000 >= options.deadline) { result.deferred++; continue; }
+      if(options.discoveryOwnedByMap){
+        const mapped=(await db.collection('collectors').doc(`exchange-${company.companyId}`).get()).data();
+        if(mapped?.status==='complete'&&newsCollectorIsFresh(mapped.lastSuccessAt,0,false,new Date(now()),3600000)){
+          result.skipped++;continue;
+        }
+      }
       const cursorRef = earningsMetadata(db, `cn_${company.companyId}`), cursor = (await cursorRef.get()).data();
       if (Number(cursor?.nextPollAtMs) > now()) { result.skipped++; continue; }
       result.companies++;

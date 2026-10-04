@@ -10,8 +10,10 @@ import type { ReactNode } from "react";
 import type { CompanyResearch } from "@/lib/company-research";
 import { CompanyCallActions } from "./company-call-actions";
 import { CompanyProfileDetails } from "./company-profile-details";
+import {CompanyAnnouncements} from './company-announcements';
+import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 
-export function CompanyResearchOverview({ company, fundamentals, graph }: { company: CompanyResearch; fundamentals?: ReactNode; graph?: KnowledgeGraph }) {
+export function CompanyResearchOverview({ company, fundamentals, graph, announcements=[] }: { company: CompanyResearch; fundamentals?: ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[] }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType], ["Map segment", company.segment]].filter(([, value]) => value);
   return <>
@@ -33,6 +35,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph }: { comp
         {company.inMap && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}
       </nav>
     </header>
+    <CompanyAnnouncements items={announcements}/>
     {fundamentals}
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <section id="company-information" className="scroll-mt-24 py-6">      <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-4 text-sm">
