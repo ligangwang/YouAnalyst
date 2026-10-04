@@ -31,6 +31,16 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   const tabs=page.getByRole('tablist');
   await expect(tabs.getByRole('tab')).toHaveCount(4);
   expect((await theme.boundingBox())!.x+(await theme.boundingBox())!.width).toBeLessThan((await tabs.boundingBox())!.x);
+  await page.setViewportSize({width:875,height:800});
+  await page.getByRole('button',{name:'Expand left panel',exact:true}).click();
+  const graphTab=page.getByRole('tab',{name:'Relationship graph',exact:true});
+  const toolbar=graphTab.locator('xpath=../../..');
+  const controls=page.getByRole('combobox',{name:'Tour speed'}).locator('xpath=../../..');
+  const tabsBounds=(await tabs.boundingBox())!,controlsBounds=(await controls.boundingBox())!,toolbarBounds=(await toolbar.boundingBox())!;
+  expect(controlsBounds.y).toBeGreaterThanOrEqual(tabsBounds.y+tabsBounds.height);
+  expect(controlsBounds.x+controlsBounds.width).toBeLessThanOrEqual(toolbarBounds.x+toolbarBounds.width);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.setViewportSize({width:1500,height:800});
   await expect(panel.getByRole('button',{name:'30d',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('350');
   await expect(panel.getByText('200 loaded source documents')).toBeVisible();
