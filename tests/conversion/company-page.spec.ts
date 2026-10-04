@@ -21,8 +21,10 @@ test.beforeAll(async () => {
       const company = buildCompanyResearch("AMD", [], fixtureGraph);
       const report = { cik: "0000002488", accession: "0000002488-26-000010", form: "10-K", filed: "2026-02-01", end: "2025-12-27", url: "https://www.sec.gov/Archives/example.htm" };
       const data = { report, metrics: annualMetrics({cik:2488, facts:{"us-gaap":{Revenues:{units:{USD:[{val:1000000000,start:"2024-12-29",end:report.end,filed:report.filed,accn:report.accession,form:"10-K"}]}}}}}, report), excerpt: "Synthetic business excerpt for company-page testing.", fetchedAt: "2026-09-09T00:00:00Z" };
+      const announcements=[{id:'latest',title:'AMD quarterly results',url:'https://ir.amd.com/results',date:'2026-07-30',channel:'IR',earnings:true}];
+      const earningsSummary={companyId:'US:AMD',title:'Quarterly earnings exhibit',url:'https://www.sec.gov/Archives/edgar/data/2488/000000248826000010/ex991.htm',publishedDate:'2026-07-30',period:{start:'2026-03-29',end:'2026-06-27',type:'quarter',fiscalYear:2026,fiscalQuarter:2},metrics:[{name:'revenue',value:2000000000,unit:'USD',basis:'US_GAAP'}]};
       if (new URLSearchParams(location.search).has("marketCap")) data.marketCap = { status:"estimated",value:2500000000,currency:"USD",priceDate:"2026-09-18",shares:{date:"2026-08-01",filed:"2026-08-05",sourceUrl:"https://www.sec.gov/Archives/shares.htm"} };
-      createRoot(document.getElementById("root")).render(<LocaleProvider locale={location.pathname.startsWith("/zh-cn") ? "zh-CN" : "en"}><TickerPage ticker="AMD" overview={<CompanyResearchOverview company={company} fundamentals={<CompanyFundamentalsView data={data} />} />} /></LocaleProvider>);
+      createRoot(document.getElementById("root")).render(<LocaleProvider locale={location.pathname.startsWith("/zh-cn") ? "zh-CN" : "en"}><TickerPage ticker="AMD" overview={<CompanyResearchOverview company={company} announcements={announcements} earningsSummary={earningsSummary} fundamentals={<CompanyFundamentalsView data={data} />} />} /></LocaleProvider>);
     `, resolveDir: process.cwd(), loader: "tsx" },
     bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" },
     alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") },
@@ -48,6 +50,11 @@ for (const predictionsAvailable of [true, false]) {
     await expect(page.getByRole("heading", { name: "Advanced Micro Devices (AMD)", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Business and financials", exact: true })).toBeVisible();
     await expect(page.getByText("1B USD", { exact: true })).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Latest earnings · FY2026 Q2',exact:true})).toBeVisible();
+    await expect(page.getByText('2B USD',{exact:true})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Annual financials',exact:true})).toBeVisible();
+    await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeHidden();
+    await page.locator('details').filter({has:page.getByText("Synthetic business excerpt for company-page testing.")}).locator('summary').click();
     await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Filed 2026-02-01 ↗", exact: true })).toHaveAttribute("href", /sec.gov\/Archives\/edgar\/data\/2488\//);
     await expect(page.getByText("Estimated market cap", { exact: true })).toBeVisible();
@@ -89,6 +96,10 @@ test("Chinese company links retain the locale and supplied evidence", async ({ p
   await expect(page.getByRole("link", { name: "公司", exact: true })).toHaveAttribute("href", "/zh-cn/companies");
   await expect(page.locator('a[href="/zh-cn/ticker/NVDA"]')).toBeVisible();
   await expect(page.locator('a[href="/zh-cn?company=AMD"]').first()).toBeVisible();
+  await expect(page.getByRole('heading',{name:'最新业绩 · FY2026 Q2',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'年度财务数据',exact:true})).toBeVisible();
+  await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeHidden();
+  await page.locator('details').filter({has:page.getByText("Synthetic business excerpt for company-page testing.")}).locator('summary').click();
   await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("chinese-company-research.png"), fullPage: true });
 });

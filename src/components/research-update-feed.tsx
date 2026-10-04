@@ -14,10 +14,10 @@ export function ResearchUpdateFeed({ graph, items }: { graph: KnowledgeGraph | n
   const [limit, setLimit] = useState(20);
   const entries = useMemo(() => orderFeed(groupFeedUpdates(items)), [items]);
   return <main className="mx-auto max-w-5xl px-4 py-8">
-    <h1 className="text-3xl font-semibold text-cyan-100">{text("Company research updates", "公司研究动态")}</h1>
-    <p className="mt-3 text-sm text-slate-400">{text("Sourced AI supply-chain developments, ordered by source publication date.", "有来源的 AI 产业链进展，按来源发布日期排列。")}</p>
+    <h1 className="text-3xl font-semibold text-cyan-100">{text("Curated research updates", "精选研究动态")}</h1>
+    <p className="mt-3 text-sm text-slate-400">{text("Reviewed supply-chain research, ordered by source publication date. Collected news and filings are available in the command center.", "已复核的产业链研究，按来源发布日期排列。采集的新闻和公告可在投资情报中查看。")}</p>
     <div className="my-6 flex flex-wrap items-center justify-between gap-4">
-      <nav className="flex gap-5 text-cyan-200"><Link href="/feed">{text("All updates", "全部动态")}</Link><Link href="/feed?scope=following">{text("Following", "我关注的")}</Link></nav>
+      <nav aria-label={text("Update feeds", "动态类型")} className="flex flex-wrap gap-5 text-cyan-200"><Link href="/">{text("News & filings", "新闻与公告")}</Link><Link href="/feed" aria-current="page">{text("Curated research", "精选研究")}</Link><Link href="/feed?scope=following">{text("Following", "我关注的")}</Link></nav>
     </div>
     {graph && <ResearchChangeSummary graph={graph} items={items} />}
     {!graph ? <p role="status">{text("Research updates are temporarily unavailable. Please try again later.", "研究动态暂时无法加载，请稍后重试。")}</p> : !entries.length ? <p>{text("No reliable updates available yet.", "暂无可核实的更新。")}</p> : <ol className="space-y-4">{entries.slice(0, limit).map(entry => <li key={entry.item.id}><CompanyChangeCard item={entry.item} evidence={entry.evidence} graph={graph} publicFeed /></li>)}</ol>}

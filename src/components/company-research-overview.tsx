@@ -12,8 +12,9 @@ import { CompanyCallActions } from "./company-call-actions";
 import { CompanyProfileDetails } from "./company-profile-details";
 import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
+import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
-export function CompanyResearchOverview({ company, fundamentals, graph, announcements=[] }: { company: CompanyResearch; fundamentals?: ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[] }) {
+export function CompanyResearchOverview({ company, fundamentals, graph, announcements=[], earningsSummary=null }: { company: CompanyResearch; fundamentals?: ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType], ["Map segment", company.segment]].filter(([, value]) => value);
   return <>
@@ -35,7 +36,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
         {company.inMap && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}
       </nav>
     </header>
-    <CompanyAnnouncements items={announcements}/>
+    <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
     {fundamentals}
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <section id="company-information" className="scroll-mt-24 py-6">      <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-4 text-sm">

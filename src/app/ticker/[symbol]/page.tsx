@@ -14,6 +14,7 @@ import { loadCompanyResearch } from "@/lib/company-research-service";
 import { companyResearchDescription } from "@/lib/company-research";
 import { CompanyResearchOverview } from "@/components/company-research-overview";
 import {loadCompanyAnnouncements} from '@/lib/events/company-announcements';
+import {loadLatestCompanyEarnings} from '@/lib/earnings/public-service';
 import { absoluteUrl } from "@/lib/seo";
 import { cache } from "react";
 import { chinaCompanyId, companyPageUrl } from "@/lib/market-companies/routes";
@@ -94,7 +95,7 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   if (chinaId) {
     if (symbol !== chinaId) permanentRedirect(companyPageUrl(chinaId, "CN_A"));
     const [company, fundamentals] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId)]);
-    return <ChinaCompanyPage company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} />;
+    return <ChinaCompanyPage company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} />;
   }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(`/ticker/${encodeURIComponent(ticker)}`);
@@ -112,7 +113,7 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} graph={await loadKnowledgeGraph().catch(() => undefined)} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} earningsSummary={company.inMap?await loadLatestCompanyEarnings(`US:${ticker}`):null} graph={await loadKnowledgeGraph().catch(() => undefined)} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} />
       </Suspense>

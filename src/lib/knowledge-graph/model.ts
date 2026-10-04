@@ -42,6 +42,20 @@ export function matchesCompanySearch(searchText: string, query: string): boolean
   return searchText.normalize("NFKC").toLowerCase().includes(query.normalize("NFKC").trim().toLowerCase());
 }
 
+/** Exact identifiers precede name matches and broad business-description matches. */
+export function companySearchRank(company: GraphNode, query: string): number {
+  const normalize = (value: string) => value.normalize("NFKC").trim().toLowerCase();
+  const q = normalize(query).replace(/^\$/, "");
+  if (!q) return 0;
+  const identifiers = [company.symbol, company.id, company.id.split(":").pop()].filter((value): value is string => Boolean(value)).map(normalize);
+  if (identifiers.includes(q)) return 0;
+  if (identifiers.some(value => value.startsWith(q))) return 1;
+  const names = [company.name, ...Object.values(company.names ?? {}), ...(company.aliases ?? [])].filter((value): value is string => Boolean(value)).map(normalize);
+  if (names.includes(q)) return 2;
+  if (names.some(value => value.startsWith(q))) return 3;
+  return 4;
+}
+
 export function filterGraph(graph: KnowledgeGraph, markets: Market[], query = ""): KnowledgeGraph {
   const q = query.trim().toLowerCase();
   const companies = graph.nodes.filter(n => n.kind === "COMPANY" && n.market && markets.includes(n.market) && (!q || matchesCompanySearch(companySearchText(graph, n), query)));

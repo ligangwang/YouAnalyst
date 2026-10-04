@@ -2,6 +2,7 @@ import {getAdminFirestore} from '../firebase/admin';
 import {NEWS_SOURCES} from '../intelligence/collectors/sources';
 import {canonicalEvidenceUrl,observation} from '../intelligence/model';
 import {EVENTS_COLLECTION} from './model';
+import {newsArticles} from '../intelligence/collectors/article-quality';
 
 export type CompanyAnnouncement={id:string;title:string;url:string;date:string;channel:'IR'|'SEC'|'Exchange';earnings:boolean;form?:string};
 export function publicCompanyAnnouncement(row:Record<string,unknown>,companyId:string):CompanyAnnouncement|null{
@@ -20,6 +21,6 @@ export async function loadCompanyAnnouncements(companyId:string){
   try{
     const page=await getAdminFirestore().collection(EVENTS_COLLECTION).where('companyId','==',companyId).orderBy('publication_date','desc').limit(30).get();
     const today=new Date().toISOString().slice(0,10);
-    return page.docs.map(doc=>publicCompanyAnnouncement(doc.data(),companyId)).filter((row):row is CompanyAnnouncement=>Boolean(row&&row.date<=today)).slice(0,12);
+    return newsArticles(page.docs.map(doc=>doc.data())).map(row=>publicCompanyAnnouncement(row,companyId)).filter((row):row is CompanyAnnouncement=>Boolean(row&&row.date<=today)).slice(0,12);
   }catch(error){console.error('Company announcement sources unavailable',companyId,error);return [];}
 }

@@ -1307,5 +1307,9 @@
   "Company universe with published sources": "附有公开来源的公司全景",
   "No new events in the available records today.": "今日可用记录中没有新事件。",
   "No recorded events match these filters.": "没有符合筛选条件的已记录事件。",
-  "SEC discovery feed is temporarily unavailable. Stored research sources remain available.": "SEC 新申报数据暂不可用，已存储的研究来源仍可查看。"
+  "SEC discovery feed is temporarily unavailable. Stored research sources remain available.": "SEC 新申报数据暂不可用，已存储的研究来源仍可查看。",
+  "Selected sources": "选中来源",
+  "Selected event": "选中事件",
+  "Annual financials": "年度财务数据",
+  "Research feed": "精选研究"
 }

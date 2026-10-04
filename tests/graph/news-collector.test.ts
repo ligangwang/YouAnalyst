@@ -13,6 +13,21 @@ const source=NEWS_SOURCES[0],at=new Date('2026-10-02T16:00:00Z');
 const rss=(items:string)=>`<rss version="2.0"><channel>${items}</channel></rss>`;
 const entry=(id:string)=>`<item><title>Announcement ${id}</title><link>https://nvidianews.nvidia.com/releases/${id}</link><pubDate>Fri, 02 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<p>Company update</p>]]></description></item>`;
 
+test('publisher Media entries and confirmed legacy attachment children do not inflate article activity',()=>{
+  const skhy=NEWS_SOURCES.find(source=>source.id==='skhy-ir')!;
+  const item=(path:string,category:string)=>`<item><title>SK hynix Ventures story</title><link>https://news.skhynix.com/en/${path}/</link><category>${category}</category><pubDate>Fri, 02 Oct 2026 01:00:00 GMT</pubDate></item>`;
+  const page=parseNewsFeed(rss(item('ventures-story','STORY')+item('ventures-story-1','Media')+item('fact-11','FACT')),skhy);
+  assert.equal(page.items.length,2);assert.equal(page.invalid,0);
+  assert(page.items.some(row=>row.url.endsWith('/fact-11/')));
+  const main=page.items[0],record={...main,version:1,type:'company_news',sourceType:'company_ir',companyIds:[skhy.companyId]};
+  const attachment={...record,id:'attachment',url:main.url.replace('/ventures-story/','/ventures-story-1/')};
+  const graph:KnowledgeGraph={nodes:[{id:skhy.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-02'};
+  const projected=projectCollectedNews([record,attachment],graph,at);
+  assert.equal(projected.length,1);assert.equal(projected[0].evidence[0].url,main.url);
+  // A numbered real article with no matching parent is preserved.
+  assert.equal(projectCollectedNews([{...attachment,title:'Different story'}],graph,at).length,1);
+});
+
 test('CMS rebuild timestamps never become original CoreWeave publication times',async()=>{
   const core=NEWS_SOURCES.find(source=>source.id==='coreweave-news')!;
   const xml=rss('<item><title>Historic article</title><link>https://wf.coreweave.com/blog/old</link><pubDate>Fri, 02 Oct 2026 14:12:41 GMT</pubDate></item>');

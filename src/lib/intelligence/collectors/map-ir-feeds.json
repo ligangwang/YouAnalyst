@@ -410,7 +410,11 @@
       "news.skhynix.com"
     ],
     "pollMs": 3600000,
-    "transport": "https"
+    "transport": "https",
+    "excludedCategories": [
+      "Media",
+      "Media Library"
+    ]
   },
   {
     "id": "smci-ir",

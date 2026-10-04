@@ -110,7 +110,7 @@ test("research summary prioritizes dated company reports and shows evidence limi
 test("Chinese feed keeps the marker accessible and the planned caveat in item text", async ({ page }, info) => {
   await serve(page, 3);
   await page.goto(origin + "/zh-cn/feed");
-  await expect(page.getByRole("heading", { name: "公司研究动态" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "精选研究动态" })).toBeVisible();
   await expect(page.getByText("表示较早发生、近期才收录的事件", { exact: false })).toHaveCount(0);
   await expect(page.getByTitle("历史事件后续收录，收录日期不代表新发生的业务事件。")).toHaveCount(0);
   await expect(page.getByText("计划扩产，不代表已完成交付。", { exact: true })).toBeVisible();
