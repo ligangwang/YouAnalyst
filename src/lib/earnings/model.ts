@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const EARNINGS_SCHEMA_VERSION = 1 as const;
-export const EARNINGS_PARSER_VERSION = "pilot-1";
+export const EARNINGS_PARSER_VERSION = "map-1";
 export type EarningsKind = "actual" | "preliminary" | "forecast";
 export type Period = { start: string; end: string; type: "quarter" | "half_year" | "nine_month_ytd" | "annual"; fiscalYear: number; fiscalQuarter?: number };
 export type ForecastPeriod = { start: null; end: null; type: "quarter"; fiscalYear: number; fiscalQuarter: number };
@@ -13,6 +13,9 @@ export type EarningsSource = {
   publishedAt: SourceTime | null; firstSeenAt: string;
   filingAcceptedAt?: string | null; filingDate?: string; accession?: string; form?: string;
   language: "en" | "zh"; correctionOf?: string;
+  // Added only when an existing issuer/document source belongs to another map
+  // listing. Original source IDs stay stable; aliases get an independent intake.
+  listingId?: string;
 };
 export type Evidence = { start: number; end: number; text: string; page: number | null; sourceUrl?: string };
 export type RawEarningsDocument = {
@@ -69,7 +72,7 @@ export function validatePeriod(period: Period) {
   if (period.type !== "quarter" && period.fiscalQuarter !== undefined) throw new Error("YTD or annual period cannot be labelled quarter");
 }
 export function sourceIdentity(source: EarningsSource) {
-  return stableId("earnings_source", [source.provider, source.issuerId, source.documentId]);
+  return stableId("earnings_source", [source.provider, source.issuerId, source.documentId, ...(source.listingId ? [source.listingId] : [])]);
 }
 
 export function validateMetricPeriod(period: MetricPeriod, kind: EarningsKind) {

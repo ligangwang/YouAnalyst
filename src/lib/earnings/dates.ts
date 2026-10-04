@@ -17,6 +17,7 @@ export function datesInEvidence(text: string) {
 export function assertEnglishFiscalLabel(companyId: string, period: Period, heading: string, periodEvidence: string) {
   if (period.type !== 'quarter') throw new Error('US pilot results require a quarter-specific adapter; YTD/annual relabelling is unsupported');
   const candidates: { index: number; year: number; quarter: number }[] = [];
+  for (const match of heading.matchAll(/\bFiscal\s+Q([1-4])\s+(20\d{2})\b/gi)) candidates.push({index:match.index!,year:Number(match[2]),quarter:Number(match[1])});
   for (const match of heading.matchAll(/\b(first|second|third|fourth)\s+quarter(?:\s+of)?(?:\s+fiscal(?:\s+year)?)?\s+(20\d{2})/gi)) candidates.push({index:match.index!,year:Number(match[2]),quarter:['first','second','third','fourth'].indexOf(match[1].toLowerCase())+1});
   for (const match of heading.matchAll(/\bQ([1-4])\s*(?:FY|fiscal)\s*(\d{2}|20\d{2})\b/gi)) candidates.push({index:match.index!,year:match[2].length===2?2000+Number(match[2]):Number(match[2]),quarter:Number(match[1])});
   for (const match of heading.matchAll(/Fiscal year\s*\|?\s*(20\d{2})[^]*?Quarter\s*\|?\s*([1-4])\b/gi)) candidates.push({index:match.index!,year:Number(match[1]),quarter:Number(match[2])});

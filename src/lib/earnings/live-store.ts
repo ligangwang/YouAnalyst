@@ -30,9 +30,17 @@ export async function discoverEarningsSource(db: Firestore, source: EarningsSour
   validateSource(source);
   if (options.maxExhibits !== undefined && (inputKind !== "sec_filing" || !Number.isInteger(options.maxExhibits) || options.maxExhibits < 1 || options.maxExhibits > 20)) throw new Error("Invalid SEC earnings exhibit budget");
   if (inputKind !== "document" && (inputKind !== "sec_filing" || source.provider !== "sec" || !/^(?:8-K|6-K)(?:\/A)?$/.test(source.form ?? ""))) throw new Error("Unsupported earnings discovery input");
-  const sourceId = sourceIdentity(source), ref = db.collection(EARNINGS_SOURCES).doc(sourceId);
   return db.runTransaction(async tx => {
-    const previous = (await tx.get(ref)).data() as EarningsWork | undefined;
+    let intake = source;
+    let sourceId = sourceIdentity(intake), ref = db.collection(EARNINGS_SOURCES).doc(sourceId);
+    let previous = (await tx.get(ref)).data() as EarningsWork | undefined;
+    if (previous?.recordType === 'source' && previous.source.companyId !== source.companyId
+      && previous.source.issuerId === source.issuerId && previous.source.provider === source.provider
+      && previous.source.documentId === source.documentId && previous.source.url === source.url && !source.listingId) {
+      intake = {...source, listingId: source.companyId};
+      sourceId = sourceIdentity(intake); ref = db.collection(EARNINGS_SOURCES).doc(sourceId);
+      previous = (await tx.get(ref)).data() as EarningsWork | undefined;
+    }
     if (previous && (previous.recordType !== "source" || previous.sourceId !== sourceId || previous.inputKind !== inputKind
       || previous.source.url !== source.url || previous.source.companyId !== source.companyId)) throw new Error("Persisted earnings source identity conflict");
     if (options.requireCanaryBounds && previous && ["queued", "processing"].includes(previous.status)
@@ -40,7 +48,7 @@ export async function discoverEarningsSource(db: Firestore, source: EarningsSour
     if (previous && (["queued", "processing"].includes(previous.status) || (!options.force && previous.nextCheckAtMs > now)
       || (options.force && options.parentDeliveryId && previous.parentDeliveryId === options.parentDeliveryId))) return { status: "existing" as const, sourceId };
     const firstSeenAt = previous?.firstSeenAt ?? source.firstSeenAt;
-    const value: EarningsWork = { recordType: "source", source: { ...source, firstSeenAt }, sourceId, inputKind,
+    const value: EarningsWork = { recordType: "source", source: { ...intake, firstSeenAt }, sourceId, inputKind,
       generation: (previous?.generation ?? 0) + 1, status: "queued", publishPending: true, attempts: 0,
       firstSeenAt, lastObservedAt: new Date(now).toISOString(), nextCheckAtMs: 0, ...(options.parentCaptureId ? { parentCaptureId: options.parentCaptureId } : {}),
       ...(options.parentDeliveryId ? { parentDeliveryId: options.parentDeliveryId } : {}),

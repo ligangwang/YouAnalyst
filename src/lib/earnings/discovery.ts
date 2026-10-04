@@ -1,5 +1,5 @@
 import { type EarningsKind, type EarningsSource, type SourceTime, sourceIdentity, validDate, validTimestamp } from "./model";
-import { pilotCompany, validateSourceUrl } from "./pilot";
+import { earningsCompany, validateSourceUrl } from "./issuers";
 import { htmlToEarningsText } from "./document";
 
 export function classifyEarningsTitle(title: string): EarningsKind | "calendar" | "unknown" {
@@ -13,7 +13,7 @@ export function classifyEarningsTitle(title: string): EarningsKind | "calendar" 
 // financial-form filter. That shared scanner view still needs coordinated wiring.
 // This pure adapter is not a second poller and does not widen its event contract.
 export function discoverSecEarnings(companyId: string, payload: { cik?: unknown; filings?: { recent?: Record<string, unknown> } }, firstSeenAt: string): EarningsSource[] {
-  const company = pilotCompany(companyId), recent = payload.filings?.recent;
+  const company = earningsCompany(companyId), recent = payload.filings?.recent;
   if (!company.cik || Number(payload.cik) !== Number(company.cik) || !recent || !Array.isArray(recent.form) || !validTimestamp(firstSeenAt)) throw new Error("Invalid SEC discovery identity or response");
   const keys = ["accessionNumber", "filingDate", "primaryDocument"];
   if (keys.some(key => !Array.isArray(recent[key]) || recent[key].length !== (recent.form as unknown[]).length)) throw new Error("Incomplete SEC discovery columns");
@@ -21,6 +21,13 @@ export function discoverSecEarnings(companyId: string, payload: { cik?: unknown;
   const output: EarningsSource[] = [];
   recent.form.forEach((form, i) => {
     if (!["8-K", "8-K/A", "6-K", "6-K/A", "10-Q", "10-Q/A", "10-K", "10-K/A", "20-F", "20-F/A"].includes(String(form))) return;
+    // Item 2.02 identifies results releases in domestic current reports. Missing
+    // item metadata remains reviewable; unrelated known items do not consume
+    // exhibit downloads when collection expands to the whole map.
+    if (/^8-K(?:\/A)?$/.test(String(form)) && recent.items !== undefined) {
+      if (!Array.isArray(recent.items) || recent.items.length !== (recent.form as unknown[]).length || typeof recent.items[i] !== 'string') throw new Error('Invalid SEC earnings item metadata');
+      if (!recent.items[i].split(',').some((item: string) => item.trim() === '2.02')) return;
+    }
     const accession = cell("accessionNumber", i), filingDate = cell("filingDate", i), primary = cell("primaryDocument", i);
     if (typeof accession !== "string" || !/^\d{10}-\d{2}-\d{6}$/.test(accession) || !validDate(filingDate) || typeof primary !== "string" || !/^[\w.-]+$/.test(primary)) throw new Error("Invalid SEC filing row");
     const accepted = cell("acceptanceDateTime", i);
@@ -52,7 +59,8 @@ export function discoverSecExhibits(filing: EarningsSource, indexHtml: string): 
 }
 export type AnnouncementPage = { announcements?: unknown; hasMore?: unknown; totalAnnouncement?: unknown };
 export function discoverCnEarnings(companyId: string, payload: AnnouncementPage, firstSeenAt: string): EarningsSource[] {
-  const company = pilotCompany(companyId), code = companyId.split(":")[1];
+  const company = earningsCompany(companyId), code = companyId.split(":")[1];
+  if (!company.cik && payload.announcements === null && payload.hasMore === false && payload.totalAnnouncement === 0 && validTimestamp(firstSeenAt)) return [];
   if (company.cik || !Array.isArray(payload.announcements) || typeof payload.hasMore !== "boolean" || !validTimestamp(firstSeenAt)) throw new Error("Invalid CNINFO page");
   const output: EarningsSource[] = [];
   for (const value of payload.announcements) {

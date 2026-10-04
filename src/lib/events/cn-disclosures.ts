@@ -2,7 +2,7 @@ import type {Firestore} from 'firebase-admin/firestore';
 import type {KnowledgeGraph} from '../knowledge-graph/model';
 import type {CnEarningsJsonRequest} from '../earnings/live-cn';
 import {discoverCnEarnings} from '../earnings/discovery';
-import {earningsPilot} from '../earnings/pilot';
+import {loadEarningsMap} from '../earnings/map-issuers';
 import {discoverEarningsSource} from '../earnings/live-store';
 import {acquireMaintenanceLease,releaseMaintenanceLease,cloudRunTaskAttempt} from '../maintenance-lease';
 import {mapListedCompanies,cnDisclosureRows,type Disclosure} from './disclosures';
@@ -39,21 +39,23 @@ export async function collectCnMapDisclosures(db:Firestore,graph:KnowledgeGraph,
   if(!await acquireMaintenanceLease(meta,options.runId,now(),cloudRunTaskAttempt()))return {status:'busy',companies:companies.length};
   const result={companies:companies.length,completed:0,failed:0,deferred:0,created:0};
   try{
+    if(options.earningsEnabled)await loadEarningsMap(db,graph);
     const previous=(await meta.get()).get('afterCompanyId');const next=companies.findIndex(c=>c.id>String(previous??''));const ordered=next<0?companies:[...companies.slice(next),...companies.slice(0,next)];
     for(const company of ordered){
       if(now()+30_000>=options.deadline){result.deferred++;continue;}
       const ref=db.collection('collectors').doc(`exchange-${company.id}`),state=(await ref.get()).data();
-      if(Number(state?.nextPollAtMs)>now())continue;
-      const start=now(),at=new Date(start).toISOString(),to=new Date(start+8*3600000).toISOString().slice(0,10),from=state?.lastCompleteAt?new Date(Date.parse(state.lastCompleteAt)-7*86400000).toISOString().slice(0,10):DISCLOSURE_HISTORY_START;
+      const earningsBaseline=options.earningsEnabled&&state?.earningsCoverageVersion!==2;
+      if(!earningsBaseline&&Number(state?.nextPollAtMs)>now())continue;
+      const start=now(),at=new Date(start).toISOString(),to=new Date(start+8*3600000).toISOString().slice(0,10),from=!earningsBaseline&&state?.lastCompleteAt?new Date(Date.parse(state.lastCompleteAt)-7*86400000).toISOString().slice(0,10):DISCLOSURE_HISTORY_START;
       try{
         const pendingEarnings:Parameters<typeof discoverEarningsSource>[1][]=[];
         const rows=await readCnMapDisclosures(company.id,from,to,request,at,async page=>{
           if(now()+15_000>=options.deadline)throw new Error('Exchange scan deadline reached');
-          if(options.earningsEnabled&&earningsPilot.some(p=>p.companyId===company.id))pendingEarnings.push(...discoverCnEarnings(company.id,page as Parameters<typeof discoverCnEarnings>[1],at));
+          if(options.earningsEnabled)pendingEarnings.push(...discoverCnEarnings(company.id,page as Parameters<typeof discoverCnEarnings>[1],at));
         });
         result.created+=await saveDisclosures(db,rows,at,!state?.lastCompleteAt);
         for(const source of pendingEarnings)await discoverEarningsSource(db,source,'document',now());
-        await ref.set({companyId:company.id,sourceType:'exchange',status:'complete',lastCompleteAt:at,lastSuccessAt:at,nextPollAtMs:(Math.floor(start/3600000)+1)*3600000,from,to,documents:rows.length,lastError:null,revision:process.env.GIT_SHA??'local'},{merge:true});result.completed++;
+        await ref.set({companyId:company.id,sourceType:'exchange',status:'complete',lastCompleteAt:at,lastSuccessAt:at,nextPollAtMs:(Math.floor(start/3600000)+1)*3600000,from,to,documents:rows.length,lastError:null,revision:process.env.GIT_SHA??'local',...(options.earningsEnabled?{earningsCoverageVersion:2}:{})},{merge:true});result.completed++;
       }catch(error){result.failed++;await ref.set({companyId:company.id,sourceType:'exchange',status:'partial',lastAttemptAt:at,lastError:error instanceof Error?error.message:'Exchange scan failed'},{merge:true});}
       await meta.set({afterCompanyId:company.id},{merge:true});
     }

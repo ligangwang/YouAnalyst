@@ -11,7 +11,8 @@ import { baselineSecFilings, inspectSecBaseline } from "../src/lib/sec-filings/b
 import { parseSecCollectorArgs } from "../src/lib/sec-filings/cli";
 import { createSecEarningsObserver } from "../src/lib/earnings/sec-observer";
 import {createMapSecObserver} from '../src/lib/events/sec-disclosures';
-import {earningsPilot} from '../src/lib/earnings/pilot';
+import {earningsCompanies,registerEarningsIssuer} from '../src/lib/earnings/issuers';
+import {loadEarningsMap} from '../src/lib/earnings/map-issuers';
 
 const log = createMaintenanceLog("collect-sec-filings");
 async function main() {
@@ -41,7 +42,8 @@ async function main() {
     if (result.status === "partial") throw new Error("Initial baseline incomplete; retry only the frozen snapshot");
     return;
   }
-  const companyIds = usMapTickers(await loadKnowledgeGraph());
+  const graph = await loadKnowledgeGraph();
+  const companyIds = usMapTickers(graph);
   if (!apply) {
     log.emit("INFO", "run_completed", { ...await inspectSecFilingCollection(db, companyIds), maxCompaniesPerRun: maxCompanies });
     return;
@@ -49,9 +51,10 @@ async function main() {
   if (!process.env.SEC_USER_AGENT?.trim()) throw new Error("SEC_USER_AGENT is required");
   const timeoutMs = 12 * 60_000;
   const deadline = Date.now() + timeoutMs;
+  await loadEarningsMap(db, graph);
   const earnings = process.env.EARNINGS_COLLECTION_ENABLED === "1" ? createSecEarningsObserver(db, log, { deadline }) : null;
   const byCik=new Map<string,string[]>();
-  for(const company of earningsPilot)if(company.cik&&companyIds.includes(company.companyId.slice(3)))byCik.set(company.cik,[company.companyId]);
+  for(const company of earningsCompanies())if(company.cik&&companyIds.includes(company.companyId.slice(3)))byCik.set(company.cik,[...(byCik.get(company.cik)??[]),company.companyId]);
   const disclosures=createMapSecObserver(db,byCik,{deadline});
   const source = createSecFilingsSource(process.env.SEC_USER_AGENT, AbortSignal.timeout(timeoutMs), async(cik,value,archive)=>{
     await disclosures.observe(cik,value,archive);
@@ -60,11 +63,12 @@ async function main() {
   const resolver=source.resolveCik.bind(source);
   source.resolveCik=async ticker=>{
     const cik=await resolver(ticker),id=`US:${ticker}`,existing=byCik.get(cik)??[];
+    registerEarningsIssuer(id,cik);
     if(!existing.includes(id))byCik.set(cik,[...existing,id]);return cik;
   };
   const result = await collectSecFilings(db, companyIds, log, {
     source,
-    beforeCollection: earnings ? async () => { await earnings.scanPilot(source); } : undefined,
+    beforeCollection: earnings ? async () => { await earnings.scanMap(source, companyIds); } : undefined,
     publish: event => publishJobMessage(process.env.SEC_FILINGS_TOPIC || SEC_FILINGS_TOPIC, event),
     deadline,
     maxCompanies,

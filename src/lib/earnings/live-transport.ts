@@ -9,7 +9,7 @@ import { secRequest } from "../sec-request";
 import { secCooldownMs } from "../sec-budget";
 import { validateSource } from "./document";
 import { earningsMetadata } from "./live-store";
-import { validateSourceUrl } from "./pilot";
+import { validateSourceUrl } from "./issuers";
 import type { EarningsSource, RawEarningsDocument } from "./model";
 
 export const MAX_EARNINGS_DOCUMENT_BYTES = 20 * 1024 * 1024;
