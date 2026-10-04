@@ -11,6 +11,9 @@ import {earningsFirestore} from '../helpers/earnings-firestore';
 import {saveDisclosures} from '../../src/lib/events/disclosure-store';
 import {createMapSecObserver} from '../../src/lib/events/sec-disclosures';
 import {collectCnMapDisclosures} from '../../src/lib/events/cn-disclosures';
+import {collectLiveEarnings} from '../../src/lib/earnings/live-collector';
+import {earningsPilot} from '../../src/lib/earnings/pilot';
+import type {MaintenanceLog} from '../../src/lib/maintenance-log';
 const graph:KnowledgeGraph={asOf:'2026-10-03',nodes:[{id:'US:MU',market:'US',kind:'COMPANY',order:0},{id:'XSHE:000063',market:'CN_A',kind:'COMPANY',order:1},{id:'ORG:OPENAI',market:'GLOBAL',kind:'COMPANY',order:2}],relationships:[],sources:[]};
 const payload={cik:723125,filings:{recent:{accessionNumber:['0000723125-26-000018'],form:['8-K'],filingDate:['2026-09-30'],primaryDocument:['mu-20260930.htm'],items:['2.02,9.01'],acceptanceDateTime:['2026-09-30T20:02:22Z']}}};
 const cn={hasMore:false,totalAnnouncement:1,announcements:[{secCode:'000063',orgId:'testorg',announcementId:'12123',announcementTitle:'2026年半年度报告',adjunctUrl:'finalpage/2026-08-20/12123.PDF'}]};
@@ -67,6 +70,18 @@ test('China non-pilot announcements reach universal events; incomplete scans ret
   assert.equal('failed' in failed&&failed.failed,1);
   assert.equal(fx.rows.get('collectors/exchange-XSHE:000063')?.lastCompleteAt,old);
   assert.equal([...fx.rows.keys()].filter(k=>k.startsWith('events/')).length,1);
+});
+test('earnings discovery hands off per issuer only when enabled and fresh, and falls back during rollout or outages',async()=>{
+  const fx=earningsFirestore(),calls:string[]=[],log={runId:'handoff',emit:()=>{}} as unknown as MaintenanceLog;
+  const run=(enabled:boolean)=>collectLiveEarnings(fx.db,log,{discoveryOwnedByMap:enabled,discoverCn:async id=>{calls.push(id);return [];},publish:async()=>{throw new Error('No queued sources');},now:fx.now,deadline:fx.now()+60000});
+  await run(true);assert.equal(calls.length,4); // The enabled replacement has not initialized yet.
+  for(const company of earningsPilot.filter(c=>!c.cik))fx.rows.set(`collectors/exchange-${company.companyId}`,{status:'complete',lastSuccessAt:new Date(fx.now()).toISOString()});
+  calls.length=0;await run(true);assert.equal(calls.length,0);
+  fx.advance(3600000);calls.length=0;await run(false);assert.equal(calls.length,4); // Disabled replacement never owns discovery.
+  fx.advance(4*3600000);calls.length=0;await run(true);assert.equal(calls.length,4); // Stale successful checkpoints do not own discovery.
+  for(const company of earningsPilot.filter(c=>!c.cik))fx.rows.set(`collectors/exchange-${company.companyId}`,{status:'complete',lastSuccessAt:new Date(fx.now()).toISOString()});
+  fx.rows.set('collectors/exchange-XSHE:301308',{status:'partial',lastSuccessAt:new Date(fx.now()).toISOString()});
+  fx.advance(3600000);calls.length=0;await run(true);assert.deepEqual(calls,['XSHE:301308']);
 });
 test('public disclosure projection excludes operational timestamps and out-of-map companies',()=>{
   const rows=secDisclosureRows('US:MU','0000723125',payload).map(r=>({...r,collected_at:'secret-operation-time',processed_at:'secret-operation-time'}));

@@ -7,6 +7,7 @@ import { earningsScanWindow } from "./sec-observer";
 import type { EarningsRecord, EarningsSource } from "./model";
 import type { EarningsSourceDiscovered } from "./live-event";
 import { inspectAlibabaMarchReplay } from "./live-replay";
+import {newsCollectorIsFresh} from '../intelligence/collectors/projection';
 
 export type EarningsDiscovery = (companyId: string, from: string, to: string, firstSeenAt: string) => Promise<EarningsSource[]>;
 export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, options: {
@@ -19,8 +20,14 @@ export async function collectLiveEarnings(db: Firestore, log: MaintenanceLog, op
   if (!await acquireMaintenanceLease(meta, log.runId, startedAt, cloudRunTaskAttempt())) throw new Error("Earnings collector is busy");
   const result = { companies: 0, skipped: 0, candidates: 0, queued: 0, published: 0, failed: 0, deferred: 0 };
   try {
-    for (const company of earningsPilot.filter(item => !item.cik && !options.discoveryOwnedByMap)) {
+    for (const company of earningsPilot.filter(item => !item.cik)) {
       if (now() + 30_000 >= options.deadline) { result.deferred++; continue; }
+      if(options.discoveryOwnedByMap){
+        const mapped=(await db.collection('collectors').doc(`exchange-${company.companyId}`).get()).data();
+        if(mapped?.status==='complete'&&newsCollectorIsFresh(mapped.lastSuccessAt,0,false,new Date(now()),3600000)){
+          result.skipped++;continue;
+        }
+      }
       const cursorRef = earningsMetadata(db, `cn_${company.companyId}`), cursor = (await cursorRef.get()).data();
       if (Number(cursor?.nextPollAtMs) > now()) { result.skipped++; continue; }
       result.companies++;
