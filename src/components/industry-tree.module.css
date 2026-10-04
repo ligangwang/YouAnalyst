@@ -68,3 +68,5 @@
 .embedded .toolbar>div:first-child{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .embedded .actions button{width:32px;height:32px;border-radius:5px}
 .embedded .hint{display:none}
+.recovery{position:absolute;top:12px;left:12px;z-index:4;max-width:calc(100% - 110px);padding:9px 12px;border:1px solid #315060;border-radius:5px;background:#0b1722e8;color:#b7cdda;font-size:12px}
+.recovery button,.fallback p button{margin-left:5px;color:#98e7d6}
