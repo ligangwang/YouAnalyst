@@ -1,3 +1,4 @@
+import {readPeriodDocuments} from '../intelligence/period-query';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {KnowledgeGraph} from '../knowledge-graph/model';
 import {canonicalEvidenceUrl,observation,type IntelligenceEvent} from '../intelligence/model';
@@ -16,12 +17,14 @@ export function projectDisclosures(records:Record<string,unknown>[],graph:Knowle
     return [{id:`disclosure-${row.id}`,origin:row.companyId,companyIds:[row.companyId],edgeIds:[],category:row.category==='EARNINGS'?'BUSINESS':'FILING',title:row.title,summary:typeof row.summary==='string'?row.summary:'Official company disclosure.',published_at:date.at,publication_date:date.day,eventDate:typeof row.publication_date==='string'?row.publication_date:null,evidence:[{id:row.id,url,title:row.title,sourceDate:typeof row.publication_date==='string'?row.publication_date:null,channel:sec?'SEC':'Exchange'}],planned:false} satisfies IntelligenceEvent];
   });
 }
-export async function loadMapDisclosures(db:Firestore,graph:KnowledgeGraph,now:Date,from:string,limit:number){
+export async function loadMapDisclosures(db:Firestore,graph:KnowledgeGraph,now:Date,from:string,limit?:number){
   const query=()=>db.collection(EVENTS_COLLECTION).where('type','==','company_disclosure');
+  const read=(value:ReturnType<typeof query>)=>limit===undefined?readPeriodDocuments(value):value.limit(limit+1).get().then(page=>page.docs);
   const [exact,dated]=await Promise.all([
-    query().where('published_at','>=',`${from}T00:00:00.000Z`).orderBy('published_at','desc').limit(limit+1).get(),
-    query().where('published_at','==',null).where('publication_date','>=',from).orderBy('publication_date','desc').limit(limit+1).get(),
+    read(query().where('published_at','>=',`${from}T00:00:00.000Z`).orderBy('published_at','desc')),
+    read(query().where('published_at','==',null).where('publication_date','>=',from).orderBy('publication_date','desc')),
   ]);
-  const events=projectDisclosures([...exact.docs,...dated.docs].map(d=>d.data()),graph,now);
-  return {events:events.sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)).slice(0,limit),truncated:exact.size>limit||dated.size>limit||events.length>limit};
+  const events=projectDisclosures([...exact,...dated].map(d=>d.data()),graph,now);
+  events.sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date));
+  return {events:limit===undefined?events:events.slice(0,limit),truncated:limit!==undefined&&(exact.length>limit||dated.length>limit||events.length>limit)};
 }
