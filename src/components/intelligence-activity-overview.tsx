@@ -28,10 +28,11 @@ export function IntelligenceActivityOverview({events,documents,complete=false,co
       <div><strong>{activity.signals}</strong><span>{text('Source documents','来源文档')}</span></div>
     </div>
     <p className={styles.scopeNote}>{!complete?text('Some sources are unavailable; totals are partial.','部分来源暂不可用；统计数据不完整。'):truncated?text(`Latest ${limit} entries shown; totals include all recorded sources in this period.`,`列表显示最新 ${limit} 条；统计涵盖该时段所有已收录来源。`):text('Totals include all recorded sources in this period.','统计涵盖该时段所有已收录来源。')}</p>
-    <div className={styles.heading}><span>{text('Source documents by sector','各行业来源文档')}</span></div>
+    <details className={styles.breakdown}><summary>{text('Sector breakdown','行业分布')}</summary>
     <div className={styles.sectors}>{sectors.map(sector=><button key={sector.id} onClick={()=>onSector(sector.id)} title={text('Explore this sector','探索此行业')}>
       <span>{chinese?sector.zh:sector.en}</span><i><b style={{width:`${sector.count/largest*100}%`,background:sector.color}}/></i><strong>{sector.count}</strong>
     </button>)}</div>
+    <p className={styles.note}>{text('A document can appear in multiple sectors.','一份文档可涉及多个行业。')}</p></details>
     <div className={styles.heading}><span>{text('Source mix · documents','来源构成 · 文档')}</span></div>
     <div className={styles.sourceStrip}>{sources.map(source=><button key={source.name} onClick={()=>onSource(source.name)} style={{flexGrow:source.count,background:sourceColors[source.name]}} aria-label={`${source.name}: ${source.count}`} title={`${source.name} · ${source.count}`}/>)}</div>
     <div className={styles.sources}>{sources.map(source=><button key={source.name} onClick={()=>onSource(source.name)}><i style={{background:sourceColors[source.name]}}/>{source.name}<strong>{source.count}</strong></button>)}</div>

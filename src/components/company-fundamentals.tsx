@@ -35,8 +35,9 @@ export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | 
           </details>
         </> : <p className="mt-2 text-xs text-slate-400"><UiText text={"A supported share count and cached closing price are required."} /></p>}
       </div>
+      <h3 className="mt-2 text-base font-semibold text-cyan-100"><UiText text={"Annual financials"}/></h3>
       <p className="mt-2 text-sm text-slate-300"><UiText text={"Annual report for the year ended "} />{data.report.end}<UiText text={". These are reported annual figures, not trailing twelve-month estimates."} /></p>
-      {data.excerpt ? <details className="mt-4 rounded-xl border border-white/10 p-4" open>
+      {data.excerpt ? <details className="mt-4 rounded-xl border border-white/10 p-4">
         <summary className="cursor-pointer text-sm font-semibold text-cyan-200"><UiText text={"What the company says it does"} /></summary>
         <blockquote className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">{data.excerpt}</blockquote>
         <p className="mt-2 text-xs text-slate-400"><UiText text={"Excerpt from Item 1 — Business; filed "} />{data.report.filed}<UiText text={". May be shortened."} /></p>

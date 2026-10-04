@@ -12,6 +12,7 @@ import {extractEarnings} from '../../src/lib/earnings/extract';
 import {createSecEarningsObserver,secEarningsCursorId} from '../../src/lib/earnings/sec-observer';
 import {loadEarningsMap} from '../../src/lib/earnings/map-issuers';
 import {earningsFirestore} from '../helpers/earnings-firestore';
+import {publicEarningsSummary,latestPublicEarnings} from '../../src/lib/earnings/public-summary';
 import type {MaintenanceLog} from '../../src/lib/maintenance-log';
 
 const graph:KnowledgeGraph={asOf:'2026-10-04',nodes:[
@@ -73,6 +74,19 @@ test('Micron quarterly revenue uses its 14-week period and cannot absorb annual 
     assert.deepEqual(outcome.record.period,{start:'2026-05-29',end:'2026-09-03',type:'quarter',fiscalYear:2026,fiscalQuarter:4});
     assert.equal(outcome.record.metrics[0].value,54229000000);
     assert.equal(outcome.record.announcementDate,'2026-09-30');
+    // Synthetic full capture exercises the public gate; it does not represent stored production data.
+    const fullOutcome=extractEarnings({...doc,completeness:'full'},plan,now);assert.equal(fullOutcome.status,'extracted');
+    if(fullOutcome.status!=='extracted')return;
+    const record=fullOutcome.record;
+    const summary=publicEarningsSummary(record,'US:MU',new Date(now));assert.ok(summary);
+    assert.equal(summary.metrics[0].value,54229000000);
+    for(const invalid of [outcome.record,{...record,companyId:'US:OTHER'},{...record,kind:'forecast' as const},{...record,metrics:[...record.metrics,record.metrics[0]]},{...record,metrics:record.metrics.map(metric=>({...metric,sourceUrl:'https://example.com/unsourced'}))},{...record,metrics:record.metrics.map(metric=>({...metric,period:{...metric.period,fiscalQuarter:1}}))}])assert.equal(publicEarningsSummary(invalid,'US:MU',new Date(now)),null);
+    const replacement={...record,eventId:'corrected',revisionId:'new',supersedes:record.eventId};
+    const stale={...replacement,revisionId:'old',metrics:[]};
+    const heads=new Map([[record.eventId,record.revisionId],['corrected','new']]);
+    assert.deepEqual(latestPublicEarnings([record,stale,replacement],heads,'US:MU',new Date(now)),summary);
+    assert.deepEqual(latestPublicEarnings([record,stale],heads,'US:MU',new Date(now)),summary);
+    assert.equal(latestPublicEarnings([record],new Map(),'US:MU',new Date(now)),null);
   }
   for(const change of [text.replace('May 28, 2026','March 28, 2026'),text.replace('4th Qtr. | 3rd Qtr.','3rd Qtr. | 4th Qtr.'),text.replace('Fiscal Q4 2026 Highlights','Fiscal Q1 2026 Highlights'),text.replaceAll('Micron','Other').replaceAll('MICRON','OTHER')])assert.equal(makeUsEarningsPlan(document(change)),null);
 });

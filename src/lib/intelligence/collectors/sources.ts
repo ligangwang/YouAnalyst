@@ -3,6 +3,7 @@ export type NewsSource = {
   id:string; companyId:string; name:string; url:string; allowedHosts:string[]; articleHostAliases?:Record<string,string>; publicationFromArticle?:boolean; articleDateFormat?:'apple-newsroom'; pollMs:number;
   format?:'html'; articlePathPattern?:string; transport?:'https'; articleDateOnly?:boolean; upgradeArticleHttp?:boolean;
   indexDateFormat?:'alibaba'|'vistra'; articleVisibleDate?:'linde'; reviewRequired?:string;
+  excludedCategories?:string[];
 };
 
 /** Publisher-owned feeds, verified individually. No user-supplied fetch targets. */

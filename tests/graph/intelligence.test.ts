@@ -5,9 +5,15 @@ import { mergeIntelligenceEvents, projectResearchIntelligence } from '../../src/
 import { projectSecIntelligence } from '../../src/lib/intelligence/sec-events';
 import { createSecFilingDiscovered } from '../../src/lib/sec-filings/event';
 import { firstIntelligenceObservation } from '../../src/lib/sec-filings/store';
-import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
+import {companySearchRank, type KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
 
 const now=new Date('2026-10-02T16:00:00Z');
+test('exact ticker search ranks above business-description and partial name matches',()=>{
+  const names=[{id:'US:LITE',symbol:'LITE',name:'Lumentum'},{id:'US:MU',symbol:'MU',name:'Micron Technology'},{id:'US:MULT',symbol:'MULT',name:'Other'}].map((node,order)=>({...node,kind:'COMPANY' as const,order}));
+  assert.equal([...names].sort((a,b)=>companySearchRank(a,'MU')-companySearchRank(b,'MU'))[0].symbol,'MU');
+  assert.equal(companySearchRank(names[1],'$ＭＵ'),0);
+  assert.equal(companySearchRank(names[1],'US:MU'),0);
+});
 test('a recent SEC run is fresh only when collection and publication completed without failure',()=>{
   const complete={failed:0,partial:0,remaining:0,outboxIncomplete:false};
   assert.equal(secCollectorIsFresh(now.toISOString(),complete,now),true);

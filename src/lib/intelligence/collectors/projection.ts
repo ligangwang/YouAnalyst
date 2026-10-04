@@ -3,6 +3,7 @@ import type {Firestore} from 'firebase-admin/firestore';
 import type {KnowledgeGraph} from '../../knowledge-graph/model';
 import {canonicalEvidenceUrl,observation,type IntelligenceEvent} from '../model';
 import {NEWS_SOURCES} from './sources';
+import {newsArticles} from './article-quality';
 import {NEWS_COLLECTORS_COLLECTION,NEWS_EVENTS_COLLECTION} from './store';
 
 /** Weekend pauses are expected; compare against the latest weekday poll slot. */
@@ -20,7 +21,7 @@ export function newsCollectorIsFresh(lastSuccess:unknown,failures:unknown,partia
 /** Explicit public projection: ingestion and processing timestamps never leave this boundary. */
 export function projectCollectedNews(records:Record<string,unknown>[],graph:KnowledgeGraph,now:Date):IntelligenceEvent[]{
   const companies=new Set(graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id));
-  return records.flatMap(record=>{
+  return newsArticles(records).flatMap(record=>{
     const source=NEWS_SOURCES.find(source=>source.id===record.sourceId);
     if(!source||record.version!==1||record.type!=='company_news'||record.sourceType!=='company_ir'||record.companyId!==source.companyId||!Array.isArray(record.companyIds)||!record.companyIds.includes(source.companyId)||!companies.has(source.companyId))return [];
     const url=typeof record.url==='string'?canonicalEvidenceUrl(record.url):null;

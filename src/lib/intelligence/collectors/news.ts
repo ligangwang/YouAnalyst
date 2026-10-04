@@ -39,7 +39,10 @@ export function parseNewsFeed(xml:string,source:NewsSource):NewsPage{
   const entries=array(parsed.rss?channel.item:feed.entry);
   const items=new Map<string,NewsItem>();let invalid=0;
   for(const entry of entries.slice(0,MAX_FEED_ITEMS)){
-    const item=object(entry),link=array(item.link).filter(value=>typeof value==='string'||!object(value)['@_rel']||object(value)['@_rel']==='alternate').map(value=>typeof value==='string'?value:object(value)['@_href']).find(value=>typeof value==='string'&&(value.startsWith('https:')||source.upgradeArticleHttp&&value.startsWith('http:')));
+    const item=object(entry);
+    const categories=array(item.category).map(value=>plainText(object(value)['@_term']??value).toLowerCase());
+    if(source.excludedCategories?.some(category=>categories.includes(category.toLowerCase())))continue;
+    const link=array(item.link).filter(value=>typeof value==='string'||!object(value)['@_rel']||object(value)['@_rel']==='alternate').map(value=>typeof value==='string'?value:object(value)['@_href']).find(value=>typeof value==='string'&&(value.startsWith('https:')||source.upgradeArticleHttp&&value.startsWith('http:')));
     const url=typeof link==='string'?approvedNewsUrl(link,source,true):null,title=plainText(item.title,240);
     if(!url||!title){invalid++;continue;}
     // Some publisher CMS feeds expose site-rebuild dates as pubDate.
