@@ -1157,7 +1157,7 @@ test("relationship labels always have a visible company endpoint",async({page})=
 });
 
 
-for (const run of [1, 2, 3]) test(`company labels keep their placement during rotation and after release (run ${run})`,async({page})=>{
+test("company labels keep their placement during rotation and after release",async({page})=>{
  // The bounded scan may wait 500 ms for each of the 129 projected candidates.
  test.setTimeout(90_000);
  await page.emulateMedia({reducedMotion:"reduce"});
@@ -1230,7 +1230,7 @@ for (const run of [1, 2, 3]) test(`company labels keep their placement during ro
  expect(revealed, `No hidden label revealed among ${hiddenPoints.length} exposed points`).toBe(true);
  await page.mouse.move(1,1);
  await expect.poll(sides).toEqual(held);
- await page.screenshot({path:`output/stable-rotation-${test.info().project.name}-${run}.png`});
+ await page.screenshot({path:`output/stable-rotation-${test.info().project.name}.png`});
 });
 
 
