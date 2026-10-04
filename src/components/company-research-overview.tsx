@@ -52,12 +52,12 @@ export function CompanyResearchOverview({ company, fundamentals, graph }: { comp
           {connection.summary && <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{connection.summary}</p>}
           {connection.commercialStatus === "ANNOUNCED" && <p className="mt-2 text-xs text-amber-200"><UiText text="Announced" /></p>}
           <details className="mt-2 text-sm">
-            <summary className="cursor-pointer text-cyan-200">{connection.evidence.some(e => e.sourceKind === "web") ? <UiText text={"Sources"} /> : <UiText text={"Filing evidence"} />} ({connection.evidence.length})</summary>
+            <summary className="cursor-pointer text-cyan-200">{connection.evidence.some(e => e.sourceKind === "web") ? <UiText text={"Sources"} /> : <UiText text={"Filing sources"} />} ({connection.evidence.length})</summary>
             {connection.evidence.map((evidence) => <div key={evidence.id} className="mt-3 max-w-3xl border-l-2 border-cyan-700 pl-4">
               <p className="text-xs text-slate-400">{evidence.sourceTitle ?? evidence.issuerTicker}{evidence.filingDate ? ` · ${evidence.filingDate}` : ""}</p>
               {connection.summary ? null : evidence.sourceKind === "web" ? <p className="mt-2 break-words leading-6 text-slate-300">{evidence.quote}</p> : <blockquote className="mt-2 break-words leading-6 text-slate-300">{evidence.quote}</blockquote>}
               {evidence.nameMatched && <p className="mt-2 text-xs text-amber-200"><UiText text={"Company identity is based on a provisional name match."} /></p>}
-              {evidence.qualityReview && <p className="mt-2 text-xs text-amber-200"><UiText text={"Evidence reviewed "} />{evidence.qualityReview.reviewedAt}: {evidence.qualityReview.reason}</p>}
+              {evidence.qualityReview && <p className="mt-2 text-xs text-amber-200"><UiText text={"Sources reviewed "} />{evidence.qualityReview.reviewedAt}: {evidence.qualityReview.reason}</p>}
               <a href={evidence.filingUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-cyan-200 underline underline-offset-4">{evidence.sourceKind === "web" ? evidence.sourceTitle ?? <UiText text={"Read source"} /> : <UiText text={"Read SEC filing"} />}</a>
             </div>)}
           </details>

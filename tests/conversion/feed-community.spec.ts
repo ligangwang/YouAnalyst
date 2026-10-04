@@ -84,9 +84,9 @@ test("feed uses publication date, keeps pipeline dates private and groups source
   await expect(humain.getByTitle("Earlier event, added later. Collection is not a new business event.")).toHaveCount(0);
   await expect(humain).toContainText("it is not delivered capacity");
   await expect(cards.nth(0).getByText("Added later")).toHaveCount(0);
-  await humain.getByText("Evidence added / reviewed for this event (1)").click();
+  await humain.getByText("Sources added / reviewed for this event (1)").click();
   await expect(humain.getByRole("link", { name: "HUMAIN deployment review ↗" })).toHaveAttribute("href", "https://example.com/humain-review");
-  await expect(page.getByText("Evidence added / reviewed", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("Sources added / reviewed", { exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Recently added", exact: true })).toHaveCount(0);
   await expect(page.getByText("Collected / reviewed", {exact:false})).toHaveCount(0);
   expect(await noHorizontalScroll(page)).toBe(true);
@@ -115,7 +115,7 @@ test("Chinese feed keeps the marker accessible and the planned caveat in item te
   await expect(page.getByTitle("历史事件后续收录，收录日期不代表新发生的业务事件。")).toHaveCount(0);
   await expect(page.getByText("计划扩产，不代表已完成交付。", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "最近收录", exact: true })).toHaveCount(0);
-  await expect(page.getByText("该事件的证据收录／复核（1）", { exact: true })).toBeVisible();
+  await expect(page.getByText("该事件的来源收录／复核（1）", { exact: true })).toBeVisible();
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.screenshot({ path: info.outputPath("feed-zh.png"), fullPage: true });
 });

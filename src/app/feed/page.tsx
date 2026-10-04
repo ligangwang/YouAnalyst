@@ -11,18 +11,18 @@ export const dynamic = "force-dynamic";
 
 const pageMetadata: Metadata = {
   title: "Company research updates | YouAnalyst",
-  description: "Explore sourced AI supply-chain developments and research evidence updates.",
+  description: "Explore sourced AI supply-chain developments and research source updates.",
   alternates: {
     canonical: "/feed",
   },
   openGraph: {
     title: "Company research updates | YouAnalyst",
-    description: "Explore sourced AI supply-chain developments and research evidence updates.",
+    description: "Explore sourced AI supply-chain developments and research source updates.",
     url: "/feed",
   },
   twitter: {
     title: "Company research updates | YouAnalyst",
-    description: "Explore sourced AI supply-chain developments and research evidence updates.",
+    description: "Explore sourced AI supply-chain developments and research source updates.",
   },
 };
 

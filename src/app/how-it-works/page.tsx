@@ -8,7 +8,7 @@ import { SHOW_ANALYST_LEVELS } from "@/lib/community";
 
 const pageMetadata: Metadata = {
   title: "How It Works | YouAnalyst",
-  description: "Learn how to explore company connections, assess filing evidence, and track bullish or bearish calls in watchlists.",
+  description: "Learn how to explore company connections, assess filing sources, and track bullish or bearish calls in watchlists.",
   alternates: {
     canonical: "/how-it-works",
   },
@@ -35,13 +35,13 @@ export default function HowItWorksPage() {
     <main className="mx-auto w-full max-w-5xl px-4 py-8">
       <section className="border-b border-white/10 pb-6">
         <p className="text-sm font-medium uppercase tracking-wide text-cyan-300"><UiText text={"How It Works"} /></p>
-        <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Follow a company from question to evidence."} /></h1>
+        <h1 className="mt-2 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Follow a company from question to sources."} /></h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Find a company, inspect its suppliers, customers and competitors, then track your bullish or bearish outlook in a watchlist."} /></p>
       </section>
 
       <section className="grid gap-6 border-b border-white/10 py-6 md:grid-cols-3">
         <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Explore connections"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Search for a company or choose one on the map. Use List view on a small screen, then select a relationship to inspect its sources."} /></p><Link href="/?company=NVDA" className="mt-3 inline-block text-cyan-200 underline"><UiText text={"Explore NVIDIA"} /></Link></div>
-        <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Assess the evidence"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Connections come from AI-assisted filing extraction and reviewed industry research. Check the linked source, date and company identity. Coverage is incomplete; an older source does not establish whether a relationship remains active."} /></p></div>
+        <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Assess the sources"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Connections come from AI-assisted filing extraction and reviewed industry research. Check the linked source, date and company identity. Coverage is incomplete; an older source does not establish whether a relationship remains active."} /></p></div>
         <div><h2 className="text-lg font-semibold text-cyan-100"><UiText text={"Track your outlook"} /></h2><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Choose a company and publish your research. Add a bullish or bearish view to track performance, or publish research only. Choose who can see it before publishing."} /></p></div>
       </section>
 

@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
 
 for (const language of ["en", "zh-cn"]) test(`research starts are bilingual, source-linked and fit the viewport (${language})`, async ({ page }) => {
   await page.goto(`http://research-starts.test/${language}`);
-  const section = page.getByRole("region", { name: language === "en" ? "Research and evidence" : "研究与证据" });
+  const section = page.getByRole("region", { name: language === "en" ? "Research and sources" : "研究与来源" });
   await expect(section).toBeVisible();
   await expect(section.getByRole("article")).toHaveCount(3);
   const headings = section.getByRole("heading", { level: 2 });

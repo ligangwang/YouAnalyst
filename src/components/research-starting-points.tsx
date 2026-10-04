@@ -10,7 +10,7 @@ export function ResearchQuickLinks({ entries }: { entries: ResearchStartingPoint
   const { text, chinese } = useLocale();
   const language = chinese ? "zh" : "en";
   return <section className={styles.intro} aria-label={text("Start your investment research", "开始投资研究")}>
-    <p className={styles.benefit}>{text("Find the companies behind AI and check the evidence behind your investment thesis.", "沿 AI 产业链找到关键公司，用原始证据检验投资判断。")}</p>
+    <p className={styles.benefit}>{text("Find the companies behind AI and check the sources behind your investment thesis.", "沿 AI 产业链找到关键公司，用原始来源检验投资判断。")}</p>
     <nav className={styles.quickLinks} aria-label={text("Research starting points", "研究入口")}>
       {entries.map(entry => <LocalizedLink key={entry.id} href={entry.href} onClick={() => trackEvent("graph_discovery_open", { question_id: entry.id, entry_point: "homepage_research" })}>{entry.shortLabel[language]} <span aria-hidden="true">→</span></LocalizedLink>)}
     </nav>
@@ -20,7 +20,7 @@ export function ResearchQuickLinks({ entries }: { entries: ResearchStartingPoint
 export function ResearchStartingPoints({ entries }: { entries: ResearchStartingPoint[] }) {
   const { text, chinese } = useLocale();
   const language = chinese ? "zh" : "en";
-  return <section className={styles.section} aria-label={text("Research and evidence", "研究与证据")}>
+  return <section className={styles.section} aria-label={text("Research and sources", "研究与来源")}>
     <div className={styles.entries}>{entries.map(entry => <article className={styles.entry} key={entry.id}>
       <h2><LocalizedLink href={entry.href} onClick={() => trackEvent("graph_discovery_open", { question_id: entry.id, entry_point: "homepage_research" })}>{entry.question[language]} <span aria-hidden="true">→</span></LocalizedLink></h2>
       <p>{entry.summary[language]}</p>

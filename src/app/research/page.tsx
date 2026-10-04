@@ -7,7 +7,7 @@ import styles from "@/components/research-discovery.module.css";
 export const dynamic = "force-dynamic";
 export async function generateMetadata() {
   const zh = (await headers()).get("x-ya-language") === "zh-CN";
-  return localizedMetadata({ title: zh ? "AI 生态研究专题：有来源的供应链证据 | YouAnalyst" : "AI ecosystem research deep-dives: sourced supply-chain evidence | YouAnalyst", description: zh ? "逐条引用原始来源的 AI 公司生态研究，区分已出货与已宣布的计划。" : "Research deep-dives on AI companies’ ecosystems. Every connection cites a primary source, and shipped products are kept separate from announced plans." });
+  return localizedMetadata({ title: zh ? "AI 生态研究专题：供应链来源资料 | YouAnalyst" : "AI ecosystem research deep-dives: supply-chain sources | YouAnalyst", description: zh ? "逐条引用原始来源的 AI 公司生态研究，区分已出货与已宣布的计划。" : "Research deep-dives on AI companies’ ecosystems. Every connection cites a primary source, and shipped products are kept separate from announced plans." });
 }
 export default async function ResearchIndex() {
   const zh = (await headers()).get("x-ya-language") === "zh-CN", lang = zh ? "zh" : "en", prefix = zh ? "/zh-cn" : "/en";
@@ -19,7 +19,7 @@ export default async function ResearchIndex() {
     <div className={styles.dives}>{infrastructureTopics.map(topic => <article className={styles.dive} key={topic.slug}>
       <h2><a href={`${prefix}/research/${topic.slug}`}>{topic.title[lang]}</a></h2>
       <p>{topic.summary[lang]}</p>
-      <p className={styles.muted}>{zh ? "证据复核" : "Evidence reviewed"}: <time dateTime={RESEARCH_REVIEWED}>{RESEARCH_REVIEWED}</time></p>
+      <p className={styles.muted}>{zh ? "来源复核" : "Sources reviewed"}: <time dateTime={RESEARCH_REVIEWED}>{RESEARCH_REVIEWED}</time></p>
       <a href={`${prefix}/research/${topic.slug}`}>{zh ? "核查公司、来源与边界" : "Check the companies, sources and limits"} →</a>
     </article>)}</div>
     <h2>{zh ? "公司生态研究" : "Company ecosystems"}</h2>
@@ -27,8 +27,8 @@ export default async function ResearchIndex() {
       <h2><a href={`${prefix}${d.path}`}>{d.title[lang]}</a></h2>
       <p>{d.summary[lang]}</p>
       <ul className={styles.chips}>{d.companies.map(c => { const links = companyLinks(c.id, prefix); return <li key={c.id}>{links ? <a href={links.page} title={c.role[lang]}>{c.name[lang]}</a> : <span title={c.role[lang]}>{c.name[lang]}</span>}</li>; })}</ul>
-      <p className={styles.muted}>{zh ? "证据复核" : "Evidence reviewed"}: <time dateTime={d.reviewed}>{d.reviewed}</time></p>
-      <a href={`${prefix}${d.path}`}>{zh ? "阅读研究与证据" : "Read the research and evidence"} →</a>
+      <p className={styles.muted}>{zh ? "来源复核" : "Sources reviewed"}: <time dateTime={d.reviewed}>{d.reviewed}</time></p>
+      <a href={`${prefix}${d.path}`}>{zh ? "阅读研究与来源" : "Read the research and sources"} →</a>
     </article>)}</div>
   </main>;
 }

@@ -31,7 +31,7 @@ const ibmPlexSans = IBM_Plex_Sans({
 const pageMetadata: Metadata = {
   metadataBase: getSiteUrl(),
   title: "YouAnalyst | Company research, connected.",
-  description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
+  description: "Explore company relationships, inspect filing sources, and save companies for your next research session.",
   applicationName: "YouAnalyst",
   alternates: {
     canonical: "/",
@@ -46,7 +46,7 @@ const pageMetadata: Metadata = {
   twitter: {
     card: "summary",
     title: "YouAnalyst | Company research, connected.",
-    description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
+    description: "Explore company relationships, inspect filing sources, and save companies for your next research session.",
   },
   robots: isProductionAppEnvironment()
     ? {
@@ -68,7 +68,7 @@ export default async function RootLayout({
     "@type": "WebSite",
     name: "YouAnalyst",
     url: absoluteUrl("/"),
-    description: "Explore company relationships, inspect filing evidence, and save companies for your next research session.",
+    description: "Explore company relationships, inspect filing sources, and save companies for your next research session.",
   };
 
   return (

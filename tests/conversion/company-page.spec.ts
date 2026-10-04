@@ -69,7 +69,7 @@ for (const predictionsAvailable of [true, false]) {
     if (!predictionsAvailable) await expect(page.getByRole("status")).toContainText("Unable to load ticker predictions");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("company-research.png"), fullPage: true });
-    await page.getByText("Filing evidence", { exact: false }).first().click();
+    await page.getByText("Filing sources", { exact: false }).first().click();
     await expect(page.getByText("Synthetic test evidence", { exact: false }).first()).toBeVisible();
   });
 }
