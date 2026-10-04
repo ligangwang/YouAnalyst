@@ -7,7 +7,7 @@ import styles from "@/components/research-discovery.module.css";
 export const dynamic = "force-dynamic";
 export async function generateMetadata() {
   const zh = (await headers()).get("x-ya-language") === "zh-CN";
-  return localizedMetadata({ title: zh ? "AI 生态研究专题：供应链来源资料 | YouAnalyst" : "AI ecosystem research deep-dives: sourced supply-chain sources | YouAnalyst", description: zh ? "逐条引用原始来源的 AI 公司生态研究，区分已出货与已宣布的计划。" : "Research deep-dives on AI companies’ ecosystems. Every connection cites a primary source, and shipped products are kept separate from announced plans." });
+  return localizedMetadata({ title: zh ? "AI 生态研究专题：供应链来源资料 | YouAnalyst" : "AI ecosystem research deep-dives: supply-chain sources | YouAnalyst", description: zh ? "逐条引用原始来源的 AI 公司生态研究，区分已出货与已宣布的计划。" : "Research deep-dives on AI companies’ ecosystems. Every connection cites a primary source, and shipped products are kept separate from announced plans." });
 }
 export default async function ResearchIndex() {
   const zh = (await headers()).get("x-ya-language") === "zh-CN", lang = zh ? "zh" : "en", prefix = zh ? "/zh-cn" : "/en";

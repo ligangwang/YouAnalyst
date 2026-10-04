@@ -11,7 +11,7 @@ export async function ResearchDiscovery() {
       <h3><a href={`${prefix}${d.path}`}>{d.title[lang]}</a></h3>
       <p>{d.summary[lang]}</p>
       <ul className={styles.chips}>{d.companies.map(c => { const links = companyLinks(c.id, prefix); return <li key={c.id}>{links ? <a href={links.page} title={c.role[lang]}>{c.name[lang]}</a> : <span title={c.role[lang]}>{c.name[lang]}</span>}</li>; })}</ul>
-      <p className={styles.muted}>{zh ? "来源示例" : "Event highlights"}: {d.highlights.map((c,i)=><span key={c.id}>{i>0?" · ":""}<a href={c.url} target="_blank" rel="noopener noreferrer">{c.label[lang]}</a></span>)}. {zh ? "来源复核" : "Sources reviewed"}: <time dateTime={d.reviewed}>{d.reviewed}</time>.</p>
+      <p className={styles.muted}>{zh ? "来源示例" : "Source highlights"}: {d.highlights.map((c,i)=><span key={c.id}>{i>0?" · ":""}<a href={c.url} target="_blank" rel="noopener noreferrer">{c.label[lang]}</a></span>)}. {zh ? "来源复核" : "Sources reviewed"}: <time dateTime={d.reviewed}>{d.reviewed}</time>.</p>
       <a href={`${prefix}${d.path}`}>{zh ? "阅读研究与来源" : "Read the research and sources"} →</a>
     </article>)}</div>
   </section>;
