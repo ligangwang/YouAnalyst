@@ -58,7 +58,7 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
   }
 });
 
-test("English and Chinese map URLs retain SEO and load company links on expansion", async ({ request, page }) => {
+test("English and Chinese workspace URLs retain SEO and bookmarked company links", async ({ request, page }) => {
   test.setTimeout(90_000);
   for (const [prefix, language, heading] of [["en", "en", "AI Industry Map"], ["zh-cn", "zh-CN", "AI 产业图谱"]]) {
     const response = await request.get(`/${prefix}?view=graph`);
@@ -69,20 +69,13 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
     expect(html).toMatch(new RegExp(`<link[^>]+rel="canonical"[^>]+href="[^"]+/${prefix}"`));
     expect(html).toContain('hrefLang="en"');
     expect(html).toContain('hrefLang="zh-CN"');
-    // The collapsed company directory ships no company links; research teasers elsewhere on the page may link companies.
-    const directoryLabel = prefix === "en" ? "AI companies and supply chain" : "AI 公司与产业链";
-    const directoryHtml = sectionHtml(html, directoryLabel);
-    expect(directoryHtml).toBeTruthy();
-    expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/NVDA"`);
-    expect(directoryHtml).not.toContain(`href="/${prefix}/ticker/XSHG:688041"`);
-    await page.goto(`/${prefix}?view=graph`);
-    const directory = page.getByRole("region", { name: directoryLabel, exact: true });
-    await expect(directory.locator("li")).toHaveCount(0);
-    await directory.locator("summary").click();
-    await expect(directory.locator(`a[href="/${prefix}/ticker/NVDA"]`).first()).toBeVisible({ timeout: 20_000 });
-    await expect(directory.locator(`a[href="/${prefix}/ticker/XSHG:688041"]`).first()).toBeVisible();
-    await directory.locator("summary").click();
-    await expect(directory.locator("li")).toHaveCount(0);
+    expect(html).toContain(`href="/${prefix}/companies"`);
+    expect(html).toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
+    await page.goto(`/${prefix}?view=table&company=US%3ANVDA`);
+    const name=prefix==='en'?'Company list':'公司列表';
+    await expect(page.getByRole('tab',{name,exact:true})).toHaveAttribute('aria-selected','true');
+    const sources=page.getByRole('region',{name:prefix==='en'?'Selected sources':'选中来源'});
+    await expect(sources.locator(`a[href="/${prefix}/ticker/NVDA"]`)).toBeVisible();
   }
   const legacy = await request.get("/map?lang=zh-CN&market=CN_A&company=XSHG%3A688041", { maxRedirects: 0 });
   expect([307, 308]).toContain(legacy.status());
@@ -90,6 +83,10 @@ test("English and Chinese map URLs retain SEO and load company links on expansio
   expect(target.pathname).toBe("/zh-cn");
   expect(target.searchParams.get("company")).toBe("XSHG:688041");
   expect(target.searchParams.get("market")).toBe("CN_A");
+  const alias=await request.get('/en/intelligence?view=hierarchy&company=US%3AMU',{maxRedirects:0});
+  expect([307,308]).toContain(alias.status());
+  const destination=new URL(alias.headers().location,alias.url());
+  expect(destination.pathname).toBe('/en');expect(destination.searchParams.get('view')).toBe('hierarchy');expect(destination.searchParams.get('company')).toBe('US:MU');
 });
 
 test("Investment Intelligence homepage renders real data and crawlable research links", async ({ request, page }) => {
@@ -126,20 +123,6 @@ test("retired filing event API is unavailable", async ({ request }) => {
   expect((await request.get("/api/events")).status()).toBe(404);
   expect((await request.get("/api/events/stream")).status()).toBe(404);
 });
-
-/** The complete `<section aria-label=…>` element, including nested sections, or undefined if absent or unbalanced. */
-function sectionHtml(html: string, label: string) {
-  const open = html.search(new RegExp(`<section\\b[^>]*aria-label="${label}"`));
-  if (open < 0) return undefined;
-  const tags = /<section\b|<\/section>/g;
-  tags.lastIndex = open;
-  let depth = 0;
-  for (let tag = tags.exec(html); tag; tag = tags.exec(html)) {
-    depth += tag[0] === "</section>" ? -1 : 1;
-    if (depth === 0) return html.slice(open, tags.lastIndex);
-  }
-  return undefined;
-}
 
 function savedCompanyHeaders(userToken?: string): Record<string, string> {
   const serviceToken = process.env.PLAYWRIGHT_AUTH_BEARER_TOKEN;
@@ -211,24 +194,30 @@ test("homepage defaults to graph and supports all four industry views", async ({
   const graph = await response.json();
   const count = graph.nodes.filter((node: { kind: string }) => node.kind === "COMPANY").length;
   await page.goto("/?market=US&graphMarkets=US&lang=en");
-  await expect(page.getByRole("heading", { name: "AI Industry Map", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Investment Intelligence", exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /^(US stocks|A-shares|Global & private|2D|3D|Fit|Rotate right|Zoom in)$/ })).toHaveCount(0);
-  await expect(page.locator('span[role="status"]')).toContainText(`${count} companies`);
+  await expect(page.getByRole('button',{name:'Filter to active companies'})).toContainText(`/ ${count}`);
   await expect(page.getByRole("tab", { name: "Relationship graph", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("canvas")).toBeVisible();
-  await page.getByRole("button", { name: "Reset view", exact: true }).click();
+  await page.getByRole("button", { name: "Reset universe view", exact: true }).click();
   await page.getByRole("tab", { name: "Company list", exact: true }).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(Math.min(count,50));
   await expect(page.getByRole('navigation',{name:'Company list pagination'})).toContainText(`of ${count} companies`);
   await page.getByRole("tab", { name: "Industry tree", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Vertical tree", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Vertical tree", exact: true })).toHaveCount(1);
   await expect(page.locator('[data-industry-tree="vertical"] canvas')).toBeVisible();
   await page.getByRole("tab", { name: "Company hierarchy", exact: true }).click();
   await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible();
   await expect(page.locator('[data-industry-tree="hierarchy"] canvas')).toHaveCount(0);
   await page.getByRole("tab", { name: "Relationship graph", exact: true }).click();
   await page.reload();
-  await expect(page.locator('span[role="status"]')).toContainText(`${count} companies`);
+  await expect(page.getByRole('button',{name:'Filter to active companies'})).toContainText(`/ ${count}`);
+  await page.goto('/en?event=amd-anthropic-mi450-20260722');
+  const selected=page.getByRole('region',{name:'Selected sources'});
+  await expect(selected.getByRole('link',{name:/AMD · Anthropic strategic partnership/})).toBeVisible();
+  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+  await expect(selected.getByRole('link',{name:/AMD · Anthropic strategic partnership/})).toBeVisible();
+  await expect(page.locator('[data-list-company="US:AMD"]')).toHaveAttribute('data-selected','true');
 });
 
 test("global map companies open localized profiles", async ({ page, request }) => {
