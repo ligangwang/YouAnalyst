@@ -26,6 +26,11 @@ test('latest earnings link and sourced quarter figures stay separate from annual
  assert(html.includes('Latest earnings'));assert(html.includes('FY2026 Q4'));assert(html.includes('54.23B'));assert(html.includes('2026-09-03'));assert(html.includes('US GAAP'));assert(html.includes('Financial figures source'));
  const newer=renderToStaticMarkup(createElement(CompanyAnnouncements,{items:[{...items[0],date:'2026-12-30'}],earningsSummary:summary}));
  assert(newer.includes('2026-12-30'));assert(!newer.includes('54.23B'));
+ const undated={...summary,publishedDate:null,url:'https://www.sec.gov/Archives/edgar/data/723125/000072312526000018/ex991.htm'};
+ const filing={...items[0],id:'filing',channel:'SEC' as const,url:'https://www.sec.gov/Archives/edgar/data/723125/000072312526000018/mu-20260930.htm'};
+ const matched=renderToStaticMarkup(createElement(CompanyAnnouncements,{items:[filing],earningsSummary:undated}));
+ assert(matched.includes('54.23B'));assert(matched.includes('2026-09-30'));assert(matched.includes('Financial figures source'));
+ for(const unmatched of [[{...filing,url:filing.url.replace('000072312526000018','000072312526000019')}],[filing,{...items[0],date:'2026-12-30'}]])assert(!renderToStaticMarkup(createElement(CompanyAnnouncements,{items:unmatched,earningsSummary:undated})).includes('54.23B'));
 });
 test('document counts deduplicate source URLs and honor the selected source channel',()=>{
  const html=render('SEC');assert.match(html,/<strong>1<\/strong><span>Source documents<\/span>/);assert(!html.includes('IR<strong>'));assert.match(html,/AI compute<\/span>.*?<strong>1<\/strong>/);assert.match(html,/Memory &amp; storage<\/span>.*?<strong>1<\/strong>/);
