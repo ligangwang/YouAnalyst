@@ -1,0 +1,8 @@
+.companies { display:flex; align-items:center; gap:8px; min-width:0; }
+.tickers { min-width:0; max-width:45%; flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.onlyTickers { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sectors { display:flex; align-items:center; gap:7px; flex:1; min-width:0; white-space:nowrap; }
+.sector { display:inline-flex; align-items:center; gap:4px; min-width:0; flex:0 1 auto; }
+.dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+.name { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.extra { flex-shrink:0; font-variant-numeric:tabular-nums; }

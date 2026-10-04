@@ -4,8 +4,9 @@ import {mkdirSync,writeFileSync} from 'node:fs';
 import path from 'node:path';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
 
-const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',kind:'COMPANY',order:1,stageIds:['connectivity']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']}];
+const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',kind:'COMPANY',order:1,stageIds:['optics']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']},{id:'US:MEM',symbol:'MEM',name:'Memory Supplier',summary:'Memory partner',kind:'COMPANY',order:4,stageIds:['memory']}];
 const events=Array.from({length:200},(_,i)=>({id:`event-${i}`,origin:'US:MU',companyIds:['US:MU'],edgeIds:[],category:'BUSINESS',title:`Published company update ${i+1}`,summary:`Source summary ${i+1}`,published_at:null,publication_date:'2026-10-02',eventDate:null,evidence:[{id:`source-${i}`,url:`https://investors.example.com/${i}`,title:`Original release ${i+1}`,sourceDate:'2026-10-02',channel:'IR'}],planned:false}));
+events[1].companyIds=['US:MU','US:MEM','US:MULT','US:LITE','US:UNKNOWN'];
 const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],sources:[]},graphVersion:'fixture',events,generatedAt:'2026-10-04T16:00:00Z',session:{date:'2026-10-04',timeZone:'America/New_York',startAt:'2026-10-04T04:00:00Z',endAt:'2026-10-05T04:00:00Z'},coverage:[{channel:'IR',status:'connected'}],sourceDocuments:Array.from({length:350},(_,i)=>({id:`https://investors.example.com/${i}`,channel:'IR',companyIds:['US:MU'],published_at:null,publication_date:'2026-10-02'})),statisticsComplete:true,warnings:[],truncated:true,limit:200} as IntelligenceSnapshot;
 let html:string;
 test.beforeAll(async()=>{
@@ -26,6 +27,14 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(panel.getByRole('button',{name:'30d',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('350');
   await expect(panel.getByText('200 loaded source documents')).toBeVisible();
+  const firstEvent=panel.getByRole('button',{name:/Published company update 1 /});
+  await expect(firstEvent.getByText('Memory & storage',{exact:true})).toBeVisible();
+  const multiEvent=panel.getByRole('button',{name:/Published company update 2 /});
+  const sectors=multiEvent.getByRole('group',{name:'Company sectors: Memory & storage / AI compute / Connectivity',exact:true});
+  await expect(sectors).toHaveAttribute('title','Memory & storage / AI compute / Connectivity');
+  await expect(sectors.getByText('Memory & storage',{exact:true})).toHaveCount(1);
+  await expect(sectors.getByText('+1',{exact:true})).toBeVisible();
+  await expect(sectors.getByLabel('Additional sectors: Connectivity')).toBeVisible();
   await expect(panel.getByText('Sector breakdown',{exact:true}).locator('..')).not.toHaveAttribute('open','');
   await expect(panel.getByText('Source status',{exact:true}).locator('..')).not.toHaveAttribute('open','');
   const input=page.getByPlaceholder('Search company / ticker');await input.fill('$ＭＵ');
@@ -43,6 +52,12 @@ test('mobile navigation exposes saved companies and event details retain their C
   test.skip(info.project.name!=='mobile','Mobile workspace checks');await open(page,true);
   await page.getByText('更多 ▾',{exact:true}).click();await expect(page.getByRole('navigation',{name:'More navigation'}).getByRole('link',{name:'自选股',exact:true})).toHaveAttribute('href','/zh-cn/watchlists/following');
   await page.getByText('更多 ▾',{exact:true}).click();
-  const panel=page.getByRole('complementary',{name:'Events and sources'});await panel.getByRole('button',{name:/Published company update 1 /}).click();
+  const panel=page.getByRole('complementary',{name:'Events and sources'});
+  const eventRow=panel.getByRole('button',{name:/Published company update 1 /});
+  await expect(eventRow.getByText('内存与存储',{exact:true})).toBeVisible();
+  const companyLine=eventRow.locator('p');
+  expect(await companyLine.evaluate(el=>el.getBoundingClientRect().height)).toBeLessThan(20);
+  expect(await companyLine.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  await eventRow.click();
   const selection=panel.getByRole('region',{name:'选中来源'});await expect(selection).toBeVisible();await expect(selection.getByText('选中事件',{exact:true})).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
 });
