@@ -20,6 +20,7 @@ import { useWheelZoomGate, WheelZoomHint } from "./wheel-zoom-gate";
 import { safeGraphOrbitStep } from "./graph-orbit-step";
 import { TreeStarField } from './tree-star-field';
 import { TreeGalaxies } from './tree-galaxies';
+import {WebGLContextRecovery} from './webgl-context-recovery';
 import styles from "./ai-knowledge-graph.module.css";
 
 import { marketCapScale, graphNodeMarketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
@@ -575,21 +576,6 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   </>;
 }
 
-function ContextRecovery({onLost}:{onLost:(lost:boolean)=>void}) {
-  const {gl,invalidate}=useThree();
-  useEffect(()=>{
-    const canvas=gl.domElement;
-    const lost=(event:Event)=>{event.preventDefault();onLost(true);};
-    const restored=()=>{onLost(false);invalidate();};
-    canvas.addEventListener('webglcontextlost',lost);
-    canvas.addEventListener('webglcontextrestored',restored);
-    return ()=>{
-      canvas.removeEventListener('webglcontextlost',lost);
-      canvas.removeEventListener('webglcontextrestored',restored);
-    };
-  },[gl,invalidate,onLost]);
-  return null;
-}
 function GraphUnavailable({onRetry}:{onRetry:()=>void}) {
   const { text } = useLocale();
   return <div role="alert" className={styles.empty}>{text("This browser cannot display the 3D graph. Open “Explore AI stocks, companies and the supply chain” below to continue researching.", "此浏览器暂时无法显示 3D 图谱。点击下方“探索 AI 公司与产业链”即可打开公司列表，继续研究。")} <button onClick={onRetry}>{text('Reload 3D','重新加载 3D')}</button></div>;
@@ -641,7 +627,7 @@ export default function CompanyGraph3D(props: Props) {
     onPointerUpCapture={scheduleHoverHint}
     onWheelCapture={hideHoverHint}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><ContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {props.musicControls && <UniverseMusicToggle/>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}

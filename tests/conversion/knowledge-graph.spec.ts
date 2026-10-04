@@ -59,13 +59,15 @@ for (const view of ['graph','vertical'] as const) test(`clicking the selected ${
  }
 });
 
-test('graph restores repeated WebGL context loss and can reload without losing selection',async({page})=>{
+for(const view of ['graph','tree'] as const)test(`${view} restores repeated WebGL context loss and can reload without losing selection`,async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
- await page.goto('http://graph.test/map?lang=en&view=graph');
- const canvas=page.locator('canvas'),node=page.locator('[data-company-id="US:NVDA"]');
- await node.click();await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
+ await page.goto(`http://graph.test/map?lang=en&view=${view}`);
+ const scope=view==='graph'?page.locator('[data-graph-interaction]'):page.locator('[data-industry-section="vertical"]');
+ const canvas=scope.locator('canvas'),node=scope.locator(view==='graph'?'[data-company-id="US:NVDA"]':'[data-tree-company="US:NVDA"]').first();
+ await expect(node).toBeAttached();await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
+ const selectedAttribute=view==='graph'?'data-company-focus':'aria-pressed',selectedValue=view==='graph'?'selected':'true';
  await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>{
    el.dataset.originalCanvas='true';el.loss=el.getContext('webgl2')!.getExtension('WEBGL_lose_context')!;
    if(!el.loss)throw Error('WEBGL_lose_context required for recovery regression');
@@ -78,12 +80,12 @@ test('graph restores repeated WebGL context loss and can reload without losing s
    await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>el.loss!.restoreContext());
    await expect(status).toHaveCount(0);await expect(canvas).toHaveAttribute('data-original-canvas','true');
    await expect.poll(()=>canvas.evaluate((el:HTMLCanvasElement)=>el.getContext('webgl2')!.isContextLost())).toBe(false);
-   await expect(node).toHaveAttribute('data-company-focus','selected');
+   await expect(node).toHaveAttribute(selectedAttribute,selectedValue);
  }
  await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>el.loss!.loseContext());
  await expect(status).toBeVisible();await status.getByRole('button',{name:'Reload 3D'}).click();
  await expect(status).toHaveCount(0);await expect(canvas).not.toHaveAttribute('data-original-canvas','true');
- await expect(node).toHaveAttribute('data-company-focus','selected');
+ await expect(node).toHaveAttribute(selectedAttribute,selectedValue);
  await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
 });
 
@@ -857,6 +859,15 @@ test("devices without WebGL keep the directory collapsed until requested", async
   await page.getByRole('button',{name:'Reload 3D'}).click();
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.locator('canvas')).toHaveCount(0);
+  await page.goto('http://graph.test/map?lang=en&view=tree');
+  const tree=page.getByRole('region',{name:'Vertical tree',exact:true});
+  await expect(tree.getByRole('alert')).toContainText('The 3D tree could not start');
+  await tree.getByRole('button',{name:'Reload 3D',exact:true}).click();
+  await expect(tree.getByRole('alert')).toBeVisible();
+  await expect(tree.locator('canvas')).toHaveCount(0);
+  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
+  await tree.getByRole('button',{name:'NVIDIA',exact:true}).first().click();
+  await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
 });
 
 test("global search and company research links work in Chinese", async ({page}) => {

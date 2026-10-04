@@ -44,8 +44,10 @@ export function IndustryStructure({musicControls=false,companies,selected,onSele
   const [focus,setFocus]=useState('');
   const [request,setRequest]=useState(0);
   const [unavailable,setUnavailable]=useState(false);
+  const [attempt,setAttempt]=useState(0);
   const tour=useRef(vertical);
   const showFallback=useCallback(()=>setUnavailable(true),[]);
+  const retry=()=>{setUnavailable(false);setAttempt(value=>value+1);};
   const [sceneRef,{seen,onScreen}]=useOnScreen(active);
   const [wheelGateRef,wheelHint]=useWheelZoomGate();
   const attachScene=useCallback((element:HTMLDivElement|null)=>{sceneRef.current=element;wheelGateRef(element);},[sceneRef,wheelGateRef]);
@@ -65,8 +67,8 @@ export function IndustryStructure({musicControls=false,companies,selected,onSele
       {musicControls&&active&&<UniverseMusicToggle/>}
       <WheelZoomHint hint={wheelHint}/>
       {/* Preserve initialized renderers across tabs; hidden trees pause without recreating WebGL contexts. */}
-      {seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene tour={tour} paused={!active||!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onRevealLayer={revealLayer} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback}/></Suspense>}
-      {unavailable&&<div className={styles.fallback}><p role="alert">{text('3D is unavailable on this device. Browse the same tree below.','此设备暂时无法显示三维场景，可使用下方层级树。')}</p>{layers.map(l=><details key={l.id} open={open.includes(l.id)}><summary onClick={e=>{e.preventDefault();toggle(l.id);}}>{text(l.en,l.zh)} · {l.companies.length}</summary>{l.branches.map(b=><details key={b.id} open={open.includes(b.id)}><summary onClick={e=>{e.preventDefault();toggle(b.id);}}>{text(b.en,b.zh)} · {b.companies.length}</summary>{b.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)}</button>)}</details>)}</details>)}</div>}
+      {seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene key={attempt} tour={tour} paused={!active||!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onRevealLayer={revealLayer} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback} onRetry={retry}/></Suspense>}
+      {unavailable&&<div className={styles.fallback}><p role="alert">{text('The 3D tree could not start. Browse the same tree below or try reloading.','三维树暂时无法启动，可使用下方层级树或尝试重新加载。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></p>{layers.map(l=><details key={l.id} open={open.includes(l.id)}><summary onClick={e=>{e.preventDefault();toggle(l.id);}}>{text(l.en,l.zh)} · {l.companies.length}</summary>{l.branches.map(b=><details key={b.id} open={open.includes(b.id)}><summary onClick={e=>{e.preventDefault();toggle(b.id);}}>{text(b.en,b.zh)} · {b.companies.length}</summary>{b.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)}</button>)}</details>)}</details>)}</div>}
       {active&&showCard&&company&&<TreeCompanyCard closing={closing} key={company.id} reveal={revealCard} company={company} color={layers.find(l=>l.companies.some(c=>c.id===company.id))?.color??'#7dd3fc'} onClose={()=>onSelect('')}/>}
     </div>
     <footer className={styles.hint}>{vertical&&<span>{text('Spiral around the tree · Select companies to explore · Reset to replay','沿树干平滑环绕 · 点击公司查看详情 · 重置重新播放')}</span>}{text('Click nodes to expand / collapse · Drag to pan · Scroll or pinch to zoom · Scroll or swipe up and down to move the page','点击节点展开／收起 · 拖动平移 · 滚轮或双指缩放 · 滚动或上下滑动可移动页面')}<span>{text('Energy → Chips → Infrastructure → Models → Applications · Companies can span layers','自底向上：能源 → 芯片 → 基础设施 → 模型 → 应用 · 公司可跨层')}</span></footer>

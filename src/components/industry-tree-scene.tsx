@@ -15,12 +15,13 @@ import { TreeStarField } from './tree-star-field';
 import { TreeGalaxies } from './tree-galaxies';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
+import {WebGLContextRecovery} from './webgl-context-recovery';
 import {useNodePresence} from './use-node-presence';
 import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
 import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/knowledge-graph/label-fade';
 
-export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void};
+export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
   state={failed:false};
@@ -32,8 +33,7 @@ function Scene(props:TreeSceneProps){
   const navigation=useNavigationSettings();
   const {locale,text}=useLocale();
   const {size,invalidate,gl}=useThree();
-  const {onUnavailable,tour:tourRef}=props;
-  useEffect(()=>{const canvas=gl.domElement;const lost=()=>onUnavailable();canvas.addEventListener("webglcontextlost",lost);return ()=>canvas.removeEventListener("webglcontextlost",lost);},[gl,onUnavailable]);
+  const {tour:tourRef}=props;
   // Leaves set a pointer cursor on hover; never leave it behind when the scene goes away.
   useEffect(()=>()=>{gl.domElement.style.cursor='';},[gl]);
   // Redraw on resume so changes made while scrolled away (e.g. a selection in the other tree) appear.
@@ -486,6 +486,8 @@ function Scene(props:TreeSceneProps){
 }
 export default function IndustryTreeScene(props:TreeSceneProps){
   const [supported,setSupported]=useState(false);
+  const [contextLost,setContextLost]=useState(false);
+  const {text}=useLocale();
   const {onUnavailable}=props;
   useEffect(()=>{
     let active=true;
@@ -500,5 +502,5 @@ export default function IndustryTreeScene(props:TreeSceneProps){
     return ()=>{active=false;};
   },[onUnavailable]);
   if(!supported)return null;
-  return <Boundary onUnavailable={props.onUnavailable}><Canvas onPointerMissed={event=>{if(event.type==='click'&&event.target instanceof HTMLCanvasElement&&props.selected)props.onSelect('');}} frameloop={props.paused?'never':'demand'} dpr={[1,1.5]} camera={{position:[0,0,1600],fov:45,near:1,far:100000}} gl={{antialias:true}} fallback={null}><Scene {...props}/></Canvas></Boundary>;
+  return <><Boundary onUnavailable={props.onUnavailable}><Canvas onPointerMissed={event=>{if(event.type==='click'&&event.target instanceof HTMLCanvasElement&&props.selected)props.onSelect('');}} frameloop={props.paused||contextLost?'never':'demand'} dpr={[1,1.5]} camera={{position:[0,0,1600],fov:45,near:1,far:100000}} gl={{antialias:true}} fallback={null}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} paused={props.paused||contextLost}/></Canvas></Boundary>{contextLost&&<div className={styles.recovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={props.onRetry}>{text('Reload 3D','重新加载 3D')}</button></div>}</>;
 }
