@@ -7,7 +7,7 @@ import {createElement} from 'react';
 import type {GraphNode} from '../../src/lib/knowledge-graph/model';
 import type {IntelligenceEvent} from '../../src/lib/intelligence/model';
 const require=createRequire(import.meta.url);
-const code=buildSync({stdin:{contents:`export {IntelligenceActivityOverview} from './src/components/intelligence-activity-overview';`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',external:['react','react/jsx-runtime'],loader:{'.module.css':'empty','.css':'empty'},tsconfig:'tsconfig.release-check.json'}).outputFiles[0].text;
+const code=buildSync({stdin:{contents:`export {IntelligenceActivityOverview} from './src/components/intelligence-activity-overview';`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,platform:'node',format:'cjs',jsx:'automatic',external:['react','react/jsx-runtime'],loader:{'.module.css':'empty','.css':'empty'},tsconfig:'tsconfig.json'}).outputFiles[0].text;
 const componentModule={exports:{}};
 new Function('require','module','exports',code)(require,componentModule,componentModule.exports);
 const {IntelligenceActivityOverview}=componentModule.exports as typeof import('../../src/components/intelligence-activity-overview');
