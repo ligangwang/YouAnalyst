@@ -6,6 +6,9 @@
 .table>nav{flex-shrink:0;padding:8px 10px;font-size:11px;gap:8px}
 .table>nav button,.table>nav select{padding:5px 7px;font-size:11px}
 .table>div{flex:1;min-height:0;max-height:none;scrollbar-width:thin;scrollbar-color:#314354 transparent}
-.table caption{padding:7px 10px;font-size:10px}
-.table th,.table td{font-size:11px;padding:8px 10px}
+.table table caption{padding:7px 10px;font-size:10px}
+.table table th,.table table td{font-size:11px;padding:8px 10px}
+.table table th button{padding:4px 0}
+.table table td button{min-height:28px;padding:2px 0}
 @media(max-width:850px){.tabs button{padding:5px 6px!important;font-size:10px!important}}
+@media(pointer:coarse){.table table td button{min-height:32px}}
