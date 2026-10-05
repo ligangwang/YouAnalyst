@@ -126,7 +126,8 @@ test('one theme selector switches companies and sources, clears stale filters, r
     {id:'US:ROK',symbol:'ROK',name:'Rockwell',kind:'COMPANY',order:1,stageIds:['robotics:systems-integration']}]},
     events:[{...snapshot.events[0],id:'robot-event',origin:'US:ROK',companyIds:['US:ROK'],title:'Robotics release'}],
     sourceDocuments:[{id:'robot-source',channel:'IR',companyIds:['US:ROK'],published_at:null,publication_date:'2026-10-02'}],truncated:false};
-  await page.route('**/api/intelligence?*',route=>route.fulfill({json:new URL(route.request().url()).searchParams.get('theme')==='robotics'?robotics:snapshot}));
+  const space: IntelligenceSnapshot={...robotics,theme:'space',graphVersion:'space-fixture',graph:{...robotics.graph,nodes:[{id:'US:RKLB',symbol:'RKLB',name:'Rocket Lab',kind:'COMPANY',order:0,stageIds:['space:launch','space:components']}]},events:[],sourceDocuments:[]};
+  await page.route('**/api/intelligence?*',route=>{const theme=new URL(route.request().url()).searchParams.get('theme');return route.fulfill({json:theme==='space'?space:theme==='robotics'?robotics:snapshot});});
   await page.getByRole('button',{name:'Save MU',exact:true}).click();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await page.getByPlaceholder('Search company / ticker').fill('MU');
@@ -140,6 +141,12 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await page.getByRole('button',{name:'Software & simulation 1',exact:true}).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(1);await expect(page.locator('[data-list-company="US:NVDA"]')).toBeVisible();
   await page.getByRole('button',{name:'Clear sector focus',exact:true}).click();
+  await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('space');
+  await expect(page).toHaveURL(/theme=space/);
+  await expect(page.locator('[data-list-company="US:RKLB"]')).toBeVisible();
+  await expect(page.locator('[data-list-company]')).toHaveCount(1);
+  await page.getByRole('button',{name:'Components & subsystems 1',exact:true}).click();
+  await expect(page.locator('[data-list-company="US:RKLB"]')).toBeVisible();
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('ai');
   await expect(page.locator('[data-list-company]')).toHaveCount(4);await expect(page.getByRole('button',{name:'Unsave MU',exact:true})).toBeVisible();
 });

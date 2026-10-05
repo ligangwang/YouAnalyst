@@ -1,6 +1,6 @@
 "use client";
 import type { GraphNode } from '@/lib/knowledge-graph/model';
-import { matchesCompanySector, graphSectors } from '@/lib/knowledge-graph/sectors';
+import { matchesCompanySector, graphSectors, graphTheme } from '@/lib/knowledge-graph/sectors';
 import { sourceDocumentsForEvents, summarizeSourceDocuments, type IntelligenceSourceDocument, type IntelligenceEvent, type IntelligenceSource } from '@/lib/intelligence/model';
 import { useLocale } from './providers/locale-provider';
 import styles from './intelligence-activity-overview.module.css';
@@ -15,7 +15,7 @@ export function IntelligenceActivityOverview({events,documents,complete=false,co
   const sourceDocuments=documents??sourceDocumentsForEvents(events);
   const activity=summarizeSourceDocuments(sourceDocuments,companies.map(company=>company.id),sourceFilter);
   const sources=activity.sources.filter(source=>source.count>0);
-  const sectors=graphSectors(companies.some(company=>company.stageIds?.[0]?.startsWith('robotics:'))?'robotics':'ai').map(sector=>{
+  const sectors=graphSectors(graphTheme(companies)).map(sector=>{
     const ids=new Set(companies.filter(company=>matchesCompanySector(company,sector.id)).map(company=>company.id));
     return {...sector,count:summarizeSourceDocuments(sourceDocuments,[...ids],sourceFilter).signals};
   }).filter(sector=>sector.count>0).sort((a,b)=>b.count-a.count);

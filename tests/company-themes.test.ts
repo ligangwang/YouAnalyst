@@ -9,6 +9,39 @@ import { usMapTickers } from '../src/lib/knowledge-graph/us-companies';
 import { cnMapCompanies } from '../src/lib/knowledge-graph/cn-companies';
 import type { Firestore } from 'firebase-admin/firestore';
 import { loadCollectionCompanies, loadCollectionUniverse, loadThemeCompanies } from '../src/lib/company-themes/service';
+import spaceBatch from '../data/space/company-memberships.json';
+import {planThemeEnrollment,validateThemeBatch} from '../src/lib/company-themes/migration';
+import {themedGraph} from '../src/lib/company-themes/presentation';
+import {themeMetadata} from '../src/lib/company-themes/metadata';
+
+test('Space enrollment preserves overlapping themes, drives job scopes and projects reviewed roles',()=>{
+  validateThemeBatch(spaceBatch,'space');
+  const oldMembership={status:'PUBLISHED' as const,primarySector:'compute',reviewedAt:'2026-01-01'};
+  const rows=spaceBatch.companies.map(proposal=>({id:proposal.id,name:proposal.expectedName,status:'DIRECTORY',themeMemberships:{ai:oldMembership},themeIds:['ai']}));
+  const before=structuredClone(rows),patches=planThemeEnrollment(rows,spaceBatch,'space');
+  const after=rows.map(row=>({...row,...patches.find(patch=>patch.id===row.id)}));
+  assert.deepEqual(rows,before);assert.equal(after.length,31);
+  for(const row of after){assert.deepEqual(row.themeMemberships.ai,oldMembership);assert.deepEqual(row.themeIds,['ai','space']);}
+  assert.equal(planThemeEnrollment(after,spaceBatch,'space').length,0);
+  const union=collectionUniverse(ai,after);
+  for(const proposal of spaceBatch.companies.filter(row=>row.id.startsWith('US:')))assert(usMapTickers(union).includes(proposal.id.slice(3)));
+  for(const proposal of spaceBatch.companies.filter(row=>row.id.startsWith('XSHG:')))assert(cnMapCompanies(union).includes(proposal.id));
+  const graph=themedGraph('space',after);
+  assert.equal(graph.nodes.filter(node=>node.kind==='COMPANY').length,31);
+  assert.equal(graph.relationships.length,0);
+  assert(graph.sources.every(source=>source.sourceDate===null));
+  const rocket=graph.nodes.find(node=>node.id==='US:RKLB')!;
+  assert.deepEqual(rocket.stageIds,['space:launch','space:components','space:spacecraft']);
+  assert.throws(()=>planThemeEnrollment([{...after[0],name:'Other company'},...after.slice(1)],spaceBatch,'space'),/identity changed/);
+});
+
+test('theme metadata identifies Space and Robotics URLs while preserving the AI default',()=>{
+  assert.equal(themeMetadata('space').canonical,'/?theme=space');
+  assert.match(themeMetadata('space').title,/Space Industry Map/);
+  assert.match(themeMetadata('robotics').description,/robotics companies/);
+  assert.equal(themeMetadata(undefined).canonical,'/');
+  assert.deepEqual(themeMetadata('invalid'),themeMetadata('ai'));
+});
 
 const ai: KnowledgeGraph = { nodes: Array.from({ length: 134 }, (_, i) => ({ id: i === 0 ? 'US:NVDA' : `US:AI${i}`, kind: 'COMPANY' as const, name: i === 0 ? batch.companies[0].expectedName : `Company ${i}`, order: i, stageIds: ['compute'] })),
   relationships: [{ id: 'published-contract', source: 'US:NVDA', target: 'US:AI1', type: 'SUPPLIER', summary: 'Reviewed relationship', sourceIds: ['original-source'], commercialStatus: 'SHIPPED' }],

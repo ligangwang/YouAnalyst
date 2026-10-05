@@ -2,16 +2,18 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import IntelligencePage from "@/app/intelligence/page";
 import { localizedMetadata } from "@/lib/i18n/server";
+import { themeMetadata } from "@/lib/company-themes/metadata";
 
 export const dynamic = "force-dynamic";
-export async function generateMetadata({ searchParams }: {searchParams: Promise<{company?:string;relationship?:string}>}): Promise<Metadata> {
+export async function generateMetadata({ searchParams }: {searchParams: Promise<{theme?:string;company?:string;relationship?:string}>}): Promise<Metadata> {
   const p = await searchParams;
-  const image = `/api/research-preview-image?${new URLSearchParams({company:typeof p.company === "string" ? p.company : "",relationship:typeof p.relationship === "string" ? p.relationship : ""})}`;
-  const metadata = await localizedMetadata({ title: "AI Industry Map: AI Stocks & Companies | YouAnalyst", description: "Visual intelligence for investment research. Explore AI stocks, companies, and supply-chain relationships across US and China A-share markets.", alternates: { canonical: "/" }, openGraph:{images:[{url:image,width:1200,height:630}]},twitter:{card:"summary_large_image",images:[image]} });
+  const details=themeMetadata(p.theme);
+  const image = `/api/research-preview-image?${new URLSearchParams({theme:details.theme,company:typeof p.company === "string" ? p.company : "",relationship:typeof p.relationship === "string" ? p.relationship : ""})}`;
+  const metadata = await localizedMetadata({ title:details.title,description:details.description, alternates: { canonical:details.canonical }, openGraph:{images:[{url:image,width:1200,height:630}]},twitter:{card:"summary_large_image",images:[image]} },{usePageCanonical:details.theme!=='ai'});
   const view = new URLSearchParams();
   if(typeof p.company === "string") view.set("company",p.company);
   if(typeof p.relationship === "string") view.set("relationship",p.relationship);
-  if(metadata.openGraph && view.size) metadata.openGraph.url = `${metadata.alternates?.canonical ?? "/en"}?${view}`;
+  if(metadata.openGraph && view.size) metadata.openGraph.url = `${metadata.alternates?.canonical ?? "/en"}${details.theme==='ai'?'?':'&'}${view}`;
   return metadata;
 }
 export default async function Home({ searchParams }: {

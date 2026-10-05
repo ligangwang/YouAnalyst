@@ -742,5 +742,105 @@
     ],
     "pollMs": 3600000,
     "transport": "https"
+  },
+  {
+    "id": "space-rklb-news",
+    "companyId": "US:RKLB",
+    "name": "RKLB official news",
+    "url": "https://investors.rocketlabcorp.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.rocketlabcorp.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-mchp-news",
+    "companyId": "US:MCHP",
+    "name": "MCHP official news",
+    "url": "https://ir.microchip.com/news-events/press-releases/rss",
+    "allowedHosts": [
+      "ir.microchip.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-lmt-news",
+    "companyId": "US:LMT",
+    "name": "LMT official news",
+    "url": "https://news.lockheedmartin.com/news-releases?pagetemplate=rss",
+    "allowedHosts": [
+      "news.lockheedmartin.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-fly-news",
+    "companyId": "US:FLY",
+    "name": "FLY official news",
+    "url": "https://investors.fireflyspace.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.fireflyspace.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-gilt-news",
+    "companyId": "US:GILT",
+    "name": "GILT official news",
+    "url": "https://www.gilat.com/feed/",
+    "allowedHosts": [
+      "www.gilat.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-ktos-news",
+    "companyId": "US:KTOS",
+    "name": "KTOS official news",
+    "url": "https://ir.kratosdefense.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "ir.kratosdefense.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-vsat-news",
+    "companyId": "US:VSAT",
+    "name": "VSAT official news",
+    "url": "https://investors.viasat.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.viasat.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-spir-news",
+    "companyId": "US:SPIR",
+    "name": "SPIR official news",
+    "url": "https://ir.spire.com/news-events/press-releases/rss",
+    "allowedHosts": [
+      "ir.spire.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-lunr-news",
+    "companyId": "US:LUNR",
+    "name": "LUNR official news",
+    "url": "https://investors.intuitivemachines.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.intuitivemachines.com"
+    ],
+    "pollMs": 3600000
+  },
+  {
+    "id": "space-org-varda-space-news",
+    "companyId": "ORG:VARDA-SPACE",
+    "name": "ORG:VARDA-SPACE official news",
+    "url": "https://blog.varda.com/feed",
+    "allowedHosts": [
+      "blog.varda.com"
+    ],
+    "pollMs": 3600000
   }
 ]

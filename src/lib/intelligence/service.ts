@@ -56,11 +56,11 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     let newsCoverage:IntelligenceSnapshot['newsCoverage'];
     if(process.env.INTELLIGENCE_NEWS_ENABLED==='1'&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay);
-      const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY'&&node.id.startsWith('US:')).map(node=>node.id);
+      const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY'&&(theme!=='ai'||node.id.startsWith('US:'))).map(node=>node.id);
       const configured=new Set(NEWS_SOURCES.map(source=>source.companyId));
       const covered=companyIds.filter(id=>configured.has(id)).length;
       newsCoverage={configured:covered,total:companyIds.length,healthy:companyIds.filter(id=>news!.healthyCompanyIds.includes(id)).length};
-      if(covered<companyIds.length)warnings.push(`Verified IR/news feeds cover ${covered} of ${companyIds.length} US-listed ${themeName(theme)} Map companies. SEC disclosures cover companies awaiting an IR adapter.`);
+      if(covered<companyIds.length)warnings.push(`Verified IR/news feeds cover ${covered} of ${companyIds.length} ${theme==='ai'?'US-listed ':''}${themeName(theme)} Map companies. US-listed companies use SEC disclosures and Chinese issuers use exchange filings; other companies require supported official-news adapters.`);
       truncated=truncated||news.truncated;
       if(!news.fresh)warnings.push(`Company news collector freshness is unverified: ${news.unhealthy.join(', ')}.`);
     }catch(error){statisticsComplete=false;console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}

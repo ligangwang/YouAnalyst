@@ -1,0 +1,841 @@
+{
+  "theme": "space",
+  "reviewedAt": "2026-10-04",
+  "companies": [
+    {
+      "id": "US:RKLB",
+      "expectedName": "Rocket Lab Corporation",
+      "primarySector": "launch",
+      "secondaryRoles": [
+        "components",
+        "spacecraft"
+      ],
+      "sources": [
+        {
+          "url": "https://rocketlabcorp.com/about/about-us/",
+          "title": "Rocket Lab Corporation — Space role",
+          "summary": "Launch services, spacecraft, satellite components and on-orbit management."
+        }
+      ],
+      "profile": {
+        "name": "Rocket Lab Corporation",
+        "country": "US",
+        "website": "https://rocketlabcorp.com/about/about-us/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "RKLB"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:RDW",
+      "expectedName": "Redwire Corporation",
+      "primarySector": "components",
+      "secondaryRoles": [
+        "orbital-services"
+      ],
+      "sources": [
+        {
+          "url": "https://redwirespace.com/",
+          "title": "Redwire Corporation — Space role",
+          "summary": "Space power, structures and infrastructure technologies."
+        }
+      ],
+      "profile": {
+        "name": "Redwire Corporation",
+        "country": "US",
+        "website": "https://redwirespace.com/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "RDW"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:MOG.A",
+      "expectedName": "Moog Inc.",
+      "primarySector": "components",
+      "secondaryRoles": [
+        "spacecraft"
+      ],
+      "sources": [
+        {
+          "url": "https://www.moog.com/markets/space/",
+          "title": "Moog Inc. — Space role",
+          "summary": "Motion controls, spacecraft propulsion and satellite buses."
+        }
+      ],
+      "profile": {
+        "name": "Moog Inc.",
+        "country": "US",
+        "website": "https://www.moog.com/markets/space/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "MOG.A"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:MCHP",
+      "expectedName": "Microchip Technology Incorporated",
+      "primarySector": "components",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://ir.microchip.com/news-events/press-releases/detail/5/radiation-tolerant-dc-dc-50-watt-power-converters-provide-high-reliability-solution-for-new-space-applications",
+          "title": "Microchip Technology Incorporated — Space role",
+          "summary": "Space-qualified FPGAs, power devices and radiation-tolerant electronics."
+        }
+      ],
+      "profile": {
+        "name": "Microchip Technology Incorporated",
+        "country": "US",
+        "website": "https://ir.microchip.com/news-events/press-releases/detail/5/radiation-tolerant-dc-dc-50-watt-power-converters-provide-high-reliability-solution-for-new-space-applications",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "MCHP"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:AMD",
+      "expectedName": "Advanced Micro Devices, Inc.",
+      "primarySector": "components",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.amd.com/en/products/adaptive-socs-and-fpgas/versal/space-grade.html",
+          "title": "Advanced Micro Devices, Inc. — Space role",
+          "summary": "Space-grade Versal adaptive SoCs for satellite and space applications."
+        }
+      ],
+      "profile": {
+        "name": "Advanced Micro Devices, Inc.",
+        "country": "US",
+        "website": "https://www.amd.com/en/products/adaptive-socs-and-fpgas/versal/space-grade.html",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "AMD"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:TDY",
+      "expectedName": "Teledyne Technologies Incorporated",
+      "primarySector": "payloads",
+      "secondaryRoles": [
+        "components"
+      ],
+      "sources": [
+        {
+          "url": "https://www.teledynespaceimaging.com/en-us/Products_/Pages/default.aspx",
+          "title": "Teledyne Technologies Incorporated — Space role",
+          "summary": "Space-qualified imaging sensors, focal-plane arrays and cameras."
+        }
+      ],
+      "profile": {
+        "name": "Teledyne Technologies Incorporated",
+        "country": "US",
+        "website": "https://www.teledynespaceimaging.com/en-us/Products_/Pages/default.aspx",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "TDY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:LHX",
+      "expectedName": "L3Harris Technologies, Inc.",
+      "primarySector": "payloads",
+      "secondaryRoles": [
+        "spacecraft",
+        "ground"
+      ],
+      "sources": [
+        {
+          "url": "https://www.l3harris.com/capabilities/space",
+          "title": "L3Harris Technologies, Inc. — Space role",
+          "summary": "Satellite buses, sensing payloads, antennas, ground systems and mission solutions."
+        }
+      ],
+      "profile": {
+        "name": "L3Harris Technologies, Inc.",
+        "country": "US",
+        "website": "https://www.l3harris.com/capabilities/space",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "LHX"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:LMT",
+      "expectedName": "Lockheed Martin Corporation",
+      "primarySector": "spacecraft",
+      "secondaryRoles": [
+        "payloads"
+      ],
+      "sources": [
+        {
+          "url": "https://lockheedmartin.com/en-us/products/lm400.html",
+          "title": "Lockheed Martin Corporation — Space role",
+          "summary": "Multi-mission spacecraft platforms for sensing, communications and imaging."
+        }
+      ],
+      "profile": {
+        "name": "Lockheed Martin Corporation",
+        "country": "US",
+        "website": "https://lockheedmartin.com/en-us/products/lm400.html",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "LMT"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:NOC",
+      "expectedName": "Northrop Grumman Corporation",
+      "primarySector": "spacecraft",
+      "secondaryRoles": [
+        "orbital-services"
+      ],
+      "sources": [
+        {
+          "url": "https://www.northropgrumman.com/what-we-do/space/space-logistics-services",
+          "title": "Northrop Grumman Corporation — Space role",
+          "summary": "Mission-extension spacecraft and robotic satellite servicing."
+        }
+      ],
+      "profile": {
+        "name": "Northrop Grumman Corporation",
+        "country": "US",
+        "website": "https://www.northropgrumman.com/what-we-do/space/space-logistics-services",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "NOC"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:FLY",
+      "expectedName": "Firefly Aerospace Inc.",
+      "primarySector": "launch",
+      "secondaryRoles": [
+        "spacecraft",
+        "orbital-services"
+      ],
+      "sources": [
+        {
+          "url": "https://investors.fireflyspace.com/",
+          "title": "Firefly Aerospace Inc. — Space role",
+          "summary": "Launch, lunar landing and in-space mission services."
+        }
+      ],
+      "profile": {
+        "name": "Firefly Aerospace Inc.",
+        "country": "US",
+        "website": "https://investors.fireflyspace.com/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "FLY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:GILT",
+      "expectedName": "Gilat Satellite Networks Ltd.",
+      "primarySector": "ground",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.gilat.com/markets/land/",
+          "title": "Gilat Satellite Networks Ltd. — Space role",
+          "summary": "Satellite terminals and multi-orbit ground communications equipment."
+        }
+      ],
+      "profile": {
+        "name": "Gilat Satellite Networks Ltd.",
+        "country": "IL",
+        "website": "https://www.gilat.com/markets/land/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "GILT"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:KTOS",
+      "expectedName": "Kratos Defense & Security Solutions, Inc.",
+      "primarySector": "ground",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.kratosspace.com/virtual-ground/openspace-architecture",
+          "title": "Kratos Defense & Security Solutions, Inc. — Space role",
+          "summary": "Software-defined satellite ground systems and network orchestration."
+        }
+      ],
+      "profile": {
+        "name": "Kratos Defense & Security Solutions, Inc.",
+        "country": "US",
+        "website": "https://www.kratosspace.com/virtual-ground/openspace-architecture",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "KTOS"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:VSAT",
+      "expectedName": "Viasat Inc.",
+      "primarySector": "operators",
+      "secondaryRoles": [
+        "ground"
+      ],
+      "sources": [
+        {
+          "url": "https://www.viasat.com/about/",
+          "title": "Viasat, Inc. — Space role",
+          "summary": "Satellite connectivity networks and communications systems."
+        }
+      ],
+      "profile": {
+        "name": "Viasat, Inc.",
+        "country": "US",
+        "website": "https://www.viasat.com/about/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "VSAT"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:IRDM",
+      "expectedName": "Iridium Communications Inc.",
+      "primarySector": "operators",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.iridium.com/network",
+          "title": "Iridium Communications Inc. — Space role",
+          "summary": "Global satellite communications network and services."
+        }
+      ],
+      "profile": {
+        "name": "Iridium Communications Inc.",
+        "country": "US",
+        "website": "https://www.iridium.com/network",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "IRDM"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:GSAT",
+      "expectedName": "Globalstar, Inc.",
+      "primarySector": "operators",
+      "secondaryRoles": [
+        "ground"
+      ],
+      "sources": [
+        {
+          "url": "https://www.globalstar.com/",
+          "title": "Globalstar, Inc. — Space role",
+          "summary": "Satellite communications network and user connectivity solutions."
+        }
+      ],
+      "profile": {
+        "name": "Globalstar, Inc.",
+        "country": "US",
+        "website": "https://www.globalstar.com/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "GSAT"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:ASTS",
+      "expectedName": "AST SpaceMobile, Inc.",
+      "primarySector": "operators",
+      "secondaryRoles": [
+        "spacecraft"
+      ],
+      "sources": [
+        {
+          "url": "https://ast-science.com/how-it-works/",
+          "title": "AST SpaceMobile, Inc. — Space role",
+          "summary": "Space-based cellular broadband satellites and network architecture; deployment status must be read in current releases."
+        }
+      ],
+      "profile": {
+        "name": "AST SpaceMobile, Inc.",
+        "country": "US",
+        "website": "https://ast-science.com/how-it-works/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "ASTS"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:AMZN",
+      "expectedName": "Amazon.com, Inc.",
+      "primarySector": "operators",
+      "secondaryRoles": [
+        "spacecraft",
+        "ground"
+      ],
+      "sources": [
+        {
+          "url": "https://www.aboutamazon.com/what-we-do/devices-services/amazon-leo",
+          "title": "Amazon.com, Inc. — Space role",
+          "summary": "Amazon Leo satellite broadband constellation, optical links and gateway network; the parent company is the canonical identity."
+        }
+      ],
+      "profile": {
+        "name": "Amazon.com, Inc.",
+        "country": "US",
+        "website": "https://www.aboutamazon.com/what-we-do/devices-services/amazon-leo",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "AMZN"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:PL",
+      "expectedName": "PLANET LABS PBC",
+      "primarySector": "applications",
+      "secondaryRoles": [
+        "operators"
+      ],
+      "sources": [
+        {
+          "url": "https://docs.planet.com/data/",
+          "title": "Planet Labs PBC — Space role",
+          "summary": "Satellite imagery and Earth-observation data products from operated constellations."
+        }
+      ],
+      "profile": {
+        "name": "Planet Labs PBC",
+        "country": "US",
+        "website": "https://docs.planet.com/data/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "PL"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:BKSY",
+      "expectedName": "BlackSky Technology Inc.",
+      "primarySector": "applications",
+      "secondaryRoles": [
+        "operators"
+      ],
+      "sources": [
+        {
+          "url": "https://ir.blacksky.com/overview/default.aspx",
+          "title": "BlackSky Technology Inc. — Space role",
+          "summary": "Space-based imagery, tasking and intelligence analytics using its own constellation."
+        }
+      ],
+      "profile": {
+        "name": "BlackSky Technology Inc.",
+        "country": "US",
+        "website": "https://ir.blacksky.com/overview/default.aspx",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "BKSY"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:SPIR",
+      "expectedName": "Spire Global Inc.",
+      "primarySector": "applications",
+      "secondaryRoles": [
+        "spacecraft",
+        "ground",
+        "operators"
+      ],
+      "sources": [
+        {
+          "url": "https://spire.com/space-services/",
+          "title": "Spire Global, Inc. — Space role",
+          "summary": "Space data services, satellite platforms, manufacturing and ground-network mission services."
+        }
+      ],
+      "profile": {
+        "name": "Spire Global, Inc.",
+        "country": "US",
+        "website": "https://spire.com/space-services/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NYSE",
+            "symbol": "SPIR"
+          }
+        ]
+      }
+    },
+    {
+      "id": "US:LUNR",
+      "expectedName": "Intuitive Machines, Inc.",
+      "primarySector": "orbital-services",
+      "secondaryRoles": [
+        "spacecraft"
+      ],
+      "sources": [
+        {
+          "url": "https://www.intuitivemachines.com/missions/lunar",
+          "title": "Intuitive Machines, Inc. — Space role",
+          "summary": "Lunar delivery missions, spacecraft integration and communications infrastructure."
+        }
+      ],
+      "profile": {
+        "name": "Intuitive Machines, Inc.",
+        "country": "US",
+        "website": "https://www.intuitivemachines.com/missions/lunar",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "LUNR"
+          }
+        ]
+      }
+    },
+    {
+      "id": "XSHG:600118",
+      "expectedName": "中国卫星",
+      "primarySector": "spacecraft",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://big5.sse.com.cn/site/cht/www.sse.com.cn/disclosure/listedinfo/announcement/c/new/2026-04-22/600118_20260422_HWC8.pdf",
+          "title": "China Spacesat Co., Ltd. — Space role",
+          "summary": "Small-satellite platforms, development and manufacturing."
+        }
+      ],
+      "profile": {
+        "name": "China Spacesat Co., Ltd.",
+        "country": "CN",
+        "website": "https://www.spacesat.com.cn/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "CN_A",
+            "exchange": "XSHG",
+            "symbol": "600118"
+          }
+        ]
+      }
+    },
+    {
+      "id": "XSHG:600879",
+      "expectedName": "航天电子",
+      "primarySector": "components",
+      "secondaryRoles": [
+        "ground"
+      ],
+      "sources": [
+        {
+          "url": "https://www.spacechina.com/n25/n142/n162/n4623/index.html",
+          "title": "China Aerospace Times Electronics Co., Ltd. — Space role",
+          "summary": "Space electronics, telemetry, guidance and components for rockets, satellites and ground receivers."
+        }
+      ],
+      "profile": {
+        "name": "China Aerospace Times Electronics Co., Ltd.",
+        "country": "CN",
+        "website": "https://www.spacechina.com/n25/n142/n162/n4623/index.html",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "CN_A",
+            "exchange": "XSHG",
+            "symbol": "600879"
+          }
+        ]
+      }
+    },
+    {
+      "id": "XSHG:601698",
+      "expectedName": "中国卫通",
+      "primarySector": "operators",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.chinasatcom.com/",
+          "title": "China Satellite Communications Co., Ltd. — Space role",
+          "summary": "Satellite fleet operations and communications services."
+        }
+      ],
+      "profile": {
+        "name": "China Satellite Communications Co., Ltd.",
+        "country": "CN",
+        "website": "https://www.chinasatcom.com/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "CN_A",
+            "exchange": "XSHG",
+            "symbol": "601698"
+          }
+        ]
+      }
+    },
+    {
+      "id": "XSHG:688066",
+      "expectedName": "*ST航图",
+      "primarySector": "applications",
+      "secondaryRoles": [
+        "operators"
+      ],
+      "sources": [
+        {
+          "url": "https://www.piesat.cn/",
+          "title": "PIESAT Information Technology Co., Ltd. — Space role",
+          "summary": "Nuwa radar satellite constellation and remote-sensing software, cloud and application services."
+        }
+      ],
+      "profile": {
+        "name": "PIESAT Information Technology Co., Ltd.",
+        "country": "CN",
+        "website": "https://www.piesat.cn/",
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "CN_A",
+            "exchange": "XSHG",
+            "symbol": "688066"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ORG:SPACEX",
+      "expectedName": "SpaceX",
+      "primarySector": "launch",
+      "secondaryRoles": [
+        "spacecraft",
+        "operators",
+        "ground"
+      ],
+      "sources": [
+        {
+          "url": "https://www.starlink.com/technology",
+          "title": "SpaceX — Space role",
+          "summary": "SpaceX-built Starlink spacecraft and satellite communications network, terminals and launch access."
+        },
+        {
+          "url": "https://www.spacex.com/vehicles/falcon-9/",
+          "title": "SpaceX Falcon 9",
+          "summary": "Reusable launch vehicle for spacecraft and satellite missions."
+        }
+      ],
+      "profile": {
+        "name": "SpaceX",
+        "country": "US",
+        "website": "https://www.spacex.com/",
+        "listingStatus": "UNKNOWN",
+        "listings": []
+      }
+    },
+    {
+      "id": "ORG:BLUE-ORIGIN",
+      "expectedName": "Blue Origin",
+      "primarySector": "launch",
+      "secondaryRoles": [
+        "orbital-services"
+      ],
+      "sources": [
+        {
+          "url": "https://www.blueorigin.com/new-glenn",
+          "title": "Blue Origin — Space role",
+          "summary": "Reusable launch vehicles; its in-space transport platform is a separate role."
+        },
+        {
+          "url": "https://www.blueorigin.com/blue-ring",
+          "title": "Blue Origin Blue Ring",
+          "summary": "In-space mobility and hosted infrastructure platform; membership does not imply every planned mission has launched."
+        }
+      ],
+      "profile": {
+        "name": "Blue Origin",
+        "country": "US",
+        "website": "https://www.blueorigin.com/",
+        "listingStatus": "UNKNOWN",
+        "listings": []
+      }
+    },
+    {
+      "id": "ORG:CESIUMASTRO",
+      "expectedName": "CesiumAstro",
+      "primarySector": "payloads",
+      "secondaryRoles": [
+        "spacecraft",
+        "ground"
+      ],
+      "sources": [
+        {
+          "url": "https://www.cesiumastro.com/mission-systems",
+          "title": "CesiumAstro — Space role",
+          "summary": "Phased-array payloads, spacecraft, RF components and ground terminals."
+        }
+      ],
+      "profile": {
+        "name": "CesiumAstro",
+        "country": "US",
+        "website": "https://www.cesiumastro.com/",
+        "listingStatus": "UNKNOWN",
+        "listings": []
+      }
+    },
+    {
+      "id": "ORG:AXIOM-SPACE",
+      "expectedName": "Axiom Space",
+      "primarySector": "orbital-services",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://axiomspace.com/axiom-station",
+          "title": "Axiom Space — Space role",
+          "summary": "Commercial space-station modules under development; membership does not claim the full station is operating."
+        }
+      ],
+      "profile": {
+        "name": "Axiom Space",
+        "country": "US",
+        "website": "https://www.axiomspace.com/",
+        "listingStatus": "UNKNOWN",
+        "listings": []
+      }
+    },
+    {
+      "id": "ORG:VARDA-SPACE",
+      "expectedName": "Varda Space Industries",
+      "primarySector": "orbital-services",
+      "secondaryRoles": [
+        "spacecraft"
+      ],
+      "sources": [
+        {
+          "url": "https://www.varda.com/platform",
+          "title": "Varda Space Industries — Space role",
+          "summary": "Microgravity processing spacecraft and reentry capsules."
+        }
+      ],
+      "profile": {
+        "name": "Varda Space Industries",
+        "country": "US",
+        "website": "https://www.varda.com/",
+        "listingStatus": "UNKNOWN",
+        "listings": []
+      }
+    },
+    {
+      "id": "ORG:D-ORBIT",
+      "expectedName": "D-Orbit",
+      "primarySector": "orbital-services",
+      "secondaryRoles": [
+        "spacecraft"
+      ],
+      "sources": [
+        {
+          "url": "https://www.dorbit.space/",
+          "title": "D-Orbit — Space role",
+          "summary": "In-orbit transportation and satellite deployment services."
+        }
+      ],
+      "profile": {
+        "name": "D-Orbit",
+        "country": "IT",
+        "website": "https://www.dorbit.space/",
+        "listingStatus": "UNKNOWN",
+        "listings": []
+      }
+    }
+  ]
+}

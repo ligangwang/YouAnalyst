@@ -70,7 +70,7 @@ test('enabled official news arrives through the shared snapshot with current sou
     let newsReads=0;const filters:unknown[][]=[];
     const db={collection:(name:string)=>{
       const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,500);return query;},get:async()=>{if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
-    },getAll:async(...refs:unknown[])=>{assert.equal(refs.length,NEWS_SOURCES.length);return refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}));}};
+    },getAll:async(...refs:unknown[])=>{assert.deepEqual(refs,NEWS_SOURCES.filter(source=>graph.nodes.some(node=>node.id===source.companyId)).map(source=>({id:source.id})));return refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}));}};
     const service=await isolated(db,async()=>graph);
     const snapshot=await service.loadIntelligenceSnapshot(now);
     assert.equal(snapshot.coverage.find(item=>item.channel==='IR')?.status,'connected');

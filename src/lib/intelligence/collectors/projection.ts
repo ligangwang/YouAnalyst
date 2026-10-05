@@ -31,17 +31,19 @@ export function projectCollectedNews(records:Record<string,unknown>[],graph:Know
   });
 }
 export async function loadCollectedNews(db:Firestore,graph:KnowledgeGraph,now:Date,earliestDay:string,limit?:number){
+  const companyIds=new Set(graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id));
+  const sources=NEWS_SOURCES.filter(source=>companyIds.has(source.companyId));
   const typed=()=>db.collection(NEWS_EVENTS_COLLECTION).where('type','==','company_news').where('sourceType','==','company_ir');
   const read=(query:ReturnType<typeof typed>)=>limit===undefined?readPeriodDocuments(query):query.limit(limit+1).get().then(page=>page.docs);
   const [page,dated,states]=await Promise.all([
     read(typed().where('published_at','>=',`${earliestDay}T00:00:00.000Z`).orderBy('published_at','desc')),
     read(typed().where('published_at','==',null).where('publication_date','>=',earliestDay).orderBy('publication_date','desc')),
-    db.getAll(...NEWS_SOURCES.map(source=>db.collection(NEWS_COLLECTORS_COLLECTION).doc(source.id))),
+    sources.length?db.getAll(...sources.map(source=>db.collection(NEWS_COLLECTORS_COLLECTION).doc(source.id))):Promise.resolve([]),
   ]);
-  const unhealthy=NEWS_SOURCES.filter((source,index)=>{
+  const unhealthy=sources.filter((source,index)=>{
     const state=states[index].data();
     return !newsCollectorIsFresh(state?.lastSuccessAt,state?.failures,state?.partial,now,source.pollMs);
   });
   const events=[...new Map(projectCollectedNews([...page,...dated].map(doc=>doc.data()),graph,now).map(event=>[event.id,event])).values()].sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date));
-  return {events:limit===undefined?events:events.slice(0,limit),truncated:limit!==undefined&&(page.length>limit||dated.length>limit||events.length>limit),fresh:unhealthy.length===0,unhealthy:unhealthy.map(source=>source.name),healthyCompanyIds:NEWS_SOURCES.filter(source=>!unhealthy.includes(source)).map(source=>source.companyId)};
+  return {events:limit===undefined?events:events.slice(0,limit),truncated:limit!==undefined&&(page.length>limit||dated.length>limit||events.length>limit),fresh:unhealthy.length===0,unhealthy:unhealthy.map(source=>source.name),healthyCompanyIds:sources.filter(source=>!unhealthy.includes(source)).map(source=>source.companyId)};
 }
