@@ -3,24 +3,82 @@ import {build} from 'esbuild';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import path from 'node:path';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
+import {accelerateTours,tourClockPlugin} from './fixtures/tour-clock';
 
 const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',kind:'COMPANY',order:1,stageIds:['optics']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']},{id:'US:MEM',symbol:'MEM',name:'Memory Supplier',summary:'Memory partner',kind:'COMPANY',order:4,stageIds:['memory']}];
 const events=Array.from({length:200},(_,i)=>({id:`event-${i}`,origin:'US:MU',companyIds:['US:MU'],edgeIds:[],category:'BUSINESS',title:`Published company update ${i+1}`,summary:`Source summary ${i+1}`,published_at:null,publication_date:'2026-10-02',eventDate:null,evidence:[{id:`source-${i}`,url:`https://investors.example.com/${i}`,title:`Original release ${i+1}`,sourceDate:'2026-10-02',channel:'IR'}],planned:false}));
 events[1].companyIds=['US:MU','US:MEM','US:MULT','US:LITE','US:UNKNOWN'];
 const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],sources:[]},graphVersion:'fixture',events,generatedAt:'2026-10-04T16:00:00Z',session:{date:'2026-10-04',timeZone:'America/New_York',startAt:'2026-10-04T04:00:00Z',endAt:'2026-10-05T04:00:00Z'},coverage:[{channel:'IR',status:'connected'}],sourceDocuments:Array.from({length:350},(_,i)=>({id:`https://investors.example.com/${i}`,channel:'IR',companyIds:['US:MU'],published_at:null,publication_date:'2026-10-02'})),statisticsComplete:true,warnings:[],truncated:true,limit:200} as IntelligenceSnapshot;
 let html:string;
-test.beforeAll(async()=>{
+async function workspaceFixture(realCharts=false){
   const bundled=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(snapshot)}}/>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,outfile:'fixture.js',platform:'browser',jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
-    build.onResolve({filter:/(?:company-graph-3d|industry-tree-scene|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
+    build.onResolve({filter:realCharts?/(?:locale-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
     build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
-  }}]});
-  html=`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}${bundled.outputFiles.find(file=>file.path.endsWith('.css'))?.text??''}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file=>file.path.endsWith('.js'))!.text.replaceAll('</script','<\\/script')}</script></body></html>`;
+  }},...(realCharts?[tourClockPlugin]:[])]});
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}${bundled.outputFiles.find(file=>file.path.endsWith('.css'))?.text??''}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file=>file.path.endsWith('.js'))!.text.replaceAll('</script','<\\/script')}</script></body></html>`;
+}
+test.beforeAll(async()=>{
+  html=await workspaceFixture();
   if(process.env.INTELLIGENCE_PREVIEW_OUT){const directory=process.env.INTELLIGENCE_PREVIEW_OUT;mkdirSync(path.join(directory,'api'),{recursive:true});writeFileSync(path.join(directory,'index.html'),html);writeFileSync(path.join(directory,'api/intelligence'),JSON.stringify(snapshot));}
 });
 async function open(page:import('@playwright/test').Page,zh=false){
   await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404,body:''}));
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
+
+test('committed theme changes restart real chart tours and tree growth without replacing the workspace',async({page},info)=>{
+  test.skip(info.project.name!=='desktop','One shared chart lifecycle regression');test.setTimeout(60000);
+  await page.setViewportSize({width:1500,height:800});await accelerateTours(page);
+  const realHtml=await workspaceFixture(true);
+  const robotics:IntelligenceSnapshot={...snapshot,theme:'robotics',graphVersion:'robotics-lifecycle',graph:{...snapshot.graph,nodes:[
+    {id:'US:NVDA',symbol:'NVDA',name:'NVIDIA',kind:'COMPANY',order:0,stageIds:['robotics:compute-control']},
+    {id:'US:ROK',symbol:'ROK',name:'Rockwell',kind:'COMPANY',order:1,stageIds:['robotics:systems-integration']}]},events:[],sourceDocuments:[]};
+  let release!:()=>void;const ready=new Promise<void>(resolve=>{release=resolve;});
+  await page.route('**/*',async route=>{
+    if(route.request().url().includes('/api/intelligence')){
+      const theme=new URL(route.request().url()).searchParams.get('theme');
+      if(theme==='robotics')await ready;
+      return route.fulfill({json:theme==='robotics'?robotics:snapshot});
+    }
+    return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:realHtml}):route.fulfill({status:404,body:''});
+  });
+  await page.goto('http://workspace.test/?view=graph');
+  const workspace=await page.locator('main').elementHandle();
+  const theme=page.getByRole('combobox',{name:'Investment theme',exact:true}),speed=page.getByRole('combobox',{name:'Tour speed'});
+  await speed.selectOption('2');
+  const canvas=page.locator('canvas');await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
+  const oldGraph=await canvas.elementHandle();
+  await theme.selectOption('robotics');
+  await expect(page.getByRole('status').filter({hasText:'Loading Robotics…'})).toBeVisible();
+  expect(await oldGraph!.evaluate(element=>element.isConnected)).toBe(true);
+  release();await expect(page.getByRole('status').filter({hasText:'Loading Robotics…'})).toHaveCount(0);
+  await expect.poll(()=>oldGraph!.evaluate(element=>element.isConnected)).toBe(false);
+  await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
+  const position=await canvas.getAttribute('data-camera-position');
+  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(position);
+  await expect(speed).toHaveValue('2');expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);
+  await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
+  const tree=page.locator('[data-industry-section="vertical"]');
+  await expect(tree.locator('canvas')).toHaveAttribute('data-tour','playing');
+  await expect(tree.locator('[data-tree-node="root"]')).toContainText('Robotics industry');
+  const oldTree=await tree.locator('canvas').elementHandle();
+  await theme.selectOption('ai');
+  await expect.poll(()=>oldTree!.evaluate(element=>element.isConnected)).toBe(false);
+  await expect(tree.locator('canvas')).toHaveAttribute('data-tour','playing');
+  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
+  await expect(tree.locator('[data-tree-company="US:MU"]')).toBeAttached();
+  await expect(tree.locator('[data-tree-node^="robotics:"]')).toHaveCount(0);
+  await theme.selectOption('robotics');
+  await expect(tree.locator('[data-tree-node="root"]')).toContainText('Robotics industry');
+  await expect(tree.locator('canvas')).toHaveAttribute('data-tour','playing');
+  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
+  await expect(tree.locator('[data-tree-company="US:ROK"]')).toBeAttached();
+  await expect(tree.locator('[data-tree-company="US:MU"]')).toHaveCount(0);
+  const treePosition=await tree.locator('canvas').getAttribute('data-camera-position');
+  await expect.poll(()=>tree.locator('canvas').getAttribute('data-camera-position')).not.toBe(treePosition);
+  await expect(page.getByRole('tab',{name:'Industry tree',exact:true})).toHaveAttribute('aria-selected','true');
+  expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);
+});
 test('shared periods, exact ticker search and selected sources remain visible above a capped feed',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Desktop workspace checks');await page.setViewportSize({width:1500,height:800});await open(page);
   const panel=page.getByRole('complementary',{name:'Events and sources'});
@@ -140,7 +198,8 @@ test('one theme selector switches companies and sources, clears stale filters, r
     if(theme==='ai'&&holdAi)await aiReady;
     await route.fulfill({json:theme==='space'?space:theme==='robotics'?robotics:replayableAi});
   });
-  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  // Start with the replacement route installed; a focus event can race the initial in-flight refresh.
+  await page.reload();
   await expect(page.getByRole('button',{name:'Replay',exact:true})).toBeEnabled();
   const workspace=await page.locator('main').elementHandle();
   await page.getByRole('button',{name:'Save MU',exact:true}).click();
