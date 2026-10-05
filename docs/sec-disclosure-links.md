@@ -23,8 +23,10 @@ email/push delivery or new subscription settings.
 
 Coverage version 2 backfills from 2026-01-01 even for initialized issuers. Progress
 uses `collectors/sec-{companyId}.linkScan` and batches of at most 100 records, with
-a 1,000-row per-company pass limit and the shared job deadline. Partial scans resume
-after the last committed date/accession; they do not advance `lastCompleteAt` or
+a 1,000-row per-company pass limit, five archive pages per pass and the shared job
+deadline. Partial scans resume within each page after the last committed
+date/accession and skip already completed archives, including archive sets above
+twenty pages; they do not advance `lastCompleteAt` or
 the coverage version until complete. The frozen scan end date prevents a resumed
 historical scan from claiming coverage of subsequent days. Regular complete scans
 retain the seven-day overlap. Existing event IDs and first collection/processing

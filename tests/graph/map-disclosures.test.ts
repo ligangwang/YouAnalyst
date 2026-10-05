@@ -36,6 +36,7 @@ test('all SEC form links enter the feed, including ownership XSL paths, amendmen
   assert.equal(rows[1].filingCategory,'insider_ownership');assert.match(rows[1].url,/\/xslF345X06\/ownership.xml$/);
   assert.equal(rows[7].filingCategory,'major_ownership');assert.equal(rows[8].filingCategory,'proxy');assert.equal(rows[9].filingCategory,'merger_tender');
   assert.equal(rows[11].filingCategory,'offering');assert.equal(rows[15].filingCategory,'late_filing');assert.equal(rows[17].filingCategory,'other');
+  assert.equal(secFilingCategory('DEFC14A'),'proxy');assert.equal(secFilingCategory('PREC14A/A'),'proxy');assert.equal(secFilingCategory('DEFM14A'),'merger_tender');
   assert.match(rows[18].url,/0000723125-26-000019-index.html$/);assert.equal(secFilingCategory('13F-HR'),'other');
   assert.equal(projectDisclosures(rows,graph,new Date('2026-10-03T12:00:00Z')).length,forms.length);
   // Broad event links never widen the financial extraction/outbox contract.
@@ -113,6 +114,24 @@ test('SEC persistence failures replay their uncommitted batch and never advance 
   const retry=createMapSecObserver(fx.db,ids,{deadline:fx.now()+60000,now:fx.now});
   await retry.observe('0000723125',raw,async()=>null);
   assert.equal(retry.failed.size,0);assert.equal([...fx.rows.keys()].filter(key=>key.startsWith('events/')).length,1);
+});
+test('SEC archive sets above twenty files resume by page without refetching completed pages',async()=>{
+  const fx=earningsFirestore(),ids=new Map([['0000723125',['US:MU']]]),calls:string[]=[];
+  const files=Array.from({length:25},(_,i)=>({name:`CIK0000723125-submissions-${i+1}.json`,filingFrom:'2026-01-01',filingTo:'2026-01-31'}));
+  const raw={...payload,filings:{...payload.filings,files}};
+  const archive=async(name:string)=>{
+    calls.push(name);const number=files.findIndex(file=>file.name===name)+1;
+    return {form:['4'],accessionNumber:[`0000723125-26-${String(number+100).padStart(6,'0')}`],filingDate:['2026-01-15'],primaryDocument:['xslF345X06/ownership.xml']};
+  };
+  for(let run=0;run<3;run++){
+    const collector=createMapSecObserver(fx.db,ids,{deadline:fx.now()+60000,now:fx.now,maxArchivesPerCompany:10});
+    await collector.observe('0000723125',raw,archive);
+    assert.equal(collector.failed.size,run===2?0:1);
+    assert.equal(fx.rows.get('collectors/sec-US:MU')?.linkCoverageVersion,run===2?SEC_LINK_COVERAGE_VERSION:undefined);
+  }
+  assert.equal(calls.length,25);assert.equal(new Set(calls).size,25);
+  assert.equal([...fx.rows.keys()].filter(path=>path.startsWith('events/')).length,26);
+  assert.equal(fx.rows.get('collectors/sec-US:MU')?.documents,26);assert.equal(fx.rows.get('collectors/sec-US:MU')?.created,26);
 });
 test('China non-pilot announcements reach universal events; incomplete scans retain their checkpoint',async()=>{
   const fx=earningsFirestore();

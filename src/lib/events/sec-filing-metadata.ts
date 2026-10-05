@@ -7,7 +7,7 @@ export function secFilingCategory(form:string):SecFilingCategory {
   if (/^(?:8-K|6-K)$/.test(base)) return 'current_report';
   if (/^(?:3|4|5|144)$/.test(base)) return 'insider_ownership';
   if (/^(?:SC|SCHEDULE) 13[DG]$/.test(base)) return 'major_ownership';
-  if (/^(?:S-4|F-4|425|SC TO-[ITC]|SC 14D9|(?:PRE|DEF)[MC]14A)$/.test(base)) return 'merger_tender';
+  if (/^(?:S-4|F-4|425|SC TO-[ITC]|SC 14D9|(?:PRE|DEF)M14A)$/.test(base)) return 'merger_tender';
   if (/^(?:(?:PRE|DEF).*14[AC]|PX14A.*)$/.test(base)) return 'proxy';
   if (/^(?:[SF]-\d.*|424[A-Z]\d*|FWP|EFFECT)$/.test(base)) return 'offering';
   if (/^NT (?:10-K|10-Q|20-F|40-F)$/.test(base)) return 'late_filing';
