@@ -8,7 +8,7 @@ import { NEWS_SOURCES } from '../src/lib/intelligence/collectors/sources';
 import { usMapTickers } from '../src/lib/knowledge-graph/us-companies';
 import { cnMapCompanies } from '../src/lib/knowledge-graph/cn-companies';
 import type { Firestore } from 'firebase-admin/firestore';
-import { loadCollectionCompanies, loadThemeCompanies } from '../src/lib/company-themes/service';
+import { loadCollectionCompanies, loadCollectionUniverse, loadThemeCompanies } from '../src/lib/company-themes/service';
 
 const ai: KnowledgeGraph = { nodes: Array.from({ length: 134 }, (_, i) => ({ id: i === 0 ? 'US:NVDA' : `US:AI${i}`, kind: 'COMPANY' as const, name: i === 0 ? batch.companies[0].expectedName : `Company ${i}`, order: i, stageIds: ['compute'] })),
   relationships: [{ id: 'published-contract', source: 'US:NVDA', target: 'US:AI1', type: 'SUPPLIER', summary: 'Reviewed relationship', sourceIds: ['original-source'], commercialStatus: 'SHIPPED' }],
@@ -74,4 +74,16 @@ test('indexed theme reads reject stale array entries and combined enrollment ded
   }).map(row => ({ id: row.id, data: () => row })) }) }) }; } } as unknown as Firestore;
   assert.deepEqual((await loadThemeCompanies('robotics', db)).map(row => row.id), ['US:NVDA']);
   assert.deepEqual((await loadCollectionCompanies(db)).map(row => row.id), ['US:NVDA']);
+});
+
+test('withdrawn AI enrollment overrides legacy graph flags while neighbors and another published theme remain eligible', async () => {
+  const record: ThemedCompany = { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', themeIds: [], aiGraph: { status: 'PUBLISHED' }, themeMemberships: { ai: { status: 'WITHDRAWN', primarySector: 'compute', reviewedAt: '2026-10-04' } } };
+  const db = { collection: () => ({ where: (field: string) => ({ get: async () => ({ docs: field === 'aiGraph.status' ? [{ id: record.id, data: () => record }] : [] }) }) }) } as unknown as Firestore;
+  const excluded = await loadCollectionUniverse(db, ai);
+  assert(!usMapTickers(excluded).includes('NVDA'));
+  assert.equal(excluded.nodes.filter(node => node.kind === 'COMPANY').length, 133);
+  assert(excluded.nodes.some(node => node.id === 'US:AI1'), 'Relationship-only neighbor must survive');
+  record.themeMemberships!.robotics = { status: 'PUBLISHED', primarySector: 'compute-control', reviewedAt: '2026-10-04' };
+  record.themeIds = ['robotics'];
+  assert(usMapTickers(await loadCollectionUniverse(db, ai)).includes('NVDA'));
 });

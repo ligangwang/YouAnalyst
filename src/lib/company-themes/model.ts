@@ -32,7 +32,14 @@ export function isCollectionCompany(company: ThemedCompany) {
 
 /** Job scope is the unique union, not a graph layout or a second company store. */
 export function collectionUniverse(legacy: KnowledgeGraph, records: ThemedCompany[]): KnowledgeGraph {
-  const companies = new Map(legacy.nodes.filter(node => node.kind === 'COMPANY').map(node => [node.id, node]));
+  const byId = new Map(records.map(company => [company.id, company]));
+  const companies = new Map(legacy.nodes.filter(node => {
+    if (node.kind !== 'COMPANY') return false;
+    const company = byId.get(node.id);
+    // Missing membership records can be relationship-only neighbors. An explicit
+    // AI decision overrides its legacy graph flag, unless another theme enrolls it.
+    return !company?.themeMemberships?.ai || isCollectionCompany(company);
+  }).map(node => [node.id, node]));
   for (const company of records.filter(isCollectionCompany)) {
     if (companies.has(company.id)) continue;
     const membership = Object.values(company.themeMemberships ?? {}).find(value => value.status === 'PUBLISHED');

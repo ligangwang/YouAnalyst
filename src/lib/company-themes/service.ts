@@ -12,18 +12,22 @@ export async function loadThemeCompanies(theme: CompanyThemeId, db = getAdminFir
     .filter(company => isCollectionCompany(company) && company.themeMemberships?.[theme]?.status === 'PUBLISHED');
 }
 
-/** Read published memberships from companies, retaining legacy AI enrollment. */
-export async function loadCollectionCompanies(db: Firestore) {
+/** Include negative decisions so legacy graph enrollment cannot override them. */
+async function loadEnrollmentRecords(db: Firestore) {
   const snapshots = await Promise.all([
     db.collection('companies').where('themeIds', 'array-contains-any', [...COMPANY_THEMES]).get(),
     db.collection('companies').where('inGraph.status', '==', 'PUBLISHED').get(),
     db.collection('companies').where('aiGraph.status', '==', 'PUBLISHED').get(),
   ]);
-  return [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(doc => [doc.id, doc])).values()]
-    .filter(doc => isCollectionCompany({ ...doc.data(), id: doc.id } as ThemedCompany));
+  return [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(doc => [doc.id, doc])).values()];
+}
+
+/** Read published memberships from companies, retaining legacy AI enrollment. */
+export async function loadCollectionCompanies(db: Firestore) {
+  return (await loadEnrollmentRecords(db)).filter(doc => isCollectionCompany({ ...doc.data(), id: doc.id } as ThemedCompany));
 }
 
 export async function loadCollectionUniverse(db = getAdminFirestore(), legacy?: KnowledgeGraph) {
-  const [graph, companies] = await Promise.all([legacy ?? loadKnowledgeGraph(), loadCollectionCompanies(db)]);
+  const [graph, companies] = await Promise.all([legacy ?? loadKnowledgeGraph(), loadEnrollmentRecords(db)]);
   return collectionUniverse(graph, companies.map(doc => ({ ...doc.data(), id: doc.id } as ThemedCompany)));
 }
