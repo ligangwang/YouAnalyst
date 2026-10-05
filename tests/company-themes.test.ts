@@ -37,7 +37,7 @@ test('Space enrollment preserves overlapping themes, drives job scopes and proje
 
 test('theme metadata identifies Space and Robotics URLs while preserving the AI default',()=>{
   assert.equal(themeMetadata('space').canonical,'/?theme=space');
-  for (const theme of ['ai','robotics','space']) assert.equal(themeMetadata(theme).title,'AI/Robotics/Space Stocks & Companies | YouAnalyst');
+  for (const theme of ['ai','robotics','space']) assert.equal(themeMetadata(theme).title,'AI, Robotics & Space Stocks and Companies | YouAnalyst');
   assert.match(themeMetadata('robotics').description,/robotics companies/);
   assert.equal(themeMetadata(undefined).canonical,'/');
   assert.deepEqual(themeMetadata('invalid'),themeMetadata('ai'));
