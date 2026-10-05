@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { loadKnowledgeGraph } from '../knowledge-graph/service';
+import { loadCollectionUniverse } from '../company-themes/service';
 import type { KnowledgeGraph } from '../knowledge-graph/model';
 import { mapListedCompanies } from '../events/disclosures';
 import { configureEarningsMap } from './issuers';
@@ -9,7 +9,7 @@ import { configureEarningsMap } from './issuers';
  * until the shared SEC scanner resolves them; source payloads cannot enroll one.
  */
 export async function loadEarningsMap(db: Firestore, graph?: KnowledgeGraph) {
-  const snapshot = graph ?? await loadKnowledgeGraph();
+  const snapshot = graph ?? await loadCollectionUniverse(db);
   const companies = mapListedCompanies(snapshot).filter(node => node.market === 'US');
   const identities = new Map<string, string>();
   if (companies.length) {

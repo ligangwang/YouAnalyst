@@ -48,5 +48,7 @@ firebase-debug.log
 
 # Private production migration snapshots and account-level dry-run reports.
 /output/publishing-*.json
+/output/company-theme-backups/
+/output/company-theme-migration-result.json
 
 /.cache/conversion-shards/

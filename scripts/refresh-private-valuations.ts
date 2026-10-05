@@ -5,6 +5,8 @@ import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-l
 import { checkPrivateValuation, privateValuationSources } from "../src/lib/fundamentals/private-valuations";
 import { publishPrivateValuationChecks } from "../src/lib/fundamentals/private-valuation-pubsub";
 import { publishJobMessage } from "../src/lib/job-pubsub";
+import { loadCollectionCompanies } from "../src/lib/company-themes/service";
+import { isCollectionCompany, type ThemedCompany } from "../src/lib/company-themes/model";
 
 const dryRun = process.argv.includes("--dry-run");
 const sourcesOnly = process.argv.includes("--sources-only");
@@ -36,13 +38,9 @@ async function main() {
   const counts = { companies: 0, verified: 0, review_required: 0, stale: 0, unsupported: 0, failed: 0 };
   const deadline = Date.now() + 18 * 60_000;
   try {
-    const [current, legacy] = await Promise.all([
-      db.collection("companies").where("inGraph.status", "==", "PUBLISHED").get(),
-      db.collection("companies").where("aiGraph.status", "==", "PUBLISHED").get(),
-    ]);
-    const docs = [...new Map([...legacy.docs, ...current.docs].map(doc => [doc.id, doc])).values()].filter(doc => {
+    const docs = (await loadCollectionCompanies(db)).filter(doc => {
       const data = doc.data();
-      return data.listingStatus === "PRIVATE" && (data.inGraph ?? data.aiGraph)?.status === "PUBLISHED";
+      return data.listingStatus === "PRIVATE" && isCollectionCompany({ ...data, id: doc.id } as ThemedCompany);
     });
     counts.companies = docs.length;
     for (const doc of docs) {
@@ -51,7 +49,7 @@ async function main() {
         const result = await checkPrivateValuation(doc.id);
         if (!dryRun) await db.runTransaction(async tx => {
           const fresh = (await tx.get(doc.ref)).data();
-          if (fresh?.listingStatus !== "PRIVATE" || (fresh.inGraph ?? fresh.aiGraph)?.status !== "PUBLISHED") throw Error("Company eligibility changed during the check");
+          if (fresh?.listingStatus !== "PRIVATE" || !isCollectionCompany({ ...fresh, id: doc.id } as ThemedCompany)) throw Error("Company eligibility changed during the check");
           // Replace this field only. Never modify public market caps, company
           // identity, or reset valuationDate on a successful recheck.
           tx.update(doc.ref, { privateValuationCheck: result });

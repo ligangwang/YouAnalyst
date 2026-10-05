@@ -13,6 +13,16 @@ const source=NEWS_SOURCES[0],at=new Date('2026-10-02T16:00:00Z');
 const rss=(items:string)=>`<rss version="2.0"><channel>${items}</channel></rss>`;
 const entry=(id:string)=>`<item><title>Announcement ${id}</title><link>https://nvidianews.nvidia.com/releases/${id}</link><pubDate>Fri, 02 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<p>Company update</p>]]></description></item>`;
 
+test('reviewed relative article links retain earnings PDFs and reject unapproved hosts',()=>{
+  const publisher=NEWS_SOURCES.find(source=>source.id==='cgnx-ir')!;
+  const item=(link:string)=>`<item><title>Quarterly results</title><link>${link}</link><pubDate>Wed, 05 Aug 2026 16:30:00 -0400</pubDate></item>`;
+  const page=parseNewsFeed(rss(item('/files/doc_earnings/2026/q2/results.pdf')+item('//evil.example/results.pdf')),publisher);
+  assert.equal(page.invalid,1);assert.equal(page.items.length,1);
+  assert.equal(page.items[0].url,'https://investor.cognex.com/files/doc_earnings/2026/q2/results.pdf');
+  assert.equal(page.items[0].published_at,'2026-08-05T20:30:00.000Z');
+  assert.equal(parseNewsFeed(rss(item('/files/results.pdf')),source).items.length,0);
+});
+
 test('publisher Media entries and confirmed legacy attachment children do not inflate article activity',()=>{
   const skhy=NEWS_SOURCES.find(source=>source.id==='skhy-ir')!;
   const item=(path:string,category:string)=>`<item><title>SK hynix Ventures story</title><link>https://news.skhynix.com/en/${path}/</link><category>${category}</category><pubDate>Fri, 02 Oct 2026 01:00:00 GMT</pubDate></item>`;

@@ -8,7 +8,7 @@ import { parsePrivateValuationRequest, processPrivateValuationCheck, publishPriv
 type Data = Record<string, unknown>;
 const request = (companyId = "ORG:OPENAI"): PrivateValuationRequest => ({ version: 1,
   type: "private-valuation.check.requested", batchId: "request-1", companyId, requestedAt: "2026-09-29T00:00:00Z" });
-const company = { listingStatus: "PRIVATE", inGraph: { status: "PUBLISHED" }, privateValuation: { value: 123 } };
+const company = { name: "OpenAI", status: "DIRECTORY", listingStatus: "PRIVATE", inGraph: { status: "PUBLISHED" }, privateValuation: { value: 123 } };
 function fixture() {
   const rows = new Map<string, Data>([["companies/ORG:OPENAI", structuredClone(company)]]);
   const ref = (path: string) => ({ path, firestore: db,
@@ -98,7 +98,7 @@ test("direct worker lease prevents concurrent subscriber checks", async () => {
 test("publisher deduplicates graph membership and task retries reuse durable messages", async () => {
   const f = fixture();
   f.rows.get("companies/ORG:OPENAI")!.aiGraph = { status: "PUBLISHED" };
-  f.rows.set("companies/ORG:LEGACY", { listingStatus: "PRIVATE", aiGraph: { status: "PUBLISHED" } });
+  f.rows.set("companies/ORG:LEGACY", { name: "Legacy company", status: "DIRECTORY", listingStatus: "PRIVATE", aiGraph: { status: "PUBLISHED" } });
   f.rows.set("companies/ORG:REMOVED", { listingStatus: "PRIVATE", inGraph: { status: "DRAFT" }, aiGraph: { status: "PUBLISHED" } });
   f.rows.set("companies/NVDA", { ...company, listingStatus: "PUBLIC" });
   const messages: PrivateValuationRequest[] = [];

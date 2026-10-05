@@ -1,11 +1,11 @@
-import { loadKnowledgeGraph } from "../knowledge-graph/service";
+import { loadCollectionUniverse } from "../company-themes/service";
 import { usMapTickers } from "../knowledge-graph/us-companies";
 import { cnMapCompanies } from "../knowledge-graph/cn-companies";
 import { predictionInstrument, type PredictionMarket } from "./instrument";
 
 export async function loadEodPriceUniverse(input: {
   market: PredictionMarket; loadPrices: boolean; manualTickers: string[]; predictionTickers: string[];
-}, loadGraph = loadKnowledgeGraph) {
+}, loadGraph = loadCollectionUniverse) {
   const base = input.manualTickers.length ? input.manualTickers : input.predictionTickers;
   let mapTickers: string[] = [];
   // Explicit manual repairs keep their requested scope. Every ordinary price run
