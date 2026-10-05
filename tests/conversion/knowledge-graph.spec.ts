@@ -112,14 +112,19 @@ test('tree tour pauses on hold and smoothly resumes the released view',async({pa
  await accelerateTours(page);
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
- await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ // This checks input and idle-resume timing, not full-universe rendering. Keep
+ // representative layers without hundreds of labels competing with the idle timer.
+ const members=new Set(['US:CEG','US:AMD','US:NVDA','US:GOOGL','US:AAPL']);
+ const fixture={...graph,nodes:graph.nodes.filter(node=>node.kind==='STAGE'||members.has(node.id)),relationships:graph.relationships.filter(edge=>members.has(edge.source)&&members.has(edge.target))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.getByRole('region',{name:'Vertical tree',exact:true}),canvas=tree.locator('canvas');
  await canvas.scrollIntoViewIfNeeded();
  await expect(canvas).toHaveAttribute('data-tour','paused');
  await expect(tree.locator('[data-tree-company]').first()).toBeAttached();
+ await expect.poll(()=>tree.locator('[data-tree-company]').evaluateAll(els=>new Set(els.map(el=>el.getAttribute('data-tree-company'))).size)).toBe(members.size);
  const positions=()=>tree.locator('[data-tree-company]').evaluateAll(els=>els.slice(0,8).map(e=>e.parentElement?.parentElement?.parentElement?.style.transform));
- await expect.poll(async()=>{const values=await positions();return values.length===8&&values.every(p=>p?.includes('translate3d'));}).toBe(true);
+ await expect.poll(async()=>{const values=await positions();return values.length>=members.size&&values.every(p=>p?.includes('translate3d'));}).toBe(true);
  const initial=await positions();
  await page.waitForTimeout(400);
  expect(await positions()).toEqual(initial);
