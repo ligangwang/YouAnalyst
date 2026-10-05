@@ -1,8 +1,8 @@
 import type { KnowledgeGraph } from "./model";
-import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "./sectors";
+import { companySector, graphSectors, graphTheme, OTHER_SECTOR } from "./sectors";
 
 export function layout3D(graph: KnowledgeGraph) {
-  const sectors = [...GRAPH_SECTORS, OTHER_SECTOR];
+  const sectors = [...graphSectors(graphTheme(graph.nodes)), OTHER_SECTOR];
   const companies = graph.nodes.filter(n => n.kind === "COMPANY").sort((a, b) => a.id.localeCompare(b.id));
   const radius = Math.max(90, Math.cbrt(companies.length) * 48);
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));

@@ -1,4 +1,5 @@
 import type { GraphNode } from './model';
+import { graphTheme, graphSectors } from './sectors';
 
 // Five-layer framework: https://blogs.nvidia.com/blog/ai-5-layer-cake/
 // Subdivisions are our industry-role mapping, not a standard sector taxonomy.
@@ -26,6 +27,14 @@ export type TreeBranch = {id:string; en:string; zh:string; companies:GraphNode[]
 export type TreeLayer = typeof INDUSTRY_LAYERS[number] & {branches:TreeBranch[]; companies:GraphNode[]};
 export function industryTree(companies:GraphNode[]):TreeLayer[] {
   const unique=[...new Map(companies.map(c=>[c.id,c])).values()];
+  const theme=graphTheme(unique);
+  if (theme !== 'ai') {
+    return graphSectors(theme).map(sector => {
+      const members = unique.filter(company => sector.stages.some(stage => company.stageIds?.includes(stage)));
+      return {id:`${theme}:${sector.id}`,en:sector.en,zh:sector.zh,color:sector.color,stages:sector.stages,companies:members,
+        branches:members.length ? [{id:`${theme}:${sector.id}/companies`,en:'Companies',zh:'公司',companies:members}] : []};
+    }).filter(layer => layer.companies.length);
+  }
   const known=new Set(INDUSTRY_LAYERS.flatMap(l=>l.stages));
   return INDUSTRY_LAYERS.map(layer=>{
     const stages=layer.id==='applications'?[...layer.stages,'other']:layer.stages;
@@ -36,10 +45,11 @@ export function industryTree(companies:GraphNode[]):TreeLayer[] {
     return {...layer,branches,companies:[...new Map(branches.flatMap(b=>b.companies).map(c=>[c.id,c])).values()]};
   });
 }
+export const industryRootLabel = (layers: TreeLayer[], locale: string) => layers.some(layer => layer.id.startsWith('space:')) ? locale === 'zh-CN' ? '航天产业' : 'Space industry' : layers.some(layer => layer.id.startsWith('robotics:')) ? locale === 'zh-CN' ? '机器人产业' : 'Robotics industry' : locale === 'zh-CN' ? 'AI 产业链' : 'AI industry chain';
 export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company';label:string;color:string;position:[number,number,number];planar?:[number,number,number];azimuth?:number;pivotX?:number;company?:GraphNode;count?:number;span?:[number,number];stem?:number};
 export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,locale:string):TreePoint[] {
   const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;
-  const nodes:TreePoint[]=[{id:'root',kind:'root',label:locale==='zh-CN'?'AI 产业链':'AI industry chain',color:'#8be8ff',position:[-540,0,0]}];
+  const nodes:TreePoint[]=[{id:'root',kind:'root',label:industryRootLabel(layers,locale),color:'#8be8ff',position:[-540,0,0]}];
   if(!open.has('root'))return nodes;
   let bottom=0;
   for(const layer of layers){

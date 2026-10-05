@@ -6,6 +6,55 @@ import { join } from 'node:path';
 import { migrateCompanyThemes } from '../scripts/migrate-company-themes';
 import batch from '../data/robotics/company-memberships.json';
 import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';
+import {migrateSpaceTheme} from '../scripts/migrate-space-theme';
+import space from '../data/space/company-memberships.json';
+import {decode as decodeValue} from '../scripts/migrate-company-themes';
+
+test('Space live enrollment fences new identities and preserves existing themes in one idempotent commit',async()=>{
+  const f=await fixture();
+  for(const proposal of space.companies.filter(row=>!row.id.startsWith('ORG:'))){
+    const name=`projects/test-project/databases/(default)/documents/companies/${proposal.id}`;
+    f.rows.set(name,{name,fields:encode({name:proposal.expectedName,status:'DIRECTORY',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED',primarySector:'compute',reviewedAt:'2026-01-01'}},description:'Existing profile'}).mapValue!.fields,updateTime:'2026-10-04T00:00:00Z'});
+  }
+  const superseded='projects/test-project/databases/(default)/documents/companies/ORG:SPACEX';
+  f.rows.set(superseded,{name:superseded,fields:encode({name:'SpaceX',status:'PUBLISHED',listingStatus:'UNKNOWN',themeIds:['space'],themeMemberships:{space:{status:'PUBLISHED',primarySector:'launch',reviewedAt:space.reviewedAt}}}).mapValue!.fields,updateTime:'2026-10-04T00:00:00Z'});
+  const before=structuredClone(f.rows);let commits=0,duplicate=false;
+  const request=async(url:string,method:'GET'|'POST'='GET',data?:unknown):Promise<unknown>=>{
+    if(url.endsWith(':runQuery')){
+      const body=data as {structuredQuery:{where:{fieldFilter:{field:{fieldPath:string}}}}};
+      if(body.structuredQuery.where.fieldFilter.field.fieldPath!=='themeIds')return duplicate?[{document:[...f.rows.values()][0]}]:[];
+      return [...f.rows.values()].filter(document=>document.name!==superseded).map(document=>({document}));
+    }
+    if(url.endsWith(':commit')){
+      assert((await readdir(f.backupDir)).length>0,'Backup precedes commit');
+      const writes=(data as {writes:{update:Document;updateMask?:{fieldPaths:string[]};currentDocument:{exists?:boolean;updateTime?:string}}[]}).writes;
+      for(const write of writes){
+        const existing=f.rows.get(write.update.name);
+        if(existing){assert.equal(write.currentDocument.updateTime,existing.updateTime);assert.deepEqual(write.updateMask?.fieldPaths,write.update.name===superseded?['status','canonicalCompanyId','themeIds','themeMemberships']:['themeMemberships','themeIds']);}
+        else{assert.equal(write.currentDocument.exists,false);assert(space.companies.some(row=>write.update.name.endsWith('/'+row.id)&&row.id.startsWith('ORG:')));}
+      }
+      for(const write of writes)f.rows.set(write.update.name,{...write.update,fields:{...f.rows.get(write.update.name)?.fields,...write.update.fields},updateTime:'2026-10-04T02:00:00Z'});
+      commits++;return {};
+    }
+    return f.request(url,method,data);
+  };
+  duplicate=true;
+  await assert.rejects(migrateSpaceTheme({project:'test-project',graph:f.ai,request,backupDir:f.backupDir,write:true}),/another canonical ID/);
+  assert.equal(commits,0);assert.deepEqual(f.rows,before);duplicate=false;
+  const preview=await migrateSpaceTheme({project:'test-project',graph:f.ai,request,backupDir:f.backupDir});
+  assert.equal(preview.changedCompanies,31);assert.equal(commits,0);
+  const written=await migrateSpaceTheme({project:'test-project',graph:f.ai,request,backupDir:f.backupDir,write:true});
+  assert.equal(written.newProfiles?.length,space.companies.filter(row=>row.id.startsWith('ORG:')).length);assert.equal(commits,1);
+  assert.deepEqual(written.retiredProfiles,['ORG:SPACEX']);
+  for(const [key,previous]of before){
+    const next=f.rows.get(key)!;
+    if(key===superseded){assert.equal(decodeValue(next.fields.status),'MERGED');assert.equal(decodeValue(next.fields.canonicalCompanyId),'US:SPCX');continue;}
+    for(const [field,value]of Object.entries(previous.fields))if(!['themeIds','themeMemberships'].includes(field))assert.deepEqual(next.fields[field],value);
+    if(previous.fields.themeMemberships)assert.deepEqual((decodeValue(next.fields.themeMemberships) as {ai:unknown}).ai,(decodeValue(previous.fields.themeMemberships) as {ai:unknown}).ai);
+  }
+  const again=await migrateSpaceTheme({project:'test-project',graph:f.ai,request,backupDir:f.backupDir,write:true});
+  assert.equal(again.changedCompanies,0);assert.equal(commits,1);
+});
 
 type Value = { stringValue?: string; mapValue?: { fields: Record<string, Value> }; arrayValue?: { values: Value[] }; integerValue?: string };
 type Document = { name: string; fields: Record<string, Value>; updateTime: string };
