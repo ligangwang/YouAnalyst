@@ -58,6 +58,25 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   // anchor in the layout so camera fitting includes the title on small screens.
   const nodes:TreePoint[]=[{id:'root',kind:'root',label:industryRootLabel(layers,locale),color:'#8be8ff',position:[0,-VERTICAL_ROOT_DEPTH-320,0]}];
   if(!open.has('root'))return nodes;
+  // Themes with sector-level roles connect companies directly to the sector.
+  // AI retains its additional supply-chain subdivisions.
+  if(layers.every(layer=>layer.directCompanies)){
+    const heights=layers.map(layer=>Math.max(420,Math.ceil(layer.companies.length/2)*110+200));
+    const top=150+heights.reduce((sum,height)=>sum+height,0)-(heights.at(-1)??0)/2;
+    let bottom=150;
+    for(const [index,layer] of layers.entries()){
+      const height=heights[index],y=bottom+height/2;
+      const pivot=verticalTrunkX(y,top);
+      nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[pivot,y,0],count:layer.companies.length,span:[bottom,bottom+height]});
+      if(open.has(layer.id))[...layer.companies].sort((a,b)=>a.id.localeCompare(b.id)).forEach((company,j)=>{
+        const id=`${layer.id}/${company.id}`,angle=j*Math.PI*(3-Math.sqrt(5)),reach=450+180*verticalJitter(id,3);
+        const leafY=bottom+90+Math.floor(j/2)*110;
+        nodes.push({id,parent:layer.id,layer:layer.id,branch:layer.id,kind:'company',label:companyName(company,locale),color:layer.color,position:[pivot+reach*Math.cos(angle),leafY,-reach*Math.sin(angle)],planar:[pivot+reach,leafY,0],azimuth:angle,pivotX:pivot,company});
+      });
+      bottom+=height;
+    }
+    return nodes;
+  }
   // A limb from its trunk origin at an upward angle; leaves grow along its
   // outer half and a little past the tip, alternating sides of the limb.
   const limb=(layer:TreeLayer,branch:TreeLayer['branches'][number],origin:[number,number],side:number,reach:number,angle:number,stem:number)=>{

@@ -84,4 +84,9 @@ for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tool
  await expect(menu.getByRole("link",{name:language === "en" ? "Admin" : "管理",exact:true})).toHaveCount(0);
  await menu.locator("summary").press("Escape");
  await expect(menu).not.toHaveAttribute("open","");
+ await page.goto(`http://bilingual.test/?lang=${language}&theme=space`);
+ const map=page.locator("header nav").first().getByRole("link").first();
+ await expect(map).toHaveAttribute("href",/theme=space&view=graph$/);
+ await page.evaluate(()=>{history.replaceState(history.state,"","?theme=robotics");window.dispatchEvent(new Event("industry-browse-changed"));});
+ await expect(map).toHaveAttribute("href",/theme=robotics&view=graph$/);
 });

@@ -123,7 +123,8 @@ test('withdrawn AI enrollment overrides legacy graph flags while neighbors and a
 
 test('theme presentation retains canonical identities and secondary roles without copying AI edges or publication dates',async()=>{
   const {roboticsGraph}=await import('../src/lib/company-themes/presentation');
-  const {industryTree,industryRootLabel}=await import('../src/lib/knowledge-graph/industry-tree');
+  const {industryTree,industryRootLabel,layoutIndustryTree}=await import('../src/lib/knowledge-graph/industry-tree');
+  const {layoutVerticalTree}=await import('../src/lib/knowledge-graph/vertical-tree');
   const {companySector,matchesCompanySector}=await import('../src/lib/knowledge-graph/sectors');
   const {parseCompanyTheme}=await import('../src/lib/company-themes/model');
   const member={status:'PUBLISHED' as const,primarySector:'compute-control',secondaryRoles:['software-simulation'],reviewedAt:'2026-10-04',sources:[{url:'https://www.nvidia.com/en-us/industries/robotics/',title:'Robotics',summary:'Platform'}]};
@@ -137,6 +138,14 @@ test('theme presentation retains canonical identities and secondary roles withou
   assert.deepEqual(nvda.stageIds,['robotics:compute-control','robotics:software-simulation']);assert(matchesCompanySector(nvda,'software-simulation'));assert.equal(nvda.summary,'Platform');
   const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY'));assert.equal(industryRootLabel(layers,'en'),'Robotics industry');
   assert.equal(layers.filter(layer=>layer.companies.some(n=>n.id==='US:NVDA')).length,2);
+  const open=new Set(['root',...layers.map(layer=>layer.id)]);
+  for(const layout of [layoutIndustryTree,layoutVerticalTree]){
+    const nodes=layout(layers,open,'en');
+    assert.equal(nodes.filter(node=>node.kind==='branch').length,0);
+    assert.equal(nodes.filter(node=>node.kind==='company').length,3);
+    assert(nodes.filter(node=>node.kind==='company').every(node=>nodes.some(parent=>parent.id===node.parent&&parent.kind==='layer')));
+    assert.equal(layout(layers,new Set(['root']),'en').filter(node=>node.kind==='company').length,0);
+  }
   assert.equal(roboticsGraph([company,other],[{...relationship,themeIds:['robotics']}]).relationships.length,1);
   assert.deepEqual(company.themeMemberships.robotics,member);assert.equal(parseCompanyTheme('unknown'),'ai');
 });

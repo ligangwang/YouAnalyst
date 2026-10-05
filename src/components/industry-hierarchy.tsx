@@ -26,6 +26,7 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
   const result:Node[]=[{id:'root',x:30,y:260,label:industryRootLabel(layers,locale),color:'#7dd3fc'}];let row=30;
   if(open.includes('root'))for(const layer of layers){
    const start=row;result.push({id:layer.id,parent:'root',x:330,y:row,label:label(layer.en,layer.zh),color:layer.color});
+   if(open.includes(layer.id)&&layer.directCompanies)for(const company of layer.companies){result.push({id:layer.id+'/'+company.id,parent:layer.id,x:630,y:row,label:companyName(company,locale),color:layer.color,company});row+=88;}
    if(open.includes(layer.id))for(const branch of layer.branches){
     result.push({id:branch.id,parent:layer.id,x:630,y:row,label:label(branch.en,branch.zh),color:layer.color});
     if(open.includes(branch.id))for(const company of branch.companies){result.push({id:branch.id+'/'+company.id,parent:branch.id,x:930,y:row,label:companyName(company,locale),color:layer.color,company});row+=88;}

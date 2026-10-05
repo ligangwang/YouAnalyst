@@ -24,7 +24,7 @@ const stageNames: Record<string,[string,string]> = {
 // ai.meta.com/llama, aws.amazon.com/ai/generative-ai/nova, qwen.ai, yiyan.baidu.com.
 const modelDevelopers = new Set(['ORG:OPENAI','ORG:ANTHROPIC','ORG:MISTRAL-AI','US:GOOGL','US:META','US:AMZN','US:BABA','US:BIDU']);
 export type TreeBranch = {id:string; en:string; zh:string; companies:GraphNode[]};
-export type TreeLayer = typeof INDUSTRY_LAYERS[number] & {branches:TreeBranch[]; companies:GraphNode[]};
+export type TreeLayer = typeof INDUSTRY_LAYERS[number] & {branches:TreeBranch[]; companies:GraphNode[]; directCompanies?:boolean};
 export function industryTree(companies:GraphNode[]):TreeLayer[] {
   const unique=[...new Map(companies.map(c=>[c.id,c])).values()];
   const theme=graphTheme(unique);
@@ -32,7 +32,7 @@ export function industryTree(companies:GraphNode[]):TreeLayer[] {
     return graphSectors(theme).map(sector => {
       const members = unique.filter(company => sector.stages.some(stage => company.stageIds?.includes(stage)));
       return {id:`${theme}:${sector.id}`,en:sector.en,zh:sector.zh,color:sector.color,stages:sector.stages,companies:members,
-        branches:members.length ? [{id:`${theme}:${sector.id}/companies`,en:'Companies',zh:'公司',companies:members}] : []};
+        directCompanies:true,branches:[]};
     }).filter(layer => layer.companies.length);
   }
   const known=new Set(INDUSTRY_LAYERS.flatMap(l=>l.stages));
@@ -57,10 +57,11 @@ export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,l
     // Each child owns a vertical interval sized to its visible descendants.
     // Siblings share one column; opening a subtree pushes adjacent layers away.
     // A collapsed branch is one label tall, so a tree opened one level deep stays compact enough to read.
-    const heights=expanded?layer.branches.map(b=>open.has(b.id)?Math.max(140,b.companies.length*92+40):72):[];
+    const heights=expanded&&layer.directCompanies?[Math.max(140,layer.companies.length*92+40)]:expanded?layer.branches.map(b=>open.has(b.id)?Math.max(140,b.companies.length*92+40):72):[];
     const height=Math.max(135,heights.reduce((a,b)=>a+b,0)+60);
     const top=bottom+height;
     nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[-240,bottom+height/2,0],count:layer.companies.length});
+    if(expanded&&layer.directCompanies)[...layer.companies].sort((a,b)=>a.id.localeCompare(b.id)).forEach((company,j)=>nodes.push({id:`${layer.id}/${company.id}`,parent:layer.id,layer:layer.id,kind:'company',label:company.names?.[locale==='zh-CN'?'zh-CN':'en']||company.name||company.id,color:layer.color,position:[100,top-50-j*92,25],company}));
     if(expanded)layer.branches.forEach((branch,i)=>{
       const x=100,y=top-30-heights.slice(0,i).reduce((a,b)=>a+b,0)-heights[i]/2,z=0;
       nodes.push({id:branch.id,parent:layer.id,layer:layer.id,branch:branch.id,kind:'branch',label:label(branch),color:layer.color,position:[x,y,z],count:branch.companies.length});
