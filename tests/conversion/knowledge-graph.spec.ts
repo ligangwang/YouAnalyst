@@ -206,7 +206,10 @@ test('tree tour pauses on hold and smoothly resumes the released view',async({pa
  await expect(tree.getByRole('dialog',{name:'Company details'})).toHaveCount(0);
  await page.waitForTimeout(500);
  expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
- await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ // Closing the card changes the sidebar and viewport. Off-screen trees intentionally
+ // pause, so restore the visible canvas before waiting for its two-second idle resume.
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
  await expect.poll(pose).not.toEqual(selected);
 });
 async function projectedGraphPositions(page: Page) {
