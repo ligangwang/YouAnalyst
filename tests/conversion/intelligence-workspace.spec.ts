@@ -127,20 +127,55 @@ test('one theme selector switches companies and sources, clears stale filters, r
     events:[{...snapshot.events[0],id:'robot-event',origin:'US:ROK',companyIds:['US:ROK'],title:'Robotics release'}],
     sourceDocuments:[{id:'robot-source',channel:'IR',companyIds:['US:ROK'],published_at:null,publication_date:'2026-10-02'}],truncated:false};
   const space: IntelligenceSnapshot={...robotics,theme:'space',graphVersion:'space-fixture',graph:{...robotics.graph,nodes:[{id:'US:RKLB',symbol:'RKLB',name:'Rocket Lab',kind:'COMPANY',order:0,stageIds:['space:launch','space:components']}]},events:[],sourceDocuments:[]};
-  await page.route('**/api/intelligence?*',route=>{const theme=new URL(route.request().url()).searchParams.get('theme');return route.fulfill({json:theme==='space'?space:theme==='robotics'?robotics:snapshot});});
+  let releaseRobotics!:()=>void,releaseSpace!:()=>void,releaseAi!:()=>void;
+  const roboticsReady=new Promise<void>(resolve=>{releaseRobotics=resolve;});
+  const spaceReady=new Promise<void>(resolve=>{releaseSpace=resolve;});
+  const aiReady=new Promise<void>(resolve=>{releaseAi=resolve;});
+  let spaceRequests=0,holdAi=false;
+  await page.route('**/api/intelligence?*',async route=>{
+    const theme=new URL(route.request().url()).searchParams.get('theme');
+    if(theme==='robotics')await roboticsReady;
+    if(theme==='space'){if(++spaceRequests===1)return route.fulfill({status:503,json:{error:'Unavailable'}});await spaceReady;}
+    if(theme==='ai'&&holdAi)await aiReady;
+    await route.fulfill({json:theme==='space'?space:theme==='robotics'?robotics:snapshot});
+  });
+  const workspace=await page.locator('main').elementHandle();
   await page.getByRole('button',{name:'Save MU',exact:true}).click();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await page.getByPlaceholder('Search company / ticker').fill('MU');
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('robotics');
+  await expect(page.getByRole('status').filter({hasText:'Loading Robotics…'})).toBeVisible();
+  await expect(page.locator('[data-list-company="US:MU"]')).toBeVisible();
+  await expect(page.getByPlaceholder('Search company / ticker')).toHaveValue('MU');
+  await expect(page.getByText('Loading companies and recorded events…',{exact:true})).toHaveCount(0);
+  releaseRobotics();
   await expect(page).toHaveURL(/theme=robotics/);await expect(page.getByRole('combobox',{name:'Investment theme',exact:true})).toHaveCount(1);
   await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
   await expect(page.locator('[data-list-company]')).toHaveCount(2);await expect(page.locator('[data-list-company="US:MU"]')).toHaveCount(0);
+  expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);
   await expect(page.getByPlaceholder('Search company / ticker')).toHaveValue('');
   await expect(page.getByRole('button',{name:/Robotics release/}).getByText('Systems integration',{exact:true})).toBeVisible();
   await expect(page.getByRole('complementary',{name:'Events and sources'}).getByText('Source documents',{exact:true}).locator('..')).toContainText('1');
   await page.getByRole('button',{name:'Software & simulation 1',exact:true}).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(1);await expect(page.locator('[data-list-company="US:NVDA"]')).toBeVisible();
   await page.getByRole('button',{name:'Clear sector focus',exact:true}).click();
+  await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('space');
+  await expect(page.getByRole('alert')).toContainText('Could not load Space. Still showing Robotics.');
+  await expect(page.locator('[data-list-company]')).toHaveCount(2);
+  await page.getByRole('button',{name:'Retry',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'Loading Space…'})).toBeVisible();
+  await page.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(page.getByRole('combobox',{name:'Investment theme',exact:true})).toHaveValue('robotics');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('space');
+  await expect(page.getByRole('status').filter({hasText:'Loading Space…'})).toBeVisible();
+  // Cached AI is usable immediately even with its refresh blocked. A cancelled Space response cannot win.
+  holdAi=true;
+  await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('ai');
+  await expect(page.locator('[data-list-company]')).toHaveCount(4);
+  await expect(page.getByRole('status').filter({hasText:/Loading (Space|AI)/})).toHaveCount(0);
+  releaseSpace();releaseAi();
+  await expect(page.getByRole('combobox',{name:'Investment theme',exact:true})).toHaveValue('ai');
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('space');
   await expect(page).toHaveURL(/theme=space/);
   await expect(page.locator('[data-list-company="US:RKLB"]')).toBeVisible();
