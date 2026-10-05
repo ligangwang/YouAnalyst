@@ -695,8 +695,8 @@
       }
     },
     {
-      "id": "ORG:SPACEX",
-      "expectedName": "SpaceX",
+      "id": "US:SPCX",
+      "expectedName": "Space Exploration Technologies Corp.",
       "primarySector": "launch",
       "secondaryRoles": [
         "spacecraft",
@@ -713,14 +713,34 @@
           "url": "https://www.spacex.com/vehicles/falcon-9/",
           "title": "SpaceX Falcon 9",
           "summary": "Reusable launch vehicle for spacecraft and satellite missions."
+        },
+        {
+          "url": "https://ir.spacex.com/updates/releases-details/2026/Space-Exploration-Technologies-Corp--Announces-Pricing-of-Initial-Public-Offering/default.aspx",
+          "title": "SpaceX IPO pricing announcement",
+          "summary": "Official announcement identifies Nasdaq ticker SPCX; use the listed-company identity for disclosures."
         }
       ],
       "profile": {
-        "name": "SpaceX",
+        "name": "Space Exploration Technologies Corp.",
         "country": "US",
         "website": "https://www.spacex.com/",
-        "listingStatus": "UNKNOWN",
-        "listings": []
+        "listingStatus": "PUBLIC",
+        "listings": [
+          {
+            "market": "US",
+            "exchange": "NASDAQ",
+            "symbol": "SPCX"
+          }
+        ],
+        "aliases": [
+          "SpaceX"
+        ],
+        "identifiers": [
+          {
+            "scheme": "CIK",
+            "value": "1181412"
+          }
+        ]
       }
     },
     {
@@ -836,6 +856,14 @@
         "listingStatus": "UNKNOWN",
         "listings": []
       }
+    }
+  ],
+  "identityCorrections": [
+    {
+      "from": "ORG:SPACEX",
+      "to": "US:SPCX",
+      "expectedName": "SpaceX",
+      "reason": "New Space enrollment was initially unverified; official issuer announcement confirms SPCX."
     }
   ]
 }

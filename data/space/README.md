@@ -29,7 +29,7 @@ Reviewed on 2026-10-04: 31 canonical companies. Each company has a primary role 
 | 航天电子 / `XSHG:600879` | Components & subsystems | Ground systems & terminals | [Company source](https://www.spacechina.com/n25/n142/n162/n4623/index.html) |
 | 中国卫通 / `XSHG:601698` | Satellite operators | — | [Company source](https://www.chinasatcom.com/) |
 | *ST航图 / `XSHG:688066` | Data & applications | Satellite operators | [Company source](https://www.piesat.cn/) |
-| SpaceX / `ORG:SPACEX` | Launch & transport | Spacecraft manufacturing, Satellite operators, Ground systems & terminals | [Company source](https://www.starlink.com/technology) |
+| SpaceX / `US:SPCX` | Launch & transport | Spacecraft manufacturing, Satellite operators, Ground systems & terminals | [Company source](https://www.starlink.com/technology) |
 | Blue Origin / `ORG:BLUE-ORIGIN` | Launch & transport | Space infrastructure & services | [Company source](https://www.blueorigin.com/new-glenn) |
 | CesiumAstro / `ORG:CESIUMASTRO` | Payloads & instruments | Spacecraft manufacturing, Ground systems & terminals | [Company source](https://www.cesiumastro.com/mission-systems) |
 | Axiom Space / `ORG:AXIOM-SPACE` | Space infrastructure & services | — | [Company source](https://axiomspace.com/axiom-station) |
@@ -45,3 +45,5 @@ Private-company listing status is not inferred from a company ID; unverified ide
 ## Deployment
 
 `scripts/migrate-space-theme.ts` previews by default. Supply an explicit cloud project and use `--write` only for the reviewed rollout. It backs up existing company and relationship documents, checks the 134-company AI universe, stops on identity/editorial conflicts, writes atomically with update-time/exists preconditions, and verifies prior fields and theme decisions are unchanged. Reruns are idempotent.
+
+SpaceX uses the verified Nasdaq ticker SPCX. The migration also retires only the newly created, Space-only unverified ORG:SPACEX record with a canonical redirect; it never removes existing AI or Robotics memberships.

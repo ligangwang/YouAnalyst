@@ -30,6 +30,19 @@ export async function migrateSpaceTheme({project,request,write=false,backupDir='
     }
   }
   const records=[...originals.values()].map(company).concat(missing);
+  const retired:Document[]=[];
+  for(const correction of batch.identityCorrections){
+    assert(batch.companies.some(row=>row.id===correction.to),'Correction target must be enrolled');
+    const doc=await request(`${root}/companies/${encodeURIComponent(correction.from)}`) as Document|null;
+    if(!doc)continue;
+    const row=company(doc);
+    if(row.status==='MERGED'){assert.equal(row.canonicalCompanyId,correction.to);continue;}
+    assert(row.name===correction.expectedName&&row.status==='PUBLISHED'&&row.listingStatus==='UNKNOWN','Unexpected superseded profile');
+    assert.deepEqual(row.themeIds,['space'],'Only this new Space enrollment may be retired');
+    assert.deepEqual(Object.keys(row.themeMemberships??{}),['space'],'Existing theme decisions must not be retired');
+    assert.equal(row.themeMemberships!.space.reviewedAt,batch.reviewedAt);
+    retired.push(doc);
+  }
   // Dry-run reports conflicts for human/code review, never silently renames master records.
   const conflicts=batch.companies.flatMap(proposal=>{const current=records.find(row=>row.id===proposal.id);return current?.name!==proposal.expectedName?[{id:proposal.id,expected:proposal.expectedName,actual:current?.name}]:[];});
   if(conflicts.length&&!write)return {mode:'preview',conflicts};
@@ -37,14 +50,15 @@ export async function migrateSpaceTheme({project,request,write=false,backupDir='
   const patches=planThemeEnrollment(records,batch,'space');assert(patches.length<=500);
   const relationships:Document[]=[];let pageToken='';
   do{const page=await request(`${root}/company_relationships?pageSize=1000${pageToken?`&pageToken=${encodeURIComponent(pageToken)}`:''}`) as {documents?:Document[];nextPageToken?:string};relationships.push(...page.documents??[]);pageToken=page.nextPageToken??'';}while(pageToken);
+  for(const doc of retired)assert(!relationships.some(edge=>['source','target'].some(key=>edge.fields[key]?.stringValue===company(doc).id)),'Referenced identities require a separate reviewed merge');
   await mkdir(backupDir,{recursive:true});const backup=`${backupDir}/space-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
-  await writeFile(backup,JSON.stringify({project,beforeGraph,documents:[...originals.values()],missing,relationships,patches},null,2),{flag:'wx'});
-  if(write&&patches.length){
-    await request(`${root}:commit`,'POST',{writes:patches.map(patch=>{
+  await writeFile(backup,JSON.stringify({project,beforeGraph,documents:[...originals.values()],missing,retired,relationships,patches},null,2),{flag:'wx'});
+  if(write&&(patches.length||retired.length)){
+    await request(`${root}:commit`,'POST',{writes:[...patches.map(patch=>{
       const existing=originals.get(patch.id),fields={themeMemberships:encode(patch.themeMemberships),themeIds:encode(patch.themeIds)};
       return existing?{update:{name:existing.name,fields},updateMask:{fieldPaths:['themeMemberships','themeIds']},currentDocument:{updateTime:existing.updateTime}}:
         {update:{name:`${root.replace('https://firestore.googleapis.com/v1/','')}/companies/${patch.id}`,fields:{...encode(missing.find(row=>row.id===patch.id)).mapValue!.fields,...fields}},currentDocument:{exists:false}};
-    })});
+    }),...retired.map(doc=>{const row=company(doc),correction=batch.identityCorrections.find(item=>item.from===row.id)!;return {update:{name:doc.name,fields:{status:encode('MERGED'),canonicalCompanyId:encode(correction.to),themeIds:encode([]),themeMemberships:encode({space:{...row.themeMemberships!.space,status:'WITHDRAWN'}})}},updateMask:{fieldPaths:['status','canonicalCompanyId','themeIds','themeMemberships']},currentDocument:{updateTime:doc.updateTime}};})]});
     const after=await Promise.all(records.map(row=>request(`${root}/companies/${encodeURIComponent(row.id)}`) as Promise<Document>));
     for(const previous of originals.values()){
       const next=after.find(doc=>doc.name===previous.name)!;assert(next);
@@ -54,8 +68,9 @@ export async function migrateSpaceTheme({project,request,write=false,backupDir='
     }
     assert.equal(planThemeEnrollment(after.map(company),batch,'space').length,0,'Migration must be idempotent');
     for(const previous of relationships){const next=await request(`https://firestore.googleapis.com/v1/${previous.name}`) as Document;assert.deepEqual(next.fields,previous.fields,'Existing relationship changed');}
+    for(const previous of retired){const next=await request(`https://firestore.googleapis.com/v1/${previous.name}`) as Document;assert.equal(company(next).status,'MERGED');assert.equal(company(next).themeMemberships!.space.status,'WITHDRAWN');}
   }
-  return {mode:write?'written':'preview',backup,aiCompanies:aiIds.length,spaceCompanies:batch.companies.length,newProfiles:missing.map(row=>row.id),changedCompanies:patches.length,existingRelationships:relationships.length};
+  return {mode:write?'written':'preview',backup,aiCompanies:aiIds.length,spaceCompanies:batch.companies.length,newProfiles:missing.map(row=>row.id),changedCompanies:patches.length,retiredProfiles:retired.map(doc=>company(doc).id),existingRelationships:relationships.length};
 }
 if(process.argv[1]?.replace(/\\/g,'/').endsWith('/migrate-space-theme.ts')){
   const project=process.env.GOOGLE_CLOUD_PROJECT;assert(project,'Set an explicit production project');
