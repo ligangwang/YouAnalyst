@@ -124,6 +124,14 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   const selection=panel.getByRole('region',{name:'Selected sources'});await expect(selection).toBeVisible();await expect(selection).toBeFocused();
   const bounds=await selection.boundingBox();expect(bounds!.y).toBeLessThan(180);expect(bounds!.height).toBeLessThan(400);
   await expect(selection.getByRole('link',{name:/Original release 1/})).toBeVisible();
+  const graphSource=page.getByRole('region',{name:'Graph universe'}).getByRole('link',{name:'Published company update 1 ↗',exact:true});
+  await expect(graphSource).toHaveAttribute('href','https://investors.example.com/0');
+  await expect(graphSource).toHaveAttribute('target','_blank');
+  expect(await graphSource.evaluate(element=>getComputedStyle(element).pointerEvents)).toBe('auto');
+  await page.context().route('https://investors.example.com/0',route=>route.fulfill({contentType:'text/html',body:'<h1>Original source document</h1>'}));
+  const opened=page.waitForEvent('popup');await graphSource.click();const sourceTab=await opened;
+  await expect(sourceTab).toHaveURL('https://investors.example.com/0');await sourceTab.close();
+  await expect(selection).toBeVisible();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await expect(page.locator('[data-list-company="US:MU"]')).toHaveAttribute('data-selected','true');
   await expect(page.getByRole('navigation',{name:'Company list pagination'})).toContainText('of 4 companies');
