@@ -4,12 +4,13 @@ import {secDisclosureRows,type Disclosure} from './disclosures';
 import {saveDisclosures,DISCLOSURE_HISTORY_START} from './disclosure-store';
 
 export const SEC_LINK_COVERAGE_VERSION=2;
-type LinkScan={version:number;from:string;through:string;baseline:boolean;recentComplete:boolean;recentAfter:string;completedArchives:string[];archiveAfter:{name:string;after:string}|null;documents:number;created:number};
+type LinkScan={version:number;from:string;through:string;startedAt:string;baseline:boolean;recentComplete:boolean;recentAfter:string;completedArchives:string[];archiveAfter:{name:string;after:string}|null;documents:number;created:number};
 const day=(value:unknown):value is string=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
 const archiveName=(value:unknown,cik:string):value is string=>typeof value==='string'&&new RegExp(`^CIK${cik}-submissions-\\d+\\.json$`).test(value);
 function pendingScan(value:unknown,cik:string):LinkScan|null {
   const scan=value as Partial<LinkScan>|null;
   if(scan?.version!==SEC_LINK_COVERAGE_VERSION||!day(scan.from)||!day(scan.through)||scan.from>scan.through)return null;
+  if(typeof scan.startedAt!=='string'||!Number.isFinite(Date.parse(scan.startedAt))||new Date(scan.startedAt).toISOString()!==scan.startedAt||scan.startedAt.slice(0,10)!==scan.through)return null;
   const cursor=(value:unknown)=>typeof value==='string'&&(value===''||/^\d{4}-\d{2}-\d{2}\|\d{10}-\d{2}-\d{6}$/.test(value)&&day(value.slice(0,10))&&value.slice(0,10)>=scan.from!&&value.slice(0,10)<=scan.through!);
   return typeof scan.baseline==='boolean'&&typeof scan.recentComplete==='boolean'&&cursor(scan.recentAfter)
     &&Array.isArray(scan.completedArchives)&&scan.completedArchives.every(name=>archiveName(name,cik))
@@ -34,7 +35,7 @@ export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,stri
         const upgrading=state?.linkCoverageVersion!==SEC_LINK_COVERAGE_VERSION||state?.cik!==cik;
         const scan=(state?.cik===cik?pendingScan(state?.linkScan,cik):null)??{version:SEC_LINK_COVERAGE_VERSION,
           from:!upgrading&&state?.lastCompleteAt?new Date(Math.max(Date.parse(DISCLOSURE_HISTORY_START),Date.parse(state.lastCompleteAt)-7*86400000)).toISOString().slice(0,10):DISCLOSURE_HISTORY_START,
-          through:at.slice(0,10),baseline:upgrading||!state?.lastCompleteAt,recentComplete:false,recentAfter:'',completedArchives:[],archiveAfter:null,documents:0,created:0};
+          through:at.slice(0,10),startedAt:at,baseline:upgrading||!state?.lastCompleteAt,recentComplete:false,recentAfter:'',completedArchives:[],archiveAfter:null,documents:0,created:0};
         const raw=payload as {cik:unknown;filings:{files:Array<{name:string;filingFrom:string;filingTo:string}>}};
         if(Number(raw?.cik)!==Number(cik))throw new Error('SEC disclosure issuer mismatch');
         if(!Array.isArray(raw.filings?.files)||raw.filings.files.some(file=>!archiveName(file.name,cik)||!day(file.filingFrom)||!day(file.filingTo)||file.filingFrom>file.filingTo))throw new Error('Invalid SEC disclosure archives');
@@ -71,9 +72,8 @@ export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,stri
           await persist(secDisclosureRows(companyId,cik,{cik,filings:{recent:await archive(file.name)}}),after,key=>{scan.archiveAfter={name:file.name,after:key};});
           scan.completedArchives.push(file.name);scan.archiveAfter=null;await progress();
         }
-        // A resumed scan only establishes coverage through its original boundary.
-        const completeAt=scan.through===at.slice(0,10)?at:`${scan.through}T23:59:59.999Z`;
-        await ref.set({companyId,cik,sourceType:'sec',status:'complete',linkCoverageVersion:SEC_LINK_COVERAGE_VERSION,linkScan:null,lastCompleteAt:completeAt,lastSuccessAt:at,documents:scan.documents,created:scan.created,from:scan.from,lastError:null,revision:process.env.GIT_SHA??'local'},{merge:true});
+        // Resumed scans only establish coverage through their original start, not the eventual completion time.
+        await ref.set({companyId,cik,sourceType:'sec',status:'complete',linkCoverageVersion:SEC_LINK_COVERAGE_VERSION,linkScan:null,lastCompleteAt:scan.startedAt,lastSuccessAt:at,documents:scan.documents,created:scan.created,from:scan.from,lastError:null,revision:process.env.GIT_SHA??'local'},{merge:true});
         failed.delete(companyId);completedCompanies.add(companyId);
       }catch(error){failed.add(companyId);await ref.set({companyId,cik,sourceType:'sec',status:'partial',lastAttemptAt:at,lastError:error instanceof Error?error.message:'SEC disclosure scan failed'},{merge:true});}
     }

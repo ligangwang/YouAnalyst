@@ -96,7 +96,7 @@ test('expanded SEC coverage backfills existing issuers and resumes bounded batch
   const second=run();await second.observe('0000723125',raw,async()=>{throw new Error('Unexpected archive')});
   assert.equal(second.failed.size,0);assert.equal(fx.rows.get('collectors/sec-US:MU')?.linkCoverageVersion,SEC_LINK_COVERAGE_VERSION);
   assert.equal(fx.rows.get('collectors/sec-US:MU')?.linkScan,null);
-  assert.equal(fx.rows.get('collectors/sec-US:MU')?.lastCompleteAt,'2026-10-02T23:59:59.999Z');
+  assert.equal(fx.rows.get('collectors/sec-US:MU')?.lastCompleteAt,'2026-10-02T11:00:00.000Z');
   assert.equal([...fx.rows.keys()].filter(key=>key.startsWith('events/')).length,4);
   assert.deepEqual(fx.rows.get(`events/${existing[0].id}`),original);
   const ownership=[...fx.rows.values()].find(row=>row.form==='4')!;

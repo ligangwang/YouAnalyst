@@ -27,8 +27,9 @@ a 1,000-row per-company pass limit, five archive pages per pass and the shared j
 deadline. Partial scans resume within each page after the last committed
 date/accession and skip already completed archives, including archive sets above
 twenty pages; they do not advance `lastCompleteAt` or
-the coverage version until complete. The frozen scan end date prevents a resumed
-historical scan from claiming coverage of subsequent days. Regular complete scans
+the coverage version until complete. The completion watermark retains the original
+scan start time, so a resumed historical scan cannot claim coverage of subsequent
+arrivals. Regular complete scans
 retain the seven-day overlap. Existing event IDs and first collection/processing
 timestamps remain unchanged; historical imports keep their original timeline date.
 
