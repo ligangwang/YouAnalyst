@@ -41,8 +41,7 @@ export function RelativeTime({ value, prefix, interactive = true }: { value: str
   const valid = Number.isFinite(Date.parse(value));
   const exact = chinese ? valid ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" }).format(new Date(value)) + " UTC" : "时间不可用" : formatAbsoluteDateTime(value);
   const translatedPrefix = prefix ? translateUi(prefix, locale) : "";
-  const relative = currentTime ? formatRelativeDateTime(value, currentTime) : "…";
-  const compact = chinese ? relative.replace(/^now$/, "刚刚").replace(/mo$/, "月").replace(/m$/, "分").replace(/h$/, "时").replace(/d$/, "天").replace(/y$/, "年") : relative;
+  const compact = currentTime ? formatRelativeDateTime(value, currentTime, locale) : "…";
   // Event cards already have a button: keep their timestamp semantic without nesting controls.
   if (!interactive) return <time dateTime={valid ? value : undefined} title={exact}>{compact}</time>;
   return <span className={styles.timestamp}>

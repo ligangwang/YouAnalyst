@@ -3,6 +3,7 @@ import type { GraphNode } from '@/lib/knowledge-graph/model';
 import { matchesCompanySector, graphSectors, graphTheme } from '@/lib/knowledge-graph/sectors';
 import { sourceDocumentsForEvents, summarizeSourceDocuments, type IntelligenceSourceDocument, type IntelligenceEvent, type IntelligenceSource } from '@/lib/intelligence/model';
 import { useLocale } from './providers/locale-provider';
+import { RelativeTime } from "./relative-time";
 import styles from './intelligence-activity-overview.module.css';
 
 const sourceColors:Record<IntelligenceSource,string>={SEC:'#ff9eae',IR:'#67e6bc',Exchange:'#65d9ff',GitHub:'#c4a0ff',X:'#f4eb87',Reddit:'#ffc57a',Other:'#8faaff'};
@@ -36,6 +37,6 @@ export function IntelligenceActivityOverview({events,documents,complete=false,co
     <div className={styles.heading}><span>{text('Source mix · documents','来源构成 · 文档')}</span></div>
     <div className={styles.sourceStrip}>{sources.map(source=><button key={source.name} onClick={()=>onSource(source.name)} style={{flexGrow:source.count,background:sourceColors[source.name]}} aria-label={`${source.name}: ${source.count}`} title={`${source.name} · ${source.count}`}/>)}</div>
     <div className={styles.sources}>{sources.map(source=><button key={source.name} onClick={()=>onSource(source.name)}><i style={{background:sourceColors[source.name]}}/>{source.name}<strong>{source.count}</strong></button>)}</div>
-    {recentFallback&&<><div className={styles.heading}><span>{text('Recent event highlights','近期事件摘要')}</span></div><div className={styles.highlights}>{events.slice(0,3).map(event=><button key={event.id} onClick={()=>onEvent(event.id)}><time dateTime={event.publication_date}>{event.publication_date.slice(5)}</time><span>{event.title}</span><b>↗</b></button>)}</div><p className={styles.note}>{text('Recent sources, not new arrivals today. A document can appear in multiple sectors.','近期来源，并非今日新增。一份文档可涉及多个行业。')}</p></>}
+    {recentFallback&&<><div className={styles.heading}><span>{text('Recent event highlights','近期事件摘要')}</span></div><div className={styles.highlights}>{events.slice(0,3).map(event=><button key={event.id} onClick={()=>onEvent(event.id)}>{event.published_at?<RelativeTime value={event.published_at} interactive={false}/>:<time dateTime={event.publication_date}>{event.publication_date.slice(5)}</time>}<span>{event.title}</span><b>↗</b></button>)}</div><p className={styles.note}>{text('Recent sources, not new arrivals today. A document can appear in multiple sectors.','近期来源，并非今日新增。一份文档可涉及多个行业。')}</p></>}
   </section>;
 }
