@@ -9,7 +9,9 @@ import {projectDisclosures} from '../../src/lib/events/disclosure-projection';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
 import {earningsFirestore} from '../helpers/earnings-firestore';
 import {saveDisclosures} from '../../src/lib/events/disclosure-store';
-import {createMapSecObserver} from '../../src/lib/events/sec-disclosures';
+import {createMapSecObserver,SEC_LINK_COVERAGE_VERSION} from '../../src/lib/events/sec-disclosures';
+import {secFilingCategory} from '../../src/lib/events/sec-filing-metadata';
+import {parseSecFilingRows} from '../../src/lib/sec-filings/source';
 import {collectCnMapDisclosures} from '../../src/lib/events/cn-disclosures';
 import {collectLiveEarnings} from '../../src/lib/earnings/live-collector';
 import {reviewedEarningsIssuers,restoreEarningsFixtures} from '../../src/lib/earnings/issuers';
@@ -25,6 +27,23 @@ test('MU earnings 8-K is collected with its original acceptance time, without in
   const [row]=secDisclosureRows('US:MU','0000723125',payload);assert.equal(row.category,'EARNINGS');assert.equal(row.published_at,'2026-09-30T20:02:22.000Z');assert.equal(row.publication_date,'2026-09-30');
   assert.throws(()=>secDisclosureRows('US:MU','0000723126',payload),/issuer mismatch/);
   assert.equal(secDisclosureRows('US:MU','0000723125',{...payload,filings:{recent:{...payload.filings.recent,form:['6-K'],items:['']}}})[0].category,'FILING');
+});
+test('all SEC form links enter the feed, including ownership XSL paths, amendments and notices without primary documents',()=>{
+  const forms=['10-Q','4','4/A','3','5','144','SC 13D','SCHEDULE 13G/A','DEF 14A','DEFM14A','S-1','S-3ASR','424B5','S-4','SC TO-T','NT 10-Q','CORRESP','FUTURE-FORM','EFFECT','13F-HR'];
+  const recent={form:forms,accessionNumber:forms.map((_,i)=>`0000723125-26-${String(i+1).padStart(6,'0')}`),filingDate:forms.map(()=>'2026-09-30'),primaryDocument:forms.map((form,i)=>form==='EFFECT'?'':form.startsWith('4')?'xslF345X06/ownership.xml':`filing-${i}.htm`),isXBRL:forms.map(()=>0)};
+  const rows=secDisclosureRows('US:MU','0000723125',{cik:723125,filings:{recent}});
+  assert.equal(rows.length,forms.length);assert.deepEqual(rows.map(row=>row.form),forms);
+  assert.equal(rows[1].filingCategory,'insider_ownership');assert.match(rows[1].url,/\/xslF345X06\/ownership.xml$/);
+  assert.equal(rows[7].filingCategory,'major_ownership');assert.equal(rows[8].filingCategory,'proxy');assert.equal(rows[9].filingCategory,'merger_tender');
+  assert.equal(rows[11].filingCategory,'offering');assert.equal(rows[15].filingCategory,'late_filing');assert.equal(rows[17].filingCategory,'other');
+  assert.match(rows[18].url,/0000723125-26-000019-index.html$/);assert.equal(secFilingCategory('13F-HR'),'other');
+  assert.equal(projectDisclosures(rows,graph,new Date('2026-10-03T12:00:00Z')).length,forms.length);
+  // Broad event links never widen the financial extraction/outbox contract.
+  assert.deepEqual(parseSecFilingRows(recent).map(row=>row.form),['10-Q']);
+  for(const path of ['../private.xml','xsl/../private.xml','/private.xml','xsl//private.xml','xsl/private.xml?token=x','https://evil.example/file','xsl/%2e%2e/private.xml']){
+    assert.throws(()=>secDisclosureRows('US:MU','0000723125',{cik:723125,filings:{recent:{...recent,primaryDocument:recent.primaryDocument.map((value,i)=>i===1?path:value)}}}),/Invalid SEC filing link/);
+  }
+  assert.throws(()=>secDisclosureRows('US:MU','0000723125',{cik:723125,filings:{recent:{...recent,form:forms.map((form,i)=>i===1?'':form)}}}),/Invalid SEC disclosure form/);
 });
 test('non-pilot China company disclosures retain date-only precision and reject wrong issuer or unsafe document paths',()=>{
   const [row]=cnDisclosureRows('XSHE:000063','testorg',cn);assert.equal(row.published_at,null);assert.equal(row.category,'EARNINGS');
@@ -58,6 +77,42 @@ test('SEC issuer aliases share transport but each map company gets its own colle
   assert.equal(fx.rows.get('collectors/sec-US:MU')?.status,'complete');
   assert.equal(fx.rows.get('collectors/sec-US:ALIAS')?.status,'complete');
   assert.equal(collector.failed.size,0);
+});
+test('expanded SEC coverage backfills existing issuers and resumes bounded batches without changing original timestamps',async()=>{
+  const fx=earningsFirestore(),ids=new Map([['0000723125',['US:MU']]]),at='2026-10-01T12:00:00.000Z';
+  const existing=secDisclosureRows('US:MU','0000723125',payload);
+  await saveDisclosures(fx.db,existing,at,false);
+  const original=structuredClone(fx.rows.get(`events/${existing[0].id}`));
+  fx.rows.set('collectors/sec-US:MU',{cik:'0000723125',status:'complete',lastCompleteAt:at});
+  const recent={form:['4','DEF 14A','S-3','8-K'],accessionNumber:['0000723125-26-000001','0000723125-26-000002','0000723125-26-000003',payload.filings.recent.accessionNumber[0]],filingDate:['2026-01-15','2026-03-01','2026-08-01','2026-09-30'],primaryDocument:['xslF345X06/ownership.xml','proxy.htm','registration.htm','mu-20260930.htm'],items:['','','','2.02,9.01'],acceptanceDateTime:['2026-01-15T12:00:00Z','','','2026-09-30T20:02:22Z']};
+  const raw={cik:723125,filings:{recent,files:[]}};
+  const run=()=>createMapSecObserver(fx.db,ids,{deadline:fx.now()+60000,now:fx.now,maxRowsPerCompany:2});
+  const first=run();await first.observe('0000723125',raw,async()=>{throw new Error('Unexpected archive')});
+  assert.equal(first.failed.size,1);assert.equal(fx.rows.get('collectors/sec-US:MU')?.lastCompleteAt,at);
+  assert.equal(fx.rows.get('collectors/sec-US:MU')?.linkCoverageVersion,undefined);
+  assert.equal([...fx.rows.keys()].filter(key=>key.startsWith('events/')).length,3);
+  fx.advance(86400000);
+  const second=run();await second.observe('0000723125',raw,async()=>{throw new Error('Unexpected archive')});
+  assert.equal(second.failed.size,0);assert.equal(fx.rows.get('collectors/sec-US:MU')?.linkCoverageVersion,SEC_LINK_COVERAGE_VERSION);
+  assert.equal(fx.rows.get('collectors/sec-US:MU')?.linkScan,null);
+  assert.equal(fx.rows.get('collectors/sec-US:MU')?.lastCompleteAt,'2026-10-02T23:59:59.999Z');
+  assert.equal([...fx.rows.keys()].filter(key=>key.startsWith('events/')).length,4);
+  assert.deepEqual(fx.rows.get(`events/${existing[0].id}`),original);
+  const ownership=[...fx.rows.values()].find(row=>row.form==='4')!;
+  assert.equal(ownership.baseline,true);assert.equal(ownership.publication_date,'2026-01-15');assert.equal(ownership.published_at,'2026-01-15T12:00:00.000Z');
+  assert.equal(ownership.collected_at,'2026-10-02T11:00:00.000Z');
+});
+test('SEC persistence failures replay their uncommitted batch and never advance full coverage',async()=>{
+  const fx=earningsFirestore(),ids=new Map([['0000723125',['US:MU']]]),raw={...payload,filings:{...payload.filings,files:[]}};
+  fx.reject(path=>path.startsWith('events/'));
+  const first=createMapSecObserver(fx.db,ids,{deadline:fx.now()+60000,now:fx.now});
+  await first.observe('0000723125',raw,async()=>null);
+  assert.equal(first.failed.size,1);assert.equal(fx.rows.get('collectors/sec-US:MU')?.lastCompleteAt,undefined);
+  assert.equal(fx.rows.get('collectors/sec-US:MU')?.linkScan,undefined);
+  fx.reject(()=>false);
+  const retry=createMapSecObserver(fx.db,ids,{deadline:fx.now()+60000,now:fx.now});
+  await retry.observe('0000723125',raw,async()=>null);
+  assert.equal(retry.failed.size,0);assert.equal([...fx.rows.keys()].filter(key=>key.startsWith('events/')).length,1);
 });
 test('China non-pilot announcements reach universal events; incomplete scans retain their checkpoint',async()=>{
   const fx=earningsFirestore();
