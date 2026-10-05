@@ -1,0 +1,235 @@
+{
+  "reviewedAt": "2026-10-04",
+  "companies": [
+    {
+      "id": "US:NVDA",
+      "expectedName": "NVIDIA Corporation",
+      "primarySector": "compute-control",
+      "secondaryRoles": [
+        "software-simulation"
+      ],
+      "sources": [
+        {
+          "url": "https://www.nvidia.com/en-us/industries/robotics/",
+          "title": "NVIDIA robotics platform",
+          "summary": "Jetson supports robot inference and control; Isaac provides robotics simulation and learning software."
+        }
+      ]
+    },
+    {
+      "id": "US:AMD",
+      "expectedName": "Advanced Micro Devices, Inc.",
+      "primarySector": "compute-control",
+      "secondaryRoles": [
+        "software-simulation"
+      ],
+      "sources": [
+        {
+          "url": "https://www.amd.com/en/solutions/robotics.html",
+          "title": "AMD robotics solutions",
+          "summary": "AMD embedded processors, adaptive SoCs and the Kria robotics platform support perception and deterministic robot control."
+        }
+      ]
+    },
+    {
+      "id": "US:QCOM",
+      "expectedName": "QUALCOMM Incorporated",
+      "primarySector": "compute-control",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.qualcomm.com/internet-of-things/applications/robotics-processors",
+          "title": "Qualcomm robotics processors",
+          "summary": "Dragonwing processors and robotics platforms support robot edge computing, perception and control."
+        }
+      ]
+    },
+    {
+      "id": "US:CGNX",
+      "expectedName": "Cognex Corporation",
+      "primarySector": "sensors-vision",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.cognex.com/products/machine-vision/3d-laser-profilers",
+          "title": "Cognex 3D machine vision",
+          "summary": "Cognex machine-vision products support robot guidance and industrial inspection."
+        }
+      ]
+    },
+    {
+      "id": "US:OUST",
+      "expectedName": "Ouster, Inc.",
+      "primarySector": "sensors-vision",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://docs.ouster.com/sensor-docs/overview/welcome",
+          "title": "Ouster digital lidar documentation",
+          "summary": "Ouster develops lidar sensors for industrial automation and robotics."
+        }
+      ]
+    },
+    {
+      "id": "US:NOVT",
+      "expectedName": "Novanta Inc.",
+      "primarySector": "grippers-tools",
+      "secondaryRoles": [
+        "motion-mechanics",
+        "sensors-vision"
+      ],
+      "sources": [
+        {
+          "url": "https://ati.novanta.com/",
+          "title": "ATI Industrial Automation, a Novanta company",
+          "summary": "ATI supplies robotic tool changers, material-removal tools and force/torque sensors; Novanta also offers precision-motion components."
+        }
+      ]
+    },
+    {
+      "id": "US:TER",
+      "expectedName": "Teradyne, Inc.",
+      "primarySector": "robot-manufacturers",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.teradyne.com/robotics/",
+          "title": "Teradyne Robotics",
+          "summary": "Teradyne Robotics includes Universal Robots collaborative robots and MiR autonomous mobile robots."
+        }
+      ]
+    },
+    {
+      "id": "US:ISRG",
+      "expectedName": "Intuitive Surgical, Inc.",
+      "primarySector": "robot-manufacturers",
+      "secondaryRoles": [
+        "grippers-tools"
+      ],
+      "sources": [
+        {
+          "url": "https://www.intuitive.com/en-us/products-and-services/da-vinci",
+          "title": "Intuitive da Vinci robotic surgical systems",
+          "summary": "Intuitive develops complete robotic-assisted surgical systems and their instruments; surgeon control is distinct from autonomous surgery."
+        }
+      ]
+    },
+    {
+      "id": "US:SYM",
+      "expectedName": "Symbotic Inc. Class A",
+      "primarySector": "systems-integration",
+      "secondaryRoles": [
+        "robot-manufacturers",
+        "software-simulation"
+      ],
+      "sources": [
+        {
+          "url": "https://www.symbotic.com/solutions/robots/",
+          "title": "Symbotic warehouse robotics",
+          "summary": "Symbotic combines robotic technologies and operating software into integrated warehouse automation systems."
+        }
+      ]
+    },
+    {
+      "id": "US:ROK",
+      "expectedName": "Rockwell Automation, Inc.",
+      "primarySector": "systems-integration",
+      "secondaryRoles": [
+        "robot-manufacturers",
+        "software-simulation"
+      ],
+      "sources": [
+        {
+          "url": "https://www.rockwellautomation.com/en-mde/capabilities/advanced-motion-robotics/amr-robot.html",
+          "title": "Rockwell Automation autonomous mobile robots",
+          "summary": "Rockwell offers OTTO autonomous mobile robots and fleet-management software for factory material handling."
+        }
+      ]
+    },
+    {
+      "id": "XSHE:300124",
+      "expectedName": "汇川技术",
+      "primarySector": "motion-mechanics",
+      "secondaryRoles": [
+        "compute-control",
+        "sensors-vision",
+        "robot-manufacturers"
+      ],
+      "sources": [
+        {
+          "url": "https://www.inovance.eu/industries/industrial-robotics",
+          "title": "Inovance industrial robotics",
+          "summary": "Inovance supplies robot controllers, servo drives, motors, encoders and industrial vision systems."
+        }
+      ]
+    },
+    {
+      "id": "XSHE:002747",
+      "expectedName": "埃斯顿",
+      "primarySector": "robot-manufacturers",
+      "secondaryRoles": [
+        "motion-mechanics",
+        "systems-integration"
+      ],
+      "sources": [
+        {
+          "url": "https://en.estun.com/",
+          "title": "ESTUN industrial robotics products",
+          "summary": "ESTUN offers industrial and collaborative robots, motion-control products and robot workstations."
+        }
+      ]
+    },
+    {
+      "id": "XSHG:688017",
+      "expectedName": "绿的谐波",
+      "primarySector": "motion-mechanics",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.leaderdrive.cn/",
+          "title": "Leaderdrive precision transmission products",
+          "summary": "Leaderdrive offers precision harmonic transmission and humanoid robot joint products; the official site identifies stock code 688017."
+        }
+      ]
+    },
+    {
+      "id": "XSHE:002979",
+      "expectedName": "雷赛智能",
+      "primarySector": "motion-mechanics",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://store.leadshine.com/products/fm2-04308-frameless-motor",
+          "title": "Leadshine frameless motors",
+          "summary": "Leadshine offers frameless motors for robot joint actuation; the official store identifies stock code 002979."
+        }
+      ]
+    },
+    {
+      "id": "XSHG:603728",
+      "expectedName": "鸣志电器",
+      "primarySector": "motion-mechanics",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.moons.com.cn/m",
+          "title": "MOONS motion-control products",
+          "summary": "MOONS supplies motion-control motors, drives and frameless motors, including motor products for robotic hands."
+        }
+      ]
+    },
+    {
+      "id": "XSHG:688322",
+      "expectedName": "奥比中光",
+      "primarySector": "sensors-vision",
+      "secondaryRoles": [],
+      "sources": [
+        {
+          "url": "https://www.orbbec.com/",
+          "title": "Orbbec robotics and AI vision",
+          "summary": "Orbbec provides depth cameras, lidar and vision products for robotics."
+        }
+      ]
+    }
+  ]
+}

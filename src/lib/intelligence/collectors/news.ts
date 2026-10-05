@@ -42,8 +42,9 @@ export function parseNewsFeed(xml:string,source:NewsSource):NewsPage{
     const item=object(entry);
     const categories=array(item.category).map(value=>plainText(object(value)['@_term']??value).toLowerCase());
     if(source.excludedCategories?.some(category=>categories.includes(category.toLowerCase())))continue;
-    const link=array(item.link).filter(value=>typeof value==='string'||!object(value)['@_rel']||object(value)['@_rel']==='alternate').map(value=>typeof value==='string'?value:object(value)['@_href']).find(value=>typeof value==='string'&&(value.startsWith('https:')||source.upgradeArticleHttp&&value.startsWith('http:')));
-    const url=typeof link==='string'?approvedNewsUrl(link,source,true):null,title=plainText(item.title,240);
+    const link=array(item.link).filter(value=>typeof value==='string'||!object(value)['@_rel']||object(value)['@_rel']==='alternate').map(value=>typeof value==='string'?value:object(value)['@_href']).find(value=>typeof value==='string'&&(value.startsWith('https:')||source.upgradeArticleHttp&&value.startsWith('http:')||source.resolveRelativeArticleLinks&&value.startsWith('/')));
+    const resolved=typeof link==='string'&&source.resolveRelativeArticleLinks&&link.startsWith('/')?new URL(link,source.url).href:link;
+    const url=typeof resolved==='string'?approvedNewsUrl(resolved,source,true):null,title=plainText(item.title,240);
     if(!url||!title){invalid++;continue;}
     // Some publisher CMS feeds expose site-rebuild dates as pubDate.
     const date=source.publicationFromArticle?{at:null,day:null}:publication(item.pubDate??item.published);

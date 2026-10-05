@@ -1,6 +1,6 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { loadKnowledgeGraph } from "../src/lib/knowledge-graph/service";
+import { loadCollectionUniverse } from "../src/lib/company-themes/service";
 import { auditMapFundamentals, drainFundamentalsQueue, seedMapFundamentals, usMapTickers } from "../src/lib/fundamentals/batch";
 import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
@@ -33,7 +33,7 @@ async function main() {
       return;
     }
     log.stage("seed_map");
-    const tickers = usMapTickers(await loadKnowledgeGraph());
+    const tickers = usMapTickers(await loadCollectionUniverse(db));
     if (!tickers.length) throw new Error("No US map companies found; refusing an incomplete coverage check");
     log.emit("INFO", "map_seeded", await seedMapFundamentals(db, tickers));
     if (process.argv.includes("--seed-only")) return;

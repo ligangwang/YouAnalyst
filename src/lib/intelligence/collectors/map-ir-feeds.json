@@ -663,5 +663,84 @@
     "format": "html",
     "articlePathPattern": "^/[0-9]{4}-[0-9]{2}-[0-9]{2}-",
     "indexDateFormat": "vistra"
+  },
+  {
+    "id": "rok-ir",
+    "companyId": "US:ROK",
+    "name": "ROK Investor News",
+    "url": "https://rockwell2023tf.q4web.com/rss/pressrelease.aspx",
+    "allowedHosts": [
+      "rockwell2023tf.q4web.com",
+      "www.rockwellautomation.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "cgnx-ir",
+    "companyId": "US:CGNX",
+    "name": "CGNX Investor News",
+    "url": "https://investor.cognex.com/rss/pressrelease.aspx",
+    "allowedHosts": [
+      "investor.cognex.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https",
+    "resolveRelativeArticleLinks": true
+  },
+  {
+    "id": "novt-ir",
+    "companyId": "US:NOVT",
+    "name": "NOVT Investor News",
+    "url": "https://investors.novanta.com/rss/pressrelease.aspx",
+    "allowedHosts": [
+      "investors.novanta.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "ter-ir",
+    "companyId": "US:TER",
+    "name": "TER Investor News",
+    "url": "https://investors.teradyne.com/news-events/press-releases/rss",
+    "allowedHosts": [
+      "investors.teradyne.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "sym-ir",
+    "companyId": "US:SYM",
+    "name": "SYM Investor News",
+    "url": "https://ir.symbotic.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "ir.symbotic.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "oust-ir",
+    "companyId": "US:OUST",
+    "name": "OUST Investor News",
+    "url": "https://investors.ouster.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "investors.ouster.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
+  },
+  {
+    "id": "isrg-ir",
+    "companyId": "US:ISRG",
+    "name": "ISRG Investor News",
+    "url": "https://isrg.intuitive.com/rss/news-releases.xml",
+    "allowedHosts": [
+      "isrg.intuitive.com"
+    ],
+    "pollMs": 3600000,
+    "transport": "https"
   }
 ]

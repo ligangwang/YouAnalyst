@@ -1,6 +1,6 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { loadKnowledgeGraph } from "../src/lib/knowledge-graph/service";
+import { loadCollectionUniverse } from "../src/lib/company-themes/service";
 import { cnMapCompanies, CN_COMPANY_ID } from "../src/lib/knowledge-graph/cn-companies";
 import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";
 import { CN_WORKER_DOC, cnRunFailed, refreshCnFundamentals } from "../src/lib/fundamentals/cn-refresh";
@@ -26,7 +26,7 @@ async function main() {
   const db = getFirestore();
   if (!dryRun && !process.argv.includes("--direct") && process.env.CN_FUNDAMENTALS_REQUEST_TOPIC) {
     log.emit("INFO", "run_started", { mode: "pubsub" });
-    const companies = cnMapCompanies(await loadKnowledgeGraph());
+    const companies = cnMapCompanies(await loadCollectionUniverse(db));
     const result = await publishCnRequests(db, process.env.CLOUD_RUN_EXECUTION || log.runId, companies,
       request => publishJobMessage(process.env.CN_FUNDAMENTALS_REQUEST_TOPIC!, request));
     log.emit("INFO", "run_completed", result); return;
@@ -41,7 +41,7 @@ async function main() {
   const deadline = Date.now() + 18 * 60_000;
   try {
     log.stage("select_companies");
-    const mapCompanies = cnMapCompanies(await loadKnowledgeGraph());
+    const mapCompanies = cnMapCompanies(await loadCollectionUniverse(db));
     if (!mapCompanies.length) throw new Error("No A-share map companies found; refusing an incomplete run");
     const companies = subset ?? mapCompanies;
     log.emit("INFO", "companies_selected", { companies: companies.length, mapCompanies: mapCompanies.length, subset: Boolean(subset) });

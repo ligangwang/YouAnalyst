@@ -3,13 +3,15 @@ import { digest } from "./pubsub";
 import { checkPrivateValuation } from "./private-valuations";
 import { acquireMaintenanceLease, releaseMaintenanceLease } from "../maintenance-lease";
 import type { MaintenanceLog } from "../maintenance-log";
+import { loadCollectionCompanies } from "../company-themes/service";
+import { isCollectionCompany, type ThemedCompany } from "../company-themes/model";
 
 export type PrivateValuationRequest = {
   version: 1; type: "private-valuation.check.requested"; batchId: string;
   companyId: string; requestedAt: string;
 };
 const eligible = (data: DocumentData | undefined) =>
-  data?.listingStatus === "PRIVATE" && (data.inGraph ?? data.aiGraph)?.status === "PUBLISHED";
+  data?.listingStatus === "PRIVATE" && isCollectionCompany({ ...data, id: String(data.id ?? 'private') } as ThemedCompany);
 const ledgerRef = (db: Firestore, id: string) => db.collection("company_fundamentals").doc(`_private_check_${id}`);
 
 export function parsePrivateValuationRequest(input: unknown): PrivateValuationRequest {
@@ -25,12 +27,7 @@ export function parsePrivateValuationRequest(input: unknown): PrivateValuationRe
 
 export async function publishPrivateValuationChecks(db: Firestore, execution: string,
   publish: (request: PrivateValuationRequest) => Promise<unknown>, log: MaintenanceLog) {
-  const [current, legacy] = await Promise.all([
-    db.collection("companies").where("inGraph.status", "==", "PUBLISHED").get(),
-    db.collection("companies").where("aiGraph.status", "==", "PUBLISHED").get(),
-  ]);
-  const companies = [...new Map([...legacy.docs, ...current.docs].map(d => [d.id, d])).values()]
-    .filter(d => eligible(d.data()));
+  const companies = (await loadCollectionCompanies(db)).filter(d => eligible(d.data()));
   for (const company of companies) {
     const request = parsePrivateValuationRequest({ version: 1, type: "private-valuation.check.requested",
       batchId: digest({ execution, companyId: company.id }), companyId: company.id, requestedAt: new Date().toISOString() });

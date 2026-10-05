@@ -4,7 +4,7 @@ import {NEWS_SOURCES} from '../src/lib/intelligence/collectors/sources';
 import {fetchNews} from '../src/lib/intelligence/collectors/news';
 import {collectNewsSources,NEWS_HISTORY_START} from '../src/lib/intelligence/collectors/collector';
 import {firestoreNewsStore} from '../src/lib/intelligence/collectors/store';
-import {loadKnowledgeGraph} from '../src/lib/knowledge-graph/service';
+import {loadCollectionUniverse} from '../src/lib/company-themes/service';
 import {collectCnMapDisclosures} from '../src/lib/events/cn-disclosures';
 import {createCnEarningsRequester} from '../src/lib/earnings/live-cn';
 import {createEarningsRequestGate} from '../src/lib/earnings/live-transport';
@@ -23,7 +23,7 @@ async function main(){
   if(process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED!=='1')throw new Error('News collector is disabled');
   if(!process.env.GCP_PROJECT_ID)throw new Error('GCP_PROJECT_ID is required');
   initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
-  const db=getFirestore(),graph=await loadKnowledgeGraph(),mapped=new Set(graph.nodes.filter(n=>n.kind==='COMPANY').map(n=>n.id));
+  const db=getFirestore(),graph=await loadCollectionUniverse(db),mapped=new Set(graph.nodes.filter(n=>n.kind==='COMPANY').map(n=>n.id));
   const newsDeadline=Date.now()+10*60_000,sources=NEWS_SOURCES.filter(s=>mapped.has(s.companyId));
   // Rotate the start hourly; slow publishers cannot starve later map companies.
   const start=Math.floor(Date.now()/3600000)%sources.length;

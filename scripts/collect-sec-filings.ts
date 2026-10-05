@@ -1,6 +1,6 @@
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { loadKnowledgeGraph } from "../src/lib/knowledge-graph/service";
+import { loadCollectionUniverse } from "../src/lib/company-themes/service";
 import { usMapTickers } from "../src/lib/knowledge-graph/us-companies";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { publishJobMessage } from "../src/lib/job-pubsub";
@@ -42,7 +42,7 @@ async function main() {
     if (result.status === "partial") throw new Error("Initial baseline incomplete; retry only the frozen snapshot");
     return;
   }
-  const graph = await loadKnowledgeGraph();
+  const graph = await loadCollectionUniverse(db);
   const companyIds = usMapTickers(graph);
   if (!apply) {
     log.emit("INFO", "run_completed", { ...await inspectSecFilingCollection(db, companyIds), maxCompaniesPerRun: maxCompanies });
