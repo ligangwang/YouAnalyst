@@ -221,13 +221,15 @@ export function SiteNav() {
                 className="hidden h-10 w-auto lg:block"
               />
             </Link>
-            <nav className="hidden items-center gap-4 text-[15px] text-slate-200 lg:flex">
-              {navItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="hover:text-cyan-200">{t(item.label)}</Link>)}
-            </nav>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-3">
-            <div className="hidden lg:block"><MoreMenu admin={showAdminLink} /></div>
+          <div className="ml-auto flex items-center gap-1 sm:gap-3">
+            <div className="hidden items-center gap-4 lg:mr-4 lg:flex">
+              <nav className="flex items-center gap-4 text-[15px] text-slate-200">
+                {navItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="hover:text-cyan-200">{t(item.label)}</Link>)}
+              </nav>
+              <MoreMenu admin={showAdminLink} />
+            </div>
             <LanguageSwitch />
             <Link
               href="/companies"
