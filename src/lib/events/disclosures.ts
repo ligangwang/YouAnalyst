@@ -4,10 +4,11 @@ import type {StoredEvent} from './model';
 import {eventDocumentId} from './model';
 import {sourcePublication} from '../sec-filings/event';
 import {plainText} from '../intelligence/collectors/news';
+import {secFilingCategory,secFilingLink,SEC_FILING_DESCRIPTIONS,type SecFilingCategory} from './sec-filing-metadata';
 
 export type Disclosure = Omit<StoredEvent,'collected_at'|'processed_at'|'baseline'> & {
   companyId:string; sourceType:'sec'|'exchange'; form?:string; accession?:string;
-  category:'EARNINGS'|'FILING';
+  category:'EARNINGS'|'FILING'; filingCategory?:SecFilingCategory;
 };
 export function mapListedCompanies(graph:Pick<KnowledgeGraph,'nodes'>){
   return graph.nodes.filter(n=>n.kind==='COMPANY'&&(
@@ -18,7 +19,7 @@ export function mapListedCompanies(graph:Pick<KnowledgeGraph,'nodes'>){
 const hash=(key:string)=>createHash('sha256').update(key).digest('hex');
 const validDay=(value:unknown):value is string=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
 
-/** All material current and periodic reports. Financial extraction has a separate scope. */
+/** All forms associated with the issuer in SEC submissions, including third-party ownership filings. */
 export function secDisclosureRows(companyId:string,cik:string,payload:unknown):Disclosure[]{
   if(!/^US:[A-Z0-9][A-Z0-9.-]{0,15}$/.test(companyId)||!/^\d{10}$/.test(cik)||Number(cik)===0)throw new Error('Invalid SEC map identity');
   const raw=payload as {cik?:unknown;filings?:{recent?:Record<string,unknown>}};
@@ -27,19 +28,22 @@ export function secDisclosureRows(companyId:string,cik:string,payload:unknown):D
   const keys=['accessionNumber','form','filingDate','primaryDocument'] as const;
   if(!rows||keys.some(k=>!Array.isArray(rows[k]))||keys.some(k=>(rows[k] as unknown[]).length!==(rows.form as unknown[]).length))throw new Error('Incomplete SEC disclosure columns');
   for(const key of ['items','acceptanceDateTime'])if(rows[key]!==undefined&&(!Array.isArray(rows[key])||(rows[key] as unknown[]).length!==(rows.form as unknown[]).length))throw new Error('Incomplete SEC optional columns');
-  const output:Disclosure[]=[];
+  const output=new Map<string,Disclosure>();
   for(let i=0;i<(rows.form as unknown[]).length;i++){
     const form=(rows.form as unknown[])[i];
-    if(typeof form!=='string'||!/^(?:8-K|6-K|10-Q|10-K|20-F|40-F)(?:\/A)?$/.test(form))continue;
+    if(typeof form!=='string'||!/^[A-Z0-9][A-Z0-9 /()._-]{0,79}$/.test(form)||form.trim()!==form)throw new Error('Invalid SEC disclosure form');
     const accession=(rows.accessionNumber as unknown[])[i],day=(rows.filingDate as unknown[])[i],document=(rows.primaryDocument as unknown[])[i];
-    if(typeof accession!=='string'||!/^\d{10}-\d{2}-\d{6}$/.test(accession)||!validDay(day)||typeof document!=='string'||!/^\w[\w.-]*$/.test(document))throw new Error('Invalid SEC disclosure row');
+    if(typeof accession!=='string'||!/^\d{10}-\d{2}-\d{6}$/.test(accession)||!validDay(day)||typeof document!=='string')throw new Error('Invalid SEC disclosure row');
     const items=Array.isArray(rows.items)?rows.items[i]:null;
     const category=form.startsWith('8-K')&&typeof items==='string'&&items.split(',').map(s=>s.trim()).includes('2.02')?'EARNINGS':'FILING';
-    const url=`https://www.sec.gov/Archives/edgar/data/${Number(cik)}/${accession.replaceAll('-','')}/${document}`;
+    const url=secFilingLink(cik,accession,document),filingCategory=secFilingCategory(form);
     const title=`${companyId.slice(3)} · ${category==='EARNINGS'?'Earnings announcement':`${form} filing`}`;
-    output.push({version:1,id:eventDocumentId('company_disclosure',hash(`${companyId}|sec|${accession}`)),type:'company_disclosure',sourceType:'sec',sourceId:`sec-${companyId}`,companyId,companyIds:[companyId],title,summary:category==='EARNINGS'?'Results of operations announcement (SEC Item 2.02). Open the filing and its earnings release exhibits.':`Official ${form} disclosure.`,url,published_at:sourcePublication(Array.isArray(rows.acceptanceDateTime)?rows.acceptanceDateTime[i]:null),publication_date:day,category,form,accession});
+    const row:Disclosure={version:1,id:eventDocumentId('company_disclosure',hash(`${companyId}|sec|${accession}`)),type:'company_disclosure',sourceType:'sec',sourceId:`sec-${companyId}`,companyId,companyIds:[companyId],title,summary:category==='EARNINGS'?'Results of operations announcement (SEC Item 2.02). Open the filing and its earnings release exhibits.':`${form}: ${SEC_FILING_DESCRIPTIONS[filingCategory]}`,url,published_at:sourcePublication(Array.isArray(rows.acceptanceDateTime)?rows.acceptanceDateTime[i]:null),publication_date:day,category,form,accession,filingCategory};
+    const previous=output.get(row.id);
+    if(previous&&JSON.stringify(previous)!==JSON.stringify(row))throw new Error('Conflicting SEC disclosure accession');
+    output.set(row.id,row);
   }
-  return [...new Map(output.map(row=>[row.id,row])).values()];
+  return [...output.values()];
 }
 
 export function cnDisclosureRows(companyId:string,orgId:string,payload:unknown):Disclosure[]{
