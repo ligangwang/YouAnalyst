@@ -196,7 +196,7 @@ export function SiteNav() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/85 backdrop-blur">
-      <div className="mx-auto w-full max-w-6xl px-4 py-3">
+      <div className="mx-auto w-full max-w-screen-2xl px-4 py-3">
         <div className="flex items-center justify-between gap-1 sm:gap-3">
           <div className="flex items-center gap-5">
             <Link href="/" className="inline-flex shrink-0 items-center">

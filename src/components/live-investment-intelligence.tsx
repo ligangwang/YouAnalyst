@@ -4,7 +4,7 @@ import { IntelligenceSectorLegend } from './intelligence-sector-legend';
 import { lazy, Suspense, useEffect, useEffectEvent, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import Image from 'next/image';
 import { LocalizedLink as Link } from './localized-link';
-import { LanguageSwitch, useLocale } from './providers/locale-provider';
+import { useLocale } from './providers/locale-provider';
 import { NavigationSettings } from './navigation-settings';
 import { IntelligenceActivityOverview } from './intelligence-activity-overview';
 import { IntelligenceEventCompanies } from './intelligence-event-companies';
@@ -15,7 +15,6 @@ import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-
 import { parseIndustryView, type IndustryView } from '@/lib/knowledge-graph/views';
 import { curatedEvents } from '@/lib/knowledge-graph/curated-events';
 import {ActiveCompanyMeter,PublicationActivity,SourceVolume} from './intelligence-summary-visuals';
-import { AvatarButton } from './site-nav';
 import { useCompanyFollows } from './company-follow-button';
 import { companyName, companySearchRank, companySearchText, matchesCompanySearch } from '@/lib/knowledge-graph/model';
 import { matchesCompanySector, graphSectors } from '@/lib/knowledge-graph/sectors';
@@ -183,11 +182,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   if(switching&&playing)setPlaying(false);
 
   return <main className={`${styles.shell} ${leftOpen?'':styles.leftClosed} ${rightOpen?'':styles.rightClosed}`}>
-    <header className={styles.topbar}>
-      <div className={styles.identity}><Link href="/" aria-label="YouAnalyst home"><Image src="/youanalyst-logo-mobile.svg" width={134} height={30} alt="YouAnalyst" priority/></Link><h1 className={styles.srOnly}><UiText text={"Investment Intelligence"}/></h1></div>
-      <nav className={styles.navigation} aria-label="Workspace navigation"><Link href={theme!=='ai'?`/?theme=${theme}&view=graph`:'/?view=graph'}><UiText text={"Map ↗"}/></Link><Link href="/feed">{chinese?'精选研究':'Research feed'}</Link><Link href="/watchlists/following"><UiText text={"Watchlists"}/></Link></nav>
-      <div className={styles.session}><div className={controls.liveControls}><span className={controls.liveStatus}><UiText text={mode==='replay'?'Replay':error?'Disconnected':chinese?'实时':'Live'}/> <small>{mode==='replay'?snapshot.session.date:clock(until)+' ET'}</small></span>{mode==='live'&&<button disabled={switching||!replayEvents.length} title={replayEvents.length?'Replay today’s published events':'No events with exact publication time today'} aria-controls="intraday-replay" onClick={()=>{setWindow('today');setMode('replay');setMinute(end);setPlaying(false);clearSelection();onReplayChange(true);}}><UiText text={"Replay"}/></button>}</div><details className={controls.more} onKeyDown={key=>{if(key.key==='Escape'){key.currentTarget.open=false;key.currentTarget.querySelector('summary')?.focus();}}}><summary><UiText text={"More ▾"}/></summary><nav aria-label="More navigation">{[['/feed','Research feed'],['/watchlists/following','Watchlists'],['/research','Research'],['/companies','Companies'],['/predictions','Investment ideas'],['/my/predictions','My ideas'],['/compare','Performance comparison'],['/predictions/new','Publish an idea'],['/daily/calls','Top Calls'],['/how-it-works','How it works']].map(([href,title])=><Link key={href} href={href}><UiText text={title}/></Link>)}</nav></details><div className={controls.languageSwitch}><LanguageSwitch/></div><Link className={styles.account} href={follows.user?`/analysts/${follows.user.uid}`:'/auth'} aria-label={ui(follows.user?'Account':'Sign in')} title={follows.user?.displayName||ui(follows.user?'Account':'Sign in')}>{follows.user?<AvatarButton compact photoURL={follows.user.photoURL} displayName={follows.user.displayName} email={follows.user.email}/>:<UiText text={'Sign in'}/>}</Link></div>
-    </header>
+    <h1 className={styles.srOnly}><UiText text="Investment Intelligence"/></h1>
     <aside className={styles.left} aria-label="Universe navigation" data-filtered={Boolean(query)||tab==='watchlist'||activeOnly||Boolean(sourceFilter)}>
       <div className={styles.panelTitle}><strong><UiText text={"Explore universe"}/></strong><button aria-label="Collapse left panel" onClick={()=>setLeftOpen(false)}>‹</button></div>
       <label className={styles.search}><span className={styles.srOnly}><UiText text={"Search companies"}/></span><input disabled={switching} value={query} onChange={change=>{setQuery(change.target.value);clearSelection();}} placeholder={ui('Search company / ticker')}/></label>
@@ -202,7 +197,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
       </div>
     </aside>
     <section className={styles.center} aria-label="Graph universe">
-      <div className={styles.graphToolbar}><div>{!leftOpen&&<button aria-label="Expand left panel" onClick={()=>setLeftOpen(true)}><UiText text={"☰ Explore"}/></button>}{!leftOpen&&<IntelligenceThemeSelector compact theme={requestedTheme} onChange={changeTheme}/>}<IntelligenceViewTabs view={view} onChange={changeView} id={viewId}/></div><div>{(view==='graph'||view==='tree')&&<NavigationSettings compact/>}<button disabled={switching} aria-label="Reset universe view" onClick={()=>{clearSelection();setSector('');setSourceFilter('');setActiveOnly(false);setReset(value=>value+1);}}><UiText text={"Reset ⤢"}/></button>{!rightOpen&&<button onClick={()=>setRightOpen(true)}><UiText text={"Events ›"}/></button>}</div></div>
+      <div className={styles.graphToolbar}><div>{!leftOpen&&<button aria-label="Expand left panel" onClick={()=>setLeftOpen(true)}><UiText text={"☰ Explore"}/></button>}{!leftOpen&&<IntelligenceThemeSelector compact theme={requestedTheme} onChange={changeTheme}/>}<IntelligenceViewTabs view={view} onChange={changeView} id={viewId}/></div><div><div className={controls.liveControls}><span className={controls.liveStatus}>{mode==='replay'&&<UiText text="Replay"/>}{error&&<UiText text="Disconnected"/>}<small>{mode==='replay'?snapshot.session.date:clock(until)+' ET'}</small></span>{mode==='live'&&<button disabled={switching||!replayEvents.length} title={replayEvents.length?'Replay today’s published events':'No events with exact publication time today'} aria-controls="intraday-replay" onClick={()=>{setWindow('today');setMode('replay');setMinute(end);setPlaying(false);clearSelection();onReplayChange(true);}}><UiText text="Replay"/></button>}</div>{(view==='graph'||view==='tree')&&<NavigationSettings compact/>}<button disabled={switching} aria-label="Reset universe view" onClick={()=>{clearSelection();setSector('');setSourceFilter('');setActiveOnly(false);setReset(value=>value+1);}}><UiText text={"Reset ⤢"}/></button>{!rightOpen&&<button onClick={()=>setRightOpen(true)}><UiText text={"Events ›"}/></button>}</div></div>
       {error&&!switching&&<div className={liveStyles.notice} role="alert"><UiText text={"Connection interrupted. Showing the last received data."}/>{' '}<button onClick={reconnect}><UiText text={"Retry"}/></button></div>}
       <div className={viewStyles.panel} role="tabpanel" id={`${viewId}-panel`} aria-labelledby={`${viewId}-${view}`} tabIndex={0}>
         {/* Keep the old scene while loading; initialize camera, growth and branch state for the committed theme. */}

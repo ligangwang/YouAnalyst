@@ -154,12 +154,9 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
   await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
   await panel.getByRole('button',{name:'Today',exact:true}).click();await expect(panel.getByText('350',{exact:true})).toHaveCount(0);await expect(panel.getByText('No new events in the available records today.')).toBeVisible();
-  await expect(page.getByRole('link',{name:'Watchlists',exact:true}).first()).toHaveAttribute('href','/en/watchlists/following');
 });
-test('mobile navigation exposes saved companies and event details retain their Chinese labels',async({page},info)=>{
+test('mobile workspace exposes saved companies and event details retain their Chinese labels',async({page},info)=>{
   test.skip(info.project.name!=='mobile','Mobile workspace checks');await open(page,true);
-  await page.getByText('更多 ▾',{exact:true}).click();await expect(page.getByRole('navigation',{name:'More navigation'}).getByRole('link',{name:'自选股',exact:true})).toHaveAttribute('href','/zh-cn/watchlists/following');
-  await page.getByText('更多 ▾',{exact:true}).click();
   const center=page.getByRole('region',{name:'Graph universe'});
   await expect(center.getByRole('combobox',{name:'投资主题',exact:true})).toBeVisible();
   await center.getByRole('tab',{name:'公司列表',exact:true}).click();

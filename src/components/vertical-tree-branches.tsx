@@ -34,7 +34,7 @@ export function VerticalTreeBranches({nodes,groups,focus,growth}:{nodes:TreePoin
         const wood=['trunk','fiber','ring'].includes(strand.kind);
         // Energy is present from the first growth stage and fades when the
         // whole tree collapses; the persistent title/root group does not.
-        const opacity=Number(map.get(wood||strand.kind==='root'?'energy':strand.to)?.userData.presenceAlpha??0);
+        const opacity=Number(map.get(wood||strand.kind==='root'?(layerIds.includes('energy')?'energy':layerIds[0]):strand.to)?.userData.presenceAlpha??0);
         const progress=wood?growth.current.trunk:strand.kind==='root'?growth.current.roots:1;
         const key=String(j),value=opacity+progress*2;if(alpha.get(key)===value)return;alpha.set(key,value);changed=true;
         const positions=geometry.getAttribute('position');
