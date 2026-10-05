@@ -11,7 +11,24 @@ export const GRAPH_SECTORS = [
   { id: "platforms", color: "#ff9eae", en: "Cloud & platforms", zh: "云与平台", stages: ["cloud"] },
   { id: "applications", color: "#e3a2ef", en: "AI applications", zh: "AI 应用", stages: ["applications"] },
 ];
+export type GraphSector = typeof GRAPH_SECTORS[number];
+export const ROBOTICS_GRAPH_SECTORS: GraphSector[] = [
+  {id:'compute-control',en:'Compute & control',zh:'算力与控制',color:'#65d9ff',stages:['robotics:compute-control']},
+  {id:'sensors-vision',en:'Sensors & vision',zh:'传感与视觉',color:'#67e6bc',stages:['robotics:sensors-vision']},
+  {id:'motion-mechanics',en:'Motion & mechanics',zh:'运动与机械',color:'#ffc57a',stages:['robotics:motion-mechanics']},
+  {id:'grippers-tools',en:'Grippers & tools',zh:'末端执行器与工具',color:'#c4a0ff',stages:['robotics:grippers-tools']},
+  {id:'software-simulation',en:'Software & simulation',zh:'软件与仿真',color:'#e3a2ef',stages:['robotics:software-simulation']},
+  {id:'robot-manufacturers',en:'Robot manufacturers',zh:'机器人制造商',color:'#8faaff',stages:['robotics:robot-manufacturers']},
+  {id:'systems-integration',en:'Systems integration',zh:'系统集成',color:'#ff9eae',stages:['robotics:systems-integration']},
+];
+export const graphSectors = (theme: string = 'ai') => theme === 'robotics' ? ROBOTICS_GRAPH_SECTORS : GRAPH_SECTORS;
 export const OTHER_SECTOR = { id: "other", color: "#b6c3d2", en: "Other / unclassified", zh: "其他／待分类", stages: [] };
 export function companySector(company: Pick<GraphNode, "stageIds">) {
-  return GRAPH_SECTORS.find(sector => sector.stages.includes(company.stageIds?.[0] ?? "")) ?? OTHER_SECTOR;
+  return [...GRAPH_SECTORS, ...ROBOTICS_GRAPH_SECTORS].find(sector => sector.stages.includes(company.stageIds?.[0] ?? "")) ?? OTHER_SECTOR;
+}
+/** AI keeps its established primary-sector counts; Robotics exposes reviewed secondary roles. */
+export function matchesCompanySector(company: Pick<GraphNode, 'stageIds'>, id: string) {
+  return company.stageIds?.[0]?.startsWith('robotics:')
+    ? ROBOTICS_GRAPH_SECTORS.some(sector => sector.id === id && sector.stages.some(stage => company.stageIds?.includes(stage)))
+    : companySector(company).id === id;
 }

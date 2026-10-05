@@ -3,6 +3,10 @@ import { companyGeography } from '../market-companies/identity';
 
 export const COMPANY_THEMES = ['ai', 'robotics'] as const;
 export type CompanyThemeId = typeof COMPANY_THEMES[number];
+export function parseCompanyTheme(value: unknown): CompanyThemeId {
+  return COMPANY_THEMES.includes(value as CompanyThemeId) ? value as CompanyThemeId : 'ai';
+}
+export const themeName = (theme: CompanyThemeId, chinese = false) => theme === 'robotics' ? chinese ? '机器人' : 'Robotics' : 'AI';
 export const ROBOTICS_SECTORS = [
   'compute-control', 'sensors-vision', 'motion-mechanics', 'grippers-tools',
   'software-simulation', 'robot-manufacturers', 'systems-integration',

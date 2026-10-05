@@ -1,6 +1,6 @@
 "use client";
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {industryTree} from '@/lib/knowledge-graph/industry-tree';
+import {industryTree,industryRootLabel} from '@/lib/knowledge-graph/industry-tree';
 import {companyName,type GraphNode} from '@/lib/knowledge-graph/model';
 import {useLocale} from './providers/locale-provider';
 import {CompanyCountryFlag} from './company-country-flag';
@@ -23,7 +23,7 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
  useEffect(()=>{const el=viewport.current;if(!el)return;const observer=new ResizeObserver(([e])=>{setSize({width:e.contentRect.width,height:e.contentRect.height});if(!initialized.current){initialized.current=true;shot.current={x:300,y:300,zoom:Math.min(.8,e.contentRect.width/650,e.contentRect.height/650)};}});observer.observe(el);return()=>observer.disconnect();},[]);
  const nodes=useMemo(()=>{
   const label=(en:string,zh:string)=>locale==='zh-CN'?zh:en;
-  const result:Node[]=[{id:'root',x:30,y:260,label:label('AI industry chain','AI 产业链'),color:'#7dd3fc'}];let row=30;
+  const result:Node[]=[{id:'root',x:30,y:260,label:industryRootLabel(layers,locale),color:'#7dd3fc'}];let row=30;
   if(open.includes('root'))for(const layer of layers){
    const start=row;result.push({id:layer.id,parent:'root',x:330,y:row,label:label(layer.en,layer.zh),color:layer.color});
    if(open.includes(layer.id))for(const branch of layer.branches){

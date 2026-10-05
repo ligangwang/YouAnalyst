@@ -1,4 +1,5 @@
 import { companyName } from './model';
+import { industryRootLabel } from './industry-tree';
 import type { TreeLayer, TreePoint } from './industry-tree';
 
 export const VERTICAL_ROOT_REACH=1000;
@@ -55,7 +56,7 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;
   // The whole-tree title belongs below the underground Energy layer. Keep its
   // anchor in the layout so camera fitting includes the title on small screens.
-  const nodes:TreePoint[]=[{id:'root',kind:'root',label:locale==='zh-CN'?'AI 产业链':'AI industry chain',color:'#8be8ff',position:[0,-VERTICAL_ROOT_DEPTH-320,0]}];
+  const nodes:TreePoint[]=[{id:'root',kind:'root',label:industryRootLabel(layers,locale),color:'#8be8ff',position:[0,-VERTICAL_ROOT_DEPTH-320,0]}];
   if(!open.has('root'))return nodes;
   // A limb from its trunk origin at an upward angle; leaves grow along its
   // outer half and a little past the tip, alternating sides of the limb.

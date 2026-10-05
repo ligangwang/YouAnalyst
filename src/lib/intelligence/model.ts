@@ -10,6 +10,7 @@ export type IntelligenceEvent = {
 };
 export type IntelligenceSourceDocument = {id:string;channel:IntelligenceSource;companyIds:string[];published_at:string|null;publication_date:string};
 export type IntelligenceSnapshot = {
+  theme?: import('../company-themes/model').CompanyThemeId;
   graph:KnowledgeGraph; graphVersion:string; events:IntelligenceEvent[]; generatedAt:string;
   session:{date:string;timeZone:'America/New_York';startAt:string;endAt:string};
   coverage:{channel:IntelligenceSource;status:'connected'|'stored_evidence'|'unavailable'}[];

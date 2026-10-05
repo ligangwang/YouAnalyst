@@ -15,7 +15,7 @@ export async function generateMetadata({ searchParams }: {searchParams: Promise<
   return metadata;
 }
 export default async function Home({ searchParams }: {
-  searchParams: Promise<{ preview?: string; event?: string | string[]; relationship?: string | string[]; company?: string | string[]; market?: string | string[]; q?: string | string[]; view?: string | string[]; type?: string | string[] }>;
+  searchParams: Promise<{ theme?: string; preview?: string; event?: string | string[]; relationship?: string | string[]; company?: string | string[]; market?: string | string[]; q?: string | string[]; view?: string | string[]; type?: string | string[] }>;
 }) {
   const params = await searchParams;
   // Preserve company campaign destinations and bookmarked feed filters.

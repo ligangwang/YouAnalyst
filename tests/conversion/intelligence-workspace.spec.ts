@@ -18,26 +18,26 @@ test.beforeAll(async()=>{
   if(process.env.INTELLIGENCE_PREVIEW_OUT){const directory=process.env.INTELLIGENCE_PREVIEW_OUT;mkdirSync(path.join(directory,'api'),{recursive:true});writeFileSync(path.join(directory,'index.html'),html);writeFileSync(path.join(directory,'api/intelligence'),JSON.stringify(snapshot));}
 });
 async function open(page:import('@playwright/test').Page,zh=false){
-  await page.route('**/*',route=>route.request().url().endsWith('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404,body:''}));
+  await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404,body:''}));
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 test('shared periods, exact ticker search and selected sources remain visible above a capped feed',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Desktop workspace checks');await page.setViewportSize({width:1500,height:800});await open(page);
   const panel=page.getByRole('complementary',{name:'Events and sources'});
-  const theme=page.getByRole('group',{name:'Investment theme: AI',exact:true});
+  const theme=page.getByRole('combobox',{name:'Investment theme',exact:true});
   await expect(theme).toBeVisible();
-  await expect(theme).toContainText('Theme ·AI');
+  await expect(theme).toHaveValue('ai');
   await expect(theme.getByRole('button')).toHaveCount(0);
   const tabs=page.getByRole('tablist');
   await expect(tabs.getByRole('tab')).toHaveCount(4);
-  expect((await theme.boundingBox())!.x+(await theme.boundingBox())!.width).toBeLessThan((await tabs.boundingBox())!.x);
+  await expect(theme).toHaveCount(1); // No duplicate theme indicator while the left panel is open.
   await page.setViewportSize({width:875,height:800});
   await page.getByRole('button',{name:'Expand left panel',exact:true}).click();
   const graphTab=page.getByRole('tab',{name:'Relationship graph',exact:true});
   const toolbar=graphTab.locator('xpath=../../..');
   const controls=page.getByRole('combobox',{name:'Tour speed'}).locator('xpath=../../..');
   const tabsBounds=(await tabs.boundingBox())!,controlsBounds=(await controls.boundingBox())!,toolbarBounds=(await toolbar.boundingBox())!;
-  expect(controlsBounds.y).toBeGreaterThanOrEqual(tabsBounds.y+tabsBounds.height);
+  expect(controlsBounds.x>=tabsBounds.x+tabsBounds.width||controlsBounds.y>=tabsBounds.y+tabsBounds.height).toBe(true);
   expect(controlsBounds.x+controlsBounds.width).toBeLessThanOrEqual(toolbarBounds.x+toolbarBounds.width);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.setViewportSize({width:1500,height:800});
@@ -103,7 +103,7 @@ test('mobile navigation exposes saved companies and event details retain their C
   await page.getByText('更多 ▾',{exact:true}).click();await expect(page.getByRole('navigation',{name:'More navigation'}).getByRole('link',{name:'自选股',exact:true})).toHaveAttribute('href','/zh-cn/watchlists/following');
   await page.getByText('更多 ▾',{exact:true}).click();
   const center=page.getByRole('region',{name:'Graph universe'});
-  await expect(center.getByRole('group',{name:'投资主题：AI',exact:true})).toBeVisible();
+  await expect(center.getByRole('combobox',{name:'投资主题',exact:true})).toBeVisible();
   await center.getByRole('tab',{name:'公司列表',exact:true}).click();
   await expect(center.getByRole('region',{name:'公司列表',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -116,4 +116,30 @@ test('mobile navigation exposes saved companies and event details retain their C
   expect(await companyLine.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await eventRow.click();
   const selection=panel.getByRole('region',{name:'选中来源'});await expect(selection).toBeVisible();await expect(selection.getByText('选中事件',{exact:true})).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
+});
+
+test('one theme selector switches companies and sources, clears stale filters, retains the list view and session watchlist',async({page},info)=>{
+  test.skip(info.project.name!=='desktop','Shared theme interaction, no duplicate renderer tests');
+  await page.setViewportSize({width:1500,height:800});await open(page);
+  const robotics: IntelligenceSnapshot={...snapshot,theme:'robotics',graphVersion:'robotics-fixture',graph:{asOf:'2026-10-04',relationships:[],sources:[],nodes:[
+    {id:'US:NVDA',symbol:'NVDA',name:'NVIDIA',kind:'COMPANY',order:0,stageIds:['robotics:compute-control','robotics:software-simulation']},
+    {id:'US:ROK',symbol:'ROK',name:'Rockwell',kind:'COMPANY',order:1,stageIds:['robotics:systems-integration']}]},
+    events:[{...snapshot.events[0],id:'robot-event',origin:'US:ROK',companyIds:['US:ROK'],title:'Robotics release'}],
+    sourceDocuments:[{id:'robot-source',channel:'IR',companyIds:['US:ROK'],published_at:null,publication_date:'2026-10-02'}],truncated:false};
+  await page.route('**/api/intelligence?*',route=>route.fulfill({json:new URL(route.request().url()).searchParams.get('theme')==='robotics'?robotics:snapshot}));
+  await page.getByRole('button',{name:'Save MU',exact:true}).click();
+  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+  await page.getByPlaceholder('Search company / ticker').fill('MU');
+  await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('robotics');
+  await expect(page).toHaveURL(/theme=robotics/);await expect(page.getByRole('combobox',{name:'Investment theme',exact:true})).toHaveCount(1);
+  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-list-company]')).toHaveCount(2);await expect(page.locator('[data-list-company="US:MU"]')).toHaveCount(0);
+  await expect(page.getByPlaceholder('Search company / ticker')).toHaveValue('');
+  await expect(page.getByRole('button',{name:/Robotics release/}).getByText('Systems integration',{exact:true})).toBeVisible();
+  await expect(page.getByRole('complementary',{name:'Events and sources'}).getByText('Source documents',{exact:true}).locator('..')).toContainText('1');
+  await page.getByRole('button',{name:'Software & simulation 1',exact:true}).click();
+  await expect(page.locator('[data-list-company]')).toHaveCount(1);await expect(page.locator('[data-list-company="US:NVDA"]')).toBeVisible();
+  await page.getByRole('button',{name:'Clear sector focus',exact:true}).click();
+  await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('ai');
+  await expect(page.locator('[data-list-company]')).toHaveCount(4);await expect(page.getByRole('button',{name:'Unsave MU',exact:true})).toBeVisible();
 });

@@ -10,12 +10,13 @@ import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
 const now=new Date('2026-10-02T16:00:00Z');
 const graph:KnowledgeGraph={asOf:'2026-10-02',nodes:[{id:'US:AMD',name:'AMD',kind:'COMPANY',order:0},{id:'US:MU',name:'Micron',kind:'COMPANY',order:1}],sources:[{id:'s',title:'Filing',url:'https://www.sec.gov/Archives/filing.htm',sourceDate:'2026-09-03'}],relationships:[{id:'edge',source:'US:MU',target:'US:AMD',type:'SUPPLIER_OF',summary:'Stored evidence',sourceIds:['s'],commercialStatus:'DOCUMENTED',researchReviewedAt:'2026-10-01'}]};
 
-async function isolated(db:unknown,loadGraph:()=>Promise<KnowledgeGraph>,collectorResult:unknown={failed:0,partial:0,remaining:0,outboxIncomplete:false}){
-  const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store']});
+async function isolated(db:unknown,loadGraph:()=>Promise<KnowledgeGraph>,collectorResult:unknown={failed:0,partial:0,remaining:0,outboxIncomplete:false},loadThemedGraph=loadGraph){
+  const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service']});
   const realRequire=createRequire(import.meta.url);
   const evaluated={exports:{}};
   const injected=(name:string)=>{
     if(name==='../firebase/admin')return {getAdminFirestore:()=>db};
+    if(name==='../company-themes/graph-service')return {loadThemeGraph:loadThemedGraph};
     if(name==='../knowledge-graph/service')return {loadKnowledgeGraph:loadGraph};
     if(name==='../knowledge-graph/curated-events')return {curatedEvents:[]};
     if(name==='../sec-filings/store')return {SEC_FILINGS_COLLECTION:'sec_filings',secCollectorMetadata:()=>({get:async()=>({get:(key:string)=>key==='lastRunAt'?now.toISOString():key==='intelligenceIndexReadyAt'?'ready':key==='result'?collectorResult:undefined})})};
@@ -103,4 +104,16 @@ test('full-period statistics include sources beyond the 200-entry feed and pagin
   assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:MU'],'IR').signals,0);
   assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:AMD'],'SEC',Date.parse('2026-10-01T11:59:00Z')).signals,0);
   await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.deepEqual(reads,[0,500]);
+});
+
+test('theme snapshots keep graph and full-period activity caches isolated during concurrent switches',async()=>{
+  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
+  let aiReads=0,roboticsReads=0;
+  const robotics={...graph,nodes:[{id:'US:ROK',name:'Rockwell',kind:'COMPANY' as const,order:0,stageIds:['robotics:systems-integration']}],relationships:[],sources:[]};
+  const service=await isolated({collection:()=>query},async()=>{aiReads++;return graph;},undefined,async()=>{roboticsReads++;return robotics;});
+  const [ai,robot]=await Promise.all([service.loadIntelligenceSnapshot(now),service.loadIntelligenceSnapshot(now,'robotics')]);
+  assert.equal(ai.theme,'ai');assert.equal(robot.theme,'robotics');
+  assert.equal(ai.graph,graph);assert.equal(robot.graph,robotics);assert.equal(robot.sourceDocuments?.length,0);assert.equal(ai.sourceDocuments?.length,1);
+  const repeated=await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000),'robotics');assert.equal(repeated,robot);
+  assert.equal(await service.loadIntelligenceSnapshot(now),ai);assert.equal(aiReads,1);assert.equal(roboticsReads,1);
 });
