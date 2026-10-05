@@ -11,5 +11,10 @@ test("compact times use the same boundaries and distinguish minutes from months"
   assert.equal(formatRelativeDateTime(start, Date.parse("2026-02-10T12:00:00Z")), "1mo");
   assert.equal(formatRelativeDateTime(start, Date.parse("2027-01-10T12:00:00Z")), "1y");
   assert.equal(formatRelativeDateTime("invalid", base), "—");
+  for (const [seconds, label] of [[0, "刚刚"], [120, "2分钟前"], [21600, "6小时前"], [259200, "3天前"]] as const) {
+    assert.equal(formatRelativeDateTime(start, base + seconds * 1000, "zh-CN"), label);
+  }
+  assert.equal(formatRelativeDateTime(start, Date.parse("2026-02-10T12:00:00Z"), "zh-CN"), "1个月前");
+  assert.equal(formatRelativeDateTime(start, Date.parse("2027-01-10T12:00:00Z"), "zh-CN"), "1年前");
   assert.equal(formatAbsoluteDateTime(start), "Jan 10, 2026, 12:00:00 PM UTC");
 });

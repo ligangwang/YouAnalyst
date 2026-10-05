@@ -160,7 +160,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await panel.getByRole('button',{name:'Today',exact:true}).click();await expect(panel.getByText('350',{exact:true})).toHaveCount(0);await expect(panel.getByText('No new events in the available records today.')).toBeVisible();
 });
 test('mobile workspace exposes saved companies and event details retain their Chinese labels',async({page},info)=>{
-  test.skip(info.project.name!=='mobile','Mobile workspace checks');await open(page,true);
+  test.skip(info.project.name!=='mobile','Mobile workspace checks');await page.clock.install({time:new Date('2026-10-04T16:00:00Z')});await open(page,true);
   const center=page.getByRole('region',{name:'Graph universe'});
   await expect(center.getByRole('combobox',{name:'投资主题',exact:true})).toBeVisible();
   await center.getByRole('tab',{name:'公司列表',exact:true}).click();
@@ -170,6 +170,8 @@ test('mobile workspace exposes saved companies and event details retain their Ch
   const panel=page.getByRole('complementary',{name:'Events and sources'});
   const eventRow=panel.getByRole('button',{name:/Published company update 1 /});
   await expect(eventRow.getByText('内存与存储',{exact:true})).toBeVisible();
+  await expect(eventRow.locator('time')).toHaveText('2天前');
+  await expect(eventRow.locator('time')).toHaveAttribute('title',/2026.*UTC/);
   const companyLine=eventRow.locator('p');
   expect(await companyLine.evaluate(el=>el.getBoundingClientRect().height)).toBeLessThan(20);
   expect(await companyLine.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
