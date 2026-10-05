@@ -11,6 +11,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { rankingsOpen } from "@/lib/community";
+import { useIndustryBrowseParam } from "./industry-browse-state";
+import { parseCompanyTheme } from "@/lib/company-themes/model";
 
 const navigationChinese: Record<string, string> = {"Investment Intelligence":"投资情报","My ideas":"我的观点","Performance comparison":"表现对比","Publish an idea":"发布观点","Following":"我的关注","Map":"图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Investment ideas":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
 function useNavText() { const { chinese } = useLocale(); return (value: string) => chinese ? navigationChinese[value] ?? value : value; }
@@ -145,6 +147,8 @@ export function SiteNav() {
   const ui = useUiText();
   const t = useNavText();
   const pathname = unlocalizedPath(usePathname());
+  const theme = parseCompanyTheme(useIndustryBrowseParam("theme"));
+  const navItems = primaryNavItems.map(item => item.label === "Map" ? { ...item, href: theme === "ai" ? "/?view=graph" : `/?theme=${theme}&view=graph` } : item);
   const { user, loading, signOut, getIdToken } = useAuth();
   const [adminStatus, setAdminStatus] = useState<{ userId: string; isAdmin: boolean } | null>(null);
   const profileHref = useMemo(() => (user ? `/analysts/${user.uid}` : "/auth"), [user]);
@@ -218,7 +222,7 @@ export function SiteNav() {
               />
             </Link>
             <nav className="hidden items-center gap-4 text-[15px] text-slate-200 lg:flex">
-              {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="hover:text-cyan-200">{t(item.label)}</Link>)}
+              {navItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="hover:text-cyan-200">{t(item.label)}</Link>)}
             </nav>
           </div>
 
@@ -245,7 +249,7 @@ export function SiteNav() {
         {/* One line: More stays beside the primary links instead of wrapping; on the narrowest phones the links scroll. */}
         <nav aria-label={ui("Mobile navigation")} className="mt-1 flex items-center text-sm text-slate-200 lg:hidden">
           <div className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] min-[360px]:gap-0.5 min-[400px]:gap-1">
-            {primaryNavItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="shrink-0 whitespace-nowrap rounded-lg px-1 py-3 max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
+            {navItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="shrink-0 whitespace-nowrap rounded-lg px-1 py-3 max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
           </div>
           <div className="ml-auto shrink-0"><MoreMenu admin={showAdminLink} /></div>
         </nav>
