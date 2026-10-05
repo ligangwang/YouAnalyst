@@ -34,7 +34,7 @@ const snapshot = () => now;
 const serverSnapshot = () => 0;
 
 /** All mounted timestamps share one local timer; no requests are made. */
-export function RelativeTime({ value, prefix }: { value: string; prefix?: string }) {
+export function RelativeTime({ value, prefix, interactive = true }: { value: string; prefix?: string; interactive?: boolean }) {
   const { locale, chinese } = useLocale();
   const currentTime = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
   const [expanded, setExpanded] = useState(false);
@@ -43,6 +43,8 @@ export function RelativeTime({ value, prefix }: { value: string; prefix?: string
   const translatedPrefix = prefix ? translateUi(prefix, locale) : "";
   const relative = currentTime ? formatRelativeDateTime(value, currentTime) : "…";
   const compact = chinese ? relative.replace(/^now$/, "刚刚").replace(/mo$/, "月").replace(/m$/, "分").replace(/h$/, "时").replace(/d$/, "天").replace(/y$/, "年") : relative;
+  // Event cards already have a button: keep their timestamp semantic without nesting controls.
+  if (!interactive) return <time dateTime={valid ? value : undefined} title={exact}>{compact}</time>;
   return <span className={styles.timestamp}>
     <button type="button" title={exact} aria-label={`${translatedPrefix ? `${translatedPrefix}: ` : ""}${exact}`} aria-expanded={expanded}
       onClick={() => setExpanded(!expanded)} onBlur={() => setExpanded(false)} onKeyDown={event => { if (event.key === "Escape") setExpanded(false); }}>

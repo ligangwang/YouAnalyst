@@ -6,7 +6,7 @@ import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
 import {accelerateTours,tourClockPlugin} from './fixtures/tour-clock';
 
 const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',kind:'COMPANY',order:1,stageIds:['optics']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']},{id:'US:MEM',symbol:'MEM',name:'Memory Supplier',summary:'Memory partner',kind:'COMPANY',order:4,stageIds:['memory']}];
-const events=Array.from({length:200},(_,i)=>({id:`event-${i}`,origin:'US:MU',companyIds:['US:MU'],edgeIds:[],category:'BUSINESS',title:`Published company update ${i+1}`,summary:`Source summary ${i+1}`,published_at:null,publication_date:'2026-10-02',eventDate:null,evidence:[{id:`source-${i}`,url:`https://investors.example.com/${i}`,title:`Original release ${i+1}`,sourceDate:'2026-10-02',channel:'IR'}],planned:false}));
+const events=Array.from({length:200},(_,i)=>({id:`event-${i}`,origin:'US:MU',companyIds:['US:MU'],edgeIds:[],category:'BUSINESS',title:`Published company update ${i+1}`,summary:`Source summary ${i+1}`,published_at:i===0?'2026-10-02T12:00:00Z':null,publication_date:'2026-10-02',eventDate:null,evidence:[{id:`source-${i}`,url:`https://investors.example.com/${i}`,title:`Original release ${i+1}`,sourceDate:'2026-10-02',channel:'IR'}],planned:false}));
 events[1].companyIds=['US:MU','US:MEM','US:MULT','US:LITE','US:UNKNOWN'];
 const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],sources:[]},graphVersion:'fixture',events,generatedAt:'2026-10-04T16:00:00Z',session:{date:'2026-10-04',timeZone:'America/New_York',startAt:'2026-10-04T04:00:00Z',endAt:'2026-10-05T04:00:00Z'},coverage:[{channel:'IR',status:'connected'}],sourceDocuments:Array.from({length:350},(_,i)=>({id:`https://investors.example.com/${i}`,channel:'IR',companyIds:['US:MU'],published_at:null,publication_date:'2026-10-02'})),statisticsComplete:true,warnings:[],truncated:true,limit:200} as IntelligenceSnapshot;
 let html:string;
@@ -80,7 +80,7 @@ test('committed theme changes restart real chart tours and tree growth without r
   expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);
 });
 test('shared periods, exact ticker search and selected sources remain visible above a capped feed',async({page},info)=>{
-  test.skip(info.project.name!=='desktop','Desktop workspace checks');await page.setViewportSize({width:1500,height:800});await open(page);
+  test.skip(info.project.name!=='desktop','Desktop workspace checks');await page.clock.install({time:new Date('2026-10-04T16:00:00Z')});await page.setViewportSize({width:1500,height:800});await open(page);
   const panel=page.getByRole('complementary',{name:'Events and sources'});
   const theme=page.getByRole('combobox',{name:'Investment theme',exact:true});
   await expect(theme).toBeVisible();
@@ -104,6 +104,10 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(panel.getByText('200 loaded source documents')).toBeVisible();
   const firstEvent=panel.getByRole('button',{name:/Published company update 1 /});
   await expect(firstEvent.getByText('Memory & storage',{exact:true})).toBeVisible();
+  await expect(firstEvent.locator('time')).toHaveText('2d');
+  await expect(firstEvent.locator('time')).toHaveAttribute('title','Oct 2, 2026, 12:00:00 PM UTC');
+  await expect(firstEvent.getByRole('button')).toHaveCount(0);
+  await expect(panel.getByRole('button',{name:/Published company update 2 /}).locator('time')).toContainText('date only');
   const multiEvent=panel.getByRole('button',{name:/Published company update 2 /});
   const sectors=multiEvent.getByRole('group',{name:'Company sectors: Memory & storage / AI compute / Connectivity',exact:true});
   await expect(sectors).toHaveAttribute('title','Memory & storage / AI compute / Connectivity');
