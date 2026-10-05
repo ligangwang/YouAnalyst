@@ -106,7 +106,16 @@ export async function GET(request: NextRequest) {
   try {
     const db = getAdminFirestore();
     const prefixField = query.length === 1 && request.nextUrl.searchParams.get("scope") !== "all" ? "symbolPrefixes" : "searchPrefixes";
-    const tickerSnapshot = await db.collection("companies").where(prefixField, "array-contains", query).limit(50).get();
+    const companies = db.collection("companies");
+    // Name matches can fill the broad query before an exact ticker is read.
+    // Retrieve ticker candidates independently, then deduplicate and rank.
+    const symbolQuery = companies.where("symbolPrefixes", "array-contains", query).limit(50).get();
+    const [exactSnapshot, symbolSnapshot, tickerSnapshot] = await Promise.all([
+      companies.where("symbolLower", "==", query).limit(20).get(),
+      symbolQuery,
+      prefixField === "symbolPrefixes" ? symbolQuery : companies.where(prefixField, "array-contains", query).limit(50).get(),
+    ]);
+    const indexedDocs = [...new Map([...exactSnapshot.docs, ...symbolSnapshot.docs, ...tickerSnapshot.docs].map(doc => [doc.id, doc])).values()];
 
     const editorialDocs: { id: string; data: () => Record<string, unknown> }[] = [];
     // Research discovery only. Do not fabricate tradeable/prediction-enabled instruments.
@@ -116,11 +125,11 @@ export async function GET(request: NextRequest) {
         .some(value => typeof value === "string" && value.toLowerCase().split(/\s+/).some((_, i, words) => words.slice(i).join(" ").startsWith(query))));
       for (const company of candidates) {
         const existing = await db.collection("companies").doc(company.id).get();
-        if (!existing.exists && !tickerSnapshot.docs.some(doc => doc.id === company.id)) editorialDocs.push({ id: company.id, data: () => ({ ...company, market: company.id.startsWith("US:") ? "US" : "GLOBAL" }) });
+        if (!existing.exists && !indexedDocs.some(doc => doc.id === company.id)) editorialDocs.push({ id: company.id, data: () => ({ ...company, market: company.id.startsWith("US:") ? "US" : "GLOBAL" }) });
       }
     }
 
-    const tickerItems: ScoredSearchItem[] = [...tickerSnapshot.docs, ...editorialDocs]
+    const tickerItems: ScoredSearchItem[] = [...indexedDocs, ...editorialDocs]
       .filter(doc => !doc.data().status || ["PUBLISHED", "DIRECTORY"].includes(doc.data().status))
       .filter(doc => request.nextUrl.searchParams.get("scope") === "all" || (doc.data().listingStatus !== "PRIVATE" && ((doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true) || (request.nextUrl.searchParams.get("scope") === "calls" && predictionInstrument(doc.id)?.market === "CN_A"))))
       .map((doc) => toSearchItem(doc.id, doc.data()))

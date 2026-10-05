@@ -3,12 +3,14 @@ import test from "node:test";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
 
-test("research directory finds missing editorial identities without exposing hidden rows or enabling calls", async () => {
+test("company search prioritizes exact tickers beyond capped name matches and protects editorial identities", async () => {
   const records = new Map<string, Record<string, unknown>>();
   let failed = false;
   const reads: string[] = [];
   const fixture = { db: { collection: () => ({
-    where: () => ({ limit: () => ({ get: async () => ({ docs: [] }) }) }),
+    where: (field: string, operator: string, value: string) => ({ limit: (limit: number) => ({ get: async () => ({ docs: [...records.entries()]
+      .filter(([,data]) => operator === "==" ? data[field] === value : Array.isArray(data[field]) && (data[field] as string[]).includes(value))
+      .slice(0,limit).map(([id,data]) => ({id,data:()=>data})) }) }) }),
     doc: (id: string) => ({ get: async () => {
       reads.push(id);
       if (failed) throw new Error("Unavailable");
@@ -38,6 +40,21 @@ test("research directory finds missing editorial identities without exposing hid
     records.set("US:SKHY", data);
     assert.deepEqual((await (await request("SKHY")).json()).items, []);
   }
+  records.clear();
+  for(let i=0;i<50;i++)records.set(`US:A${i}`,{symbol:`A${i}`,name:`Muncy Company ${i}`,symbolLower:`a${i}`,nameLower:`muncy company ${i}`,searchPrefixes:["mu"],symbolPrefixes:["a"],market:"US",active:true,predictionSupported:true});
+  const micron={symbol:"MU",name:"Micron Technology, Inc.",symbolLower:"mu",nameLower:"micron technology, inc.",searchPrefixes:["m","mu","micron"],symbolPrefixes:["m","mu"],market:"US",active:true,predictionSupported:true};
+  records.set("US:MU",micron);
+  records.set("US:MUL",{...micron,symbol:"MUL",symbolLower:"mul",name:"Ticker prefix match",symbolPrefixes:["m","mu","mul"]});
+  for(const q of ["MU","mu","$ＭＵ"])for(const scope of ["all","calls",""]){
+    const items=(await (await request(q,scope)).json()).items;
+    assert.equal(items[0].id,"US:MU");
+    assert.equal(items[1].id,"US:MUL");
+    assert.equal(items.filter((item:{id:string})=>item.id==="US:MU").length,1);
+  }
+  records.set("US:MU",{...micron,status:"WITHDRAWN"});
+  assert.equal((await (await request("MU")).json()).items.some((item:{id:string})=>item.id==="US:MU"),false);
+  records.set("US:MU",{...micron,active:false,predictionSupported:false});
+  assert.equal((await (await request("MU","calls")).json()).items.some((item:{id:string})=>item.id==="US:MU"),false);
   records.clear(); failed = true;
   assert.equal((await request("Samsung")).status, 500);
 });
