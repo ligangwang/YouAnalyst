@@ -22,3 +22,7 @@
 
 .rightPanel{overflow:hidden}.rightBody{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#314354 transparent}.selectedPanel{flex-shrink:0;max-height:45%;overflow:auto;background:#10232e;border-block:1px solid #386057;scrollbar-width:thin;outline:none}.selectedPanel:focus-visible{outline:2px solid #98e7d6;outline-offset:-2px}.selectedPanel>div:first-child{position:sticky;top:0;background:#10232e}.rightPanel>details{flex-shrink:0}.rightPanel>details>summary{cursor:pointer;color:#9ab0c3;font-size:10px}.selectedPanel h2{font-size:11px}.selectedPanel nav{margin:5px 0}
 @media(max-width:850px){.rightBody{max-height:65vh;overflow:auto}.selectedPanel{max-height:45vh}.rightPanel{overflow:visible}}
+
+.workspaceIntro{padding:10px 16px;flex-shrink:0;border-bottom:1px solid #213242;background:#09141f}
+.workspaceIntro h1{margin:0;font-size:14px;font-weight:600;color:#dce7ef;line-height:1.4}
+.workspaceIntro p{margin:3px 0 0;font-size:11px;line-height:1.5;color:#9ab0c3}

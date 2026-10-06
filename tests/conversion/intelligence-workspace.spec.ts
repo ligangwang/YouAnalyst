@@ -179,6 +179,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
 test('mobile workspace exposes saved companies and event details retain their Chinese labels',async({page},info)=>{
   test.skip(info.project.name!=='mobile','Mobile workspace checks');await page.clock.install({time:new Date('2026-10-04T16:00:00Z')});await open(page,true);
   const center=page.getByRole('region',{name:'Graph universe'});
+  await expect(center.getByText('科技股与公司分析',{exact:true})).toBeVisible();
   await expect(center.getByRole('combobox',{name:'投资主题',exact:true})).toBeVisible();
   await center.getByRole('tab',{name:'公司列表',exact:true}).click();
   await expect(center.getByRole('region',{name:'公司列表',exact:true})).toBeVisible();
@@ -205,7 +206,7 @@ test('one theme selector switches companies and sources, clears stale filters, r
     events:[{...snapshot.events[0],id:'robot-event',origin:'US:ROK',companyIds:['US:ROK'],title:'Robotics release'}],
     sourceDocuments:[{id:'robot-source',channel:'IR',companyIds:['US:ROK'],published_at:null,publication_date:'2026-10-02'}],truncated:false};
   const space: IntelligenceSnapshot={...robotics,theme:'space',graphVersion:'space-fixture',graph:{...robotics.graph,nodes:[{id:'US:RKLB',symbol:'RKLB',name:'Rocket Lab',kind:'COMPANY',order:0,stageIds:['space:launch','space:components']}]},events:[],sourceDocuments:[]};
-  const replayableAi:IntelligenceSnapshot={...snapshot,events:[...snapshot.events,{...snapshot.events[0],id:'today-event',title:'Today release',publication_date:snapshot.session.date,published_at:'2026-10-04T12:00:00Z',evidence:[{id:'today-source',url:'https://investors.example.com/today',title:'Today release',sourceDate:snapshot.session.date,channel:'IR'}]}],sourceDocuments:[...snapshot.sourceDocuments!,{id:'https://investors.example.com/today',channel:'IR',companyIds:['US:MU'],published_at:'2026-10-04T12:00:00Z',publication_date:snapshot.session.date}]};
+  const currentAi:IntelligenceSnapshot={...snapshot,events:[...snapshot.events,{...snapshot.events[0],id:'today-event',title:'Today release',publication_date:snapshot.session.date,published_at:'2026-10-04T12:00:00Z',evidence:[{id:'today-source',url:'https://investors.example.com/today',title:'Today release',sourceDate:snapshot.session.date,channel:'IR'}]}],sourceDocuments:[...snapshot.sourceDocuments!,{id:'https://investors.example.com/today',channel:'IR',companyIds:['US:MU'],published_at:'2026-10-04T12:00:00Z',publication_date:snapshot.session.date}]};
   let releaseRobotics!:()=>void,releaseSpace!:()=>void,releaseAi!:()=>void;
   const roboticsReady=new Promise<void>(resolve=>{releaseRobotics=resolve;});
   const spaceReady=new Promise<void>(resolve=>{releaseSpace=resolve;});
@@ -216,18 +217,21 @@ test('one theme selector switches companies and sources, clears stale filters, r
     if(theme==='robotics')await roboticsReady;
     if(theme==='space'){if(++spaceRequests===1)return route.fulfill({status:503,json:{error:'Unavailable'}});await spaceReady;}
     if(theme==='ai'&&holdAi)await aiReady;
-    await route.fulfill({json:theme==='space'?space:theme==='robotics'?robotics:replayableAi});
+    await route.fulfill({json:theme==='space'?space:theme==='robotics'?robotics:currentAi});
   });
   // Start with the replacement route installed; a focus event can race the initial in-flight refresh.
   await page.reload();
-  await expect(page.getByRole('button',{name:'Replay',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Replay',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('slider')).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'AI · Robotics · Space',exact:true})).toBeVisible();
+  await expect(page.getByText('Technology stocks & company analysis',{exact:true})).toBeVisible();
   const workspace=await page.locator('main').elementHandle();
   await page.getByRole('button',{name:'Save MU',exact:true}).click();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await page.getByPlaceholder('Search company / ticker').fill('MU');
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('robotics');
   await expect(page.getByRole('status').filter({hasText:'Loading Robotics…'})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Replay',exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Reset universe view',exact:true})).toBeDisabled();
   await expect(page.locator('[data-list-company="US:MU"]')).toBeVisible();
   await expect(page.getByPlaceholder('Search company / ticker')).toHaveValue('MU');
   await expect(page.getByText('Loading companies and recorded events…',{exact:true})).toHaveCount(0);
