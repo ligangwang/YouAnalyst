@@ -131,7 +131,12 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const graph=snapshot.graph;
   const allCompanies=useMemo(()=>graph.nodes.filter(node=>node.kind==='COMPANY'),[graph]);
   const companiesById=useMemo(()=>new Map(allCompanies.map(company=>[company.id,company])),[allCompanies]);
-  const scope=useMemo(()=>allCompanies.filter(node=>(!sector||matchesCompanySector(node,sector))&&(!query||matchesCompanySearch(companySearchText(graph,node),query.normalize('NFKC').trim().replace(/^\$/,'')))&&(tab!=='watchlist'||saved.includes(node.id))).sort((a,b)=>query?companySearchRank(a,query)-companySearchRank(b,query):0),[allCompanies,graph,sector,query,tab,saved]);
+  const scope=useMemo(()=>{
+    const search=query.normalize('NFKC').trim().replace(/^\$/,'');
+    const exact=search?allCompanies.filter(node=>companySearchRank(node,search)===0):[];
+    const candidates=exact.length?exact:allCompanies;
+    return candidates.filter(node=>(!sector||matchesCompanySector(node,sector))&&(!search||exact.length>0||matchesCompanySearch(companySearchText(graph,node),search))&&(tab!=='watchlist'||saved.includes(node.id))).sort((a,b)=>search?companySearchRank(a,search)-companySearchRank(b,search):0);
+  },[allCompanies,graph,sector,query,tab,saved]);
   const inWindow=snapshot.events.filter(event=>window==='recent'||event.publication_date===snapshot.session.date);
   const scopeIds=scope.map(node=>node.id);
   const sourceDocuments=snapshot.sourceDocuments??sourceDocumentsForEvents(snapshot.events);
