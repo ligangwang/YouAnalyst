@@ -49,7 +49,7 @@ test('source ownership and company changes share one fenced commit',async()=>{
   const guard:Document={name:'projects/example/databases/(default)/documents/collectors/news-source-registry',updateTime:'2026-10-06T01:00:00Z',fields:{sourceOwners:encode({})}};
   const {mkdtemp,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const backupDir=await mkdtemp(`${tmpdir()}/news-publisher-`);
   try{await publishNewsSources({project:'example',sources:[feed],write:true,backupDir,request:async(url,method,data)=>{
-    if(url.endsWith(':runQuery'))return [];
+    if(url.endsWith(':runQuery'))return [{document:{name:'projects/example/databases/(default)/documents/companies/US:NOFEED',updateTime:doc.updateTime}}];
     if(url.endsWith(':commit')){
       const {writes}=data as {writes:{update:{name:string;fields:Document['fields']};currentDocument:{updateTime:string}}[]};
       assert.equal(writes.length,2);assert.equal(writes[1].update.name,guard.name);assert.deepEqual(writes[1].currentDocument,{updateTime:guard.updateTime});

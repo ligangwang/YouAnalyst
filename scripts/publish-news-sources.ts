@@ -20,7 +20,7 @@ export async function publishNewsSources({project,sources,request,write=false,ba
   const queries=[{fieldFilter:{field:{fieldPath:'themeIds'},op:'ARRAY_CONTAINS_ANY',value:{arrayValue:{values:['ai','robotics','space'].map(stringValue=>({stringValue}))}}}},...['inGraph.status','aiGraph.status'].map(fieldPath=>({fieldFilter:{field:{fieldPath},op:'EQUAL',value:{stringValue:'PUBLISHED'}}}))];
   for(const where of queries){
     const rows=await request(`${root}:runQuery`,'POST',{structuredQuery:{from:[{collectionId:'companies'}],where,select:{fields:[{fieldPath:'newsSources'}]}}}) as {document?:Document}[];
-    for(const {document} of rows){if(!document)continue;const row=company(document);for(const feed of (row.newsSources??[]) as CompanyNewsSource[]){
+    for(const {document} of rows){if(!document)continue;const row=company({...document,fields:document.fields??{}});for(const feed of (row.newsSources??[]) as CompanyNewsSource[]){
       validateCompanyNewsSource(feed,row.id);
       assert(!owners[feed.id]||owners[feed.id]===row.id,`${feed.id}: source ID belongs to another company`);owners[feed.id]=row.id;
     }}
