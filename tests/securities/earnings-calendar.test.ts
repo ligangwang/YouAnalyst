@@ -32,6 +32,8 @@ test('preserves original publication timestamps and separates release and call s
   assert.equal(items[1].published_at,source.published_at);assert.equal(items[1].collected_at,source.collected_at);
   const moved=normalize({...draft,date:'2026-11-20',dateEvidence:'The earnings call is rescheduled to November 20, 2026.',status:'rescheduled'},text+' The earnings call is rescheduled to November 20, 2026.')[0];
   assert.equal(moved.id,items[1].id);
+  const ordinalText='NVIDIA will report third quarter fiscal 2027 results on November 5 th , 2026 after the market closes. NVIDIA will hold an audio webcast the same day at 2:00 p.m. PT.';
+  assert.equal(normalize({...draft,date:'2026-11-05',timezoneText:'PT',dateEvidence:ordinalText,timeEvidence:'2:00 p.m. PT'},ordinalText)[0].scheduled_at,'2026-11-05T22:00:00.000Z');
 });
 test('rejects unsupported dates, quarters, time zones and archive dates; retains unknown time zones as local time',()=>{
   assert.throws(()=>normalize({...draft,date:'2026-11-17'}),/date/);
@@ -46,6 +48,7 @@ test('rejects unsupported dates, quarters, time zones and archive dates; retains
   assert.throws(()=>calendarRange('2026-01-01','2026-04-01'),/range/);
 });
 test('article fetching removes page chrome and refuses unapproved redirects before sending text to the model',async()=>{
+  assert.match(calendarArticleText('<body><form><header>menu</header><main><p>The earnings call will begin on October 26, 2026 at 2:00 p.m. Pacific Time.</p></main></form></body>'),/October 26, 2026/);
   assert.equal(calendarArticleText('<nav>menu</nav><article><h1>Results</h1><p>October 26, 2026</p><script>ignore me</script></article><footer>links</footer>').includes('menu'),false);
   let calls=0;
   await assert.rejects(fetchCalendarArticle(source,async()=>{calls++;return new Response(null,{status:302,headers:{location:'http://127.0.0.1/private'}});}),/approved/);

@@ -16,7 +16,8 @@ export function approvedCalendarUrl(url: string, source: CalendarSource) {
   return Boolean(config && approvedNewsUrl(url,config,true));
 }
 export function calendarArticleText(html: string) {
-  const clean = html.replace(/<(header|footer|nav|aside|form)\b[^>]*>[\s\S]*?<\/\1>/gi,' ');
+  // ASP.NET IR pages wrap the entire article in a form, so keep its contents.
+  const clean = html.replace(/<(header|footer|nav|aside)\b[^>]*>[\s\S]*?<\/\1>/gi,' ');
   const body = clean.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] ?? clean.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1] ?? clean.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? clean;
   return htmlToEarningsText(body);
 }
