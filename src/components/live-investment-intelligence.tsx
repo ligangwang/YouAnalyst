@@ -12,6 +12,7 @@ import { IntelligenceEventCompanies } from './intelligence-event-companies';
 import { IntelligenceThemeSelector } from './intelligence-theme-selector';
 import { parseCompanyTheme, themeName, type CompanyThemeId } from '@/lib/company-themes/model';
 import { IntelligenceViewTabs } from './intelligence-view-tabs';
+import { useIntelligenceSnapshot } from './use-intelligence-snapshot';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 import { parseIndustryView, type IndustryView } from '@/lib/knowledge-graph/views';
 import { curatedEvents } from '@/lib/knowledge-graph/curated-events';
@@ -41,52 +42,11 @@ type Panels={left:boolean|null;right:boolean};
 
 /** Failure never falls back to demo data. Polls pause in hidden tabs. */
 export function LiveInvestmentIntelligence({initialSnapshot,...initialState}:{initialSnapshot?:IntelligenceSnapshot}&WorkspaceInitialState={}){
-  const theme=parseCompanyTheme(useIndustryBrowseParam('theme','ai',initialState.initialTheme??'ai'));
+  const {snapshot,theme,error,changeTheme,reconnect}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme);
   const [guestSaved,setGuestSaved]=useState<string[]>([]);
   const [panels,setPanels]=useState<Panels>({left:null,right:true});
-  const [snapshot,setSnapshot]=useState<IntelligenceSnapshot|null>(initialSnapshot??null);
-  const themeSnapshots=useRef(new Map<CompanyThemeId,IntelligenceSnapshot>(initialSnapshot?[[parseCompanyTheme(initialSnapshot.theme),initialSnapshot]]:[]));
-  const themeIntent=useRef<CompanyThemeId|null>(null);
-  const [error,setError]=useState(''),[retry,setRetry]=useState(0);
-  useEffect(()=>{
-    let disposed=false,inFlight=false;
-    let controller:AbortController|null=null;
-    const refresh=async()=>{
-      if(disposed||inFlight||document.visibilityState==='hidden')return;
-      inFlight=true;controller=new AbortController();
-      const timeout=setTimeout(()=>controller?.abort(),15_000);
-      try{
-        const response=await fetch(`/api/intelligence?theme=${theme}`,{cache:'no-store',signal:controller.signal});
-        if(!response.ok)throw new Error();
-        const data:IntelligenceSnapshot=await response.json();
-        if((data.theme??'ai')!==theme||!data.graphVersion||!Array.isArray(data.graph?.nodes)||!Array.isArray(data.events)||!data.session?.startAt)throw new Error();
-        if(!disposed&&parseCompanyTheme(new URLSearchParams(window.location.search).get('theme'))===theme){
-          const old=themeSnapshots.current.get(theme);
-          const next=old?.graphVersion===data.graphVersion?{...data,graph:old.graph}:data;
-          themeSnapshots.current.set(theme,next);
-          if(themeIntent.current===theme){themeIntent.current=null;updateIndustryBrowse({company:'',relationship:'',event:'',q:'',page:''});}
-          setSnapshot(next);setError('');
-        }
-      }catch{if(!disposed&&parseCompanyTheme(new URLSearchParams(window.location.search).get('theme'))===theme)setError('Unable to refresh investment intelligence.');}
-      finally{clearTimeout(timeout);inFlight=false;}
-    };
-    void refresh();
-    const timer=setInterval(()=>void refresh(),60_000);
-    const onVisible=()=>void refresh();
-    document.addEventListener('visibilitychange',onVisible);
-    window.addEventListener('focus',onVisible);
-    return()=>{disposed=true;controller?.abort();clearInterval(timer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('focus',onVisible);};
-  },[retry,theme]);
-  const changeTheme=(next:CompanyThemeId)=>{
-    setError('');
-    const cached=themeSnapshots.current.get(next),changed=next!==parseCompanyTheme(snapshot?.theme);
-    themeIntent.current=changed&&!cached?next:null;
-    if(cached)setSnapshot(cached);
-    // Keep the visible selection until the new data is ready. Cancelling restores it.
-    updateIndustryBrowse({theme:next==='ai'?'':next,...(changed&&cached?{company:'',relationship:'',event:'',q:'',page:''}:{})});
-  };
-  if(!snapshot)return <main className={liveStyles.loadingShell}><Link href="/" aria-label="YouAnalyst home"><Image src="/youanalyst-logo-mobile.svg" width={134} height={30} alt="YouAnalyst" priority/></Link><h1><UiText text={"Investment Intelligence"}/></h1><IntelligenceThemeSelector theme={theme} onChange={changeTheme}/><p role={error?'alert':'status'}><UiText text={error||'Loading companies and recorded events…'}/></p>{error&&<button onClick={()=>setRetry(value=>value+1)}><UiText text={"Retry connection"}/></button>}<nav aria-label="Research navigation"><Link href={theme!=='ai'?`/?theme=${theme}&view=graph`:'/?view=graph'}><UiText text={"Map"}/></Link><Link href="/research"><UiText text={"Research"}/></Link><Link href="/companies"><UiText text={"Companies"}/></Link><Link href="/research/nvidia-ai-ecosystem"><UiText text={"NVIDIA ecosystem"}/></Link><Link href="/research/amd-ai-ecosystem"><UiText text={"AMD ecosystem"}/></Link></nav></main>;
-  return <IntelligenceWorkspace panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} setGuestSaved={setGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={()=>{setError('');setRetry(value=>value+1);}}/>;
+  if(!snapshot)return <main className={liveStyles.loadingShell}><Link href="/" aria-label="YouAnalyst home"><Image src="/youanalyst-logo-mobile.svg" width={134} height={30} alt="YouAnalyst" priority/></Link><h1><UiText text={"Investment Intelligence"}/></h1><IntelligenceThemeSelector theme={theme} onChange={changeTheme}/><p role={error?'alert':'status'}><UiText text={error||'Loading companies and recorded events…'}/></p>{error&&<button onClick={reconnect}><UiText text={"Retry connection"}/></button>}<nav aria-label="Research navigation"><Link href={theme!=='ai'?`/?theme=${theme}&view=graph`:'/?view=graph'}><UiText text={"Map"}/></Link><Link href="/research"><UiText text={"Research"}/></Link><Link href="/companies"><UiText text={"Companies"}/></Link><Link href="/research/nvidia-ai-ecosystem"><UiText text={"NVIDIA ecosystem"}/></Link><Link href="/research/amd-ai-ecosystem"><UiText text={"AMD ecosystem"}/></Link></nav></main>;
+  return <IntelligenceWorkspace panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} setGuestSaved={setGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={reconnect}/>;
 }
 
 function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,changeTheme,guestSaved,setGuestSaved,error,reconnect,initialView='',initialCompany='',initialQuery='',initialEdge='',initialEvent=''}:{snapshot:IntelligenceSnapshot;panels:Panels;setPanels:React.Dispatch<React.SetStateAction<Panels>>;theme:CompanyThemeId;requestedTheme:CompanyThemeId;changeTheme:(theme:CompanyThemeId)=>void;guestSaved:string[];setGuestSaved:React.Dispatch<React.SetStateAction<string[]>>;error:string;reconnect:()=>void}&WorkspaceInitialState){

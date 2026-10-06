@@ -5,7 +5,20 @@ import cn from '../data/ai-supply-chain/ai-cn-a.json';
 import { combineGraphs, filterGraph, layoutGraph, type KnowledgeGraph } from '../src/lib/knowledge-graph/model';
 import { layoutCompanies } from '../src/lib/knowledge-graph/constellation';
 import { layout3D } from '../src/lib/knowledge-graph/layout-3d';
+import { marketCapScale, marketCapLabel } from '../src/lib/knowledge-graph/market-cap';
 const graph=combineGraphs([us,cn] as unknown as (KnowledgeGraph & {id:string;language:string})[]);
+
+test('market cap areas scale proportionally within limits and unknown retains default', () => {
+ const cap=(value:number)=>({value,currency:'USD' as const,priceDate:'2026-09-21'});
+ assert.equal(marketCapScale(cap(400e9))/marketCapScale(cap(100e9)),2);
+ assert.equal(marketCapScale(),1);
+ assert.equal(marketCapScale(cap(NaN)),1);
+ assert.equal(marketCapScale(cap(0)),1);
+ assert.equal(marketCapScale(cap(1e6)),.65);
+ assert.equal(marketCapScale(cap(10e12)),2.5);
+ assert.equal(marketCapLabel(cap(1e12)),'$1T');
+ assert.equal(marketCapLabel(),'');
+});
 
 test("combination retains every company and isolates evidence IDs", () => {
   assert.equal(graph.nodes.filter(n => n.kind === "COMPANY").length,129);

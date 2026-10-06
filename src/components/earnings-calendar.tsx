@@ -4,13 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale } from './providers/locale-provider';
 import { LocalizedLink } from './localized-link';
 import { useCompanyFollows } from './company-follow-button';
-import { companyPageUrl } from '@/lib/market-companies/routes';
 import { COMPANY_THEMES, themeName } from '@/lib/company-themes/model';
-import { calendarTime, easternDay, eventDay, shiftDay, visibleDays } from '@/lib/calendar/display';
-import type { CalendarItem, CalendarPayload } from '@/lib/calendar/model';
+import { easternDay, eventDay, shiftDay, visibleDays } from '@/lib/calendar/display';
+import { groupCalendarItems } from './earnings-calendar-groups';
+import type { CalendarPayload } from '@/lib/calendar/model';
+import { EarningsEventCard, earningsGroupLabel } from './earnings-event-card';
 import styles from './earnings-calendar.module.css';
-
-type EarningsGroup = { id: string; day: string; schedules: CalendarItem[] };
 
 export function EarningsCalendar() {
   const {chinese,text:t}=useLocale(),saved=useCompanyFollows();
@@ -38,38 +37,13 @@ export function EarningsCalendar() {
       && (!query || item.ticker.toLowerCase().includes(query)||item.companyName.toLowerCase().includes(query)||Object.values(item.companyNames??{}).some(name=>name.toLowerCase().includes(query))))
       .sort((a,b)=>eventDay(a).localeCompare(eventDay(b))||(a.scheduled_at??'9999').localeCompare(b.scheduled_at??'9999')||a.ticker.localeCompare(b.ticker));
   },[payload,theme,search,following,saved.ready,saved.ids]);
-  const grouped=useMemo(()=>{
-    const result=new Map<string,EarningsGroup[]>(),earnings=new Map<string,EarningsGroup>();
-    for(const item of items){
-      const day=eventDay(item),id=JSON.stringify([day,item.companyId,item.fiscalPeriod]);
-      let group=earnings.get(id);
-      if(!group){group={id,day,schedules:[]};earnings.set(id,group);result.set(day,[...(result.get(day)??[]),group]);}
-      group.schedules.push(item);
-    }
-    return result;
-  },[items]);
+  const grouped=useMemo(()=>groupCalendarItems(items),[items]);
   // Keep the previous date range visible during a fetch, rather than mixing old data into new dates.
   const displayDays=loading&&payload?Array.from({length:Math.round((Date.parse(payload.to)-Date.parse(payload.from))/86400000)+1},(_,index)=>shiftDay(payload.from,index)):days;
   const heading=new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${anchor}T12:00:00Z`));
   const dayLabel=(day:string)=>new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(`${day}T12:00:00Z`));
-  const kindLabel=(item:CalendarItem)=>item.eventKind==='earnings_call'?t('Earnings call','业绩电话会'):t('Results release','财报发布');
-  const groupLabel=(group:EarningsGroup)=>group.schedules.some(item=>item.eventKind==='earnings_call')&&group.schedules.some(item=>item.eventKind==='earnings_release')?t('Results & call','财报与电话会'):kindLabel(group.schedules[0]);
   function move(delta:number){const next=view==='week'?shiftDay(anchor,7*delta):new Date(Date.UTC(Number(anchor.slice(0,4)),Number(anchor.slice(5,7))-1+delta,1)).toISOString().slice(0,10);setAnchor(next);setSelected(next);}
   function chooseDay(day:string){setSelected(day);if(window.matchMedia('(max-width:800px)').matches)agendaRef.current?.scrollIntoView({behavior:'smooth',block:'start'});}
-  function card(group:EarningsGroup,compact=false){
-    const schedules=[...group.schedules].sort((a,b)=>(a.eventKind==='earnings_release'?0:1)-(b.eventKind==='earnings_release'?0:1)),item=schedules[0];
-    const sharedStatus=schedules.every(schedule=>schedule.status===item.status)?item.status:null;
-    const sources=[...new Map(schedules.map(schedule=>[schedule.url,schedule])).values()];
-    return <article key={group.id} className={`${styles.event} ${sharedStatus==='cancelled'?styles.cancelled:''}`} style={{borderLeftColor:item.sector.color}}>
-    <div className={styles.eventHeading}><strong>{item.ticker}</strong><span>{groupLabel(group)}</span></div>
-    {!compact&&<p>{chinese?(item.companyNames?.['zh-CN']??item.companyName):item.companyName}</p>}
-    {schedules.map(schedule=><p key={schedule.id} className={`${styles.time} ${!sharedStatus&&schedule.status==='cancelled'?styles.cancelledSchedule:''}`}>
-      {schedules.length>1&&<span className={styles.scheduleLabel}>{schedule.eventKind==='earnings_release'?t('Results','财报'):t('Call','电话会')}: </span>}{calendarTime(schedule,chinese)}
-      {!sharedStatus&&schedule.status!=='scheduled'&&<small className={styles.scheduleStatus}> · {schedule.status==='cancelled'?t('Cancelled','已取消'):t('Rescheduled','已改期')}</small>}
-    </p>)}
-    {!compact&&<><p className={styles.detail}>{item.fiscalPeriod} · {chinese?item.sector.zh:item.sector.en}</p><div className={styles.links}><span className={styles.confirmed}>{sharedStatus==='cancelled'?t('Cancelled','已取消'):sharedStatus==='rescheduled'?t('Rescheduled','已改期'):t('Company announced','公司已公告')}</span>{sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{sources.length===1?t('Source ↗','原公告 ↗'):source.eventKind==='earnings_release'?t('Results source ↗','财报公告 ↗'):t('Call source ↗','电话会公告 ↗')}</a>)}<LocalizedLink href={companyPageUrl(item.companyId.startsWith('US:')?item.ticker:item.companyId,/^(XSHG|XSHE):/.test(item.companyId)?'CN_A':undefined)}>{t('Company →','公司 →')}</LocalizedLink></div></>}
-    {compact&&sharedStatus&&sharedStatus!=='scheduled'&&<small>{sharedStatus==='cancelled'?t('Cancelled','已取消'):t('Rescheduled','已改期')}</small>}
-  </article>;}
   const selectedItems=grouped.get(selected)??[];
   return <main className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>{t('UPCOMING COMPANY EVENTS','公司活动预告')}</p><h1>{t('Earnings calendar','财报日历')}</h1><p className={styles.subtitle}>{t('Company-announced releases and calls across AI, Robotics and Space.','涵盖 AI、机器人及航天主题的公司财报发布与电话会。')}</p></div><span className={styles.zone}>{t('Times in Eastern Time · ET','时间显示为美国东部时间 · ET')}</span></header>
@@ -80,10 +54,10 @@ export function EarningsCalendar() {
       <section className={styles.calendar} aria-label={t('Earnings calendar','财报日历')}>
         <div className={`${styles.grid} ${view==='week'?styles.week:''}`}>{displayDays.map(day=>{
           const dayItems=grouped.get(day)??[],otherMonth=day.slice(0,7)!==anchor.slice(0,7);
-          return <div key={day} className={`${styles.cell} ${day===selected?styles.selected:''} ${otherMonth&&view==='month'?styles.muted:''}`}><button className={styles.dayButton} onClick={()=>chooseDay(day)} aria-label={dayLabel(day)} aria-pressed={day===selected}><span>{new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{weekday:'short',timeZone:'UTC'}).format(new Date(`${day}T12:00:00Z`))}</span><strong className={day===today?styles.today:''}>{Number(day.slice(-2))}</strong>{dayItems.length>0&&<small>{dayItems.length}</small>}</button><div className={styles.cellEvents}>{dayItems.slice(0,view==='week'?4:2).map(group=><button key={group.id} className={styles.eventButton} onClick={()=>chooseDay(day)} aria-label={`${group.schedules[0].ticker} ${groupLabel(group)}, ${dayLabel(day)}`}>{card(group,true)}</button>)}{dayItems.length>(view==='week'?4:2)&&<button className={styles.more} onClick={()=>chooseDay(day)}>+{dayItems.length-(view==='week'?4:2)} {t('more','项')}</button>}</div></div>;
+          return <div key={day} className={`${styles.cell} ${day===selected?styles.selected:''} ${otherMonth&&view==='month'?styles.muted:''}`}><button className={styles.dayButton} onClick={()=>chooseDay(day)} aria-label={dayLabel(day)} aria-pressed={day===selected}><span>{new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{weekday:'short',timeZone:'UTC'}).format(new Date(`${day}T12:00:00Z`))}</span><strong className={day===today?styles.today:''}>{Number(day.slice(-2))}</strong>{dayItems.length>0&&<small>{dayItems.length}</small>}</button><div className={styles.cellEvents}>{dayItems.slice(0,view==='week'?4:2).map(group=><button key={group.id} className={styles.eventButton} onClick={()=>chooseDay(day)} aria-label={`${group.schedules[0].ticker} ${earningsGroupLabel(group,t)}, ${dayLabel(day)}`}><EarningsEventCard group={group} compact/></button>)}{dayItems.length>(view==='week'?4:2)&&<button className={styles.more} onClick={()=>chooseDay(day)}>+{dayItems.length-(view==='week'?4:2)} {t('more','项')}</button>}</div></div>;
         })}</div>
       </section>
-      <aside ref={agendaRef} className={styles.agenda} aria-label={t('Selected day agenda','所选日期日程')}><div className={styles.agendaHeader}><p>{t('DAY AGENDA','当日日程')}</p><h2>{dayLabel(selected)}</h2><span>{selectedItems.length} {t('events','项活动')}</span></div><div className={styles.agendaEvents}>{selectedItems.map(item=>card(item))}{!selectedItems.length&&<div className={styles.empty}><span>◇</span><h3>{loading&&!payload?t('Loading schedules…','正在加载日程…'):error&&!payload?t('Schedules unavailable','日程暂不可用'):t('No announced events','暂无已公告活动')}</h3><p>{error&&!payload?t('Please retry to load the calendar.','请重试加载日历。'):t('Choose another day or widen your filters. Only schedules confirmed in original announcements appear here.','请选择其他日期或调整筛选。仅显示原公告已确认的日程。')}</p></div>}</div></aside>
+      <aside ref={agendaRef} className={styles.agenda} aria-label={t('Selected day agenda','所选日期日程')}><div className={styles.agendaHeader}><p>{t('DAY AGENDA','当日日程')}</p><h2>{dayLabel(selected)}</h2><span>{selectedItems.length} {t('events','项活动')}</span></div><div className={styles.agendaEvents}>{selectedItems.map(group=><EarningsEventCard key={group.id} group={group}/>)}{!selectedItems.length&&<div className={styles.empty}><span>◇</span><h3>{loading&&!payload?t('Loading schedules…','正在加载日程…'):error&&!payload?t('Schedules unavailable','日程暂不可用'):t('No announced events','暂无已公告活动')}</h3><p>{error&&!payload?t('Please retry to load the calendar.','请重试加载日历。'):t('Choose another day or widen your filters. Only schedules confirmed in original announcements appear here.','请选择其他日期或调整筛选。仅显示原公告已确认的日程。')}</p></div>}</div></aside>
     </div>
     <footer className={styles.note}>{t('Exact times are converted to ET. Dates or local times without a confirmed time zone stay as announced.','已确认时区的时间转换为 ET；仅有日期或未确认时区的当地时间保留原公告信息。')}<br/>{payload?.collectionStatus==='not_started'?t('Schedule collection is starting. Coverage will grow as announcements are processed.','日程采集即将开始，覆盖将随公告处理逐步增加。'):payload?.collectionStatus!=='complete'?t('Collection is in progress; this is not a complete earnings calendar.','采集仍在进行中，此日历尚未完整覆盖所有公司。'):t('Based on available company announcements; absence of an event does not mean no earnings are planned.','日程基于已获取的公司公告，没有日程不代表公司没有财报计划。')}{payload?.truncated&&<p>{t('This range has more than 1,000 events. Choose a shorter period to view all schedules.','此时段超过 1,000 项活动，请缩短时段以查看全部日程。')}</p>}</footer>
   </main>;

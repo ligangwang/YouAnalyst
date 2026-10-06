@@ -1,4 +1,4 @@
-import { build } from 'esbuild';
+import { componentFixtureHtml } from './component-html';
 import path from 'node:path';
 import { easternDay } from '../../../src/lib/calendar/display';
 import type { CalendarItem } from '../../../src/lib/calendar/model';
@@ -22,13 +22,12 @@ calendarFixtures.push(
 
 export async function calendarFixtureHtml() {
   const mock=path.resolve('tests/conversion/fixtures/mocks.tsx');
-  const result=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';
+  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';
     import {EarningsCalendar} from './src/components/earnings-calendar';
     import {LocaleProvider} from './src/components/providers/locale-provider';
     const locale=new URLSearchParams(location.search).get('lang')==='zh-CN'?'zh-CN':'en';
-    createRoot(document.getElementById('root')).render(<LocaleProvider locale={locale}><EarningsCalendar/></LocaleProvider>);`,resolveDir:process.cwd(),loader:'tsx'},
-    bundle:true,write:false,outfile:'calendar.js',platform:'browser',define:{'process.env':'{}'},
+    createRoot(document.getElementById('root')).render(<LocaleProvider locale={locale}><EarningsCalendar/></LocaleProvider>);`, {
+    outfile:'calendar.js',
     alias:{'next/link':mock,'next/navigation':mock,'@/components/providers/auth-provider':mock},
-  });
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;background:#07131e;font-family:Arial,sans-serif}h1,h2,h3,p{margin:0}button{border:0;background:transparent}a{text-decoration:none}button,input,select{font:inherit}${result.outputFiles.find(file=>file.path.endsWith('.css'))?.text??''}</style></head><body><div id="root"></div><script>${result.outputFiles.find(file=>file.path.endsWith('.js'))!.text.replaceAll('</script','<\\/script')}</script></body></html>`;
+  }, '*{box-sizing:border-box}body{margin:0;background:#07131e;font-family:Arial,sans-serif}h1,h2,h3,p{margin:0}button{border:0;background:transparent}a{text-decoration:none}button,input,select{font:inherit}');
 }

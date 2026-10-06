@@ -148,7 +148,11 @@ export function SiteNav() {
   const ui = useUiText();
   const t = useNavText();
   const { text } = useLocale();
-  const focus = <><span className="whitespace-nowrap font-medium text-slate-300">{text('AI · Robotics · Space','AI · 机器人 · 航天')}</span><span className="text-slate-500">{' — '}</span><span>{text('Technology stocks & company analysis','科技股与公司分析')}</span></>;
+  const focus = <>
+    <span className="whitespace-nowrap font-medium text-slate-300">{text('AI · Robotics · Space', 'AI · 机器人 · 航天')}</span>
+    <span className="text-slate-500">{' — '}</span>
+    <span>{text('Technology stocks & company analysis', '科技股与公司分析')}</span>
+  </>;
   const pathname = unlocalizedPath(usePathname());
   const theme = parseCompanyTheme(useIndustryBrowseParam("theme"));
   const navItems = primaryNavItems.map(item => item.label === "Map" ? { ...item, href: theme === "ai" ? "/?view=graph" : `/?theme=${theme}&view=graph` } : item);
