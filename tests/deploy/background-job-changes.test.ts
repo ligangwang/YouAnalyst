@@ -57,7 +57,7 @@ test('production rollout persists explicit pipeline flags and reuses only the ap
   for(const name of ['ENABLE_SEC_FILING_PIPELINE','SEC_FILINGS_COLLECTOR_ENABLED','COMPANY_GRAPH_PROCESSING_ENABLED','COMPANY_GRAPH_PAID_ADMISSION_ENABLED','COMPANY_GRAPH_QUEUE_BATCH_SIZE','OPENAI_MODEL']) {
     assert.equal(env[name], `\${{ vars.${name} }}`);
   }
-  assert.equal(env.OPENAI_API_KEY, "${{ vars.ENABLE_SEC_FILING_PIPELINE == '1' && secrets.OPENAI_API_KEY || '' }}");
+  assert.equal(env.OPENAI_API_KEY, "${{ (vars.ENABLE_SEC_FILING_PIPELINE == '1' || vars.CALENDAR_EXTRACTION_ENABLED == '1') && secrets.OPENAI_API_KEY || '' }}");
   assert.equal(env.PUBSUB_BOOTSTRAP_IAM, undefined);
   const probe=workflow.jobs['deploy-background-jobs'].steps.find((step: {name?:string})=>step.name?.startsWith('Verify graph Pub/Sub'));
   assert.match(probe.if, /ENABLE_SEC_FILING_PIPELINE == '1'/);

@@ -9,6 +9,7 @@ import {collectCnMapDisclosures} from '../src/lib/events/cn-disclosures';
 import {createCnEarningsRequester} from '../src/lib/earnings/live-cn';
 import {createEarningsRequestGate} from '../src/lib/earnings/live-transport';
 import {randomUUID} from 'node:crypto';
+import {collectCalendarSchedules} from '../src/lib/calendar/worker';
 
 async function main(){
   const args=process.argv.slice(2);if(args.some(arg=>arg!=='--apply'))throw new Error('Usage: collect-intelligence-news [--apply]');
@@ -24,14 +25,16 @@ async function main(){
   if(!process.env.GCP_PROJECT_ID)throw new Error('GCP_PROJECT_ID is required');
   initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
   const db=getFirestore(),graph=await loadCollectionUniverse(db),mapped=new Set(graph.nodes.filter(n=>n.kind==='COMPANY').map(n=>n.id));
-  const newsDeadline=Date.now()+10*60_000,sources=NEWS_SOURCES.filter(s=>mapped.has(s.companyId));
+  const deadline=Date.now()+18*60_000,newsDeadline=Date.now()+8*60_000,sources=NEWS_SOURCES.filter(s=>mapped.has(s.companyId));
   // Rotate the start hourly; slow publishers cannot starve later map companies.
   const start=Math.floor(Date.now()/3600000)%sources.length;
   const results=await collectNewsSources([...sources.slice(start),...sources.slice(0,start)],firestoreNewsStore(db),undefined,undefined,{deadline:newsDeadline});
   const gate=createEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
-  const exchange=await collectCnMapDisclosures(db,graph,transport.request,{deadline:Date.now()+8*60_000,runId:randomUUID(),earningsEnabled:process.env.EARNINGS_COLLECTION_ENABLED==='1'});
-  console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange}));
+  const exchange=await collectCnMapDisclosures(db,graph,transport.request,{deadline:Math.min(deadline-4*60_000,Date.now()+6*60_000),runId:randomUUID(),earningsEnabled:process.env.EARNINGS_COLLECTION_ENABLED==='1'});
+  const calendar=process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline}):{disabled:true};
+  console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange,calendar}));
   if(results.some(result=>result.status==='failed'))process.exitCode=1;
   if('failed' in exchange&&exchange.failed)process.exitCode=1;
+  if('failed' in calendar&&calendar.failed)process.exitCode=1;
 }
 main().catch(error=>{console.error(error instanceof Error?error.message:'Collector failed');process.exitCode=1;});

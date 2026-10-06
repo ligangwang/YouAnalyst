@@ -4,9 +4,11 @@ import { UiText } from "@/components/ui-text";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useLocale } from './providers/locale-provider';
 
 type OpenAiUsageSummary = {
   eventCount: number;
+  unknownCostCount?: number;
   estimatedCostUsd: number;
   inputTokens: number;
   cachedInputTokens: number;
@@ -16,7 +18,7 @@ type OpenAiUsageSummary = {
 
 type OpenAiUsageEvent = {
   id: string;
-  purpose: "ai_analyst_generation" | "company_graph_extraction";
+  purpose: "ai_analyst_generation" | "company_graph_extraction" | "industry_research" | "earnings_calendar_extraction";
   model: string;
   responseId: string | null;
   createdAt: string;
@@ -38,6 +40,8 @@ type UsageResponse = {
   events?: OpenAiUsageEvent[];
   summary?: OpenAiUsageSummary;
   last30Days?: OpenAiUsageSummary;
+  calendarLast30Days?: OpenAiUsageSummary;
+  calendarThisQuarter?: OpenAiUsageSummary;
   error?: string;
 };
 
@@ -71,7 +75,7 @@ function formatCost(value: number | null): string {
 }
 
 function purposeLabel(value: OpenAiUsageEvent["purpose"]): string {
-  return value === "company_graph_extraction" ? "Company graph" : "AI analyst";
+  return {company_graph_extraction:'Company graph',ai_analyst_generation:'AI analyst',industry_research:'Industry research',earnings_calendar_extraction:'Earnings calendar'}[value];
 }
 
 function metadataLabel(event: OpenAiUsageEvent): string {
@@ -88,12 +92,14 @@ function metadataLabel(event: OpenAiUsageEvent): string {
 }
 
 function SummaryCard({ label, summary }: { label: string; summary: OpenAiUsageSummary | null }) {
+  const {text:t}=useLocale();
   return (
     <div className="rounded-xl border border-cyan-500/25 bg-slate-900/70 p-4">
       <p className="text-xs uppercase text-slate-500"><UiText text={label} /></p>
       <p className="mt-2 font-[var(--font-sora)] text-2xl font-semibold text-cyan-100">
         {summary ? formatCost(summary.estimatedCostUsd) : "-"}
       </p>
+      {summary?.unknownCostCount ? <p className="mt-1 text-xs text-amber-200">{summary.unknownCostCount} {t('calls have unknown cost; excluded from this estimate.','次调用费用未知，未计入估算。')}</p> : null}
       <p className="mt-2 text-xs text-slate-400">
         {summary ? <UiText text={`${formatCount(summary.eventCount)} calls - ${formatCount(summary.totalTokens)} tokens`} /> : <UiText text={"Loading"} />}
       </p>
@@ -102,10 +108,13 @@ function SummaryCard({ label, summary }: { label: string; summary: OpenAiUsageSu
 }
 
 export function AdminOpenAiUsagePage() {
+  const {text:t}=useLocale();
   const { user, loading, getIdToken } = useAuth();
   const [events, setEvents] = useState<OpenAiUsageEvent[]>([]);
   const [summary, setSummary] = useState<OpenAiUsageSummary | null>(null);
   const [last30Days, setLast30Days] = useState<OpenAiUsageSummary | null>(null);
+  const [calendar30,setCalendar30] = useState<OpenAiUsageSummary|null>(null);
+  const [calendarQuarter,setCalendarQuarter] = useState<OpenAiUsageSummary|null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingUsage, setLoadingUsage] = useState(false);
 
@@ -137,6 +146,8 @@ export function AdminOpenAiUsagePage() {
       setEvents(payload.events ?? []);
       setSummary(payload.summary ?? null);
       setLast30Days(payload.last30Days ?? null);
+      setCalendar30(payload.calendarLast30Days ?? null);
+      setCalendarQuarter(payload.calendarThisQuarter ?? null);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Unable to load OpenAI usage.");
     } finally {
@@ -173,10 +184,13 @@ export function AdminOpenAiUsagePage() {
 
       {error ? <p className="mb-3 rounded-xl border border-rose-400/30 bg-rose-500/10 p-3 text-sm text-rose-100">{<UiText text={error} />}</p> : null}
 
-      <section className="mb-6 grid gap-3 sm:grid-cols-2">
+      <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard label="Recent loaded calls" summary={summary} />
-        <SummaryCard label="Last 30 days loaded" summary={last30Days} />
+        <SummaryCard label="All calls · last 30 days" summary={last30Days} />
+        <SummaryCard label="Calendar · last 30 days" summary={calendar30} />
+        <SummaryCard label="Calendar · this quarter (UTC)" summary={calendarQuarter} />
       </section>
+      <p className="mb-4 text-xs text-slate-400">{t('Costs are estimates from returned token usage and configured model rates. Calendar totals cover all recorded calls in the period. Reused extraction results do not make another API call.','费用按返回的 token 用量及模型费率估算。日历总额覆盖该时段所有已记录调用，复用结果不会再次调用 API。')}</p>
 
       <section className="overflow-hidden rounded-2xl border border-white/15 bg-slate-950/55">
         <div className="grid grid-cols-[1.2fr_0.9fr_0.9fr_0.8fr_0.8fr] gap-3 border-b border-white/10 px-4 py-3 text-xs uppercase text-slate-500">
@@ -195,6 +209,8 @@ export function AdminOpenAiUsagePage() {
             <div>
               <p className="font-semibold text-cyan-100">{<UiText text={purposeLabel(event.purpose)} />} - {metadataLabel(event)}</p>
               <p className="mt-1 text-xs text-slate-400">{formatDate(event.createdAt)}</p>
+              {event.purpose === 'earnings_calendar_extraction' ? <p className="mt-1 text-xs text-slate-400">{String(event.metadata.validationStatus ?? event.metadata.status ?? '')}</p> : null}
+              {event.purpose === 'earnings_calendar_extraction' && event.metadata.validationError ? <p className="mt-1 text-xs text-amber-200">{String(event.metadata.validationError)}</p> : null}
               {event.responseId ? <p className="mt-1 break-all text-xs text-slate-500">{event.responseId}</p> : null}
             </div>
             <p className="text-slate-200">{event.model}</p>

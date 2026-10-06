@@ -59,9 +59,16 @@ test('official news deploy is isolated, bounded and disabled by default',()=>{
   assert.match(r.calls,/--task-timeout 20m/);
   assert.match(r.calls,/--max-retries 0/);
   assert.match(r.calls,/--args dist\/collect-intelligence-news.cjs,--apply/);
-  assert.match(r.calls,/INTELLIGENCE_NEWS_COLLECTOR_ENABLED=0/);
+  assert.match(r.calls,/--env-vars-file/);
   assert.doesNotMatch(r.calls,/pubsub|run jobs execute|scheduler jobs resume|run deploy/);
   assert.doesNotMatch(run('all').calls,/collect-intelligence-news-production/);
+});
+
+test('calendar deployment uses Luna and the existing key without putting it in command arguments',()=>{
+  const r=run('intelligence-news',{CALENDAR_EXTRACTION_ENABLED:'1',OPENAI_CALENDAR_MODEL:'gpt-6-luna',OPENAI_API_KEY:'calendar-test-secret'});
+  assert.equal(r.status,0,r.stderr);assert.match(r.calls,/--env-vars-file/);assert.doesNotMatch(r.calls,/calendar-test-secret/);
+  const invalid=run('intelligence-news',{CALENDAR_EXTRACTION_ENABLED:'1',OPENAI_CALENDAR_MODEL:'gpt-5.4',OPENAI_API_KEY:'calendar-test-secret'});
+  assert.notEqual(invalid.status,0);assert.doesNotMatch(invalid.calls,/builds submit|run jobs deploy/);
 });
 
 test('A-share subscriber is provisioned before publication and preserves schedule state',()=>{
