@@ -1,4 +1,5 @@
 import { saveLatestEodPrice } from "./latest-eod";
+import { backfillPriceHistory, historyThrough } from "./history-backfill";
 import { loadUsdCnyEod } from "./fx-eod";
 import { createMaintenanceLog, loggedTransaction, maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { predictionInstrument, marketDate, type PredictionMarket } from "./instrument";
@@ -1449,6 +1450,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       predictionTickers: predictionsToProcess.map((item) => item.ticker) });
     log.emit("INFO", "price_universe_selected", { runDate, requestedTickers: requestedTickers.length, mapTickers: mapTickers.length });
 
+
     console.info("[daily-eod-maintenance] Prediction scan completed", {
       runDate,
       candidatePredictions: candidatePredictions.length,
@@ -1546,6 +1548,15 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
         loadPrices,
         requestedTickers: requestedTickers.length,
       });
+    }
+
+    if (loadPrices && !dryRun && !input.rollForward && !manualTickers.length && mapTickers.length
+      && runDate >= historyThrough(market) && process.env.EODHD_API_TOKEN && process.env.EODHD_BULK_EOD_BUCKET) {
+      try {
+        const history=await backfillPriceHistory({db,bucket:getAdminStorageBucket(process.env.EODHD_BULK_EOD_BUCKET),
+          tickers:mapTickers,through:historyThrough(market),limit:5,token:process.env.EODHD_API_TOKEN});
+        log.emit(history.failures.length ? 'WARNING' : 'INFO','mapped_history_backfill',history);
+      } catch { log.emit('WARNING','mapped_history_backfill_failed',{reason:'History backfill unavailable; daily price processing continues'}); }
     }
 
     const latestTradingDate = Array.from(priceByTicker.values())
