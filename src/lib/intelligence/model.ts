@@ -9,7 +9,7 @@ export type IntelligenceEvent = {
   evidence:IntelligenceEvidence[]; planned:boolean;
 };
 export type IntelligenceSourceDocument = {id:string;channel:IntelligenceSource;companyIds:string[];published_at:string|null;publication_date:string};
-export type IntelligenceSnapshot = {
+export type IntelligenceSnapshot = { eventReturns?: Record<string,import("./price-performance").EventPriceReturn[]>;
   theme?: import('../company-themes/model').CompanyThemeId;
   graph:KnowledgeGraph; graphVersion:string; events:IntelligenceEvent[]; generatedAt:string;
   session:{date:string;timeZone:'America/New_York';startAt:string;endAt:string};

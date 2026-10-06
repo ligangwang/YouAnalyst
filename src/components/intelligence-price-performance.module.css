@@ -1,0 +1,15 @@
+.performance{display:grid;gap:12px;padding:12px 0;border-block:1px solid #25414d;margin:12px 0;color:#a8bfce;font-size:12px}
+.performance div{display:grid;gap:4px}
+.performance strong{color:#e6f1f6;font-size:16px;font-weight:600}
+.performance b{margin-left:8px;font-size:13px;font-weight:500}
+.performance small{font-size:11px;line-height:1.5;font-weight:400}
+.performance [data-direction="up"]{color:#6ae0bc}
+.performance [data-direction="down"]{color:#ffa0b1}
+.performance .returnLine{display:flex;align-items:center;gap:7px}
+.hint{position:relative;display:inline-flex}
+.hint button{display:grid;place-items:center;width:17px;height:17px;padding:0;border:1px solid #587181;border-radius:50%;background:transparent;color:#a8bfce;font-size:11px;cursor:help}
+.hint button:focus-visible{outline:2px solid #6ae0bc;outline-offset:3px}
+.hint [role="tooltip"]{display:none;position:absolute;bottom:calc(100% + 8px);left:-100px;width:240px;max-width:75vw;padding:10px;border:1px solid #3a5869;border-radius:8px;background:#0c1b27;color:#d5e5ef;font-size:11px;line-height:1.6;z-index:100;box-shadow:0 6px 22px #0008;pointer-events:none;white-space:normal}
+.hint:hover [role="tooltip"],.hint:focus-within [role="tooltip"]{display:block}
+.asOf{display:flex;flex-wrap:wrap;gap:3px 6px;font-size:9px;color:#9ab0c3;line-height:1.5}
+.asOf>span{white-space:nowrap}

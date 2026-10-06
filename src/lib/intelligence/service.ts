@@ -11,6 +11,7 @@ import { mergeIntelligenceEvents, projectResearchIntelligence } from './project'
 import { projectSecIntelligence } from './sec-events';
 import { loadCollectedNews } from './collectors/projection';
 import {loadMapDisclosures} from '../events/disclosure-projection';
+import {attachPricePerformance} from './price-performance-service';
 
 const LIMIT=200,CACHE_MS=60_000;
 const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;expires:number}>();
@@ -72,10 +73,15 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     // A discovery and a research citation of the same filing are one document.
     const ordered=mergeIntelligenceEvents([...filings,...(news?.events??[]),...(disclosures?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date).sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
     const events=ordered.slice(0,LIMIT);truncated=truncated||ordered.length>LIMIT;
-    const graphVersion=createHash('sha256').update(JSON.stringify(graph)).digest('hex');
+    let priced={graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};
+    if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
+      priced=await attachPricePerformance(getAdminFirestore(),graph,events,now);
+    }
+    // Price changes must reach clients that retain the graph on unchanged polls.
+    const graphVersion=createHash('sha256').update(JSON.stringify(priced.graph)).digest('hex');
     const evidenceChannels=new Set(graph.sources.map(source=>sourceChannel(source.url)));
     for(const event of ordered)for(const source of event.evidence)evidenceChannels.add(source.channel);
-    const value:IntelligenceSnapshot={theme,graph,graphVersion,events,sourceDocuments:sourceDocumentsForEvents(ordered),statisticsComplete,generatedAt:now.toISOString(),session,newsCoverage,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
+    const value:IntelligenceSnapshot={theme,graph:priced.graph,eventReturns:priced.eventReturns,graphVersion,events,sourceDocuments:sourceDocumentsForEvents(ordered),statisticsComplete,generatedAt:now.toISOString(),session,newsCoverage,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
     caches.set(theme,{value,expires:now.getTime()+CACHE_MS});
     return value;
   })();

@@ -89,7 +89,7 @@ export async function backfillPriceHistory(input: {
           const previous=bars[offset+i-1];
           try {
             await refs[i].create({market:instrument.market,ticker,requestedDate:row.date,tradingDate:row.date,
-              open:row.open,high:row.high,low:row.low,close:row.close,adjustedClose:row.adjusted_close,volume:row.volume,
+              open:row.open,high:row.high,low:row.low,close:row.close,rawClose:row.close,adjustedClose:row.adjusted_close,volume:row.volume,
               source:'eodhd-eod',providerSymbol,exchange:instrument.exchange,
               exchangeTimezone:instrument.timeZone,micCode:instrument.exchange,loadedAt,isFinal:true,
               previousClose:previous?.close ?? null,previousTradingDate:previous?.date ?? null,
