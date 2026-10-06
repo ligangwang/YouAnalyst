@@ -8,7 +8,7 @@ import type { MaintenanceLog } from "../maintenance-log";
 import { marketDate, predictionInstrument } from "./instrument";
 import { readRollForwardDates, runDailyEodMaintenance, type DailyEodMaintenanceInput } from "./eod-prices";
 
-type Input = Omit<DailyEodMaintenanceInput, "afterPredictionId" | "dryRun"> & { market: "US" | "CN_A"; runDate: string };
+type Input = Omit<DailyEodMaintenanceInput, "afterPredictionId" | "dryRun" | "skipHistoryBackfill"> & { market: "US" | "CN_A"; runDate: string };
 export type EodRequest = { version: 1; type: "eod.maintenance.requested"; batchId: string; requestedAt: string; input: Input };
 type Ledger = { request: EodRequest; dates?: string[]; nextRunDate?: string | null; dateIndex?: number; cursor?: string | null; completed?: boolean; pages?: number };
 const stateRef = (db: Firestore, market: string) => db.collection("eod_runs").doc(`_queue_${market}`);
@@ -91,6 +91,7 @@ export async function processEodMaintenance(value: unknown, db: Firestore, log: 
     while (ledger.dateIndex! < ledger.dates!.length) {
       if (Date.now() > deadline - 60_000) throw Error("EOD needs another delivery to finish remaining pages");
       const result = await (dependencies.run ?? runDailyEodMaintenance)({ ...request.input,
+        ...(request.input.rollForward ? {skipHistoryBackfill:true} : {}),
         runDate: ledger.dates![ledger.dateIndex!], rollForward: false, afterPredictionId: ledger.cursor ?? undefined });
       if (result.priceLoad.failed || result.fx?.failed || result.marking.missingPrice) {
         log.emit("WARNING", "page_incomplete", { batchId: request.batchId, market: request.input.market,
