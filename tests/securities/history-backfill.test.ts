@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Bucket } from '@google-cloud/storage';
-import { backfillPriceHistory, historyBars, historyThrough } from '../../src/lib/predictions/history-backfill';
+import { backfillPriceHistory, historyBars, historyThrough, historyProviderSymbol } from '../../src/lib/predictions/history-backfill';
 
 const bar=(date:string)=>({date,open:10,high:12,low:9,close:11,adjusted_close:10.5,volume:100});
 function fixture() {
@@ -25,6 +25,8 @@ test('history validation rejects malformed dates, duplicate bars and invalid pri
   assert.equal(historyBars([bar('2026-01-02')],'2025-12-31','2026-10-05')[0].adjusted_close,10.5);
 });
 test('history cutoff excludes unfinished sessions in each market timezone',()=>{
+  assert.equal(historyProviderSymbol('MOG.A'),'MOG-A.US');
+  assert.equal(historyProviderSymbol('XSHG:600000'),'600000.SHG');
   const now=new Date('2026-10-06T16:00:00Z');
   assert.equal(historyThrough('US',now),'2026-10-05');
   assert.equal(historyThrough('CN_A',now),'2026-10-06');

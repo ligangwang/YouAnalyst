@@ -3,6 +3,11 @@ import type { Bucket } from '@google-cloud/storage';
 import { marketDate, predictionInstrument, type PredictionMarket } from './instrument';
 
 export const HISTORY_START = '2025-12-31';
+export function historyProviderSymbol(ticker: string) {
+  const instrument=predictionInstrument(ticker);
+  if(!instrument)throw Error('Unsupported historical symbol');
+  return instrument.market==='US' ? `${instrument.ticker.replaceAll('.','-')}.US` : instrument.providerSymbol;
+}
 type Bar = { date: string; open: number; high: number; low: number; close: number; adjusted_close: number; volume: number };
 const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value;
 
@@ -42,6 +47,7 @@ export async function backfillPriceHistory(input: {
   for (const ticker of tickers) {
     const instrument = predictionInstrument(ticker);
     if (!instrument) { result.failures.push({ticker,reason:'unsupported_symbol'}); continue; }
+    const providerSymbol=historyProviderSymbol(ticker);
     const ref = db.collection('collectors').doc(`eod-history_${instrument.market}_${ticker}`);
     const claim = await db.runTransaction(async tx => {
       const doc = await tx.get(ref); const state = doc.data();
@@ -61,7 +67,7 @@ export async function backfillPriceHistory(input: {
       catch (error) {
         if (Number((error as {code?:number}).code) !== 404) throw Error('History cache read failed');
         if (!token) throw Error('EODHD credential unavailable');
-        const url = new URL(`/api/eod/${instrument.providerSymbol}`, 'https://eodhd.com');
+        const url = new URL(`/api/eod/${providerSymbol}`, 'https://eodhd.com');
         url.search = new URLSearchParams({api_token:token,fmt:'json',period:'d',order:'a',from:HISTORY_START,to:claim.end}).toString();
         result.requested++;
         let response: Response;
@@ -84,7 +90,7 @@ export async function backfillPriceHistory(input: {
           try {
             await refs[i].create({market:instrument.market,ticker,requestedDate:row.date,tradingDate:row.date,
               open:row.open,high:row.high,low:row.low,close:row.close,adjustedClose:row.adjusted_close,volume:row.volume,
-              source:'eodhd-eod',providerSymbol:instrument.providerSymbol,exchange:instrument.exchange,
+              source:'eodhd-eod',providerSymbol,exchange:instrument.exchange,
               exchangeTimezone:instrument.timeZone,micCode:instrument.exchange,loadedAt,isFinal:true,
               previousClose:previous?.close ?? null,previousTradingDate:previous?.date ?? null,
               dailyReturn:previous ? (row.close-previous.close)/previous.close : null});
