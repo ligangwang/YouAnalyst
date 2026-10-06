@@ -1,0 +1,4 @@
+[
+  {"id":"tem-ir","companyId":"US:TEM","name":"Tempus Investor News","url":"https://investors.tempus.com/rss/news-releases.xml","allowedHosts":["investors.tempus.com","tempus.gcs-web.com"],"pollMs":3600000,"transport":"https","upgradeArticleHttp":true,"status":"PUBLISHED","reviewedAt":"2026-10-06"},
+  {"id":"cai-ir","companyId":"US:CAI","name":"Caris Investor News","url":"https://investor.carislifesciences.com/rss/news-releases.xml","allowedHosts":["investor.carislifesciences.com"],"pollMs":3600000,"transport":"https","status":"PUBLISHED","reviewedAt":"2026-10-06"}
+]

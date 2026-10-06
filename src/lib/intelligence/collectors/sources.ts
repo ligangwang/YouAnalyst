@@ -1,4 +1,6 @@
-import mapIrFeeds from './map-ir-feeds.json';
+import assert from 'node:assert/strict';
+import {isCollectionCompany,type ThemedCompany} from '../../company-themes/model';
+
 export type NewsSource = {
   id:string; companyId:string; name:string; url:string; allowedHosts:string[]; articleHostAliases?:Record<string,string>; publicationFromArticle?:boolean; articleDateFormat?:'apple-newsroom'; pollMs:number;
   format?:'html'; articlePathPattern?:string; transport?:'https'; articleDateOnly?:boolean; upgradeArticleHttp?:boolean;
@@ -6,27 +8,46 @@ export type NewsSource = {
   excludedCategories?:string[]; resolveRelativeArticleLinks?:boolean;
 };
 
-/** Publisher-owned feeds, verified individually. No user-supplied fetch targets. */
-// Samsung Global Newsroom returns HTTP 403 from Cloud Run; exclude until verified there.
-export const NEWS_SOURCES:readonly NewsSource[] = [
-  {id:'nvidia-news',companyId:'US:NVDA',name:'NVIDIA Newsroom',url:'https://nvidianews.nvidia.com/cats/press_release.xml',allowedHosts:['nvidianews.nvidia.com'],pollMs:60*60_000},
-  {id:'amd-news',companyId:'US:AMD',name:'AMD Newsroom',url:'https://newsroom.amd.com/rss.xml',allowedHosts:['newsroom.amd.com','www.amd.com','ir.amd.com'],pollMs:60*60_000},
-  {id:'microsoft-news',companyId:'US:MSFT',name:'Microsoft Corporate Blog',url:'https://blogs.microsoft.com/feed/',allowedHosts:['blogs.microsoft.com'],pollMs:60*60_000},
-  {id:'coreweave-news',companyId:'US:CRWV',name:'CoreWeave Blog',url:'https://www.coreweave.com/blog/rss.xml',allowedHosts:['www.coreweave.com','coreweave.com'],articleHostAliases:{'wf.coreweave.com':'www.coreweave.com'},publicationFromArticle:true,pollMs:60*60_000},
-  {id:'broadcom-news',companyId:'US:AVGO',name:'Broadcom Investor News',url:'https://investors.broadcom.com/rss/news-releases.xml',allowedHosts:['investors.broadcom.com'],pollMs:60*60_000},
-  {id:'marvell-news',companyId:'US:MRVL',name:'Marvell Investor News',url:'https://investor.marvell.com/news-events/press-releases/rss',allowedHosts:['investor.marvell.com'],pollMs:60*60_000},
-  {id:'kla-news',companyId:'US:KLAC',name:'KLA Investor News',url:'https://ir.kla.com/news-events/press-releases/rss',allowedHosts:['ir.kla.com'],pollMs:60*60_000},
-  {id:'applied-materials-news',companyId:'US:AMAT',name:'Applied Materials Investor News',url:'https://ir.appliedmaterials.com/rss/news-releases.xml',allowedHosts:['ir.appliedmaterials.com'],pollMs:60*60_000},
-  {id:'lam-research-news',companyId:'US:LRCX',name:'Lam Research Investor News',url:'https://investor.lamresearch.com/index.php?s=43&pagetemplate=rss',allowedHosts:['investor.lamresearch.com'],pollMs:60*60_000},
-  {id:'nxp-news',companyId:'US:NXPI',name:'NXP Investor News',url:'https://investors.nxp.com/rss/news-releases.xml',allowedHosts:['investors.nxp.com'],pollMs:60*60_000},
-  {id:'globalfoundries-news',companyId:'US:GFS',name:'GlobalFoundries Investor News',url:'https://investors.gf.com/rss/news-releases.xml',allowedHosts:['investors.gf.com'],pollMs:60*60_000},
-  {id:'datadog-news',companyId:'US:DDOG',name:'Datadog Investor News',url:'https://investors.datadoghq.com/rss/news-releases.xml',allowedHosts:['investors.datadoghq.com'],pollMs:60*60_000},
-  {id:'arm-news',companyId:'US:ARM',name:'Arm Newsroom',url:'https://newsroom.arm.com/feed',allowedHosts:['newsroom.arm.com'],pollMs:60*60_000},
-  {id:'google-news',companyId:'US:GOOGL',name:'Google Official Blog',url:'https://blog.google/rss/',allowedHosts:['blog.google'],pollMs:60*60_000},
-  {id:'amazon-news',companyId:'US:AMZN',name:'Amazon Science',url:'https://www.amazon.science/index.rss',allowedHosts:['www.amazon.science'],pollMs:60*60_000},
-  {id:'apple-news',companyId:'US:AAPL',name:'Apple Newsroom',publicationFromArticle:true,articleDateFormat:'apple-newsroom',url:'https://www.apple.com/newsroom/rss-feed.rss',allowedHosts:['www.apple.com'],pollMs:60*60_000},
-  {id:'intel-news',companyId:'US:INTC',name:'Intel Investor News',url:'https://www.intc.com/news-events/press-releases/rss',allowedHosts:['www.intc.com'],pollMs:60*60_000},
-  {id:'arista-news',companyId:'US:ANET',name:'Arista Press Releases',url:'https://www.arista.com/en/company/news/press-release-rss',allowedHosts:['www.arista.com'],pollMs:60*60_000},
-  ...(mapIrFeeds as NewsSource[]).filter(source=>!source.reviewRequired),
-];
-export const IR_SOURCES_REQUIRING_REVIEW=(mapIrFeeds as NewsSource[]).filter(source=>source.reviewRequired);
+export type CompanyNewsSource=NewsSource & {status:'PUBLISHED'|'DRAFT'|'WITHDRAWN';reviewedAt:string};
+const fields=['id','companyId','name','url','allowedHosts','articleHostAliases','publicationFromArticle','articleDateFormat','pollMs','format','articlePathPattern','transport','articleDateOnly','upgradeArticleHttp','indexDateFormat','articleVisibleDate','reviewRequired','excludedCategories','resolveRelativeArticleLinks','status','reviewedAt'];
+const publicHost=(host:string)=>/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/i.test(host)&&!/(?:^|\.)(?:localhost|local|internal|test|invalid|example)$/i.test(host);
+
+/** Only operator-reviewed, publisher-owned HTTPS adapters are executable. */
+export function validateCompanyNewsSource(value:unknown,companyId:string):CompanyNewsSource{
+  assert(value&&typeof value==='object'&&!Array.isArray(value),'Invalid news source');
+  const row=value as CompanyNewsSource;
+  assert(Object.keys(row).every(key=>fields.includes(key)),'Unknown news adapter setting');
+  assert(/^[a-z0-9][a-z0-9-]{1,79}$/.test(row.id)&&row.companyId===companyId&&typeof row.name==='string'&&row.name.trim(),'Invalid source identity');
+  assert(['PUBLISHED','DRAFT','WITHDRAWN'].includes(row.status),'Invalid source status');
+  assert(/^\d{4}-\d{2}-\d{2}$/.test(row.reviewedAt)&&new Date(row.reviewedAt).toISOString().slice(0,10)===row.reviewedAt&&row.reviewedAt<=new Date().toISOString().slice(0,10),'Invalid source review date');
+  assert(Array.isArray(row.allowedHosts)&&row.allowedHosts.length>0&&row.allowedHosts.length<=20&&row.allowedHosts.every(host=>typeof host==='string'&&publicHost(host)),'Invalid approved hosts');
+  const url=new URL(row.url);
+  assert(url.protocol==='https:'&&!url.username&&!url.password&&(!url.port||url.port==='443')&&row.allowedHosts.includes(url.hostname),'Unapproved feed URL');
+  assert(Number.isInteger(row.pollMs)&&row.pollMs>=60_000&&row.pollMs<=86_400_000,'Invalid polling interval');
+  for(const key of ['publicationFromArticle','articleDateOnly','upgradeArticleHttp','resolveRelativeArticleLinks'] as const)assert(row[key]===undefined||typeof row[key]==='boolean','Invalid adapter boolean');
+  assert(row.format===undefined||row.format==='html','Unsupported feed format');
+  assert(row.transport===undefined||row.transport==='https','Unsupported transport');
+  assert(row.articleDateFormat===undefined||row.articleDateFormat==='apple-newsroom','Unsupported article date parser');
+  assert(row.indexDateFormat===undefined||['alibaba','vistra'].includes(row.indexDateFormat),'Unsupported index date parser');
+  assert(row.articleVisibleDate===undefined||row.articleVisibleDate==='linde','Unsupported visible date parser');
+  if(row.articlePathPattern!==undefined){assert(typeof row.articlePathPattern==='string'&&row.articlePathPattern.length<=512,'Invalid article path parser');new RegExp(row.articlePathPattern);}
+  if(row.excludedCategories!==undefined)assert(Array.isArray(row.excludedCategories)&&row.excludedCategories.every(item=>typeof item==='string'&&item.length<=100),'Invalid excluded categories');
+  if(row.articleHostAliases!==undefined)assert(row.articleHostAliases&&typeof row.articleHostAliases==='object'&&!Array.isArray(row.articleHostAliases)&&Object.entries(row.articleHostAliases).every(([from,to])=>publicHost(from)&&row.allowedHosts.includes(to)),'Unapproved host alias');
+  if(row.status==='PUBLISHED')assert(!row.reviewRequired,'Source still requires review');
+  return structuredClone(row);
+}
+
+export function approvedCompanyNewsSources(records:ThemedCompany[]):NewsSource[]{
+  const sources:NewsSource[]=[],ids=new Set<string>();
+  for(const company of records.filter(isCollectionCompany)){
+    if(company.newsSources===undefined)continue;
+    assert(Array.isArray(company.newsSources),`${company.id}: invalid newsSources`);
+    for(const raw of company.newsSources){
+      if(raw?.status!=='PUBLISHED')continue;
+      const row=validateCompanyNewsSource(raw,company.id);
+      assert(!ids.has(row.id),`Duplicate source ID: ${row.id}`);ids.add(row.id);
+      const {status:_,reviewedAt:__,...config}=row;void _;void __;sources.push(config);
+    }
+  }
+  return sources;
+}

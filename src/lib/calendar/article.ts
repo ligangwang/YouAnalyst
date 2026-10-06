@@ -3,16 +3,16 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { NEWS_SOURCES } from '../intelligence/collectors/sources';
+import type {NewsSource} from '../intelligence/collectors/sources';
 import { approvedNewsUrl } from '../intelligence/collectors/news';
 import { publisherFetch } from '../intelligence/collectors/publisher-http';
 import { htmlToEarningsText } from '../earnings/document';
 import type { CalendarSource } from './model';
 
 const MAX_BYTES = 2_000_000;
-export function approvedCalendarUrl(url: string, source: CalendarSource) {
+export function approvedCalendarUrl(url: string, source: CalendarSource, sources:readonly NewsSource[]) {
   if (source.sourceType === 'exchange') return /^https:\/\/static\.cninfo\.com\.cn\/finalpage\/\d{4}-\d{2}-\d{2}\/[\w.-]+\.pdf$/i.test(url);
-  const config = NEWS_SOURCES.find(s=>s.id===source.sourceId && s.companyId===source.companyIds[0]);
+  const config = sources.find(s=>s.id===source.sourceId && s.companyId===source.companyIds[0]);
   return Boolean(config && approvedNewsUrl(url,config,true));
 }
 export function calendarArticleText(html: string) {
@@ -21,12 +21,12 @@ export function calendarArticleText(html: string) {
   const body = clean.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i)?.[1] ?? clean.match(/<main\b[^>]*>([\s\S]*?)<\/main>/i)?.[1] ?? clean.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i)?.[1] ?? clean;
   return htmlToEarningsText(body);
 }
-export async function fetchCalendarArticle(source: CalendarSource, request?: typeof fetch) {
-  const config = NEWS_SOURCES.find(s=>s.id===source.sourceId);
+export async function fetchCalendarArticle(source: CalendarSource, request:typeof fetch|undefined, sources:readonly NewsSource[]) {
+  const config = sources.find(s=>s.id===source.sourceId && s.companyId===source.companyIds[0]);
   const fetcher = request ?? (config?.transport==='https'?publisherFetch:fetch);
   let url = source.url;
   for (let redirects=0;redirects<=3;redirects++) {
-    if (!approvedCalendarUrl(url,source)) throw new Error('Calendar source host is not approved');
+    if (!approvedCalendarUrl(url,source,sources)) throw new Error('Calendar source host is not approved');
     const response = await fetcher(url,{redirect:'manual',credentials:'omit',signal:AbortSignal.timeout(25_000),headers:{'User-Agent':'YouAnalyst/1.0 (announced earnings calendar)',Accept:'text/html,application/pdf'}});
     if ([301,302,303,307,308].includes(response.status)) {
       const target = response.headers.get('location'); await response.body?.cancel();

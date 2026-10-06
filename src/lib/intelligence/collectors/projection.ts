@@ -2,7 +2,8 @@ import {readPeriodDocuments} from '../period-query';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {KnowledgeGraph} from '../../knowledge-graph/model';
 import {canonicalEvidenceUrl,observation,type IntelligenceEvent} from '../model';
-import {NEWS_SOURCES} from './sources';
+import type {NewsSource} from './sources';
+import {loadNewsSources} from './source-service';
 import {newsArticles} from './article-quality';
 import {NEWS_COLLECTORS_COLLECTION,NEWS_EVENTS_COLLECTION} from './store';
 
@@ -19,10 +20,10 @@ export function newsCollectorIsFresh(lastSuccess:unknown,failures:unknown,partia
 }
 
 /** Explicit public projection: ingestion and processing timestamps never leave this boundary. */
-export function projectCollectedNews(records:Record<string,unknown>[],graph:KnowledgeGraph,now:Date):IntelligenceEvent[]{
+export function projectCollectedNews(records:Record<string,unknown>[],graph:KnowledgeGraph,now:Date,sources:readonly NewsSource[]):IntelligenceEvent[]{
   const companies=new Set(graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id));
-  return newsArticles(records).flatMap(record=>{
-    const source=NEWS_SOURCES.find(source=>source.id===record.sourceId);
+  return newsArticles(records,sources).flatMap(record=>{
+    const source=sources.find(source=>source.id===record.sourceId);
     if(!source||record.version!==1||record.type!=='company_news'||record.sourceType!=='company_ir'||record.companyId!==source.companyId||!Array.isArray(record.companyIds)||!record.companyIds.includes(source.companyId)||!companies.has(source.companyId))return [];
     const url=typeof record.url==='string'?canonicalEvidenceUrl(record.url):null;
     const publication=observation(record.published_at??record.publication_date);
@@ -32,7 +33,7 @@ export function projectCollectedNews(records:Record<string,unknown>[],graph:Know
 }
 export async function loadCollectedNews(db:Firestore,graph:KnowledgeGraph,now:Date,earliestDay:string,limit?:number){
   const companyIds=new Set(graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id));
-  const sources=NEWS_SOURCES.filter(source=>companyIds.has(source.companyId));
+  const sources=(await loadNewsSources(db)).filter(source=>companyIds.has(source.companyId));
   const typed=()=>db.collection(NEWS_EVENTS_COLLECTION).where('type','==','company_news').where('sourceType','==','company_ir');
   const read=(query:ReturnType<typeof typed>)=>limit===undefined?readPeriodDocuments(query):query.limit(limit+1).get().then(page=>page.docs);
   const [page,dated,states]=await Promise.all([
@@ -44,6 +45,6 @@ export async function loadCollectedNews(db:Firestore,graph:KnowledgeGraph,now:Da
     const state=states[index].data();
     return !newsCollectorIsFresh(state?.lastSuccessAt,state?.failures,state?.partial,now,source.pollMs);
   });
-  const events=[...new Map(projectCollectedNews([...page,...dated].map(doc=>doc.data()),graph,now).map(event=>[event.id,event])).values()].sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date));
-  return {events:limit===undefined?events:events.slice(0,limit),truncated:limit!==undefined&&(page.length>limit||dated.length>limit||events.length>limit),fresh:unhealthy.length===0,unhealthy:unhealthy.map(source=>source.name),healthyCompanyIds:sources.filter(source=>!unhealthy.includes(source)).map(source=>source.companyId)};
+  const events=[...new Map(projectCollectedNews([...page,...dated].map(doc=>doc.data()),graph,now,sources).map(event=>[event.id,event])).values()].sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date));
+  return {events:limit===undefined?events:events.slice(0,limit),truncated:limit!==undefined&&(page.length>limit||dated.length>limit||events.length>limit),fresh:unhealthy.length===0,unhealthy:unhealthy.map(source=>source.name),configuredCompanyIds:[...new Set(sources.map(source=>source.companyId))],healthyCompanyIds:sources.filter(source=>!unhealthy.includes(source)).map(source=>source.companyId)};
 }

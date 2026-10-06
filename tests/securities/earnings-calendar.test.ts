@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import {NEWS_SOURCES} from '../../scripts/seed-news-sources';
 import assert from 'node:assert/strict';
 import { isCalendarCandidate } from '../../src/lib/calendar/candidates';
 import { extractSchedule, normalizeSchedules, scheduleInstant, scheduleTimezone } from '../../src/lib/calendar/extraction';
@@ -59,7 +60,7 @@ test('article fetching removes page chrome and refuses unapproved redirects befo
   assert.match(calendarArticleText('<body><form><header>menu</header><main><p>The earnings call will begin on October 26, 2026 at 2:00 p.m. Pacific Time.</p></main></form></body>'),/October 26, 2026/);
   assert.equal(calendarArticleText('<nav>menu</nav><article><h1>Results</h1><p>October 26, 2026</p><script>ignore me</script></article><footer>links</footer>').includes('menu'),false);
   let calls=0;
-  await assert.rejects(fetchCalendarArticle(source,async()=>{calls++;return new Response(null,{status:302,headers:{location:'http://127.0.0.1/private'}});}),/approved/);
+  await assert.rejects(fetchCalendarArticle(source,async()=>{calls++;return new Response(null,{status:302,headers:{location:'http://127.0.0.1/private'}});},NEWS_SOURCES),/approved/);
   assert.equal(calls,1);
 });
 test('Responses request uses Luna, a strict schema and no storage; cost comes from returned tokens including cached input',async()=>{

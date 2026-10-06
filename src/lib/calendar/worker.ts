@@ -5,6 +5,7 @@ import { buildOpenAiUsageEvent, type OpenAiUsageEvent } from '../openai/usage';
 import { canonicalEvidenceUrl } from '../intelligence/model';
 import { isCalendarCandidate } from './candidates';
 import { fetchCalendarArticle } from './article';
+import {loadNewsSources} from '../intelligence/collectors/source-service';
 import { extractSchedule, hash, normalizedText, normalizeSchedules, type CalendarResponse } from './extraction';
 import { CALENDAR_MODEL, CALENDAR_EXTRACTOR_VERSION, type CalendarSource, type ScheduledEvent } from './model';
 
@@ -18,7 +19,7 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
   const state=(await ref.get()).get('calendarExtraction') as SourceState|undefined;
   if (options.revalidateCached ? !state?.receiptId : Number(state?.nextCheckAtMs)>now()) return {status:'cached'};
   let text: string;
-  try { text=await (options.download??fetchCalendarArticle)(source); }
+  try { text=await (options.download??(async item=>fetchCalendarArticle(item,undefined,await loadNewsSources(db))))(source); }
   catch(error) {
     const failures=(state?.failures??0)+1;
     await ref.set({calendarExtraction:{...state,failures,lastError:error instanceof Error?error.message:'Article fetch failed',nextCheckAtMs:now()+Math.min(24,2**Math.min(5,failures))*3600000}},{merge:true});
