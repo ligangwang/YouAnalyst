@@ -4,7 +4,8 @@ import {mapListedCompanies,secDisclosureRows,cnDisclosureRows} from '../../src/l
 import {cnMapOrg,readCnMapDisclosures} from '../../src/lib/events/cn-disclosures';
 import {originalArticleMetadata,parseHtmlNewsIndex} from '../../src/lib/intelligence/collectors/html-news';
 import {approvedNewsUrl,parseNewsFeed,fetchNews} from '../../src/lib/intelligence/collectors/news';
-import {NEWS_SOURCES,type NewsSource} from '../../src/lib/intelligence/collectors/sources';
+import {NEWS_SOURCES} from '../../scripts/seed-news-sources';
+import type {NewsSource} from '../../src/lib/intelligence/collectors/sources';
 import {projectDisclosures} from '../../src/lib/events/disclosure-projection';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
 import {earningsFirestore} from '../helpers/earnings-firestore';

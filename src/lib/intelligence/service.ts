@@ -10,7 +10,6 @@ import { INTELLIGENCE_SOURCES, sourceDocumentsForEvents, intelligenceSession, se
 import { mergeIntelligenceEvents, projectResearchIntelligence } from './project';
 import { projectSecIntelligence } from './sec-events';
 import { loadCollectedNews } from './collectors/projection';
-import { NEWS_SOURCES } from './collectors/sources';
 import {loadMapDisclosures} from '../events/disclosure-projection';
 
 const LIMIT=200,CACHE_MS=60_000;
@@ -57,7 +56,7 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     if(process.env.INTELLIGENCE_NEWS_ENABLED==='1'&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay);
       const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY'&&(theme!=='ai'||node.id.startsWith('US:'))).map(node=>node.id);
-      const configured=new Set(NEWS_SOURCES.map(source=>source.companyId));
+      const configured=new Set(news.configuredCompanyIds);
       const covered=companyIds.filter(id=>configured.has(id)).length;
       newsCoverage={configured:covered,total:companyIds.length,healthy:companyIds.filter(id=>news!.healthyCompanyIds.includes(id)).length};
       if(covered<companyIds.length)warnings.push(`Verified IR/news feeds cover ${covered} of ${companyIds.length} ${theme==='ai'?'US-listed ':''}${themeName(theme)} Map companies. US-listed companies use SEC disclosures and Chinese issuers use exchange filings; other companies require supported official-news adapters.`);

@@ -1,17 +1,51 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type {Firestore} from 'firebase-admin/firestore';
-import {NEWS_SOURCES} from '../../src/lib/intelligence/collectors/sources';
+import {NEWS_SOURCES} from '../../scripts/seed-news-sources';
+import {IR_SOURCES_REQUIRING_REVIEW} from '../../scripts/seed-news-sources';
+import {approvedCompanyNewsSources,validateCompanyNewsSource} from '../../src/lib/intelligence/collectors/sources';
+import {loadNewsSources} from '../../src/lib/intelligence/collectors/source-service';
+import {publicCompanyAnnouncement} from '../../src/lib/events/company-announcements';
+import {approvedCalendarUrl} from '../../src/lib/calendar/article';
 import {articlePublicationDay,approvedNewsUrl,fetchNews,parseNewsFeed,MAX_FEED_BYTES,NewsFetchError,type NewsResponse} from '../../src/lib/intelligence/collectors/news';
 import {firestoreNewsStore,NEWS_EVENTS_COLLECTION,NEWS_COLLECTORS_COLLECTION} from '../../src/lib/intelligence/collectors/store';
 import {collectNewsSources} from '../../src/lib/intelligence/collectors/collector';
-import {projectCollectedNews,newsCollectorIsFresh} from '../../src/lib/intelligence/collectors/projection';
+import {projectCollectedNews as projectNews,newsCollectorIsFresh} from '../../src/lib/intelligence/collectors/projection';
 import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
 import {EVENTS_COLLECTION,eventDocumentId} from '../../src/lib/events/model';
 
+const projectCollectedNews=(records:Record<string,unknown>[],graph:KnowledgeGraph,now:Date)=>projectNews(records,graph,now,NEWS_SOURCES);
 const source=NEWS_SOURCES[0],at=new Date('2026-10-02T16:00:00Z');
 const rss=(items:string)=>`<rss version="2.0"><channel>${items}</channel></rss>`;
 const entry=(id:string)=>`<item><title>Announcement ${id}</title><link>https://nvidianews.nvidia.com/releases/${id}</link><pubDate>Fri, 02 Oct 2026 12:00:00 +0000</pubDate><description><![CDATA[<p>Company update</p>]]></description></item>`;
+
+test('database-only company feeds reach collection, public news and calendar validation without a static adapter',async()=>{
+  const feed={id:'new-company-ir',companyId:'US:NEW',name:'New company IR',url:'https://ir.newcompany.com/rss.xml',allowedHosts:['ir.newcompany.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+  const docs=[{id:'US:NEW',data:()=>({name:'New company',status:'DIRECTORY',themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:[feed]})}];
+  const query={where:()=>query,get:async()=>({docs})};
+  const configs=await loadNewsSources({collection:()=>query} as unknown as Firestore);
+  assert.equal(configs.length,1);assert.equal(configs[0].id,feed.id);
+  const record={id:'announcement',version:1,type:'company_news',sourceType:'company_ir',sourceId:feed.id,companyId:feed.companyId,companyIds:[feed.companyId],title:'Company announces earnings call',url:'https://ir.newcompany.com/earnings',published_at:'2026-10-02T12:00:00Z',publication_date:'2026-10-02'};
+  const graph:KnowledgeGraph={nodes:[{id:feed.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-06'};
+  assert.equal(projectNews([record],graph,at,configs).length,1);
+  assert.equal(publicCompanyAnnouncement(record,feed.companyId,configs)?.channel,'IR');
+  assert(approvedCalendarUrl(record.url,record as unknown as import('../../src/lib/calendar/model').CalendarSource,configs));
+  assert.equal(projectNews([record],graph,at,[]).length,0);
+  assert.equal(publicCompanyAnnouncement(record,feed.companyId,[]),null);
+});
+
+test('source publication is authoritative; invalid identities, host overrides and unsupported adapters are rejected',()=>{
+  for(const source of [...NEWS_SOURCES,...IR_SOURCES_REQUIRING_REVIEW])validateCompanyNewsSource({...source,status:source.reviewRequired?'DRAFT':'PUBLISHED',reviewedAt:'2026-10-06'},source.companyId);
+  const source={...NEWS_SOURCES[0],status:'PUBLISHED' as const,reviewedAt:'2026-10-06'};
+  const record={id:source.companyId,name:'NVIDIA',status:'DIRECTORY',themeMemberships:{ai:{status:'PUBLISHED' as const,primarySector:'compute',reviewedAt:'2026-10-06'}},newsSources:[source]};
+  assert.equal(approvedCompanyNewsSources([record]).length,1);
+  assert.equal(approvedCompanyNewsSources([{...record,newsSources:[{...source,status:'WITHDRAWN'}]}]).length,0);
+  assert.equal(approvedCompanyNewsSources([{...record,themeMemberships:{ai:{...record.themeMemberships.ai,status:'WITHDRAWN'}}}]).length,0);
+  assert.throws(()=>validateCompanyNewsSource({...source,companyId:'US:OTHER'},record.id),/identity/);
+  assert.throws(()=>validateCompanyNewsSource({...source,url:'https://127.0.0.1/private',allowedHosts:['127.0.0.1']},record.id),/hosts/);
+  assert.throws(()=>validateCompanyNewsSource({...source,format:'unsupported'},record.id),/format/);
+  assert.throws(()=>approvedCompanyNewsSources([record,{...record,id:'US:OTHER',newsSources:[{...source,companyId:'US:OTHER'}]}]),/Duplicate source ID/);
+});
 
 test('reviewed relative article links retain earnings PDFs and reject unapproved hosts',()=>{
   const publisher=NEWS_SOURCES.find(source=>source.id==='cgnx-ir')!;

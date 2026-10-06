@@ -4,7 +4,7 @@ import { build } from 'esbuild';
 import { createRequire } from 'node:module';
 import {createSecFilingDiscovered} from '../../src/lib/sec-filings/event';
 import {summarizeIntelligence,summarizeSourceDocuments} from '../../src/lib/intelligence/model';
-import {NEWS_SOURCES} from '../../src/lib/intelligence/collectors/sources';
+import {NEWS_SOURCES} from '../../scripts/seed-news-sources';
 import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
 
 const now=new Date('2026-10-02T16:00:00Z');
@@ -69,7 +69,7 @@ test('enabled official news arrives through the shared snapshot with current sou
     const news={version:1,id:'amd-release',type:'company_news',sourceType:'company_ir',companyIds:['US:AMD'],sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'Official announcement',summary:'Publisher evidence',url:'https://newsroom.amd.com/news/announcement/',collected_at:now.toISOString(),processed_at:now.toISOString(),published_at:'2026-10-02T12:05:00.000Z',publication_date:'2026-10-02'};
     let newsReads=0;const filters:unknown[][]=[];
     const db={collection:(name:string)=>{
-      const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,500);return query;},get:async()=>{if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
+      const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,500);return query;},get:async()=>{if(name==='companies')return {docs:graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>({id:node.id,data:()=>({name:node.name||node.id,status:'DIRECTORY',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:NEWS_SOURCES.filter(source=>source.companyId===node.id).map(source=>({...source,status:'PUBLISHED',reviewedAt:'2026-10-04'}))})}))};if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
     },getAll:async(...refs:unknown[])=>{assert.deepEqual(refs,NEWS_SOURCES.filter(source=>graph.nodes.some(node=>node.id===source.companyId)).map(source=>({id:source.id})));return refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}));}};
     const service=await isolated(db,async()=>graph);
     const snapshot=await service.loadIntelligenceSnapshot(now);

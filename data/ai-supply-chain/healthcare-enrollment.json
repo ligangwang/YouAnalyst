@@ -1,0 +1,28 @@
+{
+  "theme": "ai",
+  "reviewedAt": "2026-10-06",
+  "companies": [
+    {
+      "id": "US:TEM",
+      "expectedName": "Tempus AI, Inc.",
+      "primarySector": "applications",
+      "aiStageIds": ["applications"],
+      "sources": [{
+        "url": "https://investors.tempus.com/",
+        "title": "Tempus AI — Investor Relations",
+        "summary": "Healthcare & precision medicine: AI-enabled diagnostics, clinical decision support and life-sciences research. Tempus also operates genomic testing and data businesses."
+      }]
+    },
+    {
+      "id": "US:CAI",
+      "expectedName": "Caris Life Sciences, Inc.",
+      "primarySector": "applications",
+      "aiStageIds": ["applications"],
+      "sources": [{
+        "url": "https://investor.carislifesciences.com/",
+        "title": "Caris Life Sciences — Investor Relations",
+        "summary": "Healthcare & precision medicine: molecular profiling and AI-powered oncology insights for diagnosis and treatment selection. Caris also operates laboratory testing and data businesses."
+      }]
+    }
+  ]
+}

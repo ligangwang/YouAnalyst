@@ -1,9 +1,11 @@
-// Read-only source verification. No Firebase imports, initialization or event writes.
-import {NEWS_SOURCES} from '../src/lib/intelligence/collectors/sources';
+// Read-only database-backed source verification; no event or checkpoint writes.
+import {loadNewsSources} from '../src/lib/intelligence/collectors/source-service';
+import {applicationDefault,initializeApp} from 'firebase-admin/app';
+import {getFirestore} from 'firebase-admin/firestore';
 import {fetchNews} from '../src/lib/intelligence/collectors/news';
 let next=0;
-const results:unknown[]=Array(NEWS_SOURCES.length);
-async function main(){await Promise.all(Array.from({length:3},async()=>{
+
+async function main(){if(!process.env.GCP_PROJECT_ID)throw new Error('GCP_PROJECT_ID is required');initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});const NEWS_SOURCES=await loadNewsSources(getFirestore()),results:unknown[]=Array(NEWS_SOURCES.length);await Promise.all(Array.from({length:3},async()=>{
   while(next<NEWS_SOURCES.length){
     const index=next++,source=NEWS_SOURCES[index];
     try{

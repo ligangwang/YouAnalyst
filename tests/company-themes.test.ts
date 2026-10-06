@@ -4,7 +4,7 @@ import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';
 import { activeThemeIds, collectionUniverse, isCollectionCompany, type ThemedCompany } from '../src/lib/company-themes/model';
 import { planCompanyThemeMigration, validateRoboticsBatch } from '../src/lib/company-themes/migration';
 import batch from '../data/robotics/company-memberships.json';
-import { NEWS_SOURCES } from '../src/lib/intelligence/collectors/sources';
+import { NEWS_SOURCES } from '../scripts/seed-news-sources';
 import { usMapTickers } from '../src/lib/knowledge-graph/us-companies';
 import { cnMapCompanies } from '../src/lib/knowledge-graph/cn-companies';
 import type { Firestore } from 'firebase-admin/firestore';
