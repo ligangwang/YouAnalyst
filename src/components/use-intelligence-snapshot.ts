@@ -73,7 +73,10 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     // Keep the visible selection until the new data is ready. Cancelling restores it.
     updateIndustryBrowse({ theme: next === 'ai' ? '' : next, ...(changed && cached ? clearedThemeSelection : {}) });
   };
-  const reconnect = () => { setError(''); setRetry(value => value + 1); };
+  const reconnect = () => {
+    if (snapshot) setError('');
+    setRetry(value => value + 1);
+  };
 
   return { snapshot, theme, error, changeTheme, reconnect };
 }
