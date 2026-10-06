@@ -1,5 +1,6 @@
 "use client";
 
+import {CompanyPriceChange} from './company-price-change';
 import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import Image from 'next/image';
 import {useNavigationSettings} from "./navigation-settings";
@@ -478,7 +479,7 @@ function Scene(props:TreeSceneProps){
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
           onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else {setGrowth({request:props.request,active:false});props.onToggle(node.id);}}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
-          {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}</small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
+          {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')} <CompanyPriceChange price={node.company.dailyPrice} locale={locale}/></small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}
       </group>;
     })}

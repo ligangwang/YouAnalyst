@@ -12,7 +12,7 @@ export function IntelligencePricePerformance({price,returns=[],symbol,compact=fa
   const direction=(change:number)=>change>0?'up':change<0?'down':'flat';
   const explanation=(returns.length?(zh?'使用公告前最后一个完整交易日的收盘价。':'Uses the last completed close before publication. '):'')+(zh?'不含股息与拆股调整。每日收盘数据，非实时行情。':'Excludes dividend and split adjustments. Daily closes, not live quotes.');
   return <section className={styles.performance} aria-label={zh?'股价表现':'Price performance'}>
-    {price&&<div><span>{zh?'最新收盘':'Latest close'} · {price.tradingDate}</span><strong>{new Intl.NumberFormat(locale,{style:'currency',currency:price.currency}).format(price.close)} {price.change!==null&&<b data-direction={direction(price.change)}>{signedPercent(price.change)} <small>{zh?'日涨跌':'daily'}</small></b>}</strong>{price.previousTradingDate&&<small>{zh?'对比':'Compared with'} {price.previousTradingDate}</small>}</div>}
+    {price&&<div><span>{zh?'最新收盘':'Latest close'} · {price.tradingDate}</span><strong>{new Intl.NumberFormat(locale,{style:'currency',currency:price.currency}).format(price.close)} {price.change!==null&&<b data-direction={direction(price.change)}>{signedPercent(price.change)}</b>}</strong>{price.previousTradingDate&&<small>{zh?'对比':'Compared with'} {price.previousTradingDate}</small>}</div>}
     {returns.map((value,index)=>{
       const days=Math.round((Date.parse(value.latestDate)-Date.parse(value.baselineDate))/86400000);
       const descriptionId=`${hintId}-${index}`;
