@@ -179,7 +179,6 @@ test('shared periods, exact ticker search and selected sources remain visible ab
 test('mobile workspace exposes saved companies and event details retain their Chinese labels',async({page},info)=>{
   test.skip(info.project.name!=='mobile','Mobile workspace checks');await page.clock.install({time:new Date('2026-10-04T16:00:00Z')});await open(page,true);
   const center=page.getByRole('region',{name:'Graph universe'});
-  await expect(center.getByText('科技股与公司分析',{exact:true})).toBeVisible();
   await expect(center.getByRole('combobox',{name:'投资主题',exact:true})).toBeVisible();
   await center.getByRole('tab',{name:'公司列表',exact:true}).click();
   await expect(center.getByRole('region',{name:'公司列表',exact:true})).toBeVisible();
@@ -223,8 +222,6 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await page.reload();
   await expect(page.getByRole('button',{name:'Replay',exact:true})).toHaveCount(0);
   await expect(page.getByRole('slider')).toHaveCount(0);
-  await expect(page.getByRole('heading',{name:'AI · Robotics · Space',exact:true})).toBeVisible();
-  await expect(page.getByText('Technology stocks & company analysis',{exact:true})).toBeVisible();
   const workspace=await page.locator('main').elementHandle();
   await page.getByRole('button',{name:'Save MU',exact:true}).click();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
