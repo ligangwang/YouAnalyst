@@ -4,7 +4,7 @@ import { isCalendarCandidate } from '../../src/lib/calendar/candidates';
 import { extractSchedule, normalizeSchedules, scheduleInstant, scheduleTimezone } from '../../src/lib/calendar/extraction';
 import { calendarArticleText, fetchCalendarArticle } from '../../src/lib/calendar/article';
 import { calendarRange } from '../../src/lib/calendar/service';
-import { processCalendarSource } from '../../src/lib/calendar/worker';
+import { processCalendarSource, collectCalendarSchedules } from '../../src/lib/calendar/worker';
 import { buildOpenAiUsageEvent, listOpenAiUsageEvents } from '../../src/lib/openai/usage';
 import type { Firestore } from 'firebase-admin/firestore';
 import { earningsFirestore } from '../helpers/earnings-firestore';
@@ -35,9 +35,16 @@ test('preserves original publication timestamps and separates release and call s
   const ordinalText='NVIDIA will report third quarter fiscal 2027 results on November 5 th , 2026 after the market closes. NVIDIA will hold an audio webcast the same day at 2:00 p.m. PT.';
   assert.equal(normalize({...draft,date:'2026-11-05',timezoneText:'PT',dateEvidence:ordinalText,timeEvidence:'2:00 p.m. PT'},ordinalText)[0].scheduled_at,'2026-11-05T22:00:00.000Z');
   assert.equal(normalize({...draft,periodEvidence:'third-quarter fiscal 2027 results'},text.replace('third quarter','third-quarter'))[0].fiscalPeriod,'FY2027-Q3');
+  const spaced=text.replace(/2026\./g,'2026 .').replace(/Time\./g,'Time .');
+  assert.equal(normalize(draft,spaced)[0].scheduled_at,'2026-11-18T22:00:00.000Z');
+  const paired='NVIDIA will host its third quarter fiscal 2027 earnings call on November 18, 2026 at 2:00 p.m. PT/5:00 p.m. ET.';
+  assert.equal(normalize({...draft,timezoneText:'PT/5:00 p.m. ET',dateEvidence:paired,timeEvidence:'2:00 p.m. PT/5:00 p.m. ET',periodEvidence:'third quarter fiscal 2027 earnings call'},paired)[0].scheduled_at,'2026-11-18T22:00:00.000Z');
+  const prior='NVIDIA will report third quarter fiscal 2027 results prior to the market opening on November 18, 2026.';
+  assert.equal(normalize({...release,dateEvidence:prior,timeEvidence:'',timeSlot:'before_market'},prior)[0].timeSlot,'before_market');
 });
 test('rejects unsupported dates, quarters, time zones and archive dates; retains unknown time zones as local time',()=>{
   assert.throws(()=>normalize({...draft,date:'2026-11-17'}),/date/);
+  assert.throws(()=>normalize({...draft,dateEvidence:draft.dateEvidence.replace('host','cancel')}),/evidence/);
   assert.throws(()=>normalize({...draft,time:'17:00'}),/time/);
   assert.throws(()=>normalize({...draft,period:'FY2027-Q2'}),/quarter/);
   assert.throws(()=>normalize({...draft,timezoneText:'ET'}),/Timezone/);
@@ -91,6 +98,23 @@ test('validation and HTTP failures record usage without automatically paying for
     const usage=[...fake.rows.entries()].find(([path])=>path.startsWith('openai_usage_events/'))![1];
     assert.equal(usage.estimatedCostUsd,fail==='http'?null:0.000305);
   }
+  const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);
+  await processCalendarSource(fake.db,source,{now:fake.now,download:async()=>text,extract:async()=>response()});
+  const receipt=[...fake.rows.entries()].find(([,row])=>row.type==='calendar_extraction')!;
+  fake.rows.set(receipt[0],{...receipt[1],status:'review_required',error:'Legacy whitespace validation'});
+  let paid=0;
+  const revalidate={now:fake.now,download:async()=>text,extract:async()=>{paid++;throw new Error('Must not call provider');},revalidateCached:true};
+  const readDb=Object.assign(fake.db,{getAll:(...refs:Array<{get:()=>Promise<unknown>}>)=>Promise.all(refs.map(ref=>ref.get()))}) as Firestore;
+  fake.rows.set('collectors/earnings-calendar',{afterEventId:'unchanged-history-cursor'});
+  const result=await collectCalendarSchedules(readDb,new Set(source.companyIds),{...revalidate,deadline:fake.now()+180000});
+  assert.equal(result.complete,1);assert.equal(result.paid,0);
+  assert.equal(fake.rows.get('collectors/earnings-calendar')?.afterEventId,'unchanged-history-cursor');
+  assert.equal(fake.rows.get(receipt[0])?.error,null);assert.equal(paid,0);
+  const savedUsage=[...fake.rows.entries()].find(([path])=>path.startsWith('openai_usage_events/'))![1];
+  assert.equal(savedUsage.estimatedCostUsd,0.000305);assert.equal((savedUsage.metadata as Record<string,unknown>).validationStatus,'complete');
+  assert.equal((await processCalendarSource(fake.db,source,{...revalidate,download:async()=>text+' Changed content.'})).status,'cached');
+  assert.equal(paid,0);assert.equal([...fake.rows.values()].filter(row=>row.type==='calendar_extraction').length,1);
+  assert.equal([...fake.rows.keys()].filter(path=>path.startsWith('openai_usage_events/')).length,1);
 });
 test('a failed commit retries persistence only, never the provider call',async()=>{
   const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);let rejects=0,calls=0;
