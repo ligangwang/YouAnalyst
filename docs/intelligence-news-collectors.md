@@ -85,8 +85,12 @@ replay. Failed, partial or stale feeds cannot report current IR coverage.
 
 ## Verification and rollout
 
-1. Run `npx tsx scripts/collect-intelligence-news.ts` for read-only feed checks.
-   This path never initializes Firestore.
+1. Set `GCP_PROJECT_ID` to the target project and use Application Default Credentials
+   with read access to `companies`, graph records and existing collector metadata.
+   Run `npx tsx scripts/collect-intelligence-news.ts` for read-only feed checks.
+   This path initializes Firestore to read the shared company/feed registry,
+   but never writes events or collector checkpoints. Feeds now live in `companies.newsSources`;
+   see `docs/theme-company-enrollment.md` for preview-first feed publication.
 2. Run `npx tsx --test tests/graph/news-collector.test.ts tests/graph/intelligence-service.test.ts`.
 3. Apply the `events` composite index
    (`type ASC`, `sourceType ASC`, `published_at DESC`) and the date-only index

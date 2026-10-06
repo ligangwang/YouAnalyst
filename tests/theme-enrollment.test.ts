@@ -3,6 +3,10 @@ import test from 'node:test';
 import {planEnrollment, enrollCompanies, type EnrollmentBatch} from '../scripts/enroll-theme-companies';
 import {encode, company, type Document} from '../scripts/migrate-company-themes';
 import healthcare from '../data/ai-supply-chain/healthcare-enrollment.json';
+import ai from '../data/ai-supply-chain/ai-us.json';
+import cn from '../data/ai-supply-chain/ai-cn-a.json';
+import {publishNewsSources} from '../scripts/publish-news-sources';
+import type {CompanyNewsSource} from '../src/lib/intelligence/collectors/sources';
 
 const batch=healthcare as EnrollmentBatch;
 const profiles=batch.companies.map(row=>({id:row.id,name:row.expectedName,status:'DIRECTORY',market:'US',exchange:'NASDAQ',symbol:row.id.slice(3),profile:{financialReport:{url:'https://www.sec.gov/example'}}}));
@@ -24,6 +28,35 @@ test('enrollment rejects identity drift, editorial conflicts, unsafe sources and
   assert.throws(()=>planEnrollment([{...profiles[0],aiGraph:{status:'PUBLISHED'}},profiles[1]],batch),/AI map decision conflicts/);
   assert.throws(()=>planEnrollment(profiles,{...batch,companies:[{...batch.companies[0],primarySector:'healthcare'}]}),/Unknown primary sector/);
   assert.throws(()=>planEnrollment(profiles,{...batch,companies:[{...batch.companies[0],sources:[{url:'http://example.com',title:'x',summary:'x'}]}]}),/Invalid reviewed source/);
+});
+
+test('adding equipment companies retains canonical stage names and order',()=>{
+  const proposal={...batch.companies[0],primarySector:'semiconductors',aiStageIds:['equipment']};
+  const [patch]=planEnrollment(profiles,{...batch,companies:[proposal]});
+  const canonical=ai.nodes.find(row=>row.id==='stage:equipment')!;
+  assert.deepEqual((patch.fields.inGraph as {stages:unknown[]}).stages,[{...canonical,labels:{en:canonical.label,'zh-CN':cn.nodes.find(row=>row.id===canonical.id)!.label}}]);
+});
+
+test('source publication rejects IDs owned outside its batch before any write',async()=>{
+  const feed:CompanyNewsSource={id:'existing-ir',companyId:'US:TEM',name:'IR',url:'https://investors.tempus.com/rss.xml',allowedHosts:['investors.tempus.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+  const outside:Document={name:'projects/example/databases/(default)/documents/companies/US:OTHER',updateTime:'2026-10-06T00:00:00Z',fields:{newsSources:encode([{...feed,companyId:'US:OTHER'}])}};
+  await assert.rejects(publishNewsSources({project:'example',sources:[feed],request:async(url)=>{if(url.endsWith('/collectors/news-source-registry'))return null;assert(url.endsWith(':runQuery'));return [{document:outside}];}}),/belongs to another company/);
+});
+
+test('source ownership and company changes share one fenced commit',async()=>{
+  const feed:CompanyNewsSource={id:'new-ir',companyId:'US:TEM',name:'IR',url:'https://investors.tempus.com/rss.xml',allowedHosts:['investors.tempus.com'],pollMs:3600000,status:'PUBLISHED',reviewedAt:'2026-10-06'};
+  const doc:Document={name:'projects/example/databases/(default)/documents/companies/US:TEM',updateTime:'2026-10-06T00:00:00Z',fields:{name:encode('Tempus'),status:encode('DIRECTORY')}};
+  const guard:Document={name:'projects/example/databases/(default)/documents/collectors/news-source-registry',updateTime:'2026-10-06T01:00:00Z',fields:{sourceOwners:encode({})}};
+  const {mkdtemp,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const backupDir=await mkdtemp(`${tmpdir()}/news-publisher-`);
+  try{await publishNewsSources({project:'example',sources:[feed],write:true,backupDir,request:async(url,method,data)=>{
+    if(url.endsWith(':runQuery'))return [];
+    if(url.endsWith(':commit')){
+      const {writes}=data as {writes:{update:{name:string;fields:Document['fields']};currentDocument:{updateTime:string}}[]};
+      assert.equal(writes.length,2);assert.equal(writes[1].update.name,guard.name);assert.deepEqual(writes[1].currentDocument,{updateTime:guard.updateTime});
+      Object.assign(doc.fields,writes[0].update.fields);return {};
+    }
+    assert(!method||method==='GET');return url.endsWith('news-source-registry')?guard:doc;
+  }});}finally{await rm(backupDir,{recursive:true,force:true});}
 });
 
 test('preview does not commit and a write uses exact update-time preconditions',async()=>{

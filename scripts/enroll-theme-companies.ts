@@ -6,6 +6,8 @@ import {GoogleAuth} from 'google-auth-library';
 import {activeThemeIds, COMPANY_THEMES, type CompanyThemeId, type ThemedCompany} from '../src/lib/company-themes/model';
 import {graphSectors} from '../src/lib/knowledge-graph/sectors';
 import {company, encode, type Document, type Request} from './migrate-company-themes';
+import ai from '../data/ai-supply-chain/ai-us.json';
+import cn from '../data/ai-supply-chain/ai-cn-a.json';
 
 export type EnrollmentBatch = {theme:CompanyThemeId; reviewedAt:string; companies:{
   id:string; expectedName:string; primarySector:string; secondaryRoles?:string[]; aiStageIds?:string[];
@@ -38,9 +40,10 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch) {
       const stageIds=proposal.aiStageIds??[sector.stages[0]];
       assert(stageIds.length>0&&new Set(stageIds).size===stageIds.length&&stageIds.every(stage=>[sector,...sectors.filter(row=>secondary.includes(row.id))].some(row=>row.stages.includes(stage))),'Invalid AI stages');
       const sources=proposal.sources.map((source,index)=>({id:`theme:ai:${proposal.id}:${index}`,url:source.url,title:source.title,sourceDate:null}));
-      const stages=stageIds.map(stage=>({id:`stage:${stage}`,kind:'STAGE',order:stage==='applications'?17:100,label:stage==='applications'?'AI software & applications':sectors.find(row=>row.stages.includes(stage))!.en,labels:{en:stage==='applications'?'AI software & applications':sectors.find(row=>row.stages.includes(stage))!.en,'zh-CN':stage==='applications'?'AI 软件与应用':sectors.find(row=>row.stages.includes(stage))!.zh}}));
+      const stages=stageIds.map(stage=>{const node=ai.nodes.find(node=>node.kind==='STAGE'&&node.id===`stage:${stage}`);assert(node,'Missing canonical AI stage');return {...structuredClone(node),labels:{en:node.label,'zh-CN':cn.nodes.find(row=>row.id===node.id)?.label??node.label}};});
       const graph={status:'PUBLISHED',stageIds,stages,memberships:stageIds.map(stage=>({id:`theme:ai:${proposal.id}:stage:${stage}`,source:proposal.id,target:`stage:${stage}`,type:'PARTICIPATES_IN',summary:proposal.sources.map(source=>source.summary).join(' '),sourceIds:sources.map(source=>source.id),commercialStatus:'NOT_A_COMMERCIAL_RELATIONSHIP'})),sources,order:1000,asOf:batch.reviewedAt};
-      assert(!record.inGraph&&!record.aiGraph||isDeepStrictEqual(record.inGraph??record.aiGraph,graph),`${proposal.id}: existing AI map decision conflicts`);
+      const old=record.inGraph??record.aiGraph;
+      assert(!old||isDeepStrictEqual({...old as object,stages},graph),`${proposal.id}: existing AI map decision conflicts`);
       fields.inGraph=graph;
     }
     if(!record.description)fields.description=proposal.sources.map(source=>source.summary).join(' ');

@@ -20,4 +20,6 @@ Approved IR/news adapters live in `companies.newsSources`. Publish reviewed conf
 
 `scripts/publish-news-sources.ts --migrate-existing` is a one-time additive migration from historical seed fixtures. The seeds remain for migration/audit and tests; production has no static fallback. New companies and feeds using existing adapters require no deployment. A new parser, theme, sector taxonomy or presentation still requires code changes.
 
+The publisher checks source IDs across the complete enrolled registry before committing. The existing `collectors/news-source-registry` document holds a derived source-ID ownership guard, committed atomically with company updates using its update-time precondition. This prevents concurrent publishers from assigning a checkpoint/event source ID to different companies. Runtime readers continue to read feed definitions exclusively from company records.
+
 On 2026-10-06, TEM and CAI were added to AI applications using the existing directory identities, with healthcare/precision-medicine descriptions and official company sources. No web or worker deployment was needed. Their classification does not imply that all revenue comes from AI software.

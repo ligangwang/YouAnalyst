@@ -12,6 +12,20 @@ export async function publishNewsSources({project,sources,request,write=false,ba
   assert(new Set(sources.map(source=>source.id)).size===sources.length,'Duplicate source IDs');
   sources.forEach(source=>validateCompanyNewsSource(source,source.companyId));
   const root=`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents`;
+  // Derived ownership guard in the existing collectors collection serializes
+  // publishers without moving the authoritative feed configuration from companies.
+  const guardUrl=`${root}/collectors/news-source-registry`;
+  const guard=await request(guardUrl) as Document|null;
+  const owners=structuredClone(guard?company(guard).sourceOwners??{}:{}) as Record<string,string>;
+  const queries=[{fieldFilter:{field:{fieldPath:'themeIds'},op:'ARRAY_CONTAINS_ANY',value:{arrayValue:{values:['ai','robotics','space'].map(stringValue=>({stringValue}))}}}},...['inGraph.status','aiGraph.status'].map(fieldPath=>({fieldFilter:{field:{fieldPath},op:'EQUAL',value:{stringValue:'PUBLISHED'}}}))];
+  for(const where of queries){
+    const rows=await request(`${root}:runQuery`,'POST',{structuredQuery:{from:[{collectionId:'companies'}],where,select:{fields:[{fieldPath:'newsSources'}]}}}) as {document?:Document}[];
+    for(const {document} of rows){if(!document)continue;const row=company(document);for(const feed of (row.newsSources??[]) as CompanyNewsSource[]){
+      validateCompanyNewsSource(feed,row.id);
+      assert(!owners[feed.id]||owners[feed.id]===row.id,`${feed.id}: source ID belongs to another company`);owners[feed.id]=row.id;
+    }}
+  }
+  for(const source of sources){assert(!owners[source.id]||owners[source.id]===source.companyId,`${source.id}: source ID belongs to another company`);owners[source.id]=source.companyId;}
   const ids=[...new Set(sources.map(source=>source.companyId))];
   const docs=await Promise.all(ids.map(id=>request(`${root}/companies/${encodeURIComponent(id)}`) as Promise<Document|null>));
   assert(docs.every(Boolean),'Source companies must already exist');
@@ -28,9 +42,10 @@ export async function publishNewsSources({project,sources,request,write=false,ba
     return isDeepStrictEqual(row.newsSources,merged)?[]:[{doc,merged}];
   });
   await mkdir(backupDir,{recursive:true});const backup=`${backupDir}/news-sources-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
-  await writeFile(backup,JSON.stringify({project,originals,sources,patches},null,2),{flag:'wx'});
-  if(write&&patches.length){
-    await request(`${root}:commit`,'POST',{writes:patches.map(({doc,merged})=>({update:{name:doc.name,fields:{newsSources:encode(merged)}},updateMask:{fieldPaths:['newsSources']},currentDocument:{updateTime:doc.updateTime}}))});
+  await writeFile(backup,JSON.stringify({project,originals,sources,patches,guard,owners},null,2),{flag:'wx'});
+  const guardChanged=!guard||!isDeepStrictEqual(company(guard).sourceOwners,owners);
+  if(write&&(patches.length||guardChanged)){
+    await request(`${root}:commit`,'POST',{writes:[...patches.map(({doc,merged})=>({update:{name:doc.name,fields:{newsSources:encode(merged)}},updateMask:{fieldPaths:['newsSources']},currentDocument:{updateTime:doc.updateTime}})),{update:{name:guardUrl.replace('https://firestore.googleapis.com/v1/',''),fields:{sourceOwners:encode(owners)}},updateMask:{fieldPaths:['sourceOwners']},currentDocument:guard?{updateTime:guard.updateTime}:{exists:false}}]});
     for(const {doc,merged} of patches){const next=await request(`https://firestore.googleapis.com/v1/${doc.name}`) as Document;assert.deepEqual(company(next).newsSources,merged);for(const [key,value] of Object.entries(doc.fields))if(key!=='newsSources')assert.deepEqual(next.fields[key],value,`Unrelated company field changed: ${key}`);}
   }
   return {mode:write?'written':'preview',companies:ids.length,sources:sources.length,changed:patches.length,backup};

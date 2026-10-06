@@ -14,10 +14,14 @@ The earnings processor consumes the shared SEC/China discovery path. China polli
 
 The command center reads bounded event queries and merges identical source URLs. Company pages link collected announcements and periodic reports, independently of the older static company profile. Different IR and SEC URLs remain separate source documents unless their identity is explicitly established; dates or similar titles alone do not prove duplication.
 
-Read-only validators (no Firestore access or writes):
+Read-only validators (no event or checkpoint writes):
+
+The IR validator reads the shared `companies.newsSources` registry. Set `GCP_PROJECT_ID`
+and use Application Default Credentials with database read permission. The SEC and
+exchange inventory validators below still use the supplied inventory without Firestore.
 
 ```sh
-npx tsx scripts/validate-map-sources.ts
+GCP_PROJECT_ID=ifindata-80905 npx tsx scripts/validate-map-sources.ts
 npx tsx scripts/validate-map-sec.ts /path/to/map-company-inventory.json
 npx tsx scripts/validate-map-exchange.ts /path/to/map-company-inventory.json
 ```
