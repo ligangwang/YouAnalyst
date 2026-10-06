@@ -90,6 +90,32 @@ test("feed uses publication date, keeps pipeline dates private and groups source
   await expect(page.getByRole("button", { name: "Recently added", exact: true })).toHaveCount(0);
   await expect(page.getByText("Collected / reviewed", {exact:false})).toHaveCount(0);
   expect(await noHorizontalScroll(page)).toBe(true);
+  const focus=page.getByRole('banner').getByText('AI · Robotics · Space — Technology stocks & company analysis',{exact:true}).filter({visible:true});
+  if(info.project.name==='desktop'){
+    await page.setViewportSize({width:1600,height:800});
+    await expect(focus).toBeVisible();
+    const focusBounds=(await focus.boundingBox())!,navBounds=(await page.getByRole('banner').getByRole('navigation').filter({visible:true}).boundingBox())!;
+    expect(focusBounds.x+focusBounds.width).toBeLessThan(navBounds.x);
+    expect(await noHorizontalScroll(page)).toBe(true);
+    await page.goto(origin+'/zh-cn/feed');
+    await expect(page.getByText('AI · 机器人 · 航天 — 科技股与公司分析',{exact:true}).filter({visible:true})).toBeVisible();
+    expect(await noHorizontalScroll(page)).toBe(true);
+    await page.goto(origin+'/en/feed');
+    await page.setViewportSize({width:1280,height:800});
+  }
+  if(info.project.name==='mobile'){
+    await expect(focus).toBeVisible();
+    const focusBounds=(await focus.boundingBox())!,navBounds=(await page.getByRole('navigation',{name:'Mobile navigation'}).boundingBox())!;
+    expect(focusBounds.y).toBeGreaterThanOrEqual(navBounds.y+navBounds.height);
+    expect(await noHorizontalScroll(page)).toBe(true);
+  }else{
+    await expect(focus).toBeVisible();
+    const focusBounds=(await focus.boundingBox())!,navBounds=(await page.getByRole('banner').getByRole('navigation').filter({visible:true}).boundingBox())!;
+    expect(focusBounds.y).toBeGreaterThanOrEqual(navBounds.y+navBounds.height);
+    await page.setViewportSize({width:320,height:800});
+    await expect(focus).toBeVisible();
+    expect(await noHorizontalScroll(page)).toBe(true);
+  }
   await page.screenshot({ path: info.outputPath("feed.png"), fullPage: true });
 });
 
