@@ -34,7 +34,7 @@ test('history cutoff excludes unfinished sessions in each market timezone',()=>{
 test('new mapped stocks fetch once, preserve prices and deduplicate repeated enrollment',async()=>{
   const f=fixture();let calls=0;
   f.docs.set('eod_prices/US_MU_2025-12-31',{close:99});
-  const input={...f,tickers:['MU','MU'],through:'2026-10-05',token:'test',fetcher:async()=>{calls++;return new Response(JSON.stringify([bar('2025-12-31'),bar('2026-01-02')]));}};
+  const input={...f,tickers:['MU','MU'],through:'2026-10-05',token:'test',apiUrl:'https://prices.example.org',fetcher:async(url: string | URL | Request)=>{calls++;assert.equal(new URL(String(url)).hostname,'prices.example.org');return new Response(JSON.stringify([bar('2025-12-31'),bar('2026-01-02')]));}};
   const result=await backfillPriceHistory(input);
   assert.equal(result.created,1);assert.equal(result.existing,1);assert.equal(calls,1);
   assert.equal(f.docs.get('eod_prices/US_MU_2025-12-31')?.close,99);

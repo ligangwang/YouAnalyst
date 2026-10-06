@@ -37,6 +37,8 @@ export type DailyEodMaintenanceInput = {
   trigger?: "admin";
   /** Internal queue cursor; never accepted from public request bodies. */
   afterPredictionId?: string;
+  /** Internal replay context, never forwarded from a public queue payload. */
+  skipHistoryBackfill?: boolean;
   requestedBy?: string;
   market?: PredictionMarket;
   runDate?: string;
@@ -1389,6 +1391,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
         ...input,
         runDate: nextRunDate,
         rollForward: false,
+        skipHistoryBackfill: true,
       }));
     }
 
@@ -1550,7 +1553,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       });
     }
 
-    if (loadPrices && !dryRun && !input.rollForward && !manualTickers.length && mapTickers.length
+    if (loadPrices && !dryRun && !input.rollForward && !input.skipHistoryBackfill && !manualTickers.length && mapTickers.length
       && runDate >= historyThrough(market) && process.env.EODHD_API_TOKEN && process.env.EODHD_BULK_EOD_BUCKET) {
       try {
         const history=await backfillPriceHistory({db,bucket:getAdminStorageBucket(process.env.EODHD_BULK_EOD_BUCKET),

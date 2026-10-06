@@ -35,7 +35,7 @@ export function historyBars(value: unknown, from: string, through: string): Bar[
 /** No prediction scoring or latest-price mutation: only fill missing historical documents. */
 export async function backfillPriceHistory(input: {
   db: Firestore; bucket: Bucket; tickers: string[]; through: string; limit?: number;
-  token: string; fetcher?: typeof fetch; now?: () => number;
+  token: string; apiUrl?: string; fetcher?: typeof fetch; now?: () => number;
 }) {
   const { db, bucket, token, through } = input;
   if (!validDate(through) || through < HISTORY_START) throw Error('Invalid backfill end date');
@@ -67,7 +67,7 @@ export async function backfillPriceHistory(input: {
       catch (error) {
         if (Number((error as {code?:number}).code) !== 404) throw Error('History cache read failed');
         if (!token) throw Error('EODHD credential unavailable');
-        const url = new URL(`/api/eod/${providerSymbol}`, 'https://eodhd.com');
+        const url = new URL(`/api/eod/${providerSymbol}`, (input.apiUrl ?? process.env.EODHD_API_URL?.trim()) || 'https://eodhd.com');
         url.search = new URLSearchParams({api_token:token,fmt:'json',period:'d',order:'a',from:HISTORY_START,to:claim.end}).toString();
         result.requested++;
         let response: Response;

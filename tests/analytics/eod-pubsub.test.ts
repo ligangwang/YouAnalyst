@@ -23,7 +23,7 @@ test("publication failures preserve the original request and confirmed retries r
 });
 test("worker checkpoints every page, deduplicates completed delivery, and does not reset completed scheduler requests", async () => {
   const f = await fixture(), calls: DailyEodMaintenanceInput[] = [];
-  const run = async (i: DailyEodMaintenanceInput = {}) => { calls.push(i); return result(calls.length === 1); };
+  const run = async (i: DailyEodMaintenanceInput = {}) => { assert.equal(i.skipHistoryBackfill,undefined);calls.push(i); return result(calls.length === 1); };
   await processEodMaintenance(f.message, f.db, f.log, { run });
   assert.deepEqual(calls.map(c => c.afterPredictionId), [undefined, "b"]);
   assert.equal(f.rows.get(f.ref)?.completed, true);
@@ -66,11 +66,12 @@ test("roll-forward snapshots ordered dates once and restarts the cursor per date
   await queueEodMaintenance({ ...input, rollForward: true, rollForwardBatchSize: 2 }, f.db, async r => { message = r; });
   const dates: string[] = [];
   const output = await processEodMaintenance(message, f.db, f.log, { dates: async () => ["2026-01-02", "2026-01-05", "2026-01-06"],
-    run: async i => { dates.push(i!.runDate!); assert.equal(i?.rollForward, false); assert.equal(i?.afterPredictionId, undefined); return result(); } });
+    run: async i => { dates.push(i!.runDate!); assert.equal(i?.rollForward, false);assert.equal(i?.skipHistoryBackfill,true); assert.equal(i?.afterPredictionId, undefined); return result(); } });
   assert.deepEqual(dates, ["2026-01-02", "2026-01-05"]);
   assert.equal(output.nextRunDate, "2026-01-06");
 });
 test("untrusted payloads cannot inject a cursor, a preview, a mismatched ticker, or invalid date", async () => {
+  assert.equal('skipHistoryBackfill' in eodQueueInput({...input,skipHistoryBackfill:true}),false);
   for (const extra of [{ runDate: "2026-02-30" }, { afterPredictionId: "skip" }, { dryRun: true }, { tickers: ["XSHG:600000"] }, { limit: -1 }])
     assert.throws(() => eodQueueInput({ ...input, ...extra }), /Invalid/);
   const f = await fixture();
