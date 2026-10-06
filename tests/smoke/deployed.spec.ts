@@ -108,6 +108,7 @@ test("Investment Intelligence homepage renders real data and crawlable research 
     const home = await request.get(`/${prefix}`);
     expect(home.status()).toBe(200);
     const html = await home.text();
+    expect(html).toContain(heading);
     expect(html).toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
     expect(html).toContain(`href="/${prefix}/research/amd-ai-ecosystem"`);
     await page.goto(`/${prefix}`);
