@@ -12,9 +12,13 @@ export const calendarFixtures:CalendarItem[]=Array.from({length:8},(_,index)=>({
   published_at:null,publication_date:fixtureDay,collected_at:new Date().toISOString(),processed_at:new Date().toISOString(),baseline:false,
   eventKind:index===1?'earnings_release':'earnings_call',fiscalPeriod:'FY2026-Q3',scheduled_date:fixtureDay,
   scheduled_at:index===1?null:`${fixtureDay}T${String(17+Math.floor(index/2)).padStart(2,'0')}:00:00Z`,local_time:null,source_timezone:index===1?null:'America/New_York',
-  timezone_text:null,time_precision:index===1?'date':'exact',timeSlot:'unspecified',status:'scheduled',confirmation:'official',
+  timezone_text:null,time_precision:index===1?'date':'exact',timeSlot:'unspecified',status:index===2?'cancelled':'scheduled',confirmation:'official',
   sourceEventIds:['fixture'],dateEvidence:'',timeEvidence:'',periodEvidence:'',announcement_date:fixtureDay,extractionModel:'gpt-6-luna',contentHash:'fixture',
 }));
+calendarFixtures.push(
+  {...calendarFixtures[0],id:'scheduled_nvda_release',eventKind:'earnings_release',scheduled_at:null,time_precision:'date',timeSlot:'after_market'},
+  {...calendarFixtures[2],id:'scheduled_test2_release',eventKind:'earnings_release',scheduled_at:null,time_precision:'date',timeSlot:'before_market',status:'rescheduled',url:'https://example.com/results'},
+);
 
 export async function calendarFixtureHtml() {
   const mock=path.resolve('tests/conversion/fixtures/mocks.tsx');

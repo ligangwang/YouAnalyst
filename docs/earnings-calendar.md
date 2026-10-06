@@ -2,6 +2,8 @@
 
 `/calendar` (localized `/en/calendar` and `/zh-cn/calendar`) reads confirmed schedules from the existing `events` collection. It offers month/week views, a day agenda, theme/company filters and account following. Exact times are displayed in Eastern Time; date-only and unzoned times retain the original announcement's precision.
 
+Results releases and calls for the same company, fiscal period and displayed day share one earnings card and count as one calendar event. The card keeps separate results/call timing and status, and links to every distinct original announcement. Different dates or fiscal periods remain separate cards. Stored schedules retain their independent identities so a release or call can be updated or cancelled independently.
+
 The existing `collect-intelligence-news-production` job checks issuer IR and Chinese exchange announcements across the unique union of published AI, Robotics and Space companies. Its existing weekday hourly schedule is retained. Articles without an approved configured source or an original publication date cannot enter extraction. Missing sources are not estimated earnings dates.
 
 ## Extraction and storage
