@@ -1,7 +1,10 @@
 # Graph price performance
 
 The intelligence workspace displays daily closing-price changes for supported US
-and mainland-China listings in every theme. It reads existing `eod_prices`
+and mainland-China listings in every theme, across Graph, Tree, Hierarchy, and
+List. The shared percentage label omits repeated wording; the toolbar's
+`Price change ⓘ` hint explains the calculation and US/China closing dates.
+It reads existing `eod_prices`
 documents; page views never call a price provider or write
 market data. Company reads are shared across themes for five minutes.
 
