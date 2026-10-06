@@ -1,0 +1,7 @@
+.performance{display:grid;gap:12px;padding:12px 0;border-block:1px solid #25414d;margin:12px 0;color:#a8bfce;font-size:12px}
+.performance div{display:grid;gap:4px}
+.performance strong{color:#e6f1f6;font-size:16px;font-weight:600}
+.performance b{margin-left:8px;font-size:13px;font-weight:500}
+.performance small{font-size:11px;line-height:1.5;font-weight:400}
+.performance [data-direction="up"]{color:#6ae0bc}
+.performance [data-direction="down"]{color:#ffa0b1}

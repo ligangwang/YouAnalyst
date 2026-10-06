@@ -67,7 +67,7 @@ test("China EOD uses exact dated SHG/SHE bars, adjusted close, and never a US fa
   const result = await fetchChinaEodPrices(["XSHG:600584", "XSHE:002837"], "2026-09-11", "2026-09-11T12:00:00Z");
   assert.deepEqual(paths.sort(), ["/api/eod/002837.SHE", "/api/eod/600584.SHG"]);
   assert.equal(result.prices.length, 2);
-  assert.ok(result.prices.every(p => p.market === "CN_A" && p.close === 21.5 && p.exchangeTimezone === "Asia/Shanghai"));
+  assert.ok(result.prices.every(p => p.market === "CN_A" && p.close === 21.5 && p.rawClose === 22 && p.exchangeTimezone === "Asia/Shanghai"));
   mode = "holiday";
   assert.equal((await fetchChinaEodPrices(["XSHG:600584"], "2026-09-11", "now")).prices.length, 0);
   mode = "denied";

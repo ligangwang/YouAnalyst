@@ -53,6 +53,7 @@ export type DailyEodMaintenanceInput = {
 };
 
 export type EodPrice = {
+  rawClose?: number;
   market: string;
   ticker: string;
   requestedDate: string;
@@ -333,6 +334,7 @@ function toCachedEodPrice(data: FirebaseFirestore.DocumentData | undefined): Eod
     high,
     low,
     close,
+    ...(typeof data.rawClose === "number" && data.rawClose > 0 ? {rawClose:data.rawClose} : {}),
     volume: toFiniteNumber(data.volume),
     source: typeof data.source === "string" ? data.source : EOD_PRICE_SOURCE,
     providerSymbol: typeof data.providerSymbol === "string" ? data.providerSymbol : ticker,
@@ -542,6 +544,7 @@ function parseEodhdBulkPrice(
     low,
     close,
     volume: toFiniteNumber(row.volume),
+    ...(typeof row.close === "number" && Number.isFinite(row.close) && row.close > 0 ? {rawClose:row.close} : {}),
     source: EODHD_BULK_EOD_PRICE_SOURCE,
     providerSymbol: `${providerCode}.${exchange}`,
     exchange,
