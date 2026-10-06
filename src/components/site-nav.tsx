@@ -148,7 +148,7 @@ export function SiteNav() {
   const ui = useUiText();
   const t = useNavText();
   const { text } = useLocale();
-  const focus = text('AI · Robotics · Space — Technology stocks & company analysis','AI · 机器人 · 航天 — 科技股与公司分析');
+  const focus = <><span className="whitespace-nowrap font-medium text-slate-300">{text('AI · Robotics · Space','AI · 机器人 · 航天')}</span><span className="text-slate-500">{' — '}</span><span>{text('Technology stocks & company analysis','科技股与公司分析')}</span></>;
   const pathname = unlocalizedPath(usePathname());
   const theme = parseCompanyTheme(useIndustryBrowseParam("theme"));
   const navItems = primaryNavItems.map(item => item.label === "Map" ? { ...item, href: theme === "ai" ? "/?view=graph" : `/?theme=${theme}&view=graph` } : item);
@@ -259,7 +259,8 @@ export function SiteNav() {
           </div>
           <div className="ml-auto shrink-0"><MoreMenu admin={showAdminLink} /></div>
         </nav>
-        <p className="mt-1 text-xs leading-5 text-slate-400 min-[1536px]:hidden">{focus}</p>
+        {/* Match the visible lettering inset inside the logo SVG. */}
+        <p className="mt-1 pl-1 text-xs leading-5 text-slate-400 lg:pl-2 min-[1536px]:hidden">{focus}</p>
       </div>
       <PreferenceError />
     </header>
