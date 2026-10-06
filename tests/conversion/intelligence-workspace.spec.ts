@@ -1,5 +1,5 @@
 import {expect,test} from '@playwright/test';
-import {build} from 'esbuild';
+import {componentFixtureHtml} from './fixtures/component-html';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import path from 'node:path';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
@@ -13,11 +13,10 @@ const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],source
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 async function workspaceFixture(realCharts=false){
-  const bundled=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(snapshot)}}/>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,outfile:'fixture.js',platform:'browser',jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
+  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(snapshot)}}/>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     build.onResolve({filter:realCharts?/(?:locale-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
     build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
-  }},...(realCharts?[tourClockPlugin]:[])]});
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}${bundled.outputFiles.find(file=>file.path.endsWith('.css'))?.text??''}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file=>file.path.endsWith('.js'))!.text.replaceAll('</script','<\\/script')}</script></body></html>`;
+  }},...(realCharts?[tourClockPlugin]:[])]},'body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}');
 }
 test.beforeAll(async()=>{
   html=await workspaceFixture();
