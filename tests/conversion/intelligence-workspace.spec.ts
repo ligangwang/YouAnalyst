@@ -8,8 +8,10 @@ import {accelerateTours,tourClockPlugin} from './fixtures/tour-clock';
 const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',kind:'COMPANY',order:1,stageIds:['optics']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']},{id:'US:MEM',symbol:'MEM',name:'Memory Supplier',summary:'Memory partner',kind:'COMPANY',order:4,stageIds:['memory']}];
 const events=Array.from({length:200},(_,i)=>({id:`event-${i}`,origin:'US:MU',companyIds:['US:MU'],edgeIds:[],category:'BUSINESS',title:`Published company update ${i+1}`,summary:`Source summary ${i+1}`,published_at:i===0?'2026-10-02T12:00:00Z':null,publication_date:'2026-10-02',eventDate:null,evidence:[{id:`source-${i}`,url:`https://investors.example.com/${i}`,title:`Original release ${i+1}`,sourceDate:'2026-10-02',channel:'IR'}],planned:false}));
 events[1].companyIds=['US:MU','US:MEM','US:MULT','US:LITE','US:UNKNOWN'];
+events[199]={...events[199],origin:'US:LITE',companyIds:['US:LITE'],title:'Lumentum communication update'};
 const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],sources:[]},graphVersion:'fixture',events,generatedAt:'2026-10-04T16:00:00Z',session:{date:'2026-10-04',timeZone:'America/New_York',startAt:'2026-10-04T04:00:00Z',endAt:'2026-10-05T04:00:00Z'},coverage:[{channel:'IR',status:'connected'}],sourceDocuments:Array.from({length:350},(_,i)=>({id:`https://investors.example.com/${i}`,channel:'IR',companyIds:['US:MU'],published_at:null,publication_date:'2026-10-02'})),statisticsComplete:true,warnings:[],truncated:true,limit:200} as IntelligenceSnapshot;
 let html:string;
+snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 async function workspaceFixture(realCharts=false){
   const bundled=await build({stdin:{contents:`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(snapshot)}}/>);`,resolveDir:process.cwd(),loader:'tsx'},bundle:true,write:false,outfile:'fixture.js',platform:'browser',jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     build.onResolve({filter:realCharts?/(?:locale-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
@@ -118,7 +120,14 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(panel.getByText('Source status',{exact:true}).locator('..')).not.toHaveAttribute('open','');
   const input=page.getByPlaceholder('Search company / ticker');await input.fill('$ＭＵ');
   await expect(page.getByRole('button',{name:/MU Micron/}).first()).toBeVisible();
-  const companyButtons=page.locator('[class*="companyList"]>div>button:first-child');await expect(companyButtons.first()).toContainText('MU');
+  const companyButtons=page.locator('[class*="companyList"]>div>button:first-child');await expect(companyButtons).toHaveCount(1);await expect(companyButtons.first()).toContainText('MU');
+  await expect(panel.getByRole('button',{name:/Lumentum communication update/})).toHaveCount(0);
+  await expect(panel.getByText('199 loaded source documents')).toBeVisible();
+  await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('349');
+  await input.fill('communication');
+  await expect(companyButtons).toHaveCount(1);await expect(companyButtons.first()).toContainText('LITE');
+  await expect(panel.getByRole('button',{name:/Lumentum communication update/})).toBeVisible();
+  await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('1');
   await input.fill('');
   await panel.getByRole('button',{name:/Published company update 1 /}).click();
   const selection=panel.getByRole('region',{name:'Selected sources'});await expect(selection).toBeVisible();await expect(selection).toBeFocused();
@@ -156,7 +165,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await page.reload();await expect(selection.getByRole('link',{name:'Company research ↗'})).toBeVisible();
   await input.fill('');
   await page.getByRole('button',{name:'Filter IR signals',exact:true}).click();
-  await expect(page.locator('[data-list-company]')).toHaveCount(1);
+  await expect(page.locator('[data-list-company]')).toHaveCount(2);
   await expect(selection).toHaveCount(0);
   await page.getByRole('button',{name:'Clear activity filters',exact:true}).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(4);
