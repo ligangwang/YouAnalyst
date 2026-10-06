@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale } from './providers/locale-provider';
 import { LocalizedLink } from './localized-link';
 import { useSavedMapCompanies } from './use-saved-map-companies';
@@ -11,6 +11,7 @@ import styles from './earnings-calendar.module.css';
 
 export function EarningsCalendar() {
   const {chinese,text:t}=useLocale(),saved=useSavedMapCompanies();
+  const agendaRef=useRef<HTMLElement>(null);
   const [today]=useState(()=>easternDay(new Date().toISOString()));
   const [anchor,setAnchor]=useState(today),[selected,setSelected]=useState(today),[view,setView]=useState<'month'|'week'>('month');
   const [theme,setTheme]=useState('all'),[search,setSearch]=useState(''),[following,setFollowing]=useState(false);
@@ -43,6 +44,7 @@ export function EarningsCalendar() {
   const dayLabel=(day:string)=>new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{weekday:'long',month:'short',day:'numeric',timeZone:'UTC'}).format(new Date(`${day}T12:00:00Z`));
   const kindLabel=(item:CalendarItem)=>item.eventKind==='earnings_call'?t('Earnings call','业绩电话会'):t('Results release','财报发布');
   function move(delta:number){const next=view==='week'?shiftDay(anchor,7*delta):new Date(Date.UTC(Number(anchor.slice(0,4)),Number(anchor.slice(5,7))-1+delta,1)).toISOString().slice(0,10);setAnchor(next);setSelected(next);}
+  function chooseDay(day:string){setSelected(day);if(window.matchMedia('(max-width:800px)').matches)agendaRef.current?.scrollIntoView({behavior:'smooth',block:'start'});}
   function card(item:CalendarItem,compact=false){return <article key={item.id} className={`${styles.event} ${item.status==='cancelled'?styles.cancelled:''}`} style={{borderLeftColor:item.sector.color}}>
     <div className={styles.eventHeading}><strong>{item.ticker}</strong><span>{kindLabel(item)}</span></div>
     {!compact&&<p>{chinese?(item.companyNames?.['zh-CN']??item.companyName):item.companyName}</p>}
@@ -60,10 +62,10 @@ export function EarningsCalendar() {
       <section className={styles.calendar} aria-label={t('Earnings calendar','财报日历')}>
         <div className={`${styles.grid} ${view==='week'?styles.week:''}`}>{displayDays.map(day=>{
           const dayItems=grouped.get(day)??[],otherMonth=day.slice(0,7)!==anchor.slice(0,7);
-          return <div key={day} className={`${styles.cell} ${day===selected?styles.selected:''} ${otherMonth&&view==='month'?styles.muted:''}`}><button className={styles.dayButton} onClick={()=>setSelected(day)} aria-label={dayLabel(day)} aria-pressed={day===selected}><span>{new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{weekday:'short',timeZone:'UTC'}).format(new Date(`${day}T12:00:00Z`))}</span><strong className={day===today?styles.today:''}>{Number(day.slice(-2))}</strong>{dayItems.length>0&&<small>{dayItems.length}</small>}</button><div className={styles.cellEvents}>{dayItems.slice(0,view==='week'?4:2).map(item=><button key={item.id} className={styles.eventButton} onClick={()=>setSelected(day)} aria-label={`${item.ticker} ${kindLabel(item)}, ${dayLabel(day)}`}>{card(item,true)}</button>)}{dayItems.length>(view==='week'?4:2)&&<button className={styles.more} onClick={()=>setSelected(day)}>+{dayItems.length-(view==='week'?4:2)} {t('more','项')}</button>}</div></div>;
+          return <div key={day} className={`${styles.cell} ${day===selected?styles.selected:''} ${otherMonth&&view==='month'?styles.muted:''}`}><button className={styles.dayButton} onClick={()=>chooseDay(day)} aria-label={dayLabel(day)} aria-pressed={day===selected}><span>{new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{weekday:'short',timeZone:'UTC'}).format(new Date(`${day}T12:00:00Z`))}</span><strong className={day===today?styles.today:''}>{Number(day.slice(-2))}</strong>{dayItems.length>0&&<small>{dayItems.length}</small>}</button><div className={styles.cellEvents}>{dayItems.slice(0,view==='week'?4:2).map(item=><button key={item.id} className={styles.eventButton} onClick={()=>chooseDay(day)} aria-label={`${item.ticker} ${kindLabel(item)}, ${dayLabel(day)}`}>{card(item,true)}</button>)}{dayItems.length>(view==='week'?4:2)&&<button className={styles.more} onClick={()=>chooseDay(day)}>+{dayItems.length-(view==='week'?4:2)} {t('more','项')}</button>}</div></div>;
         })}</div>
       </section>
-      <aside className={styles.agenda} aria-label={t('Selected day agenda','所选日期日程')}><div className={styles.agendaHeader}><p>{t('DAY AGENDA','当日日程')}</p><h2>{dayLabel(selected)}</h2><span>{selectedItems.length} {t('events','项活动')}</span></div><div className={styles.agendaEvents}>{selectedItems.map(item=>card(item))}{!selectedItems.length&&<div className={styles.empty}><span>◇</span><h3>{t('No announced events','暂无已公告活动')}</h3><p>{t('Choose another day or widen your filters. Only schedules confirmed in original announcements appear here.','请选择其他日期或调整筛选。仅显示原公告已确认的日程。')}</p></div>}</div></aside>
+      <aside ref={agendaRef} className={styles.agenda} aria-label={t('Selected day agenda','所选日期日程')}><div className={styles.agendaHeader}><p>{t('DAY AGENDA','当日日程')}</p><h2>{dayLabel(selected)}</h2><span>{selectedItems.length} {t('events','项活动')}</span></div><div className={styles.agendaEvents}>{selectedItems.map(item=>card(item))}{!selectedItems.length&&<div className={styles.empty}><span>◇</span><h3>{loading&&!payload?t('Loading schedules…','正在加载日程…'):error&&!payload?t('Schedules unavailable','日程暂不可用'):t('No announced events','暂无已公告活动')}</h3><p>{error&&!payload?t('Please retry to load the calendar.','请重试加载日历。'):t('Choose another day or widen your filters. Only schedules confirmed in original announcements appear here.','请选择其他日期或调整筛选。仅显示原公告已确认的日程。')}</p></div>}</div></aside>
     </div>
     <footer className={styles.note}>{t('Exact times are converted to ET. Dates or local times without a confirmed time zone stay as announced.','已确认时区的时间转换为 ET；仅有日期或未确认时区的当地时间保留原公告信息。')}<br/>{payload?.collectionStatus==='not_started'?t('Schedule collection is starting. Coverage will grow as announcements are processed.','日程采集即将开始，覆盖将随公告处理逐步增加。'):payload?.collectionStatus!=='complete'?t('Collection is in progress; this is not a complete earnings calendar.','采集仍在进行中，此日历尚未完整覆盖所有公司。'):t('Based on available company announcements; absence of an event does not mean no earnings are planned.','日程基于已获取的公司公告，没有日程不代表公司没有财报计划。')}{payload?.truncated&&<p>{t('This range has more than 1,000 events. Choose a shorter period to view all schedules.','此时段超过 1,000 项活动，请缩短时段以查看全部日程。')}</p>}</footer>
   </main>;

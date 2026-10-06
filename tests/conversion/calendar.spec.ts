@@ -1,9 +1,10 @@
 import {test,expect} from '@playwright/test';
-import {calendarFixtureHtml,calendarFixtures} from './fixtures/calendar';
+import {calendarFixtureHtml,calendarFixtures,fixtureDay} from './fixtures/calendar';
 
 let html:string;
 test.beforeAll(async()=>{html=await calendarFixtureHtml();});
 test('month and week handle crowded dates, theme overlap, source links and a failed refresh without losing the page',async({page})=>{
+  await page.clock.install({time:new Date(`${fixtureDay}T16:00:00Z`)});
   let fail=false;
   await page.route('http://calendar.test/**',async route=>{
     const url=new URL(route.request().url());
