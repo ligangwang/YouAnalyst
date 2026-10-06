@@ -9,6 +9,7 @@ import { NavigationSettings } from './navigation-settings';
 import { IntelligenceActivityOverview } from './intelligence-activity-overview';
 import { RelativeTime } from "./relative-time";
 import { IntelligencePricePerformance } from './intelligence-price-performance';
+import { IntelligencePriceAsOf } from './intelligence-price-as-of';
 import { IntelligenceEventCompanies } from './intelligence-event-companies';
 import { IntelligenceThemeSelector } from './intelligence-theme-selector';
 import { parseCompanyTheme, themeName, type CompanyThemeId } from '@/lib/company-themes/model';
@@ -155,7 +156,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
       </div>
     </aside>
     <section className={styles.center} aria-label="Graph universe">
-      <div className={styles.graphToolbar}><div>{!leftOpen&&<button aria-label="Expand left panel" onClick={()=>setLeftOpen(true)}><UiText text={"☰ Explore"}/></button>}{!leftOpen&&<IntelligenceThemeSelector compact theme={requestedTheme} onChange={changeTheme}/>}<IntelligenceViewTabs view={view} onChange={changeView} id={viewId}/></div><div><div className={controls.liveControls}><span className={controls.liveStatus}>{error&&<UiText text="Disconnected"/>}<small>{clock(until)}{' '}<UiText text="ET"/></small></span></div>{(view==='graph'||view==='tree')&&<NavigationSettings compact/>}<button disabled={switching} aria-label="Reset universe view" onClick={()=>{clearSelection();setSector('');setSourceFilter('');setActiveOnly(false);setReset(value=>value+1);}}><UiText text={"Reset ⤢"}/></button>{!rightOpen&&<button onClick={()=>setRightOpen(true)}><UiText text={"Events ›"}/></button>}</div></div>
+      <div className={styles.graphToolbar}><div>{!leftOpen&&<button aria-label="Expand left panel" onClick={()=>setLeftOpen(true)}><UiText text={"☰ Explore"}/></button>}{!leftOpen&&<IntelligenceThemeSelector compact theme={requestedTheme} onChange={changeTheme}/>}<IntelligenceViewTabs view={view} onChange={changeView} id={viewId}/></div><div><div className={controls.liveControls}><IntelligencePriceAsOf nodes={allCompanies}/><span className={controls.liveStatus}>{error&&<UiText text="Disconnected"/>}<small>{clock(until)}{' '}<UiText text="ET"/></small></span></div>{(view==='graph'||view==='tree')&&<NavigationSettings compact/>}<button disabled={switching} aria-label="Reset universe view" onClick={()=>{clearSelection();setSector('');setSourceFilter('');setActiveOnly(false);setReset(value=>value+1);}}><UiText text={"Reset ⤢"}/></button>{!rightOpen&&<button onClick={()=>setRightOpen(true)}><UiText text={"Events ›"}/></button>}</div></div>
       {error&&!switching&&<div className={liveStyles.notice} role="alert"><UiText text={"Connection interrupted. Showing the last received data."}/>{' '}<button onClick={reconnect}><UiText text={"Retry"}/></button></div>}
       <div className={viewStyles.panel} role="tabpanel" id={`${viewId}-panel`} aria-labelledby={`${viewId}-${view}`} tabIndex={0}>
         {/* Keep the old scene while loading; initialize camera, growth and branch state for the committed theme. */}

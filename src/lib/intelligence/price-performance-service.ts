@@ -1,6 +1,4 @@
 import { FieldPath, type Firestore } from 'firebase-admin/firestore';
-import { getAdminStorageBucket } from '../firebase/admin';
-import { historyBars, HISTORY_START } from '../predictions/history-backfill';
 import { predictionInstrument } from '../predictions/instrument';
 import type { KnowledgeGraph } from '../knowledge-graph/model';
 import type { IntelligenceEvent } from './model';
@@ -15,23 +13,9 @@ async function loadBars(db:Firestore,ticker:string,now:Date):Promise<PriceBar[]>
   if(pending.has(key))return pending.get(key)!;
   const request=(async()=>{
     const rows:PriceBar[]=[];
-    let cachedThrough='';
-    // The original provider cache preserves raw closes even when legacy eod_prices
-    // documents store adjusted closes. Never mix those two price conventions.
-    if(process.env.EODHD_BULK_EOD_BUCKET){
-      const state=(await db.collection('collectors').doc(`eod-history_${instrument.market}_${ticker}`).get()).data();
-      if(state?.status==='completed'&&state.from===HISTORY_START&&typeof state.through==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(state.through)){
-        const path=`eod-history/${instrument.market}/${encodeURIComponent(ticker)}/${HISTORY_START}_${state.through}.json`;
-        try{
-          const [data]=await getAdminStorageBucket(process.env.EODHD_BULK_EOD_BUCKET).file(path).download();
-          const raw=historyBars(JSON.parse(data.toString()),HISTORY_START,state.through);
-          for(const row of raw)rows.push({date:row.date,close:row.close});
-          cachedThrough=raw.at(-1)!.date;
-        }catch(error){console.warn('Graph historical price cache unavailable',ticker,(error as {code?:unknown}).code);}
-      }
-    }
-    const lookback=new Date(Date.parse(through)-45*86400000).toISOString().slice(0,10);
-    const from=cachedThrough>lookback?cachedThrough:lookback;
+    // Raw closes are normalized by maintenance, within the existing collection.
+    // The web runtime requires no access to the worker's provider-cache bucket.
+    const from=new Date(Date.parse(through)-45*86400000).toISOString().slice(0,10);
     const prefix=`${instrument.market}_${ticker}_`;
     const docs=await db.collection('eod_prices').where(FieldPath.documentId(),'>=',prefix+from).where(FieldPath.documentId(),'<=',prefix+through).select('ticker','market','tradingDate','isFinal','rawClose').get();
     for(const doc of docs.docs){const row=doc.data();if(row.ticker===ticker&&row.market===instrument.market&&row.isFinal===true&&typeof row.tradingDate==='string'&&typeof row.rawClose==='number')rows.push({date:row.tradingDate,close:row.rawClose});}
