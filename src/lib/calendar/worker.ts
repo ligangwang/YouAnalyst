@@ -67,22 +67,41 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
   const persist=()=>db.runTransaction(async tx=>{
     const current=await tx.get(receiptRef);
     if(!current.exists || current.get('attemptId')!==receipt.attemptId)throw new Error('Calendar request fence changed');
-    const refs=schedules.map(item=>db.collection(EVENTS_COLLECTION).doc(item.id));
+    const newIds=new Set(schedules.map(item=>item.id));
+    const oldIds=(current.get('eventIds')??[]) as string[];
+    const refs=[...new Set([...newIds,...oldIds])].map(id=>db.collection(EVENTS_COLLECTION).doc(id));
     const previous=refs.length?await tx.getAll(...refs):[];
+    const previousById=new Map(previous.map(doc=>[doc.id,doc]));
+    const retired=previous.filter(doc=>doc.exists && !newIds.has(doc.id));
+    const otherIds=[...new Set(retired.flatMap(doc=>(doc.get('sourceEventIds') as string[]??[]).filter(id=>id!==source.id)))];
+    const otherSources=otherIds.length?await tx.getAll(...otherIds.map(id=>db.collection(EVENTS_COLLECTION).doc(id))):[];
+    const otherReceiptIds=[...new Set(otherSources.map(doc=>doc.get('calendarExtraction.receiptId')).filter((id):id is string=>typeof id==='string'))];
+    const otherReceipts=otherReceiptIds.length?await tx.getAll(...otherReceiptIds.map(id=>db.collection(EVENTS_COLLECTION).doc(id))):[];
+    const supports=otherReceipts.filter(doc=>doc.get('status')==='complete').flatMap(doc=>(doc.get('validatedSchedules')??[]) as ScheduledEvent[]);
     const usageId=usage?.id??current.get('usageEventId');
     const usageRef=usageId?db.collection('openai_usage_events').doc(usageId):null;
     const previousUsage=usageRef?await tx.get(usageRef):null;
-    schedules.forEach((item,index)=>{
-      const old=previous[index].data() as ScheduledEvent|undefined;
+    schedules.forEach(item=>{
+      const old=previousById.get(item.id)?.data() as ScheduledEvent|undefined;
       const sourceEventIds=[...new Set([...(old?.sourceEventIds??[]),source.id])];
       // Older backfill must not undo a later rescheduling/cancellation.
-      const older=old && (old.announcement_date>item.announcement_date || old.announcement_date===item.announcement_date
+      const older=old && old.type==='scheduled_event' && (old.announcement_date>item.announcement_date || old.announcement_date===item.announcement_date
         && old.published_at && item.published_at && Date.parse(old.published_at)>Date.parse(item.published_at));
-      tx.set(refs[index],older?{...old,sourceEventIds}:{...item,sourceEventIds,collected_at:old?.collected_at??item.collected_at});
+      tx.set(db.collection(EVENTS_COLLECTION).doc(item.id),older?{...old,sourceEventIds}:{...item,sourceEventIds,collected_at:old?.collected_at??item.collected_at});
     });
+    for(const doc of retired){
+      const old=doc.data() as ScheduledEvent;
+      const remaining=(old.sourceEventIds??[]).filter(id=>id!==source.id);
+      const supported=supports.filter(item=>item.id===doc.id).sort((a,b)=>`${a.announcement_date}|${a.published_at??''}`.localeCompare(`${b.announcement_date}|${b.published_at??''}`)).at(-1);
+      // Older receipts lack snapshots. Keep their existing data only when it
+      // comes from a different, independently complete original source.
+      const legacySupported=old.url!==source.url && otherReceipts.some(receipt=>receipt.get('status')==='complete' && receipt.get('sourceUrl')===old.url);
+      tx.set(doc.ref,supported?{...supported,sourceEventIds:remaining,collected_at:old.collected_at}:
+        {...old,sourceEventIds:remaining,type:legacySupported?'scheduled_event':'calendar_review'});
+    }
     if(usageRef && usage && !previousUsage?.exists)tx.create(usageRef,usage);
     else if(usageRef && previousUsage?.exists)tx.set(usageRef,{metadata:{validationStatus:receipt.status,validationError:receipt.error??null}},{merge:true});
-    tx.set(receiptRef,{...receipt,processed_at:at,eventIds:schedules.map(item=>item.id),...(usage?{usageEventId:usage.id}:{})},{merge:true});
+    tx.set(receiptRef,{...receipt,processed_at:at,eventIds:schedules.map(item=>item.id),validatedSchedules:schedules,...(usage?{usageEventId:usage.id}:{})},{merge:true});
     const future=schedules.some(item=>item.scheduled_date>=at.slice(0,10));
     const recent=source.publication_date && Date.parse(source.publication_date)>=now()-60*86400000;
     tx.set(ref,{calendarExtraction:{receiptId,contentHash,status:receipt.status,checkedAt:at,nextCheckAtMs:future||recent||receipt.status!=='complete'?now()+86400000:Number.MAX_SAFE_INTEGER,failures:0,lastError:receipt.error??null}},{merge:true});
@@ -93,8 +112,10 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
 
 /** Existing hourly news job scans original IR and exchange sources for the entire mapped union. */
 export async function collectCalendarSchedules(db: Firestore, companyIds: Set<string>, options: Dependencies & {deadline:number;maxCalls?:number} ) {
-  if(process.env.OPENAI_CALENDAR_MODEL && process.env.OPENAI_CALENDAR_MODEL!==CALENDAR_MODEL)throw new Error('Calendar extraction model must be gpt-6-luna');
-  if(!options.extract && !process.env.OPENAI_API_KEY)throw new Error('Calendar extraction API key is not configured');
+  if(!options.revalidateCached){
+    if(process.env.OPENAI_CALENDAR_MODEL && process.env.OPENAI_CALENDAR_MODEL!==CALENDAR_MODEL)throw new Error('Calendar extraction model must be gpt-6-luna');
+    if(!options.extract && !process.env.OPENAI_API_KEY)throw new Error('Calendar extraction API key is not configured');
+  }
   const now=options.now??Date.now,meta=db.collection('collectors').doc('earnings-calendar'),state=(await meta.get()).data();
   const base=db.collection(EVENTS_COLLECTION);
   let all:DocumentSnapshot[],historyDocs:DocumentSnapshot[]=[],historySize=0,revalidationDocs:DocumentSnapshot[]=[];

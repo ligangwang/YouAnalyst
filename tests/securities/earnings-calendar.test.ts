@@ -106,7 +106,12 @@ test('validation and HTTP failures record usage without automatically paying for
   const revalidate={now:fake.now,download:async()=>text,extract:async()=>{paid++;throw new Error('Must not call provider');},revalidateCached:true};
   const readDb=Object.assign(fake.db,{getAll:(...refs:Array<{get:()=>Promise<unknown>}>)=>Promise.all(refs.map(ref=>ref.get()))}) as Firestore;
   fake.rows.set('collectors/earnings-calendar',{afterEventId:'unchanged-history-cursor'});
-  const result=await collectCalendarSchedules(readDb,new Set(source.companyIds),{...revalidate,deadline:fake.now()+180000});
+  const priorKey=process.env.OPENAI_API_KEY,priorModel=process.env.OPENAI_CALENDAR_MODEL;
+  delete process.env.OPENAI_API_KEY;process.env.OPENAI_CALENDAR_MODEL='offline-cache-only';
+  let result;
+  try{result=await collectCalendarSchedules(readDb,new Set(source.companyIds),{...revalidate,extract:undefined,deadline:fake.now()+180000});}
+  finally{if(priorKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=priorKey;
+    if(priorModel===undefined)delete process.env.OPENAI_CALENDAR_MODEL;else process.env.OPENAI_CALENDAR_MODEL=priorModel;}
   assert.equal(result.complete,1);assert.equal(result.paid,0);
   assert.equal(fake.rows.get('collectors/earnings-calendar')?.afterEventId,'unchanged-history-cursor');
   assert.equal(fake.rows.get(receipt[0])?.error,null);assert.equal(paid,0);
@@ -115,6 +120,28 @@ test('validation and HTTP failures record usage without automatically paying for
   assert.equal((await processCalendarSource(fake.db,source,{...revalidate,download:async()=>text+' Changed content.'})).status,'cached');
   assert.equal(paid,0);assert.equal([...fake.rows.values()].filter(row=>row.type==='calendar_extraction').length,1);
   assert.equal([...fake.rows.keys()].filter(path=>path.startsWith('openai_usage_events/')).length,1);
+});
+test('cached revalidation retires rejected event associations and restores independently supported schedules without changing charges',async()=>{
+  for(const supported of [false,true]){
+    const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);let calls=0;
+    const deps={now:fake.now,download:async()=>text,extract:async()=>({...response(),id:'response_'+ ++calls})};
+    await processCalendarSource(fake.db,source,deps);
+    const receipt=[...fake.rows.entries()].find(([,row])=>row.type==='calendar_extraction')!;
+    if(supported){
+      const other={...source,id:'independent_source',url:source.url+'-other',published_at:'2026-10-01T15:00:00Z'};
+      fake.rows.set('events/'+other.id,other);await processCalendarSource(fake.db,other,deps);
+    }
+    fake.rows.set(receipt[0],{...receipt[1],output:response([{...draft,date:'2026-11-17'}]).output});
+    const before=calls;
+    assert.equal((await processCalendarSource(fake.db,source,{...deps,revalidateCached:true})).status,'review_required');
+    assert.equal(calls,before);
+    const event=[...fake.rows.values()].find(row=>row.id===normalize()[0].id)!;
+    assert.equal(event.type,supported?'scheduled_event':'calendar_review');
+    assert.deepEqual(event.sourceEventIds,supported?['independent_source']:[]);
+    if(supported)assert.equal(event.url,source.url+'-other');
+    const charges=[...fake.rows.entries()].filter(([path])=>path.startsWith('openai_usage_events/')).map(([,row])=>row.estimatedCostUsd);
+    assert.equal(charges.length,before);assert(charges.every(cost=>cost===0.000305));
+  }
 });
 test('a failed commit retries persistence only, never the provider call',async()=>{
   const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);let rejects=0,calls=0;
