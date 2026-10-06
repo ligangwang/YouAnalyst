@@ -96,7 +96,7 @@ export function normalizeSchedules(value: unknown, source: CalendarSource, text:
     if (quarter) {
       const names = ['first|1st|一|1','second|2nd|二|2','third|3rd|三|3','fourth|4th|四|4'];
       const pattern = new RegExp(`(?:Q${quarter}\\b|(?:${names[Number(quarter)-1]})(?:\\s+quarter|季度))`,'i');
-      if (!pattern.test(periodEvidence)) throw new Error('Fiscal quarter is not supported by source evidence');
+      if (!pattern.test(periodEvidence.replace(/[-–—]/g,' '))) throw new Error('Fiscal quarter is not supported by source evidence');
     }
     const half = item.period.match(/-H([12])$/)?.[1];
     if (half && !(half === '1' ? /first half|half.year|H1\b|半年度|上半年/i : /second half|H2\b|下半年/i).test(periodEvidence)) throw new Error('Fiscal half-year is not supported by source evidence');

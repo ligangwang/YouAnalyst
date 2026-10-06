@@ -34,6 +34,7 @@ test('preserves original publication timestamps and separates release and call s
   assert.equal(moved.id,items[1].id);
   const ordinalText='NVIDIA will report third quarter fiscal 2027 results on November 5 th , 2026 after the market closes. NVIDIA will hold an audio webcast the same day at 2:00 p.m. PT.';
   assert.equal(normalize({...draft,date:'2026-11-05',timezoneText:'PT',dateEvidence:ordinalText,timeEvidence:'2:00 p.m. PT'},ordinalText)[0].scheduled_at,'2026-11-05T22:00:00.000Z');
+  assert.equal(normalize({...draft,periodEvidence:'third-quarter fiscal 2027 results'},text.replace('third quarter','third-quarter'))[0].fiscalPeriod,'FY2027-Q3');
 });
 test('rejects unsupported dates, quarters, time zones and archive dates; retains unknown time zones as local time',()=>{
   assert.throws(()=>normalize({...draft,date:'2026-11-17'}),/date/);
