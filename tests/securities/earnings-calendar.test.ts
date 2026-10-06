@@ -73,6 +73,10 @@ test('concurrent and duplicate documents make one paid request, store schedules 
   await processCalendarSource(fake.db,source,deps);assert.equal(calls,2);
   const schedules=[...fake.rows.values()].filter(row=>row.type==='scheduled_event');assert.equal(schedules.length,1);
   assert.deepEqual((schedules[0].sourceEventIds as string[]).sort(),[alias.id,source.id].sort());
+  // Reprocessing an older same-day announcement must not undo a later cancellation.
+  fake.rows.set('events/'+schedules[0].id,{...schedules[0],published_at:'2026-10-01T17:00:00Z',status:'cancelled'});
+  await processCalendarSource(fake.db,alias,{...deps,download:async()=>text});
+  assert.equal(fake.rows.get('events/'+schedules[0].id)?.status,'cancelled');assert.equal(calls,2);
 });
 test('validation and HTTP failures record usage without automatically paying for the same content again',async()=>{
   for(const fail of ['validation','http']){

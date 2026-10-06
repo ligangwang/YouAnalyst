@@ -73,7 +73,8 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
       const old=previous[index].data() as ScheduledEvent|undefined;
       const sourceEventIds=[...new Set([...(old?.sourceEventIds??[]),source.id])];
       // Older backfill must not undo a later rescheduling/cancellation.
-      const older=old && old.announcement_date>item.announcement_date;
+      const older=old && (old.announcement_date>item.announcement_date || old.announcement_date===item.announcement_date
+        && old.published_at && item.published_at && Date.parse(old.published_at)>Date.parse(item.published_at));
       tx.set(refs[index],older?{...old,sourceEventIds}:{...item,sourceEventIds,collected_at:old?.collected_at??item.collected_at});
     });
     if(usageRef && usage && !previousUsage?.exists)tx.create(usageRef,usage);
