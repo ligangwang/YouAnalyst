@@ -5,8 +5,8 @@ import type { CalendarItem } from '../../../src/lib/calendar/model';
 
 export const fixtureDay=easternDay(new Date().toISOString());
 export const calendarFixtures:CalendarItem[]=Array.from({length:8},(_,index)=>({
-  version:1,id:`scheduled_${index}`,type:'scheduled_event',companyId:`US:${index===0?'NVDA':index===1?'RKLB':`TEST${index}`}`,companyIds:[],
-  companyName:index===0?'NVIDIA':index===1?'Rocket Lab':`Example company ${index}`,ticker:index===0?'NVDA':index===1?'RKLB':`TEST${index}`,
+  version:1,id:`scheduled_${index}`,type:'scheduled_event',companyId:index===7?'XSHG:600000':`US:${index===0?'NVDA':index===1?'RKLB':`TEST${index}`}`,companyIds:[],
+  companyName:index===0?'NVIDIA':index===1?'Rocket Lab':`Example company ${index}`,ticker:index===0?'NVDA':index===1?'RKLB':index===7?'600000':`TEST${index}`,
   themes:index===0?['ai','robotics']:index===1?['space']:['ai'],sector:{en:'AI compute',zh:'AI 算力',color:index===1?'#ff9eae':'#65d9ff'},
   sourceType:'company_ir',sourceId:'fixture',title:'Announced earnings call',summary:'Illustrative test announcement',url:'https://example.com/earnings',
   published_at:null,publication_date:fixtureDay,collected_at:new Date().toISOString(),processed_at:new Date().toISOString(),baseline:false,

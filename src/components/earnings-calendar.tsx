@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocale } from './providers/locale-provider';
 import { LocalizedLink } from './localized-link';
-import { useSavedMapCompanies } from './use-saved-map-companies';
+import { useCompanyFollows } from './company-follow-button';
+import { companyPageUrl } from '@/lib/market-companies/routes';
 import { COMPANY_THEMES, themeName } from '@/lib/company-themes/model';
 import { calendarTime, easternDay, eventDay, shiftDay, visibleDays } from '@/lib/calendar/display';
 import type { CalendarItem, CalendarPayload } from '@/lib/calendar/model';
 import styles from './earnings-calendar.module.css';
 
 export function EarningsCalendar() {
-  const {chinese,text:t}=useLocale(),saved=useSavedMapCompanies();
+  const {chinese,text:t}=useLocale(),saved=useCompanyFollows();
   const agendaRef=useRef<HTMLElement>(null);
   const [today]=useState(()=>easternDay(new Date().toISOString()));
   const [anchor,setAnchor]=useState(today),[selected,setSelected]=useState(today),[view,setView]=useState<'month'|'week'>('month');
@@ -31,10 +32,10 @@ export function EarningsCalendar() {
   },[from,to,requestKey]);
   const items=useMemo(()=>{
     const query=search.trim().toLowerCase();
-    return (payload?.events??[]).filter(item=>(theme==='all'||item.themes.includes(theme)) && (!following || saved.ready && saved.tickers.includes(item.ticker))
+    return (payload?.events??[]).filter(item=>(theme==='all'||item.themes.includes(theme)) && (!following || saved.ready && saved.ids.includes(item.companyId))
       && (!query || item.ticker.toLowerCase().includes(query)||item.companyName.toLowerCase().includes(query)||Object.values(item.companyNames??{}).some(name=>name.toLowerCase().includes(query))))
-      .sort((a,b)=>eventDay(a).localeCompare(eventDay(b))||(a.scheduled_at??'~').localeCompare(b.scheduled_at??'~')||a.ticker.localeCompare(b.ticker));
-  },[payload,theme,search,following,saved.ready,saved.tickers]);
+      .sort((a,b)=>eventDay(a).localeCompare(eventDay(b))||(a.scheduled_at??'9999').localeCompare(b.scheduled_at??'9999')||a.ticker.localeCompare(b.ticker));
+  },[payload,theme,search,following,saved.ready,saved.ids]);
   const grouped=useMemo(()=>{
     const result=new Map<string,CalendarItem[]>();for(const item of items){const day=eventDay(item);result.set(day,[...(result.get(day)??[]),item]);}return result;
   },[items]);
@@ -49,14 +50,14 @@ export function EarningsCalendar() {
     <div className={styles.eventHeading}><strong>{item.ticker}</strong><span>{kindLabel(item)}</span></div>
     {!compact&&<p>{chinese?(item.companyNames?.['zh-CN']??item.companyName):item.companyName}</p>}
     <p className={styles.time}>{calendarTime(item,chinese)}</p>
-    {!compact&&<><p className={styles.detail}>{item.fiscalPeriod} · {chinese?item.sector.zh:item.sector.en}</p><div className={styles.links}><span className={styles.confirmed}>{item.status==='cancelled'?t('Cancelled','已取消'):item.status==='rescheduled'?t('Rescheduled','已改期'):t('Company announced','公司已公告')}</span><a href={item.url} target="_blank" rel="noopener noreferrer">{t('Source ↗','原公告 ↗')}</a><LocalizedLink href={`/company/${encodeURIComponent(item.companyId)}`}>{t('Company →','公司 →')}</LocalizedLink></div></>}
+    {!compact&&<><p className={styles.detail}>{item.fiscalPeriod} · {chinese?item.sector.zh:item.sector.en}</p><div className={styles.links}><span className={styles.confirmed}>{item.status==='cancelled'?t('Cancelled','已取消'):item.status==='rescheduled'?t('Rescheduled','已改期'):t('Company announced','公司已公告')}</span><a href={item.url} target="_blank" rel="noopener noreferrer">{t('Source ↗','原公告 ↗')}</a><LocalizedLink href={companyPageUrl(item.companyId.startsWith('US:')?item.ticker:item.companyId,/^(XSHG|XSHE):/.test(item.companyId)?'CN_A':undefined)}>{t('Company →','公司 →')}</LocalizedLink></div></>}
     {compact&&item.status!=='scheduled'&&<small>{item.status==='cancelled'?t('Cancelled','已取消'):t('Rescheduled','已改期')}</small>}
   </article>;}
   const selectedItems=grouped.get(selected)??[];
   return <main className={styles.page}>
     <header className={styles.header}><div><p className={styles.eyebrow}>{t('UPCOMING COMPANY EVENTS','公司活动预告')}</p><h1>{t('Earnings calendar','财报日历')}</h1><p className={styles.subtitle}>{t('Company-announced releases and calls across AI, Robotics and Space.','涵盖 AI、机器人及航天主题的公司财报发布与电话会。')}</p></div><span className={styles.zone}>{t('Times in Eastern Time · ET','时间显示为美国东部时间 · ET')}</span></header>
     <div className={styles.toolbar}><div className={styles.period}><button aria-label={t('Previous period','上一时段')} onClick={()=>move(-1)}>‹</button><h2>{heading}</h2><button aria-label={t('Next period','下一时段')} onClick={()=>move(1)}>›</button><button onClick={()=>{setAnchor(today);setSelected(today);}}>{t('Today','今天')}</button></div><div className={styles.switcher}>{(['month','week'] as const).map(value=><button key={value} aria-pressed={view===value} onClick={()=>setView(value)}>{value==='month'?t('Month','月视图'):t('Week','周视图')}</button>)}</div></div>
-    <div className={styles.filters}><label>{t('Theme','主题')}<select value={theme} onChange={event=>setTheme(event.target.value)}><option value="all">{t('All themes','全部主题')}</option>{COMPANY_THEMES.map(id=><option key={id} value={id}>{themeName(id,chinese)}</option>)}</select></label><label className={styles.search}><span className={styles.srOnly}>{t('Search company or ticker','搜索公司或代码')}</span><input type="search" placeholder={t('Search company / ticker','搜索公司 / 代码')} value={search} onChange={event=>setSearch(event.target.value)}/></label><label className={styles.following}><input type="checkbox" checked={following} disabled={!saved.signedIn || !saved.ready} onChange={event=>setFollowing(event.target.checked)}/>{t('Following only','仅关注公司')}</label>{!saved.signedIn&&<LocalizedLink href="/auth">{t('Sign in','登录')}</LocalizedLink>}{saved.failed&&<button onClick={saved.retry}>{t('Retry following','重试加载关注')}</button>}</div>
+    <div className={styles.filters}><label>{t('Theme','主题')}<select value={theme} onChange={event=>setTheme(event.target.value)}><option value="all">{t('All themes','全部主题')}</option>{COMPANY_THEMES.map(id=><option key={id} value={id}>{themeName(id,chinese)}</option>)}</select></label><label className={styles.search}><span className={styles.srOnly}>{t('Search company or ticker','搜索公司或代码')}</span><input type="search" placeholder={t('Search company / ticker','搜索公司 / 代码')} value={search} onChange={event=>setSearch(event.target.value)}/></label><label className={styles.following}><input type="checkbox" checked={following} disabled={!saved.user || !saved.ready} onChange={event=>setFollowing(event.target.checked)}/>{t('Following only','仅关注公司')}</label>{!saved.user&&<LocalizedLink href="/auth">{t('Sign in','登录')}</LocalizedLink>}{saved.error&&<button onClick={()=>void saved.refresh()}>{t('Retry following','重试加载关注')}</button>}</div>
     <div className={styles.status} role="status">{loading?t('Loading schedules…','正在加载日程…'):error?t('Schedules could not be refreshed.','无法刷新日程。'):`${items.filter(item=>eventDay(item)>=from&&eventDay(item)<=to&&item.status!=='cancelled').length} ${t('scheduled events in view','项活动')}`}{error&&<button onClick={()=>setRetry(value=>value+1)}>{t('Retry','重试')}</button>}</div>
     <div className={`${styles.layout} ${view==='week'?styles.weekLayout:''}`} aria-busy={loading}>
       <section className={styles.calendar} aria-label={t('Earnings calendar','财报日历')}>

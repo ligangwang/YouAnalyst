@@ -20,6 +20,7 @@ const normalize=(item:ScheduleDraft=draft,article=text)=>normalizeSchedules({eve
 const response=(items:ScheduleDraft[]=[draft])=>({id:'response_1',model:'gpt-6-luna',status:'completed',usage:{input_tokens:2000,input_tokens_details:{cached_tokens:500},output_tokens:300,total_tokens:2300},output:JSON.stringify({events:items})});
 
 test('title detection accepts scheduling, same-day results calls and Chinese announcements, excluding ordinary business news',()=>{
+  for(const title of ['Company Cancels Fourth Quarter Earnings Call','Company Postpones Earnings Call','Company Reschedules Results Webcast','Company Cancels Earnings Release'])assert.equal(isCalendarCandidate(title,''),true,title);
   for(const title of ['Cadence Announces Third Quarter 2026 Financial Results Webcast','Lumentum Announces Reporting Date for Fourth Quarter and Fiscal Year 2026 Results','Micron to Report Fiscal 2026 Financial Results','NVIDIA Sets Conference Call for Third Quarter Financial Results','关于召开2026年半年度业绩说明会的公告','AMD Reports Third Quarter 2026 Financial Results'])assert.equal(isCalendarCandidate(title,''),true,title);
   for(const title of ['Cadence launches new AI platform','NVIDIA robotics partnerships','New Satellite Service Launch'])assert.equal(isCalendarCandidate(title,''),false,title);
 });
