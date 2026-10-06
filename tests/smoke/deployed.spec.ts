@@ -60,18 +60,18 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
 
 test("English and Chinese workspace URLs retain SEO and bookmarked company links", async ({ request, page }) => {
   test.setTimeout(90_000);
-  for (const [prefix, language, heading] of [["en", "en", "AI Industry Map"], ["zh-cn", "zh-CN", "AI 产业图谱"]]) {
+  for (const [prefix, language, title] of [["en", "en", "AI, Robotics & Space Stocks and Companies | YouAnalyst"], ["zh-cn", "zh-CN", "AI、机器人与太空股票及公司 | YouAnalyst"]]) {
     const response = await request.get(`/${prefix}?view=graph`);
     expect(response.status()).toBe(200);
     const html = await response.text();
     expect(html).toContain(`lang="${language}"`);
-    expect(html).toContain(heading);
     expect(html).toMatch(new RegExp(`<link[^>]+rel="canonical"[^>]+href="[^"]+/${prefix}"`));
     expect(html).toContain('hrefLang="en"');
     expect(html).toContain('hrefLang="zh-CN"');
     expect(html).toContain(`href="/${prefix}/companies"`);
     expect(html).toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
     await page.goto(`/${prefix}?view=table&company=US%3ANVDA`);
+    await expect(page).toHaveTitle(title);
     const name=prefix==='en'?'Company list':'公司列表';
     await expect(page.getByRole('tab',{name,exact:true})).toHaveAttribute('aria-selected','true');
     const sources=page.getByRole('region',{name:prefix==='en'?'Selected sources':'选中来源'});
