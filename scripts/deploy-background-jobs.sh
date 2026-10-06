@@ -32,6 +32,11 @@ if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 && ( "$1" == all || "$1" 
   targets+=(intelligence-news)
 fi
 # Validate every selected target before any build or mutation.
+case "${CALENDAR_EXTRACTION_ENABLED:-0}" in 0|1) ;; *) echo 'CALENDAR_EXTRACTION_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+if [[ "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
+  : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"
+  [[ "${OPENAI_CALENDAR_MODEL:-}" == gpt-6-luna ]] || { echo 'OPENAI_CALENDAR_MODEL must be gpt-6-luna' >&2; exit 1; }
+fi
 for target in "${targets[@]}"; do
   if [[ "$target" == earnings ]]; then
     bash scripts/deploy-earnings.sh --check

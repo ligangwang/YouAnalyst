@@ -3,7 +3,7 @@ import { localizedMetadata } from "@/lib/i18n/server";
 
 import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, Sora } from "next/font/google";
+import localFont from "next/font/local";
 import { LocalizedLink as Link } from "@/components/localized-link";
 import Script from "next/script";
 import { analyticsBootstrap } from "@/lib/analytics-bootstrap";
@@ -17,15 +17,16 @@ import { parseLocale } from "@/lib/locale";
 
 const GOOGLE_ANALYTICS_ID = process.env.GOOGLE_ANALYTICS_ID;
 
-const sora = Sora({
+const sora = localFont({
+  src: "./fonts/sora.ttf",
   variable: "--font-sora",
-  subsets: ["latin"],
+  weight: "100 800",
 });
 
-const ibmPlexSans = IBM_Plex_Sans({
+const ibmPlexSans = localFont({
+  src: "./fonts/ibmplexsans.ttf",
   variable: "--font-ibm-plex-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "100 700",
 });
 
 const pageMetadata: Metadata = {

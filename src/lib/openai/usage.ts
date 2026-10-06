@@ -1,6 +1,7 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
+import type { Firestore, Query } from "firebase-admin/firestore";
 
-export type OpenAiUsagePurpose = "ai_analyst_generation" | "company_graph_extraction" | "industry_research";
+export type OpenAiUsagePurpose = "ai_analyst_generation" | "company_graph_extraction" | "industry_research" | "earnings_calendar_extraction";
 
 type OpenAiPriceRate = {
   input: number;
@@ -34,6 +35,7 @@ export type OpenAiUsageEvent = {
 
 export type OpenAiUsageSummary = {
   eventCount: number;
+  unknownCostCount?: number;
   estimatedCostUsd: number;
   inputTokens: number;
   cachedInputTokens: number;
@@ -42,6 +44,7 @@ export type OpenAiUsageSummary = {
 };
 
 const DEFAULT_OPENAI_PRICE_RATES: Record<string, OpenAiPriceRate> = {
+  "gpt-6-luna": { input: 0.10, cachedInput: 0.01, output: 0.50 },
   "gpt-5.5": { input: 5, cachedInput: 0.5, output: 30 },
   "gpt-5.4": { input: 2.5, cachedInput: 0.25, output: 15 },
   "gpt-5.4-mini": { input: 0.75, cachedInput: 0.075, output: 4.5 },
@@ -107,7 +110,8 @@ function priceRateForModel(model: string): { rate: OpenAiPriceRate | null; sourc
     return { rate: envRate, source: "env" };
   }
 
-  const builtInRate = DEFAULT_OPENAI_PRICE_RATES[normalizedModel];
+  const builtInRate = DEFAULT_OPENAI_PRICE_RATES[normalizedModel] ??
+    DEFAULT_OPENAI_PRICE_RATES[normalizedModel.replace(/-\d{4}-\d{2}-\d{2}$/, "")];
   if (builtInRate) {
     return { rate: builtInRate, source: "built_in" };
   }
@@ -200,6 +204,7 @@ export function buildOpenAiUsageEvent(input: {
     outputTokens,
     totalTokens,
     ...estimate,
+    estimatedCostUsd: input.usage ? estimate.estimatedCostUsd : null,
     metadata: Object.fromEntries(
       Object.entries(input.metadata ?? {}).filter((entry): entry is [string, string | number | boolean | null] =>
         entry[1] !== undefined),
@@ -227,6 +232,7 @@ export async function safeRecordOpenAiUsageEvent(
 export function summarizeOpenAiUsageEvents(events: OpenAiUsageEvent[]): OpenAiUsageSummary {
   return events.reduce<OpenAiUsageSummary>((summary, event) => ({
     eventCount: summary.eventCount + 1,
+    unknownCostCount: (summary.unknownCostCount ?? 0) + (event.estimatedCostUsd === null ? 1 : 0),
     estimatedCostUsd: roundCost(summary.estimatedCostUsd + (event.estimatedCostUsd ?? 0)),
     inputTokens: summary.inputTokens + event.inputTokens,
     cachedInputTokens: summary.cachedInputTokens + event.cachedInputTokens,
@@ -234,6 +240,7 @@ export function summarizeOpenAiUsageEvents(events: OpenAiUsageEvent[]): OpenAiUs
     totalTokens: summary.totalTokens + event.totalTokens,
   }), {
     eventCount: 0,
+    unknownCostCount: 0,
     estimatedCostUsd: 0,
     inputTokens: 0,
     cachedInputTokens: 0,
@@ -242,22 +249,43 @@ export function summarizeOpenAiUsageEvents(events: OpenAiUsageEvent[]): OpenAiUs
   });
 }
 
-export async function listOpenAiUsageEvents(limit = 100): Promise<{
+async function readUsagePeriod(query: Query): Promise<OpenAiUsageEvent[]> {
+  const events:OpenAiUsageEvent[]=[];
+  let page = await query.limit(500).get();
+  while(true) {
+    events.push(...page.docs.map(doc=>({...doc.data(),id:doc.id}) as OpenAiUsageEvent));
+    if(page.size<500)break;
+    page=await query.startAfter(page.docs.at(-1)!).limit(500).get();
+  }
+  return events;
+}
+
+export async function listOpenAiUsageEvents(limit = 100, db:Firestore = getAdminFirestore(), now = new Date()): Promise<{
   events: OpenAiUsageEvent[];
   summary: OpenAiUsageSummary;
   last30Days: OpenAiUsageSummary;
+  calendarLast30Days: OpenAiUsageSummary;
+  calendarThisQuarter: OpenAiUsageSummary;
 }> {
-  const snapshot = await getAdminFirestore()
+  const snapshot = await db
     .collection("openai_usage_events")
     .orderBy("createdAt", "desc")
     .limit(Math.max(1, Math.min(500, Math.trunc(limit))))
     .get();
   const events = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as OpenAiUsageEvent);
-  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1_000;
+  const thirtyDaysAgo = now.getTime() - 30 * 24 * 60 * 60 * 1_000;
+  const base = db.collection('openai_usage_events');
+  const quarter = new Date(Date.UTC(now.getUTCFullYear(), Math.floor(now.getUTCMonth()/3)*3, 1)).toISOString();
+  const [periodEvents, quarterEvents] = await Promise.all([
+    readUsagePeriod(base.where('createdAt','>=',new Date(thirtyDaysAgo).toISOString()).orderBy('createdAt')),
+    readUsagePeriod(base.where('purpose','==','earnings_calendar_extraction').where('createdAt','>=',quarter).orderBy('createdAt')),
+  ]);
 
   return {
     events,
     summary: summarizeOpenAiUsageEvents(events),
-    last30Days: summarizeOpenAiUsageEvents(events.filter((event) => Date.parse(event.createdAt) >= thirtyDaysAgo)),
+    last30Days:summarizeOpenAiUsageEvents(periodEvents),
+    calendarLast30Days:summarizeOpenAiUsageEvents(periodEvents.filter(event=>event.purpose==='earnings_calendar_extraction')),
+    calendarThisQuarter:summarizeOpenAiUsageEvents(quarterEvents),
   };
 }
