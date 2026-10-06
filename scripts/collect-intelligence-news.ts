@@ -12,7 +12,8 @@ import {randomUUID} from 'node:crypto';
 import {collectCalendarSchedules} from '../src/lib/calendar/worker';
 
 async function main(){
-  const args=process.argv.slice(2);if(args.some(arg=>arg!=='--apply'))throw new Error('Usage: collect-intelligence-news [--apply]');
+  const args=process.argv.slice(2);if(args.some(arg=>!['--apply','--revalidate-calendar'].includes(arg)))throw new Error('Usage: collect-intelligence-news [--apply] [--revalidate-calendar]');
+  if(args.includes('--revalidate-calendar') && !args.includes('--apply'))throw new Error('Cached calendar revalidation requires --apply');
   if(!args.includes('--apply')){
     // Dry run never initializes Firestore or writes a checkpoint.
     for(const source of NEWS_SOURCES){try{
@@ -25,6 +26,12 @@ async function main(){
   if(!process.env.GCP_PROJECT_ID)throw new Error('GCP_PROJECT_ID is required');
   initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
   const db=getFirestore(),graph=await loadCollectionUniverse(db),mapped=new Set(graph.nodes.filter(n=>n.kind==='COMPANY').map(n=>n.id));
+  if(args.includes('--revalidate-calendar')){
+    // Validate saved responses against unchanged original content. Never reserve
+    // a new provider request, including when the source content has changed.
+    const calendar=await collectCalendarSchedules(db,mapped,{deadline:Date.now()+18*60_000,revalidateCached:true});
+    console.log(JSON.stringify({job:'revalidate-calendar',calendar}));return;
+  }
   const deadline=Date.now()+18*60_000,newsDeadline=Date.now()+8*60_000,sources=NEWS_SOURCES.filter(s=>mapped.has(s.companyId));
   // Rotate the start hourly; slow publishers cannot starve later map companies.
   const start=Math.floor(Date.now()/3600000)%sources.length;
