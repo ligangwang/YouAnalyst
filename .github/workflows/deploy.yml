@@ -125,7 +125,7 @@ jobs:
       # OS dependencies are installed on every fresh runner; Playwright reuses
       # only the version-matched browser binary from the cache.
       - name: Install conversion test browser
-        run: npx playwright install --with-deps --only-shell chromium
+        run: bash scripts/setup-playwright-browser.sh
 
       - name: Verify domain-only email authentication
         if: matrix.shard == 1
@@ -492,7 +492,7 @@ jobs:
       # OS dependencies are installed on every fresh runner; Playwright reuses
       # only the version-matched browser binary from the cache.
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps --only-shell chromium
+        run: bash scripts/setup-playwright-browser.sh
 
       - name: Generate staging smoke auth token
         id: staging-smoke-token
@@ -766,7 +766,7 @@ jobs:
       # OS dependencies are installed on every fresh runner; Playwright reuses
       # only the version-matched browser binary from the cache.
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps --only-shell chromium
+        run: bash scripts/setup-playwright-browser.sh
 
       - name: Generate production smoke auth token
         id: production-smoke-token
