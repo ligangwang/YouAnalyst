@@ -237,13 +237,15 @@ test("global map companies open localized profiles", async ({ page, request }) =
   }
 });
 
-test("Research bookmarks open Feed and Feed is in primary navigation", async ({ page }) => {
+test("Research bookmarks open Feed and Feed remains available under More", async ({ page }) => {
   await page.goto("/en/map?view=filings&company=AMD");
   await expect(page).toHaveURL(/\/en\/feed$/);
-  const feed = page.getByRole("navigation").getByRole("link", { name: "Feed", exact: true });
-  await expect(feed).toBeVisible();
-  await expect(feed).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("navigation").getByRole("link", { name: "Feed", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Research", exact: true })).toHaveCount(0);
+  await page.getByText("More", { exact: true }).filter({ visible: true }).click();
+  const feed = page.getByRole("link", { name: "Feed", exact: true });
+  await expect(feed).toBeVisible();
+  await expect(feed).toHaveAttribute("href", "/en/feed");
 });
 
 test("A-share company has its own research page", async ({ page }) => {
