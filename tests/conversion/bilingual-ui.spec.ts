@@ -74,7 +74,7 @@ test("signing in restores account language without restoring market filters when
 for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tools accessible (${language})`, async ({page}) => {
  await page.goto(`http://bilingual.test/?lang=${language}`);
  const nav=page.locator("header nav").first();
- await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["Map","Companies","Feed","Calendar","Following"] : ["图谱","公司","动态","日历","我的关注"]);
+ await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["Explore","Companies","Feed","Calendar","Following"] : ["探索","公司","动态","日历","我的关注"]);
  await expect(nav.getByRole("link").nth(2)).toHaveAttribute("href",/feed$/);
  await expect(nav.getByRole("link").nth(3)).toHaveAttribute("href",language === "en" ? "/en/calendar" : "/zh-cn/calendar");
  await expect(nav.getByRole("link").nth(4)).toHaveAttribute("href",/watchlists\/following$/);
@@ -90,4 +90,29 @@ for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tool
  await expect(map).toHaveAttribute("href",/theme=space&view=graph$/);
  await page.evaluate(()=>{history.replaceState(history.state,"","?theme=robotics");window.dispatchEvent(new Event("industry-browse-changed"));});
  await expect(map).toHaveAttribute("href",/theme=robotics&view=graph$/);
+});
+
+test("primary navigation marks the current section on localized pages and company details", async ({ page }) => {
+  for (const [pathname, label] of [
+    ["/en", "Explore"],
+    ["/en/companies", "Companies"],
+    ["/en/company/US%3AMU", "Companies"],
+    ["/en/ticker/MU", "Companies"],
+    ["/en/feed", "Feed"],
+    ["/en/calendar", "Calendar"],
+    ["/en/watchlists/following", "Following"],
+    ["/zh-cn", "探索"],
+    ["/zh-cn/company/US%3AMU", "公司"],
+    ["/en/feedback", null],
+  ] as const) {
+    await page.goto(`http://bilingual.test${pathname}`);
+    for (const nav of await page.locator("header nav").all()) {
+      const active = nav.locator('a[aria-current="page"]');
+      await expect(active).toHaveCount(label ? 1 : 0);
+      if (label) {
+        await expect(active).toHaveText(label);
+        await expect(active).toHaveClass(/aria-\[current=page\]:bg-white\/10/);
+      }
+    }
+  }
 });
