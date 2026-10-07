@@ -19,7 +19,7 @@ test("A-share company page reuses direction links, CNY entry and close controls;
   expect(new URL((await link.getAttribute("href"))!, origin).searchParams.get("ticker")).toBe("XSHG:600584");
   await page.route("**/api/ticker/*/my-calls", route => route.fulfill({ json: { items: [bullish] } }));
   await page.reload();
-  await expect(page.getByText("Entry CN¥150.25 · recorded 2026-09-08")).toBeVisible();
+  await expect(page.getByText("Entry CN¥150.25 · Sep 8, 2026")).toBeVisible();
   await expect(page.getByRole("button", { name: "Close Bullish", exact: true })).toBeVisible();
   await expect(link).toHaveCount(0);
   await page.goto(`${origin}?china&private`);
@@ -52,7 +52,7 @@ test("multiple watchlists show their own call; close sends only the selected cal
   });
   await page.goto(origin);
   await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveCount(0);
-  await expect(page.getByText("Entry $150.25 · recorded 2026-09-08")).toHaveCount(2);
+  await expect(page.getByText("Entry $150.25 · Sep 8, 2026")).toHaveCount(2);
   await expect(page.getByText("Default watchlist · Public")).toHaveCount(0);
   await page.getByRole("button", { name: "Close Bearish", exact: true }).click();
   await expect(page.getByRole("button", { name: "Confirm close Bearish" })).toBeDisabled();
@@ -123,7 +123,7 @@ test("compact panel puts owned calls first and previews public calls without usi
     return route.fulfill({ json: { items: [{ id: "public-call", ticker: "AMD", direction: "UP", status: "OPEN", createdAt: "2026-09-10T16:00:00Z", authorDisplayName: "Alex", thesisTitle: "Growing demand for accelerators", entryPrice: 100, entryDate: "2026-09-08", markPriceDate: "2026-09-10", markReturnValue: .05 }], viewerPosition: { thesisTitle: "PRIVATE SENTINEL" } } });
   });
   await page.goto(`${origin}?panel`);
-  await expect(page.getByRole("heading", { name: "Your call · Bullish" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "AMD · Bullish" })).toBeVisible();
   await expect(page.getByText("My Watchlist · Public", { exact: true })).toBeVisible();
   await expect(page.getByText("Hedges · Private", { exact: true })).toBeVisible();
   await expect(page.getByText("+10.00%", { exact: true })).toBeVisible();
@@ -154,7 +154,7 @@ test("empty and failed public previews keep publishing actions available", async
 test("Chinese outlook labels and publishing links preserve the company and direction", async ({ page }) => {
   await page.route(`${origin}/api/ticker/AMD/my-calls`, route => route.fulfill({ json: { items: [] } }));
   await page.goto(`${origin}?panel&zh`);
-  await expect(page.getByRole("heading", { name: "你的观点 · AMD" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "你的观点 · AMD" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "社区观点" })).toBeVisible();
   await expect(page.getByRole("link", { name: "看多", exact: true })).toHaveAttribute("href", "/zh-cn/predictions/new?ticker=AMD&direction=UP");
   await expect(page.getByRole("link", { name: "看空", exact: true })).toHaveAttribute("href", "/zh-cn/predictions/new?ticker=AMD&direction=DOWN");

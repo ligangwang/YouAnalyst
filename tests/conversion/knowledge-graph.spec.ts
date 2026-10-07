@@ -1513,6 +1513,29 @@ test('navigation: graph selection frames direct connections outside the ball and
  await card.getByRole('button',{name:'Clear selection',exact:true}).click();
  await expect.poll(pose).toBe(before);
 });
+test('navigation: company click settles immediately during the normal graph tour',async({page})=>{
+ await navigationFixture(page);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ const canvas=page.locator('canvas');
+ await expect(canvas).toHaveAttribute('data-rotation','intro');
+ const samples=await page.locator('[data-company-id="US:NVDA"]').evaluate(el=>new Promise<string[]>(resolve=>{
+   (el as HTMLButtonElement).click();
+   const poses:string[]=[];
+   let frames=0;
+   const sample=()=>{
+     if(document.querySelector('canvas')!.getAttribute('data-rotation')!=='focused'){requestAnimationFrame(sample);return;}
+     frames++;
+     if(frames>=2)poses.push(document.querySelector('canvas')!.getAttribute('data-camera-position')!);
+     if(frames===30)resolve(poses);else requestAnimationFrame(sample);
+   };
+   requestAnimationFrame(sample);
+ }));
+ await expect(page.locator('[data-node-card="US:NVDA"]')).toBeVisible();
+ await expect(canvas).toHaveAttribute('data-rotation','focused');
+ const positions=samples.map(p=>p.split(',').map(Number));
+ const drift=Math.max(...positions.map(p=>Math.hypot(...p.map((v,i)=>v-positions[0][i]))));
+ expect(drift).toBeLessThan(.01);
+});
 test('navigation: zoomed and panned graph returns from selection before resuming at the user distance',async({page})=>{
  test.setTimeout(60000);
  await navigationFixture(page);

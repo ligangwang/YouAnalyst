@@ -155,8 +155,6 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300"><UiText text={"Community"} /></p>
             {overview ? <h2 className="mt-2 text-xl font-semibold text-cyan-100"><UiText text={"Investment views on "} />{displayTicker}</h2> : <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>}
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300"><UiText text={"Investment views on "} />{displayTicker}.
-            </p>
           </div>
         </div>
       </section>
