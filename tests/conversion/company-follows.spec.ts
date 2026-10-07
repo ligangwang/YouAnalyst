@@ -44,21 +44,103 @@ test.beforeAll(async () => {
     import { createRoot } from "react-dom/client";
     import { AuthPage } from "./src/components/auth-page";
     import { CompanyResearchPanel } from "./src/components/company-research-panel";
-    import { CompanyFollowButton } from "./src/components/company-follow-button";
+    import { CompanyFollowButton, useCompanyFollows } from "./src/components/company-follow-button";
+    import { CompanyFollowStar } from "./src/components/company-follow-star";
+    import workspaceStyles from "./src/components/investment-intelligence.module.css";
     import { FollowedCompaniesPage } from "./src/components/followed-companies-page";
     import { LocaleProvider } from "./src/components/providers/locale-provider";
     const graph = ${JSON.stringify(graph)};
     const dense = {...graph,nodes:[...graph.nodes,...Array.from({length:6},(_,i)=>({id:'ORG:PARTNER'+i,name:'Partner '+i,kind:'COMPANY',order:3+i}))],relationships:[...graph.relationships,...Array.from({length:6},(_,i)=>({id:'partner'+i,source:'US:AMD',target:'ORG:PARTNER'+i,type:'PARTNER_OF',summary:i%2?'Helios design':'EPYC deployment',sourceIds:['s'],commercialStatus:'DOCUMENTED'}))]};
     const subscribe = fn => { window.addEventListener("route-change",fn); return () => window.removeEventListener("route-change",fn); };
+    function StarFixture() {
+      const follows = useCompanyFollows();
+      return <div className={workspaceStyles.companyList} style={{width:240,margin:24}}><div><button><strong>AMD</strong><span>Advanced Micro Devices</span></button><CompanyFollowStar label="AMD" followed={follows.ids.includes("US:AMD")} disabled={!follows.ready} onChange={follow=>follows.change("US:AMD",follow)}/></div></div>;
+    }
     function App() {
       const route = useSyncExternalStore(subscribe, () => window.location.pathname+window.location.search);
       const url = new URL(window.location.href);
-      return <LocaleProvider locale={url.pathname.startsWith("/zh-cn") ? "zh-CN" : "en"}>{url.pathname === "/auth" ? <AuthPage requestedNext={url.searchParams.get("next")} initialCreate /> : route.includes("following") ? <FollowedCompaniesPage /> : <main><h1>AMD</h1><CompanyFollowButton companyId="US:AMD"/><CompanyResearchPanel companyId="US:AMD" initialGraph={url.searchParams.has('dense') ? dense : graph}/><a href="/watchlists/following">My companies</a></main>}</LocaleProvider>;
+      return <LocaleProvider locale={url.pathname.startsWith("/zh-cn") ? "zh-CN" : "en"}>{url.searchParams.has("star") ? <StarFixture/> : url.pathname === "/auth" ? <AuthPage requestedNext={url.searchParams.get("next")} initialCreate /> : route.includes("following") ? <FollowedCompaniesPage /> : <main><h1>AMD</h1><CompanyFollowButton companyId="US:AMD"/><CompanyResearchPanel companyId="US:AMD" initialGraph={url.searchParams.has('dense') ? dense : graph}/><a href="/watchlists/following">My companies</a></main>}</LocaleProvider>;
     }
     createRoot(document.getElementById("root")).render(<App/>);
   `, resolveDir: process.cwd(), loader: "tsx" }, bundle: true, write: false, outfile: "follows.js", platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/conversion/fixtures/mocks.tsx"), "next/navigation": path.resolve("tests/conversion/fixtures/mocks.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") } });
   const css = await postcss([tailwind()]).process('@import "tailwindcss";', { from: path.resolve("follows-test.css") });
-  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css.css}body{background:#07111d;color:#f8fafc;font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css.css}${bundle.outputFiles.find(f => f.path.endsWith(".css"))?.text ?? ""}body{background:#07111d;color:#f8fafc;font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+});
+
+test("company star confirms saved changes, blocks repeat writes, and restores failed changes", async ({ page }, info) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let ids: string[] = [], writes = 0, fail = false;
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/*", async route => {
+    const request = route.request();
+    if (request.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (new URL(request.url()).pathname === "/api/map-follows") {
+      if (request.method() === "PATCH") {
+        writes++;
+        if (writes === 1) await pending;
+        if (fail) return route.fulfill({ status: 503, json: {} });
+        ids = request.postDataJSON().follow ? ["US:AMD"] : [];
+      }
+      return route.fulfill({ json: { companyIds: ids } });
+    }
+    return route.fulfill({ json: {} });
+  });
+  await page.goto(origin + "/en?star");
+  const star = page.getByRole("button", { name: /^(Unfollow|Follow) AMD$/ });
+  await expect(star).toBeEnabled();
+  if (info.project.name === "desktop") {
+    await star.hover();
+    await expect(page.getByRole("tooltip")).toBeVisible();
+  }
+  await star.focus();
+  await expect(page.getByRole("tooltip")).toBeVisible();
+  await expect(page.getByRole("tooltip")).toHaveText("Follow AMD");
+  await star.click();
+  await expect(star).toBeDisabled();
+  await expect(star).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("status")).toHaveCount(0);
+  // A duplicate DOM click must also be ignored while the request is pending.
+  await star.evaluate(button => (button as HTMLButtonElement).click());
+  await expect.poll(() => writes).toBe(1);
+  release();
+  await expect(star).toBeEnabled();
+  await expect(page.getByRole("status")).toHaveText("AMD followed");
+  await expect(page.getByRole("status")).toBeVisible();
+  const notice = await page.getByRole("status").boundingBox();
+  expect(notice!.x).toBeGreaterThanOrEqual(24);
+  expect(notice!.x + notice!.width).toBeLessThan((await star.boundingBox())!.x);
+  await page.screenshot({ path: info.outputPath("company-star-followed.png") });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4000 });
+  fail = true;
+  await star.click();
+  await expect(page.getByRole("alert")).toHaveText("Could not save AMD. Retry.");
+  await expect(star).toHaveAttribute("aria-pressed", "true");
+  await expect(star).toBeEnabled();
+  fail = false;
+  await star.click();
+  await expect(page.getByRole("status")).toHaveText("AMD unfollowed");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(star).toHaveAttribute("aria-pressed", "false");
+  expect(writes).toBe(3);
+});
+
+test("company star explains its action and confirms changes in Chinese", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let ids: string[] = [];
+  await page.route("**/*", route => {
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (route.request().method() === "PATCH") ids = route.request().postDataJSON().follow ? ["US:AMD"] : [];
+    return route.fulfill({ json: { companyIds: ids } });
+  });
+  await page.goto(origin + "/zh-cn?star");
+  await page.getByRole("button", { name: "关注 AMD", exact: true }).focus();
+  await expect(page.getByRole("tooltip")).toHaveText("关注 AMD");
+  await expect(page.getByRole("tooltip")).toBeVisible();
+  await page.getByRole("button", { name: "关注 AMD", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("已关注 AMD");
+  await page.getByRole("button", { name: "取消关注 AMD", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("已取消关注 AMD");
 });
 
 test("follow registration preserves original research location and synchronizes buttons", async ({ page }) => {

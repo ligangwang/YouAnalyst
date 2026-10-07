@@ -2,10 +2,12 @@ import {test} from 'node:test';
 import {NEWS_SOURCES} from '../../scripts/seed-news-sources';
 import assert from 'node:assert/strict';
 import { isCalendarCandidate } from '../../src/lib/calendar/candidates';
-import { extractSchedule, normalizeSchedules, scheduleInstant, scheduleTimezone } from '../../src/lib/calendar/extraction';
+import { extractSchedule, normalizeSchedules, normalizeExtractedSchedules, scheduleInstant, scheduleTimezone } from '../../src/lib/calendar/extraction';
 import { calendarArticleText, fetchCalendarArticle } from '../../src/lib/calendar/article';
 import { calendarRange } from '../../src/lib/calendar/service';
 import { processCalendarSource, collectCalendarSchedules } from '../../src/lib/calendar/worker';
+import { attachCalendarLinks } from '../../src/lib/calendar/intelligence-links';
+import type { IntelligenceEvent } from '../../src/lib/intelligence/model';
 import { buildOpenAiUsageEvent, listOpenAiUsageEvents } from '../../src/lib/openai/usage';
 import type { Firestore } from 'firebase-admin/firestore';
 import { earningsFirestore } from '../helpers/earnings-firestore';
@@ -55,6 +57,40 @@ test('rejects unsupported dates, quarters, time zones and archive dates; retains
   assert.throws(()=>scheduleInstant('2026-03-08','02:30','America/New_York'),/nonexistent/);
   assert.throws(()=>scheduleInstant('2026-11-01','01:30','America/New_York'),/Ambiguous/);
   assert.throws(()=>calendarRange('2026-01-01','2026-04-01'),/range/);
+});
+
+test('ServiceNow close-of-market wording restores both schedules from the cached response without a paid retry',async()=>{
+  const nowSource={...source,id:'company_news_now',companyId:'US:NOW',companyIds:['US:NOW'],
+    title:'ServiceNow to Announce Third Quarter 2026 Financial Results on October 28',publication_date:'2026-10-07',published_at:'2026-10-07T15:00:00Z'};
+  const releaseQuote='ServiceNow (NYSE: NOW) today announced that it will release financial results for the third quarter ended September 30, 2026, following the close of market on Wednesday, October 28, 2026.';
+  const callQuote='The conference call will begin at 2 p.m. Pacific Daylight Time (21:00 GMT) on October 28, 2026.';
+  const article=releaseQuote+' ServiceNow will host a conference call and live webcast to discuss the financial results. Conference Call Details '+callQuote;
+  const release:ScheduleDraft={...draft,kind:'earnings_release',period:'FY2026-Q3',date:'2026-10-28',time:null,timezoneText:null,timeSlot:'after_market',dateEvidence:releaseQuote,timeEvidence:'',periodEvidence:'financial results for the third quarter ended September 30, 2026'};
+  const call:ScheduleDraft={...release,kind:'earnings_call',time:'14:00',timezoneText:'Pacific Daylight Time',timeSlot:'unspecified',dateEvidence:article,timeEvidence:callQuote};
+  assert.equal(isCalendarCandidate(nowSource.title),true);
+  const fake=earningsFirestore();fake.rows.set('events/'+nowSource.id,nowSource);
+  const first=await processCalendarSource(fake.db,nowSource,{now:fake.now,download:async()=>article,extract:async()=>response([release,call])});
+  assert.equal(first.created,2);
+  const receipt=[...fake.rows.entries()].find(([,row])=>row.type==='calendar_extraction')!;
+  fake.rows.set(receipt[0],{...receipt[1],status:'review_required',error:'Market session is not established by the source',eventIds:[]});
+  for(const [path,row] of fake.rows)if(row.type==='scheduled_event')fake.rows.delete(path);
+  const result=await processCalendarSource(fake.db,nowSource,{now:fake.now,download:async()=>article,revalidateCached:true,extract:async()=>{throw new Error('Must reuse cached response');}});
+  assert.equal(result.status,'complete');assert.equal(result.paid,false);assert.equal(result.created,2);
+  const schedules=[...fake.rows.values()].filter(row=>row.type==='scheduled_event');
+  assert.equal(schedules.find(row=>row.eventKind==='earnings_release')?.scheduled_at,null);
+  assert.equal(schedules.find(row=>row.eventKind==='earnings_call')?.scheduled_at,'2026-10-28T21:00:00.000Z');
+  assert.equal([...fake.rows.keys()].filter(path=>path.startsWith('openai_usage_events/')).length,1);
+  assert.throws(()=>normalizeSchedules({events:[{...release,timeSlot:'before_market'}]},nowSource,article,'hash','gpt-6-luna','2026-10-07T16:00:00Z'),/Market session/);
+
+  const event:IntelligenceEvent={id:'news-'+nowSource.id,origin:'US:NOW',companyIds:['US:NOW'],edgeIds:[],category:'BUSINESS',title:nowSource.title,summary:'',published_at:nowSource.published_at,publication_date:'2026-10-07',eventDate:null,planned:false,
+    evidence:[{id:nowSource.id,url:nowSource.url,title:nowSource.title,sourceDate:'2026-10-07',channel:'IR'}]};
+  const readDb=Object.assign(fake.db,{getAll:(...refs:Array<{get:()=>Promise<unknown>}>)=>Promise.all(refs.map(ref=>ref.get()))}) as Firestore;
+  const linked=await attachCalendarLinks(readDb,[event]);
+  assert.equal(linked[0].calendarEvents?.length,2);assert(linked[0].calendarEvents?.every(link=>link.day==='2026-10-28'&&link.companyId==='US:NOW'));
+  for(const [path,row] of fake.rows)if(row.type==='scheduled_event')fake.rows.set(path,{...row,type:'calendar_review'});
+  assert.equal((await attachCalendarLinks(readDb,[event]))[0].calendarEvents,undefined);
+  fake.rows.set(receipt[0],{...receipt[1],status:'review_required'});
+  assert.equal((await attachCalendarLinks(readDb,[event]))[0].calendarEvents,undefined);
 });
 
 test('AMD call referring to these results uses its verified fiscal-period context',()=>{
@@ -114,14 +150,20 @@ test('concurrent and duplicate documents make one paid request, store schedules 
   await processCalendarSource(fake.db,alias,{...deps,download:async()=>text});
   assert.equal(fake.rows.get('events/'+schedules[0].id)?.status,'cancelled');assert.equal(calls,2);
 });
-test('validation and HTTP failures record usage without automatically paying for the same content again',async()=>{
+test('validation warnings create schedules and HTTP failures record usage without automatically paying twice',async()=>{
   for(const fail of ['validation','http']){
     const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);let calls=0;
     const deps={now:fake.now,download:async()=>text,extract:async()=>{calls++;if(fail==='http')throw new Error('HTTP 429');return response([{...draft,date:'2026-11-17'}]);}};
     await processCalendarSource(fake.db,source,deps);fake.advance(86400001);await processCalendarSource(fake.db,source,deps);
-    assert.equal(calls,1);assert.equal([...fake.rows.values()].filter(row=>row.type==='scheduled_event').length,0);
+    assert.equal(calls,1);assert.equal([...fake.rows.values()].filter(row=>row.type==='scheduled_event').length,fail==='validation'?1:0);
+    if(fail==='validation'){
+      const event=[...fake.rows.values()].find(row=>row.type==='scheduled_event')!;
+      assert.equal(event.confirmation,'extracted');assert.equal(event.scheduled_date,'2026-11-17');
+      assert.deepEqual(event.validationWarnings,['Event date is not established by the source']);
+    }
     const usage=[...fake.rows.entries()].find(([path])=>path.startsWith('openai_usage_events/'))![1];
     assert.equal(usage.estimatedCostUsd,fail==='http'?null:0.000305);
+    if(fail==='validation')assert.equal((usage.metadata as Record<string,unknown>).validationStatus,'warning');
   }
   const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);
   await processCalendarSource(fake.db,source,{now:fake.now,download:async()=>text,extract:async()=>response()});
@@ -156,7 +198,7 @@ test('cached revalidation retires rejected event associations and restores indep
       const other={...source,id:'independent_source',url:source.url+'-other',published_at:'2026-10-01T15:00:00Z'};
       fake.rows.set('events/'+other.id,other);await processCalendarSource(fake.db,other,deps);
     }
-    fake.rows.set(receipt[0],{...receipt[1],output:response([{...draft,date:'2026-11-17'}]).output});
+    fake.rows.set(receipt[0],{...receipt[1],output:response([{...draft,date:'2026-11-99'}]).output});
     const before=calls;
     assert.equal((await processCalendarSource(fake.db,source,{...deps,revalidateCached:true})).status,'review_required');
     assert.equal(calls,before);
@@ -168,6 +210,19 @@ test('cached revalidation retires rejected event associations and restores indep
     assert.equal(charges.length,before);assert(charges.every(cost=>cost===0.000305));
   }
 });
+test('warnings preserve independently extracted activities, missing periods, and local times without inventing invalid dates',()=>{
+  const result=normalizeExtractedSchedules({events:[{...draft,kind:'earnings_release',period:'FY2027-Q2'},draft]},source,text,'hash','gpt-6-luna','2026-10-02T12:00:00Z');
+  assert.equal(result.schedules.length,2);assert.equal(result.schedules[0].confirmation,'extracted');
+  assert.match(result.schedules[0].validationWarnings![0],/quarter/);assert.equal(result.schedules[1].confirmation,'official');
+  const partial=normalizeExtractedSchedules({events:[{...draft,date:null,kind:'earnings_release'},draft]},source,text,'hash','gpt-6-luna','2026-10-02T12:00:00Z');
+  assert.equal(partial.schedules.length,1);assert.equal(partial.unusable,false);assert.equal(partial.warnings.length,1);
+  const unknown=normalizeExtractedSchedules({events:[{...draft,period:null}]},source,text,'hash','gpt-6-luna','2026-10-02T12:00:00Z');
+  assert.equal(unknown.schedules.length,1);assert.equal(unknown.schedules[0].fiscalPeriod,'Unspecified');
+  const dst=normalizeExtractedSchedules({events:[{...draft,date:'2026-11-01',time:'01:30',timezoneText:'ET'}]},source,text,'hash','gpt-6-luna','2026-10-02T12:00:00Z');
+  assert.equal(dst.schedules[0].scheduled_at,null);assert.equal(dst.schedules[0].local_time,'01:30');
+  assert(dst.schedules[0].validationWarnings!.some(message=>message.includes('Ambiguous')));
+});
+
 test('a failed commit retries persistence only, never the provider call',async()=>{
   const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);let rejects=0,calls=0;
   fake.reject((path)=>path.startsWith('openai_usage_events/')&&rejects++===0);

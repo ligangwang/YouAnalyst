@@ -102,7 +102,6 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
 const primaryNavItems = [
   { href: "/?view=graph", label: "Explore" },
   { href: "/companies", label: "Companies" },
-  { href: "/feed", label: "Feed" },
   { href: "/calendar", label: "Calendar" },
   { href: "/watchlists/following", label: "Following" },
 ];
@@ -113,6 +112,7 @@ function isPrimaryNavActive(pathname: string, href: string): boolean {
   return pathname === section || pathname.startsWith(`${section}/`);
 }
 const secondaryNavItems = [
+  { href: "/feed", label: "Feed" },
   { href: "/intelligence", label: "Investment Intelligence" },
   { href: "/research", label: "Research" },
   { href: "/my/predictions", label: "My ideas" },

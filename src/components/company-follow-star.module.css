@@ -1,0 +1,26 @@
+.star { position: relative; flex-shrink: 0; border-radius: 4px; }
+.star:focus-visible { outline: 2px solid #80ded3; outline-offset: 1px; }
+.star:disabled { cursor: wait; }
+.star > span:first-child { color: inherit; font-size: inherit; }
+.star[aria-busy="true"] > span:first-child { opacity: .55; }
+.star .tooltip, .star .notice {
+  position: absolute; right: calc(100% + 6px); top: 50%; transform: translateY(-50%);
+  z-index: 3; pointer-events: none; padding: 6px 9px; border: 1px solid #37515d;
+  border-radius: 6px; background: #142932; color: #d8f2ee; font-size: 11px;
+  line-height: 1.4; white-space: normal; width: max-content; max-width: 185px;
+  overflow: visible; text-overflow: clip; box-shadow: 0 3px 12px #0005;
+}
+.star .tooltip { visibility: hidden; opacity: 0; transition: opacity .12s; }
+.star[data-feedback="false"]:hover .tooltip,
+.star[data-feedback="false"]:focus-visible .tooltip { visibility: visible; opacity: 1; }
+.star .error { border-color: #9b5561; color: #ffc4ce; }
+.success { animation: confirmation 2.2s ease both; }
+@keyframes confirmation {
+  0% { opacity: 0; transform: translate(-4px, -50%); }
+  8%, 82% { opacity: 1; transform: translate(0, -50%); }
+  100% { opacity: 0; transform: translate(0, -50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .success { animation: none; }
+  .star .tooltip { transition: none; }
+}

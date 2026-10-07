@@ -4,3 +4,8 @@
 
 .agenda{scroll-margin-top:90px}
 .scheduleLabel{color:#91a9b9}.scheduleStatus{color:#ffc67c;font-size:inherit}.cancelledSchedule{opacity:.65}
+.linkedEvent { outline:2px solid #98e7d6; outline-offset:2px; }
+.validationWarning { display:inline-block;color:#ffc67c;font-size:11px;margin-top:4px; }
+.validationDetails { color:#ffc67c;font-size:12px;line-height:1.5;margin-block:8px; }
+.validationDetails summary { cursor:pointer; }
+.validationDetails p,.validationDetails ul { margin-top:6px; }

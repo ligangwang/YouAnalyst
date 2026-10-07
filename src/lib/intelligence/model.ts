@@ -3,10 +3,12 @@ import type { KnowledgeGraph } from '../knowledge-graph/model';
 export const INTELLIGENCE_SOURCES = ['SEC','IR','Exchange','GitHub','X','Reddit','Other'] as const;
 export type IntelligenceSource = typeof INTELLIGENCE_SOURCES[number];
 export type IntelligenceEvidence = { id:string; url:string; title:string; sourceDate:string|null; channel:IntelligenceSource };
+export type IntelligenceCalendarEvent = { id:string; companyId:string; day:string; validationWarning?:boolean };
 export type IntelligenceEvent = {
   id:string; origin:string; companyIds:string[]; edgeIds:string[]; category:'FILING'|'RESEARCH'|'BUSINESS';
   title:string; summary:string; published_at:string|null; publication_date:string; eventDate:string|null;
   evidence:IntelligenceEvidence[]; planned:boolean;
+  calendarEvents?:IntelligenceCalendarEvent[];
 };
 export type IntelligenceSourceDocument = {id:string;channel:IntelligenceSource;companyIds:string[];published_at:string|null;publication_date:string};
 export type IntelligenceSnapshot = { eventReturns?: Record<string,import("./price-performance").EventPriceReturn[]>;

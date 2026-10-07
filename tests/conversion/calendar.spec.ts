@@ -4,6 +4,26 @@ import {shiftDay} from '../../src/lib/calendar/display';
 
 let html:string;
 test.beforeAll(async()=>{html=await calendarFixtureHtml();});
+test('a news calendar link opens the specified day and company in the agenda',async({page})=>{
+  const day='2026-11-03';
+  const linked={...calendarFixtures[0],scheduled_date:day,scheduled_at:`${day}T21:00:00Z`,confirmation:'extracted',validationWarnings:['Market session is not established by the source']};
+  await page.route('http://calendar.test/**',route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname==='/api/calendar')return route.fulfill({json:{events:[linked],total:1,truncated:false,from:url.searchParams.get('from'),to:url.searchParams.get('to'),lastCollectedAt:null,collectionStatus:'complete'}});
+    return route.fulfill({contentType:'text/html',body:html});
+  });
+  await page.goto(`http://calendar.test/?date=${day}&company=US%3ANVDA&event=${linked.id}`);
+  await expect(page.getByRole('heading',{name:'November 2026'})).toBeVisible();
+  await expect(page.getByRole('searchbox')).toHaveValue('NVDA');
+  const agenda=page.getByRole('complementary',{name:'Selected day agenda'});
+  await expect(agenda.getByRole('heading',{name:'Tuesday, Nov 3'})).toBeVisible();
+  await expect(agenda.getByRole('article')).toContainText('NVDA');
+  await expect(agenda.getByRole('article')).toHaveClass(/linkedEvent/);
+  await expect(agenda.getByText('⚠ Validation warning')).toBeVisible();
+  await expect(agenda.getByText('AI extracted',{exact:true})).toBeVisible();
+  await agenda.getByText('View validation warning',{exact:true}).click();
+  await expect(agenda.getByText('Market session is not established by the source',{exact:true})).toBeVisible();
+});
 test('month and week handle crowded dates, theme overlap, source links and a failed refresh without losing the page',async({page})=>{
   // Start in another week of the same month so switching views must follow the selected day.
   const fixtureDate=new Date(`${fixtureDay}T16:00:00Z`);

@@ -25,7 +25,7 @@ export async function loadCalendar(from: string, to: string, db: Firestore = get
   const events: CalendarItem[] = snapshot.docs.flatMap(doc=>{
     const event = {...doc.data(),id:doc.id} as ScheduledEvent;
     const node = nodes.get(event.companyId);
-    if(!node || event.confirmation!=='official')return [];
+    if(!node || !['official','extracted'].includes(event.confirmation))return [];
     const record=records.get(node.id);
     const themes=activeThemeIds({themeMemberships:record?.themeMemberships});
     if(!record?.themeMemberships?.ai && !themes.includes('ai') && node.stageIds?.some(stage=>!stage.includes(':')))themes.push('ai');

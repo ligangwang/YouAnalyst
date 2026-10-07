@@ -12,6 +12,7 @@ events[199]={...events[199],origin:'US:LITE',companyIds:['US:LITE'],title:'Lumen
 const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],sources:[]},graphVersion:'fixture',events,generatedAt:'2026-10-04T16:00:00Z',session:{date:'2026-10-04',timeZone:'America/New_York',startAt:'2026-10-04T04:00:00Z',endAt:'2026-10-05T04:00:00Z'},coverage:[{channel:'IR',status:'connected'}],sourceDocuments:Array.from({length:350},(_,i)=>({id:`https://investors.example.com/${i}`,channel:'IR',companyIds:['US:MU'],published_at:null,publication_date:'2026-10-02'})),statisticsComplete:true,warnings:[],truncated:true,limit:200} as IntelligenceSnapshot;
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
+snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
 async function workspaceFixture(realCharts=false){
   return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(snapshot)}}/>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     build.onResolve({filter:realCharts?/(?:locale-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
@@ -26,6 +27,21 @@ async function open(page:import('@playwright/test').Page,zh=false){
   await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404,body:''}));
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
+
+test('news calendar icon links only confirmed schedules and does not select the news',async({page},info)=>{
+  await open(page,info.project.name==='mobile');
+  const link=page.getByRole('link',{name:info.project.name==='mobile'?'查看日历活动 · 2026-10-28':'View calendar event · 2026-10-28',exact:true});
+  await expect(link).toHaveCount(1);
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('href',/\/calendar\?date=2026-10-28&company=US%3AMU&event=scheduled_event_micron_release$/);
+  expect(await link.evaluate(element=>element.closest('button')===null)).toBe(true);
+  await link.locator('..').locator('..').screenshot({path:info.outputPath('news-calendar-link.png')});
+  await link.click();
+  await expect(page).toHaveURL(/calendar\?date=2026-10-28&company=US%3AMU&event=scheduled_event_micron_release$/);
+  // The fixture keeps Explore mounted on navigation; its calendar company
+  // query can select MU, but clicking the icon must not activate the news.
+  await expect(page.getByRole('button',{name:/Published company update 1 /})).toHaveAttribute('aria-pressed','false');
+});
 
 test('committed theme changes restart real chart tours and tree growth without replacing the workspace',async({page},info)=>{
   test.skip(info.project.name!=='desktop','One shared chart lifecycle regression');test.setTimeout(60000);
@@ -223,7 +239,8 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await expect(page.getByRole('button',{name:'Replay',exact:true})).toHaveCount(0);
   await expect(page.getByRole('slider')).toHaveCount(0);
   const workspace=await page.locator('main').elementHandle();
-  await page.getByRole('button',{name:'Save MU',exact:true}).click();
+  await page.getByRole('button',{name:'Follow MU',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'MU followed'})).toBeVisible();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await page.getByPlaceholder('Search company / ticker').fill('MU');
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('robotics');
@@ -267,5 +284,5 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await page.getByRole('button',{name:'Components & subsystems 1',exact:true}).click();
   await expect(page.locator('[data-list-company="US:RKLB"]')).toBeVisible();
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('ai');
-  await expect(page.locator('[data-list-company]')).toHaveCount(4);await expect(page.getByRole('button',{name:'Unsave MU',exact:true})).toBeVisible();
+  await expect(page.locator('[data-list-company]')).toHaveCount(4);await expect(page.getByRole('button',{name:'Unfollow MU',exact:true})).toBeVisible();
 });

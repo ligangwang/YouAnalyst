@@ -6,7 +6,7 @@ export function easternDay(instant:string) {
   const get=(key:string)=>parts.find(part=>part.type===key)?.value;
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
-export const eventDay = (event:CalendarItem) => event.scheduled_at?easternDay(event.scheduled_at):event.scheduled_date;
+export const eventDay = (event:Pick<CalendarItem,'scheduled_at'|'scheduled_date'>) => event.scheduled_at?easternDay(event.scheduled_at):event.scheduled_date;
 export function visibleDays(anchor:string,view:'month'|'week') {
   const day=view==='month'?`${anchor.slice(0,7)}-01`:anchor;
   const weekday=(new Date(`${day}T12:00:00Z`).getUTCDay()+6)%7;

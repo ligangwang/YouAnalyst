@@ -125,7 +125,7 @@ export function normalizeSchedules(value: unknown, source: CalendarSource, text:
     if (half && !(half === '1' ? /first half|half.year|H1\b|半年度|上半年/i : /second half|H2\b|下半年/i).test(fiscalEvidence)) throw new Error('Fiscal half-year is not supported by source evidence');
     if (!quarter && !half && !/full.year|fiscal year|annual|年度/i.test(fiscalEvidence)) throw new Error('Annual period is not supported by source evidence');
     const timeEvidence = literalQuote(item.timeEvidence,text,item.time!==null);
-    if (item.timeSlot !== 'unspecified' && !(item.timeSlot === 'before_market' ? /(?:before|prior to).{0,25}(?:market|trading).{0,15}(?:open|begin)|before the opening|盘前/i : /after.{0,25}(?:market|trading).{0,15}(?:clos|end)|after the close|盘后/i).test(timeEvidence || dateEvidence)) throw new Error('Market session is not established by the source');
+    if (item.timeSlot !== 'unspecified' && !(item.timeSlot === 'before_market' ? /(?:before|prior to).{0,25}(?:market|trading).{0,15}(?:open|begin)|before the opening|盘前/i : /(?:after|following).{0,25}(?:market|trading).{0,15}(?:clos|end)|(?:after|following).{0,25}(?:close|end)\s+of\s+(?:the\s+)?(?:market|trading)|after the close|盘后/i).test(timeEvidence || dateEvidence)) throw new Error('Market session is not established by the source');
     if (!validDate(item.date) || !datesWithPublicationContext(dateEvidence,published).has(item.date!)) throw new Error('Event date is not established by the source');
     const day = item.date!;
     if (/replay|archive|recording|回放|录像|錄像/i.test(dateEvidence) && !/will (?:hold|host)|will begin|(?:召开|举行)时间/i.test(dateEvidence)) throw new Error('Replay availability is not an earnings event');
@@ -158,6 +158,51 @@ export function normalizeSchedules(value: unknown, source: CalendarSource, text:
     });
   }
   return [...output.values()];
+}
+
+/** Evidence checks are advisory. A usable extracted date still creates an event. */
+export function normalizeExtractedSchedules(value:unknown,source:CalendarSource,text:string,contentHash:string,model:string,at:string) {
+  const payload=value as {events?:unknown};
+  if(!payload||!Array.isArray(payload.events)||payload.events.length>8)throw new Error('Invalid extracted events');
+  const companyId=source.companyId??source.companyIds[0];
+  const published=source.publication_date??source.published_at?.slice(0,10);
+  if(!companyId||source.companyIds.length!==1||companyId!==source.companyIds[0]||!validDate(published))throw new Error('Calendar source identity or publication date unavailable');
+  const schedules=new Map<string,ScheduledEvent>(),warnings:string[]=[];
+  for(const [index,raw] of payload.events.entries()) {
+    const item=raw as ScheduleDraft;
+    let schedule:ScheduledEvent;
+    try {schedule=normalizeSchedules({events:[item]},source,text,contentHash,model,at)[0];}
+    catch(error) {
+      const message=error instanceof Error?error.message:'Schedule validation failed';
+      warnings.push(`Event ${index+1}: ${message}`);
+      // Missing dates and unknown activity kinds cannot be placed on a calendar.
+      // Skip only that record; other extracted activities still get created.
+      if(!item||!validDate(item.date)||!['earnings_release','earnings_call'].includes(item.kind))continue;
+      const eventWarnings=[message];
+      const period=typeof item.period==='string'&&item.period.trim()?item.period.slice(0,100):'Unspecified';
+      const time=typeof item.time==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time)?item.time:null;
+      const timezoneText=typeof item.timezoneText==='string'?item.timezoneText.slice(0,100):null;
+      const zone=scheduleTimezone(timezoneText);
+      let instant:string|null=null;
+      if(time&&zone)try {instant=scheduleInstant(item.date!,time,zone);}catch(error){eventWarnings.push(error instanceof Error?error.message:'Time conversion unavailable');}
+      const id=eventDocumentId('scheduled_event',hash(`${companyId}|${period==='Unspecified'?source.id:period}|${item.kind}`));
+      schedule={version:1,id,type:'scheduled_event',sourceType:source.sourceType,sourceId:source.sourceId,companyId,companyIds:[companyId],
+        title:`${companyId.split(':')[1]} · ${period} ${item.kind==='earnings_call'?'earnings call':'earnings release'}`,
+        summary:source.title,url:source.url,published_at:source.published_at,publication_date:published!,collected_at:source.collected_at,processed_at:at,baseline:source.baseline,
+        eventKind:item.kind,fiscalPeriod:period,scheduled_date:item.date!,scheduled_at:instant,local_time:time,source_timezone:zone,timezone_text:timezoneText,
+        time_precision:instant?'exact':time?'local':'date',timeSlot:['before_market','after_market'].includes(item.timeSlot)?item.timeSlot:'unspecified',
+        status:['rescheduled','cancelled'].includes(item.status)?item.status:'scheduled',confirmation:'extracted',validationWarnings:eventWarnings,sourceEventIds:[source.id],
+        dateEvidence:typeof item.dateEvidence==='string'?item.dateEvidence:'',timeEvidence:typeof item.timeEvidence==='string'?item.timeEvidence:'',periodEvidence:typeof item.periodEvidence==='string'?item.periodEvidence:'',
+        announcement_date:published!,extractionModel:model,contentHash};
+    }
+    const previous=schedules.get(schedule.id);
+    if(previous){
+      const message='Conflicting schedules for the same fiscal event';
+      warnings.push(`Event ${index+1}: ${message}`);
+      schedules.set(previous.id,{...previous,confirmation:'extracted',validationWarnings:[...new Set([...(previous.validationWarnings??[]),message])]});
+    }else schedules.set(schedule.id,schedule);
+  }
+  return {schedules:[...schedules.values()],warnings,unusable:payload.events.length>0&&schedules.size===0};
 }
 
 const nullableString = {type:['string','null']};
