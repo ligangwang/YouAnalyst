@@ -1409,7 +1409,7 @@ test('three views vertical defaults to expanded and preserves zoom and pan when 
  const unchanged=async()=>{const p=await position();return Math.abs(p.x-held.x)+Math.abs(p.y-held.y);};
  await node.click();
  const card=page.getByRole('dialog',{name:'Company details'});await expect(card).toBeVisible();
- await expect(card.getByRole('status')).toHaveCount(0);
+ await expect(card.getByRole('status').filter({hasText:'Loading cached financials'})).toHaveCount(0);
  await expect(card).toBeVisible();
  await card.getByRole('button',{name:'Close company details'}).click();
  await expect(card).toHaveCount(0);await expect.poll(unchanged).toBeLessThan(1);

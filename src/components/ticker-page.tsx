@@ -165,7 +165,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
 
 
 
-      <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
+      <section id="community-calls" className="mt-4 scroll-mt-32 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Community position history"} /></h2>
         <p className="mb-3 mt-1 text-sm text-slate-400"><UiText text={"See who turned bullish or bearish, when their position opened, and how it has performed."} /></p>
         <div className="grid gap-2">

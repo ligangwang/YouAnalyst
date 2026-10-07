@@ -38,3 +38,13 @@ test("closing calls remain visible and an archived list does not become default"
   assert.equal(call.cancelUntil, null);
   assert.equal(call.entryPrice, null);
 });
+
+test("owned calls expose only finite recorded mark performance", () => {
+  const [call] = companyCallsForViewer("owner", "AMD", [{ id: "mark", data: { ...data, markPrice: 165, markPriceDate: "2026-09-10", markReturnValue: .1 } }], lists);
+  assert.equal(call.markPrice, 165);
+  assert.equal(call.markPriceDate, "2026-09-10");
+  assert.equal(call.markReturnValue, .1);
+  const [invalid] = companyCallsForViewer("owner", "AMD", [{ id: "mark", data: { ...data, markPrice: NaN, markReturnValue: Infinity } }], lists);
+  assert.equal(invalid.markPrice, null);
+  assert.equal(invalid.markReturnValue, null);
+});

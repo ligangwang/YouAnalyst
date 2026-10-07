@@ -2,7 +2,7 @@
 
 import { useUiText } from "@/components/ui-text";
 
-import Link from "next/link";
+import { LocalizedLink as Link } from "./localized-link";
 import { useAuth } from "@/components/providers/auth-provider";
 import { predictionSignInHref } from "@/lib/auth-continuation";
 import { trackEvent } from "@/lib/analytics";
@@ -11,7 +11,6 @@ export function CompanyDirectionActions({ ticker, entryPoint = "company" }: { ti
   const ui = useUiText();
   const { user, loading } = useAuth();
   return <div className="flex flex-wrap gap-2" role="group" aria-label={ui(`Track ${ticker}`)}>
-    <Link href={"/predictions/new?ticker=" + encodeURIComponent(ticker)} className="inline-flex min-h-11 items-center rounded-lg border border-cyan-400/50 px-4 text-cyan-200">{ui("Post an article")}</Link>
     {(["UP", "DOWN"] as const).map(direction => {
       const label = direction === "UP" ? "Bullish" : "Bearish";
       const destination = `/predictions/new?${new URLSearchParams({ ticker, direction })}`;
@@ -21,5 +20,6 @@ export function CompanyDirectionActions({ ticker, entryPoint = "company" }: { ti
         {ui(label)}
       </Link>;
     })}
+    <Link href={"/predictions/new?ticker=" + encodeURIComponent(ticker)} className="inline-flex min-h-11 items-center px-2 text-xs text-cyan-200">{ui("Post an article")}</Link>
   </div>;
 }

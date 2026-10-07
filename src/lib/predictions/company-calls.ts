@@ -4,6 +4,7 @@ export type CompanyCall = {
   id: string; watchlistId: string; watchlistName: string; isDefault: boolean; visibility: string;
   direction: "UP" | "DOWN"; status: "CREATED" | "OPEN" | "CLOSING";
   createdAt: string; entryDate: string | null; entryPrice: number | null; cancelUntil: string | null;
+  markPrice?: number | null; markPriceDate?: string | null; markReturnValue?: number | null;
 };
 type RecordWithId = { id: string; data: Record<string, unknown> };
 const text = (value: unknown) => typeof value === "string" ? value : "";
@@ -23,6 +24,9 @@ export function companyCallsForViewer(userId: string, ticker: string, prediction
       direction: data.direction as "UP" | "DOWN", status, createdAt,
       entryDate: text(data.entryDate) || null,
       entryPrice: typeof data.entryPrice === "number" && Number.isFinite(data.entryPrice) && data.entryPrice > 0 ? data.entryPrice : null,
+      markPrice: typeof data.markPrice === "number" && Number.isFinite(data.markPrice) && data.markPrice > 0 ? data.markPrice : null,
+      markPriceDate: text(data.markPriceDate) || null,
+      markReturnValue: typeof data.markReturnValue === "number" && Number.isFinite(data.markReturnValue) ? data.markReturnValue : null,
       cancelUntil: status === "CREATED" && Number.isFinite(created) ? new Date(created + 5 * 60_000).toISOString() : null,
     }];
   }).sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
