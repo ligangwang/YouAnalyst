@@ -87,4 +87,6 @@ test('browser downloads are reused without skipping fresh-runner OS setup or rel
  assert(setup.includes('Acquire::https::Timeout "15"'));
  assert(setup.includes('Acquire::Retries "2"'));
  assert(setup.includes('npx playwright install --with-deps --only-shell chromium'));
+ assert(setup.includes('timeout --kill-after=15s 180s'));
+ assert(setup.includes('await chromium.launch()'));
 });
