@@ -1,8 +1,8 @@
-.star { position: relative; flex-shrink: 0; border-radius: 4px; }
+.star { cursor: pointer; position: relative; flex-shrink: 0; border-radius: 4px; }
 .star:focus-visible { outline: 2px solid #80ded3; outline-offset: 1px; }
-.star:disabled { cursor: wait; }
+.star:disabled { cursor: pointer; }
 .star > span:first-child { color: inherit; font-size: inherit; }
-.star[aria-busy="true"] > span:first-child { opacity: .55; }
+
 .tooltip, .star .notice {
   z-index: 3; pointer-events: none; padding: 6px 9px; border: 1px solid #37515d;
   border-radius: 6px; background: #142932; color: #d8f2ee; font-size: 11px;

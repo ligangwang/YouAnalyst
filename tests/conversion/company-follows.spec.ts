@@ -130,6 +130,8 @@ test("company star confirms saved changes, blocks repeat writes, and restores fa
   await star.click();
   await expect(star).toBeDisabled();
   await expect(star).toHaveAttribute("aria-pressed", "true");
+  expect(await star.evaluate(el => getComputedStyle(el).cursor)).toBe("pointer");
+  expect(await star.locator("span").first().evaluate(el => getComputedStyle(el).opacity)).toBe("1");
   await expect(page.getByRole("status")).toHaveCount(0);
   // A duplicate DOM click must also be ignored while the request is pending.
   await star.evaluate(button => (button as HTMLButtonElement).click());
@@ -147,6 +149,8 @@ test("company star confirms saved changes, blocks repeat writes, and restores fa
   await star.click();
   await expect(page.getByRole("alert")).toHaveText("Could not save AMD. Retry.");
   await expect(star).toHaveAttribute("aria-pressed", "true");
+  expect(await star.evaluate(el => getComputedStyle(el).cursor)).toBe("pointer");
+  expect(await star.locator("span").first().evaluate(el => getComputedStyle(el).opacity)).toBe("1");
   await expect(star).toBeEnabled();
   fail = false;
   await star.click();
