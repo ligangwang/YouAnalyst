@@ -21,6 +21,28 @@ test("publication failures preserve the original request and confirmed retries r
   assert.deepEqual(sent[0], sent[1]);
   await queueEodMaintenance({ ...input, runDate: "2026-01-03" }, f.db, async () => {});
 });
+
+test("US scheduled deliveries have distinct identities but retry each delivery only once", async () => {
+  const f = pubsubFirestore();
+  const messages: EodRequest[] = [];
+  for (const scheduledBatch of ["1630", "2000"] as const) {
+    await queueEodMaintenance({ ...input, scheduledBatch }, f.db, async r => { messages.push(r); });
+    const run = async (value: DailyEodMaintenanceInput = {}) => {
+      assert.equal(value.scheduledBatch, scheduledBatch);
+      assert.equal(value.loadPrices, undefined);
+      assert.equal(value.markPredictions, undefined);
+      return result();
+    };
+    await processEodMaintenance(messages.at(-1), f.db, f.log, { run });
+    await queueEodMaintenance({ ...input, scheduledBatch }, f.db, async r => {
+      assert.deepEqual(r, messages.at(-1));
+      assert.equal((await processEodMaintenance(r, f.db, f.log, { run })).duplicate, true);
+    });
+  }
+  assert.notEqual(messages[0].batchId, messages[1].batchId);
+  for (const extra of [{scheduledBatch: "1200"}, {scheduledBatch: "1630", market: "CN_A"}, {scheduledBatch: "1630", rollForward: true}])
+    assert.throws(() => eodQueueInput({...input, ...extra} as DailyEodMaintenanceInput), /Invalid/);
+});
 test("worker checkpoints every page, deduplicates completed delivery, and does not reset completed scheduler requests", async () => {
   const f = await fixture(), calls: DailyEodMaintenanceInput[] = [];
   const run = async (i: DailyEodMaintenanceInput = {}) => { assert.equal(i.skipHistoryBackfill,undefined);calls.push(i); return result(calls.length === 1); };

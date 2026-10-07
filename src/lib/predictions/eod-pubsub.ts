@@ -30,11 +30,12 @@ export function eodQueueInput(value: DailyEodMaintenanceInput): Input {
   if (value.tickers !== undefined && (!Array.isArray(value.tickers) || value.tickers.length > 500
     || value.tickers.some(ticker => typeof ticker !== "string" || predictionInstrument(ticker)?.market !== market))) throw invalid();
   if (value.trigger !== undefined && value.trigger !== "admin") throw invalid();
+  if (value.scheduledBatch !== undefined && (market !== "US" || !["1630", "2000"].includes(value.scheduledBatch) || value.rollForward || value.trigger)) throw invalid();
   if (value.requestedBy !== undefined && (typeof value.requestedBy !== "string" || !value.requestedBy || value.requestedBy.length > 128)) throw invalid();
   return JSON.parse(JSON.stringify({ market, runDate, limit: Math.min(value.limit ?? 50, 50),
     tickers: value.tickers, loadPrices: value.loadPrices, markPredictions: value.markPredictions,
     rollForward: value.rollForward, rollForwardBatchSize: Math.min(value.rollForwardBatchSize ?? 5, 20),
-    recompute: value.recompute, trigger: value.trigger, requestedBy: value.requestedBy }));
+    recompute: value.recompute, trigger: value.trigger, requestedBy: value.requestedBy, scheduledBatch: value.scheduledBatch }));
 }
 export function parseEodRequest(value: unknown): EodRequest {
   const v = value as Partial<EodRequest> | null;

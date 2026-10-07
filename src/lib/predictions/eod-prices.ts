@@ -34,6 +34,8 @@ const DEFAULT_ROLL_FORWARD_BATCH_SIZE = 5;
 const MAX_ROLL_FORWARD_BATCH_SIZE = 20;
 
 export type DailyEodMaintenanceInput = {
+  /** Separates scheduler retries from the other daily delivery; processing is identical. */
+  scheduledBatch?: "1630" | "2000";
   trigger?: "admin";
   /** Internal queue cursor; never accepted from public request bodies. */
   afterPredictionId?: string;
@@ -717,14 +719,14 @@ async function fetchEodhdBulkEodPrices(
   };
 }
 
-export async function fetchChinaEodPrices(tickers: string[], requestedDate: string, loadedAt: string): Promise<EodPriceFetchResult> {
+export async function fetchEodhdDailyPrices(tickers: string[], requestedDate: string, loadedAt: string, market: PredictionMarket): Promise<EodPriceFetchResult> {
   const result: EodPriceFetchResult = { provider: "eodhd-eod", prices: [], failures: [], rawGcsPath: null, rawCacheHit: false };
   const apiToken = process.env.EODHD_API_TOKEN?.trim();
   for (const group of chunk(tickers, 8)) {
     await Promise.all(group.map(async ticker => {
       const instrument = predictionInstrument(ticker);
-      if (!apiToken || instrument?.market !== "CN_A") {
-        result.failures.push({ ticker, reason: !apiToken ? "eodhd_not_configured" : "invalid_a_share_symbol" });
+      if (!apiToken || instrument?.market !== market) {
+        result.failures.push({ ticker, reason: !apiToken ? "eodhd_not_configured" : market === "CN_A" ? "invalid_a_share_symbol" : "invalid_us_symbol" });
         return;
       }
       try {
@@ -739,7 +741,7 @@ export async function fetchChinaEodPrices(tickers: string[], requestedDate: stri
         const row = Array.isArray(rows) ? rows.find(r => r && r.date === requestedDate) : undefined;
         const parsed = parseEodhdBulkPrice(ticker, requestedDate, loadedAt, row);
         if ("reason" in parsed) result.failures.push(parsed);
-        else result.prices.push({ ...parsed, market: "CN_A", source: "eodhd-eod", providerSymbol: instrument.providerSymbol, exchange: instrument.exchange, micCode: instrument.exchange, exchangeTimezone: instrument.timeZone });
+        else result.prices.push({ ...parsed, market, source: "eodhd-eod", providerSymbol: instrument.providerSymbol, exchange: instrument.exchange, micCode: instrument.exchange, exchangeTimezone: instrument.timeZone });
       } catch {
         // Do not leak an authenticated provider URL, or send an A-share symbol to a US fallback.
         result.failures.push({ ticker, reason: "eodhd_request_failed" });
@@ -747,6 +749,10 @@ export async function fetchChinaEodPrices(tickers: string[], requestedDate: stri
     }));
   }
   return result;
+}
+
+export async function fetchChinaEodPrices(tickers: string[], requestedDate: string, loadedAt: string): Promise<EodPriceFetchResult> {
+  return fetchEodhdDailyPrices(tickers, requestedDate, loadedAt, "CN_A");
 }
 
 async function fetchEodPrices(
@@ -1502,7 +1508,11 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       priceLoad.cacheHits = cachedPrices.size;
 
       const tickersToFetch = requestedTickers.filter((ticker) => !cachedPrices.has(ticker));
-      const fetched = await (market === "CN_A" ? fetchChinaEodPrices(tickersToFetch, runDate, nowIso) : fetchEodPrices(tickersToFetch, runDate, nowIso));
+      // Both US schedules fetch only gaps, directly from the provider. An earlier
+      // incomplete exchange-wide GCS snapshot cannot hide newly available prices.
+      const fetched = await (input.scheduledBatch
+        ? fetchEodhdDailyPrices(tickersToFetch, runDate, nowIso, market)
+        : market === "CN_A" ? fetchChinaEodPrices(tickersToFetch, runDate, nowIso) : fetchEodPrices(tickersToFetch, runDate, nowIso));
       const loadedPrices = await withTickerDailyReturns(db, [...cachedPrices.values(), ...fetched.prices]);
       priceLoad.provider = fetched.provider;
       priceLoad.rawGcsPath = fetched.rawGcsPath;
