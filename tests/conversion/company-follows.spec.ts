@@ -40,12 +40,12 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
 test.beforeEach(({ page }) => { page.on("pageerror", error => { throw error; }); });
 test.beforeAll(async () => {
   const bundle = await build({ stdin: { contents: `
-    import React, { useSyncExternalStore } from "react";
+    import React, { useSyncExternalStore, useState } from "react";
     import { createRoot } from "react-dom/client";
     import { AuthPage } from "./src/components/auth-page";
     import { CompanyResearchPanel } from "./src/components/company-research-panel";
     import { CompanyFollowButton, useCompanyFollows } from "./src/components/company-follow-button";
-    import { CompanyFollowStar } from "./src/components/company-follow-star";
+    import { CompanyFollowStar, CompanyFollowConfirmation } from "./src/components/company-follow-star";
     import workspaceStyles from "./src/components/investment-intelligence.module.css";
     import { FollowedCompaniesPage } from "./src/components/followed-companies-page";
     import { LocaleProvider } from "./src/components/providers/locale-provider";
@@ -54,7 +54,13 @@ test.beforeAll(async () => {
     const subscribe = fn => { window.addEventListener("route-change",fn); return () => window.removeEventListener("route-change",fn); };
     function StarFixture() {
       const follows = useCompanyFollows();
-      return <div className={workspaceStyles.companyList} style={{width:240,margin:24}}><div><button><strong>AMD</strong><span>Advanced Micro Devices</span></button><CompanyFollowStar label="AMD" followed={follows.ids.includes("US:AMD")} disabled={!follows.ready} onChange={follow=>follows.change("US:AMD",follow)}/></div></div>;
+      const [confirmation,setConfirmation] = useState(null);
+      const watchlist = new URLSearchParams(location.search).has("watchlist");
+      async function change(follow,anchor) {
+        await follows.change("US:AMD",follow);
+        if(watchlist)setConfirmation({label:"AMD",followed:follow,anchor});
+      }
+      return <div className={workspaceStyles.companyList} style={{width:240,margin:24}}>{(!watchlist || follows.ids.includes("US:AMD"))&&<div><button><strong>AMD</strong><span>Advanced Micro Devices</span></button><CompanyFollowStar confirmation={!watchlist} label="AMD" followed={follows.ids.includes("US:AMD")} disabled={!follows.ready} onChange={change}/></div>}{confirmation&&<CompanyFollowConfirmation {...confirmation}/>}</div>;
     }
     function App() {
       const route = useSyncExternalStore(subscribe, () => window.location.pathname+window.location.search);
@@ -89,44 +95,10 @@ test("company star confirms saved changes, blocks repeat writes, and restores fa
   await page.goto(origin + "/en?star");
   const star = page.getByRole("button", { name: /^(Unfollow|Follow) AMD$/ });
   await expect(star).toBeEnabled();
-  if (info.project.name === "desktop") {
-    await star.hover();
-    await expect(page.getByRole("tooltip")).toBeVisible();
-    const bounds = (await star.boundingBox())!;
-    const cursor = {x:bounds.x + bounds.width / 2,y:bounds.y + bounds.height / 2};
-    await page.mouse.move(cursor.x, cursor.y);
-    const hint = (await page.getByRole("tooltip").boundingBox())!;
-    expect(hint.x).toBeGreaterThan(cursor.x);
-    expect(hint.y).toBeGreaterThan(cursor.y);
-    await page.screenshot({path:info.outputPath("company-star-hint.png")});
-    const originalStyle = await star.evaluate(el=>{
-      const panel = el.parentElement!;
-      const original = panel.getAttribute("style");
-      panel.style.cssText = "width:240px;position:fixed;right:0;bottom:0;margin:0";
-      return original;
-    });
-    await star.hover();
-    const edgeButton = (await star.boundingBox())!;
-    const edgeCursor = {x:edgeButton.x + edgeButton.width / 2,y:edgeButton.y + edgeButton.height / 2};
-    await page.mouse.move(edgeCursor.x,edgeCursor.y);
-    const edgeHint = (await page.getByRole("tooltip").boundingBox())!;
-    const viewport = page.viewportSize()!;
-    expect(edgeHint.x + edgeHint.width).toBeLessThan(edgeCursor.x);
-    expect(edgeHint.y + edgeHint.height).toBeLessThan(edgeCursor.y);
-    expect(edgeHint.x).toBeGreaterThanOrEqual(8);
-    expect(edgeHint.y).toBeGreaterThanOrEqual(8);
-    expect(edgeHint.x + edgeHint.width).toBeLessThanOrEqual(viewport.width - 8);
-    expect(edgeHint.y + edgeHint.height).toBeLessThanOrEqual(viewport.height - 8);
-    await star.evaluate((el,original)=>{
-      const panel = el.parentElement!;
-      if(original)panel.setAttribute("style",original);else panel.removeAttribute("style");
-    },originalStyle);
-    await star.hover();
-    expect(await page.getByRole("tooltip").evaluate(el=>getComputedStyle(el).pointerEvents)).toBe("none");
-  }
+  if (info.project.name === "desktop") await star.hover();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await star.focus();
-  await expect(page.getByRole("tooltip")).toBeVisible();
-  await expect(page.getByRole("tooltip")).toHaveText("Follow AMD");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await star.click();
   await expect(star).toBeDisabled();
   await expect(star).toHaveAttribute("aria-pressed", "true");
@@ -170,8 +142,7 @@ test("company star explains its action and confirms changes in Chinese", async (
   });
   await page.goto(origin + "/zh-cn?star");
   await page.getByRole("button", { name: "关注 AMD", exact: true }).focus();
-  await expect(page.getByRole("tooltip")).toHaveText("关注 AMD");
-  await expect(page.getByRole("tooltip")).toBeVisible();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await page.getByRole("button", { name: "关注 AMD", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("已关注 AMD");
   await page.getByRole("button", { name: "取消关注 AMD", exact: true }).click();
@@ -300,4 +271,26 @@ test("signed-out following shows public examples without requesting private upda
  await page.getByRole("button",{name:"Updates",exact:true}).click();
  await expect(preview).toContainText("2024-01-02");
  expect(privateRequests).toBe(0);
+});
+
+test("unfollow confirmation survives a removed watchlist row", async ({page}) => {
+  await page.addInitScript(() => { window.authScenario = {signedIn:true}; });
+  let ids = ["US:AMD"];
+  await page.route("**/*", route => {
+    if(route.request().isNavigationRequest())return route.fulfill({contentType:"text/html",body:html});
+    if(route.request().method()==="PATCH")ids=[];
+    return route.fulfill({json:{companyIds:ids}});
+  });
+  await page.goto(origin+"/en?star&watchlist");
+  const star=page.getByRole("button",{name:"Unfollow AMD",exact:true});
+  const bounds=(await star.boundingBox())!;
+  const anchor={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
+  await star.click();
+  await expect(page.getByRole("button",{name:/^(Unfollow|Follow) AMD$/})).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveText("AMD unfollowed");
+  await expect(page.getByRole("status")).toBeVisible();
+  await expect.poll(()=>page.getByRole("status").evaluate(el=>Number(getComputedStyle(el).opacity))).toBeGreaterThan(.9);
+  const notice=(await page.getByRole("status").boundingBox())!;
+  expect(Math.abs(notice.x-anchor.x-14)).toBeLessThanOrEqual(1);
+  expect(Math.abs(notice.y-anchor.y-14)).toBeLessThanOrEqual(1);
 });

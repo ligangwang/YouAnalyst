@@ -23,7 +23,7 @@ import { parseIndustryView, type IndustryView } from '@/lib/knowledge-graph/view
 import { curatedEvents } from '@/lib/knowledge-graph/curated-events';
 import {ActiveCompanyMeter,PublicationActivity,SourceVolume} from './intelligence-summary-visuals';
 import { useCompanyFollows } from './company-follow-button';
-import { CompanyFollowStar } from './company-follow-star';
+import { CompanyFollowStar, CompanyFollowConfirmation, type FollowFeedbackAnchor } from './company-follow-star';
 import { companyName, companySearchRank, companySearchText, matchesCompanySearch } from '@/lib/knowledge-graph/model';
 import { matchesCompanySector, graphSectors } from '@/lib/knowledge-graph/sectors';
 import { researchCompanyUrl } from '@/lib/knowledge-graph/research-view';
@@ -60,6 +60,8 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const ui=useUiText();
   const follows=useCompanyFollows();
   const [saveError,setSaveError]=useState('');
+  const [followConfirmation,setFollowConfirmation]=useState<{label:string;followed:boolean;id:number;anchor?:FollowFeedbackAnchor}|null>(null);
+  useEffect(()=>{if(!followConfirmation)return;const timer=setTimeout(()=>setFollowConfirmation(null),2200);return()=>clearTimeout(timer);},[followConfirmation]);
   const sectors=graphSectors(theme);
   const name=themeName(theme,chinese);
   const switching=theme!==requestedTheme;
@@ -133,10 +135,11 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   function showEvents(){setRightOpen(true);clearSelection();}
   function focusCompany(id:string){if(!id||id===selected&&!eventId&&!edgeId){clearSelection();return;}clearSelection();setRightOpen(true);setSelected(id);setCamera(value=>value+1);}
   function activate(id:string){const next=snapshot.events.find(item=>item.id===id);if(!next)return;setRightOpen(true);setEventId(id);setSelected(next.origin);setEdgeId('');setCamera(value=>value+1);setPropagating(true);setPulse(value=>value+1);}
-  async function changeSaved(id:string,follow:boolean){
+  async function changeSaved(id:string,follow:boolean,anchor?:FollowFeedbackAnchor){
     setSaveError('');
-    if(!follows.user){setGuestSaved(ids=>follow?(ids.includes(id)?ids:[...ids,id]):ids.filter(item=>item!==id));return;}
-    await follows.change(id,follow);
+    if(!follows.user)setGuestSaved(ids=>follow?(ids.includes(id)?ids:[...ids,id]):ids.filter(item=>item!==id));
+    else await follows.change(id,follow);
+    setFollowConfirmation(current=>({label:label(id),followed:follow,anchor,id:(current?.id??0)+1}));
   }
   async function toggleSaved(id:string){
     try{await changeSaved(id,!saved.includes(id));}catch{setSaveError('Could not save this company. Retry.');}
@@ -158,7 +161,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
       <div className={styles.sectors}>{sectors.map(item=><button key={item.id} aria-pressed={sector===item.id} onClick={()=>{setSector(sector===item.id?'':item.id);clearSelection();setCamera(value=>value+1);}}><span style={{background:item.color}}/>{chinese?item.zh:item.en}<small>{allCompanies.filter(node=>matchesCompanySector(node,item.id)).length}</small></button>)}</div>
       {theme==='ai'&&<nav className={controls.researchShortcuts} aria-label="Research shortcuts"><div className={controls.researchHeading}><UiText text={"RESEARCH"}/>{' '}<Link href="/research"><UiText text={"All ↗"}/></Link></div><Link href="/research/nvidia-ai-ecosystem"><UiText text={"NVIDIA suppliers & ecosystem ↗"}/></Link><Link href="/research/amd-ai-ecosystem"><UiText text={"AMD deployments & ecosystem ↗"}/></Link><button onClick={()=>{setSector('infrastructure');clearSelection();setCamera(value=>value+1);}}><UiText text={"AI infrastructure bottlenecks →"}/></button></nav>}
       <div className={styles.listTabs}><button aria-pressed={tab==='all'} onClick={()=>{setTab('all');clearSelection();}}><UiText text={"Companies"}/></button><button aria-pressed={tab==='watchlist'} onClick={()=>{setTab('watchlist');clearSelection();}}><UiText text={"Watchlist"}/>{' '}<small>{saved.length}</small></button></div>
-      <div className={styles.companyList}>{companies.map(node=><div key={node.id} className={selected===node.id?styles.selectedCompany:undefined}><button onClick={()=>focusCompany(node.id)}><strong>{node.symbol||node.name}</strong><span>{companyName(node,locale)}</span></button><CompanyFollowStar key={`${node.id}:${follows.user?.uid??'guest'}`} label={node.symbol||node.name||node.id} followed={saved.includes(node.id)} disabled={follows.loading||Boolean(follows.user)&&!follows.ready} onChange={follow=>changeSaved(node.id,follow)}/></div>)}{!companies.length&&<p className={styles.empty}><UiText text={"No matching companies."}/></p>}</div>
+      <div className={styles.companyList}>{companies.map(node=><div key={node.id} className={selected===node.id?styles.selectedCompany:undefined}><button onClick={()=>focusCompany(node.id)}><strong>{node.symbol||node.name}</strong><span>{companyName(node,locale)}</span></button><CompanyFollowStar confirmation={false} key={`${node.id}:${follows.user?.uid??'guest'}`} label={node.symbol||node.name||node.id} followed={saved.includes(node.id)} disabled={follows.loading||Boolean(follows.user)&&!follows.ready} onChange={(follow,anchor)=>changeSaved(node.id,follow,anchor)}/></div>)}{!companies.length&&<p className={styles.empty}><UiText text={"No matching companies."}/></p>}</div>
       <div className={styles.leftFoot}><UiText text={saveError||(!follows.user&&saved.length?'Session watchlist · sign in to persist':'Company universe with published sources')}/></div>
       </div>
     </aside>
@@ -185,5 +188,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
 
       </div><details className={styles.rightFoot}><summary>{chinese?'来源状态':'Source status'}{(!snapshot.statisticsComplete||snapshot.warnings.length>0)?' · ◐':''}</summary><p><UiText text={"Counts deduplicate source documents."}/></p>{snapshot.truncated&&<p>{chinese?`列表显示最新 ${snapshot.limit} 条；统计独立于列表上限。`:`The list shows the latest ${snapshot.limit} entries; totals are independent of the list limit.`}</p>}{snapshot.newsCoverage&&<p>{chinese?'公司新闻覆盖':'Company news coverage'} {snapshot.newsCoverage.configured}/{snapshot.newsCoverage.total} · {snapshot.newsCoverage.healthy} {chinese?'正常':'healthy'}</p>}{snapshot.warnings.map(warning=><p key={warning}><UiText text={warning}/></p>)}</details>
     </aside>
+    {followConfirmation&&<CompanyFollowConfirmation key={followConfirmation.id} label={followConfirmation.label} followed={followConfirmation.followed} anchor={followConfirmation.anchor}/>}
   </main>;
 }
