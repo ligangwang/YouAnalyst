@@ -3,16 +3,15 @@
 .star:disabled { cursor: wait; }
 .star > span:first-child { color: inherit; font-size: inherit; }
 .star[aria-busy="true"] > span:first-child { opacity: .55; }
-.star .tooltip, .star .notice {
-  position: absolute; right: calc(100% + 6px); top: 50%; transform: translateY(-50%);
+.tooltip, .star .notice {
   z-index: 3; pointer-events: none; padding: 6px 9px; border: 1px solid #37515d;
   border-radius: 6px; background: #142932; color: #d8f2ee; font-size: 11px;
   line-height: 1.4; white-space: normal; width: max-content; max-width: 185px;
   overflow: visible; text-overflow: clip; box-shadow: 0 3px 12px #0005;
 }
-.star .tooltip { visibility: hidden; opacity: 0; transition: opacity .12s; }
-.star[data-feedback="false"]:hover .tooltip,
-.star[data-feedback="false"]:focus-visible .tooltip { visibility: visible; opacity: 1; }
+.star .notice { position: absolute; right: calc(100% + 6px); top: 50%; transform: translateY(-50%); }
+.tooltip { position: fixed; z-index: 1000; max-width: min(185px, calc(100vw - 16px)); animation: hintFade .12s ease-out both; }
+@keyframes hintFade { from { opacity: 0; } to { opacity: 1; } }
 .star .error { border-color: #9b5561; color: #ffc4ce; }
 .success { animation: confirmation 2.2s ease both; }
 @keyframes confirmation {
@@ -22,5 +21,5 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .success { animation: none; }
-  .star .tooltip { transition: none; }
+  .tooltip { animation: none; }
 }

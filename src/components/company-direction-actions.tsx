@@ -20,6 +20,5 @@ export function CompanyDirectionActions({ ticker, entryPoint = "company" }: { ti
         {ui(label)}
       </Link>;
     })}
-    <Link href={"/predictions/new?ticker=" + encodeURIComponent(ticker)} className="inline-flex min-h-11 items-center px-2 text-xs text-cyan-200">{ui("Post an article")}</Link>
   </div>;
 }
