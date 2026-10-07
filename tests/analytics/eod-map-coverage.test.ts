@@ -118,7 +118,8 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
     return Response.json([{date: runDate, open: 99, high: 101, low: 98, close: 100, adjusted_close: 99, volume: 1000}]);
   });
   for (const scheduledBatch of ["1630", "2000"] as const) {
-    documents.delete(`eod_prices/US_TSM_${runDate}`);
+    if (scheduledBatch === "1630") documents.delete(`eod_prices/US_TSM_${runDate}`);
+    else documents.set(`eod_prices/US_TSM_${runDate}`, { ...documents.get(`eod_prices/US_TSM_${runDate}`), tradingDate: "2026-09-17" });
     const repaired = await runDailyEodMaintenance({ market: "US", runDate, limit: 1, scheduledBatch, skipHistoryBackfill: true });
     assert.equal(repaired.priceLoad.loaded, 1);
     assert.equal(repaired.priceLoad.cacheHits, 67);

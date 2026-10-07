@@ -22,7 +22,7 @@ test("publication failures preserve the original request and confirmed retries r
   await queueEodMaintenance({ ...input, runDate: "2026-01-03" }, f.db, async () => {});
 });
 
-test("US scheduled deliveries have distinct identities but retry each delivery only once", async () => {
+test("US scheduled deliveries have distinct identities and deduplicate completed retries", async () => {
   const f = pubsubFirestore();
   const messages: EodRequest[] = [];
   for (const scheduledBatch of ["1630", "2000"] as const) {
