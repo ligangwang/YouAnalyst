@@ -71,8 +71,14 @@ test('AMD call referring to these results uses its verified fiscal-period contex
   assert.equal(schedules[1].periodEvidence,article);
   assert.throws(()=>run({...call,period:'FY2027-Q3'}),/year/);
   assert.throws(()=>run({...call,period:'FY2026-Q2'}),/quarter/);
-  assert.throws(()=>run({...call,dateEvidence:callQuote}),/year/);
+  assert.throws(()=>run({...call,dateEvidence:callQuote}),/period/);
   assert.throws(()=>run({...call,periodEvidence:'Management will conduct a conference call'}),/year/);
+  const fiscal2027=article.replace('fiscal third quarter 2026','third quarter fiscal 2027');
+  const runDifferentYear=(period:string)=>normalizeSchedules({events:[{...call,period,dateEvidence:fiscal2027}]},amd,fiscal2027,'amd','gpt-6-luna','2026-10-06T21:00:00Z');
+  assert.equal(runDifferentYear('FY2027-Q3')[0].fiscalPeriod,'FY2027-Q3');
+  assert.throws(()=>runDifferentYear('FY2026-Q3'),/year/);
+  const ambiguous=`${article} Fourth quarter fiscal 2027 results.`;
+  assert.throws(()=>normalizeSchedules({events:[{...call,dateEvidence:ambiguous}]},amd,ambiguous,'amd','gpt-6-luna','2026-10-06T21:00:00Z'),/unambiguous/);
 });
 test('article fetching removes page chrome and refuses unapproved redirects before sending text to the model',async()=>{
   assert.match(calendarArticleText('<body><form><header>menu</header><main><p>The earnings call will begin on October 26, 2026 at 2:00 p.m. Pacific Time.</p></main></form></body>'),/October 26, 2026/);

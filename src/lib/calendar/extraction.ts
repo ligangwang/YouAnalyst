@@ -106,18 +106,24 @@ export function normalizeSchedules(value: unknown, source: CalendarSource, text:
     // Calls often refer to "these results" in the following sentence. Use only
     // the model's contiguous, verified date quote containing that reference,
     // rather than inheriting a fiscal period from unrelated article text.
-    const periodEvidence = item.kind === 'earnings_call' && /\b(?:these|those)\s+(?:financial\s+)?results\b/i.test(quotedPeriod)
-      && normalizedText(dateEvidence).includes(normalizedText(quotedPeriod)) ? dateEvidence : quotedPeriod;
-    if (!periodEvidence.includes(item.period.slice(2,6))) throw new Error('Fiscal year is not supported by source evidence');
+    const linkedPeriod = item.kind === 'earnings_call' && /\b(?:these|those)\s+(?:financial\s+)?results\b/i.test(quotedPeriod)
+      && normalizedText(dateEvidence).includes(normalizedText(quotedPeriod));
+    const periodEvidence = linkedPeriod ? dateEvidence : quotedPeriod;
+    // Keep the year attached to the results label: a call in calendar 2026
+    // can discuss fiscal 2027. The event date cannot establish its fiscal year.
+    const labels = linkedPeriod ? [...dateEvidence.replace(/[-–—]/g,' ').matchAll(/\b(?:fiscal\s+)?(?:first|second|third|fourth|1st|2nd|3rd|4th)\s+quarter\s+(?:of\s+)?(?:(?:fiscal(?:\s+year)?|FY)\s*)?20\d{2}\b|\bQ[1-4]\s*(?:(?:fiscal(?:\s+year)?|FY)\s*)?20\d{2}\b|\b(?:FY|fiscal(?:\s+year)?)\s*20\d{2}\s+Q[1-4]\b/gi)].map(match=>match[0]) : [];
+    if (linkedPeriod && new Set(labels.map(label=>normalizedText(label).toLowerCase())).size !== 1) throw new Error('Linked fiscal period needs unambiguous source evidence');
+    const fiscalEvidence = linkedPeriod ? labels[0] : periodEvidence;
+    if (!fiscalEvidence.includes(item.period.slice(2,6))) throw new Error('Fiscal year is not supported by source evidence');
     const quarter = item.period.match(/-Q([1-4])$/)?.[1];
     if (quarter) {
       const names = ['first|1st|一|1','second|2nd|二|2','third|3rd|三|3','fourth|4th|四|4'];
       const pattern = new RegExp(`(?:Q${quarter}\\b|(?:${names[Number(quarter)-1]})(?:\\s+quarter|季度))`,'i');
-      if (!pattern.test(periodEvidence.replace(/[-–—]/g,' '))) throw new Error('Fiscal quarter is not supported by source evidence');
+      if (!pattern.test(fiscalEvidence.replace(/[-–—]/g,' '))) throw new Error('Fiscal quarter is not supported by source evidence');
     }
     const half = item.period.match(/-H([12])$/)?.[1];
-    if (half && !(half === '1' ? /first half|half.year|H1\b|半年度|上半年/i : /second half|H2\b|下半年/i).test(periodEvidence)) throw new Error('Fiscal half-year is not supported by source evidence');
-    if (!quarter && !half && !/full.year|fiscal year|annual|年度/i.test(periodEvidence)) throw new Error('Annual period is not supported by source evidence');
+    if (half && !(half === '1' ? /first half|half.year|H1\b|半年度|上半年/i : /second half|H2\b|下半年/i).test(fiscalEvidence)) throw new Error('Fiscal half-year is not supported by source evidence');
+    if (!quarter && !half && !/full.year|fiscal year|annual|年度/i.test(fiscalEvidence)) throw new Error('Annual period is not supported by source evidence');
     const timeEvidence = literalQuote(item.timeEvidence,text,item.time!==null);
     if (item.timeSlot !== 'unspecified' && !(item.timeSlot === 'before_market' ? /(?:before|prior to).{0,25}(?:market|trading).{0,15}(?:open|begin)|before the opening|盘前/i : /after.{0,25}(?:market|trading).{0,15}(?:clos|end)|after the close|盘后/i).test(timeEvidence || dateEvidence)) throw new Error('Market session is not established by the source');
     if (!validDate(item.date) || !datesWithPublicationContext(dateEvidence,published).has(item.date!)) throw new Error('Event date is not established by the source');
