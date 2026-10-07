@@ -1,5 +1,5 @@
 import { saveLatestEodPrice } from "./latest-eod";
-import { backfillPriceHistory, historyThrough } from "./history-backfill";
+import { backfillPriceHistory, historyThrough, historyProviderSymbol } from "./history-backfill";
 import { loadUsdCnyEod } from "./fx-eod";
 import { createMaintenanceLog, loggedTransaction, maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { predictionInstrument, marketDate, type PredictionMarket } from "./instrument";
@@ -730,7 +730,8 @@ export async function fetchEodhdDailyPrices(tickers: string[], requestedDate: st
         return;
       }
       try {
-        const url = new URL(`/api/eod/${instrument.providerSymbol}`, process.env.EODHD_API_URL?.trim() || "https://eodhd.com");
+        const providerSymbol = historyProviderSymbol(ticker);
+        const url = new URL(`/api/eod/${providerSymbol}`, process.env.EODHD_API_URL?.trim() || "https://eodhd.com");
         url.search = new URLSearchParams({ api_token: apiToken, fmt: "json", period: "d", from: requestedDate, to: requestedDate }).toString();
         const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(20_000) });
         if (!response.ok) {
@@ -741,7 +742,7 @@ export async function fetchEodhdDailyPrices(tickers: string[], requestedDate: st
         const row = Array.isArray(rows) ? rows.find(r => r && r.date === requestedDate) : undefined;
         const parsed = parseEodhdBulkPrice(ticker, requestedDate, loadedAt, row);
         if ("reason" in parsed) result.failures.push(parsed);
-        else result.prices.push({ ...parsed, market, source: "eodhd-eod", providerSymbol: instrument.providerSymbol, exchange: instrument.exchange, micCode: instrument.exchange, exchangeTimezone: instrument.timeZone });
+        else result.prices.push({ ...parsed, market, source: "eodhd-eod", providerSymbol, exchange: instrument.exchange, micCode: instrument.exchange, exchangeTimezone: instrument.timeZone });
       } catch {
         // Do not leak an authenticated provider URL, or send an A-share symbol to a US fallback.
         result.failures.push({ ticker, reason: "eodhd_request_failed" });
