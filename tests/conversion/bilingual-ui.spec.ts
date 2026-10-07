@@ -74,13 +74,13 @@ test("signing in restores account language without restoring market filters when
 for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tools accessible (${language})`, async ({page}) => {
  await page.goto(`http://bilingual.test/?lang=${language}`);
  const nav=page.locator("header nav").first();
- await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["Explore","Companies","Feed","Calendar","Following"] : ["探索","公司","动态","日历","我的关注"]);
- await expect(nav.getByRole("link").nth(2)).toHaveAttribute("href",/feed$/);
- await expect(nav.getByRole("link").nth(3)).toHaveAttribute("href",language === "en" ? "/en/calendar" : "/zh-cn/calendar");
- await expect(nav.getByRole("link").nth(4)).toHaveAttribute("href",/watchlists\/following$/);
+ await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["Explore","Companies","Calendar","Following"] : ["探索","公司","日历","我的关注"]);
+ await expect(nav.getByRole("link").nth(2)).toHaveAttribute("href",language === "en" ? "/en/calendar" : "/zh-cn/calendar");
+ await expect(nav.getByRole("link").nth(3)).toHaveAttribute("href",/watchlists\/following$/);
  const menu=page.locator("header details").first();
  await expect(menu.getByRole("link")).toHaveCount(0);
  await menu.locator("summary").click();
+ await expect(menu.getByRole("link",{name:language === "en" ? "Feed" : "动态",exact:true})).toHaveAttribute("href",language === "en" ? "/en/feed" : "/zh-cn/feed");
  await expect(menu.getByRole("link",{name:language === "en" ? "Institutions" : "机构",exact:true})).toHaveCount(0);
  await expect(menu.getByRole("link",{name:language === "en" ? "Admin" : "管理",exact:true})).toHaveCount(0);
  await menu.locator("summary").press("Escape");
@@ -98,7 +98,7 @@ test("primary navigation marks the current section on localized pages and compan
     ["/en/companies", "Companies"],
     ["/en/company/US%3AMU", "Companies"],
     ["/en/ticker/MU", "Companies"],
-    ["/en/feed", "Feed"],
+    ["/en/feed", null],
     ["/en/calendar", "Calendar"],
     ["/en/watchlists/following", "Following"],
     ["/zh-cn", "探索"],

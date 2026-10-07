@@ -1,4 +1,12 @@
 .loadingShell { min-height:70vh; background:#07111b; color:#e4edf5; padding:24px; }
+.eventRow { position:relative; }
+.eventRow>button { display:block; }
+.eventRow[data-calendar="true"]>button>div:first-child { padding-right:30px; }
+.calendarLinks { position:absolute; top:5px; right:11px; display:flex; gap:3px; }
+.calendarLinks a { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:5px; color:#98e7d6; }
+.calendarLinks a:hover { background:#98e7d61a; }
+.calendarLinks a.calendarWarning { color:#ffc67c; }
+.calendarLinks a:focus-visible { outline:2px solid #98e7d6; outline-offset:1px; }
 .loadingShell h1 { font-size:18px; margin-top:22px; }
 .loadingShell nav { display:flex; flex-wrap:wrap; gap:16px; margin-top:20px; font-size:12px; }
 .loadingShell a { color:#98e7d6; }

@@ -16,7 +16,8 @@ export type ScheduledEvent = StoredEvent & {
   scheduled_date: string; scheduled_at: string | null; local_time: string | null;
   source_timezone: string | null; timezone_text: string | null;
   time_precision: 'exact' | 'local' | 'date'; timeSlot: ScheduleDraft['timeSlot'];
-  status: CalendarStatus; confirmation: 'official'; sourceEventIds: string[];
+  status: CalendarStatus; confirmation: 'official' | 'extracted'; sourceEventIds: string[];
+  validationWarnings?: string[];
   dateEvidence: string; timeEvidence: string; periodEvidence: string;
   announcement_date: string; extractionModel: string; contentHash: string;
 };

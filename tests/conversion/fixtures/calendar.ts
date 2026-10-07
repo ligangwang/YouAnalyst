@@ -26,7 +26,8 @@ export async function calendarFixtureHtml() {
     import {EarningsCalendar} from './src/components/earnings-calendar';
     import {LocaleProvider} from './src/components/providers/locale-provider';
     const locale=new URLSearchParams(location.search).get('lang')==='zh-CN'?'zh-CN':'en';
-    createRoot(document.getElementById('root')).render(<LocaleProvider locale={locale}><EarningsCalendar/></LocaleProvider>);`, {
+    const params=new URLSearchParams(location.search);
+    createRoot(document.getElementById('root')).render(<LocaleProvider locale={locale}><EarningsCalendar initialDate={params.get('date')??''} initialCompany={params.get('company')??''} initialEvent={params.get('event')??''}/></LocaleProvider>);`, {
     outfile:'calendar.js',
     alias:{'next/link':mock,'next/navigation':mock,'@/components/providers/auth-provider':mock},
   }, '*{box-sizing:border-box}body{margin:0;background:#07131e;font-family:Arial,sans-serif}h1,h2,h3,p{margin:0}button{border:0;background:transparent}a{text-decoration:none}button,input,select{font:inherit}');

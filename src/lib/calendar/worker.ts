@@ -6,10 +6,10 @@ import { canonicalEvidenceUrl } from '../intelligence/model';
 import { isCalendarCandidate } from './candidates';
 import { fetchCalendarArticle } from './article';
 import {loadNewsSources} from '../intelligence/collectors/source-service';
-import { extractSchedule, hash, normalizedText, normalizeSchedules, type CalendarResponse } from './extraction';
+import { extractSchedule, hash, normalizedText, normalizeExtractedSchedules, type CalendarResponse } from './extraction';
 import { CALENDAR_MODEL, CALENDAR_EXTRACTOR_VERSION, type CalendarSource, type ScheduledEvent } from './model';
 
-type Receipt = {status:'requesting'|'complete'|'review_required'|'failed';companyIds:string[];contentHash:string;model:string;output?:string;responseStatus?:string;attemptId:string;createdAt:string;error?:string|null};
+type Receipt = {status:'requesting'|'complete'|'review_required'|'failed';companyIds:string[];contentHash:string;model:string;output?:string;responseStatus?:string;attemptId:string;createdAt:string;error?:string|null;validationWarnings?:string[]};
 type SourceState = {receiptId?:string;nextCheckAtMs?:number;failures?:number;lastError?:string|null};
 type Dependencies = {now?:()=>number;download?:(source:CalendarSource)=>Promise<string>;extract?:(source:CalendarSource,text:string)=>Promise<CalendarResponse>;onPaidRequest?:()=>void;revalidateCached?:boolean};
 
@@ -60,10 +60,15 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
   at=new Date(now()).toISOString();
   let schedules:ScheduledEvent[]=[];
   if(receipt.status==='complete' || receipt.status==='review_required' && receipt.responseStatus==='completed' && receipt.output) {
-    try { schedules=normalizeSchedules(JSON.parse(receipt.output??''),source,text,contentHash,receipt.model,at);receipt={...receipt,status:'complete',error:null}; }
+    try {
+      const normalized=normalizeExtractedSchedules(JSON.parse(receipt.output??''),source,text,contentHash,receipt.model,at);
+      schedules=normalized.schedules;
+      receipt={...receipt,status:normalized.unusable?'review_required':'complete',error:normalized.unusable?'Extracted events have no usable calendar date or activity':null,validationWarnings:normalized.warnings};
+    }
     catch(error) { receipt={...receipt,status:'review_required',error:error instanceof Error?error.message:'Invalid schedule'}; }
   }
-  if(usage){usage.metadata.validationStatus=receipt.status;usage.metadata.validationError=receipt.error??null;}
+  const validationStatus=receipt.validationWarnings?.length?'warning':receipt.status;
+  if(usage){usage.metadata.validationStatus=validationStatus;usage.metadata.validationError=receipt.error??receipt.validationWarnings?.join("; ")??null;usage.metadata.validationWarnings=receipt.validationWarnings?.join("; ")??null;}
   // Retry only persistence after a provider response, never the paid request.
   const persist=()=>db.runTransaction(async tx=>{
     const current=await tx.get(receiptRef);
@@ -101,7 +106,7 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
         {...old,sourceEventIds:remaining,type:legacySupported?'scheduled_event':'calendar_review'});
     }
     if(usageRef && usage && !previousUsage?.exists)tx.create(usageRef,usage);
-    else if(usageRef && previousUsage?.exists)tx.set(usageRef,{metadata:{validationStatus:receipt.status,validationError:receipt.error??null}},{merge:true});
+    else if(usageRef && previousUsage?.exists)tx.set(usageRef,{metadata:{validationStatus,validationError:receipt.error??receipt.validationWarnings?.join("; ")??null,validationWarnings:receipt.validationWarnings?.join("; ")??null}},{merge:true});
     tx.set(receiptRef,{...receipt,processed_at:at,eventIds:schedules.map(item=>item.id),validatedSchedules:schedules,...(usage?{usageEventId:usage.id}:{})},{merge:true});
     const future=schedules.some(item=>item.scheduled_date>=at.slice(0,10));
     const recent=source.publication_date && Date.parse(source.publication_date)>=now()-60*86400000;
