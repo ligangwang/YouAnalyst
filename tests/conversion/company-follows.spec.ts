@@ -92,6 +92,37 @@ test("company star confirms saved changes, blocks repeat writes, and restores fa
   if (info.project.name === "desktop") {
     await star.hover();
     await expect(page.getByRole("tooltip")).toBeVisible();
+    const bounds = (await star.boundingBox())!;
+    const cursor = {x:bounds.x + bounds.width / 2,y:bounds.y + bounds.height / 2};
+    await page.mouse.move(cursor.x, cursor.y);
+    const hint = (await page.getByRole("tooltip").boundingBox())!;
+    expect(hint.x).toBeGreaterThan(cursor.x);
+    expect(hint.y).toBeGreaterThan(cursor.y);
+    await page.screenshot({path:info.outputPath("company-star-hint.png")});
+    const originalStyle = await star.evaluate(el=>{
+      const panel = el.parentElement!;
+      const original = panel.getAttribute("style");
+      panel.style.cssText = "width:240px;position:fixed;right:0;bottom:0;margin:0";
+      return original;
+    });
+    await star.hover();
+    const edgeButton = (await star.boundingBox())!;
+    const edgeCursor = {x:edgeButton.x + edgeButton.width / 2,y:edgeButton.y + edgeButton.height / 2};
+    await page.mouse.move(edgeCursor.x,edgeCursor.y);
+    const edgeHint = (await page.getByRole("tooltip").boundingBox())!;
+    const viewport = page.viewportSize()!;
+    expect(edgeHint.x + edgeHint.width).toBeLessThan(edgeCursor.x);
+    expect(edgeHint.y + edgeHint.height).toBeLessThan(edgeCursor.y);
+    expect(edgeHint.x).toBeGreaterThanOrEqual(8);
+    expect(edgeHint.y).toBeGreaterThanOrEqual(8);
+    expect(edgeHint.x + edgeHint.width).toBeLessThanOrEqual(viewport.width - 8);
+    expect(edgeHint.y + edgeHint.height).toBeLessThanOrEqual(viewport.height - 8);
+    await star.evaluate((el,original)=>{
+      const panel = el.parentElement!;
+      if(original)panel.setAttribute("style",original);else panel.removeAttribute("style");
+    },originalStyle);
+    await star.hover();
+    expect(await page.getByRole("tooltip").evaluate(el=>getComputedStyle(el).pointerEvents)).toBe("none");
   }
   await star.focus();
   await expect(page.getByRole("tooltip")).toBeVisible();
