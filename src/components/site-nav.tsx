@@ -100,12 +100,18 @@ function UserMenu({ profileHref, onSignOut }: { profileHref: string; onSignOut: 
 }
 
 const primaryNavItems = [
-  { href: "/?view=graph", label: "Map" },
+  { href: "/?view=graph", label: "Explore" },
   { href: "/companies", label: "Companies" },
   { href: "/feed", label: "Feed" },
   { href: "/calendar", label: "Calendar" },
   { href: "/watchlists/following", label: "Following" },
 ];
+function isPrimaryNavActive(pathname: string, href: string): boolean {
+  const section = href.split("?")[0];
+  if (section === "/") return pathname === "/";
+  if (section === "/companies") return /^\/(companies|company|ticker)(\/|$)/.test(pathname);
+  return pathname === section || pathname.startsWith(`${section}/`);
+}
 const secondaryNavItems = [
   { href: "/intelligence", label: "Investment Intelligence" },
   { href: "/research", label: "Research" },
@@ -155,7 +161,7 @@ export function SiteNav() {
   </>;
   const pathname = unlocalizedPath(usePathname());
   const theme = parseCompanyTheme(useIndustryBrowseParam("theme"));
-  const navItems = primaryNavItems.map(item => item.label === "Map" ? { ...item, href: theme === "ai" ? "/?view=graph" : `/?theme=${theme}&view=graph` } : item);
+  const navItems = primaryNavItems.map(item => item.label === "Explore" ? { ...item, href: theme === "ai" ? "/?view=graph" : `/?theme=${theme}&view=graph` } : item);
   const { user, loading, signOut, getIdToken } = useAuth();
   const [adminStatus, setAdminStatus] = useState<{ userId: string; isAdmin: boolean } | null>(null);
   const profileHref = useMemo(() => (user ? `/analysts/${user.uid}` : "/auth"), [user]);
@@ -233,8 +239,8 @@ export function SiteNav() {
 
           <div className="ml-auto flex items-center gap-1 sm:gap-3">
             <div className="hidden items-center gap-4 lg:mr-4 lg:flex">
-              <nav className="flex items-center gap-4 text-[15px] text-slate-200">
-                {navItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="hover:text-cyan-200">{t(item.label)}</Link>)}
+              <nav className="flex items-center gap-1 text-[15px] text-slate-200">
+                {navItems.map(item => <Link key={item.href} href={item.href} aria-current={isPrimaryNavActive(pathname, item.href) ? "page" : undefined} className="rounded-lg px-2 py-2 hover:bg-white/5 hover:text-cyan-200 aria-[current=page]:bg-white/10 aria-[current=page]:text-white">{t(item.label)}</Link>)}
               </nav>
               <MoreMenu admin={showAdminLink} />
             </div>
@@ -259,7 +265,7 @@ export function SiteNav() {
         {/* One line: More stays beside the primary links instead of wrapping; on the narrowest phones the links scroll. */}
         <nav aria-label={ui("Mobile navigation")} className="mt-1 flex items-center text-sm text-slate-200 lg:hidden">
           <div className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] min-[360px]:gap-0.5 min-[400px]:gap-1">
-            {navItems.map(item => <Link key={item.href} href={item.href} aria-current={pathname === item.href.split("?")[0] ? "page" : undefined} className="shrink-0 whitespace-nowrap rounded-lg px-1 py-3 max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
+            {navItems.map(item => <Link key={item.href} href={item.href} aria-current={isPrimaryNavActive(pathname, item.href) ? "page" : undefined} className="shrink-0 whitespace-nowrap rounded-lg px-1 py-3 hover:bg-white/5 hover:text-cyan-200 aria-[current=page]:bg-white/10 aria-[current=page]:text-white max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
           </div>
           <div className="ml-auto shrink-0"><MoreMenu admin={showAdminLink} /></div>
         </nav>
