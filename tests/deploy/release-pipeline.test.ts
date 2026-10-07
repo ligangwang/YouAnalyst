@@ -77,8 +77,14 @@ test('browser downloads are reused without skipping fresh-runner OS setup or rel
   const cache=steps.find((s:{name?:string})=>s.name==='Cache Playwright browser download');
   assert.equal(cache.with.path,'~/.cache/ms-playwright');
   assert(cache.with.key.includes("hashFiles('package-lock.json')"));
-  const install=steps.find((s:{run?:string})=>s.run==='npx playwright install --with-deps --only-shell chromium');
+  const install=steps.find((s:{run?:string})=>s.run==='bash scripts/setup-playwright-browser.sh');
   assert(install);assert.equal(install.if,undefined);
   assert(steps.indexOf(cache)<steps.indexOf(install));
  }
+ const setup=readFileSync('scripts/setup-playwright-browser.sh','utf8');
+ assert(setup.includes('https://archive.ubuntu.com/ubuntu'));
+ assert(setup.includes('Acquire::http::Timeout "15"'));
+ assert(setup.includes('Acquire::https::Timeout "15"'));
+ assert(setup.includes('Acquire::Retries "2"'));
+ assert(setup.includes('npx playwright install --with-deps --only-shell chromium'));
 });
