@@ -6,6 +6,18 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const workflow = require('js-yaml').load(readFileSync('.github/workflows/deploy.yml', 'utf8'));
 
+test('both environments schedule identical US maintenance twice in New York time', () => {
+  for (const target of ['staging', 'production']) {
+    const step = workflow.jobs[`deploy-${target}`].steps.find((s: {name?:string}) => s.name === `Upsert ${target} EOD scheduler`);
+    assert.match(step.run, /--schedule "30 16 \* \* 1-5"/);
+    assert.match(step.run, /--schedule "0 20 \* \* 1-5"/);
+    assert.match(step.run, /scheduledBatch: "1630"/);
+    assert.match(step.run, /scheduledBatch: "2000"/);
+    assert(!step.run.includes('markPredictions: false'));
+    assert.equal((step.run.match(/--time-zone "America\/New_York"/g) || []).length, 6);
+  }
+});
+
 test('all browser shards and authentication must pass the stable release gate', () => {
   const shard = workflow.jobs['browser-shard'];
   assert.equal(shard.if, "github.event_name != 'pull_request' || github.event.pull_request.draft == false");

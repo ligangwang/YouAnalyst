@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { loadEodPriceUniverse, isPriceForEodDate, mapEodCoverage } from "../../src/lib/predictions/eod-universe";
-import { runDailyEodMaintenance } from "../../src/lib/predictions/eod-prices";
+import { runDailyEodMaintenance, fetchEodhdDailyPrices } from "../../src/lib/predictions/eod-prices";
 import type { KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 
 const graph = JSON.parse(readFileSync(new URL("../../data/ai-supply-chain/ai-us.json", import.meta.url), "utf8")) as KnowledgeGraph;
@@ -107,6 +107,35 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
   assert.deepEqual(third.priceLoad.mapCoverage?.missing, ["TSM"]);
   assert.equal(third.priceLoad.failed, 1);
   assert.ok(events.some(event => event.severity === "ERROR" && String(event.message).endsWith("map_price_coverage") && (event.missing as string[]).includes("TSM")));
+  process.env.EODHD_API_TOKEN = "synthetic-test-key";
+  const dailyRequests: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: URL) => {
+    const request = new URL(url);
+    assert.equal(request.pathname, "/api/eod/TSM.US");
+    assert.equal(request.searchParams.get("from"), runDate);
+    assert.equal(request.searchParams.get("to"), runDate);
+    dailyRequests.push(request.pathname);
+    return Response.json([{date: runDate, open: 99, high: 101, low: 98, close: 100, adjusted_close: 99, volume: 1000}]);
+  });
+  for (const scheduledBatch of ["1630", "2000"] as const) {
+    if (scheduledBatch === "1630") documents.delete(`eod_prices/US_TSM_${runDate}`);
+    else documents.set(`eod_prices/US_TSM_${runDate}`, { ...documents.get(`eod_prices/US_TSM_${runDate}`), tradingDate: "2026-09-17" });
+    const repaired = await runDailyEodMaintenance({ market: "US", runDate, limit: 1, scheduledBatch, skipHistoryBackfill: true });
+    assert.equal(repaired.priceLoad.loaded, 1);
+    assert.equal(repaired.priceLoad.cacheHits, 67);
+    assert.deepEqual(repaired.priceLoad.mapCoverage?.missing, []);
+    assert.equal(documents.get(`eod_prices/US_TSM_${runDate}`)?.rawClose, 100);
+    await runDailyEodMaintenance({ market: "US", runDate, limit: 1, scheduledBatch, skipHistoryBackfill: true });
+    assert.equal(dailyRequests.length, scheduledBatch === "1630" ? 1 : 2);
+  }
+  t.mock.method(globalThis, "fetch", async (url: URL) => {
+    assert.equal(new URL(url).pathname, "/api/eod/BRK-B.US");
+    return Response.json([{date: runDate, open: 99, high: 101, low: 98, close: 100, adjusted_close: 99, volume: 1000}]);
+  });
+  const dotted = await fetchEodhdDailyPrices(["BRK.B"], runDate, new Date().toISOString(), "US");
+  assert.deepEqual(dotted.failures, []);
+  assert.equal(dotted.prices[0].ticker, "BRK.B");
+  assert.equal(dotted.prices[0].providerSymbol, "BRK-B.US");
   documents.set("eod_runs/_active_US", { leaseOwner: "scheduled-run", leaseExpiresAtMs: Date.now() + 60_000 });
   const callsBefore = requested.length;
   await assert.rejects(runDailyEodMaintenance({ market: "US", runDate, trigger: "admin", requestedBy: "admin-1" }), { code: "EOD_ALREADY_RUNNING" });

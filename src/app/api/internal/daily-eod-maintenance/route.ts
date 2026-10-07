@@ -4,6 +4,7 @@ import { runDailyEodMaintenance } from "@/lib/predictions/eod-prices";
 import { NextRequest, NextResponse } from "next/server";
 
 type DailyEodMaintenanceRequest = {
+  scheduledBatch?: unknown;
   runDate?: unknown;
   market?: unknown;
   limit?: unknown;
@@ -41,8 +42,10 @@ export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json().catch(() => ({}))) as DailyEodMaintenanceRequest;
     if (payload.market !== undefined && payload.market !== "US" && payload.market !== "CN_A") return NextResponse.json({ error: "Invalid market" }, { status: 400 });
+    if (payload.scheduledBatch !== undefined && (payload.market === "CN_A" || (payload.scheduledBatch !== "1630" && payload.scheduledBatch !== "2000"))) return NextResponse.json({ error: "Invalid scheduled batch" }, { status: 400 });
     const result = await (payload.dryRun === true ? runDailyEodMaintenance : queueEodMaintenance)({
       market: payload.market as "US" | "CN_A" | undefined,
+      scheduledBatch: payload.scheduledBatch as "1630" | "2000" | undefined,
       runDate: readString(payload.runDate),
       limit: Number.isFinite(payload.limit) ? Number(payload.limit) : undefined,
       dryRun: readBoolean(payload.dryRun),
