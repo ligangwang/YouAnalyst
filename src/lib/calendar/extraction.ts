@@ -178,6 +178,7 @@ export function normalizeExtractedSchedules(value:unknown,source:CalendarSource,
       // Missing dates and unknown activity kinds cannot be placed on a calendar.
       // Skip only that record; other extracted activities still get created.
       if(!item||!validDate(item.date)||!['earnings_release','earnings_call'].includes(item.kind))continue;
+      if(/replay|archive|recording|回放|录像|錄像/i.test(item.dateEvidence??'')&&!/will (?:hold|host)|will begin|(?:召开|举行)时间/i.test(item.dateEvidence??''))continue;
       const eventWarnings=[message];
       const period=typeof item.period==='string'&&item.period.trim()?item.period.slice(0,100):'Unspecified';
       const time=typeof item.time==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time)?item.time:null;
@@ -185,6 +186,9 @@ export function normalizeExtractedSchedules(value:unknown,source:CalendarSource,
       const zone=scheduleTimezone(timezoneText);
       let instant:string|null=null;
       if(time&&zone)try {instant=scheduleInstant(item.date!,time,zone);}catch(error){eventWarnings.push(error instanceof Error?error.message:'Time conversion unavailable');}
+      const publicationInstant=source.published_at?Date.parse(source.published_at):NaN;
+      const publicationDay=Number.isFinite(publicationInstant)&&zone?localParts(publicationInstant,zone).slice(0,10):published!;
+      if(item.date!<publicationDay||Date.parse(item.date!)-Date.parse(published!)>400*86400000||instant&&Number.isFinite(publicationInstant)&&Date.parse(instant)<publicationInstant)continue;
       const id=eventDocumentId('scheduled_event',hash(`${companyId}|${period==='Unspecified'?source.id:period}|${item.kind}`));
       schedule={version:1,id,type:'scheduled_event',sourceType:source.sourceType,sourceId:source.sourceId,companyId,companyIds:[companyId],
         title:`${companyId.split(':')[1]} · ${period} ${item.kind==='earnings_call'?'earnings call':'earnings release'}`,
@@ -199,7 +203,8 @@ export function normalizeExtractedSchedules(value:unknown,source:CalendarSource,
     if(previous){
       const message='Conflicting schedules for the same fiscal event';
       warnings.push(`Event ${index+1}: ${message}`);
-      schedules.set(previous.id,{...previous,confirmation:'extracted',validationWarnings:[...new Set([...(previous.validationWarnings??[]),message])]});
+      const preferred=previous.confirmation==='official'?previous:schedule.confirmation==='official'?schedule:previous;
+      schedules.set(previous.id,{...preferred,confirmation:'extracted',validationWarnings:[...new Set([...(preferred.validationWarnings??[]),message])]});
     }else schedules.set(schedule.id,schedule);
   }
   return {schedules:[...schedules.values()],warnings,unusable:payload.events.length>0&&schedules.size===0};

@@ -223,6 +223,17 @@ test('warnings preserve independently extracted activities, missing periods, and
   assert(dst.schedules[0].validationWarnings!.some(message=>message.includes('Ambiguous')));
 });
 
+test('warning fallback excludes replay and misplaced dates and prefers validated duplicate fields',()=>{
+  const rejected=normalizeExtractedSchedules({events:[{...draft,date:'2026-09-01'},{...draft,date:'2028-11-01'},{...draft,dateEvidence:'A replay will be available on November 16, 2026.'}]},source,text,'hash','gpt-6-luna','2026-10-02T12:00:00Z');
+  assert.equal(rejected.schedules.length,0);assert.equal(rejected.unusable,true);
+  for(const events of [[{...draft,date:'2026-11-17'},draft],[draft,{...draft,date:'2026-11-17'}]]){
+    const result=normalizeExtractedSchedules({events},source,text,'hash','gpt-6-luna','2026-10-02T12:00:00Z');
+    assert.equal(result.schedules.length,1);assert.equal(result.schedules[0].scheduled_date,draft.date);
+    assert.equal(result.schedules[0].scheduled_at,normalize()[0].scheduled_at);
+    assert.deepEqual(result.schedules[0].validationWarnings,['Conflicting schedules for the same fiscal event']);
+  }
+});
+
 test('a failed commit retries persistence only, never the provider call',async()=>{
   const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);let rejects=0,calls=0;
   fake.reject((path)=>path.startsWith('openai_usage_events/')&&rejects++===0);
