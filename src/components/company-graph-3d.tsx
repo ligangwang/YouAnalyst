@@ -274,7 +274,9 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     const target=fitted?.target??new Vector3(x,y,z);
     if(!fitted&&position.length()<layout.radius*1.15)position.setLength(layout.radius*1.15);
     c.smoothTime=.8/speed;
-    void c.setLookAt(...position.toArray(),...target.toArray(),!reduced&&!opening);
+    // Company clicks frame their connections immediately; reserve camera flights
+    // for sector navigation and the automatic tour.
+    void c.setLookAt(...position.toArray(),...target.toArray(),!n&&!reduced&&!opening);
     invalidate();
   }, [layout, selected, fitDistance, reset, invalidate, sectorFocus, sectors, size.width, size.height, cameraRequest, introOrbitRef, connected, speed]);
   const lastFocus=useRef({focused:Boolean(selected||activeEdge||sectorFocus),reset});
