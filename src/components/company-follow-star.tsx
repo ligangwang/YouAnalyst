@@ -33,7 +33,7 @@ export function CompanyFollowStar({ label, followed, disabled, onChange }: {
     const y = hintAnchor.y + gap + height <= window.innerHeight - margin ? hintAnchor.y + gap : hintAnchor.y - gap - height;
     element.style.left = String(Math.max(margin, Math.min(x, window.innerWidth - width - margin))) + "px";
     element.style.top = String(Math.max(margin, Math.min(y, window.innerHeight - height - margin))) + "px";
-  }, [hintAnchor, action]);
+  }, [hintAnchor, action, pending, notice]);
 
   useEffect(() => {
     const hideHint = () => setHintAnchor(null);
