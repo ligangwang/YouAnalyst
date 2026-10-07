@@ -56,6 +56,24 @@ test('rejects unsupported dates, quarters, time zones and archive dates; retains
   assert.throws(()=>scheduleInstant('2026-11-01','01:30','America/New_York'),/Ambiguous/);
   assert.throws(()=>calendarRange('2026-01-01','2026-04-01'),/range/);
 });
+
+test('AMD call referring to these results uses its verified fiscal-period context',()=>{
+  const releaseQuote='AMD (NASDAQ: AMD) announced today that it will report fiscal third quarter 2026 financial results on Tuesday, Nov. 3, 2026, after the market close.';
+  const callQuote='Management will conduct a conference call to discuss these results at 5 p.m. ET / 2 p.m. PT.';
+  const article=`${releaseQuote} ${callQuote}`;
+  const amd={...source,companyId:'US:AMD',companyIds:['US:AMD'],title:'AMD to Report Fiscal Third Quarter 2026 Financial Results',publication_date:'2026-10-06',published_at:'2026-10-06T16:00:00Z'};
+  const release:ScheduleDraft={...draft,kind:'earnings_release',period:'FY2026-Q3',date:'2026-11-03',time:null,timezoneText:null,timeSlot:'after_market',dateEvidence:releaseQuote,timeEvidence:'',periodEvidence:releaseQuote};
+  const call:ScheduleDraft={...release,kind:'earnings_call',time:'17:00',timezoneText:'ET',timeSlot:'unspecified',dateEvidence:article,timeEvidence:callQuote,periodEvidence:'Management will conduct a conference call to discuss these results'};
+  const run=(item:ScheduleDraft)=>normalizeSchedules({events:[release,item]},amd,article,'amd','gpt-6-luna','2026-10-06T21:00:00Z');
+  const schedules=run(call);
+  assert.equal(schedules.length,2);
+  assert.equal(schedules[1].scheduled_at,'2026-11-03T22:00:00.000Z');
+  assert.equal(schedules[1].periodEvidence,article);
+  assert.throws(()=>run({...call,period:'FY2027-Q3'}),/year/);
+  assert.throws(()=>run({...call,period:'FY2026-Q2'}),/quarter/);
+  assert.throws(()=>run({...call,dateEvidence:callQuote}),/year/);
+  assert.throws(()=>run({...call,periodEvidence:'Management will conduct a conference call'}),/year/);
+});
 test('article fetching removes page chrome and refuses unapproved redirects before sending text to the model',async()=>{
   assert.match(calendarArticleText('<body><form><header>menu</header><main><p>The earnings call will begin on October 26, 2026 at 2:00 p.m. Pacific Time.</p></main></form></body>'),/October 26, 2026/);
   assert.equal(calendarArticleText('<nav>menu</nav><article><h1>Results</h1><p>October 26, 2026</p><script>ignore me</script></article><footer>links</footer>').includes('menu'),false);
