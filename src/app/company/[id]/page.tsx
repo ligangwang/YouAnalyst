@@ -1,6 +1,6 @@
 import { CompanyCountryFlag } from "@/components/company-country-flag";
 import { CompanyResearchPanel } from "@/components/company-research-panel";
-import { CompanyCallActions } from "@/components/company-call-actions";
+import { CompanyOutlook } from "@/components/company-outlook";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { cache } from "react";
 import { headers } from "next/headers";
@@ -48,11 +48,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
     <h1 className="mt-8 text-4xl font-semibold"><CompanyCountryFlag country={identity.country} locale={locale} />{data.name}</h1>
     <p className="mt-4 text-slate-400">{companyGeographyLabel(companyGeography(data), locale)}</p>
     {typeof data.editorialReviewedAt === "string" && <p className="mt-3 text-xs text-slate-400">{zh ? "编辑公司资料 · 复核于" : "Editorial company profile · reviewed"} {data.editorialReviewedAt}</p>}
+    {callTicker && <CompanyOutlook ticker={callTicker} />}
     <CompanyResearchPanel companyId={id} />
     <section id="company-information" className="mt-10 rounded-2xl border border-white/10 p-6"><h2 className="text-xl font-semibold">{zh ? "公司概览" : "Company overview"}</h2><p className="mt-4 leading-8">{String(data.description ?? "")}</p>
       <h2 className="mt-8 text-xl font-semibold">{zh ? "资料来源" : "Sources"}</h2><ul className="mt-4 space-y-3">{sources.map((s, i) => <li key={`${s.url}:${i}`}><a className="text-cyan-200" href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a></li>)}</ul>
     </section>
-    {callTicker && <CompanyCallActions ticker={callTicker} />}
+
     <CompanyProfileDetails profile={normalizeCompanyProfile(data.profile)} />
   </main>;
 }

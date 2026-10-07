@@ -8,7 +8,7 @@ import { UiText } from "@/components/ui-text";
 import { LocalizedLink as Link } from "./localized-link";
 import type { ReactNode } from "react";
 import type { CompanyResearch } from "@/lib/company-research";
-import { CompanyCallActions } from "./company-call-actions";
+import { CompanyOutlook } from "./company-outlook";
 import { CompanyProfileDetails } from "./company-profile-details";
 import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
@@ -25,6 +25,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       <p className="text-sm font-semibold text-cyan-300"><UiText text={"Company research"} /></p>
       <CompanyHeading name={company.name} names={company.names} ticker={company.ticker} country={company.country} />
       {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.ticker} exchange={company.exchange} />}
+      {company.listingStatus !== "PRIVATE" && <CompanyOutlook ticker={company.ticker} />}
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}
       {!graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
@@ -44,7 +45,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       </dl>
       {company.listingUpdatedAt && <p className="mt-3 text-xs text-slate-400"><UiText text={"Listing data synced "} />{company.listingUpdatedAt.slice(0, 10)}.</p>}
 <CompanyProfileDetails profile={company.profile} /></section>
-      {company.listingStatus !== "PRIVATE" && <CompanyCallActions ticker={company.ticker} />}
+
     {!graph && company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker}<UiText text={" suppliers, customers and partners"} /></h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? <UiText text={`${company.connections.length} relationships in the loaded sources. `} /> : ""}<UiText text={"Published relationships from the AI Map, with links to their supporting sources. Source dates do not establish whether a relationship remains active."} /></p>

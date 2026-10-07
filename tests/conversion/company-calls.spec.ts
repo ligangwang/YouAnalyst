@@ -29,14 +29,15 @@ test("A-share company page reuses direction links, CNY entry and close controls;
 });
 
 test.beforeAll(async () => {
-  const bundled = await build({ stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import {CompanyCallActions} from "./src/components/company-call-actions"; import {ChinaCompanyPage} from "./src/components/china-company-page";
+  const bundled = await build({ stdin: { contents: `import React from "react"; import {createRoot} from "react-dom/client"; import {CompanyCallActions} from "./src/components/company-call-actions"; import {ChinaCompanyPage} from "./src/components/china-company-page"; import {CompanyOutlook} from "./src/components/company-outlook"; import {LocaleProvider} from "./src/components/providers/locale-provider";
 const query = new URLSearchParams(location.search);
-createRoot(document.getElementById("root")).render(query.has("china") ? <ChinaCompanyPage company={{id:"XSHG:600584",name:"JCET",stage:"Packaging",description:"Advanced packaging",source:"https://example.com/report",sourceLabel:"Report",listingStatus:query.has("private")?"PRIVATE":"PUBLIC"}}/> : <CompanyCallActions ticker="AMD"/>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") } });
+createRoot(document.getElementById("root")).render(<LocaleProvider locale={query.has("zh")?"zh-CN":"en"}>{query.has("china") ? <ChinaCompanyPage company={{id:"XSHG:600584",name:"JCET",stage:"Packaging",description:"Advanced packaging",source:"https://example.com/report",sourceLabel:"Report",listingStatus:query.has("private")?"PRIVATE":"PUBLIC"}}/> : query.has("panel") ? <CompanyOutlook ticker="AMD" compact/> : <CompanyCallActions ticker="AMD"/>}</LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" }, alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") } });
   const css = await postcss([tailwind()]).process('@import "tailwindcss";', { from: path.resolve("calls-test.css") });
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${bundled.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}${css.css}body{background:#07111d;color:white;padding:16px;font-family:Arial}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  await page.route("**/api/ticker/*?limit=3", route => route.fulfill({json:{items:[]}}));
   await page.route("**/*", route => route.request().isNavigationRequest() && new URL(route.request().url()).origin === origin ? route.fulfill({ contentType: "text/html", body: html }) : route.abort());
 });
 
@@ -113,4 +114,48 @@ test("signing out removes private calls immediately", async ({ page }) => {
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: null })));
   await expect(page.getByRole("article", { name: "Hedges: Bearish" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /mode=register/);
+});
+
+test("compact panel puts owned calls first and previews public calls without using viewerPosition", async ({ page }, info) => {
+  await page.route(`${origin}/api/ticker/AMD/my-calls`, route => route.fulfill({ json: { items: [{ ...bullish, markPrice: 165.275, markPriceDate: "2026-09-10", markReturnValue: .1 }, bearish] } }));
+  await page.route("**/api/ticker/AMD?limit=3", route => {
+    expect(route.request().headers().authorization).toBeUndefined();
+    return route.fulfill({ json: { items: [{ id: "public-call", ticker: "AMD", direction: "UP", status: "OPEN", createdAt: "2026-09-10T16:00:00Z", authorDisplayName: "Alex", thesisTitle: "Growing demand for accelerators", entryPrice: 100, entryDate: "2026-09-08", markPriceDate: "2026-09-10", markReturnValue: .05 }], viewerPosition: { thesisTitle: "PRIVATE SENTINEL" } } });
+  });
+  await page.goto(`${origin}?panel`);
+  await expect(page.getByRole("heading", { name: "Your call · Bullish" })).toBeVisible();
+  await expect(page.getByText("My Watchlist · Public", { exact: true })).toBeVisible();
+  await expect(page.getByText("Hedges · Private", { exact: true })).toBeVisible();
+  await expect(page.getByText("+10.00%", { exact: true })).toBeVisible();
+  const community = page.getByRole("region", { name: "Community calls", exact: true });
+  await expect(community.getByText("Alex", { exact: true })).toBeVisible();
+  await expect(community.getByText("Growing demand for accelerators", { exact: true })).toBeVisible();
+  await expect(page.getByText("PRIVATE SENTINEL")).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("compact-company-outlook.png"), fullPage: true });
+  await page.route("**/api/ticker/AMD?limit=25", route => route.fulfill({json:{items:[],nextCursor:null}}));
+  await page.getByRole("button", { name: "View all" }).click();
+  await expect(page.getByRole("button", { name: "Show less" })).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByRole("link", { name: "Create another call" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("empty and failed public previews keep publishing actions available", async ({ page }) => {
+  await page.route(`${origin}/api/ticker/AMD/my-calls`, route => route.fulfill({ json: { items: [] } }));
+  await page.route("**/api/ticker/AMD?limit=3", route => route.fulfill({ status: 503, json: {} }));
+  await page.goto(`${origin}?panel`);
+  await expect(page.getByRole("link", { name: "Bullish", exact: true })).toBeVisible();
+  await expect(page.getByText("Calls could not be loaded.", { exact: false })).toBeVisible();
+  await page.route("**/api/ticker/AMD?limit=3", route => route.fulfill({ json: { items: [] } }));
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByText("No public calls yet. Share your outlook.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Bearish", exact: true })).toBeVisible();
+});
+
+test("Chinese outlook labels and publishing links preserve the company and direction", async ({ page }) => {
+  await page.route(`${origin}/api/ticker/AMD/my-calls`, route => route.fulfill({ json: { items: [] } }));
+  await page.goto(`${origin}?panel&zh`);
+  await expect(page.getByRole("heading", { name: "你的观点 · AMD" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "社区观点" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "看多", exact: true })).toHaveAttribute("href", "/zh-cn/predictions/new?ticker=AMD&direction=UP");
+  await expect(page.getByRole("link", { name: "看空", exact: true })).toHaveAttribute("href", "/zh-cn/predictions/new?ticker=AMD&direction=DOWN");
 });

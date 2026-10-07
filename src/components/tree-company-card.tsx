@@ -1,5 +1,7 @@
 "use client";
 
+import { GraphCompanyOutlook } from "./company-outlook";
+
 import { PrivateValuationDisplay } from './private-valuation';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { CompanyFundamentals } from '@/lib/fundamentals/model';
@@ -46,6 +48,7 @@ export function TreeCompanyCard({company,color,onClose,reveal=false,closing=fals
       <h3><CompanyCountryFlag country={company.country} locale={locale}/>{companyName(company,locale)}</h3>
       <p className={styles.cardTicker}>{company.symbol??text('Private / unlisted','非上市')}</p>
       <div className={styles.cardCap}>{company.privateValuation ? <PrivateValuationDisplay valuation={company.privateValuation}/> : <><small>{text('Estimated market cap','估算市值')}</small><p>{cap?marketCapDescription(cap,locale):text('Unavailable','暂无')}</p></>}</div>
+      <GraphCompanyOutlook company={company}/>
       {(company.id.startsWith('US:')||china)&&!result&&<p role="status">{text('Loading cached financials…','正在读取已缓存财务数据…')}</p>}
       <dl className={styles.cardMetrics}>
         <div><dt>{text('Cached close','已缓存收盘价')}</dt><dd>{number(data?.marketCap?.close,data?.marketCap?.currency)}</dd><small>{data?.marketCap?.priceDate}</small></div>

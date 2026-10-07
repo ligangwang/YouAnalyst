@@ -3,24 +3,28 @@
 import { UiText, useUiText } from "@/components/ui-text";
 import { RelativeTime } from "./relative-time";
 
-import Link from "next/link";
+import { LocalizedLink as Link } from "./localized-link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import type { CompanyCall } from "@/lib/predictions/company-calls";
 import { formatCallPrice } from "@/lib/predictions/instrument";
 import { CompanyDirectionActions } from "./company-direction-actions";
+import { PredictionReturnSummary } from "./prediction-ui";
+import { useLocale } from "./providers/locale-provider";
 
 type CompanyCallActionsProps = { ticker: string; compact?: boolean; entryPoint?: "company" | "evidence" };
 
 export function CompanyCallActions({ ticker, compact = false, entryPoint = "company" }: CompanyCallActionsProps) {
   const { user, loading } = useAuth();
+  const { text } = useLocale();
   if (loading) return <p role="status" className="mt-4 text-sm text-slate-400"><UiText text={"Loading your outlook…"} /></p>;
-  if (!user) return <div className="mt-4">{compact && <h3><UiText text={"Your outlook on "} />{ticker}</h3>}<CompanyDirectionActions ticker={ticker} entryPoint={entryPoint} /></div>;
+  if (!user) return <div className="mt-4"><h3 className="mb-3 font-semibold">{text("Your outlook", "你的观点")} · {ticker}</h3><CompanyDirectionActions ticker={ticker} entryPoint={entryPoint} /></div>;
   return <ViewerCalls key={`${user.uid}:${ticker}`} ticker={ticker} compact={compact} entryPoint={entryPoint} />;
 }
 
 function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
   const ui = useUiText();
+  const { text } = useLocale();
   const { getIdToken } = useAuth();
   const [items, setItems] = useState<CompanyCall[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +76,7 @@ function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
   }
 
   return <section id="your-company-calls" aria-label={ui(`Your calls on ${ticker}`)} className="mt-5 text-sm">
-    <h2 className="font-semibold text-slate-100"><UiText text={"Your outlook on "} />{ticker}</h2>
+    <h2 className="font-semibold text-slate-100">{text("Your outlook", "你的观点")} · {ticker}</h2>
     {error && <p role="alert" className="mt-2 text-rose-200">{<UiText text={error} />} <button type="button" className="underline" disabled={!!pending} onClick={() => setAttempt(value => value + 1)}><UiText text={"Refresh your calls"} /></button></p>}
     {notice && <p role="status" className="mt-2 text-cyan-200">{<UiText text={notice} />}</p>}
     {!items && !error && <p role="status" className="mt-2 text-slate-400"><UiText text={"Loading your calls…"} /></p>}
@@ -82,10 +86,11 @@ function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
         const label = call.direction === "UP" ? "Bullish" : "Bearish";
         const canCancel = call.cancelUntil && now <= Date.parse(call.cancelUntil);
         return <article key={call.id} aria-label={`${call.watchlistName}: ${label}`} className={`rounded-xl border p-4 ${call.direction === "UP" ? "border-emerald-400/35 bg-emerald-400/5" : "border-rose-400/35 bg-rose-400/5"}`}>
-          <h3 className="font-semibold text-white">{<UiText text={label} />}</h3>
-          <p className="mt-1 text-xs text-slate-400">{<UiText text={call.visibility} />}</p>
+          <h3 className="font-semibold text-white">{text("Your call", "我的观点")} · {<UiText text={label} />}</h3>
+          <p className="mt-1 break-words text-xs text-slate-400">{call.watchlistName} · {<UiText text={call.visibility} />}</p>
           <p className="mt-2 text-slate-300">{call.createdAt ? <RelativeTime value={call.createdAt} prefix="Set" /> : <UiText text={"Date unavailable"} />}</p>
           <p className="mt-1 text-slate-300">{call.entryPrice !== null ? <><UiText text="Entry " />{formatCallPrice(call.entryPrice, ticker)}{call.entryDate ? <UiText text={` · recorded ${call.entryDate}`} /> : null}</> : <UiText text="Entry price pending the next end-of-day update." />}</p>
+          {call.entryPrice !== null && <PredictionReturnSummary prediction={{...call,ticker}} status={call.status} />}
           {call.status === "CLOSING" ? <p className="mt-3 text-amber-200"><UiText text={"Closing — awaiting end-of-day settlement."} /></p>
             : call.status === "CREATED" ? canCancel ? <button type="button" disabled={!!pending} onClick={() => void act(call, "cancel")} className="mt-3 min-h-11 rounded-lg border border-white/25 px-4 text-slate-100 disabled:opacity-50">{pending === call.id ? <UiText text={"Canceling…"} /> : <UiText text={`Cancel ${label}`} />}</button>
               : <p className="mt-3 text-xs text-slate-400"><UiText text={"The five-minute cancellation window has ended. Awaiting entry price."} /></p>
@@ -100,6 +105,6 @@ function ViewerCalls({ ticker, compact, entryPoint }: CompanyCallActionsProps) {
         </article>;
       })}
     </div>
-    {!!items?.length && <Link href={`/predictions/new?ticker=${encodeURIComponent(ticker)}`} className="mt-3 inline-block text-cyan-200 underline underline-offset-4"><UiText text={"Post an article"} /></Link>}
+    {!!items?.length && <Link href={`/predictions/new?ticker=${encodeURIComponent(ticker)}`} className="mt-3 inline-block text-cyan-200 underline underline-offset-4">{text("Create another call", "发布另一条观点")}</Link>}
   </section>;
 }
