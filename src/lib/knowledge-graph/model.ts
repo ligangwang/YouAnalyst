@@ -9,7 +9,7 @@ export type GraphMarketCap = { value: number; currency: "USD"; priceDate: string
 export type GraphNode = { dailyPrice?: DailyPrice; editorialReviewedAt?: string; privateValuation?: GraphPrivateValuation; marketCap?: GraphMarketCap; id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; names?: Partial<Record<"en" | "zh-CN", string>>; aliases?: string[]; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; summaryZh?: string; sourceIds?: string[] };
 export type GraphFact = { editorialReviewedAt?: string; verificationStatus?: "CONFIRMED" | "PENDING" | "TERMINATED"; id?: string; state: string; scope: string; sourceIds: string[]; limitation?: string; reviewedAt?: string; eventDate?: string };
 export type GraphEdge = { publishedAt?: string; researchReviewedAt?: string; facts?: GraphFact[]; id: string; source: string; target: string; type: string; summary: string; summaryZh?: string; sourceIds: string[]; commercialStatus: string };
-export type GraphSource = { id: string; title: string; url: string; sourceDate: string | null };
+export type GraphSource = { id: string; title: string; titleZh?: string; titleTranslations?: Partial<Record<"zh-CN", import("./summary-translations").SummaryTranslation>>; url: string; sourceDate: string | null };
 export type KnowledgeGraph = { nodes: GraphNode[]; relationships: GraphEdge[]; sources: GraphSource[]; asOf: string };
 
 // Company IDs are global; source/relationship IDs are local to each snapshot.
@@ -91,4 +91,10 @@ export function layoutGraph(nodes: GraphNode[]) {
     y += height + 36;
   }
   return { positions, groups, width: 1592, height: Math.max(320, y) };
+}
+
+/** Source labels are translated offline. Never expose an English fallback in Chinese cards. */
+export function relationshipSourceTitle(source: Pick<GraphSource, "title" | "titleZh">, locale: string): string {
+  if (locale !== "zh-CN") return source.title;
+  return source.titleZh?.trim() || (/[\u4e00-\u9fff]/.test(source.title) ? source.title : "关系来源");
 }

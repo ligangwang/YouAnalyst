@@ -7,7 +7,7 @@ import { marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 
 import { lazy, Suspense, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocale } from "./providers/locale-provider";
-import { relationshipSummary, companySummary, companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
+import { relationshipSourceTitle, relationshipSummary, companySummary, companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
@@ -198,7 +198,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     setSectorFocus(next);
     setSectorsExpanded(false);
   }
-  const sourceLinks = (ids: string[]) => graph.sources.filter(s => ids.includes(s.id) && /^https:\/\//.test(s.url)).map(s => <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗{s.sourceDate && <time className={styles.sourceDate} dateTime={s.sourceDate}>{s.sourceDate}</time>}</a>);
+  const sourceLinks = (ids: string[]) => graph.sources.filter(s => ids.includes(s.id) && /^https:\/\//.test(s.url)).map(s => <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer">{relationshipSourceTitle(s,locale)} ↗{s.sourceDate && <time className={styles.sourceDate} dateTime={s.sourceDate}>{s.sourceDate}</time>}</a>);
   const Container = allowedRelationshipIds ? "section" : "main";
   const Heading = allowedRelationshipIds ? "h2" : "h1";
   return <><Container className={styles.page}>

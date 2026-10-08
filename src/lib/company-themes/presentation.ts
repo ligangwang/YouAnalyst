@@ -9,7 +9,7 @@ export function themedGraph(theme: Exclude<CompanyThemeId,'ai'>, companies: Them
   const rows = companies.filter(company => company.themeMemberships?.[theme]?.status === 'PUBLISHED').map(company => {
     const member = company.themeMemberships![theme];
     const stageIds = [member.primarySector, ...(member.secondaryRoles ?? [])].map(id => `${theme}:${id}`);
-    const sources = (member.sources ?? []).map((source, index) => ({id: `${theme}:${company.id}:${index}`, title: source.title, url: source.url, sourceDate: null}));
+    const sources = (member.sources ?? []).map((source, index) => ({id: `${theme}:${company.id}:${index}`, title: source.title, titleTranslations: source.titleTranslations, url: source.url, sourceDate: null}));
     return {...company, description: (member.sources ?? []).map(source => source.summary).filter(Boolean).join(' '), descriptionTranslations: member.summaryTranslations, inGraph: {status: 'PUBLISHED', stageIds,
       stages: graphSectors(theme).filter(sector => sector.stages.some(stage => stageIds.includes(stage))).map((sector, order) => ({id:`stage:${sector.stages[0]}`, kind:'STAGE', order, label:sector.en, labels:{en:sector.en,'zh-CN':sector.zh}})),
       memberships: [], sources, order: 1000, asOf: member.reviewedAt,
