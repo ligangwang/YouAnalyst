@@ -33,7 +33,7 @@ export function projectResearchIntelligence(graph:KnowledgeGraph,business:Busine
   for(const event of business){
     const edge=graph.relationships.find(candidate=>candidate.id===event.relationshipId);
     add({url:event.sourceUrl,title:event.sourceTitle,sourceDate:event.sourceDate,companyIds:event.companyIds,edgeIds:edge?[edge.id]:[],summary:event.summary,category:'BUSINESS',eventDate:event.eventDate,planned:event.planned});
-    const cluster=clusters.get(canonicalEvidenceUrl(event.sourceUrl)??'');if(cluster)cluster.title=event.title;
+    const cluster=clusters.get(canonicalEvidenceUrl(event.sourceUrl)??'');if(cluster){cluster.title=event.title;cluster.titleZh=event.titleZh;}
   }
   return [...clusters.values()].sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
 }

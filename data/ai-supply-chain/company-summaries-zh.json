@@ -1,0 +1,725 @@
+{
+  "summaries": [
+    {
+      "source": "Develops the Claude family of AI models and enterprise AI services. A Delaware public benefit corporation. Its June 2026 filing proposed a future IPO; it did not announce completed public trading.",
+      "theme": "ai",
+      "id": "ORG:ANTHROPIC",
+      "text": "开发 Claude 系列 AI 模型与企业 AI 服务，是特拉华州的公益公司。2026 年 6 月的申报提出未来 IPO 计划，并未宣布已完成公开交易。"
+    },
+    {
+      "source": "French AI company developing frontier models and customizable AI solutions for enterprises and industrial applications. Its legal notice identifies Paris registration 952418325. Private-market status is corroborated by Forge.",
+      "theme": "ai",
+      "id": "ORG:MISTRAL-AI",
+      "text": "法国 AI 公司，开发前沿模型及面向企业和工业应用的可定制 AI 解决方案。其法律声明列明巴黎注册号 952418325；Forge 的资料也佐证其非上市公司身份。"
+    },
+    {
+      "source": "Develops frontier AI models and ChatGPT. Its for-profit business is OpenAI Group PBC, controlled by the OpenAI Foundation. Its June 2026 confidential S-1 announcement described it as private; an IPO filing is not a completed stock-market listing.",
+      "theme": "ai",
+      "id": "ORG:OPENAI",
+      "text": "开发前沿 AI 模型与 ChatGPT。其营利业务为 OpenAI Group PBC，由 OpenAI Foundation 控制。2026 年 6 月的保密 S-1 申报公告称其仍为非上市公司；提交 IPO 申请不等于完成股票上市。"
+    },
+    {
+      "source": "On-device AI and Private Cloud Compute.",
+      "theme": "ai",
+      "id": "US:AAPL",
+      "text": "端侧 AI 与 Private Cloud Compute（私有云计算）。"
+    },
+    {
+      "source": "PCIe connectivity and switching for AI servers and clusters.",
+      "theme": "ai",
+      "id": "US:ALAB",
+      "text": "AI 服务器与集群用 PCIe 互连与交换技术。"
+    },
+    {
+      "source": "Materials engineering and semiconductor manufacturing equipment.",
+      "theme": "ai",
+      "id": "US:AMAT",
+      "text": "材料工程与半导体制造设备。"
+    },
+    {
+      "source": "Instinct AI accelerators and EPYC server processors.",
+      "theme": "ai",
+      "id": "US:AMD",
+      "text": "Instinct AI 加速器与 EPYC 服务器处理器。"
+    },
+    {
+      "source": "Advanced packaging for chiplets, logic and high-bandwidth memory.",
+      "theme": "ai",
+      "id": "US:AMKR",
+      "text": "面向芯粒、逻辑芯片和高带宽内存的先进封装。"
+    },
+    {
+      "source": "AWS cloud computing and AI infrastructure.",
+      "theme": "ai",
+      "id": "US:AMZN",
+      "text": "AWS 云计算与 AI 基础设施。"
+    },
+    {
+      "source": "Ethernet switches and network management for AI clusters.",
+      "theme": "ai",
+      "id": "US:ANET",
+      "text": "AI 集群用以太网交换机与网络管理。"
+    },
+    {
+      "source": "Electrical interconnect components for accelerated computing.",
+      "theme": "ai",
+      "id": "US:APH",
+      "text": "用于加速计算的电气互连部件。"
+    },
+    {
+      "source": "Neoverse processor IP and compute platforms for cloud and AI infrastructure.",
+      "theme": "ai",
+      "id": "US:ARM",
+      "text": "面向云与 AI 基础设施的 Neoverse 处理器 IP 与计算平台。"
+    },
+    {
+      "source": "Lithography systems used to manufacture advanced chips.",
+      "theme": "ai",
+      "id": "US:ASML",
+      "text": "用于制造先进芯片的光刻系统。"
+    },
+    {
+      "source": "Ethernet switching silicon and adapters for AI networks.",
+      "theme": "ai",
+      "id": "US:AVGO",
+      "text": "AI 网络用以太网交换芯片与适配器。"
+    },
+    {
+      "source": "Alibaba Cloud infrastructure and Qwen model services.",
+      "theme": "ai",
+      "id": "US:BABA",
+      "text": "阿里云基础设施与通义千问模型服务。"
+    },
+    {
+      "source": "AI cloud infrastructure and Kunlunxin computing technology.",
+      "theme": "ai",
+      "id": "US:BIDU",
+      "text": "AI 云基础设施与昆仑芯计算技术。"
+    },
+    {
+      "source": "Electronic design automation for advanced chip design.",
+      "theme": "ai",
+      "id": "US:CDNS",
+      "text": "用于先进芯片设计的电子设计自动化技术。"
+    },
+    {
+      "source": "Electricity supply agreements supporting data centers.",
+      "theme": "ai",
+      "id": "US:CEG",
+      "text": "支持数据中心的电力供应协议。"
+    },
+    {
+      "source": "Data-center switches, storage and infrastructure platforms.",
+      "theme": "ai",
+      "id": "US:CLS",
+      "text": "数据中心交换机、存储与基础设施平台。"
+    },
+    {
+      "source": "Optical components and connectivity for AI networks.",
+      "theme": "ai",
+      "id": "US:COHR",
+      "text": "AI 网络用光学部件与互连技术。"
+    },
+    {
+      "source": "Active electrical cables and high-speed connectivity for AI clusters.",
+      "theme": "ai",
+      "id": "US:CRDO",
+      "text": "AI 集群用有源电缆与高速互连技术。"
+    },
+    {
+      "source": "Agentforce enterprise AI agents.",
+      "theme": "ai",
+      "id": "US:CRM",
+      "text": "Agentforce 企业级 AI 智能体。"
+    },
+    {
+      "source": "Specialized GPU cloud infrastructure.",
+      "theme": "ai",
+      "id": "US:CRWV",
+      "text": "专用 GPU 云基础设施。"
+    },
+    {
+      "source": "Networking and integrated AI infrastructure with NVIDIA.",
+      "theme": "ai",
+      "id": "US:CSCO",
+      "text": "网络技术及与英伟达合作的集成 AI 基础设施。"
+    },
+    {
+      "source": "Observability for LLM applications and AI agents.",
+      "theme": "ai",
+      "id": "US:DDOG",
+      "text": "大语言模型应用与 AI 智能体的可观测性服务。"
+    },
+    {
+      "source": "Server systems integrating NVIDIA accelerated computing.",
+      "theme": "ai",
+      "id": "US:DELL",
+      "text": "集成英伟达加速计算技术的服务器系统。"
+    },
+    {
+      "source": "Data-center facilities supporting AI-ready workloads.",
+      "theme": "ai",
+      "id": "US:DLR",
+      "text": "支持 AI 工作负载的数据中心设施。"
+    },
+    {
+      "source": "CPC subsidiary provides liquid-cooling connectors.",
+      "theme": "ai",
+      "id": "US:DOV",
+      "text": "旗下 CPC 提供液冷连接器。"
+    },
+    {
+      "source": "High-purity materials and contamination control for semiconductor production.",
+      "theme": "ai",
+      "id": "US:ENTG",
+      "text": "半导体生产用高纯材料与污染控制。"
+    },
+    {
+      "source": "Colocation and interconnection facilities supporting AI deployments.",
+      "theme": "ai",
+      "id": "US:EQIX",
+      "text": "支持 AI 部署的主机托管与互连设施。"
+    },
+    {
+      "source": "Power distribution and management from grid to rack.",
+      "theme": "ai",
+      "id": "US:ETN",
+      "text": "从电网到机架的配电与电力管理。"
+    },
+    {
+      "source": "Integrated power, cooling and compute infrastructure.",
+      "theme": "ai",
+      "id": "US:FLEX",
+      "text": "集成供电、冷却与计算基础设施。"
+    },
+    {
+      "source": "Data-center facilities serving hyperscale and enterprise workloads.",
+      "theme": "ai",
+      "id": "US:GDS",
+      "text": "服务超大规模与企业工作负载的数据中心设施。"
+    },
+    {
+      "source": "Grid and electrical infrastructure for data-center power.",
+      "theme": "ai",
+      "id": "US:GEV",
+      "text": "数据中心供电所需的电网与电气基础设施。"
+    },
+    {
+      "source": "Foundry silicon-photonics technology for data-center connectivity.",
+      "theme": "ai",
+      "id": "US:GFS",
+      "text": "数据中心互连用晶圆代工硅光技术。"
+    },
+    {
+      "source": "Optical fiber and connectivity for AI infrastructure.",
+      "theme": "ai",
+      "id": "US:GLW",
+      "text": "AI 基础设施用光纤与互连技术。"
+    },
+    {
+      "source": "Google Cloud computing and AI infrastructure.",
+      "theme": "ai",
+      "id": "US:GOOGL",
+      "text": "Google Cloud 云计算与 AI 基础设施。"
+    },
+    {
+      "source": "Servers and systems for accelerated computing.",
+      "theme": "ai",
+      "id": "US:HPE",
+      "text": "用于加速计算的服务器与系统。"
+    },
+    {
+      "source": "Xeon host processors for accelerated server systems.",
+      "theme": "ai",
+      "id": "US:INTC",
+      "text": "加速服务器系统用 Xeon 主机处理器。"
+    },
+    {
+      "source": "Manufacturing and integration for cloud and AI data-center hardware.",
+      "theme": "ai",
+      "id": "US:JBL",
+      "text": "云与 AI 数据中心硬件的制造与集成。"
+    },
+    {
+      "source": "Process control and inspection for semiconductor manufacturing.",
+      "theme": "ai",
+      "id": "US:KLAC",
+      "text": "半导体制造用工艺控制与检测设备。"
+    },
+    {
+      "source": "Electronic gases used in chip manufacturing.",
+      "theme": "ai",
+      "id": "US:LIN",
+      "text": "芯片制造用电子气体。"
+    },
+    {
+      "source": "Optical and laser technology for data-center interconnects.",
+      "theme": "ai",
+      "id": "US:LITE",
+      "text": "数据中心互连用光学与激光技术。"
+    },
+    {
+      "source": "Etch and deposition equipment for semiconductor fabrication.",
+      "theme": "ai",
+      "id": "US:LRCX",
+      "text": "半导体制造用刻蚀与沉积设备。"
+    },
+    {
+      "source": "AI model and application infrastructure; a demand-side participant.",
+      "theme": "ai",
+      "id": "US:META",
+      "text": "AI 模型与应用基础设施，属于需求侧参与者。"
+    },
+    {
+      "source": "Cooling equipment for high-density data centers.",
+      "theme": "ai",
+      "id": "US:MOD",
+      "text": "高密度数据中心的冷却设备。"
+    },
+    {
+      "source": "Custom silicon and connectivity for AI infrastructure.",
+      "theme": "ai",
+      "id": "US:MRVL",
+      "text": "面向 AI 基础设施的定制芯片与互连技术。"
+    },
+    {
+      "source": "Azure cloud computing and AI infrastructure.",
+      "theme": "ai",
+      "id": "US:MSFT",
+      "text": "Azure 云计算与 AI 基础设施。"
+    },
+    {
+      "source": "HBM, server DRAM and data-center SSDs.",
+      "theme": "ai",
+      "id": "US:MU",
+      "text": "高带宽内存（HBM）、服务器 DRAM 与数据中心 SSD。"
+    },
+    {
+      "source": "AI cloud infrastructure and services.",
+      "theme": "ai",
+      "id": "US:NBIS",
+      "text": "AI 云基础设施与服务。"
+    },
+    {
+      "source": "AI-enabled enterprise workflow platform.",
+      "theme": "ai",
+      "id": "US:NOW",
+      "text": "支持 AI 的企业工作流平台。"
+    },
+    {
+      "source": "Storage and data management integrated with NVIDIA AI infrastructure.",
+      "theme": "ai",
+      "id": "US:NTAP",
+      "text": "与英伟达 AI 基础设施集成的存储与数据管理。"
+    },
+    {
+      "source": "AI GPUs, accelerated computing platforms and networking.",
+      "theme": "ai",
+      "id": "US:NVDA",
+      "text": "AI GPU、加速计算平台与网络技术。"
+    },
+    {
+      "source": "Neural processing units and software for edge AI.",
+      "theme": "ai",
+      "id": "US:NXPI",
+      "text": "用于边缘 AI 的神经网络处理单元与软件。"
+    },
+    {
+      "source": "Oracle Cloud Infrastructure for AI workloads.",
+      "theme": "ai",
+      "id": "US:ORCL",
+      "text": "面向 AI 工作负载的 Oracle Cloud Infrastructure。"
+    },
+    {
+      "source": "Enterprise storage and data management; formerly Pure Storage.",
+      "theme": "ai",
+      "id": "US:P",
+      "text": "企业存储与数据管理，前身为 Pure Storage。"
+    },
+    {
+      "source": "AIP connects enterprise data and operations with AI models.",
+      "theme": "ai",
+      "id": "US:PLTR",
+      "text": "AIP 将企业数据与运营连接到 AI 模型。"
+    },
+    {
+      "source": "AI inference accelerators for data-center workloads.",
+      "theme": "ai",
+      "id": "US:QCOM",
+      "text": "面向数据中心工作负载的 AI 推理加速器。"
+    },
+    {
+      "source": "Rack-scale AI servers and liquid-cooled systems.",
+      "theme": "ai",
+      "id": "US:SMCI",
+      "text": "机架级 AI 服务器与液冷系统。"
+    },
+    {
+      "source": "Flash storage for AI data infrastructure.",
+      "theme": "ai",
+      "id": "US:SNDK",
+      "text": "AI 数据基础设施用闪存存储。"
+    },
+    {
+      "source": "Cortex AI functions for analytics over enterprise data.",
+      "theme": "ai",
+      "id": "US:SNOW",
+      "text": "用于企业数据分析的 Cortex AI 功能。"
+    },
+    {
+      "source": "EDA tools and design technology for semiconductor development.",
+      "theme": "ai",
+      "id": "US:SNPS",
+      "text": "用于半导体开发的 EDA 工具与设计技术。"
+    },
+    {
+      "source": "High-capacity storage supporting AI data workflows.",
+      "theme": "ai",
+      "id": "US:STX",
+      "text": "支持 AI 数据工作流的大容量存储。"
+    },
+    {
+      "source": "Foundry manufacturing and advanced integration for AI chips.",
+      "theme": "ai",
+      "id": "US:TSM",
+      "text": "AI 芯片的晶圆代工制造与先进集成。"
+    },
+    {
+      "source": "Data-center cooling and energy management.",
+      "theme": "ai",
+      "id": "US:TT",
+      "text": "数据中心冷却与能源管理。"
+    },
+    {
+      "source": "Printed circuit boards for AI servers and hyperscale infrastructure.",
+      "theme": "ai",
+      "id": "US:TTMI",
+      "text": "AI 服务器与超大规模基础设施用印刷电路板。"
+    },
+    {
+      "source": "Carrier-neutral data-center services in China.",
+      "theme": "ai",
+      "id": "US:VNET",
+      "text": "中国的运营商中立数据中心服务。"
+    },
+    {
+      "source": "Data-center power and thermal infrastructure.",
+      "theme": "ai",
+      "id": "US:VRT",
+      "text": "数据中心供电与散热基础设施。"
+    },
+    {
+      "source": "Nuclear electricity agreements supporting Meta's infrastructure.",
+      "theme": "ai",
+      "id": "US:VST",
+      "text": "支持 Meta 基础设施的核电供应协议。"
+    },
+    {
+      "source": "Hard drives and storage platforms for data centers.",
+      "theme": "ai",
+      "id": "US:WDC",
+      "text": "数据中心用硬盘与存储平台。"
+    },
+    {
+      "source": "Korean electronics and semiconductor manufacturer named as a wafer foundry and memory supplier in NVIDIA's FY2026 Form 10-K. General memory supply does not establish qualification for a particular HBM product.",
+      "theme": "ai",
+      "id": "ORG:SAMSUNG-ELECTRONICS",
+      "text": "韩国电子与半导体制造商，在英伟达 2026 财年 Form 10-K 中被列为晶圆代工与内存供应商。一般内存供应关系并不能证明某款 HBM 产品已通过认证。"
+    },
+    {
+      "source": "Healthcare & precision medicine: molecular profiling and AI-powered oncology insights for diagnosis and treatment selection. Caris also operates laboratory testing and data businesses.",
+      "theme": "ai",
+      "id": "US:CAI",
+      "text": "医疗与精准医学：通过分子分析和 AI 驱动的肿瘤学洞察支持诊断与治疗选择。Caris 也经营实验室检测与数据业务。"
+    },
+    {
+      "source": "Healthcare & precision medicine: AI-enabled diagnostics, clinical decision support and life-sciences research. Tempus also operates genomic testing and data businesses.",
+      "theme": "ai",
+      "id": "US:TEM",
+      "text": "医疗与精准医学：AI 辅助诊断、临床决策支持和生命科学研究。Tempus 也经营基因组检测与数据业务。"
+    },
+    {
+      "source": "AMD embedded processors, adaptive SoCs and the Kria robotics platform support perception and deterministic robot control.",
+      "theme": "robotics",
+      "id": "US:AMD",
+      "text": "AMD 嵌入式处理器、自适应 SoC 和 Kria 机器人平台支持感知与确定性机器人控制。"
+    },
+    {
+      "source": "Cognex machine-vision products support robot guidance and industrial inspection.",
+      "theme": "robotics",
+      "id": "US:CGNX",
+      "text": "康耐视机器视觉产品支持机器人引导与工业检测。"
+    },
+    {
+      "source": "Intuitive develops complete robotic-assisted surgical systems and their instruments; surgeon control is distinct from autonomous surgery.",
+      "theme": "robotics",
+      "id": "US:ISRG",
+      "text": "直觉外科开发完整的机器人辅助手术系统及配套器械；由外科医生控制与自主手术有别。"
+    },
+    {
+      "source": "ATI supplies robotic tool changers, material-removal tools and force/torque sensors; Novanta also offers precision-motion components.",
+      "theme": "robotics",
+      "id": "US:NOVT",
+      "text": "ATI 提供机器人快换装置、材料去除工具和力/力矩传感器；Novanta 也提供精密运动部件。"
+    },
+    {
+      "source": "Jetson supports robot inference and control; Isaac provides robotics simulation and learning software.",
+      "theme": "robotics",
+      "id": "US:NVDA",
+      "text": "Jetson 支持机器人推理与控制；Isaac 提供机器人仿真与学习软件。"
+    },
+    {
+      "source": "Ouster develops lidar sensors for industrial automation and robotics.",
+      "theme": "robotics",
+      "id": "US:OUST",
+      "text": "Ouster 开发用于工业自动化与机器人的激光雷达传感器。"
+    },
+    {
+      "source": "Dragonwing processors and robotics platforms support robot edge computing, perception and control.",
+      "theme": "robotics",
+      "id": "US:QCOM",
+      "text": "Dragonwing 处理器与机器人平台支持机器人的边缘计算、感知和控制。"
+    },
+    {
+      "source": "Rockwell offers OTTO autonomous mobile robots and fleet-management software for factory material handling.",
+      "theme": "robotics",
+      "id": "US:ROK",
+      "text": "罗克韦尔提供用于工厂物料搬运的 OTTO 自主移动机器人与车队管理软件。"
+    },
+    {
+      "source": "Symbotic combines robotic technologies and operating software into integrated warehouse automation systems.",
+      "theme": "robotics",
+      "id": "US:SYM",
+      "text": "Symbotic 将机器人技术与运营软件结合为一体化仓储自动化系统。"
+    },
+    {
+      "source": "Teradyne Robotics includes Universal Robots collaborative robots and MiR autonomous mobile robots.",
+      "theme": "robotics",
+      "id": "US:TER",
+      "text": "泰瑞达机器人业务包括优傲协作机器人与 MiR 自主移动机器人。"
+    },
+    {
+      "source": "ESTUN offers industrial and collaborative robots, motion-control products and robot workstations.",
+      "theme": "robotics",
+      "id": "XSHE:002747",
+      "text": "埃斯顿提供工业机器人、协作机器人、运动控制产品和机器人工作站。"
+    },
+    {
+      "source": "Leadshine offers frameless motors for robot joint actuation; the official store identifies stock code 002979.",
+      "theme": "robotics",
+      "id": "XSHE:002979",
+      "text": "雷赛智能提供用于机器人关节驱动的无框电机；官方商店列明股票代码 002979。"
+    },
+    {
+      "source": "Inovance supplies robot controllers, servo drives, motors, encoders and industrial vision systems.",
+      "theme": "robotics",
+      "id": "XSHE:300124",
+      "text": "汇川技术提供机器人控制器、伺服驱动器、电机、编码器和工业视觉系统。"
+    },
+    {
+      "source": "MOONS supplies motion-control motors, drives and frameless motors, including motor products for robotic hands.",
+      "theme": "robotics",
+      "id": "XSHG:603728",
+      "text": "鸣志电器提供运动控制电机、驱动器与无框电机，包括机器人灵巧手用电机产品。"
+    },
+    {
+      "source": "Leaderdrive offers precision harmonic transmission and humanoid robot joint products; the official site identifies stock code 688017.",
+      "theme": "robotics",
+      "id": "XSHG:688017",
+      "text": "绿的谐波提供精密谐波传动与人形机器人关节产品；官网列明股票代码 688017。"
+    },
+    {
+      "source": "Orbbec provides depth cameras, lidar and vision products for robotics.",
+      "theme": "robotics",
+      "id": "XSHG:688322",
+      "text": "奥比中光提供机器人用深度相机、激光雷达与视觉产品。"
+    },
+    {
+      "source": "Commercial space-station modules under development; membership does not claim the full station is operating.",
+      "theme": "space",
+      "id": "ORG:AXIOM-SPACE",
+      "text": "正在开发的商业空间站舱段；纳入图谱不代表完整空间站已投入运营。"
+    },
+    {
+      "source": "Reusable launch vehicles; its in-space transport platform is a separate role. In-space mobility and hosted infrastructure platform; membership does not imply every planned mission has launched.",
+      "theme": "space",
+      "id": "ORG:BLUE-ORIGIN",
+      "text": "可重复使用的运载火箭；太空运输平台属于另一项业务。另提供太空机动与搭载式基础设施平台；纳入图谱不代表所有规划任务均已发射。"
+    },
+    {
+      "source": "Phased-array payloads, spacecraft, RF components and ground terminals.",
+      "theme": "space",
+      "id": "ORG:CESIUMASTRO",
+      "text": "相控阵载荷、航天器、射频部件与地面终端。"
+    },
+    {
+      "source": "In-orbit transportation and satellite deployment services.",
+      "theme": "space",
+      "id": "ORG:D-ORBIT",
+      "text": "在轨运输与卫星部署服务。"
+    },
+    {
+      "source": "Microgravity processing spacecraft and reentry capsules.",
+      "theme": "space",
+      "id": "ORG:VARDA-SPACE",
+      "text": "微重力加工航天器与再入舱。"
+    },
+    {
+      "source": "Space-grade Versal adaptive SoCs for satellite and space applications.",
+      "theme": "space",
+      "id": "US:AMD",
+      "text": "面向卫星与航天应用的航天级 Versal 自适应 SoC。"
+    },
+    {
+      "source": "Amazon Leo satellite broadband constellation, optical links and gateway network; the parent company is the canonical identity.",
+      "theme": "space",
+      "id": "US:AMZN",
+      "text": "Amazon Leo 卫星宽带星座、光链路和网关网络；公司身份以母公司为准。"
+    },
+    {
+      "source": "Space-based cellular broadband satellites and network architecture; deployment status must be read in current releases.",
+      "theme": "space",
+      "id": "US:ASTS",
+      "text": "天基蜂窝宽带卫星与网络架构；部署进度须以最新公告为准。"
+    },
+    {
+      "source": "Space-based imagery, tasking and intelligence analytics using its own constellation.",
+      "theme": "space",
+      "id": "US:BKSY",
+      "text": "通过自有卫星星座提供天基影像、任务调度与情报分析。"
+    },
+    {
+      "source": "Launch, lunar landing and in-space mission services.",
+      "theme": "space",
+      "id": "US:FLY",
+      "text": "发射、月球着陆与太空任务服务。"
+    },
+    {
+      "source": "Satellite terminals and multi-orbit ground communications equipment.",
+      "theme": "space",
+      "id": "US:GILT",
+      "text": "卫星终端与多轨道地面通信设备。"
+    },
+    {
+      "source": "Satellite communications network and user connectivity solutions.",
+      "theme": "space",
+      "id": "US:GSAT",
+      "text": "卫星通信网络与用户连接解决方案。"
+    },
+    {
+      "source": "Global satellite communications network and services.",
+      "theme": "space",
+      "id": "US:IRDM",
+      "text": "全球卫星通信网络与服务。"
+    },
+    {
+      "source": "Software-defined satellite ground systems and network orchestration.",
+      "theme": "space",
+      "id": "US:KTOS",
+      "text": "软件定义的卫星地面系统与网络编排。"
+    },
+    {
+      "source": "Satellite buses, sensing payloads, antennas, ground systems and mission solutions.",
+      "theme": "space",
+      "id": "US:LHX",
+      "text": "卫星平台、传感载荷、天线、地面系统与任务解决方案。"
+    },
+    {
+      "source": "Multi-mission spacecraft platforms for sensing, communications and imaging.",
+      "theme": "space",
+      "id": "US:LMT",
+      "text": "用于传感、通信和成像的多任务航天器平台。"
+    },
+    {
+      "source": "Lunar delivery missions, spacecraft integration and communications infrastructure.",
+      "theme": "space",
+      "id": "US:LUNR",
+      "text": "月球运输任务、航天器集成与通信基础设施。"
+    },
+    {
+      "source": "Space-qualified FPGAs, power devices and radiation-tolerant electronics.",
+      "theme": "space",
+      "id": "US:MCHP",
+      "text": "通过航天应用认证的 FPGA、功率器件与抗辐射电子器件。"
+    },
+    {
+      "source": "Motion controls, spacecraft propulsion and satellite buses.",
+      "theme": "space",
+      "id": "US:MOG.A",
+      "text": "运动控制、航天器推进与卫星平台。"
+    },
+    {
+      "source": "Mission-extension spacecraft and robotic satellite servicing.",
+      "theme": "space",
+      "id": "US:NOC",
+      "text": "任务延寿航天器与机器人卫星维护。"
+    },
+    {
+      "source": "Satellite imagery and Earth-observation data products from operated constellations.",
+      "theme": "space",
+      "id": "US:PL",
+      "text": "通过运营中的卫星星座提供卫星影像与地球观测数据产品。"
+    },
+    {
+      "source": "Space power, structures and infrastructure technologies.",
+      "theme": "space",
+      "id": "US:RDW",
+      "text": "空间供电、结构与基础设施技术。"
+    },
+    {
+      "source": "Launch services, spacecraft, satellite components and on-orbit management.",
+      "theme": "space",
+      "id": "US:RKLB",
+      "text": "发射服务、航天器、卫星部件与在轨管理。"
+    },
+    {
+      "source": "SpaceX-built Starlink spacecraft and satellite communications network, terminals and launch access. Reusable launch vehicle for spacecraft and satellite missions. Official announcement identifies Nasdaq ticker SPCX; use the listed-company identity for disclosures.",
+      "theme": "space",
+      "id": "US:SPCX",
+      "text": "SpaceX 制造的 Starlink 航天器与卫星通信网络、终端及发射服务，以及用于航天器和卫星任务的可重复使用运载火箭。官方公告列明纳斯达克股票代码 SPCX；披露应使用上市公司身份。"
+    },
+    {
+      "source": "Space data services, satellite platforms, manufacturing and ground-network mission services.",
+      "theme": "space",
+      "id": "US:SPIR",
+      "text": "空间数据服务、卫星平台、制造与地面网络任务服务。"
+    },
+    {
+      "source": "Space-qualified imaging sensors, focal-plane arrays and cameras.",
+      "theme": "space",
+      "id": "US:TDY",
+      "text": "通过航天应用认证的成像传感器、焦平面阵列与相机。"
+    },
+    {
+      "source": "Satellite connectivity networks and communications systems.",
+      "theme": "space",
+      "id": "US:VSAT",
+      "text": "卫星连接网络与通信系统。"
+    },
+    {
+      "source": "Small-satellite platforms, development and manufacturing.",
+      "theme": "space",
+      "id": "XSHG:600118",
+      "text": "小卫星平台、研制与制造。"
+    },
+    {
+      "source": "Space electronics, telemetry, guidance and components for rockets, satellites and ground receivers.",
+      "theme": "space",
+      "id": "XSHG:600879",
+      "text": "用于火箭、卫星和地面接收设备的航天电子、遥测、制导与部件。"
+    },
+    {
+      "source": "Satellite fleet operations and communications services.",
+      "theme": "space",
+      "id": "XSHG:601698",
+      "text": "卫星星座运营与通信服务。"
+    },
+    {
+      "source": "Nuwa radar satellite constellation and remote-sensing software, cloud and application services.",
+      "theme": "space",
+      "id": "XSHG:688066",
+      "text": "女娲雷达卫星星座，以及遥感软件、云与应用服务。"
+    }
+  ],
+  "asOf": "2026-10-08"
+}

@@ -25,7 +25,8 @@ test('monitoring node hover fades relationship lines in and out',async({page},in
   const label=page.locator('[data-company-id="US:NVDA"]');
   await expect(label).toBeVisible();
   await page.emulateMedia({reducedMotion:'no-preference'});
-  await label.hover();
+  // Orbiting labels intentionally move; exercise pointer hover without waiting for a stationary box.
+  await label.hover({force:true});
   await expect(label).toHaveAttribute('data-highlighted','true');
   await expect.poll(async()=> (await edges()).some(e=>e.alpha>.01)).toBe(true);
   await page.screenshot({path:info.outputPath('monitoring-hover-relationships.png')});

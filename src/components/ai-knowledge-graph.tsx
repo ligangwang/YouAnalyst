@@ -7,7 +7,7 @@ import { marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 
 import { lazy, Suspense, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocale } from "./providers/locale-provider";
-import { companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
+import { companySummary, companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
@@ -252,7 +252,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
         {company.privateValuation && <PrivateValuationDisplay valuation={company.privateValuation}/>}
         {company.marketCap && <p>{marketCapDescription(company.marketCap, locale)}</p>}
         <GraphCompanyOutlook company={company}/>
-        <p>{company.summary}</p>
+        <p>{companySummary(company,locale)}</p>
         <CompanyFollowButton companyId={company.id} /><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a>
         {eventId && curatedEvents.filter(e => e.id === eventId && e.companyIds.includes(company.id)).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected event sources", "选中事件来源")}><BusinessEventEvidence event={e} /></section>)}
         {activeEdge && graph.relationships.filter(e => e.id === activeEdge && (e.source === company.id || e.target === company.id)).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected connection", "选中关系")}><h3>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}</h3><p>{label(e.source)} → {label(e.target)}</p><RelationshipEvidence edge={e} graph={graph} /><button onClick={() => selectCompany(e.target === company.id ? e.source : e.target)}>{text("Explore", "探索")} {label(e.target === company.id ? e.source : e.target)} →</button></section>)}

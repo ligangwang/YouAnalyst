@@ -1,3 +1,4 @@
+import {translatedSummary} from '../knowledge-graph/summary-translations';
 import {readPeriodDocuments} from '../intelligence/period-query';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {KnowledgeGraph} from '../knowledge-graph/model';
@@ -16,7 +17,7 @@ export function projectDisclosures(records:Record<string,unknown>[],graph:Knowle
     const sec=row.sourceType==='sec'&&row.companyId.startsWith('US:')&&parsed.hostname==='www.sec.gov'&&Boolean(secPath&&safeSecDocumentPath(secPath[1]));
     const exchange=row.sourceType==='exchange'&&/^(?:XSHG|XSHE):/.test(row.companyId)&&parsed.hostname==='static.cninfo.com.cn'&&/^\/finalpage\/\d{4}-\d{2}-\d{2}\/[\w.-]+\.pdf$/i.test(parsed.pathname);
     if(!sec&&!exchange)return [];
-    return [{id:`disclosure-${row.id}`,origin:row.companyId,companyIds:[row.companyId],edgeIds:[],category:row.category==='EARNINGS'?'BUSINESS':'FILING',title:row.title,summary:typeof row.summary==='string'?row.summary:'Official company disclosure.',published_at:date.at,publication_date:date.day,eventDate:typeof row.publication_date==='string'?row.publication_date:null,evidence:[{id:row.id,url,title:row.title,sourceDate:typeof row.publication_date==='string'?row.publication_date:null,channel:sec?'SEC':'Exchange'}],planned:false} satisfies IntelligenceEvent];
+    return [{id:`disclosure-${row.id}`,origin:row.companyId,companyIds:[row.companyId],edgeIds:[],category:row.category==='EARNINGS'?'BUSINESS':'FILING',title:row.title,titleEn:translatedSummary(row.title,(row.titleTranslations as Record<string,unknown>|undefined)?.en),titleZh:translatedSummary(row.title,(row.titleTranslations as Record<string,unknown>|undefined)?.["zh-CN"]),summary:typeof row.summary==='string'?row.summary:'Official company disclosure.',published_at:date.at,publication_date:date.day,eventDate:typeof row.publication_date==='string'?row.publication_date:null,evidence:[{id:row.id,url,title:row.title,sourceDate:typeof row.publication_date==='string'?row.publication_date:null,channel:sec?'SEC':'Exchange'}],planned:false} satisfies IntelligenceEvent];
   });
 }
 export async function loadMapDisclosures(db:Firestore,graph:KnowledgeGraph,now:Date,from:string,limit?:number){
