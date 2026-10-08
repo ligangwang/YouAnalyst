@@ -1,11 +1,11 @@
 "use client";
 
+import { IntelligenceLoadingShell } from './intelligence-loading-shell';
 import { useNodeCardPosition } from './use-node-card-position';
 import { GraphCompanyOutlook } from "./company-outlook";
 import { UiText, useUiText } from "./ui-text";
 import { IntelligenceSectorLegend } from './intelligence-sector-legend';
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import Image from 'next/image';
 import { LocalizedLink as Link } from './localized-link';
 import { useLocale } from './providers/locale-provider';
 import { NavigationSettings } from './navigation-settings';
@@ -52,7 +52,7 @@ export function LiveInvestmentIntelligence({initialSnapshot,...initialState}:{in
   const {snapshot,theme,error,changeTheme,reconnect}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme);
   const [guestSaved,setGuestSaved]=useState<string[]>([]);
   const [panels,setPanels]=useState<Panels>({left:null,right:true});
-  if(!snapshot)return <main className={liveStyles.loadingShell}><Link href="/" aria-label="YouAnalyst home"><Image src="/youanalyst-logo-mobile.svg" width={134} height={30} alt="YouAnalyst" priority/></Link><h1><UiText text={"Investment Intelligence"}/></h1><IntelligenceThemeSelector theme={theme} onChange={changeTheme}/><p role={error?'alert':'status'}><UiText text={error||'Loading companies and recorded events…'}/></p>{error&&<button onClick={reconnect}><UiText text={"Retry connection"}/></button>}<nav aria-label="Research navigation"><Link href={theme!=='ai'?`/?theme=${theme}&view=graph`:'/?view=graph'}><UiText text={"Map"}/></Link><Link href="/research"><UiText text={"Research"}/></Link><Link href="/companies"><UiText text={"Companies"}/></Link><Link href="/research/nvidia-ai-ecosystem"><UiText text={"NVIDIA ecosystem"}/></Link><Link href="/research/amd-ai-ecosystem"><UiText text={"AMD ecosystem"}/></Link></nav></main>;
+  if(!snapshot)return <IntelligenceLoadingShell theme={theme} onThemeChange={changeTheme} error={error} onRetry={reconnect}/>;
   return <IntelligenceWorkspace panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} setGuestSaved={setGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={reconnect}/>;
 }
 

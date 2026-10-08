@@ -12,7 +12,7 @@ export default async function IntelligencePage({searchParams}:{searchParams:Prom
   const params=await searchParams;
   const value=(key:string)=>typeof params[key]==='string'?params[key]:'';
   const theme=parseCompanyTheme(value('theme'));
-  return <Suspense fallback={<IntelligenceLoadingShell/>}><InitialWorkspace theme={theme} value={value}/></Suspense>;
+  return <Suspense fallback={<IntelligenceLoadingShell theme={theme}/>}><InitialWorkspace theme={theme} value={value}/></Suspense>;
 }
 
 async function InitialWorkspace({theme,value}:{theme:ReturnType<typeof parseCompanyTheme>;value:(key:string)=>string}){
