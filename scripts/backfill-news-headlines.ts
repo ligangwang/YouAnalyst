@@ -1,7 +1,7 @@
 import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
-import {translateCollectedHeadlines} from '../src/lib/intelligence/collectors/headline-translations';
+import {headlineTargetLocale,translateCollectedHeadlines} from '../src/lib/intelligence/collectors/headline-translations';
 import {company,encode,type Document} from './migrate-company-themes';
 async function main(){
 const project=process.env.GCP_PROJECT_ID;
@@ -20,7 +20,7 @@ async function request(url:string,method='GET',data?:unknown){
 }
 const snapshots=await Promise.all(['ai','robotics','space'].map(async theme=>{const response=await fetch(`https://youanalyst.com/api/intelligence?theme=${theme}`);assert(response.ok,'Cannot read public event snapshot');return response.json();}));
 const mapped=new Set<string>(snapshots.flatMap(snapshot=>snapshot.graph.nodes.filter((node:{kind:string})=>node.kind==='COMPANY').map((node:{id:string})=>node.id)));
-const ids=[...new Set<string>(snapshots.flatMap(snapshot=>snapshot.events.filter((event:{id:string})=>event.id.startsWith('news-')).map((event:{id:string})=>event.id.slice(5))))];
+const ids=[...new Set<string>(snapshots.flatMap(snapshot=>snapshot.events.filter((event:{id:string})=>event.id.startsWith('news-')||event.id.startsWith('disclosure-')).map((event:{id:string})=>event.id.replace(/^(news-|disclosure-)/,''))))];
 const docRoot=root.replace('https://firestore.googleapis.com/v1/','');
 type Ref={id:string;path:string};
 const ref=(collection:string,id:string):Ref=>({id,path:`${docRoot}/${collection}/${id}`});
@@ -42,7 +42,7 @@ const db={collection:(name:string)=>({doc:(id:string)=>ref(name,id)}),runTransac
 }} as unknown as Firestore;
 console.log(JSON.stringify({events:records.length,...await translateCollectedHeadlines(db,mapped,{records,deadline:Date.now()+150_000})}));
 const verified=await getAll(ids.map(id=>ref('events',id)));
-console.log(JSON.stringify({stored:verified.filter(doc=>doc.data()?.titleTranslations?.['zh-CN']?.source===doc.data()?.title).length}));
+console.log(JSON.stringify({stored:verified.filter(doc=>doc.data()?.titleTranslations?.[headlineTargetLocale(String(doc.data()?.title??''))]?.source===doc.data()?.title).length}));
 console.log(JSON.stringify({review:verified.filter(doc=>doc.data()?.titleTranslationState?.status==='review_required').map(doc=>({id:doc.id,error:doc.data()?.titleTranslationState?.error??'Prior failure (reason not recorded)'}))}));
 delete process.env.OPENAI_API_KEY;
 

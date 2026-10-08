@@ -38,9 +38,9 @@ async function main(){
   // Rotate the start hourly; slow publishers cannot starve later map companies.
   const start=Math.floor(Date.now()/3600000)%Math.max(1,sources.length);
   const results=await collectNewsSources([...sources.slice(start),...sources.slice(0,start)],firestoreNewsStore(db),undefined,undefined,{deadline:newsDeadline});
-  const headlines=await translateCollectedHeadlines(db,mapped,{deadline:Math.min(deadline-4*60_000,Date.now()+150_000)});
   const gate=createEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
   const exchange=await collectCnMapDisclosures(db,graph,transport.request,{deadline:Math.min(deadline-4*60_000,Date.now()+6*60_000),runId:randomUUID(),earningsEnabled:process.env.EARNINGS_COLLECTION_ENABLED==='1'});
+  const headlines=await translateCollectedHeadlines(db,mapped,{deadline:Math.min(deadline-2*60_000,Date.now()+150_000)});
   const calendar=process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline}):{disabled:true};
   console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange,calendar,headlines}));
   if(results.some(result=>result.status==='failed'))process.exitCode=1;

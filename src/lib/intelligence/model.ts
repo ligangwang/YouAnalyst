@@ -6,12 +6,12 @@ export type IntelligenceEvidence = { id:string; url:string; title:string; source
 export type IntelligenceCalendarEvent = { id:string; companyId:string; day:string; validationWarning?:boolean };
 export type IntelligenceEvent = {
   id:string; origin:string; companyIds:string[]; edgeIds:string[]; category:'FILING'|'RESEARCH'|'BUSINESS';
-  title:string; titleZh?:string; summary:string; published_at:string|null; publication_date:string; eventDate:string|null;
+  title:string; titleZh?:string; titleEn?:string; summary:string; published_at:string|null; publication_date:string; eventDate:string|null;
   evidence:IntelligenceEvidence[]; planned:boolean;
   calendarEvents?:IntelligenceCalendarEvent[];
 };
-export function intelligenceEventTitle(event:Pick<IntelligenceEvent,'title'|'titleZh'|'evidence'>,locale:string){
-  if(locale!=='zh-CN')return event.title;
+export function intelligenceEventTitle(event:Pick<IntelligenceEvent,'title'|'titleZh'|'titleEn'|'evidence'>,locale:string){
+  if(locale!=='zh-CN')return event.titleEn?.trim()||event.title;
   if(event.titleZh?.trim())return event.titleZh;
   if(event.evidence.some(source=>source.channel==='SEC'))return event.title.replace(/ · (.+) filing$/, ' · $1 申报').replace(/ · Earnings announcement$/, ' · 业绩公告');
   return event.title;
