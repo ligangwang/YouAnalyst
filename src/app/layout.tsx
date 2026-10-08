@@ -82,7 +82,7 @@ export default async function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         {GOOGLE_ANALYTICS_ID && isProductionAppEnvironment() ? (
-          <Script id="google-analytics" strategy="beforeInteractive">
+          <Script id="google-analytics" strategy="lazyOnload">
             {analyticsBootstrap(GOOGLE_ANALYTICS_ID, true)}
           </Script>
         ) : null}
