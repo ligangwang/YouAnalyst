@@ -178,9 +178,10 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
   await expect(page.locator('[data-list-company]')).toHaveCount(1);
   await page.locator('[data-list-company="US:MU"] button').click();
-  await expect(selection.getByRole('link',{name:'Company research ↗'})).toHaveAttribute('href','/en/ticker/MU');
-  await expect(selection.getByRole('link',{name:'Bullish',exact:true})).toHaveAttribute('href',/ticker%3DMU/);
-  await page.reload();await expect(selection.getByRole('link',{name:'Company research ↗'})).toBeVisible();
+  const companyCard=page.getByRole('region',{name:'Company details',exact:true});
+  await expect(companyCard.getByRole('link',{name:'Company research ↗'})).toHaveAttribute('href','/en/ticker/MU');
+  await expect(companyCard.getByRole('link',{name:'Bullish',exact:true})).toHaveAttribute('href',/ticker%3DMU/);
+  await page.reload();await expect(companyCard.getByRole('link',{name:'Company research ↗'})).toBeVisible();
   await input.fill('');
   await page.getByRole('button',{name:'Filter IR signals',exact:true}).click();
   await expect(page.locator('[data-list-company]')).toHaveCount(2);
