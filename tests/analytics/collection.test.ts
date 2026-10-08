@@ -5,23 +5,27 @@ import { buildSync } from "esbuild";
 import { analyticsBootstrap } from "../../src/lib/analytics-bootstrap";
 import { GET } from "../../src/app/analytics/opt-out/route";
 
-function browser(overrides: { hostname?: string; protocol?: string; webdriver?: boolean; userAgent?: string; cookie?: string; blockedCookies?: boolean } = {}) {
+function browser(overrides: { hostname?: string; protocol?: string; webdriver?: boolean; userAgent?: string; cookie?: string; blockedCookies?: boolean; readyState?: string } = {}) {
   const scripts: Array<{ src?: string }> = [];
   const meta = { content: "disabled", setAttribute(_key: string, value: string) { this.content = value; }, getAttribute() { return this.content; } };
-  const window: Record<string, unknown> = {};
+  const idle: Array<()=>void> = [],listeners=new Map<string,()=>void>();
+  const window: Record<string, unknown> = {requestIdleCallback:(callback:()=>void)=>idle.push(callback),setTimeout:(callback:()=>void)=>idle.push(callback),addEventListener:(name:string,callback:()=>void)=>listeners.set(name,callback)};
   const document = {
+    readyState: overrides.readyState ?? 'complete',
     querySelector: () => meta,
     get cookie() { if (overrides.blockedCookies) throw new Error("Blocked"); return overrides.cookie ?? ""; },
     createElement: () => ({}), head: { appendChild: (script: { src?: string }) => scripts.push(script) },
   };
   const context = { window, document, location: { hostname: overrides.hostname ?? "youanalyst.com", protocol: overrides.protocol ?? "https:" }, navigator: { webdriver: overrides.webdriver ?? false, userAgent: overrides.userAgent ?? "Chrome" } };
-  return { context, scripts, meta, window };
+  return { context, scripts, meta, window,runIdle:()=>idle.splice(0).forEach(callback=>callback()),loaded:()=>listeners.get('load')?.() };
 }
 
 test("real public-domain visitors retain one initial page configuration and custom events", () => {
   for (const hostname of ["youanalyst.com", "www.youanalyst.com"]) {
     const env = browser({ hostname });
     runInNewContext(analyticsBootstrap("G-TEST123", true), env.context);
+    assert.equal(env.scripts.length, 0);
+    env.runIdle();
     assert.equal(env.scripts.length, 1);
     assert.equal(env.scripts[0].src, "https://www.googletagmanager.com/gtag/js?id=G-TEST123");
     assert.equal(env.meta.content, "enabled");
@@ -98,4 +102,19 @@ test("seven-day returns count once per later day and honor analytics opt-out", (
     if(!optedOut)assert.equal(calls[0][1],"following_return_7d");
     else assert.equal(stored.size,0);
   }
+});
+
+
+test("early conversion and following-return events queue before Google's idle download",()=>{
+  const env=browser({readyState:'loading'});
+  runInNewContext(analyticsBootstrap('G-TEST123',true),env.context);
+  const stored=new Map<string,string>();
+  const script=buildSync({entryPoints:['src/lib/analytics.ts'],bundle:true,write:false,format:'iife',globalName:'analytics'}).outputFiles[0].text;
+  runInNewContext(script+'; analytics.trackEvent("auth_view"); analytics.trackFollowingVisit(100*86400000,true); analytics.trackFollowingVisit(101*86400000);',{...env.context,localStorage:{getItem:(key:string)=>stored.get(key)??null,setItem:(key:string,value:string)=>stored.set(key,value)}});
+  const queued=env.window.dataLayer as IArguments[];
+  assert(queued.some(event=>event[0]==='event'&&event[1]==='auth_view'));
+  assert(queued.some(event=>event[0]==='event'&&event[1]==='following_return_7d'));
+  env.runIdle();assert.equal(env.scripts.length,0);
+  env.loaded();assert.equal(env.scripts.length,0);
+  env.runIdle();assert.equal(env.scripts.length,1);
 });
