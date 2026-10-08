@@ -149,3 +149,28 @@ test('theme presentation retains canonical identities and secondary roles withou
   assert.equal(roboticsGraph([company,other],[{...relationship,themeIds:['robotics']}]).relationships.length,1);
   assert.deepEqual(company.themeMemberships.robotics,member);assert.equal(parseCompanyTheme('unknown'),'ai');
 });
+
+
+test('sparse sector themes grow wooden limbs without adding taxonomy or losing company leaves',async()=>{
+  const {layoutVerticalTree}=await import('../src/lib/knowledge-graph/vertical-tree');
+  const {verticalTreeStrands,verticalTreeStrandGeometries,createStrandWriter}=await import('../src/lib/knowledge-graph/vertical-tree-geometry');
+  for(const theme of ['robotics','space']){
+    const layers=[0,1,2].map(i=>({id:`${theme}:sector-${i}`,en:`Sector ${i}`,zh:`Sector ${i}`,color:'#67e6bc',stages:[],branches:[],directCompanies:true,
+      companies:[{id:`US:COMPANY-${i}`,name:`Company ${i}`,kind:'COMPANY' as const,order:i}]}));
+    const nodes=layoutVerticalTree(layers,new Set(['root',...layers.map(l=>l.id)]),'en');
+    const leaves=nodes.filter(n=>n.kind==='company');
+    assert.equal(leaves.length,3);
+    assert.equal(nodes.filter(n=>n.kind==='branch').length,0);
+    const strands=verticalTreeStrands(nodes);
+    for(const leaf of leaves){
+      const limb=strands.find(s=>s.to===leaf.id);
+      assert.equal(limb?.kind,'branch');assert.equal(limb?.attach,'trunk');
+      assert(leaf.stem!<leaf.position[1]);
+      assert(leaf.position[1]<Math.max(...nodes.filter(n=>n.kind==='layer').map(n=>n.position[1])));
+    }
+    const geometry=verticalTreeStrandGeometries(strands,'');
+    createStrandWriter()(strands,geometry,id=>{const p=nodes.find(n=>n.id===id)?.position;return p?{x:p[0],y:p[1],z:p[2]}:undefined;},nodes.filter(n=>n.kind==='layer').map(n=>n.position[1]));
+    assert(Array.from(geometry[0].getAttribute('position').array).every(Number.isFinite));
+    geometry.forEach(g=>g.dispose());
+  }
+});
