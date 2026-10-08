@@ -79,7 +79,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const setQuery=(value:string)=>updateIndustryBrowse({q:value},true);
   const view=parseIndustryView(useIndustryBrowseParam('view','graph',initialView))??'graph';
   const viewId=useId();
-  const changeView=(next:IndustryView)=>updateIndustryBrowse({view:next});
+  const changeView=(next:IndustryView)=>{if(next!=='graph'&&selected)setRightOpen(true);updateIndustryBrowse({view:next});};
   const [sourceFilter,setSourceFilter]=useState<IntelligenceSource|''>(''),[activeOnly,setActiveOnly]=useState(false);
   const [window,setWindow]=useState<'today'|'recent'>(()=>(snapshot.sourceDocuments??sourceDocumentsForEvents(snapshot.events)).some(document=>document.publication_date===snapshot.session.date)?'today':'recent');
   const selectedPanel=useRef<HTMLElement>(null);

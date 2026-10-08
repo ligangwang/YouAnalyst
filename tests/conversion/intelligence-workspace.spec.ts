@@ -341,5 +341,9 @@ test('graph company details float inside the graph and move independently of the
   await page.getByRole('button',{name:'MU Micron',exact:true}).click();
   await expect(card).toContainText('Micron');
   await expect.poll(async()=>Math.abs((await card.boundingBox())!.x-moved.x)).toBeLessThanOrEqual(1);
-  await card.press('Escape');await expect(card).toHaveCount(0);
+  await page.getByRole('tab',{name:'Company list',exact:true}).click();
+  const details=page.getByRole('region',{name:'Selected sources',exact:true});
+  await expect(details).toBeVisible();await expect(details).toContainText('Micron');
+  await expect(page.getByRole('button',{name:'Collapse right panel',exact:true})).toBeVisible();
+  await details.press('Escape');await expect(details).toHaveCount(0);
 });
