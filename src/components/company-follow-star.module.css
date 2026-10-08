@@ -1,17 +1,15 @@
-.star { position: relative; flex-shrink: 0; border-radius: 4px; }
+.star { cursor: pointer; position: relative; flex-shrink: 0; border-radius: 4px; }
 .star:focus-visible { outline: 2px solid #80ded3; outline-offset: 1px; }
-.star:disabled { cursor: wait; }
+.star:disabled { cursor: pointer; }
 .star > span:first-child { color: inherit; font-size: inherit; }
-.star[aria-busy="true"] > span:first-child { opacity: .55; }
-.tooltip, .star .notice {
+
+.notice {
   z-index: 3; pointer-events: none; padding: 6px 9px; border: 1px solid #37515d;
   border-radius: 6px; background: #142932; color: #d8f2ee; font-size: 11px;
   line-height: 1.4; white-space: normal; width: max-content; max-width: 185px;
   overflow: visible; text-overflow: clip; box-shadow: 0 3px 12px #0005;
 }
 .star .notice { position: absolute; right: calc(100% + 6px); top: 50%; transform: translateY(-50%); }
-.tooltip { position: fixed; z-index: 1000; max-width: min(185px, calc(100vw - 16px)); animation: hintFade .12s ease-out both; }
-@keyframes hintFade { from { opacity: 0; } to { opacity: 1; } }
 .star .error { border-color: #9b5561; color: #ffc4ce; }
 .success { animation: confirmation 2.2s ease both; }
 @keyframes confirmation {
@@ -21,5 +19,9 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .success { animation: none; }
-  .tooltip { animation: none; }
 }
+
+.toast { position: fixed; right: 24px; bottom: 24px; z-index: 1000; max-width: calc(100vw - 48px); }
+.toast[data-anchored="true"] { right: auto; bottom: auto; }
+.toast.success { animation-name: toastConfirmation; }
+@keyframes toastConfirmation { 0% { opacity: 0; } 8%, 82% { opacity: 1; } 100% { opacity: 0; } }
