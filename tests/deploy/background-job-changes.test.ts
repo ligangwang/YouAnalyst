@@ -1,3 +1,4 @@
+import {runInNewContext} from 'node:vm';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {backgroundJobTarget,chartOnlyLibraries} from '../../scripts/background-job-changes.mjs';
@@ -57,7 +58,7 @@ test('production rollout persists explicit pipeline flags and reuses only the ap
   for(const name of ['ENABLE_SEC_FILING_PIPELINE','SEC_FILINGS_COLLECTOR_ENABLED','COMPANY_GRAPH_PROCESSING_ENABLED','COMPANY_GRAPH_PAID_ADMISSION_ENABLED','COMPANY_GRAPH_QUEUE_BATCH_SIZE','OPENAI_MODEL']) {
     assert.equal(env[name], `\${{ vars.${name} }}`);
   }
-  assert.equal(env.OPENAI_API_KEY, "${{ (vars.ENABLE_SEC_FILING_PIPELINE == '1' || vars.CALENDAR_EXTRACTION_ENABLED == '1') && secrets.OPENAI_API_KEY || '' }}");
+  assert.equal(env.OPENAI_API_KEY, "${{ (vars.ENABLE_SEC_FILING_PIPELINE == '1' || vars.CALENDAR_EXTRACTION_ENABLED == '1' || vars.INTELLIGENCE_NEWS_COLLECTOR_ENABLED == '1') && secrets.OPENAI_API_KEY || '' }}");
   assert.equal(env.PUBSUB_BOOTSTRAP_IAM, undefined);
   const probe=workflow.jobs['deploy-background-jobs'].steps.find((step: {name?:string})=>step.name?.startsWith('Verify graph Pub/Sub'));
   assert.match(probe.if, /ENABLE_SEC_FILING_PIPELINE == '1'/);
@@ -87,4 +88,17 @@ test('shared worker image contains both EOD and every SEC/graph publisher and su
   for(const entry of ['serve-eod-maintenance','collect-sec-filings','serve-sec-fundamentals','refresh-company-graph','serve-company-graph']) {
     assert.ok(docker.includes(`scripts/${entry}.ts --bundle --platform=node --packages=external --outfile=dist/${entry}.cjs`));
   }
+});
+
+test('news analysis receives its existing key while calendar extraction is disabled',()=>{
+  const script=readFileSync('scripts/deploy-intelligence-news.sh','utf8');
+  const generator=script.match(/<<'NODE'\r?\n([\s\S]*?)\r?\nNODE/)?.[1];
+  assert.ok(generator);
+  let stored:Record<string,string>|undefined;
+  runInNewContext(generator,{
+    require:(name:string)=>{assert.equal(name,'node:fs');return {writeFileSync:(_path:string,body:string)=>{stored=JSON.parse(body);}};},
+    process:{argv:['node','-','test-env'],env:{GCP_PROJECT_ID:'demo',INTELLIGENCE_NEWS_COLLECTOR_ENABLED:'1',CALENDAR_EXTRACTION_ENABLED:'0',OPENAI_API_KEY:'news-test-key'}},
+  });
+  assert.equal(stored?.OPENAI_API_KEY,'news-test-key');
+  assert.equal(stored?.CALENDAR_EXTRACTION_ENABLED,'0');
 });

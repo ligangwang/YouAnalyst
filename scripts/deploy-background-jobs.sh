@@ -45,7 +45,10 @@ for target in "${targets[@]}"; do
   job="refresh-$target-production"
   if [[ "$target" == directory ]]; then job=sync-cni-directory-production; fi
   if [[ "$target" == sec-filings ]]; then job=collect-sec-filings-production; fi
-  if [[ "$target" == intelligence-news ]]; then job=collect-intelligence-news-production; fi
+  if [[ "$target" == intelligence-news ]]; then
+    job=collect-intelligence-news-production
+    if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 ]]; then : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"; fi
+  fi
   if [[ "$target" == sec-fundamentals ]]; then : "${SEC_USER_AGENT:?Set SEC_USER_AGENT}"; fi
   if [[ "$target" == company-graph || "$target" == sec-filings ]]; then
     [[ "${ENABLE_SEC_FILING_PIPELINE:-0}" == 1 ]] || { echo 'Set ENABLE_SEC_FILING_PIPELINE=1 only after rollout review' >&2; exit 1; }
