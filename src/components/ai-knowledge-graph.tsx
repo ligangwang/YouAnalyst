@@ -7,7 +7,7 @@ import { marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 
 import { lazy, Suspense, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocale } from "./providers/locale-provider";
-import { companySummary, companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
+import { relationshipSummary, companySummary, companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
@@ -262,7 +262,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
           {relations.map(e => <article key={e.id}>
             <span>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}{e.commercialStatus === "ANNOUNCED" ? text(" · Announced", " · 已宣布") : ""}</span>
             {e.type === "PARTICIPATES_IN" ? <strong>{label(e.source)} → {label(e.target)}</strong> : <button className={styles.connectionLink} onClick={() => openConnection(e.id, company.id)}>{label(e.source)} → {label(e.target)}</button>}
-            <p>{e.type !== "PARTICIPATES_IN" && <small>{verificationLabel(relationshipVerification(e), locale === "zh-CN")} · {text("Last reviewed", "最近复核")}: {e.researchReviewedAt ?? text("Not recorded", "未记录")}</small>}</p><p>{e.summary}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div>
+            <p>{e.type !== "PARTICIPATES_IN" && <small>{verificationLabel(relationshipVerification(e), locale === "zh-CN")} · {text("Last reviewed", "最近复核")}: {e.researchReviewedAt ?? text("Not recorded", "未记录")}</small>}</p><p>{relationshipSummary(e,locale)}</p><div className={styles.sources}>{sourceLinks(e.sourceIds)}</div>
           </article>)}
         </details>
         <details key={`${company.id}-sources`} className={styles.detailSection}>

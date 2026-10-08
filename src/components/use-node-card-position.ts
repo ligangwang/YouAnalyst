@@ -1,15 +1,16 @@
 "use client";
-import {useEffect,useLayoutEffect,useRef} from 'react';
-// Dock at the chart edge. Manual positioning survives changes to the selection.
-export function useNodeCardPosition(companyId:string,kind:'graph'|'tree',enabled=true){
+import {useLayoutEffect,useRef} from 'react';
+// Open near a company click when provided; keep manual placement until the next click.
+export function useNodeCardPosition(companyId:string,kind:'graph'|'tree'|'workspace',enabled=true,anchor?:{x:number;y:number}|null){
  const card=useRef<HTMLElement>(null),position=useRef<{x:number;y:number}|null>(null);
  useLayoutEffect(()=>{
-  // New company, new reading position; manual card placement remains unchanged.
+  // Start each company at the top of its details.
   const el=card.current;if(el){el.scrollTop=0;el.scrollLeft=0;}
  },[companyId]);
- useEffect(()=>{
+ useLayoutEffect(()=>{
   const el=card.current;if(!el||!enabled)return;
-  const host=el.closest<HTMLElement>(kind==='tree'?'[data-industry-tree]':'[data-view="graph"]');if(!host)return;
+  const host=el.closest<HTMLElement>(kind==='workspace'?'[data-company-workspace]':kind==='tree'?'[data-industry-tree]':'[data-view="graph"]');if(!host)return;
+  if(anchor){const r=host.getBoundingClientRect();position.current={x:anchor.x-r.left+14,y:anchor.y-r.top+14};}
   let frame=0,drag:{id:number;x:number;y:number;left:number;top:number}|null=null;
   const place=()=>{
    const r=host.getBoundingClientRect(),width=Math.min(340,r.width-24),height=r.width<=800?200:Math.min(520,innerHeight*.55,r.height-24);
@@ -28,6 +29,6 @@ export function useNodeCardPosition(companyId:string,kind:'graph'|'tree',enabled
   const key=(e:KeyboardEvent)=>{if(!(e.target instanceof Element)||!e.target.matches('[data-card-drag]'))return;const d=({ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]} as Record<string,number[]>)[e.key];if(d){e.preventDefault();position.current={x:(parseFloat(el.style.left)||0)+d[0],y:(parseFloat(el.style.top)||0)+d[1]};}};
   el.addEventListener('pointerdown',down);el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('keydown',key);place();
   return()=>{cancelAnimationFrame(frame);el.removeEventListener('pointerdown',down);el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);el.removeEventListener('keydown',key);for(const property of ['left','top','right','bottom','width','max-height'])el.style.removeProperty(property);delete el.dataset.nodeCard;};
- },[companyId,kind,enabled]);
+ },[companyId,kind,enabled,anchor]);
  return card;
 }

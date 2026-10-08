@@ -53,3 +53,15 @@ test('REST publication atomically guards source revisions and masks only transla
  assert.equal(commit.writes[0].currentDocument.updateTime,'2026-10-08T00:00:00Z');
  assert.deepEqual(commit.writes[0].update.fields,{descriptionTranslations:encode({'zh-CN':{source,text,translatedAt:batch.asOf}})});
 });
+
+import {relationshipSummary} from '../src/lib/knowledge-graph/model';
+test('relationship cards select the stored Chinese description and reject stale translations',()=>{
+ const source='Jointly tested Ethernet networking for AI workloads.',text='双方联合测试了面向 AI 工作负载的以太网网络。';
+ const companies=['US:AVGO','US:ANET'].map(id=>({id,name:id,status:'PUBLISHED',inGraph:membership}));
+ const record={id:'relationship',source:'US:AVGO',target:'US:ANET',type:'PARTNER_OF',status:'PUBLISHED',summary:source,summaryTranslations:{'zh-CN':{source,text}},evidence:[{id:'source',url:'https://example.com',title:'Source',sourceDate:null}]};
+ const edge=graphFromMarket(companies,[record]).relationships[0];
+ assert.equal(relationshipSummary(edge,'zh-CN'),text);
+ assert.equal(relationshipSummary(edge,'en'),source);
+ const changed=graphFromMarket(companies,[{...record,summary:'Updated scope'}]).relationships[0];
+ assert.equal(relationshipSummary(changed,'zh-CN'),'Updated scope');
+});

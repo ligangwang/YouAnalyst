@@ -19,3 +19,5 @@
 @media(max-width:850px){.shell:not(:has(> .topbar)){height:auto;min-height:100dvh;grid-template-rows:auto auto auto}.shell:not(:has(> .topbar))>.left{grid-row:1}.shell:not(:has(> .topbar))>.center{grid-row:2}.shell:not(:has(> .topbar))>.right{grid-row:3}}
 
 .eventOverlay a{color:inherit;text-decoration:underline;text-underline-offset:3px}.eventOverlay a:hover{color:var(--accent)}.eventOverlay a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}
+
+.eventList small>span:last-child{margin-left:auto}

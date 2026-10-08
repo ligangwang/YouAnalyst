@@ -14,8 +14,8 @@ const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],source
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
-async function workspaceFixture(realCharts=false){
-  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(snapshot)}}/>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
+async function workspaceFixture(realCharts=false,fixture=snapshot){
+  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(fixture)}}/>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     build.onResolve({filter:realCharts?/(?:locale-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
     build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
   }},...(realCharts?[tourClockPlugin]:[])]},'body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}');
@@ -24,8 +24,9 @@ test.beforeAll(async()=>{
   html=await workspaceFixture();
   if(process.env.INTELLIGENCE_PREVIEW_OUT){const directory=process.env.INTELLIGENCE_PREVIEW_OUT;mkdirSync(path.join(directory,'api'),{recursive:true});writeFileSync(path.join(directory,'index.html'),html);writeFileSync(path.join(directory,'api/intelligence'),JSON.stringify(snapshot));}
 });
-async function open(page:import('@playwright/test').Page,zh=false){
-  await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404,body:''}));
+async function open(page:import('@playwright/test').Page,zh=false,fixture=snapshot){
+  const body=fixture===snapshot?html:await workspaceFixture(false,fixture);
+  await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
@@ -329,11 +330,11 @@ test('graph company details float inside the graph and move independently of the
   };
   await fits();
   const before=(await card.boundingBox())!,handle=card.locator('[data-card-drag]');
-  await handle.press(mobile?'ArrowUp':'ArrowLeft');
-  await expect.poll(async()=>{const c=(await card.boundingBox())!;return mobile?c.y:c.x;}).toBeLessThan(mobile?before.y:before.x);
+  await handle.press(mobile?'ArrowDown':'ArrowRight');
+  await expect.poll(async()=>{const c=(await card.boundingBox())!;return mobile?c.y-before.y:c.x-before.x;}).toBeGreaterThan(10);
   const start=(await handle.boundingBox())!;
   await page.mouse.move(start.x+20,start.y+10);await page.mouse.down();
-  await page.mouse.move(start.x+(mobile?50:-30),start.y+(mobile?-30:50),{steps:6});await page.mouse.up();
+  await page.mouse.move(start.x+50,start.y+(mobile?30:-50),{steps:6});await page.mouse.up();
   await fits();
   const moved=(await card.boundingBox())!;
   expect(Math.abs(moved.x-before.x)+Math.abs(moved.y-before.y)).toBeGreaterThan(20);
@@ -341,11 +342,11 @@ test('graph company details float inside the graph and move independently of the
   await page.getByRole('textbox',{name:'Search companies'}).fill('MU');
   await page.getByRole('button',{name:'MU Micron',exact:true}).click();
   await expect(card).toContainText('Micron');
-  await expect.poll(async()=>Math.abs((await card.boundingBox())!.x-moved.x)).toBeLessThanOrEqual(1);
+  await expect.poll(async()=>(await card.boundingBox())!.x).toBeLessThan(moved.x+1);
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
-  const details=page.getByRole('region',{name:'Selected sources',exact:true});
+  const details=page.getByRole('region',{name:'Company details',exact:true});
   await expect(details).toBeVisible();await expect(details).toContainText('Micron');
-  await expect(page.getByRole('button',{name:'Collapse right panel',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Collapse right panel',exact:true})).not.toBeVisible();
   await details.press('Escape');await expect(details).toHaveCount(0);
 });
 
@@ -368,4 +369,43 @@ test('English event feed displays saved English translations of Chinese headline
  const headline=page.getByText('Announcement of a shareholders meeting',{exact:true});
  await expect(headline).toBeVisible();await expect(headline).toHaveAttribute('title','关于召开股东大会的公告');
  await expect(page.getByText('关于召开股东大会的公告',{exact:true})).toHaveCount(0);
+});
+
+for(const chinese of [false,true])test('research connection descriptions follow '+(chinese?'Chinese':'English')+' language',async({page})=>{
+ const summary='Jointly tested Ethernet networking for AI workloads.',summaryZh='双方联合测试了面向 AI 工作负载的以太网网络。';
+ const fixture: IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'localized-connection',source:'US:LITE',target:'US:MU',type:'PARTNER_OF',summary,summaryZh,commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
+ await open(page,chinese,fixture);
+ await page.goto('http://workspace.test/?company=US%3ALITE'+(chinese?'&lang=zh-CN':''));
+ await expect(page.getByText(chinese?summaryZh:summary,{exact:true})).toBeVisible();
+ await expect(page.getByText(chinese?summary:summaryZh,{exact:true})).toHaveCount(0);
+});
+
+for(const view of ['tree','hierarchy','table'])test(view+' company selection opens a movable card near the click',async({page})=>{
+ await open(page);
+ await page.goto('http://workspace.test/?view='+view);
+ const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
+ if(await expand.isVisible())await expand.click();
+ await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
+ if(view!=='table')await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
+ const companyButton=view==='table'?page.locator('[data-list-company="US:LITE"] button'):page.getByRole('button',{name:'LITE Lumentum',exact:true});
+ const click=(await companyButton.boundingBox())!;
+ await companyButton.click();
+ const card=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(card).toBeVisible();await expect(card).toBeFocused();
+ await expect(page.getByRole('complementary',{name:'Events and sources'}).getByRole('region',{name:'Company details'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Collapse right panel',exact:true})).not.toBeVisible();
+ const host=(await page.locator('[data-company-workspace]').boundingBox())!;
+ const box=(await card.boundingBox())!;
+ expect(box.x).toBeGreaterThanOrEqual(host.x);
+ expect(box.y).toBeGreaterThanOrEqual(host.y);
+ expect(box.x+box.width).toBeLessThanOrEqual(host.x+host.width+1);
+ expect(box.y+box.height).toBeLessThanOrEqual(host.y+host.height+1);
+ // Click placement is clamped only where the card would cross a view boundary.
+ const expectedX=Math.max(host.x+12,Math.min(click.x+click.width/2+14,host.x+host.width-box.width-12));
+ expect(Math.abs(box.x-expectedX)).toBeLessThanOrEqual(2);
+ const handle=card.locator('[data-card-drag]');
+ const down=box.y-host.y<32;
+ await handle.press(down?'ArrowDown':'ArrowUp');
+ await expect.poll(async()=>Math.abs((await card.boundingBox())!.y-box.y)).toBeGreaterThan(5);
+ await card.press('Escape');await expect(card).toHaveCount(0);
 });

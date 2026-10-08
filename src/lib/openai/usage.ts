@@ -1,7 +1,7 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { Firestore, Query } from "firebase-admin/firestore";
 
-export type OpenAiUsagePurpose = "ai_analyst_generation" | "company_graph_extraction" | "industry_research" | "earnings_calendar_extraction" | "news_headline_translation";
+export type OpenAiUsagePurpose = "ai_analyst_generation" | "company_graph_extraction" | "industry_research" | "earnings_calendar_extraction" | "news_headline_translation" | "relationship_summary_translation" | "news_article_analysis";
 
 type OpenAiPriceRate = {
   input: number;
