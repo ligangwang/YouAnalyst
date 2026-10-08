@@ -18,7 +18,7 @@ type OpenAiUsageSummary = {
 
 type OpenAiUsageEvent = {
   id: string;
-  purpose: "ai_analyst_generation" | "company_graph_extraction" | "industry_research" | "earnings_calendar_extraction";
+  purpose: "ai_analyst_generation" | "company_graph_extraction" | "industry_research" | "earnings_calendar_extraction" | "news_headline_translation";
   model: string;
   responseId: string | null;
   createdAt: string;
@@ -75,7 +75,7 @@ function formatCost(value: number | null): string {
 }
 
 function purposeLabel(value: OpenAiUsageEvent["purpose"]): string {
-  return {company_graph_extraction:'Company graph',ai_analyst_generation:'AI analyst',industry_research:'Industry research',earnings_calendar_extraction:'Earnings calendar'}[value];
+  return {company_graph_extraction:'Company graph',ai_analyst_generation:'AI analyst',industry_research:'Industry research',earnings_calendar_extraction:'Earnings calendar',news_headline_translation:'News headline translation'}[value];
 }
 
 function metadataLabel(event: OpenAiUsageEvent): string {
