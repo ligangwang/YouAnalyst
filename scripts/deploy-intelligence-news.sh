@@ -6,6 +6,9 @@ region="${GCP_REGION:-us-central1}"
 job=collect-intelligence-news-production
 case "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" in 0|1) ;; *) echo 'INTELLIGENCE_NEWS_COLLECTOR_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
 case "${CALENDAR_EXTRACTION_ENABLED:-0}" in 0|1) ;; *) echo 'CALENDAR_EXTRACTION_ENABLED must be 0 or 1' >&2; exit 1 ;; esac
+if [[ "${INTELLIGENCE_NEWS_COLLECTOR_ENABLED:-0}" == 1 || "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
+  : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"
+fi
 if [[ "${CALENDAR_EXTRACTION_ENABLED:-0}" == 1 ]]; then
   : "${OPENAI_API_KEY:?Reuse the approved existing OpenAI configuration}"
   [[ "${OPENAI_CALENDAR_MODEL:-}" == gpt-6-luna ]] || { echo 'OPENAI_CALENDAR_MODEL must be gpt-6-luna' >&2; exit 1; }
@@ -22,7 +25,7 @@ const env = {GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_S
   EARNINGS_COLLECTION_ENABLED:process.env.EARNINGS_COLLECTION_ENABLED || '0',
   CALENDAR_EXTRACTION_ENABLED:process.env.CALENDAR_EXTRACTION_ENABLED || '0',
   OPENAI_CALENDAR_MODEL:process.env.OPENAI_CALENDAR_MODEL || 'gpt-6-luna'};
-if (env.CALENDAR_EXTRACTION_ENABLED === '1') env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+if (env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED === '1' || env.CALENDAR_EXTRACTION_ENABLED === '1') env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 fs.writeFileSync(process.argv[2],JSON.stringify(env),{mode:0o600});
 NODE
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \

@@ -8,7 +8,7 @@ export type Market = "US" | "CN_A" | "GLOBAL";
 export type GraphMarketCap = { value: number; currency: "USD"; priceDate: string; local?: { value: number; currency: "CNY"; rateDate: string } };
 export type GraphNode = { dailyPrice?: DailyPrice; editorialReviewedAt?: string; privateValuation?: GraphPrivateValuation; marketCap?: GraphMarketCap; id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; names?: Partial<Record<"en" | "zh-CN", string>>; aliases?: string[]; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; summaryZh?: string; sourceIds?: string[] };
 export type GraphFact = { editorialReviewedAt?: string; verificationStatus?: "CONFIRMED" | "PENDING" | "TERMINATED"; id?: string; state: string; scope: string; sourceIds: string[]; limitation?: string; reviewedAt?: string; eventDate?: string };
-export type GraphEdge = { publishedAt?: string; researchReviewedAt?: string; facts?: GraphFact[]; id: string; source: string; target: string; type: string; summary: string; sourceIds: string[]; commercialStatus: string };
+export type GraphEdge = { publishedAt?: string; researchReviewedAt?: string; facts?: GraphFact[]; id: string; source: string; target: string; type: string; summary: string; summaryZh?: string; sourceIds: string[]; commercialStatus: string };
 export type GraphSource = { id: string; title: string; url: string; sourceDate: string | null };
 export type KnowledgeGraph = { nodes: GraphNode[]; relationships: GraphEdge[]; sources: GraphSource[]; asOf: string };
 
@@ -36,6 +36,10 @@ export function companyName(company: Pick<GraphNode, "id" | "name" | "names">, l
 
 export function companySummary(company: Pick<GraphNode, "summary" | "summaryZh">, locale: string): string {
   return (locale === "zh-CN" ? company.summaryZh?.trim() : undefined) || company.summary || "";
+}
+
+export function relationshipSummary(edge: Pick<GraphEdge, "summary" | "summaryZh">, locale: string): string {
+  return (locale === "zh-CN" ? edge.summaryZh?.trim() : undefined) || edge.summary;
 }
 
 export function companySearchText(graph: KnowledgeGraph, company: GraphNode): string {

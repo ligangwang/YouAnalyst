@@ -56,7 +56,7 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
         ...(["CONFIRMED", "PENDING", "TERMINATED"].includes(String(f.verificationStatus)) ? { verificationStatus: f.verificationStatus as GraphFact["verificationStatus"] } : {}) }];
     }) : [];
     const id = relationshipId(r.source, r.target, r.type), previous = relationships.get(id);
-    relationships.set(id, { id, facts, ...(typeof r.researchReviewedAt === "string" ? { researchReviewedAt: r.researchReviewedAt } : {}), ...(typeof r.publishedAt === "string" ? { publishedAt: r.publishedAt } : {}), source: r.source, target: r.target, type: r.type, summary: String(r.summary ?? evidence[0].summary ?? ""), commercialStatus: String(r.commercialStatus ?? "DOCUMENTED"), sourceIds: [...new Set([...(previous?.sourceIds ?? []), ...sourceIds])] });
+    relationships.set(id, { id, facts, ...(typeof r.researchReviewedAt === "string" ? { researchReviewedAt: r.researchReviewedAt } : {}), ...(typeof r.publishedAt === "string" ? { publishedAt: r.publishedAt } : {}), source: r.source, target: r.target, type: r.type, summary: String(r.summary ?? evidence[0].summary ?? ""), summaryZh: translatedSummary(String(r.summary ?? evidence[0].summary ?? ""), (r.summaryTranslations as Record<string, unknown> | undefined)?.["zh-CN"]), commercialStatus: String(r.commercialStatus ?? "DOCUMENTED"), sourceIds: [...new Set([...(previous?.sourceIds ?? []), ...sourceIds])] });
   }
   return { nodes: [...nodes.values()], relationships: [...relationships.values()], sources: [...sources.values()], asOf: dates.sort()[0] ?? "" };
 }

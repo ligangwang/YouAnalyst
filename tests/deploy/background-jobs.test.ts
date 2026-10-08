@@ -155,3 +155,14 @@ test('web publisher bootstrap needs no beta component or worker image',()=>{
   assert.match(r.calls,/topics add-iam-policy-binding eod-maintenance-requests/);
   assert.doesNotMatch(r.calls,/beta |run deploy|builds submit/);
 });
+
+test('enabled news requires its key before building even without calendar extraction',()=>{
+  const missing=run('intelligence-news',{INTELLIGENCE_NEWS_COLLECTOR_ENABLED:'1',CALENDAR_EXTRACTION_ENABLED:'0',OPENAI_API_KEY:''});
+  assert.notEqual(missing.status,0);
+  assert.match(missing.stderr,/OPENAI_API_KEY/);
+  assert.doesNotMatch(missing.calls,/builds submit|run jobs deploy/);
+  const configured=run('intelligence-news',{INTELLIGENCE_NEWS_COLLECTOR_ENABLED:'1',CALENDAR_EXTRACTION_ENABLED:'0',OPENAI_API_KEY:'news-test-secret'});
+  assert.equal(configured.status,0,configured.stderr);
+  assert.match(configured.calls,/run jobs deploy collect-intelligence-news-production/);
+  assert.doesNotMatch(configured.calls,/news-test-secret/);
+});
