@@ -40,3 +40,16 @@ test("transitions settle, reverse continuously, and respect reduced motion", () 
   assert.equal(fadeEdge(0, .5, 0, true), .5);
   assert.equal(fadeEdge(.5, 0, 0, true), 0);
 });
+
+test("monitoring overview previews hover relationships without retaining them on leave", () => {
+  const intelligence = { edges: [] };
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", false, "a", intelligence)), [.28, .28, 0]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "", "", false, "", intelligence)), [0, 0, 0]);
+});
+
+test("monitoring hover preserves event paths and the active relationship", () => {
+  const intelligence = { edges: ["out"] };
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "", false, "d", intelligence)), [.8, 0, .28]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "", false, "", intelligence)), [.8, 0, 0]);
+  assert.deepEqual(edges.map(e => edgeOpacity(e, "a", "in", false, "a", intelligence)), [.8, 1, 0]);
+});

@@ -151,7 +151,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
   // while keeping the star geometry mounted throughout the interaction.
   useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
-  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, intelligence ? edge.id===activeEdge ? 1 : intelligence.edges.includes(edge.id) ? .8 : 0 : edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, hovered)])), [layout, selected, activeEdge, showAllEdges, hovered, intelligence]);
+  const edgeTargets = useMemo(() => new Map(layout.edges.map(edge => [edge.id, edgeOpacity(edge, selected, activeEdge ?? "", showAllEdges, hovered, intelligence)])), [layout, selected, activeEdge, showAllEdges, hovered, intelligence]);
   const displayedEdge=activeEdge||((edgeTargets.get(hoveredEdge) ?? 0) > 0 ? hoveredEdge : "");
   const hoveringEntity=Boolean(hovered || (hoveredEdge && (edgeTargets.get(hoveredEdge) ?? 0) > 0));
   useEffect(()=>{onHoverChange(hoveringEntity);},[hoveringEntity,onHoverChange]);

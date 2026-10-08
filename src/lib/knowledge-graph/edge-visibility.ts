@@ -1,6 +1,11 @@
 type Edge = { id: string; source: string; target: string };
 
-export function edgeOpacity(edge: Edge, selected: string, activeEdge: string, showAll: boolean, hovered = "") {
+export function edgeOpacity(edge: Edge, selected: string, activeEdge: string, showAll: boolean, hovered = "", intelligence?: { edges: readonly string[] }) {
+  if (intelligence) {
+    if (edge.id === activeEdge) return 1;
+    if (intelligence.edges.includes(edge.id)) return .8;
+    return hovered && (edge.source === hovered || edge.target === hovered) ? .28 : 0;
+  }
   if (edge.id === activeEdge) return .65;
   if (selected && (edge.source === selected || edge.target === selected)) return .28;
   if (hovered && (edge.source === hovered || edge.target === hovered)) return .28;
