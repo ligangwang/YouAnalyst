@@ -101,4 +101,5 @@ test('news analysis receives its existing key while calendar extraction is disab
   });
   assert.equal(stored?.OPENAI_API_KEY,'news-test-key');
   assert.equal(stored?.CALENDAR_EXTRACTION_ENABLED,'0');
+  assert.equal(stored?.NEWS_ANALYSIS_MONTHLY_BUDGET_USD,'5');
 });
