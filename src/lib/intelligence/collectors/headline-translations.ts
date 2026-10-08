@@ -22,7 +22,7 @@ export async function translateHeadlines(items:Headline[],options:{key:string;re
   if(raw.status!=='completed')throw new Error('Headline translation did not complete');
   const output=JSON.parse((raw.output??[]).flatMap(item=>item.content??[]).filter(item=>item.type==='output_text').map(item=>item.text??'').join('')) as {translations:HeadlineResponse['translations']};
   if(!Array.isArray(output.translations)||output.translations.length!==items.length||new Set(output.translations.map(item=>item.id)).size!==items.length)throw new Error('Incomplete headline translations');
-  for(const item of output.translations){const original=items.find(input=>input.id===item.id);if(!original||typeof item.text!=='string'||!item.text.trim()||item.text.length>1000||!/[\u4e00-\u9fff]/.test(item.text)||(original.title.match(/\b\d{4}\b/g)??[]).some(year=>!item.text.includes(year)))throw new Error('Invalid translated headline');}
+  for(const item of output.translations){const original=items.find(input=>input.id===item.id);if(!original||typeof item.text!=='string'||!item.text.trim()||item.text.length>1000||!/[\u4e00-\u9fff]/.test(item.text)||(original.title.replace(/&#(?:\d+|x[0-9a-f]+);/gi,'').match(/\b\d{4}\b/g)??[]).some(year=>!item.text.includes(year)))throw new Error('Invalid translated headline');}
   return {translations:output.translations,model:raw.model??model,responseId:raw.id??null,usage:raw.usage??null};
 }
 export async function translateCollectedHeadlines(db:Firestore,mapped:ReadonlySet<string>,options:{deadline:number;now?:()=>number;records?:DocumentSnapshot[];translate?:(items:Headline[])=>Promise<HeadlineResponse>} ){

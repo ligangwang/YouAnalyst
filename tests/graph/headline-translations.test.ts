@@ -41,3 +41,8 @@ test('headline edited while a request runs never receives a translation for the 
  const f=fake();const result=await translateCollectedHeadlines(f.db,new Set(['US:AVGO']),{records:f.records,now:()=>at,deadline:at+150_000,translate:async()=>{f.state.get('events/news')!.title='Changed';return {translations:[{id:'news',text:chinese}],model:'gpt-6-luna',responseId:'response',usage:null};}});
  assert.equal(result.translated,0);assert.equal(f.state.get('events/news')!.titleTranslations,undefined);
 });
+
+test('HTML character entities are not treated as headline years',async()=>{
+ const request:typeof fetch=async()=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({translations:[{id:'news',text:'机器学习研究代理为何不会过拟合？'}]})}]}]});
+ assert.equal((await translateHeadlines([{id:'news',title:'Why don&#8217;t machine learning research agents overfit?'}],{key:'isolated-test-key',request})).translations.length,1);
+});
