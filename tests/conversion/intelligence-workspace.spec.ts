@@ -5,7 +5,7 @@ import path from 'node:path';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
 import {accelerateTours,tourClockPlugin} from './fixtures/tour-clock';
 
-const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',kind:'COMPANY',order:1,stageIds:['optics']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']},{id:'US:MEM',symbol:'MEM',name:'Memory Supplier',summary:'Memory partner',kind:'COMPANY',order:4,stageIds:['memory']}];
+const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',summaryZh:'通信设备供应商。',kind:'COMPANY',order:1,stageIds:['optics']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']},{id:'US:MEM',symbol:'MEM',name:'Memory Supplier',summary:'Memory partner',kind:'COMPANY',order:4,stageIds:['memory']}];
 const events=Array.from({length:200},(_,i)=>({id:`event-${i}`,origin:'US:MU',companyIds:['US:MU'],edgeIds:[],category:'BUSINESS',title:`Published company update ${i+1}`,summary:`Source summary ${i+1}`,published_at:i===0?'2026-10-02T12:00:00Z':null,publication_date:'2026-10-02',eventDate:null,evidence:[{id:`source-${i}`,url:`https://investors.example.com/${i}`,title:`Original release ${i+1}`,sourceDate:'2026-10-02',channel:'IR'}],planned:false}));
 events[1].companyIds=['US:MU','US:MEM','US:MULT','US:LITE','US:UNKNOWN'];
 events[199]={...events[199],origin:'US:LITE',companyIds:['US:LITE'],title:'Lumentum communication update'};
@@ -346,4 +346,11 @@ test('graph company details float inside the graph and move independently of the
   await expect(details).toBeVisible();await expect(details).toContainText('Micron');
   await expect(page.getByRole('button',{name:'Collapse right panel',exact:true})).toBeVisible();
   await details.press('Escape');await expect(details).toHaveCount(0);
+});
+
+for(const chinese of [false,true])test('active workspace company summary follows '+(chinese?'Chinese':'English')+' language',async({page})=>{
+  await open(page,chinese);
+  await page.goto('http://workspace.test/?company=US%3ALITE'+(chinese?'&lang=zh-CN':''));
+  await expect(page.getByText(chinese?'通信设备供应商。':'Communication supplier',{exact:false})).toBeVisible();
+  await expect(page.getByText(chinese?'Communication supplier':'通信设备供应商。',{exact:false})).toHaveCount(0);
 });
