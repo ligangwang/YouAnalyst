@@ -303,3 +303,43 @@ test('detail save confirms beside the click',async({page},info)=>{
   expect(Math.abs(confirmation.y-y-14)).toBeLessThanOrEqual(1);
   expect(Math.min(Math.abs(confirmation.x-x-14),Math.abs(confirmation.x+confirmation.width-x+14))).toBeLessThanOrEqual(1);
 });
+
+
+test('graph company details float inside the graph and move independently of the event panel',async({page},info)=>{
+  const mobile=info.project.name==='mobile';
+  if(!mobile)await page.setViewportSize({width:1500,height:800});
+  await open(page);
+  const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
+  if(await expand.isVisible())await expand.click();
+  await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
+  await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
+  await page.getByRole('button',{name:'LITE Lumentum',exact:true}).click();
+  const card=page.getByRole('region',{name:'Company details',exact:true});
+  const graph=page.locator('[data-view="graph"]');
+  const right=page.getByRole('complementary',{name:'Events and sources'});
+  await expect(card).toBeVisible();await expect(card).toBeFocused();
+  await expect(right.getByRole('region',{name:'Company details'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Collapse right panel',exact:true})).not.toBeVisible();
+  const fits=async()=>{
+    const c=(await card.boundingBox())!,g=(await graph.boundingBox())!;
+    expect(c.x).toBeGreaterThanOrEqual(g.x);expect(c.y).toBeGreaterThanOrEqual(g.y);
+    expect(c.x+c.width).toBeLessThanOrEqual(g.x+g.width+1);
+    expect(c.y+c.height).toBeLessThanOrEqual(g.y+g.height+1);
+  };
+  await fits();
+  const before=(await card.boundingBox())!,handle=card.locator('[data-card-drag]');
+  await handle.press(mobile?'ArrowUp':'ArrowLeft');
+  await expect.poll(async()=>{const c=(await card.boundingBox())!;return mobile?c.y:c.x;}).toBeLessThan(mobile?before.y:before.x);
+  const start=(await handle.boundingBox())!;
+  await page.mouse.move(start.x+20,start.y+10);await page.mouse.down();
+  await page.mouse.move(start.x+(mobile?50:-30),start.y+(mobile?-30:50),{steps:6});await page.mouse.up();
+  await fits();
+  const moved=(await card.boundingBox())!;
+  expect(Math.abs(moved.x-before.x)+Math.abs(moved.y-before.y)).toBeGreaterThan(20);
+  await page.screenshot({path:info.outputPath('floating-company-card.png')});
+  await page.getByRole('textbox',{name:'Search companies'}).fill('MU');
+  await page.getByRole('button',{name:'MU Micron',exact:true}).click();
+  await expect(card).toContainText('Micron');
+  await expect.poll(async()=>Math.abs((await card.boundingBox())!.x-moved.x)).toBeLessThanOrEqual(1);
+  await card.press('Escape');await expect(card).toHaveCount(0);
+});

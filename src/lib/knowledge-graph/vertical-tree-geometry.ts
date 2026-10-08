@@ -91,6 +91,11 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
       // Bark near the trunk, lightening only towards the tip, so limbs read as wood rather than light pipes.
       const strand:Strand={from:n.parent,to:n.id,kind:'branch',width:parent===energy?[48,32]:[attach==='trunk'?0:12,1.6],offset:0,attach,end:parent?.span,stem:n.stem,layer:n.layer,branch:n.branch,color:t=>rgba(mix(base,light,.75*ease(t)),.97)};
       (attach==='trunk'?limbs:crown).push(strand);
+    }else if(n.kind==='company'&&byId.get(n.parent)?.kind==='layer'&&n.stem!==undefined){
+      // Sector-only themes keep their taxonomy flat, but grow real wooden limbs
+      // from the trunk instead of rendering company connections as hairline twigs.
+      const parent=byId.get(n.parent)!;
+      limbs.push({from:n.parent,to:n.id,kind:'branch',attach:'trunk',width:[0,1.6],offset:0,end:parent.span,stem:n.stem,layer:n.layer,branch:n.branch,color:t=>rgba(mix(bark(parent.color),light,.75*ease(t)),.97)});
     }else if(n.kind==='company'&&energy&&n.layer===energy.id){
       roots.push({from:n.parent,to:n.id,kind:'branch',attach:'node',width:[32,2.4],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(bark(gold.getStyle()),light,.75*ease(t)),.97)});
     }else if(n.layer!==energy?.id)twigs.push({from:n.parent,to:n.id,kind:'twig',width:[1.2,.35],offset:0,layer:n.layer,branch:n.branch,color:t=>rgba(mix(light,tint,t),.75-.35*t)});
