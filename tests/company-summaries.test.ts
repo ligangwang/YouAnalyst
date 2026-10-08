@@ -65,3 +65,18 @@ test('relationship cards select the stored Chinese description and reject stale 
  const changed=graphFromMarket(companies,[{...record,summary:'Updated scope'}]).relationships[0];
  assert.equal(relationshipSummary(changed,'zh-CN'),'Updated scope');
 });
+import {relationshipSourceTitle} from '../src/lib/knowledge-graph/model';
+test('relationship source labels use saved Chinese text and never fall back to English',()=>{
+ const title='NetApp and NVIDIA: Delivering AI factory',text='NetApp 与 NVIDIA：交付 AI 工厂';
+ const evidence={id:'source',url:'https://example.com',title,sourceDate:null,titleTranslations:{'zh-CN':{source:title,text}}};
+ const companies=[{id:'US:NTAP',name:'NetApp',status:'PUBLISHED',inGraph:{...membership,sources:[evidence]}},{id:'US:NVDA',name:'NVIDIA',status:'PUBLISHED'}];
+ const relationship={id:'edge',source:'US:NTAP',target:'US:NVDA',type:'PARTNER_OF',status:'PUBLISHED',summary:'Partner',evidence:[evidence]};
+ const graph=graphFromMarket(companies,[relationship]);
+ assert.equal(relationshipSourceTitle(graph.sources[0],'zh-CN'),text);
+ assert.equal(relationshipSourceTitle(graph.sources[0],'en'),title);
+ const stale=graphFromMarket(companies,[{...relationship,evidence:[{...evidence,title:'Updated source title'}]}]);
+ assert.equal(relationshipSourceTitle(stale.sources[0],'zh-CN'),'关系来源');
+ assert.equal(relationshipSourceTitle({title:'中文来源'},'zh-CN'),'中文来源');
+ const themed=themedGraph('robotics',[{id:'US:NTAP',name:'NetApp',status:'PUBLISHED',themeMemberships:{robotics:{status:'PUBLISHED',primarySector:'sensors-vision',reviewedAt:'2026-10-08',sources:[{...evidence,summary:'Robot vision'}]}}}]);
+ assert.equal(relationshipSourceTitle(themed.sources[0],'zh-CN'),text);
+});

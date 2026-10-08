@@ -16,7 +16,7 @@ export type ThemeMembership = {
   summaryTranslations?: Partial<Record<'zh-CN', import('../knowledge-graph/summary-translations').SummaryTranslation>>;
   status: 'PUBLISHED' | 'DRAFT' | 'WITHDRAWN'; primarySector: string;
   secondaryRoles?: string[]; reviewedAt: string;
-  sources?: { url: string; title: string; summary: string }[];
+  sources?: { url: string; title: string; titleTranslations?: Partial<Record<"zh-CN", import("../knowledge-graph/summary-translations").SummaryTranslation>>; summary: string }[];
 };
 export type ThemedCompany = Record<string, unknown> & {
   id: string; themeIds?: string[]; themeMemberships?: Record<string, ThemeMembership>;

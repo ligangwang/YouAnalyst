@@ -6,11 +6,11 @@ import { useEffect, useState } from "react";
 import { LocalizedLink as Link } from "./localized-link";
 import { useLocale } from "./providers/locale-provider";
 import { CompanyFollowButton } from "./company-follow-button";
-import { companyName, type KnowledgeGraph, type GraphEdge, type GraphFact } from "@/lib/knowledge-graph/model";
+import { relationshipSourceTitle, companyName, type KnowledgeGraph, type GraphEdge, type GraphFact } from "@/lib/knowledge-graph/model";
 import { companyRole, relationshipBusiness, relationshipExplanation, relationshipGroup, relationAnchor, researchCompanyUrl } from "@/lib/knowledge-graph/research-view";
 
 export function RelationshipEvidence({ edge, graph }: { edge: GraphEdge; graph: KnowledgeGraph }) {
-  const { text, chinese } = useLocale();
+  const { text, chinese, locale } = useLocale();
   const facts: GraphFact[] = edge.facts?.length ? edge.facts : [{ scope: edge.summary, state: edge.commercialStatus, sourceIds: edge.sourceIds }];
   return <div className="mt-3 space-y-3">
     {facts.map((fact, i) => <div key={fact.id ?? i} className="border-l-2 border-cyan-700 pl-3">
@@ -19,7 +19,7 @@ export function RelationshipEvidence({ edge, graph }: { edge: GraphEdge; graph: 
       <p className="mt-2 text-sm leading-6 text-slate-200">{relationshipExplanation({ ...edge, facts: [fact] }, graph, chinese)}</p>
       <p className="mt-1 text-sm text-slate-400">{text("Product / business", "产品／业务")}: {relationshipBusiness({ ...edge, facts: [fact] }, chinese)}</p>
       <details className="mt-2 text-sm text-slate-400"><summary className="cursor-pointer text-cyan-200">{text("Source description and scope", "来源说明与适用范围")}</summary><p className="mt-2 whitespace-pre-line break-words leading-6">{fact.scope}</p>{fact.limitation && <p className="mt-2 leading-6">{fact.limitation}</p>}</details>
-      <ul className="mt-2 space-y-1 text-xs">{graph.sources.filter(s => fact.sourceIds.includes(s.id) && s.url.startsWith("https://")).map(s => <li key={s.id}><a className="break-words text-cyan-200 hover:underline" onClick={() => trackEvent("company_evidence_view", {entry_point:"relationship_source"})} href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a><p className="mt-1 text-slate-400">{text("Source published", "资料发布日期")}: {s.sourceDate ?? text("Unknown", "未注明")}</p></li>)}</ul>
+      <ul className="mt-2 space-y-1 text-xs">{graph.sources.filter(s => fact.sourceIds.includes(s.id) && s.url.startsWith("https://")).map(s => <li key={s.id}><a className="break-words text-cyan-200 hover:underline" onClick={() => trackEvent("company_evidence_view", {entry_point:"relationship_source"})} href={s.url} target="_blank" rel="noopener noreferrer">{relationshipSourceTitle(s,locale)} ↗</a><p className="mt-1 text-slate-400">{text("Source published", "资料发布日期")}: {s.sourceDate ?? text("Unknown", "未注明")}</p></li>)}</ul>
       {fact.eventDate && <p className="mt-1 text-xs text-slate-400">{text("Event date", "事件日期")}: {fact.eventDate}</p>}
     </div>)}
   </div>;

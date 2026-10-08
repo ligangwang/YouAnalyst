@@ -374,11 +374,16 @@ test('English event feed displays saved English translations of Chinese headline
 
 for(const chinese of [false,true])test('research connection descriptions follow '+(chinese?'Chinese':'English')+' language',async({page})=>{
  const summary='Jointly tested Ethernet networking for AI workloads.',summaryZh='双方联合测试了面向 AI 工作负载的以太网网络。';
- const fixture: IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'localized-connection',source:'US:LITE',target:'US:MU',type:'PARTNER_OF',summary,summaryZh,commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
+ const title='Joint AI networking source',titleZh='联合 AI 网络来源';
+ const fixture: IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,sources:[{id:'localized-source',title,titleZh,url:'https://example.com/relationship',sourceDate:null},{id:'missing-source',title:'Untranslated English source',url:'https://example.com/missing',sourceDate:null}],relationships:[{id:'localized-connection',source:'US:LITE',target:'US:MU',type:'PARTNER_OF',summary,summaryZh,commercialStatus:'DOCUMENTED',sourceIds:['localized-source','missing-source']}]}};
  await open(page,chinese,fixture);
  await page.goto('http://workspace.test/?company=US%3ALITE'+(chinese?'&lang=zh-CN':''));
  await expect(page.getByText(chinese?summaryZh:summary,{exact:true})).toBeVisible();
  await expect(page.getByText(chinese?summary:summaryZh,{exact:true})).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:chinese?'公司关系':'Relationships',exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:(chinese?titleZh:title)+' ↗',exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:(chinese?'关系来源':'Untranslated English source')+' ↗',exact:true})).toBeVisible();
+ if(chinese)await expect(page.getByRole('link',{name:/Joint AI networking source|Untranslated English source/})).toHaveCount(0);
 });
 
 for(const view of ['tree','hierarchy','table'])test(view+' company selection opens a movable card near the click',async({page})=>{
