@@ -13,6 +13,7 @@ export const ROBOTICS_SECTORS = [
   'software-simulation', 'robot-manufacturers', 'systems-integration',
 ] as const;
 export type ThemeMembership = {
+  summaryTranslations?: Partial<Record<'zh-CN', import('../knowledge-graph/summary-translations').SummaryTranslation>>;
   status: 'PUBLISHED' | 'DRAFT' | 'WITHDRAWN'; primarySector: string;
   secondaryRoles?: string[]; reviewedAt: string;
   sources?: { url: string; title: string; summary: string }[];

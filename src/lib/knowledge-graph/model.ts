@@ -6,7 +6,7 @@ export type Market = "US" | "CN_A" | "GLOBAL";
 // `value` is always USD so map sizing is comparable across markets; A-shares also
 // carry the CNY value and the FX rate date used for the conversion.
 export type GraphMarketCap = { value: number; currency: "USD"; priceDate: string; local?: { value: number; currency: "CNY"; rateDate: string } };
-export type GraphNode = { dailyPrice?: DailyPrice; editorialReviewedAt?: string; privateValuation?: GraphPrivateValuation; marketCap?: GraphMarketCap; id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; names?: Partial<Record<"en" | "zh-CN", string>>; aliases?: string[]; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; sourceIds?: string[] };
+export type GraphNode = { dailyPrice?: DailyPrice; editorialReviewedAt?: string; privateValuation?: GraphPrivateValuation; marketCap?: GraphMarketCap; id: string; kind: "STAGE" | "COMPANY"; label?: string; labels?: Record<string, string>; name?: string; names?: Partial<Record<"en" | "zh-CN", string>>; aliases?: string[]; symbol?: string; market?: Market; country?: string; listingStatus?: "PUBLIC" | "PRIVATE" | "UNKNOWN"; listings?: CompanyListing[]; order: number; stageIds?: string[]; summary?: string; summaryZh?: string; sourceIds?: string[] };
 export type GraphFact = { editorialReviewedAt?: string; verificationStatus?: "CONFIRMED" | "PENDING" | "TERMINATED"; id?: string; state: string; scope: string; sourceIds: string[]; limitation?: string; reviewedAt?: string; eventDate?: string };
 export type GraphEdge = { publishedAt?: string; researchReviewedAt?: string; facts?: GraphFact[]; id: string; source: string; target: string; type: string; summary: string; sourceIds: string[]; commercialStatus: string };
 export type GraphSource = { id: string; title: string; url: string; sourceDate: string | null };
@@ -34,9 +34,13 @@ export function companyName(company: Pick<GraphNode, "id" | "name" | "names">, l
   return company.names?.[locale === "zh-CN" ? "zh-CN" : "en"]?.trim() || company.name || company.id;
 }
 
+export function companySummary(company: Pick<GraphNode, "summary" | "summaryZh">, locale: string): string {
+  return (locale === "zh-CN" ? company.summaryZh?.trim() : undefined) || company.summary || "";
+}
+
 export function companySearchText(graph: KnowledgeGraph, company: GraphNode): string {
   const stages = graph.nodes.filter(n => n.kind === "STAGE" && company.stageIds?.includes(n.id.slice(6)));
-  return [company.id, company.name, ...Object.values(company.names ?? {}), ...(company.aliases ?? []), company.symbol, company.summary, ...stages.flatMap(n => [n.label, ...Object.values(n.labels ?? {})])].filter(Boolean).join(" ");
+  return [company.id, company.name, ...Object.values(company.names ?? {}), ...(company.aliases ?? []), company.symbol, company.summary, company.summaryZh, ...stages.flatMap(n => [n.label, ...Object.values(n.labels ?? {})])].filter(Boolean).join(" ");
 }
 
 export function matchesCompanySearch(searchText: string, query: string): boolean {

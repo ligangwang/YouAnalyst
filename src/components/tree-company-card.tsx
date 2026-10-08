@@ -5,7 +5,7 @@ import { GraphCompanyOutlook } from "./company-outlook";
 import { PrivateValuationDisplay } from './private-valuation';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { CompanyFundamentals } from '@/lib/fundamentals/model';
-import { companyName, type GraphNode } from '@/lib/knowledge-graph/model';
+import { companySummary, companyName, type GraphNode } from '@/lib/knowledge-graph/model';
 import { marketCapDescription } from '@/lib/knowledge-graph/market-cap';
 import { companyPageUrl } from '@/lib/market-companies/routes';
 import { CompanyCountryFlag } from './company-country-flag';
@@ -62,7 +62,7 @@ export function TreeCompanyCard({company,color,onClose,reveal=false,closing=fals
       {china&&result&&!result.error&&!data?.annual&&<p>{text('Annual financials have not been cached yet.','年度财报数据尚未缓存。')}</p>}
       {china&&data?.annual&&<small><a href={data.annual.sourceUrl} target="_blank" rel="noopener noreferrer">{text('Source: Eastmoney via AKShare; annual consolidated statements, CNY.','来源：东方财富（AKShare）；年度合并报表，人民币元。')}</a> · {text('Published','公告日期')} {data.annual.filed}</small>}
       {!china&&data&&<small>{text('Source: SEC annual filings; annual figures, not TTM.','来源：SEC 年报；年度数据，非滚动十二个月。')}</small>}
-      {company.summary&&<p className={styles.cardSummary}>{company.summary}</p>}
+      {company.summary&&<p className={styles.cardSummary}>{companySummary(company,locale)}</p>}
       <div className={styles.cardActions}><CompanyFollowButton companyId={company.id}/><a href={companyPageUrl(company.id.startsWith('US:')?company.id.slice(3):company.id,company.market)}>{text('Company profile','公司详情')} ↗</a></div>
     </div>
   </aside>;
