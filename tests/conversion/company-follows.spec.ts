@@ -9,7 +9,7 @@ import type { KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 import type { BusinessEvent } from "../../src/lib/knowledge-graph/business-events";
 
 const origin = "http://follows.test";
-const graph: KnowledgeGraph = { asOf: "2026-09-15", nodes: [{ id: "US:AMD", kind: "COMPANY", market: "US", name: "AMD", names: { "zh-CN": "超威半导体" }, symbol: "AMD", stageIds: ["compute"], order: 1 }, { id: "ORG:OPENAI", kind: "COMPANY", market: "GLOBAL", name: "OpenAI", stageIds: ["applications"], order: 2 }], sources: [{ id: "s", title: "Historic capacity announcement", url: "https://example.com/source", sourceDate: "2024-01-02" }], relationships: [{ id: "amd-openai", source: "US:AMD", target: "ORG:OPENAI", type: "SUPPLIER_OF", summary: "Planned Instinct MI450 capacity", commercialStatus: "ANNOUNCED", publishedAt: "2026-09-15T12:00:00Z", sourceIds: ["s"], facts: [{ id: "f", scope: "Planned Instinct MI450 capacity", state: "ANNOUNCED", sourceIds: ["s"], reviewedAt: "2026-09-15" }] }] };
+const graph: KnowledgeGraph = { asOf: "2026-09-15", nodes: [{ id: "US:AMD", kind: "COMPANY", market: "US", name: "AMD", names: { "zh-CN": "超威半导体" }, symbol: "AMD", stageIds: ["compute"], order: 1 }, { id: "ORG:OPENAI", kind: "COMPANY", market: "GLOBAL", name: "OpenAI", stageIds: ["applications"], order: 2 }], sources: [{ id: "s", title: "Historic capacity announcement", titleZh: "历史产能公告", url: "https://example.com/source", sourceDate: "2024-01-02" }], relationships: [{ id: "amd-openai", source: "US:AMD", target: "ORG:OPENAI", type: "SUPPLIER_OF", summary: "Planned Instinct MI450 capacity", commercialStatus: "ANNOUNCED", publishedAt: "2026-09-15T12:00:00Z", sourceIds: ["s"], facts: [{ id: "f", scope: "Planned Instinct MI450 capacity", state: "ANNOUNCED", sourceIds: ["s"], reviewedAt: "2026-09-15" }] }] };
 let html: string;
 
 test("business updates explain one hop, preserve dates, and toggle direct-only", async ({page}) => {
@@ -224,12 +224,13 @@ test("company research exposes planned business, sources and localized continuat
   await page.goto(origin + "/zh-cn/ticker/AMD");
   await expect(page.getByRole("heading", { name: "AI 产业链角色" })).toBeVisible();
   await expect(page.getByText("含已宣布／计划中事项",{exact:true})).toBeVisible();
-  await expect(page.getByRole("link", { name: "Historic capacity announcement ↗" })).not.toBeVisible();
+  await expect(page.getByRole("link", { name: "历史产能公告 ↗" })).not.toBeVisible();
   await page.getByText("查看来源",{exact:true}).click();
   await expect(page.getByText("已宣布／计划中，尚不代表已交付", { exact: true })).toBeVisible();
   await expect(page.getByText("超威半导体已宣布计划向OpenAI提供产品或服务。", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "OpenAI", exact: true })).toHaveAttribute("href", "/zh-cn/company/ORG%3AOPENAI");
-  await expect(page.getByRole("link", { name: "Historic capacity announcement ↗" })).toHaveAttribute("href", "https://example.com/source");
+  await expect(page.getByRole("link", { name: "历史产能公告 ↗" })).toHaveAttribute("href", "https://example.com/source");
+  await expect(page.getByRole("link", { name: "Historic capacity announcement ↗" })).toHaveCount(0);
   await page.getByText("来源说明与适用范围", { exact: true }).click();
   await expect(page.getByText("Planned Instinct MI450 capacity", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "已关注", exact: true })).toHaveCount(2);
