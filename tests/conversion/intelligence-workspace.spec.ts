@@ -392,7 +392,7 @@ for(const chinese of [false,true])test('research connection descriptions follow 
  if(chinese)await expect(page.getByRole('link',{name:/Joint AI networking source|Untranslated English source/})).toHaveCount(0);
 });
 
-for(const view of ['tree','hierarchy','table'])test(view+' company selection opens a movable card near the click',async({page})=>{
+for(const view of ['tree','hierarchy','table'])test(view+' company selection opens a movable card at the chart top right',async({page})=>{
  await open(page);
  await page.goto('http://workspace.test/?view='+view);
  const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
@@ -400,7 +400,6 @@ for(const view of ['tree','hierarchy','table'])test(view+' company selection ope
  await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
  if(view!=='table')await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
  const companyButton=view==='table'?page.locator('[data-list-company="US:LITE"] button'):page.getByRole('button',{name:'LITE Lumentum',exact:true});
- const click=(await companyButton.boundingBox())!;
  await companyButton.click();
  const card=page.getByRole('region',{name:'Company details',exact:true});
  await expect(card).toBeVisible();await expect(card).toBeFocused();
@@ -412,9 +411,8 @@ for(const view of ['tree','hierarchy','table'])test(view+' company selection ope
  expect(box.y).toBeGreaterThanOrEqual(host.y);
  expect(box.x+box.width).toBeLessThanOrEqual(host.x+host.width+1);
  expect(box.y+box.height).toBeLessThanOrEqual(host.y+host.height+1);
- // Click placement is clamped only where the card would cross a view boundary.
- const expectedX=Math.max(host.x+12,Math.min(click.x+click.width/2+14,host.x+host.width-box.width-12));
- expect(Math.abs(box.x-expectedX)).toBeLessThanOrEqual(2);
+ expect(Math.abs(box.x+box.width-(host.x+host.width-12))).toBeLessThanOrEqual(2);
+ expect(Math.abs(box.y-Math.max(host.y+12,12))).toBeLessThanOrEqual(2);
  const handle=card.locator('[data-card-drag]');
  const down=box.y-host.y<32;
  await handle.press(down?'ArrowDown':'ArrowUp');
