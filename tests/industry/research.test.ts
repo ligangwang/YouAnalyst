@@ -161,7 +161,7 @@ test("public A-share directory returns only published CN profiles and validates 
   };
   const db = { collection: () => query } as unknown as Firestore;
   const result = await listChinaCompanies(db, "XSHG:601138");
-  assert.deepEqual(result.items, [normalizeChinaCompany(company)]);
+  assert.deepEqual(result.items, [{ ...normalizeChinaCompany(company), names: { en: "Hygon Information", "zh-CN": "海光信息" } }]);
   assert.equal(result.nextCursor, null);
   assert.ok(calls.some(c => c[0] === "after" && c[1] === "XSHG:601138"));
   await assert.rejects(listChinaCompanies(db, "US:AMD"), /Invalid company cursor/);

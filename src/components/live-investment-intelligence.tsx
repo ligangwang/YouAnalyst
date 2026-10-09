@@ -43,6 +43,8 @@ const CompanyTable=lazy(()=>import('./industry-company-views').then(module=>({de
 type WorkspaceInitialState={initialTheme?:string;initialView?:string;initialCompany?:string;initialQuery?:string;initialEdge?:string;initialEvent?:string};
 const subscribeWidth=(notify:()=>void)=>{const media=matchMedia('(min-width:1440px)');media.addEventListener('change',notify);return()=>media.removeEventListener('change',notify);};
 const desktopWidth=()=>matchMedia('(min-width:1440px)').matches;
+const subscribePhone=(notify:()=>void)=>{const media=matchMedia('(max-width:767px)');media.addEventListener('change',notify);return()=>media.removeEventListener('change',notify);};
+const phoneWidth=()=>matchMedia('(max-width:767px)').matches;
 const clock=(value:number)=>new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(value));
 const shortDate=(value:string)=>value.slice(5);
 type Panels={left:boolean|null;right:boolean};
@@ -77,7 +79,9 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const [sector,setSector]=useState(''),[tab,setTab]=useState('all');
   const query=useIndustryBrowseParam('q','',initialQuery);
   const setQuery=(value:string)=>updateIndustryBrowse({q:value},true);
-  const view=parseIndustryView(useIndustryBrowseParam('view','graph',initialView))??'graph';
+  const phone=useSyncExternalStore(subscribePhone,phoneWidth,()=>true);
+  const defaultView=initialEdge||initialEvent?'graph':phone?'table':'graph';
+  const view=parseIndustryView(useIndustryBrowseParam('view',defaultView,initialView||defaultView))??defaultView;
   const viewId=useId();
   const changeView=(next:IndustryView)=>{updateIndustryBrowse({view:next});};
   const [sourceFilter,setSourceFilter]=useState<IntelligenceSource|''>(''),[activeOnly,setActiveOnly]=useState(false);

@@ -1,4 +1,5 @@
 import { companyName } from "./knowledge-graph/model";
+import { companySector } from "./knowledge-graph/sectors";
 import { INDUSTRY_SEGMENTS } from "./industry-graph/catalog";
 import { normalizeCompanyProfile } from "./company-profile";
 import { RELATIONSHIP_LABELS, type IndustryGraph } from "./industry-graph/model";
@@ -35,6 +36,7 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
     securityType: text(listing?.type),
     listingUpdatedAt: text(listing?.lastSyncedAt),
     segment: INDUSTRY_SEGMENTS.find((item) => item.id === node?.segment)?.label ?? null,
+    sector: node?.stageIds ? companySector(node) : null,
     inMap: Boolean(node),
     graphAvailable: graph !== null,
     connections,

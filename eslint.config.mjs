@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     ".venv-akshare/**",
     "out/**",
     "build/**",
+    "output/**",
+    ".cache/**",
+    "test-results/**",
     "next-env.d.ts",
   ]),
 ]);

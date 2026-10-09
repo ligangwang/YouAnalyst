@@ -30,6 +30,15 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+test('first phone visit starts in List and explicit chart choices remain available',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  await open(page);
+  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-view="graph"]')).toHaveCount(0);
+  await page.goto('http://workspace.test/?view=graph');
+  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+});
+
 test('news calendar icon links only confirmed schedules and does not select the news',async({page},info)=>{
   await open(page,info.project.name==='mobile');
   const link=page.getByRole('link',{name:info.project.name==='mobile'?'查看日历活动 · 2026-10-28':'View calendar event · 2026-10-28',exact:true});

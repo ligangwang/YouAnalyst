@@ -69,6 +69,32 @@ async function serve(page: Page, rankedAnalysts: number) {
 }
 const noHorizontalScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
+test('phone navigation keeps Search and Following fully visible at 320px in both languages', async ({page}) => {
+  await page.setViewportSize({width:320,height:740});
+  await serve(page, 3);
+  for (const language of ['en','zh-cn']) {
+    await page.goto(origin + '/' + language + '/feed');
+    const search = page.getByRole('link', {name:language === 'en' ? 'Search' : '搜索',exact:true});
+    const following = page.getByRole('navigation',{name:language === 'en' ? 'Mobile navigation' : '移动端导航'}).getByRole('link',{name:language === 'en' ? 'Following' : '我的关注',exact:true});
+    await expect(search).toBeVisible();
+    await expect(following).toBeVisible();
+    const bounds = await following.boundingBox();
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+    expect(await noHorizontalScroll(page)).toBe(true);
+  }
+});
+
+test('feed type filter separates business developments from evidence reviews', async ({page}) => {
+  await serve(page, 3);
+  await page.goto(origin + '/en/feed');
+  await page.getByRole('combobox',{name:'Update type'}).selectOption('research');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.getByRole('article')).toContainText('Evidence added / reviewed');
+  await page.getByRole('combobox',{name:'Update type'}).selectOption('CAPACITY');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.getByRole('article')).toContainText('Micron announces HBM capacity plan');
+});
+
 test("feed uses publication date, keeps pipeline dates private and groups source evidence", async ({ page }, info) => {
   await serve(page, 3);
   await page.goto(origin + "/en/feed");

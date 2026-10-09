@@ -16,7 +16,7 @@ import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
 export function CompanyResearchOverview({ company, fundamentals, graph, announcements=[], earningsSummary=null }: { company: CompanyResearch; fundamentals?: ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
-    ["Country", company.country], ["Security", company.securityType], ["Map segment", company.segment]].filter(([, value]) => value);
+    ["Country", company.country], ["Security", company.securityType]].filter(([, value]) => value);
   return <>
     <header className="border-b border-white/15 pb-6">
       <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap gap-2 text-sm text-cyan-200">
@@ -42,8 +42,9 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <section id="company-information" className="scroll-mt-24 py-6">      <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-4 text-sm">
         {facts.map(([label, value]) => <div key={label}><dt className="text-slate-400"><UiText text={label} /></dt><dd className="mt-1 font-medium text-slate-100">{value}</dd></div>)}
+        {company.sector && <div><dt className="text-slate-400"><UiText text="Industry roles" /></dt><dd className="mt-1 font-medium text-slate-100"><UiText text={company.sector.en} /></dd></div>}
       </dl>
-      {company.listingUpdatedAt && <p className="mt-3 text-xs text-slate-400"><UiText text={"Listing data synced "} />{company.listingUpdatedAt.slice(0, 10)}.</p>}
+      {company.listingUpdatedAt && <details className="mt-3 text-xs text-slate-400"><summary className="cursor-pointer"><UiText text="Listing source history" /></summary><p className="mt-2"><UiText text={"Listing data synced "} />{company.listingUpdatedAt.slice(0, 10)}. <UiText text="This is the listing record date, separate from quote updates." /></p></details>}
 <CompanyProfileDetails profile={company.profile} /></section>
 
     {!graph && company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">

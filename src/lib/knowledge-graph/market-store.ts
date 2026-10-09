@@ -1,5 +1,6 @@
 import { translatedSummary } from "./summary-translations";
 import { projectPrivateValuation } from "./private-valuation";
+import { reviewedCompanyNames } from "../market-companies/reviewed-names";
 import { companyGeography } from "../market-companies/identity";
 import type { GraphFact, GraphEdge, GraphNode, GraphSource, KnowledgeGraph } from "./model";
 export const RELATIONSHIP_COLLECTION = "company_relationships";
@@ -21,7 +22,8 @@ export function graphFromMarket(companies: MarketCompany[], records: MarketRelat
   const eligible = new Set(publicCompanies.filter(c => graphMembership(c)?.status === "PUBLISHED").map(c => c.id));
   const related = records.filter(r => r.status === "PUBLISHED" && r.evidence?.length && r.source !== r.target && (eligible.has(r.source) || eligible.has(r.target)));
   const included = new Set([...eligible, ...related.flatMap(r => [r.source, r.target])]), dates: string[] = [];
-  for (const c of publicCompanies.filter(c => included.has(c.id))) {
+  for (const company of publicCompanies.filter(c => included.has(c.id))) {
+    const c: MarketCompany = { ...company, names: reviewedCompanyNames(company.id, String(company.name), company.names) };
     const membership = graphMembership(c);
     const graph = membership?.status === "PUBLISHED" ? membership : undefined;
     const stageIds = graph?.stageIds.length ? graph.stageIds : ["related"];

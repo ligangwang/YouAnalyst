@@ -14,10 +14,8 @@ import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { IndustryCompanyTable } from "./industry-company-views";
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 import { companySectors, INDUSTRY_VIEWS, LEGACY_VERTICAL_VIEW, parseIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
-import {IndustryHierarchy} from "./industry-hierarchy";
 import {NavigationSettings} from "./navigation-settings";
 import {UniverseMusic, UniverseMusicToggle} from "./universe-music";
-import { IndustryStructure } from "./industry-tree";
 import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
 import { CompanyCountryFlag } from "./company-country-flag";
 import { CompanyNameEditor } from "./company-name-editor";
@@ -34,9 +32,13 @@ import { useCardDismiss } from './use-card-dismiss';
 import cardFade from './card-fade.module.css';
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
+const IndustryStructure = lazy(() => import("./industry-tree").then(module => ({ default: module.IndustryStructure })));
+const IndustryHierarchy = lazy(() => import("./industry-hierarchy").then(module => ({ default: module.IndustryHierarchy })));
 const subscribeView = (notify: () => void) => {
+  const mobile = window.matchMedia("(max-width: 767px)");
+  mobile.addEventListener("change", notify);
   window.addEventListener("storage", notify); window.addEventListener("popstate", notify); window.addEventListener("industry-view-changed", notify);
-  return () => { window.removeEventListener("storage", notify); window.removeEventListener("popstate", notify); window.removeEventListener("industry-view-changed", notify); };
+  return () => { mobile.removeEventListener("change", notify); window.removeEventListener("storage", notify); window.removeEventListener("popstate", notify); window.removeEventListener("industry-view-changed", notify); };
 };
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
 function ViewIcon({ view }: { view: IndustryView }) {
@@ -52,9 +54,10 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     if (requested) return requested;
     if (initialEdge || initialEvent || allowedRelationshipIds) return "graph";
     try { const saved = parseIndustryView(localStorage.getItem("ya-industry-view")); if (saved) return saved; } catch { /* Storage is optional. */ }
-    return defaultView;
-  }, () => defaultView);
+    return window.matchMedia("(max-width: 767px)").matches ? "table" : defaultView;
+  }, () => "table");
   const viewId = useId();
+  const [treeVisited, setTreeVisited] = useState(false);
   const marketFilter = useIndustryBrowseParam('listingMarket', 'all');
   const setMarketFilter = (value: string) => updateIndustryBrowse({listingMarket:value}, true);
   const roleFilter = useIndustryBrowseParam('role');
@@ -63,6 +66,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const setOnlyFollowed = (value: boolean) => updateIndustryBrowse({following:value?'1':''}, true);
   const follows = useCompanyFollows();
   function changeView(next: IndustryView) {
+    if (view === "tree" || next === "tree") setTreeVisited(true);
     if(next==="tree")setCardHost({tree:"vertical",reveal:false});
     if(next==="hierarchy")setCardHost({tree:"horizontal",reveal:false});
     try { localStorage.setItem("ya-industry-view", next); } catch { /* URL still preserves the selection. */ }
@@ -208,6 +212,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     <div className={styles.viewTabs} role="tablist" aria-label={text("Industry views", "产业视图")}>
       {([['graph','Relationship graph','关系图谱'],['tree','Industry tree','产业树'],['hierarchy','Company hierarchy','公司层级图'],['table','Company list','公司列表']] as const).map(([id,en,zh]) => <button key={id} type="button" role="tab" aria-label={text(en,zh)} id={viewId+'-'+id} aria-selected={view===id} aria-controls={viewId+'-panel'} tabIndex={view===id?0:-1} onClick={()=>changeView(id)} onKeyDown={e=>{const ids=INDUSTRY_VIEWS;let next:IndustryView|undefined;if(e.key==='ArrowRight')next=ids[(ids.indexOf(id)+1)%ids.length];if(e.key==='ArrowLeft')next=ids[(ids.indexOf(id)+ids.length-1)%ids.length];if(e.key==='Home')next=ids[0];if(e.key==='End')next=ids[ids.length-1];if(next){e.preventDefault();changeView(next);document.getElementById(viewId+'-'+next)?.focus();}}}><ViewIcon view={id} />{text(id==='table'?'List':id==='tree'?'Tree':id==='hierarchy'?'Hierarchy':'Graph',id==='table'?'列表':id==='tree'?'树状图':id==='hierarchy'?'层级图':'关系图')}</button>)}
     </div></header>
+    {introduction}
     <UniverseMusic active={status==="ready"&&(view==="graph"||(view==="tree"&&companies.length>0))}/>
     <div hidden={view!=='table'}><div className={styles.sharedFilters}>
     <div className={styles.controls}>
@@ -233,11 +238,13 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     </section>}
 
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
-      {/* Keep the initialized 3D tree mounted across tabs. */}
-      <div hidden={view!=='tree'} className={styles.structureStack}>
+      {/* Load the tree on first use, then preserve its expanded branches across tabs. */}
+      <Suspense fallback={<p role="status" className={styles.empty}>{text("Loading industry view…", "正在加载产业视图…")}</p>}>
+      {(view==='tree' || treeVisited) && <div hidden={view!=='tree'} className={styles.structureStack}>
         <IndustryStructure musicControls vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectNode(id,"vertical")} closing={cardDismiss.closing} showCard={cardHost.tree==="vertical"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
-      </div>
+      </div>}
       {view==='hierarchy'&&<IndustryHierarchy companies={treeCompanies} selected={selected} closing={cardDismiss.closing} onSelect={id=>selectNode(id,'horizontal')}/>}
+      </Suspense>
       {view==='graph' && <Suspense fallback={<div className={styles.canvas3d}><p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p><UniverseMusicToggle/></div>}><CompanyGraph3D musicControls showAllEdges={showAllEdges} hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectNode} reset={reset} onReset={resetGraphView}/></Suspense>}
       </div>
       {company && !treeView && <aside ref={detailCard} className={`${styles.detail} ${cardFade.card}`} data-closing={cardDismiss.closing} inert={cardDismiss.closing} aria-label={text("Company details", "公司详情")} onKeyDown={e=>{if(e.key==='Escape')selectCompany('');}}>
@@ -273,7 +280,6 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     </div>}
     <div className={styles.legend}><span role="status">{status === "ready" ? <>{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</> : text(status === "loading" ? "Loading company and connection totals…" : "Company and connection totals unavailable", status === "loading" ? "正在加载公司与关系数量…" : "暂时无法获取公司与关系数量")}</span></div>
     {startingPoints}
-    {introduction}
     {view === "graph" && status === "ready" && <details className={styles.companyBrowser}><summary>{text("Browse companies", "浏览公司")} · {visible.nodes.filter(n=>n.kind==="COMPANY").length}</summary>
       <input aria-label={text("Find a company in the list", "在列表中查找公司")} placeholder={text("Name, ticker or business…", "名称、代码或业务…")} value={browseQuery} onChange={e=>setBrowseQuery(e.target.value)}/>
       <div className={styles.companyList}>{browseMatches.map(n=><button key={n.id} onClick={()=>selectCompany(n.id)}><span style={{color:companySector(n).color}}>{companyName(n,locale)}</span><small>{n.symbol} · {text(companySector(n).en,companySector(n).zh)}</small></button>)}{!browseMatches.length && <p>{text("No matching companies.", "没有匹配的公司。")}</p>}</div>

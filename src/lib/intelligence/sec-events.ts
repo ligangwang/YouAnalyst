@@ -18,7 +18,7 @@ export function projectSecIntelligence(documents:FilingDocument[],graph:Knowledg
     }).sort((a,b)=>a.discoveredAt.localeCompare(b.discoveredAt));
     const companyIds=[...new Set(records.map(record=>`US:${record.companyId}`).filter(id=>companies.has(id)))];
     if(!companyIds.length||!records.length)continue;
-    const first=records[0];
+    const first=records.find(record=>companies.has(`US:${record.companyId}`))!;
     const publication=observation(first.published_at??first.filingDate);
     if(!publication||(publication.at&&Date.parse(publication.at)>now.getTime()))continue;
     const url=`https://www.sec.gov/Archives/edgar/data/${Number(first.cik)}/${first.accessionNumber.replaceAll('-','')}/${first.primaryDocument}`;

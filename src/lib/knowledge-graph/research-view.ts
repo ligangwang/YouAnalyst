@@ -44,7 +44,7 @@ export function relationshipBusiness(edge: GraphEdge, zh: boolean, limit = 4) {
   ];
   const category = business.find(([pattern]) => pattern.test(scope));
   if (category) products.push(category[zh ? 2 : 1]);
-  return products.slice(0, limit).join(" / ") || (zh ? "相关产品或业务详见来源说明" : "See the source description for the specific product or business");
+  return products.slice(0, limit).join(" / ");
 }
 export function relationshipExplanation(edge: GraphEdge, graph: KnowledgeGraph, zh: boolean) {
   const name = (id: string) => { const n = graph.nodes.find(n => n.id === id); return n ? companyName(n, zh ? "zh-CN" : "en") : id; };

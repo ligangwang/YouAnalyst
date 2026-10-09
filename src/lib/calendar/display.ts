@@ -16,7 +16,7 @@ export function visibleDays(anchor:string,view:'month'|'week') {
 }
 export function calendarTime(event:CalendarItem,chinese=false) {
   if(event.scheduled_at) return new Intl.DateTimeFormat(chinese?'zh-CN':'en-US',{timeZone:CALENDAR_ZONE,hour:'numeric',minute:'2-digit',hour12:!chinese}).format(new Date(event.scheduled_at))+' ET';
-  if(event.local_time)return `${event.local_time} ${event.timezone_text??(chinese?'时区未公布':'zone not announced')}`;
+  if(event.local_time)return `${event.local_time} ${event.timezone_text??(chinese?'（当地时间，时区未公布）':'(local time, time zone not given)')}`;
   if(event.timeSlot==='before_market')return chinese?'盘前（原公告）':'Before market open (source)';
   if(event.timeSlot==='after_market')return chinese?'盘后（原公告）':'After market close (source)';
   return chinese?'时间未公布':'Time not announced';

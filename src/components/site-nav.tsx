@@ -236,7 +236,7 @@ export function SiteNav() {
             <LanguageSwitch />
             <Link
               href="/companies"
-              className="hidden shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-400/35 px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-cyan-100 hover:bg-cyan-500/15 lg:inline-flex"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-400/35 px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-cyan-100 hover:bg-cyan-500/15"
             ><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>{t("Search")}</Link>
             {loading ? (
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-700" />
@@ -251,9 +251,8 @@ export function SiteNav() {
           </div>
         </div>
 
-        {/* One line: More stays beside the primary links instead of wrapping; on the narrowest phones the links scroll. */}
-        <nav aria-label={ui("Mobile navigation")} className="mt-1 flex items-center text-sm text-slate-200 lg:hidden">
-          <div className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] min-[360px]:gap-0.5 min-[400px]:gap-1">
+        <nav aria-label={ui("Mobile navigation")} className="mt-1 flex flex-wrap items-center text-sm text-slate-200 lg:hidden">
+          <div className="flex min-w-0 flex-wrap items-center min-[360px]:gap-0.5 min-[400px]:gap-1">
             {navItems.map(item => <Link key={item.href} href={item.href} aria-current={isPrimaryNavActive(pathname, item.href) ? "page" : undefined} className="shrink-0 whitespace-nowrap rounded-lg px-1 py-3 hover:bg-white/5 hover:text-cyan-200 aria-[current=page]:bg-white/10 aria-[current=page]:text-white aria-[current=page]:shadow-[inset_0_-2px_0_#67e8f9] max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
           </div>
           <div className="ml-auto shrink-0"><MoreMenu admin={showAdminLink} /></div>
