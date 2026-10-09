@@ -89,7 +89,7 @@ test('feed type filter separates business developments from evidence reviews', a
   await page.goto(origin + '/en/feed');
   await page.getByRole('combobox',{name:'Update type'}).selectOption('research');
   await expect(page.getByRole('article')).toHaveCount(1);
-  await expect(page.getByRole('article')).toContainText('Evidence added / reviewed');
+  await expect(page.getByRole('article')).toContainText('Sources added / reviewed');
   await page.getByRole('combobox',{name:'Update type'}).selectOption('CAPACITY');
   await expect(page.getByRole('article')).toHaveCount(1);
   await expect(page.getByRole('article')).toContainText('Micron announces HBM capacity plan');
