@@ -77,3 +77,10 @@ no relationships or featured coverage, preserves existing classifications, and
 does not reapply a completed correction. Future research uses these roles in
 the existing structured schema; assignments remain in Firestore, not a runtime
 ticker allowlist. A role is not proof of a supply-chain connection.
+
+
+## Evidence-backed analyst views
+
+Human directional views are published through `/api/posts`, which verifies company coverage and citations against the AI, Robotics and Space maps. The legacy creation endpoints `POST /api/predictions` and `POST /api/ticker/[symbol]/position` return HTTP 410 with a `publishUrl` pointing to the evidence-based composer; anonymous requests remain HTTP 401. Reads and management of existing calls remain available. Watchlists link to the composer instead of offering uncited bulk quick-add. Internal AI-analyst generation continues through its existing service flow.
+
+Relationship citations retain the theme where their edge is published, so opening Robotics or Space evidence loads the matching map. When a relationship appears on multiple maps, the first supplied map is used (AI, then Robotics, then Space in the publish flow).

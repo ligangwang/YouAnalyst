@@ -13,7 +13,7 @@ const ai: KnowledgeGraph = {
   relationships: [edge("tsm-nvda", "US:TSM", "US:NVDA"), edge("tsm-amd", "US:TSM", "US:AMD"), edge("nvda-role", "US:NVDA", "stage:compute", "PARTICIPATES_IN")],
 };
 const robotics: KnowledgeGraph = { asOf: "2026-10-05", sources: [], nodes: [company("US:ISRG", "Intuitive Surgical"), company("US:NVDA", "NVIDIA")], relationships: [edge("nvda-isrg", "US:NVDA", "US:ISRG", "PARTNER_OF")] };
-const coverage = mergeCoverageGraphs([ai, robotics]);
+const coverage = mergeCoverageGraphs([{ theme: "ai", graph: ai }, { theme: "robotics", graph: robotics }]);
 
 test("evidence references are shape-checked, deduplicated and capped", () => {
   assert.deepEqual(parseViewEvidence(undefined), []);
@@ -34,11 +34,11 @@ test("directional views must cite a relationship or research that covers the com
   assert.throws(() => resolveViewEvidence([], "US:NVDA", coverage, true), /Cite at least one/);
   const [cited] = resolveViewEvidence([{ kind: "relationship", id: "tsm-nvda" }], "US:NVDA", coverage, true);
   assert.deepEqual(cited.label, { en: "TSMC → NVIDIA · Supplies", "zh-CN": "TSMC → NVIDIA · 供应" });
-  assert.equal(cited.href, "/?company=US%3ANVDA&relationship=tsm-nvda");
+  assert.equal(cited.href, "/?theme=ai&company=US%3ANVDA&relationship=tsm-nvda");
   // Another company's relationship, an industry-role membership and an unknown id are all rejected.
   for (const id of ["tsm-amd", "nvda-role", "missing"]) assert.throws(() => resolveViewEvidence([{ kind: "relationship", id }], "US:NVDA", coverage, true), /does not involve/);
   // A relationship from the Robotics map counts for a company on both maps.
-  assert.equal(resolveViewEvidence([{ kind: "relationship", id: "nvda-isrg" }], "US:ISRG", coverage, true)[0].kind, "relationship");
+  assert.equal(resolveViewEvidence([{ kind: "relationship", id: "nvda-isrg" }], "US:ISRG", coverage, true)[0].href, "/?theme=robotics&company=US%3AISRG&relationship=nvda-isrg");
 });
 
 test("research citations must cover the company and link to the report", () => {
@@ -90,4 +90,14 @@ test("track record compares each public view with QQQ over the same dates", () =
   assert.ok(Math.abs(record.averageExcess! - 0.045) < 1e-9);
   assert.equal(byId.get("a")!.cited, 1);
   assert.deepEqual(record.recent.map(view => view.id), ["c", "b", "a"]);
+});
+
+
+test("Space citations retain their theme and shared relationships prefer their first map", () => {
+  const space: KnowledgeGraph = { asOf: "2026-10-06", sources: [], nodes: [company("US:RKLB", "Rocket Lab"), company("US:IRDM", "Iridium")], relationships: [edge("rklb-irdm", "US:RKLB", "US:IRDM", "PARTNER_OF")] };
+  const graph = mergeCoverageGraphs([{ theme: "ai", graph: ai }, { theme: "robotics", graph: robotics }, { theme: "space", graph: space }]);
+  const citation = resolveViewEvidence([{ kind: "relationship", id: "rklb-irdm" }], "US:RKLB", graph, true)[0];
+  assert.equal(new URL(citation.href, "https://youanalyst.com").searchParams.get("theme"), "space");
+  const duplicate = mergeCoverageGraphs([{ theme: "ai", graph: ai }, { theme: "robotics", graph: ai }]);
+  assert.equal(duplicate.relationshipThemes["tsm-nvda"], "ai");
 });

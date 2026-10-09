@@ -1,5 +1,5 @@
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
-import { createPrediction, listPredictions, PUBLIC_FEED_PREVIEW_LIMIT, validateCreatePredictionInput } from "@/lib/predictions/service";
+import { listPredictions, PUBLIC_FEED_PREVIEW_LIMIT } from "@/lib/predictions/service";
 import { type PredictionStatus } from "@/lib/predictions/types";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -69,37 +69,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** Human calls now use /api/posts, where coverage and citations are validated. */
 export async function POST(request: NextRequest) {
   const decoded = await getDecodedUserFromRequest(request);
-  if (!decoded) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const payload = await request.json();
-    const input = validateCreatePredictionInput(payload);
-    const created = await createPrediction(input, {
-      uid: decoded.uid,
-      displayName: decoded.name,
-      photoURL: decoded.picture,
-    });
-
-    return NextResponse.json({ id: created.id }, { status: 201 });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to create prediction";
-    const status = message.includes("Duplicate prediction")
-      ? 409
-      :
-        message.includes("required") ||
-        message.includes("must") ||
-          message.includes("Invalid") ||
-          message.includes("enabled") ||
-          /part of pro|upgrade/i.test(message) ||
-          message.includes("future") ||
-          /limit reached|already exists in that watchlist/i.test(message)
-        ? 400
-        : 500;
-
-    return NextResponse.json({ error: message }, { status });
-  }
+  if (!decoded) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return NextResponse.json({
+    error: "Publish an evidence-backed view using the publish form.",
+    publishUrl: "/predictions/new",
+  }, { status: 410 });
 }

@@ -10,19 +10,20 @@ import { TickerSearchInput } from "./ticker-search-input";
 import { localizedPath } from "@/lib/i18n/urls";
 import { predictionSignInHref } from "@/lib/auth-continuation";
 import { predictionInstrument } from "@/lib/predictions/instrument";
-import type { KnowledgeGraph } from "@/lib/knowledge-graph/model";
+import type { CoverageGraph } from "@/lib/posts/evidence";
+import type { CompanyThemeId } from "@/lib/company-themes/model";
 import { isCoveredCompany, MAX_VIEW_EVIDENCE, mergeCoverageGraphs, relationshipLabel, relationshipsForCompany, researchForCompany, type ViewEvidenceRef } from "@/lib/posts/evidence";
 
 const key = (ref: ViewEvidenceRef) => `${ref.kind}:${ref.id}`;
 
 /** The AI, Robotics and Space maps, loaded once: they decide which companies can receive views and what a view can cite. */
 function useCoverageGraph() {
-  const [graph, setGraph] = useState<KnowledgeGraph | null>(null);
+  const [graph, setGraph] = useState<CoverageGraph | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     Promise.all(["ai", "robotics", "space"].map(theme => fetch(`/api/knowledge-graph${theme === "ai" ? "" : `?theme=${theme}`}`, { signal: controller.signal })
-      .then(response => { if (!response.ok) throw new Error(); return response.json() as Promise<KnowledgeGraph>; })))
+      .then(response => { if (!response.ok) throw new Error(); return response.json().then(graph => ({ theme: theme as CompanyThemeId, graph })); })))
       .then(graphs => setGraph(mergeCoverageGraphs(graphs))).catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => controller.abort();
   }, []);

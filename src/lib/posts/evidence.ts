@@ -1,3 +1,4 @@
+import type { CompanyThemeId } from "../company-themes/model";
 import { companyName, type KnowledgeGraph } from "../knowledge-graph/model";
 import { relationLabels } from "../knowledge-graph/relationship-labels";
 import { deepDives } from "../research/deep-dives";
@@ -48,9 +49,16 @@ export function relationshipLabel(graph: KnowledgeGraph, edgeId: string) {
 }
 
 /** Analyst views cover every company on the AI, Robotics and Space maps; merge their graphs into one. */
-export function mergeCoverageGraphs(graphs: KnowledgeGraph[]): KnowledgeGraph {
+export type CoverageGraph = KnowledgeGraph & { relationshipThemes: Record<string, CompanyThemeId> };
+export function mergeCoverageGraphs(entries: Array<{ theme: CompanyThemeId; graph: KnowledgeGraph }>): CoverageGraph {
+  const graphs = entries.map(entry => entry.graph);
+  const relationshipThemes: CoverageGraph["relationshipThemes"] = {};
+  for (const { theme, graph } of entries) for (const edge of graph.relationships) {
+    relationshipThemes[edge.id] ??= theme;
+  }
   const unique = <T extends { id: string }>(items: T[]) => [...new Map(items.map(item => [item.id, item])).values()];
   return {
+    relationshipThemes,
     nodes: unique(graphs.flatMap(graph => graph.nodes)),
     relationships: unique(graphs.flatMap(graph => graph.relationships)),
     sources: unique(graphs.flatMap(graph => graph.sources)),
@@ -66,7 +74,7 @@ export function isCoveredCompany(graph: KnowledgeGraph, companyId: string) {
  * Checks references against the AI map and the research library, and snapshots their labels.
  * A directional (bullish or bearish) view must cite at least one.
  */
-export function resolveViewEvidence(refs: ViewEvidenceRef[], companyId: string, graph: KnowledgeGraph, directional: boolean): ViewEvidence[] {
+export function resolveViewEvidence(refs: ViewEvidenceRef[], companyId: string, graph: KnowledgeGraph & Partial<Pick<CoverageGraph, "relationshipThemes">>, directional: boolean): ViewEvidence[] {
   if (!isCoveredCompany(graph, companyId)) throw new Error("Analyst views cover companies on the AI, Robotics and Space maps. Choose a company from a map.");
   if (directional && !refs.length) throw new Error("Cite at least one relationship or research report that supports this view.");
   const relationships = new Set(relationshipsForCompany(graph, companyId).map(edge => edge.id));
@@ -74,7 +82,7 @@ export function resolveViewEvidence(refs: ViewEvidenceRef[], companyId: string, 
   return refs.map(ref => {
     if (ref.kind === "relationship") {
       if (!relationships.has(ref.id)) throw new Error("A cited relationship does not involve this company.");
-      return { ...ref, label: relationshipLabel(graph, ref.id)!, href: `/?${new URLSearchParams({ company: companyId, relationship: ref.id })}` };
+      return { ...ref, label: relationshipLabel(graph, ref.id)!, href: `/?${new URLSearchParams({ theme: graph.relationshipThemes?.[ref.id] ?? "ai", company: companyId, relationship: ref.id })}` };
     }
     const item = research.get(ref.id);
     if (!item) throw new Error("A cited research report does not cover this company.");

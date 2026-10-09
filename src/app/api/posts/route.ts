@@ -27,7 +27,11 @@ export async function POST(request: NextRequest) {
     const refs = parseViewEvidence(raw?.evidence);
     // Views stay inside the theme maps' coverage, and directional views must cite their research.
     let graph;
-    try { graph = mergeCoverageGraphs(await Promise.all([loadKnowledgeGraph(), loadThemeGraph("robotics"), loadThemeGraph("space")])); }
+    try { graph = mergeCoverageGraphs(await Promise.all([
+      loadKnowledgeGraph().then(graph => ({ theme: "ai" as const, graph })),
+      loadThemeGraph("robotics").then(graph => ({ theme: "robotics" as const, graph })),
+      loadThemeGraph("space").then(graph => ({ theme: "space" as const, graph })),
+    ])); }
     catch { throw new Error("Company coverage could not be checked. Try again shortly."); }
     const evidence = resolveViewEvidence(refs, predictionInstrument(input.ticker)!.companyId, graph, Boolean(input.direction));
     return NextResponse.json(await publishPost({ ...input, evidence }, { uid: user.uid, displayName: user.name, photoURL: user.picture }), { status: 201 });
