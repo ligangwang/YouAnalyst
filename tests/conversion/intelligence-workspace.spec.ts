@@ -423,9 +423,9 @@ for(const view of ['tree','hierarchy','table'])test(view+' company selection ope
 });
 
 
-test('clicking successive WebGL stars replaces the company card and selected relationships',async({page},info)=>{
+for(const reduced of [true,false])test('clicking star halos switches company cards with '+(reduced?'reduced':'normal')+' motion',async({page},info)=>{
  test.skip(info.project.name!=='desktop','Actual WebGL company click regression');test.setTimeout(60000);
- await page.setViewportSize({width:1500,height:900});await page.emulateMedia({reducedMotion:'reduce'});
+ await page.setViewportSize({width:1500,height:900});await page.emulateMedia({reducedMotion:reduced?'reduce':'no-preference'});
  const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[
   {id:'optics-memory',source:'US:LITE',target:'US:MU',type:'PARTNER_OF',summary:'Optics memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]},
   {id:'compute-memory',source:'US:MULT',target:'US:MEM',type:'PARTNER_OF',summary:'Compute memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]}
@@ -439,14 +439,18 @@ test('clicking successive WebGL stars replaces the company card and selected rel
  const card=page.getByRole('region',{name:'Company details',exact:true});
  let previous='',clicks=0;
  // HTML labels share the star's projected center; click exposed canvas pixels
- // beside that center so this exercises GPU hit testing rather than a label.
+ // near the halo with slight pointer drift to exercise GPU hit testing.
  for(let attempt=0;attempt<4&&clicks<2;attempt++){
+  // ResizeObserver updates the WebGL viewport after collapsing the panels.
+  await expect.poll(()=>page.locator('canvas').evaluate(el=>Math.abs(el.getBoundingClientRect().width-el.parentElement!.getBoundingClientRect().width))).toBeLessThan(1);
+  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
   const candidates=await page.locator('[data-company-id]').evaluateAll(els=>els.flatMap(el=>{
    const r=el.parentElement!.getBoundingClientRect();
-   return [-6,0,6].flatMap(dx=>[-6,0,6].map(dy=>({id:el.getAttribute('data-company-id')!,x:r.x+r.width/2+dx,y:r.y+r.height/2+dy}))).filter(p=>document.elementFromPoint(p.x,p.y) instanceof HTMLCanvasElement);
+   return [-14,14].flatMap(dx=>[0].map(dy=>({id:el.getAttribute('data-company-id')!,x:r.x+r.width/2+dx,y:r.y+r.height/2+dy}))).filter(p=>document.elementFromPoint(p.x,p.y) instanceof HTMLCanvasElement);
   }));
   const next=candidates.find(p=>p.id!==previous);expect(next,'A second exposed star must be clickable').toBeTruthy();
-  await page.mouse.click(next!.x,next!.y);
+  await page.mouse.move(next!.x,next!.y);await page.mouse.down();
+  await page.mouse.move(next!.x+2,next!.y+2);await page.mouse.up();
   await expect(page).toHaveURL(new RegExp('company='+encodeURIComponent(next!.id)));
   await expect(card).toHaveCount(1);await expect(card).toContainText(companies.find(c=>c.id===next!.id)!.name);
   await page.mouse.move(1,1);
@@ -456,4 +460,13 @@ test('clicking successive WebGL stars replaces the company card and selected rel
   previous=next!.id;clicks++;
  }
  expect(clicks).toBe(2);
+ const originalUrl=page.url();
+ const drag=await page.locator('[data-company-id]').evaluateAll(els=>els.map(el=>{const r=el.parentElement!.getBoundingClientRect();return {x:r.x+r.width/2-14,y:r.y+r.height/2};}).find(p=>document.elementFromPoint(p.x,p.y) instanceof HTMLCanvasElement));
+ expect(drag).toBeTruthy();
+ await page.mouse.move(drag!.x,drag!.y);await page.mouse.down();
+ await page.mouse.move(drag!.x+35,drag!.y+20,{steps:5});
+ // Even returning to the press point is still an orbit gesture, not a click.
+ await page.mouse.move(drag!.x,drag!.y,{steps:5});await page.mouse.up();
+ await expect(page).toHaveURL(originalUrl);
+ await expect(card).toContainText(companies.find(c=>c.id===previous)!.name);
 });

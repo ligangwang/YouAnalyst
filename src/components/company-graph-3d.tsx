@@ -7,7 +7,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
 import { CameraControls, Html } from "@react-three/drei";
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, LineSegments, type Points, type Intersection, type Raycaster, type Mesh, type MeshBasicMaterial } from "three";
+import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial } from "three";
 import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
@@ -206,10 +206,38 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       const blend=Math.max(0,Math.min(1,emphasis-1));
       const starSize=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*marketCapScale(node.marketCap)*(1+.5*blend*blend*(3-2*blend));
       const distance=Math.hypot((screen.x-pointer.x)*size.width/2,(screen.y-pointer.y)*size.height/2);
-      if(distance<=Math.max(10,starSize*.35/gl.getPixelRatio()) && (!nearest || distance<nearest.screenDistance))nearest={index,distance:raycaster.ray.origin.distanceTo(point),point,screenDistance:distance};
+      // Cover the whole sprite plus a small pointer margin, not just its core.
+      if(distance<=Math.max(18,starSize*.5/gl.getPixelRatio()+6) && (!nearest || distance<nearest.screenDistance))nearest={index,distance:raycaster.ray.origin.distanceTo(point),point,screenDistance:distance};
     });
     return nearest;
   }
+  const starPress=useRef<{id:string;x:number;y:number;pointer:number;dragged:boolean}|null>(null);
+  // Resolve a company at press time: orbit damping can move the star before
+  // the browser emits click. Keep that target while tolerating a small drift.
+  useEffect(()=>{
+    const canvas=gl.domElement,ray=new Raycaster();
+    const down=(event:PointerEvent)=>{
+      starPress.current=null;
+      if(event.button!==0 || !event.isPrimary)return;
+      const rect=canvas.getBoundingClientRect();
+      ray.setFromCamera(new Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
+      const hit=companyHit(ray);
+      if(hit)starPress.current={id:layout.nodes[hit.index].id,x:event.clientX,y:event.clientY,pointer:event.pointerId,dragged:false};
+    };
+    const move=(event:PointerEvent)=>{const press=starPress.current;if(press && event.pointerId===press.pointer && Math.hypot(event.clientX-press.x,event.clientY-press.y)>5)press.dragged=true;};
+    const cancel=()=>{starPress.current=null;};
+    const click=(event:MouseEvent)=>{
+      const press=starPress.current;starPress.current=null;
+      if(!press || event.button!==0)return;
+      if(press.dragged || Math.hypot(event.clientX-press.x,event.clientY-press.y)>5){event.stopImmediatePropagation();return;}
+      // Consume once before R3F can resolve a different target or a missed click.
+      event.stopImmediatePropagation();onSelect(press.id);
+    };
+    canvas.addEventListener('pointerdown',down,true);canvas.addEventListener('click',click,true);
+    window.addEventListener('pointermove',move,true);window.addEventListener('pointercancel',cancel,true);
+    window.addEventListener('blur',cancel);
+    return()=>{canvas.removeEventListener('pointerdown',down,true);canvas.removeEventListener('click',click,true);window.removeEventListener('pointermove',move,true);window.removeEventListener('pointercancel',cancel,true);window.removeEventListener('blur',cancel);};
+  });
   function raycastCompanies(this: Points,raycaster: Raycaster,intersections: Intersection[]) {
     const hit=companyHit(raycaster);
     if(hit)intersections.push({distance:hit.distance,point:hit.point,index:hit.index,object:this});
