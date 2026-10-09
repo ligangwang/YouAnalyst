@@ -129,7 +129,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const clickAnchor=useRef<{x:number;y:number}|null>(null);
   const [companyAnchor,setCompanyAnchor]=useState<{x:number;y:number}|null>(null);
   const floatingCompany=Boolean(company)&&!event;
-  const companyCard=useNodeCardPosition(selected,'workspace',floatingCompany,companyAnchor,view==='graph'?'top-right':'auto');
+  const companyCard=useNodeCardPosition(selected,'workspace',floatingCompany,companyAnchor,'top-right');
   const eventSource=event?.evidence.find(source=>source.channel==='SEC')??event?.evidence[0];
   const connections=graph.relationships.filter(edge=>edge.type!=='PARTICIPATES_IN'&&relationshipVerification(edge)!=='TERMINATED'&&(event?event.edgeIds.includes(edge.id):selected&&(edge.source===selected||edge.target===selected)));
   const intelligence={origin:propagating?event?.origin??'':'',edges:event?propagating?event.edgeIds:[]:selected?graph.relationships.filter(edge=>edge.type!=='PARTICIPATES_IN'&&relationshipVerification(edge)!=='TERMINATED'&&(edge.source===selected||edge.target===selected)).map(edge=>edge.id):[]};
