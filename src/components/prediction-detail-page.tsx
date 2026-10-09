@@ -1,5 +1,7 @@
 "use client";
 
+import { ViewEvidenceList } from "./view-evidence-list";
+import type { ViewEvidence } from "@/lib/posts/evidence";
 import { CompanyPosts } from "./company-posts";
 import { formatCallPrice } from "@/lib/predictions/instrument";
 import { UiText, useUiText } from "@/components/ui-text";
@@ -44,6 +46,7 @@ type PredictionDetail = {
   entryDate: string | null;
   thesisTitle: string;
   thesis: string;
+  evidence?: ViewEvidence[];
   timeHorizon: PredictionTimeHorizon | null;
   status: PredictionStatus;
   visibility?: PredictionVisibility;
@@ -208,7 +211,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
       ]);
 
       if (!predictionResponse.ok) {
-        throw new Error("Idea not found.");
+        throw new Error("View not found.");
       }
 
       const predictionPayload = (await predictionResponse.json()) as PredictionDetail;
@@ -219,7 +222,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
       setPrediction(predictionPayload);
       setComments(commentPayload.items);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to load idea.");
+      setError(nextError instanceof Error ? nextError.message : "Unable to load view.");
     } finally {
       setLoading(false);
     }
@@ -313,7 +316,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
   async function runPredictionAction(action: "close" | "cancel") {
     const token = await getIdToken();
     if (!token) {
-      setError("Sign in to manage this idea.");
+      setError("Sign in to manage this view.");
       return;
     }
 
@@ -338,7 +341,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Unable to update idea.");
+        throw new Error(payload.error ?? "Unable to update view.");
       }
 
       await loadAll();
@@ -347,7 +350,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         setShowCloseComposer(false);
       }
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to update idea.");
+      setError(nextError instanceof Error ? nextError.message : "Unable to update view.");
     } finally {
       setActionPending(null);
     }
@@ -393,7 +396,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
     const token = await getIdToken();
     if (!token) {
-      setError("Sign in to edit this idea.");
+      setError("Sign in to edit this view.");
       return;
     }
 
@@ -421,24 +424,24 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Unable to edit idea.");
+        throw new Error(payload.error ?? "Unable to edit view.");
       }
 
       setEditing(false);
       await loadAll();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Unable to edit idea.");
+      setError(nextError instanceof Error ? nextError.message : "Unable to edit view.");
     } finally {
       setEditSaving(false);
     }
   }
 
   if (loading) {
-    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading idea..."} /></main>;
+    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300"><UiText text={"Loading view..."} /></main>;
   }
 
   if (!prediction) {
-    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-rose-300">{error ?? <UiText text={"Idea not found."} />}</main>;
+    return <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-rose-300">{error ?? <UiText text={"View not found."} />}</main>;
   }
 
   const thesis = sanitizePredictionThesis(prediction.thesis);
@@ -563,7 +566,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                 rows={3}
                 value={closeReason}
                 onChange={(event) => setCloseReason(event.target.value)}
-                placeholder={ui("Why are you closing this idea?")}
+                placeholder={ui("Why are you closing this view?")}
                 className="rounded-lg border border-white/15 bg-slate-950/60 px-3 py-2 text-sm text-white outline-none ring-cyan-400/40 focus:ring"
               />
               <p className="text-xs text-slate-500"><UiText text={"A reason is required. There is no minimum length."} /></p>
@@ -678,6 +681,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
                 <PredictionThesisText text={thesis} />
               </p>
             ) : null}
+            <ViewEvidenceList evidence={prediction.evidence} />
           </>
         )}
         <div className="mt-4 grid gap-6 text-sm text-slate-300 sm:grid-cols-2">

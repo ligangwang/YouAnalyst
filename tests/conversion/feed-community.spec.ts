@@ -153,7 +153,7 @@ test("rankings stay hidden with too few analysts and no level labels are shown",
   await expect(page.getByText("Rankings open once at least 10 analysts have public calls. 3 ranked so far.")).toBeVisible();
   await expect(page.getByText("Analyst 1")).toHaveCount(0);
   await page.locator("summary:visible", { hasText: "More" }).click();
-  await expect(page.getByRole("link", { name: "Investment ideas", exact: true }).filter({ visible: true })).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "Analyst views", exact: true }).filter({ visible: true })).toHaveCount(1);
   await expect(page.getByRole("link", { name: "Rankings", exact: true })).toHaveCount(0);
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.locator("summary:visible", { hasText: "More" }).click();
@@ -166,7 +166,7 @@ test("rankings stay hidden with too few analysts and no level labels are shown",
   await expect(page.getByText("至少 10 位分析师发布公开观点后开放排行榜，目前已有 3 位。")).toBeVisible();
 });
 
-test("open rankings explain the score without level or tier labels", async ({ page }, info) => {
+test("open rankings explain the score without level or tier labels and stay out of the menu", async ({ page }, info) => {
   await serve(page, 10);
   await page.goto(origin + "/en/leaderboard");
   await expect(page.getByRole("heading", { name: "Leaderboard" })).toBeVisible();
@@ -175,7 +175,9 @@ test("open rankings explain the score without level or tier labels", async ({ pa
   await expect(page.locator("main")).not.toContainText("Level");
   await expect(page.locator("main")).not.toContainText("New Analyst");
   await page.locator("summary:visible", { hasText: "More" }).click();
-  await expect(page.getByRole("link", { name: "Rankings", exact: true }).filter({ visible: true })).toHaveCount(1);
+  // Analysts are judged by their own track records: the page stays reachable, but rankings never enter the menu.
+  await expect(page.getByRole("link", { name: "Rankings", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Publish a view", exact: true }).filter({ visible: true })).toHaveCount(1);
   expect(await noHorizontalScroll(page)).toBe(true);
   await page.locator("summary:visible", { hasText: "More" }).click();
   await page.screenshot({ path: info.outputPath("leaderboard.png"), fullPage: true });

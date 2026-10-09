@@ -25,7 +25,6 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       <p className="text-sm font-semibold text-cyan-300"><UiText text={"Company research"} /></p>
       <CompanyHeading name={company.name} names={company.names} ticker={company.ticker} country={company.country} />
       {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.ticker} exchange={company.exchange} />}
-      {company.listingStatus !== "PRIVATE" && <CompanyOutlook ticker={company.ticker} />}
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}
       {!graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
@@ -35,6 +34,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
         {fundamentals && <a href="#company-fundamentals"><UiText text={"Business and financials"} /></a>}
         {company.inMap && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}
+        {company.listingStatus !== "PRIVATE" && <a href="#analyst-views"><UiText text={"Analyst views"} /></a>}
       </nav>
     </header>
     <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
@@ -70,5 +70,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       </div>
       {company.connections.length > 12 && <Link href={`/map?company=${encodeURIComponent(company.ticker)}`} className="mt-3 inline-block text-sm text-cyan-200 underline underline-offset-4"><UiText text={"View all "} />{company.connections.length}<UiText text={" relationships on the map"} /></Link>}
     </section>}
+    {/* Analyst views follow the research they build on. */}
+    {company.listingStatus !== "PRIVATE" && <div id="analyst-views" className="scroll-mt-24"><CompanyOutlook ticker={company.ticker} /></div>}
   </>;
 }

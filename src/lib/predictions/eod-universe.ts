@@ -2,6 +2,7 @@ import { loadCollectionUniverse } from "../company-themes/service";
 import { usMapTickers } from "../knowledge-graph/us-companies";
 import { cnMapCompanies } from "../knowledge-graph/cn-companies";
 import { predictionInstrument, type PredictionMarket } from "./instrument";
+import { TRACK_RECORD_BENCHMARK } from "./track-record";
 
 export async function loadEodPriceUniverse(input: {
   market: PredictionMarket; loadPrices: boolean; manualTickers: string[]; predictionTickers: string[];
@@ -18,7 +19,9 @@ export async function loadEodPriceUniverse(input: {
     const invalid = mapTickers.filter(ticker => predictionInstrument(ticker)?.market !== input.market);
     if (invalid.length) throw new Error(`Unsupported ${input.market} map price symbols: ${invalid.join(", ")}`);
   }
-  return { requestedTickers: [...new Set([...base, ...mapTickers].map(t => t.trim().toUpperCase()).filter(Boolean))].sort(), mapTickers };
+  // Ordinary US runs also price the track-record benchmark; it is not a map company, so it stays out of map coverage.
+  const benchmarkTickers = input.market === "US" && mapTickers.length ? [TRACK_RECORD_BENCHMARK] : [];
+  return { requestedTickers: [...new Set([...base, ...mapTickers, ...benchmarkTickers].map(t => t.trim().toUpperCase()).filter(Boolean))].sort(), mapTickers, benchmarkTickers };
 }
 
 type DatedPrice = { ticker: string; market: string; tradingDate: string; close: number };

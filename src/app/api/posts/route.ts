@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { validatePost } from "@/lib/posts/model";
 import { listPosts, publishPost } from "@/lib/posts/service";
+import { mergeCoverageGraphs, parseViewEvidence, resolveViewEvidence } from "@/lib/posts/evidence";
+import { loadThemeGraph } from "@/lib/company-themes/graph-service";
+import { predictionInstrument } from "@/lib/predictions/instrument";
+import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
 
 export async function GET(request: NextRequest) {
   const user = await getDecodedUserFromRequest(request);
@@ -18,7 +22,15 @@ export async function POST(request: NextRequest) {
   const user = await getDecodedUserFromRequest(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    return NextResponse.json(await publishPost(validatePost(await request.json()), { uid: user.uid, displayName: user.name, photoURL: user.picture }), { status: 201 });
+    const raw = await request.json() as Record<string, unknown> | null;
+    const input = validatePost(raw);
+    const refs = parseViewEvidence(raw?.evidence);
+    // Views stay inside the theme maps' coverage, and directional views must cite their research.
+    let graph;
+    try { graph = mergeCoverageGraphs(await Promise.all([loadKnowledgeGraph(), loadThemeGraph("robotics"), loadThemeGraph("space")])); }
+    catch { throw new Error("Company coverage could not be checked. Try again shortly."); }
+    const evidence = resolveViewEvidence(refs, predictionInstrument(input.ticker)!.companyId, graph, Boolean(input.direction));
+    return NextResponse.json(await publishPost({ ...input, evidence }, { uid: user.uid, displayName: user.name, photoURL: user.picture }), { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to publish" }, { status: 400 });
   }

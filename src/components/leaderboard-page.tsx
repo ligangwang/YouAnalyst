@@ -58,9 +58,9 @@ function RankingsComingSoon({ rankedAnalysts }: { rankedAnalysts: number }) {
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
         <h1 className="font-[var(--font-sora)] text-3xl font-semibold text-cyan-100"><UiText text={"Rankings are coming soon"} /></h1>
         <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={`Rankings open once at least ${MIN_RANKED_ANALYSTS} analysts have public calls. ${rankedAnalysts} ranked so far.`} /></p>
-        <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Individual calls stay visible on company pages and in Investment ideas."} /></p>
+        <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Individual views stay visible on company pages and in Analyst views."} /></p>
         <div className="mt-4 flex flex-wrap gap-3 text-sm">
-          <Link href="/predictions" className="rounded-lg border border-cyan-400/35 px-4 py-2 text-cyan-100 hover:bg-cyan-500/15"><UiText text={"Browse investment ideas"} /></Link>
+          <Link href="/predictions" className="rounded-lg border border-cyan-400/35 px-4 py-2 text-cyan-100 hover:bg-cyan-500/15"><UiText text={"Browse analyst views"} /></Link>
           <Link href="/predictions/new" className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950 hover:bg-cyan-400"><UiText text={"Make your first prediction"} /></Link>
         </div>
       </section>

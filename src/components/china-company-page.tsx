@@ -27,7 +27,6 @@ export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale
       <p className="text-sm text-cyan-200">{text(company.stageEn || company.stage, company.stage)}</p>
       <h1 className="mt-3 text-4xl font-semibold tracking-tight"><CompanyCountryFlag country={company.country} locale={locale} />{companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)}</h1>
       {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.id} />}
-      {company.listingStatus !== "PRIVATE" && <CompanyOutlook ticker={company.id} />}
       <p className="mt-3 text-sm tabular-nums text-slate-400">{company.id.split(":")[1]} · {company.id.startsWith("XSHG:") ? text("Shanghai", "上交所") : text("Shenzhen", "深交所")}</p>
 
     </header>
@@ -35,6 +34,8 @@ export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale
     {company.listingStatus !== "PRIVATE" && <ChinaMarketCap data={marketCap} />}
     {company.listingStatus !== "PRIVATE" && <ChinaAnnualFinancials annual={annual} stale={stale}/>}
     <CompanyResearchPanel companyId={company.id} />
+    {/* Analyst views follow the research they build on. */}
+    {company.listingStatus !== "PRIVATE" && <CompanyOutlook ticker={company.id} />}
     <CompanyPosts ticker={company.id} />
     <section id="company-information" className="mt-8 rounded-2xl border border-white/10 bg-white/[0.025] p-6 sm:p-8">
       <h2 className="text-lg font-semibold">{text("Company overview", "公司概览")}</h2>

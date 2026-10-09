@@ -116,20 +116,28 @@ test("signing out removes private calls immediately", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /mode=register/);
 });
 
-test("compact panel puts owned calls first and previews public calls without using viewerPosition", async ({ page }, info) => {
+test("compact panel previews analyst views with their citations, then owned calls, without using viewerPosition", async ({ page }, info) => {
   await page.route(`${origin}/api/ticker/AMD/my-calls`, route => route.fulfill({ json: { items: [{ ...bullish, markPrice: 165.275, markPriceDate: "2026-09-10", markReturnValue: .1 }, bearish] } }));
-  await page.route("**/api/ticker/AMD?limit=3", route => {
+  await page.route("**/api/ticker/AMD?limit=3&summary=1", route => {
     expect(route.request().headers().authorization).toBeUndefined();
-    return route.fulfill({ json: { items: [{ id: "public-call", ticker: "AMD", direction: "UP", status: "OPEN", createdAt: "2026-09-10T16:00:00Z", authorDisplayName: "Alex", thesisTitle: "Growing demand for accelerators", entryPrice: 100, entryDate: "2026-09-08", markPriceDate: "2026-09-10", markReturnValue: .05 }], viewerPosition: { thesisTitle: "PRIVATE SENTINEL" } } });
+    return route.fulfill({ json: { items: [{ id: "public-call", ticker: "AMD", direction: "UP", status: "OPEN", createdAt: "2026-09-10T16:00:00Z", authorDisplayName: "Alex", thesisTitle: "Growing demand for accelerators", entryPrice: 100, entryDate: "2026-09-08", markPriceDate: "2026-09-10", markReturnValue: .05,
+      evidence: [{ kind: "relationship", id: "tsm-amd", label: { en: "TSMC → AMD · Supplies", "zh-CN": "台积电 → AMD · 供应" }, href: "/?company=US%3AAMD&relationship=tsm-amd" }] }],
+      viewerPosition: { thesisTitle: "PRIVATE SENTINEL" },
+      summary: { analysts: 3, bullish: 2, bearish: 1, citations: [{ kind: "relationship", id: "tsm-amd", label: { en: "TSMC → AMD · Supplies", "zh-CN": "台积电 → AMD · 供应" }, href: "/?company=US%3AAMD&relationship=tsm-amd", views: 2 }] } } });
   });
   await page.goto(`${origin}?panel`);
   await expect(page.getByRole("heading", { name: "AMD · Bullish" })).toBeVisible();
   await expect(page.getByText("My Watchlist · Public", { exact: true })).toBeVisible();
   await expect(page.getByText("Hedges · Private", { exact: true })).toBeVisible();
   await expect(page.getByText("+10.00%", { exact: true })).toBeVisible();
-  const community = page.getByRole("region", { name: "Community calls", exact: true });
+  const community = page.getByRole("region", { name: "Analyst views", exact: true });
   await expect(community.getByText("Alex", { exact: true })).toBeVisible();
   await expect(community.getByText("Growing demand for accelerators", { exact: true })).toBeVisible();
+  await expect(community.getByText("3 analysts track this company · 2 bullish, 1 bearish · 2 views cite TSMC → AMD · Supplies")).toBeVisible();
+  await expect(community.getByRole("link", { name: "TSMC → AMD · Supplies" })).toHaveCount(2);
+  // Other analysts' views lead; the viewer's own calls and publishing actions follow.
+  const order = await page.evaluate(() => { const panel = document.querySelector('[aria-label="Analyst views: AMD"]')!; const views = panel.querySelector('[aria-label="Analyst views"]')!, mine = [...panel.querySelectorAll("h3")].find(h => h.textContent?.includes("AMD · Bullish"))!; return Boolean(views.compareDocumentPosition(mine) & Node.DOCUMENT_POSITION_FOLLOWING); });
+  expect(order).toBe(true);
   await expect(page.getByText("PRIVATE SENTINEL")).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("compact-company-outlook.png"), fullPage: true });
   await page.route("**/api/ticker/AMD?limit=25", route => route.fulfill({json:{items:[],nextCursor:null}}));
@@ -141,13 +149,13 @@ test("compact panel puts owned calls first and previews public calls without usi
 
 test("empty and failed public previews keep publishing actions available", async ({ page }) => {
   await page.route(`${origin}/api/ticker/AMD/my-calls`, route => route.fulfill({ json: { items: [] } }));
-  await page.route("**/api/ticker/AMD?limit=3", route => route.fulfill({ status: 503, json: {} }));
+  await page.route("**/api/ticker/AMD?limit=3&summary=1", route => route.fulfill({ status: 503, json: {} }));
   await page.goto(`${origin}?panel`);
   await expect(page.getByRole("link", { name: "Bullish", exact: true })).toBeVisible();
-  await expect(page.getByText("Calls could not be loaded.", { exact: false })).toBeVisible();
-  await page.route("**/api/ticker/AMD?limit=3", route => route.fulfill({ json: { items: [] } }));
+  await expect(page.getByText("Views could not be loaded.", { exact: false })).toBeVisible();
+  await page.route("**/api/ticker/AMD?limit=3&summary=1", route => route.fulfill({ json: { items: [] } }));
   await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await expect(page.getByText("No public calls yet. Share your outlook.", { exact: true })).toBeVisible();
+  await expect(page.getByText("No analyst views yet. Publish one that cites the research.", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Bearish", exact: true })).toBeVisible();
 });
 
@@ -155,7 +163,7 @@ test("Chinese outlook labels and publishing links preserve the company and direc
   await page.route(`${origin}/api/ticker/AMD/my-calls`, route => route.fulfill({ json: { items: [] } }));
   await page.goto(`${origin}?panel&zh`);
   await expect(page.getByRole("heading", { name: "你的观点 · AMD" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "社区观点" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "分析师观点" })).toBeVisible();
   await expect(page.getByRole("link", { name: "看多", exact: true })).toHaveAttribute("href", "/zh-cn/predictions/new?ticker=AMD&direction=UP");
   await expect(page.getByRole("link", { name: "看空", exact: true })).toHaveAttribute("href", "/zh-cn/predictions/new?ticker=AMD&direction=DOWN");
 });

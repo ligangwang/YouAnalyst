@@ -145,8 +145,8 @@ export function PredictionsFeed() {
     <main className="mx-auto w-full max-w-6xl px-4 py-5">
       <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-4 shadow-[0_8px_40px_rgba(8,47,73,0.45)]">
         <div className="mb-4">
-          <h1 className="text-lg font-semibold tracking-tight text-white sm:text-xl"><UiText text={"Latest investment ideas"} /></h1>
-          <p className="mt-1 text-sm text-slate-300"><UiText text={"Publish investment ideas and follow their track records."} /></p>
+          <h1 className="text-lg font-semibold tracking-tight text-white sm:text-xl"><UiText text={"Latest analyst views"} /></h1>
+          <p className="mt-1 text-sm text-slate-300"><UiText text={"Evidence-backed views on map companies, each with a public track record."} /></p>
         </div>
 
         {loading || authLoading ? <p className="text-sm text-slate-300"><UiText text={"Loading feed..."} /></p> : null}
@@ -179,14 +179,14 @@ export function PredictionsFeed() {
           ))}
 
           {!loading && !error && items.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No investment ideas yet."} /></p>
+            <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No analyst views yet."} /></p>
           ) : null}
         </div>
 
         {!loading && !error && isPreview ? (
           <section className="mt-4 rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-5">
-            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"See more public calls"} /></h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300"><UiText text={"Sign in to explore more than the top "} />{previewLimit ?? 10}<UiText text={" public calls and follow the ideas you care about."} /></p>
+            <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"See more analyst views"} /></h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300"><UiText text={"Sign in to explore more than the top "} />{previewLimit ?? 10}<UiText text={" public views and follow the analysts you care about."} /></p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href="/auth"

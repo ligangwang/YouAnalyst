@@ -1,6 +1,7 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { NextRequest, NextResponse } from "next/server";
+import { summarizeCompanyViews } from "@/lib/posts/view-summary";
 import { canonicalPredictionStatus, normalizeTicker, sanitizePredictionThesis, sanitizePredictionThesisTitle, type Prediction } from "@/lib/predictions/types";
 
 const PUBLIC_PREDICTION_STATUSES = ["CREATED", "OPEN", "SETTLED", "OPENING", "CLOSING", "CLOSED"] as const;
@@ -222,6 +223,16 @@ async function readViewerPosition(
   return position ?? null;
 }
 
+/** Who tracks the company and what research their active views cite. Uses the ticker/visibility index; a summary failure never hides the views. */
+async function readViewSummary(db: FirebaseFirestore.Firestore, ticker: string) {
+  try {
+    const snapshot = await db.collection("predictions").where("ticker", "==", ticker).where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(300).get();
+    return summarizeCompanyViews(snapshot.docs.map(doc => ({ ...doc.data(), status: canonicalPredictionStatus(doc.get("status")) })));
+  } catch {
+    return undefined;
+  }
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ symbol: string }> },
@@ -234,9 +245,10 @@ export async function GET(
 
   try {
     const decoded = await getDecodedUserFromRequest(request);
-    const [result, viewerPosition] = await Promise.all([
+    const [result, viewerPosition, summary] = await Promise.all([
       listTickerPredictions(db, normalizedTicker, limit, cursorCreatedAt),
       readViewerPosition(db, decoded?.uid, normalizedTicker),
+      request.nextUrl.searchParams.get("summary") === "1" ? readViewSummary(db, normalizedTicker) : Promise.resolve(undefined),
     ]);
     const itemsWithPreferredNames = await applyAuthorInfo(db, result.items);
 
@@ -245,6 +257,7 @@ export async function GET(
       viewerPosition,
       nextCursor: result.nextCursor,
       ticker: normalizedTicker,
+      ...(summary ? { summary } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch ticker predictions";

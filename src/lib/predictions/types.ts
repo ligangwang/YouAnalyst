@@ -1,3 +1,4 @@
+import type { ViewEvidence } from "../posts/evidence";
 export const PREDICTION_DIRECTIONS = ["UP", "DOWN"] as const;
 export const PREDICTION_STATUSES = ["CREATED", "OPEN", "CLOSING", "SETTLED", "CANCELED"] as const;
 export const PREDICTION_VISIBILITIES = ["PUBLIC", "PRIVATE"] as const;
@@ -85,6 +86,8 @@ export type Prediction = {
   entryTime: string | null;
   entryCapturedAt: string | null;
   thesis: string;
+  /** Research the view cites: documented map relationships or deep-dives (see posts/evidence). */
+  evidence?: ViewEvidence[];
   timeHorizon?: PredictionTimeHorizon | null;
   status: PredictionStatus;
   visibility: PredictionVisibility;
