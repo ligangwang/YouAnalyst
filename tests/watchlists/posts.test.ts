@@ -150,3 +150,17 @@ test("post history is bounded and cursor pagination handles equal publication ti
   assert.equal(new Set([...first.items, ...second.items].map(row => row.id)).size, 50);
   assert.deepEqual(limits, [26, 26]);
 });
+
+test("cited evidence is stored on the post and view, and same-direction updates add citations", async () => {
+  const f = fixture();
+  const cite = (id: string) => ({ kind: "relationship" as const, id, label: { en: id, "zh-CN": id }, href: `/?relationship=${id}` });
+  const first = await publishPost({ ...input, evidence: [cite("tsm-amd")] }, user, f.db);
+  const key = "predictions/" + first.predictionId;
+  assert.deepEqual(f.records.get(key)?.evidence, [cite("tsm-amd")]);
+  assert.deepEqual(f.records.get("posts/" + first.id)?.evidence, [cite("tsm-amd")]);
+  const update = await publishPost({ ...input, requestId: "update-1234567890", evidence: [cite("tsm-amd"), cite("amd-meta")] }, user, f.db);
+  assert.equal(update.predictionId, first.predictionId);
+  assert.deepEqual((f.records.get(key)?.evidence as { id: string }[]).map(item => item.id), ["tsm-amd", "amd-meta"]);
+  // A retry with different citations is a different post.
+  await assert.rejects(publishPost({ ...input, evidence: [cite("amd-meta")] }, user, f.db), /different post/);
+});

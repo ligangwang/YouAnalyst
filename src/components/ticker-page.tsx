@@ -1,6 +1,8 @@
 "use client";
 
 
+import { ViewEvidenceList } from "./view-evidence-list";
+import type { ViewEvidence } from "@/lib/posts/evidence";
 import { CompanyPosts } from "./company-posts";
 import { UiText, useUiText } from "@/components/ui-text";
 
@@ -25,6 +27,7 @@ type Prediction = {
   entryDate: string | null;
   thesisTitle: string;
   thesis: string;
+  evidence?: ViewEvidence[];
   status: PredictionStatus;
   createdAt: string;
   markPrice?: number | null;
@@ -153,8 +156,8 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
       <section className="border-b border-white/15 py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300"><UiText text={"Community"} /></p>
-            {overview ? <h2 className="mt-2 text-xl font-semibold text-cyan-100"><UiText text={"Investment views on "} />{displayTicker}</h2> : <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>}
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300"><UiText text={"Analyst views"} /></p>
+            {overview ? <h2 className="mt-2 text-xl font-semibold text-cyan-100"><UiText text={"View history for "} />{displayTicker}</h2> : <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>}
           </div>
         </div>
       </section>
@@ -163,9 +166,9 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
 
 
 
-      <section id="community-calls" className="mt-4 scroll-mt-32 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Community position history"} /></h2>
-        <p className="mb-3 mt-1 text-sm text-slate-400"><UiText text={"See who turned bullish or bearish, when their position opened, and how it has performed."} /></p>
+      <section id="view-history" className="mt-4 scroll-mt-32 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
+        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"View history"} /></h2>
+        <p className="mb-3 mt-1 text-sm text-slate-400"><UiText text={"Every public view on this company: when it opened, the evidence it cites and how it has performed."} /></p>
         <div className="grid gap-2">
           {payload.items.map((prediction) => (
             <article
@@ -188,13 +191,14 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
                   ? <UiText text={` · opened ${prediction.entryDate} at ${formatPositionPrice(prediction.entryPrice)}`} />
                   : <UiText text={` · recorded ${prediction.createdAt.slice(0, 10)} · entry pending`} />}
               </p>
+              <ViewEvidenceList evidence={prediction.evidence} compact />
               <PredictionReturnSummary prediction={prediction} href={`/predictions/${prediction.id}`} status={prediction.status} />
               <PredictionAuthorSummary author={prediction} />
             </article>
           ))}
 
           {payload.items.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No community positions for "} />{displayTicker}<UiText text={" yet. Be the first to record your view."} /></p>
+            <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300"><UiText text={"No analyst views on this company yet."} /></p>
           ) : null}
         </div>
 

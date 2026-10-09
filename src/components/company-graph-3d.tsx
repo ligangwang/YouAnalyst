@@ -7,7 +7,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
 import { CameraControls, Html } from "@react-three/drei";
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector3, Quaternion, LineSegments, type Intersection, type Raycaster, type Mesh, type MeshBasicMaterial } from "three";
+import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial } from "three";
 import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
@@ -148,6 +148,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   const [labelHovered, setLabelHovered] = useState("");
   const hovered = labelHovered || pointHovered;
   const [hoveredEdge, setHoveredEdge] = useState("");
+  useEffect(()=>{setPointHovered("");setLabelHovered("");setHoveredEdge("");},[selected]);
   // Hover reveals labels inside the demand frameloop; always request the frame that applies it,
   // while keeping the star geometry mounted throughout the interaction.
   useEffect(()=>{invalidate();},[hovered,hoveredEdge,invalidate]);
@@ -192,8 +193,59 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     });
     g.setAttribute("position", new Float32BufferAttribute(p, 3)); g.setAttribute("color", new Float32BufferAttribute(c, 4)); g.userData.edgeIds = edgeIds; return g;
   }, [layout]);
+  // Match the visible star in screen space: a world-space threshold shrinks
+  // at overview zoom and lets relationship lines intercept company clicks.
+  function companyHit(raycaster: Raycaster,clickTarget=false) {
+    const pointer=raycaster.ray.at(1,new Vector3()).project(camera);
+    let nearest:{index:number;distance:number;point:Vector3;screenDistance:number}|undefined;
+    layout.nodes.forEach((node,index)=>{
+      const point=new Vector3(node.x,node.y,node.z),screen=point.clone().project(camera);
+      if(screen.z < -1 || screen.z > 1)return;
+      const depth=-point.clone().applyMatrix4(camera.matrixWorldInverse).z;
+      const emphasis=geometry.getAttribute('emphasis').getX(index);
+      const blend=Math.max(0,Math.min(1,emphasis-1));
+      const starSize=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*marketCapScale(node.marketCap)*(1+.5*blend*blend*(3-2*blend));
+      const distance=Math.hypot((screen.x-pointer.x)*size.width/2,(screen.y-pointer.y)*size.height/2);
+      // Clicks get a generous halo; hover leaves nearby relationships reachable.
+      const radius=clickTarget?Math.max(18,starSize*.5/gl.getPixelRatio()+6):Math.max(10,starSize*.35/gl.getPixelRatio());
+      if(distance<=radius && (!nearest || distance<nearest.screenDistance))nearest={index,distance:raycaster.ray.origin.distanceTo(point),point,screenDistance:distance};
+    });
+    return nearest;
+  }
+  const starPress=useRef<{id:string;x:number;y:number;pointer:number;dragged:boolean}|null>(null);
+  // Resolve a company at press time: orbit damping can move the star before
+  // the browser emits click. Keep that target while tolerating a small drift.
+  useEffect(()=>{
+    const canvas=gl.domElement,ray=new Raycaster();
+    const down=(event:PointerEvent)=>{
+      starPress.current=null;
+      if(event.button!==0 || !event.isPrimary)return;
+      const rect=canvas.getBoundingClientRect();
+      ray.setFromCamera(new Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
+      const hit=companyHit(ray,true);
+      if(hit)starPress.current={id:layout.nodes[hit.index].id,x:event.clientX,y:event.clientY,pointer:event.pointerId,dragged:false};
+    };
+    const move=(event:PointerEvent)=>{const press=starPress.current;if(press && event.pointerId===press.pointer && Math.hypot(event.clientX-press.x,event.clientY-press.y)>5)press.dragged=true;};
+    const cancel=()=>{starPress.current=null;};
+    const click=(event:MouseEvent)=>{
+      const press=starPress.current;starPress.current=null;
+      if(!press || event.button!==0)return;
+      if(press.dragged || Math.hypot(event.clientX-press.x,event.clientY-press.y)>5){event.stopImmediatePropagation();return;}
+      // Consume once before R3F can resolve a different target or a missed click.
+      event.stopImmediatePropagation();onSelect(press.id);
+    };
+    canvas.addEventListener('pointerdown',down,true);canvas.addEventListener('click',click,true);
+    window.addEventListener('pointermove',move,true);window.addEventListener('pointercancel',cancel,true);
+    window.addEventListener('blur',cancel);
+    return()=>{canvas.removeEventListener('pointerdown',down,true);canvas.removeEventListener('click',click,true);window.removeEventListener('pointermove',move,true);window.removeEventListener('pointercancel',cancel,true);window.removeEventListener('blur',cancel);};
+  });
+  function raycastCompanies(this: Points,raycaster: Raycaster,intersections: Intersection[]) {
+    const hit=companyHit(raycaster);
+    if(hit)intersections.push({distance:hit.distance,point:hit.point,index:hit.index,object:this});
+  }
   // Invisible or retiring edges must not intercept blank-space clicks.
   function raycastEdges(this: LineSegments, raycaster: Raycaster, intersections: Intersection[]) {
+    if(companyHit(raycaster))return;
     const hits: Intersection[] = [];
     LineSegments.prototype.raycast.call(this, raycaster, hits);
     for (const hit of hits) {
@@ -562,7 +614,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     <TreeStarField height={0}/>
     <TreeGalaxies height={0}/>
     <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
-    <points geometry={geometry} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
+    <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
       // A different point in this shared geometry may exit while the current
       // point remains under the pointer. Only clear the exiting company.
       const id = e.index === undefined ? undefined : layout.nodes[e.index]?.id;

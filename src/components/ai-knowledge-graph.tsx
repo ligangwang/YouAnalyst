@@ -251,7 +251,6 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
         <p>{companyGeographyLabel(company, locale)}</p>
         {company.privateValuation && <PrivateValuationDisplay valuation={company.privateValuation}/>}
         {company.marketCap && <p>{marketCapDescription(company.marketCap, locale)}</p>}
-        <GraphCompanyOutlook company={company}/>
         <p>{companySummary(company,locale)}</p>
         <CompanyFollowButton companyId={company.id} /><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a>
         {eventId && curatedEvents.filter(e => e.id === eventId && e.companyIds.includes(company.id)).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected event sources", "选中事件来源")}><BusinessEventEvidence event={e} /></section>)}
@@ -269,6 +268,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
           <summary>{text("Research sources", "研究来源")}</summary>
           <div className={styles.sources}>{sourceLinks(company.sourceIds ?? [])}</div>
         </details>
+        <GraphCompanyOutlook company={company}/>
       </aside>}
     </div>}
     <div className={styles.legend}><span role="status">{status === "ready" ? <>{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</> : text(status === "loading" ? "Loading company and connection totals…" : "Company and connection totals unavailable", status === "loading" ? "正在加载公司与关系数量…" : "暂时无法获取公司与关系数量")}</span></div>

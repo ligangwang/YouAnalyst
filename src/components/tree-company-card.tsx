@@ -48,7 +48,6 @@ export function TreeCompanyCard({company,color,onClose,reveal=false,closing=fals
       <h3><CompanyCountryFlag country={company.country} locale={locale}/>{companyName(company,locale)}</h3>
       <p className={styles.cardTicker}>{company.symbol??text('Private / unlisted','非上市')}</p>
       <div className={styles.cardCap}>{company.privateValuation ? <PrivateValuationDisplay valuation={company.privateValuation}/> : <><small>{text('Estimated market cap','估算市值')}</small><p>{cap?marketCapDescription(cap,locale):text('Unavailable','暂无')}</p></>}</div>
-      <GraphCompanyOutlook company={company}/>
       {(company.id.startsWith('US:')||china)&&!result&&<p role="status">{text('Loading cached financials…','正在读取已缓存财务数据…')}</p>}
       <dl className={styles.cardMetrics}>
         <div><dt>{text('Cached close','已缓存收盘价')}</dt><dd>{number(data?.marketCap?.close,data?.marketCap?.currency)}</dd><small>{data?.marketCap?.priceDate}</small></div>
@@ -58,6 +57,7 @@ export function TreeCompanyCard({company,color,onClose,reveal=false,closing=fals
         })}
       </dl>
       {result?.error&&<p role="status">{text('Financial data could not be loaded. Reopen this card to retry.','财务数据暂时无法加载，可重新打开卡片重试。')}</p>}
+      <GraphCompanyOutlook company={company}/>
       {data?.stale&&<p>{text('Showing an older cached snapshot.','当前显示较早的缓存快照。')}</p>}
       {china&&result&&!result.error&&!data?.annual&&<p>{text('Annual financials have not been cached yet.','年度财报数据尚未缓存。')}</p>}
       {china&&data?.annual&&<small><a href={data.annual.sourceUrl} target="_blank" rel="noopener noreferrer">{text('Source: Eastmoney via AKShare; annual consolidated statements, CNY.','来源：东方财富（AKShare）；年度合并报表，人民币元。')}</a> · {text('Published','公告日期')} {data.annual.filed}</small>}

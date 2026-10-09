@@ -10,7 +10,9 @@ const ordinary = { market: "US" as const, loadPrices: true, manualTickers: [], p
 test("US price universe includes every current map company with no predictions, including ADRs", async () => {
   const result = await loadEodPriceUniverse(ordinary, async () => graph);
   assert.equal(result.mapTickers.length, 67);
-  assert.deepEqual(result.requestedTickers, result.mapTickers);
+  // The track-record benchmark is priced with the map but is not a map company.
+  assert.deepEqual(result.benchmarkTickers, ["QQQ"]);
+  assert.deepEqual(result.requestedTickers, [...result.mapTickers, "QQQ"].sort());
   assert.ok(result.mapTickers.includes("TSM"));
   assert.ok(result.mapTickers.includes("P"));
   const expanded = await loadEodPriceUniverse({ ...ordinary, predictionTickers: ["NVDA", "nvda", "XYZ"] }, async () => ({ ...graph, nodes: [...graph.nodes, { id: "US:BRK.B", kind: "COMPANY", order: 999 }] }));
@@ -29,9 +31,9 @@ test("China price universe includes every A-share map company plus prediction ti
 });
 test("explicit ticker repairs and mark-only runs keep their scope without loading the graph", async () => {
   const noGraph = async (): Promise<KnowledgeGraph> => { throw new Error("Should not load map"); };
-  assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, market: "CN_A", manualTickers: ["XSHG:688041"] }, noGraph), { requestedTickers: ["XSHG:688041"], mapTickers: [] });
-  assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, manualTickers: ["AMD"], predictionTickers: ["NVDA"] }, noGraph), { requestedTickers: ["AMD"], mapTickers: [] });
-  assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, loadPrices: false, predictionTickers: ["AMD"] }, noGraph), { requestedTickers: ["AMD"], mapTickers: [] });
+  assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, market: "CN_A", manualTickers: ["XSHG:688041"] }, noGraph), { requestedTickers: ["XSHG:688041"], mapTickers: [], benchmarkTickers: [] });
+  assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, manualTickers: ["AMD"], predictionTickers: ["NVDA"] }, noGraph), { requestedTickers: ["AMD"], mapTickers: [], benchmarkTickers: [] });
+  assert.deepEqual(await loadEodPriceUniverse({ ...ordinary, loadPrices: false, predictionTickers: ["AMD"] }, noGraph), { requestedTickers: ["AMD"], mapTickers: [], benchmarkTickers: [] });
 });
 test("unavailable or empty US map cannot silently turn into a prediction-only run", async () => {
   await assert.rejects(loadEodPriceUniverse(ordinary, async () => { throw new Error("Directory unavailable"); }), /Directory unavailable/);
@@ -93,13 +95,15 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
   });
   const first = await runDailyEodMaintenance({ market: "US", runDate, limit: 1 });
   assert.equal(first.candidatePredictions, 0);
-  assert.equal(new Set(requested).size, 68);
-  assert.equal(first.priceLoad.loaded, 68);
+  // 68 map companies plus the QQQ benchmark; map coverage counts only the map.
+  assert.equal(new Set(requested).size, 69);
+  assert.ok(requested.includes("QQQ"));
+  assert.equal(first.priceLoad.loaded, 69);
   assert.deepEqual(first.priceLoad.mapCoverage, { runDate, requested: 68, cached: 0, fetched: 68, missing: [] });
-  assert.equal([...documents.keys()].filter(key => key.startsWith("eod_prices/")).length, 68);
+  assert.equal([...documents.keys()].filter(key => key.startsWith("eod_prices/")).length, 69);
   assert.deepEqual((documents.get(`eod_runs/US_${runDate}`)?.priceLoad as { mapCoverage: unknown } | undefined)?.mapCoverage, first.priceLoad.mapCoverage);
   const second = await runDailyEodMaintenance({ market: "US", runDate, limit: 1 });
-  assert.equal(requested.length, 68);
+  assert.equal(requested.length, 69);
   assert.equal(second.priceLoad.mapCoverage?.cached, 68);
   documents.delete(`eod_prices/US_TSM_${runDate}`);
   failTsm = true;
@@ -122,7 +126,7 @@ test("the EOD job fetches and persists all 68 map prices with zero predictions, 
     else documents.set(`eod_prices/US_TSM_${runDate}`, { ...documents.get(`eod_prices/US_TSM_${runDate}`), tradingDate: "2026-09-17" });
     const repaired = await runDailyEodMaintenance({ market: "US", runDate, limit: 1, scheduledBatch, skipHistoryBackfill: true });
     assert.equal(repaired.priceLoad.loaded, 1);
-    assert.equal(repaired.priceLoad.cacheHits, 67);
+    assert.equal(repaired.priceLoad.cacheHits, 68);
     assert.deepEqual(repaired.priceLoad.mapCoverage?.missing, []);
     assert.equal(documents.get(`eod_prices/US_TSM_${runDate}`)?.rawClose, 100);
     await runDailyEodMaintenance({ market: "US", runDate, limit: 1, scheduledBatch, skipHistoryBackfill: true });

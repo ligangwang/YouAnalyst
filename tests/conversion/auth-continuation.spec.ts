@@ -8,18 +8,28 @@ const origin = "http://conversion.test";
 const watchlistId = "owned & research+1";
 const composer = `/predictions/new?${new URLSearchParams({ ticker: "AMD" })}`;
 let html: string;
+// The coverage maps the composer loads: AMD and an A-share on the AI map, nothing extra on Robotics/Space.
+const node = (id: string, name: string) => ({ id, kind: "COMPANY", name, order: 0 });
+const relation = (id: string, source: string, target: string) => ({ id, source, target, type: "SUPPLIER_OF", summary: "", sourceIds: [], commercialStatus: "ACTIVE" });
+const aiMap = { asOf: "2026-10-01", sources: [], nodes: [node("US:AMD", "AMD"), node("US:TSM", "TSMC"), node("XSHG:600584", "JCET"), node("US:QCOM", "Qualcomm")],
+  relationships: [relation("tsm-amd", "US:TSM", "US:AMD"), relation("jcet-amd", "XSHG:600584", "US:AMD")] };
+const emptyMap = { asOf: "2026-10-01", sources: [], nodes: [], relationships: [] };
 
 for (const [ticker, direction] of [["AMD", "UP"], ["XSHG:600584", "DOWN"]] as const) {
   test(ticker + " direction survives registration and publishes an article without a watchlist", async ({ page }) => {
     const destination = "/predictions/new?" + new URLSearchParams({ ticker, direction });
     await page.goto(origin + "/auth?" + new URLSearchParams({ next: destination, mode: "register" }));
     await page.getByRole("button", { name: "Continue with Google" }).click();
-    await expect(page.getByLabel("Investment view (optional)")).toHaveValue(direction);
+    await expect(page.getByRole("combobox", { name: "View", exact: true })).toHaveValue(direction);
     await expect(page.locator("#watchlist")).toHaveCount(0);
     await page.getByLabel("Title", { exact: true }).fill("Research finding");
-    await page.getByLabel("Article", { exact: true }).fill("Source-backed research finding.");
+    await page.getByLabel("Thesis", { exact: true }).fill("Source-backed research finding.");
+    // A directional view cannot be published until it cites the research it builds on.
+    await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
+    const relationshipId = ticker === "AMD" ? "tsm-amd" : "jcet-amd";
+    await page.getByRole("checkbox", { name: ticker === "AMD" ? /TSMC → AMD/ : /JCET → AMD/ }).check();
     await page.route(origin + "/api/posts", route => {
-      expect(route.request().postDataJSON()).toMatchObject({ ticker, direction, title: "Research finding" });
+      expect(route.request().postDataJSON()).toMatchObject({ ticker, direction, title: "Research finding", evidence: [{ kind: "relationship", id: relationshipId }] });
       expect(route.request().postDataJSON()).not.toHaveProperty("watchlistId");
       return route.fulfill({ json: { id: "article", predictionId: "call" } });
     });
@@ -32,13 +42,28 @@ test("research-only article has no direction", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   await page.goto(origin + "/predictions/new?ticker=AMD");
   await page.getByLabel("Title", { exact: true }).fill("Research");
-  await page.getByLabel("Article", { exact: true }).fill("Evidence and analysis");
+  await page.getByLabel("Thesis", { exact: true }).fill("Evidence and analysis");
   await page.route(origin + "/api/posts", route => {
     expect(route.request().postDataJSON().direction).toBeNull();
     return route.fulfill({ json: { id: "article", predictionId: null } });
   });
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page).toHaveURL(origin + "/en/posts/article");
+});
+
+test("views cover map companies only, and a directional view needs a citation", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  await page.goto(origin + "/predictions/new?ticker=KO");
+  await expect(page.getByRole("alert")).toContainText("not on the AI, Robotics or Space maps");
+  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
+  await page.goto(origin + "/predictions/new?ticker=QCOM&direction=UP");
+  await expect(page.getByText("No documented relationships or research cover this company yet", { exact: false })).toBeVisible();
+  await expect(page.getByText("Cite at least one relationship or research report", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
+  await page.getByRole("combobox", { name: "View", exact: true }).selectOption("");
+  await page.getByLabel("Title", { exact: true }).fill("Handset AI notes");
+  await page.getByLabel("Thesis", { exact: true }).fill("Research only.");
+  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeEnabled();
 });
 
 test("signed-out composer preserves bearish direction through its sign-in action", async ({ page }) => {
@@ -172,6 +197,7 @@ test.beforeEach(async ({ page }) => {
       ] } });
     }
     if (url.pathname === "/api/tickers/search") return route.fulfill({ json: { items: [] } });
+    if (url.pathname === "/api/knowledge-graph") return route.fulfill({ json: url.searchParams.get("theme") ? emptyMap : aiMap });
     if (request.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
     await route.abort();
     throw new Error(`Unexpected request: ${url.pathname}`);
@@ -248,7 +274,7 @@ test("publication analytics fires only after a successful response, without send
   });
   await page.goto(`${origin}/predictions/new?ticker=AMD`);
   await page.getByLabel("Title", { exact: true }).fill("Research");
-  await page.getByLabel("Article", { exact: true }).fill("Private research must never enter analytics.");
+  await page.getByLabel("Thesis", { exact: true }).fill("Private research must never enter analytics.");
   // Local response only; this handler intercepts the mutation and never reaches a server.
   let rejectPublication = true;
   await page.route(`${origin}/api/posts`, (route) => route.fulfill(rejectPublication

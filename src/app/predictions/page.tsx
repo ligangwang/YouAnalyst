@@ -3,19 +3,19 @@ import type { Metadata } from "next";
 import { PredictionsFeed } from "@/components/predictions-feed";
 
 const pageMetadata: Metadata = {
-  title: "Top ideas | YouAnalyst",
-  description: "Browse top-performing public stock ideas and analyst calls from the YouAnalyst community.",
+  title: "Analyst views | YouAnalyst",
+  description: "Evidence-backed analyst views on AI, Robotics and Space companies, each with a public track record.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Top ideas | YouAnalyst",
-    description: "Browse top-performing public stock ideas and analyst calls from the YouAnalyst community.",
+    title: "Analyst views | YouAnalyst",
+    description: "Evidence-backed analyst views on AI, Robotics and Space companies, each with a public track record.",
     url: "/",
   },
   twitter: {
-    title: "Top ideas | YouAnalyst",
-    description: "Browse top-performing public stock ideas and analyst calls from the YouAnalyst community.",
+    title: "Analyst views | YouAnalyst",
+    description: "Evidence-backed analyst views on AI, Robotics and Space companies, each with a public track record.",
   },
 };
 export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }

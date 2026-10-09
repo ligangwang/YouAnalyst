@@ -330,12 +330,18 @@ test('graph company details float inside the graph and move independently of the
     expect(c.y+c.height).toBeLessThanOrEqual(g.y+g.height+1);
   };
   await fits();
+  const atTopRight=async()=>{
+    const c=(await card.boundingBox())!,g=(await graph.boundingBox())!;
+    expect(Math.abs(c.x+c.width-(g.x+g.width-12))).toBeLessThanOrEqual(2);
+    expect(Math.abs(c.y-Math.max(g.y+12,12))).toBeLessThanOrEqual(2);
+  };
+  await atTopRight();
   const before=(await card.boundingBox())!,handle=card.locator('[data-card-drag]');
-  await handle.press(mobile?'ArrowDown':'ArrowRight');
-  await expect.poll(async()=>{const c=(await card.boundingBox())!;return mobile?c.y-before.y:c.x-before.x;}).toBeGreaterThan(10);
+  await handle.press(mobile?'ArrowDown':'ArrowLeft');
+  await expect.poll(async()=>{const c=(await card.boundingBox())!;return mobile?c.y-before.y:before.x-c.x;}).toBeGreaterThan(10);
   const start=(await handle.boundingBox())!;
   await page.mouse.move(start.x+20,start.y+10);await page.mouse.down();
-  await page.mouse.move(start.x+50,start.y+(mobile?30:-50),{steps:6});await page.mouse.up();
+  await page.mouse.move(start.x-40,start.y+40,{steps:6});await page.mouse.up();
   await fits();
   const moved=(await card.boundingBox())!;
   expect(Math.abs(moved.x-before.x)+Math.abs(moved.y-before.y)).toBeGreaterThan(20);
@@ -343,7 +349,7 @@ test('graph company details float inside the graph and move independently of the
   await page.getByRole('textbox',{name:'Search companies'}).fill('MU');
   await page.getByRole('button',{name:'MU Micron',exact:true}).click();
   await expect(card).toContainText('Micron');
-  await expect.poll(async()=>(await card.boundingBox())!.x).toBeLessThan(moved.x+1);
+  await atTopRight();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   const details=page.getByRole('region',{name:'Company details',exact:true});
   await expect(details).toBeVisible();await expect(details).toContainText('Micron');
@@ -414,4 +420,53 @@ for(const view of ['tree','hierarchy','table'])test(view+' company selection ope
  await handle.press(down?'ArrowDown':'ArrowUp');
  await expect.poll(async()=>Math.abs((await card.boundingBox())!.y-box.y)).toBeGreaterThan(5);
  await card.press('Escape');await expect(card).toHaveCount(0);
+});
+
+
+for(const reduced of [true,false])test('clicking star halos switches company cards with '+(reduced?'reduced':'normal')+' motion',async({page},info)=>{
+ test.skip(info.project.name!=='desktop','Actual WebGL company click regression');test.setTimeout(60000);
+ await page.setViewportSize({width:1500,height:900});await page.emulateMedia({reducedMotion:reduced?'reduce':'no-preference'});
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[
+  {id:'optics-memory',source:'US:LITE',target:'US:MU',type:'PARTNER_OF',summary:'Optics memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]},
+  {id:'compute-memory',source:'US:MULT',target:'US:MEM',type:'PARTNER_OF',summary:'Compute memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]}
+ ]}};
+ const realHtml=await workspaceFixture(true,fixture);
+ await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:realHtml}):route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.fulfill({status:404,body:''}));
+ await page.goto('http://workspace.test/?view=graph');
+ await expect(page.locator('canvas')).toHaveAttribute('data-camera-position',/.+/);
+ const collapseLeft=page.getByRole('button',{name:'Collapse left panel',exact:true});if(await collapseLeft.isVisible())await collapseLeft.click();
+ await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
+ const card=page.getByRole('region',{name:'Company details',exact:true});
+ let previous='',clicks=0;
+ // HTML labels share the star's projected center; click exposed canvas pixels
+ // near the halo with slight pointer drift to exercise GPU hit testing.
+ for(let attempt=0;attempt<4&&clicks<2;attempt++){
+  // ResizeObserver updates the WebGL viewport after collapsing the panels.
+  await expect.poll(()=>page.locator('canvas').evaluate(el=>Math.abs(el.getBoundingClientRect().width-el.parentElement!.getBoundingClientRect().width))).toBeLessThan(1);
+  await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+  const candidates=await page.locator('[data-company-id]').evaluateAll(els=>els.flatMap(el=>{
+   const r=el.parentElement!.getBoundingClientRect();
+   return [-14,14].flatMap(dx=>[0].map(dy=>({id:el.getAttribute('data-company-id')!,x:r.x+r.width/2+dx,y:r.y+r.height/2+dy}))).filter(p=>document.elementFromPoint(p.x,p.y) instanceof HTMLCanvasElement);
+  }));
+  const next=candidates.find(p=>p.id!==previous);expect(next,'A second exposed star must be clickable').toBeTruthy();
+  await page.mouse.move(next!.x,next!.y);await page.mouse.down();
+  await page.mouse.move(next!.x+2,next!.y+2);await page.mouse.up();
+  await expect(page).toHaveURL(new RegExp('company='+encodeURIComponent(next!.id)));
+  await expect(card).toHaveCount(1);await expect(card).toContainText(companies.find(c=>c.id===next!.id)!.name);
+  await page.mouse.move(1,1);
+  await expect(page.locator('[data-company-focus="selected"]')).toHaveCount(1);
+  await expect(page.locator('[data-company-id="'+next!.id+'"]')).toHaveAttribute('data-company-focus','selected');
+  if(previous)await expect(page.locator('[data-company-id="'+previous+'"]')).not.toHaveAttribute('data-company-focus','selected');
+  previous=next!.id;clicks++;
+ }
+ expect(clicks).toBe(2);
+ const originalUrl=page.url();
+ const drag=await page.locator('[data-company-id]').evaluateAll(els=>els.map(el=>{const r=el.parentElement!.getBoundingClientRect();return {x:r.x+r.width/2-14,y:r.y+r.height/2};}).find(p=>document.elementFromPoint(p.x,p.y) instanceof HTMLCanvasElement));
+ expect(drag).toBeTruthy();
+ await page.mouse.move(drag!.x,drag!.y);await page.mouse.down();
+ await page.mouse.move(drag!.x+35,drag!.y+20,{steps:5});
+ // Even returning to the press point is still an orbit gesture, not a click.
+ await page.mouse.move(drag!.x,drag!.y,{steps:5});await page.mouse.up();
+ await expect(page).toHaveURL(originalUrl);
+ await expect(card).toContainText(companies.find(c=>c.id===previous)!.name);
 });

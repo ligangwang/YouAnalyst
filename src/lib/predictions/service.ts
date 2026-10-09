@@ -558,6 +558,9 @@ export async function createPredictionForUser(
       if (active.direction !== input.direction) throw new Error("Your active prediction has the opposite direction. Open it and explicitly close it before changing your view, or publish without a direction.");
       if (active.visibility !== options.post.input.visibility) throw new Error("Choose the same visibility as your active prediction, or publish without a direction.");
       tx.create(postRef, { ...options.post.input, userId: user.uid, companyId: instrument.companyId, predictionId: activeRef.id, createdAt: nowIso, initial: false } satisfies Post);
+      // A same-direction update adds its citations to the view; earlier ones stay.
+      const added = options.post.input.evidence ?? [];
+      if (added.length) tx.update(activeRef, { evidence: [...new Map([...(active.evidence ?? []), ...added].map(item => [`${item.kind}:${item.id}`, item])).values()], updatedAt: nowIso });
       tx.update(userRef, { updatedAt: nowIso });
       resolvedId = activeRef.id;
       return;
@@ -598,6 +601,7 @@ export async function createPredictionForUser(
       entryCapturedAt: null,
       thesisTitle: sanitizePredictionThesisTitle(input.thesisTitle),
       thesis: sanitizePredictionThesis(input.thesis),
+      ...(options.post?.input.evidence?.length ? { evidence: options.post.input.evidence } : {}),
       timeHorizon,
       status: "CREATED",
       visibility,
