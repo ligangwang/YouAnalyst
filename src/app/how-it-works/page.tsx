@@ -61,7 +61,7 @@ export default function HowItWorksPage() {
           </div>
           <div>
             <h3 className="text-lg font-semibold text-cyan-100"><UiText text={"Build a track record"} /></h3>
-            <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Each analyst profile lists every public view with its return beside the Nasdaq-100 (QQQ) over the same dates, so a record can be checked view by view."} /></p>
+            <p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Each analyst profile lists every public view with its return; US-listed views sit beside the Nasdaq-100 (QQQ) over the same dates, so a record can be checked view by view."} /></p>
           </div>
         </div>
       </section>

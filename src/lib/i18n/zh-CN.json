@@ -1349,7 +1349,6 @@
   "Research deep-dives": "研究专题",
   "Choose a company on the AI, Robotics or Space maps and write your thesis. A bullish or bearish view cites at least one documented relationship or research deep-dive it builds on; research-only posts can cite sources too.": "在 AI、机器人或航天图谱中选择公司并写下论点。看多或看空观点需至少引用一项其依据的已收录关系或研究专题；仅研究的文章也可以引用来源。",
   "Build a track record": "积累历史表现",
-  "Each analyst profile lists every public view with its return beside the Nasdaq-100 (QQQ) over the same dates, so a record can be checked view by view.": "每位分析师的主页都会列出全部公开观点，并与同期纳斯达克 100 指数（QQQ）的收益并列，便于逐条核验。",
   "End-of-day pricing keeps results consistent and comparable across all analysts.": "使用收盘价可确保所有分析师的结果一致、可比。",
   "View score uses a capped curve:": "观点得分采用有上限的曲线：",
   "Daily score is the change in view score from the previous market close. Because the curve flattens as a view gets further ahead, the same daily price move can add more score early and less score later.": "每日得分为观点得分相对上一收盘的变化。由于曲线在观点领先越多时越平缓，同样的单日价格变动在早期贡献的得分更多，后期更少。",
@@ -1372,5 +1371,6 @@
   "Cite up to 5 sources": "最多引用 5 项依据",
   "Company coverage could not be checked. Try again shortly.": "暂时无法核验公司覆盖范围，请稍后重试。",
   "Publish an evidence-backed analyst view on a map company.": "针对图谱公司发布有证据支撑的分析师观点。",
-  "No analyst views on this company yet.": "该公司暂无分析师观点。"
+  "No analyst views on this company yet.": "该公司暂无分析师观点。",
+  "Each analyst profile lists every public view with its return; US-listed views sit beside the Nasdaq-100 (QQQ) over the same dates, so a record can be checked view by view.": "每位分析师的主页都会列出全部公开观点及其收益；美股观点与同期纳斯达克 100 指数（QQQ）的收益并列，便于逐条核验。"
 }

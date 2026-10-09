@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { LocalizedLink as Link } from "./localized-link";
 import { useLocale } from "./providers/locale-provider";
+import { useAuth } from "@/components/providers/auth-provider";
 import type { TrackRecord } from "@/lib/predictions/track-record";
 
 const percent = (value: number | null, signed = true) => value === null ? "—" : `${signed && value > 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
@@ -10,23 +11,27 @@ const percent = (value: number | null, signed = true) => value === null ? "—" 
 /** A verifiable record: each public view's return beside the benchmark over the same dates. */
 export function TrackRecordPanel({ userId }: { userId: string }) {
   const { text } = useLocale();
+  const { user, loading, getIdToken } = useAuth();
   const [record, setRecord] = useState<TrackRecord | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    if (loading) return;
     const controller = new AbortController();
-    fetch(`/api/users/${encodeURIComponent(userId)}/track-record`, { signal: controller.signal })
+    // Owners of private profiles must be identified to see their own record.
+    getIdToken()
+      .then(token => fetch(`/api/users/${encodeURIComponent(userId)}/track-record`, { signal: controller.signal, headers: token ? { authorization: `Bearer ${token}` } : undefined }))
       .then(response => { if (!response.ok) throw new Error(); return response.json() as Promise<TrackRecord>; })
       // An unexpected payload hides the panel instead of breaking the profile.
       .then(data => { if (!data || typeof data.views !== "number" || !Array.isArray(data.recent)) throw new Error(); setRecord(data); }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => controller.abort();
-  }, [userId]);
+  }, [userId, user?.uid, loading, getIdToken]);
   if (failed) return null;
   return <section aria-labelledby="track-record-heading" className="rounded-2xl border border-white/15 bg-slate-950/55 p-5">
     <h2 id="track-record-heading" className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">{text("Track record", "历史表现")}</h2>
     {!record ? <p role="status" className="mt-2 text-sm text-slate-400">{text("Loading track record…", "正在读取历史表现…")}</p>
       : record.views === 0 ? <p className="mt-2 text-sm text-slate-400">{text("No public views with an entry price yet.", "暂无已确定入场价格的公开观点。")}</p>
       : <>
-        <p className="mt-1 text-sm text-slate-400">{text(`Public views since entry, compared with ${record.benchmark} over the same dates. A bearish view is compared with being short ${record.benchmark}.`, `公开观点自入场以来的表现，与同期 ${record.benchmark} 对比；看空观点与做空 ${record.benchmark} 对比。`)}</p>
+        <p className="mt-1 text-sm text-slate-400">{text(`Public views since entry. US-listed views are compared with ${record.benchmark} over the same dates; a bearish view is compared with being short ${record.benchmark}. Other markets show no benchmark.`, `公开观点自入场以来的表现。美股观点与同期 ${record.benchmark} 对比，看空观点与做空 ${record.benchmark} 对比；其他市场暂不显示基准。`)}</p>
         <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             [text("Views", "观点"), `${record.views}`, text(`${record.open} open · ${record.settled} settled`, `${record.open} 进行中 · ${record.settled} 已结算`)],

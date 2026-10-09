@@ -16,9 +16,10 @@ test("profile watchlists upgrade from preview to full and clear full rows on sig
  const stats=Object.fromEntries(["totalPredictions","openingPredictions","openPredictions","closingPredictions","closedPredictions","canceledPredictions","totalScore","settledCalls","totalXP","level","followersCount","followingCount"].map(k=>[k,0]));
  const calls=Array.from({length:9},(_,i)=>({id:`call-${i}`,ticker:`Q${i}`,direction:"UP",thesis:"",createdAt:"2026-09-01T00:00:00Z",status:"OPEN",entryPrice:10,entryDate:"2026-09-01",commentCount:0,result:null}));
  const authHeaders:(string|undefined)[]=[];
+ const recordAuth:(string|undefined)[]=[];
  await page.route("**/*",r=>{
   const url=r.request().url();
-  if(url.includes("/api/users/analyst/track-record")) return r.fulfill({json:{benchmark:"QQQ",views:1,open:1,settled:0,hitRate:1,averageReturn:0.1,averageExcess:0.04,benchmarkCovered:1,recent:[{id:"call-0",ticker:"Q0",direction:"UP",status:"OPEN",title:"",entryDate:"2026-09-01",markDate:"2026-09-30",viewReturn:0.1,benchmarkReturn:0.06,excessReturn:0.04,cited:1}]}});
+  if(url.includes("/api/users/analyst/track-record")){recordAuth.push(r.request().headers().authorization);return r.fulfill({json:{benchmark:"QQQ",views:1,open:1,settled:0,hitRate:1,averageReturn:0.1,averageExcess:0.04,benchmarkCovered:1,recent:[{id:"call-0",ticker:"Q0",direction:"UP",status:"OPEN",title:"",entryDate:"2026-09-01",markDate:"2026-09-30",viewReturn:0.1,benchmarkReturn:0.06,excessReturn:0.04,cited:1}]}});}
   if(url.includes("/api/users/analyst")) return r.fulfill({json:{profile:{id:"analyst",displayName:"Analyst",photoURL:null,nickname:null,bio:"",stats,latestDailyScore:null,settings:{isPublic:true,institutionDigestEnabled:false,institutionDigestCadence:"daily",institutionDigestLastSentAt:null}},relationship:{isFollowing:false},watchlists:[watchlist]}});
   if(url.includes("/api/watchlists/list")){const auth=r.request().headers().authorization;authHeaders.push(auth);return r.fulfill({json:{watchlist:{...watchlist,viewerAccess:auth?"full":"preview",livePredictions:auth?calls:calls.slice(0,3),settledPredictions:[]}}});}
   if(url.includes("/api/posts") || url.includes("/api/predictions")) return r.fulfill({json:{items:[],nextCursor:null}});
@@ -35,6 +36,8 @@ test("profile watchlists upgrade from preview to full and clear full rows on sig
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent("test-auth-user",{detail:"alice"})));
  await expect(page.locator('a[href^="/predictions/call-"]:not(section[aria-labelledby="track-record-heading"] a)').filter({ hasText: /Q\d/ })).toHaveCount(9);
  expect(authHeaders.at(-1)).toBe("Bearer isolated-test-token");
+ // The track record is requested with the viewer's token, so owners of private profiles can see theirs.
+ await expect.poll(()=>recordAuth.at(-1)).toBe("Bearer isolated-test-token");
  await expect(page.getByRole("link",{name:"Sign in to unlock full watchlist"})).toHaveCount(0);
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent("test-auth-user",{detail:null})));
  await expect(page.locator('a[href^="/predictions/call-"]:not(section[aria-labelledby="track-record-heading"] a)').filter({ hasText: /Q\d/ })).toHaveCount(3);
