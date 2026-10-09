@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
 import {readFile, mkdir, writeFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
@@ -60,7 +61,7 @@ export async function enrollCompanies({project,batch,request,write=false,backupD
   assert(docs.every(Boolean),'All companies must exist in the canonical directory');
   const originals=docs as Document[],patches=planEnrollment(originals.map(company),batch);
   await mkdir(backupDir,{recursive:true});
-  const backup=`${backupDir}/enrollment-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+  const backup=`${backupDir}/enrollment-${new Date().toISOString().replace(/[:.]/g,'-')}-${randomUUID()}.json`;
   await writeFile(backup,JSON.stringify({project,batch,originals,patches},null,2),{flag:'wx'});
   if(write&&patches.length){
     await request(`${root}:commit`,'POST',{writes:patches.map(patch=>{const old=originals.find(doc=>company(doc).id===patch.id)!;return {update:{name:old.name,fields:Object.fromEntries(Object.entries(patch.fields).map(([key,value])=>[key,encode(value)]))},updateMask:{fieldPaths:Object.keys(patch.fields)},currentDocument:{updateTime:old.updateTime}};})});
