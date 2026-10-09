@@ -11,17 +11,18 @@ import type { CalendarPayload } from '@/lib/calendar/model';
 import { EarningsEventCard, earningsGroupLabel } from './earnings-event-card';
 import styles from './earnings-calendar.module.css';
 
-export function EarningsCalendar({initialDate='',initialCompany='',initialEvent=''}:{initialDate?:string;initialCompany?:string;initialEvent?:string}={}) {
+export function EarningsCalendar({initialDate='',initialCompany='',initialEvent='',initialToday,initialPayload}:{initialDate?:string;initialCompany?:string;initialEvent?:string;initialToday?:string;initialPayload?:CalendarPayload}={}) {
   const {chinese,text:t}=useLocale(),saved=useCompanyFollows();
   const agendaRef=useRef<HTMLElement>(null);
-  const [today]=useState(()=>easternDay(new Date().toISOString()));
+  const [today]=useState(()=>initialToday??easternDay(new Date().toISOString()));
   const [anchor,setAnchor]=useState(initialDate||today),[selected,setSelected]=useState(initialDate||today),[view,setView]=useState<'month'|'week'>('month');
   const [theme,setTheme]=useState('all'),[search,setSearch]=useState(initialCompany.split(':').at(-1)??''),[following,setFollowing]=useState(false);
   const [companyFilter,setCompanyFilter]=useState(initialCompany);
-  const [payload,setPayload]=useState<CalendarPayload|null>(null),[requestState,setRequestState]=useState({key:'',error:''}),[retry,setRetry]=useState(0);
+  const [payload,setPayload]=useState<CalendarPayload|null>(initialPayload??null),[requestState,setRequestState]=useState({key:initialPayload?`${initialPayload.from}|${initialPayload.to}|0`:'',error:''}),[retry,setRetry]=useState(0);
   const days=useMemo(()=>visibleDays(anchor,view),[anchor,view]),from=days[0],to=days.at(-1)!;
   const requestKey=`${from}|${to}|${retry}`,loading=requestState.key!==requestKey,error=loading?'':requestState.error;
   useEffect(()=>{
+    if(requestState.key===requestKey)return;
     const controller=new AbortController();let current=true;
     const timeout=setTimeout(()=>controller.abort(),20_000);
     void fetch(`/api/calendar?from=${from}&to=${to}`,{signal:controller.signal}).then(async response=>{
@@ -31,7 +32,7 @@ export function EarningsCalendar({initialDate='',initialCompany='',initialEvent=
       if(current){setPayload(next);setRequestState({key:requestKey,error:''});}
     }).catch(()=>{if(current)setRequestState({key:requestKey,error:'unavailable'});}).finally(()=>clearTimeout(timeout));
     return ()=>{current=false;clearTimeout(timeout);controller.abort();};
-  },[from,to,requestKey]);
+  },[from,to,requestKey,requestState.key]);
   const items=useMemo(()=>{
     const query=search.trim().toLowerCase();
     return (payload?.events??[]).filter(item=>(!companyFilter||item.companyId===companyFilter) && (theme==='all'||item.themes.includes(theme)) && (!following || saved.ready && saved.ids.includes(item.companyId))
@@ -50,6 +51,7 @@ export function EarningsCalendar({initialDate='',initialCompany='',initialEvent=
     <header className={styles.header}><div><p className={styles.eyebrow}>{t('UPCOMING COMPANY EVENTS','公司活动预告')}</p><h1>{t('Earnings calendar','财报日历')}</h1><p className={styles.subtitle}>{t('Company-announced releases and calls across AI, Robotics and Space.','涵盖 AI、机器人及航天主题的公司财报发布与电话会。')}</p></div><span className={styles.zone}>{t('Times in Eastern Time · ET','时间显示为美国东部时间 · ET')}</span></header>
     <div className={styles.toolbar}><div className={styles.period}><button aria-label={t('Previous period','上一时段')} onClick={()=>move(-1)}>‹</button><h2>{heading}</h2><button aria-label={t('Next period','下一时段')} onClick={()=>move(1)}>›</button><button onClick={()=>{setAnchor(today);setSelected(today);}}>{t('Today','今天')}</button></div><div className={styles.switcher}>{(['month','week'] as const).map(value=><button key={value} aria-pressed={view===value} onClick={()=>{setAnchor(selected);setView(value);}}>{value==='month'?t('Month','月视图'):t('Week','周视图')}</button>)}</div></div>
     <div className={styles.filters}><label>{t('Theme','主题')}<select value={theme} onChange={event=>setTheme(event.target.value)}><option value="all">{t('All themes','全部主题')}</option>{COMPANY_THEMES.map(id=><option key={id} value={id}>{themeName(id,chinese)}</option>)}</select></label><label className={styles.search}><span className={styles.srOnly}>{t('Search company or ticker','搜索公司或代码')}</span><input type="search" placeholder={t('Search company / ticker','搜索公司 / 代码')} value={search} onChange={event=>{setSearch(event.target.value);setCompanyFilter('');}}/></label><label className={styles.following}><input type="checkbox" checked={following} disabled={!saved.user || !saved.ready} onChange={event=>setFollowing(event.target.checked)}/>{t('Following only','仅关注公司')}</label>{!saved.user&&<LocalizedLink href="/auth">{t('Sign in','登录')}</LocalizedLink>}{saved.error&&<button onClick={()=>void saved.refresh()}>{t('Retry following','重试加载关注')}</button>}</div>
+    {payload&&payload.collectionStatus!=='complete'&&<p className="my-3 rounded-lg border border-amber-300/25 bg-amber-900/10 p-3 text-sm text-amber-100">{payload.collectionStatus==='not_started'?t('Schedule collection is starting; announced dates will appear as sources are processed.','日程采集即将开始；已公告日期将在来源处理后显示。'):t('Collection is in progress; this calendar includes announced dates and does not yet cover every company.','日程采集仍在进行中；此日历收录已公告的日期，尚未覆盖所有公司。')}</p>}
     <div className={styles.status} role="status">{loading?t('Loading schedules…','正在加载日程…'):error?t('Schedules could not be refreshed.','无法刷新日程。'):`${[...grouped.values()].flat().filter(group=>group.day>=from&&group.day<=to&&group.schedules.some(item=>item.status!=='cancelled')).length} ${t('scheduled events in view','项活动')}`}{error&&<button onClick={()=>setRetry(value=>value+1)}>{t('Retry','重试')}</button>}</div>
     <div className={`${styles.layout} ${view==='week'?styles.weekLayout:''}`} aria-busy={loading}>
       <section className={styles.calendar} aria-label={t('Earnings calendar','财报日历')}>

@@ -15,7 +15,8 @@ function fake(){
 }
 test('filing labels localize without changing the original title or filing type',()=>{
  const event={title:'MOD · 4 filing',evidence:[{channel:'SEC' as const,id:'sec',url:'https://sec.gov',title:'original',sourceDate:null}]};
- assert.equal(intelligenceEventTitle(event,'zh-CN'),'MOD · 4 申报');assert.equal(intelligenceEventTitle(event,'en'),event.title);
+ assert.equal(intelligenceEventTitle(event,'zh-CN'),'MOD · 内部人交易 (Form 4)');assert.equal(intelligenceEventTitle(event,'en'),'MOD · Insider trade (Form 4)');
+ assert.equal(intelligenceEventTitle({...event,title:'MOD · 144 filing'},'en'),'MOD · Planned insider sale (Form 144)');
 });
 test('translation response validates all IDs, Chinese text, completion and dates',async()=>{
  const request:typeof fetch=async(_url,init)=>{const body=JSON.parse(String(init?.body));assert.equal(body.store,false);assert.equal(body.text.format.strict,true);return Response.json({id:'response',model:'gpt-6-luna',status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({translations:[{id:'news',text:chinese}]})}]}]});};

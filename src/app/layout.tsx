@@ -18,13 +18,13 @@ import { parseLocale } from "@/lib/locale";
 const GOOGLE_ANALYTICS_ID = process.env.GOOGLE_ANALYTICS_ID;
 
 const sora = localFont({
-  src: "./fonts/sora.ttf",
+  src: "./fonts/sora.woff2",
   variable: "--font-sora",
   weight: "100 800",
 });
 
 const ibmPlexSans = localFont({
-  src: "./fonts/ibmplexsans.ttf",
+  src: "./fonts/ibmplexsans.woff2",
   variable: "--font-ibm-plex-sans",
   weight: "100 700",
 });

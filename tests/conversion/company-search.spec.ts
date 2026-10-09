@@ -136,7 +136,7 @@ test("the AI map's most-connected companies link to their company pages", async 
   const first = list.getByRole("link").first();
   await expect(first).toContainText("NVIDIA");
   await expect(first).toContainText("NVDA");
-  await expect(first).toContainText("Chips");
+  await expect(first).toContainText("AI compute");
   await expect(first).toHaveAttribute("href", "/en/ticker/NVDA");
   await expect(first).toContainText(/\d+connections/);
   // Counts never increase down the list.

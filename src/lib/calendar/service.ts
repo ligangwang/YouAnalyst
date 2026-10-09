@@ -4,6 +4,7 @@ import { loadCollectionUniverse, loadCollectionCompanies } from '../company-them
 import { activeThemeIds } from '../company-themes/model';
 import { companySector } from '../knowledge-graph/sectors';
 import { validDate } from '../earnings/model';
+import { reviewedCompanyNames } from '../market-companies/reviewed-names';
 import type { CalendarItem, CalendarPayload, ScheduledEvent } from './model';
 
 export function calendarRange(from: string | null, to: string | null) {
@@ -29,7 +30,7 @@ export async function loadCalendar(from: string, to: string, db: Firestore = get
     const record=records.get(node.id);
     const themes=activeThemeIds({themeMemberships:record?.themeMemberships});
     if(!record?.themeMemberships?.ai && !themes.includes('ai') && node.stageIds?.some(stage=>!stage.includes(':')))themes.push('ai');
-    return [{...event,companyName:node.name??node.symbol??node.id,companyNames:node.names,ticker:node.symbol||node.id.split(':')[1],themes,sector:companySector(node)}];
+    return [{...event,companyName:node.name??node.symbol??node.id,companyNames:reviewedCompanyNames(node.id,node.name??'',node.names),ticker:node.symbol||node.id.split(':')[1],themes,sector:companySector(node)}];
   });
   return {events,total:count.data().count,truncated:count.data().count>snapshot.size,from,to,
     lastCollectedAt:collector.get('lastRunAt')??null,collectionStatus:collector.get('status')??'not_started'};

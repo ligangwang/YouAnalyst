@@ -23,10 +23,10 @@ const graph: KnowledgeGraph = {
   ],
 };
 
-test("ranks companies by documented company connections with their primary layer", () => {
+test("ranks companies by documented company connections with the shared primary sector", () => {
   const ranked = mostConnectedCompanies(graph);
   assert.deepEqual(ranked.map(r => [r.company.id, r.connections, r.layer?.id]), [
-    ["US:NVDA", 3, "chips"], ["US:AMD", 2, "chips"], ["US:MSFT", 2, "infrastructure"], ["US:TSM", 2, "chips"], ["US:CEG", 1, "energy"],
+    ["US:NVDA", 3, "compute"], ["US:AMD", 2, "compute"], ["US:MSFT", 2, "platforms"], ["US:TSM", 2, "semiconductors"], ["US:CEG", 1, "infrastructure"],
   ]);
 });
 

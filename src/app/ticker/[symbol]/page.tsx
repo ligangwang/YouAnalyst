@@ -24,6 +24,7 @@ import { publicChinaCompany } from "@/lib/industry-research/china-directory";
 import { ChinaCompanyPage } from "@/components/china-company-page";
 import { loadCnFundamentals } from "@/lib/fundamentals/cn-service";
 import { headers } from "next/headers";
+import { companyOrganizationSchema } from "@/lib/company-schema";
 
 const loadChinaCompany = cache(async (id: string) => {
   const doc = await getAdminFirestore().collection(COMPANY_COLLECTION).doc(id).get();
@@ -95,7 +96,9 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   if (chinaId) {
     if (symbol !== chinaId) permanentRedirect(companyPageUrl(chinaId, "CN_A"));
     const [company, fundamentals] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId)]);
-    return <ChinaCompanyPage company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} />;
+    const url = absoluteUrl(localizedPath(companyPageUrl(chinaId, "CN_A"), locale));
+    const schema = { "@context": "https://schema.org", ...companyOrganizationSchema(company, locale, url, chinaId.split(":")[1], chinaId.startsWith("XSHG:") ? "SSE" : "SZSE") };
+    return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} /></>;
   }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(`/ticker/${encodeURIComponent(ticker)}`);
@@ -103,6 +106,7 @@ export default async function TickerRoutePage({ params }: { params: Promise<{ sy
   const schema = {
     "@context": "https://schema.org",
     "@graph": [
+      ...(company.known ? [companyOrganizationSchema({ ...company, id: `US:${ticker}` }, locale, absoluteUrl(localizedPath(`/ticker/${ticker}`, locale)), ticker, company.exchange)] : []),
       { "@type": "WebPage", name: `${companyName({id:ticker, name:company.name, names:company.names},locale)} (${ticker}) ${locale === "zh-CN" ? "公司研究" : "company research"}`, url: absoluteUrl(localizedPath(`/ticker/${ticker}`, locale)), description: companyResearchDescription(company, locale) },
       { "@type": "BreadcrumbList", itemListElement: [
         { "@type": "ListItem", position: 1, name: "YouAnalyst", item: absoluteUrl(localizedPath("/", locale)) },

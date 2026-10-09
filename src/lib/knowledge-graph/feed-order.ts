@@ -18,6 +18,7 @@ function sameEvent(evidence: CompanyUpdate, event: CompanyUpdate): boolean {
 
 /** Evidence added / reviewed for a curated business event is shown under that event instead of as a second card. */
 export function groupFeedUpdates(items: CompanyUpdate[]): FeedEntry[] {
+  items = deduplicateUpdates(items);
   const events = items.filter(item => item.kind === "BUSINESS");
   const entries = new Map<string, FeedEntry>(events.map(item => [item.id, { item, evidence: [] }]));
   const standalone: FeedEntry[] = [];
@@ -29,6 +30,36 @@ export function groupFeedUpdates(items: CompanyUpdate[]): FeedEntry[] {
   }
   for (const entry of entries.values()) entry.evidence.sort((a, b) => (b.published_at??b.sourceDate??'').localeCompare(a.published_at??a.sourceDate??'') || a.id.localeCompare(b.id));
   return [...entries.values(), ...standalone];
+}
+
+const normalized = (value: string) => value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+function sourceKey(value: string): string {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^(utm_|fbclid$|gclid$)/i.test(key)) url.searchParams.delete(key);
+    }
+    url.searchParams.sort();
+    return url.href;
+  } catch { return value.trim(); }
+}
+// A single source can document several relationships. Keep distinct evidence
+// scopes while collapsing repeated imports of the same event or evidence.
+export function deduplicateUpdates(items: CompanyUpdate[]): CompanyUpdate[] {
+  const ids = new Set<string>(), urls = new Set<string>(), titles = new Set<string>();
+  return [...items].sort((a, b) => (b.collectedAt ?? b.published_at ?? "").localeCompare(a.collectedAt ?? a.published_at ?? "") || a.id.localeCompare(b.id)).filter(item => {
+    const scope = JSON.stringify([item.kind, [...item.companyIds].sort(), day(item.eventDate) ?? day(item.sourceDate), item.state,
+      item.kind === "RESEARCH" ? [item.edgeId, normalized(item.description)] : item.business?.category]);
+    const url = item.sourceUrl ? `${scope}:${sourceKey(item.sourceUrl)}` : "";
+    const title = normalized(item.business?.title ?? item.sourceTitle);
+    const titleKey = title ? `${scope}:${title}` : "";
+    const duplicate = ids.has(item.id) || Boolean(url && urls.has(url)) || Boolean(titleKey && titles.has(titleKey));
+    ids.add(item.id);
+    if (url) urls.add(url);
+    if (titleKey) titles.add(titleKey);
+    return !duplicate;
+  });
 }
 
 export function orderFeed(entries: FeedEntry[], order: FeedOrder = "event"): FeedEntry[] {

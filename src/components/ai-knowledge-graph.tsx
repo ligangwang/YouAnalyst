@@ -14,10 +14,8 @@ import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { IndustryCompanyTable } from "./industry-company-views";
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 import { companySectors, INDUSTRY_VIEWS, LEGACY_VERTICAL_VIEW, parseIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
-import {IndustryHierarchy} from "./industry-hierarchy";
 import {NavigationSettings} from "./navigation-settings";
 import {UniverseMusic, UniverseMusicToggle} from "./universe-music";
-import { IndustryStructure } from "./industry-tree";
 import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
 import { CompanyCountryFlag } from "./company-country-flag";
 import { CompanyNameEditor } from "./company-name-editor";
@@ -34,9 +32,13 @@ import { useCardDismiss } from './use-card-dismiss';
 import cardFade from './card-fade.module.css';
 
 const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
+const IndustryStructure = lazy(() => import("./industry-tree").then(module => ({ default: module.IndustryStructure })));
+const IndustryHierarchy = lazy(() => import("./industry-hierarchy").then(module => ({ default: module.IndustryHierarchy })));
 const subscribeView = (notify: () => void) => {
+  const mobile = window.matchMedia("(max-width: 767px)");
+  mobile.addEventListener("change", notify);
   window.addEventListener("storage", notify); window.addEventListener("popstate", notify); window.addEventListener("industry-view-changed", notify);
-  return () => { window.removeEventListener("storage", notify); window.removeEventListener("popstate", notify); window.removeEventListener("industry-view-changed", notify); };
+  return () => { mobile.removeEventListener("change", notify); window.removeEventListener("storage", notify); window.removeEventListener("popstate", notify); window.removeEventListener("industry-view-changed", notify); };
 };
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
 function ViewIcon({ view }: { view: IndustryView }) {
@@ -52,9 +54,10 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     if (requested) return requested;
     if (initialEdge || initialEvent || allowedRelationshipIds) return "graph";
     try { const saved = parseIndustryView(localStorage.getItem("ya-industry-view")); if (saved) return saved; } catch { /* Storage is optional. */ }
-    return defaultView;
-  }, () => defaultView);
+    return window.matchMedia("(max-width: 767px)").matches ? "table" : defaultView;
+  }, () => "table");
   const viewId = useId();
+  const [treeVisited, setTreeVisited] = useState(false);
   const marketFilter = useIndustryBrowseParam('listingMarket', 'all');
   const setMarketFilter = (value: string) => updateIndustryBrowse({listingMarket:value}, true);
   const roleFilter = useIndustryBrowseParam('role');
@@ -63,6 +66,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const setOnlyFollowed = (value: boolean) => updateIndustryBrowse({following:value?'1':''}, true);
   const follows = useCompanyFollows();
   function changeView(next: IndustryView) {
+    if (view === "tree" || next === "tree") setTreeVisited(true);
     if(next==="tree")setCardHost({tree:"vertical",reveal:false});
     if(next==="hierarchy")setCardHost({tree:"horizontal",reveal:false});
     try { localStorage.setItem("ya-industry-view", next); } catch { /* URL still preserves the selection. */ }
@@ -233,11 +237,13 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     </section>}
 
       <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
-      {/* Keep the initialized 3D tree mounted across tabs. */}
-      <div hidden={view!=='tree'} className={styles.structureStack}>
+      {/* Load the tree on first use, then preserve its expanded branches across tabs. */}
+      <Suspense fallback={<p role="status" className={styles.empty}>{text("Loading industry view…", "正在加载产业视图…")}</p>}>
+      {(view==='tree' || treeVisited) && <div hidden={view!=='tree'} className={styles.structureStack}>
         <IndustryStructure musicControls vertical active={view==='tree'} companies={treeCompanies} selected={selected} onSelect={id=>selectNode(id,"vertical")} closing={cardDismiss.closing} showCard={cardHost.tree==="vertical"} revealCard={cardHost.reveal} followedIds={follows.ids}/>
-      </div>
+      </div>}
       {view==='hierarchy'&&<IndustryHierarchy companies={treeCompanies} selected={selected} closing={cardDismiss.closing} onSelect={id=>selectNode(id,'horizontal')}/>}
+      </Suspense>
       {view==='graph' && <Suspense fallback={<div className={styles.canvas3d}><p className={styles.empty} role="status">{text("Loading graph…", "正在加载图谱…")}</p><UniverseMusicToggle/></div>}><CompanyGraph3D musicControls showAllEdges={showAllEdges} hideReset cameraRequest={cameraRequest} graph={visible} sectorFocus={sectorFocus} activeEdge={activeEdge} onSelectEdge={openConnection} selected={company?.id ?? ""} onSelect={selectNode} reset={reset} onReset={resetGraphView}/></Suspense>}
       </div>
       {company && !treeView && <aside ref={detailCard} className={`${styles.detail} ${cardFade.card}`} data-closing={cardDismiss.closing} inert={cardDismiss.closing} aria-label={text("Company details", "公司详情")} onKeyDown={e=>{if(e.key==='Escape')selectCompany('');}}>

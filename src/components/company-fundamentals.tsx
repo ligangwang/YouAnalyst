@@ -5,7 +5,7 @@ import type { CompanyFundamentals } from "@/lib/fundamentals/model";
 function displayValue(value: number | null, unit: string | null) {
   if (value === null || !unit) return "Unavailable";
   const perShare = unit.endsWith("/shares");
-  return `${new Intl.NumberFormat("en-US", { notation: perShare ? "standard" : "compact", maximumFractionDigits: 2 }).format(value)} ${unit.replace("/shares", " / share")}`;
+  return `${new Intl.NumberFormat("en-US", { notation: perShare ? "standard" : "compact", minimumFractionDigits: perShare ? 2 : 0, maximumFractionDigits: 2 }).format(value)}${unit === "%" ? "%" : ` ${unit.replace("/shares", " / share")}`}`;
 }
 
 export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | null }) {

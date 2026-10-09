@@ -167,7 +167,6 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
 
 
       <section id="view-history" className="mt-4 scroll-mt-32 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
-        <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"View history"} /></h2>
         <p className="mb-3 mt-1 text-sm text-slate-400"><UiText text={"Every public view on this company: when it opened, the evidence it cites and how it has performed."} /></p>
         <div className="grid gap-2">
           {payload.items.map((prediction) => (

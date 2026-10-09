@@ -8,6 +8,7 @@ export type IndustryNode = {
   names?: Partial<Record<"en" | "zh-CN", string>>;
   ticker: string | null;
   segment: IndustrySegment;
+  stageIds?: string[];
   kind: "issuer" | "mention" | "category" | "coverage" | "research" | "published";
   market?: string;
   profileUrl?: string;

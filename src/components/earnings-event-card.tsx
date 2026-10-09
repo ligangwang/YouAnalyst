@@ -25,7 +25,7 @@ export function EarningsEventCard({ group, compact = false, highlighted = false 
 
   return <article className={`${styles.event} ${highlighted ? styles.linkedEvent : ''} ${sharedStatus === 'cancelled' ? styles.cancelled : ''}`} style={{ borderLeftColor: item.sector.color }}>
     <div className={styles.eventHeading}><strong>{item.ticker}</strong><span>{earningsGroupLabel(group, t)}</span></div>
-    {!compact && <p>{chinese ? (item.companyNames?.['zh-CN'] ?? item.companyName) : item.companyName}</p>}
+    {!compact && <p>{chinese ? (item.companyNames?.['zh-CN'] ?? item.companyName) : (item.companyNames?.en ?? item.companyName)}</p>}
     {warnings.length>0 && <span className={styles.validationWarning} title={warnings.join('\n')}>{t('⚠ Validation warning','⚠ 校验提示')}</span>}
     {schedules.map(schedule => <p key={schedule.id} className={`${styles.time} ${!sharedStatus && schedule.status === 'cancelled' ? styles.cancelledSchedule : ''}`}>
       {schedules.length > 1 && <span className={styles.scheduleLabel}>{schedule.eventKind === 'earnings_release' ? t('Results', '财报') : t('Call', '电话会')}: </span>}{calendarTime(schedule, chinese)}

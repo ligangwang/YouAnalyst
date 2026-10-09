@@ -10,6 +10,13 @@ export type CompanyProfile = {
   financialReportCheckedSources?: string[];
 };
 const record = (v: unknown): Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
+export function financialReportLabel(report: NonNullable<CompanyProfile["financialReport"]>, chinese = false): string {
+  // SEC document-index rows are ingestion metadata, not a report title.
+  if (/\|.*\||\bEX-\d|\.html?\b/i.test(report.title)) {
+    return chinese ? `${report.form} 财务报告（截至 ${report.periodEnd}）` : `${report.form} financial report (period ended ${report.periodEnd})`;
+  }
+  return report.title;
+}
 export function profileUrl(v: unknown): string | null {
   if (typeof v !== "string") return null;
   try { const u = new URL(v); return ["https:", "http:"].includes(u.protocol) && !u.username && !u.password ? u.href : null; } catch { return null; }

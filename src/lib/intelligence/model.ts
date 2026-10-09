@@ -11,6 +11,10 @@ export type IntelligenceEvent = {
   calendarEvents?:IntelligenceCalendarEvent[];
 };
 export function intelligenceEventTitle(event:Pick<IntelligenceEvent,'title'|'titleZh'|'titleEn'|'evidence'>,locale:string){
+  if(event.evidence.some(source=>source.channel==='SEC')){
+    const filing=event.title.match(/^(.+) · (4|144)(\/A)? filing$/);
+    if(filing){const label=filing[2]==='4'?(locale==='zh-CN'?'内部人交易':'Insider trade'):(locale==='zh-CN'?'拟进行的内部人出售':'Planned insider sale');return `${filing[1]} · ${label} (Form ${filing[2]}${filing[3]??''})`;}
+  }
   if(locale!=='zh-CN')return event.titleEn?.trim()||event.title;
   if(event.titleZh?.trim())return event.titleZh;
   if(event.evidence.some(source=>source.channel==='SEC'))return event.title.replace(/ · (.+) filing$/, ' · $1 申报').replace(/ · Earnings announcement$/, ' · 业绩公告');

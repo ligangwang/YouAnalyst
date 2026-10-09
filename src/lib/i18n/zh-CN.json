@@ -1373,5 +1373,19 @@
   "Publish an evidence-backed analyst view on a map company.": "针对图谱公司发布有证据支撑的分析师观点。",
   "No analyst views on this company yet.": "该公司暂无分析师观点。",
   "Each analyst profile lists every public view with its return; US-listed views sit beside the Nasdaq-100 (QQQ) over the same dates, so a record can be checked view by view.": "每位分析师的主页都会列出全部公开观点及其收益；美股观点与同期纳斯达克 100 指数（QQQ）的收益并列，便于逐条核验。",
-  "New views wait for their first completed end-of-day price to set the entry. After that, we update them daily. Close a view when your thesis changes; settlement happens at the next end-of-day update, around 9:00 PM ET on trading days.": "新观点会等待首次收盘价格确定起始价，此后每日更新。当你的判断发生变化时，可以关闭观点；系统将在下一次收盘更新时完成结算，通常为交易日美国东部时间晚上 9 点左右。"
+  "New views wait for their first completed end-of-day price to set the entry. After that, we update them daily. Close a view when your thesis changes; settlement happens at the next end-of-day update, around 9:00 PM ET on trading days.": "新观点会等待首次收盘价格确定起始价，此后每日更新。当你的判断发生变化时，可以关闭观点；系统将在下一次收盘更新时完成结算，通常为交易日美国东部时间晚上 9 点左右。",
+  "Explore AI companies and their connections": "探索 AI 公司及其产业关联",
+  "Compare companies across chips, memory, connectivity, systems, energy, cloud and AI applications. Select a company to inspect its suppliers, customers and source evidence.": "比较芯片、内存、通信、系统、能源、云与 AI 应用领域的公司。选择公司，查看其供应商、客户及来源依据。",
+  "Start with NVIDIA’s suppliers and partners": "从英伟达的供应商与合作伙伴开始",
+  "Listing source history": "上市资料来源历史",
+  "This is the listing record date, separate from quote updates.": "这是上市资料记录日期，与行情更新时间独立。",
+  "Industry roles": "产业环节",
+  "AI compute": "AI 算力",
+  "Semiconductors": "半导体制造",
+  "Connectivity": "通信与互连",
+  "Systems & devices": "系统与终端",
+  "Energy & infrastructure": "能源与基础设施",
+  "Other / unclassified": "其他／待分类",
+  "Explore companies and their connections": "探索公司及其关系",
+  "Compare technology companies, inspect suppliers and partners, and follow developments backed by original sources.": "比较科技公司，查看供应商与合作伙伴，并关注有原始来源支持的动态。"
 }
