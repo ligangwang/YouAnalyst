@@ -5,6 +5,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
+COPY data/ai-supply-chain/company-names.json ./data/ai-supply-chain/company-names.json
 RUN node_modules/.bin/esbuild scripts/sync-cni-directory.ts --bundle --platform=node --packages=external --outfile=dist/sync-cni-directory.cjs \
   && node_modules/.bin/esbuild scripts/serve-cni-directory.ts --bundle --platform=node --packages=external --outfile=dist/serve-cni-directory.cjs && npm prune --omit=dev
 

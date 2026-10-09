@@ -5,6 +5,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 COPY scripts ./scripts
+COPY data/ai-supply-chain/company-names.json ./data/ai-supply-chain/company-names.json
 # Shared maintenance image; each deployed job selects its worker command.
 RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-sec-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-sec-fundamentals.cjs \
