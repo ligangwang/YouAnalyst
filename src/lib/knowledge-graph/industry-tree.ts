@@ -46,7 +46,7 @@ export function industryTree(companies:GraphNode[]):TreeLayer[] {
   });
 }
 export const industryRootLabel = (layers: TreeLayer[], locale: string) => layers.some(layer => layer.id.startsWith('space:')) ? locale === 'zh-CN' ? '航天产业' : 'Space industry' : layers.some(layer => layer.id.startsWith('robotics:')) ? locale === 'zh-CN' ? '机器人产业' : 'Robotics industry' : locale === 'zh-CN' ? 'AI 产业链' : 'AI industry chain';
-export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company';label:string;color:string;position:[number,number,number];planar?:[number,number,number];azimuth?:number;pivotX?:number;company?:GraphNode;count?:number;span?:[number,number];stem?:number};
+export type TreePoint={id:string;parent?:string;layer?:string;branch?:string;kind:'root'|'layer'|'branch'|'company'|'foliage';decorative?:boolean;label:string;color:string;position:[number,number,number];planar?:[number,number,number];azimuth?:number;pivotX?:number;company?:GraphNode;count?:number;span?:[number,number];stem?:number};
 export function layoutIndustryTree(layers:TreeLayer[],open:ReadonlySet<string>,locale:string):TreePoint[] {
   const label=(n:{en:string;zh:string})=>locale==='zh-CN'?n.zh:n.en;
   const nodes:TreePoint[]=[{id:'root',kind:'root',label:industryRootLabel(layers,locale),color:'#8be8ff',position:[-540,0,0]}];

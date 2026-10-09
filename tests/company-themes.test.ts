@@ -141,9 +141,9 @@ test('theme presentation retains canonical identities and secondary roles withou
   const open=new Set(['root',...layers.map(layer=>layer.id)]);
   for(const layout of [layoutIndustryTree,layoutVerticalTree]){
     const nodes=layout(layers,open,'en');
-    assert.equal(nodes.filter(node=>node.kind==='branch').length,0);
+    assert.equal(nodes.filter(node=>node.kind==='branch'&&!node.decorative).length,0);
     assert.equal(nodes.filter(node=>node.kind==='company').length,3);
-    assert(nodes.filter(node=>node.kind==='company').every(node=>nodes.some(parent=>parent.id===node.parent&&parent.kind==='layer')));
+    assert(nodes.filter(node=>node.kind==='company').every(node=>nodes.some(parent=>parent.id===node.parent&&(parent.kind==='layer'||parent.decorative))));
     assert.equal(layout(layers,new Set(['root']),'en').filter(node=>node.kind==='company').length,0);
   }
   assert.equal(roboticsGraph([company,other],[{...relationship,themeIds:['robotics']}]).relationships.length,1);
@@ -151,7 +151,7 @@ test('theme presentation retains canonical identities and secondary roles withou
 });
 
 
-test('sparse sector themes grow wooden limbs without adding taxonomy or losing company leaves',async()=>{
+test('sparse sector themes retain full decorative canopies without inventing companies',async()=>{
   const {layoutVerticalTree}=await import('../src/lib/knowledge-graph/vertical-tree');
   const {verticalTreeStrands,verticalTreeStrandGeometries,createStrandWriter}=await import('../src/lib/knowledge-graph/vertical-tree-geometry');
   for(const theme of ['robotics','space']){
@@ -160,13 +160,21 @@ test('sparse sector themes grow wooden limbs without adding taxonomy or losing c
     const nodes=layoutVerticalTree(layers,new Set(['root',...layers.map(l=>l.id)]),'en');
     const leaves=nodes.filter(n=>n.kind==='company');
     assert.equal(leaves.length,3);
-    assert.equal(nodes.filter(n=>n.kind==='branch').length,0);
+    assert.equal(nodes.filter(n=>n.kind==='branch'&&!n.decorative).length,0);
+    assert.equal(nodes.filter(n=>n.kind==='foliage').length,69);
+    assert(nodes.filter(n=>n.decorative).every(n=>!n.company&&!n.label));
+    assert.deepEqual(nodes.filter(n=>n.kind==='layer').map(n=>n.count),[1,1,1]);
+    const more=layers.map(layer=>({...layer,companies:[...layer.companies,{...layer.companies[0],id:layer.companies[0].id+'-NEW'}]}));
+    const fuller=layoutVerticalTree(more,new Set(['root',...more.map(l=>l.id)]),'en');
+    assert.equal(fuller.filter(n=>n.kind==='company'||n.kind==='foliage').length,72,'company additions replace decorative leaves rather than changing canopy density');
+    assert.deepEqual(fuller.filter(n=>n.kind==='branch').map(n=>n.position),nodes.filter(n=>n.kind==='branch').map(n=>n.position),'wood silhouette stays independent of company coverage');
     const strands=verticalTreeStrands(nodes);
     for(const leaf of leaves){
       const limb=strands.find(s=>s.to===leaf.id);
-      assert.equal(limb?.kind,'branch');assert.equal(limb?.attach,'trunk');
-      assert(leaf.stem!<leaf.position[1]);
-      assert(leaf.position[1]<Math.max(...nodes.filter(n=>n.kind==='layer').map(n=>n.position[1])));
+      assert.equal(limb?.kind,'twig');
+      const parent=nodes.find(n=>n.id===leaf.parent)!;
+      assert(parent.decorative&&parent.kind==='branch');
+      assert(strands.some(s=>s.to===parent.id&&s.kind==='branch'));
     }
     const geometry=verticalTreeStrandGeometries(strands,'');
     createStrandWriter()(strands,geometry,id=>{const p=nodes.find(n=>n.id===id)?.position;return p?{x:p[0],y:p[1],z:p[2]}:undefined;},nodes.filter(n=>n.kind==='layer').map(n=>n.position[1]));
