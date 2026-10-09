@@ -321,6 +321,7 @@ test('graph company details float inside the graph and move independently of the
   const mobile=info.project.name==='mobile';
   if(!mobile)await page.setViewportSize({width:1500,height:800});
   await open(page);
+  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
   const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
   if(await expand.isVisible())await expand.click();
   await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
