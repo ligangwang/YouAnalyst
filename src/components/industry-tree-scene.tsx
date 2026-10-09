@@ -448,7 +448,7 @@ function Scene(props:TreeSceneProps){
       const radius=look.radius;
       // Companies grow as leaves in the vertical tree; the stem sits on the node. Roots carry no
       // leaves: energy companies are round nodules on the root strands.
-      const leaf=props.vertical&&node.company&&node.layer!=='energy'?verticalLeafPose(node,node.parent?allById.get(node.parent):undefined,capScale,trunkTop):undefined;
+      const leaf=props.vertical&&(node.company||node.kind==='foliage')&&node.layer!=='energy'?verticalLeafPose(node,node.parent?allById.get(node.parent):undefined,capScale,trunkTop):undefined;
       // The whole leaf or nodule selects its company; the small label button stays as the keyboard and screen-reader target.
       const pick=props.vertical&&node.company&&visible?{
         onClick:(event:ThreeEvent<MouseEvent>)=>{event.stopPropagation();props.onSelect(node.company!.id);},
@@ -460,13 +460,13 @@ function Scene(props:TreeSceneProps){
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.12,leaf.width*1.18,leaf.length*.5]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.035} depthWrite={false} blending={AdditiveBlending}/></mesh>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors color={leaf.tint} roughness={.82} metalness={0} side={DoubleSide} transparent opacity={dim?.12:.98}/></mesh>
           <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.width,leaf.length*.5]} position={[0,0,.4]}><meshBasicMaterial color="#d8db8e" side={DoubleSide} transparent opacity={dim?.05:.36}/></mesh>
-        </group></group>:<>
+        </group></group>:node.decorative?null:<>
         <mesh {...pick}><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
         <mesh {...pick}><sphereGeometry args={[look.glowRadius||radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.glow} depthWrite={false} blending={AdditiveBlending}/></mesh>
         {props.vertical&&node.company&&node.layer==='energy'&&<mesh {...pick} userData={{rootHitTarget:true,minimumRadius:look.glowRadius||radius*2}}><sphereGeometry args={[1,12,8]}/><meshBasicMaterial transparent opacity={0} depthWrite={false}/></mesh>}
         </>}
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
-        {present.has(node.id)&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={`${left&&!centered?styles.labelLeft:''} ${present.get(node.id)?.exiting?styles.exiting:styles.entering}`} style={{animationDuration:`${.8/navigation.speed}s`}}><button
+        {!node.decorative&&present.has(node.id)&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={`${left&&!centered?styles.labelLeft:''} ${present.get(node.id)?.exiting?styles.exiting:styles.entering}`} style={{animationDuration:`${.8/navigation.speed}s`}}><button
           ref={el=>{if(el){labels.current.set(node.id,el);window.clearTimeout(labelsSettled.current);labelsSettled.current=window.setTimeout(invalidate,120);}else labels.current.delete(node.id);}}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,...(props.vertical&&(node.kind==='company'||node.kind==='branch')?{}:{opacity:dim ? .2 : 1}),pointerEvents:'auto',...(node.company?{'--cap':capScale}:{})} as CSSProperties}
           disabled={!visible} data-exiting={present.get(node.id)?.exiting} data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}

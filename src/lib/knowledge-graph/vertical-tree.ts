@@ -61,18 +61,34 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   // Themes with sector-level roles connect companies directly to the sector.
   // AI retains its additional supply-chain subdivisions.
   if(layers.every(layer=>layer.directCompanies)){
-    const heights=layers.map(layer=>Math.max(420,Math.ceil(layer.companies.length/2)*110+200));
-    const top=150+heights.reduce((sum,height)=>sum+height,0);
+    // A full canopy is presentation geometry, independent of company coverage.
+    // Four wooden limbs per sector use the same curved wood and leaf blades as AI.
+    const height=420,top=150+layers.length*height;
     let bottom=150;
     for(const [index,layer] of layers.entries()){
-      const height=heights[index],y=bottom+height*(index===layers.length-1?1:.5);
-      const pivot=verticalTrunkX(y,top);
-      nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[pivot,y,0],count:layer.companies.length,span:[bottom,bottom+height]});
-      if(open.has(layer.id))[...layer.companies].sort((a,b)=>a.id.localeCompare(b.id)).forEach((company,j)=>{
-        const id=`${layer.id}/${company.id}`,angle=j*Math.PI*(3-Math.sqrt(5)),reach=450+180*verticalJitter(id,3);
-        const leafY=bottom+90+Math.floor(j/2)*110;
-        nodes.push({id,parent:layer.id,layer:layer.id,branch:layer.id,kind:'company',label:companyName(company,locale),color:layer.color,position:[pivot+reach*Math.cos(angle),leafY,-reach*Math.sin(angle)],planar:[pivot+reach,leafY,0],azimuth:angle,pivotX:pivot,stem:Math.max(bottom+30,leafY-160),company});
-      });
+      const y=bottom+height*(index===layers.length-1?1:.5);
+      nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[verticalTrunkX(y,top),y,0],count:layer.companies.length,span:[bottom,bottom+height]});
+      if(open.has(layer.id)){
+        const companies=[...layer.companies].sort((a,b)=>a.id.localeCompare(b.id));
+        const slots=Math.max(6,Math.ceil(companies.length/4));
+        for(let limbIndex=0;limbIndex<4;limbIndex++){
+          const branchId=`${layer.id}/canopy-${limbIndex}`,stem=bottom+70+limbIndex*65;
+          const pivot=verticalTrunkX(stem,top),reach=(680-200*index/Math.max(1,layers.length-1))*(.9+.2*verticalJitter(branchId,3));
+          const lean=(22+index*3+verticalJitter(branchId,1)*8)*Math.PI/180;
+          const azimuth=(index*4+limbIndex)*Math.PI*(3-Math.sqrt(5));
+          const origin:[number,number]=[pivot+30,stem],tip:[number,number]=[origin[0]+reach*Math.cos(lean),stem+reach*Math.sin(lean)];
+          const place=(x:number,y:number):[number,number,number]=>[pivot+(x-pivot)*Math.cos(azimuth),y,-(x-pivot)*Math.sin(azimuth)];
+          nodes.push({id:branchId,parent:layer.id,layer:layer.id,branch:branchId,kind:'branch',decorative:true,label:'',color:layer.color,position:place(...tip),planar:[...tip,0],azimuth,pivotX:pivot,stem});
+          for(let slot=0;slot<slots;slot++){
+            const company=companies[slot*4+limbIndex],id=company?`${layer.id}/${company.id}`:`${branchId}/leaf-${slot}`;
+            const t=.48+.8*(slot+.3+.4*verticalJitter(id,3))/slots;
+            const flank=(slot%2?1:-1)*(55+65*verticalJitter(id,5));
+            const x=origin[0]+(tip[0]-origin[0])*t-Math.sin(lean)*flank;
+            const leafY=stem+(tip[1]-stem)*t+Math.cos(lean)*flank;
+            nodes.push({id,parent:branchId,layer:layer.id,branch:branchId,kind:company?'company':'foliage',decorative:!company,label:company?companyName(company,locale):'',color:layer.color,position:place(x,leafY),planar:[x,leafY,0],azimuth,pivotX:pivot,company});
+          }
+        }
+      }
       bottom+=height;
     }
     return nodes;
