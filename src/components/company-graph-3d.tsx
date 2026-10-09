@@ -195,7 +195,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   }, [layout]);
   // Match the visible star in screen space: a world-space threshold shrinks
   // at overview zoom and lets relationship lines intercept company clicks.
-  function companyHit(raycaster: Raycaster) {
+  function companyHit(raycaster: Raycaster,clickTarget=false) {
     const pointer=raycaster.ray.at(1,new Vector3()).project(camera);
     let nearest:{index:number;distance:number;point:Vector3;screenDistance:number}|undefined;
     layout.nodes.forEach((node,index)=>{
@@ -206,8 +206,9 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       const blend=Math.max(0,Math.min(1,emphasis-1));
       const starSize=Math.max(18,Math.min(72,32000/Math.max(40,depth)))*marketCapScale(node.marketCap)*(1+.5*blend*blend*(3-2*blend));
       const distance=Math.hypot((screen.x-pointer.x)*size.width/2,(screen.y-pointer.y)*size.height/2);
-      // Cover the whole sprite plus a small pointer margin, not just its core.
-      if(distance<=Math.max(18,starSize*.5/gl.getPixelRatio()+6) && (!nearest || distance<nearest.screenDistance))nearest={index,distance:raycaster.ray.origin.distanceTo(point),point,screenDistance:distance};
+      // Clicks get a generous halo; hover leaves nearby relationships reachable.
+      const radius=clickTarget?Math.max(18,starSize*.5/gl.getPixelRatio()+6):Math.max(10,starSize*.35/gl.getPixelRatio());
+      if(distance<=radius && (!nearest || distance<nearest.screenDistance))nearest={index,distance:raycaster.ray.origin.distanceTo(point),point,screenDistance:distance};
     });
     return nearest;
   }
@@ -221,7 +222,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       if(event.button!==0 || !event.isPrimary)return;
       const rect=canvas.getBoundingClientRect();
       ray.setFromCamera(new Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
-      const hit=companyHit(ray);
+      const hit=companyHit(ray,true);
       if(hit)starPress.current={id:layout.nodes[hit.index].id,x:event.clientX,y:event.clientY,pointer:event.pointerId,dragged:false};
     };
     const move=(event:PointerEvent)=>{const press=starPress.current;if(press && event.pointerId===press.pointer && Math.hypot(event.clientX-press.x,event.clientY-press.y)>5)press.dragged=true;};

@@ -8,6 +8,7 @@ import cn from "../../data/ai-supply-chain/ai-cn-a.json";
 import { combineGraphs, type KnowledgeGraph } from "../../src/lib/knowledge-graph/model";
 import { companySector, GRAPH_SECTORS } from "../../src/lib/knowledge-graph/sectors";
 import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
+import { marketCapScale } from "../../src/lib/knowledge-graph/market-cap";
 
 for (const view of ['graph','vertical'] as const) test(`clicking the selected ${view} node toggles its detail card`,async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -662,12 +663,14 @@ test("every sector dims unrelated names and restores the full map on toggle", as
   }
 });
 for(const sectorFocused of [false,true]) test(`line hover previews, click pins, and blank space clears (${sectorFocused?"sector":"overview"})`,async({page})=>{
+  // Separate visible line segments from star halos while exercising real GPU targets.
+  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD','US:TSM'].includes(n.id))};
   await page.emulateMedia({reducedMotion:"reduce"});
-  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:graph}):r.fulfill({contentType:"text/html",body:html}));
+  await page.route("**/*",r=>r.request().url().includes("/api/knowledge-graph")?r.fulfill({json:fixture}):r.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en");
   const canvas=page.locator("canvas"), labels=page.locator('[data-source]:visible');
   await expect(canvas).toBeVisible();
-  await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(graph).nodes.length,{timeout:20000});
+  await expect(page.locator('[data-company-id]')).toHaveCount(layout3D(fixture).nodes.length,{timeout:20000});
   await expect(page.locator('[data-company-id]:visible').first()).toBeVisible();
   await expect(labels).toHaveCount(0);
   if(sectorFocused){
@@ -683,19 +686,24 @@ for(const sectorFocused of [false,true]) test(`line hover previews, click pins, 
   await allConnections.click();
   await expect(allConnections).toHaveAttribute("aria-pressed","true");
   const box=(await canvas.boundingBox())!;
-  const layout=layout3D(graph);
+  const layout=layout3D(fixture);
   const camera=new PerspectiveCamera(45,box.width/box.height,1,10000);
   camera.position.fromArray((await canvas.getAttribute('data-camera-position'))!.split(',').map(Number));
   camera.lookAt(new Vector3().fromArray((await canvas.getAttribute('data-camera-target'))!.split(',').map(Number)));camera.updateMatrixWorld();
   let hit:{x:number;y:number}|undefined;
-  for(const edge of layout.edges){
+  const dpr=await page.evaluate(()=>Math.max(1,Math.min(1.5,devicePixelRatio)));
+  const stars=layout.nodes.map(n=>{const world=new Vector3(n.x,n.y,n.z),p=world.clone().project(camera),depth=-world.applyMatrix4(camera.matrixWorldInverse).z;
+    return {x:box.x+(p.x+1)*box.width/2,y:box.y+(1-p.y)*box.height/2,radius:Math.max(18,Math.max(18,Math.min(72,32000/Math.max(40,depth)))*marketCapScale(n.marketCap)*1.5*.5/dpr+6)};});
+  scan:for(const edge of layout.edges)for(const fraction of [.25,.4,.55,.7,.85]){
     const a=layout.nodes.find(n=>n.id===edge.source)!,b=layout.nodes.find(n=>n.id===edge.target)!;
-    const p=new Vector3(a.x,a.y,a.z).lerp(new Vector3(b.x,b.y,b.z),.55).project(camera);
+    const p=new Vector3(a.x,a.y,a.z).lerp(new Vector3(b.x,b.y,b.z),fraction).project(camera);
     const x=box.x+(p.x+1)*box.width/2,y=box.y+(1-p.y)*box.height/2;
+    // Choose a relationship segment outside the stars' generous click halos.
+    if(stars.some(star=>Math.hypot(x-star.x,y-star.y)<=star.radius+2))continue;
     await page.mouse.move(5,5);await expect(labels).toHaveCount(0);
     await page.mouse.move(x,y);await page.waitForTimeout(100);
     // Hover can reveal a company label over this segment. Use an exposed line hit.
-    if(await labels.count()&&await page.evaluate(({x,y})=>document.elementFromPoint(x,y)?.tagName==='CANVAS',{x,y})){hit={x,y};break;}
+    if(await labels.count()&&await page.evaluate(({x,y})=>document.elementFromPoint(x,y)?.tagName==='CANVAS',{x,y})){hit={x,y};break scan;}
   }
   expect(hit).toBeDefined();
   await expect(labels).toHaveCount(1);
