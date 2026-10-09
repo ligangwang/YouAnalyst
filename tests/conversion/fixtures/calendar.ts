@@ -1,7 +1,7 @@
 import { componentFixtureHtml } from './component-html';
 import path from 'node:path';
 import { easternDay } from '../../../src/lib/calendar/display';
-import type { CalendarItem } from '../../../src/lib/calendar/model';
+import type { CalendarItem, CalendarPayload } from '../../../src/lib/calendar/model';
 
 export const fixtureDay=easternDay(new Date().toISOString());
 export const calendarFixtures:CalendarItem[]=Array.from({length:8},(_,index)=>({
@@ -20,14 +20,14 @@ calendarFixtures.push(
   {...calendarFixtures[2],id:'scheduled_test2_release',eventKind:'earnings_release',scheduled_at:null,time_precision:'date',timeSlot:'before_market',status:'rescheduled',url:'https://example.com/results'},
 );
 
-export async function calendarFixtureHtml() {
+export async function calendarFixtureHtml(initialPayload?:CalendarPayload) {
   const mock=path.resolve('tests/conversion/fixtures/mocks.tsx');
   return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';
     import {EarningsCalendar} from './src/components/earnings-calendar';
     import {LocaleProvider} from './src/components/providers/locale-provider';
     const locale=new URLSearchParams(location.search).get('lang')==='zh-CN'?'zh-CN':'en';
     const params=new URLSearchParams(location.search);
-    createRoot(document.getElementById('root')).render(<LocaleProvider locale={locale}><EarningsCalendar initialDate={params.get('date')??''} initialCompany={params.get('company')??''} initialEvent={params.get('event')??''}/></LocaleProvider>);`, {
+    createRoot(document.getElementById('root')).render(<LocaleProvider locale={locale}><EarningsCalendar initialPayload={${JSON.stringify(initialPayload)??'undefined'}} initialDate={params.get('date')??''} initialCompany={params.get('company')??''} initialEvent={params.get('event')??''}/></LocaleProvider>);`, {
     outfile:'calendar.js',
     alias:{'next/link':mock,'next/navigation':mock,'@/components/providers/auth-provider':mock},
   }, '*{box-sizing:border-box}body{margin:0;background:#07131e;font-family:Arial,sans-serif}h1,h2,h3,p{margin:0}button{border:0;background:transparent}a{text-decoration:none}button,input,select{font:inherit}');

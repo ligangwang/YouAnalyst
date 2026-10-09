@@ -1,9 +1,34 @@
 import {test,expect} from '@playwright/test';
 import {calendarFixtureHtml,calendarFixtures,fixtureDay} from './fixtures/calendar';
-import {shiftDay} from '../../src/lib/calendar/display';
+import {shiftDay,visibleDays} from '../../src/lib/calendar/display';
 
 let html:string;
 test.beforeAll(async()=>{html=await calendarFixtureHtml();});
+test('server calendar snapshot avoids a duplicate read and range changes still refresh',async({page})=>{
+  const days=visibleDays(fixtureDay,'month');
+  const body=await calendarFixtureHtml({events:calendarFixtures,total:calendarFixtures.length,truncated:false,from:days[0],to:days.at(-1)!,lastCollectedAt:null,collectionStatus:'collecting'});
+  let requests=0;
+  await page.route('http://calendar.test/**',route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname==='/api/calendar'){requests++;return route.fulfill({json:{events:[],total:0,truncated:false,from:url.searchParams.get('from'),to:url.searchParams.get('to'),lastCollectedAt:null,collectionStatus:'complete'}});}
+    return route.fulfill({contentType:'text/html',body});
+  });
+  await page.goto(`http://calendar.test/?date=${fixtureDay}`);
+  await expect(page.getByRole('status')).toHaveText('8 scheduled events in view');
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(null)))));
+  expect(requests).toBe(0);
+  await page.getByRole('button',{name:'Next period'}).click();
+  await expect(page.getByRole('status')).toHaveText('0 scheduled events in view');
+  expect(requests).toBe(1);
+});
+
+test('unavailable calendar data does not claim a known collection status',async({page})=>{
+  await page.route('http://calendar.test/**',route=>new URL(route.request().url()).pathname==='/api/calendar'?route.fulfill({status:503,json:{error:'Unavailable'}}):route.fulfill({contentType:'text/html',body:html}));
+  await page.goto('http://calendar.test/');
+  await expect(page.getByRole('status')).toContainText('Schedules could not be refreshed.');
+  await expect(page.getByText('Collection is in progress; this calendar includes announced dates and does not yet cover every company.',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Schedule collection is starting; announced dates will appear as sources are processed.',{exact:true})).toHaveCount(0);
+});
 test('a news calendar link opens the specified day and company in the agenda',async({page})=>{
   const day='2026-11-03';
   const linked={...calendarFixtures[0],scheduled_date:day,scheduled_at:`${day}T21:00:00Z`,confirmation:'extracted',validationWarnings:['Market session is not established by the source']};
