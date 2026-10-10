@@ -26,7 +26,7 @@ export type IntelligenceSnapshot = { eventReturns?: Record<string,import("./pric
   graph:KnowledgeGraph; graphVersion:string; events:IntelligenceEvent[]; generatedAt:string;
   session:{date:string;timeZone:'America/New_York';startAt:string;endAt:string};
   coverage:{channel:IntelligenceSource;status:'connected'|'stored_evidence'|'unavailable'}[];
-  newsCoverage?:{configured:number;healthy:number;total:number};
+  newsCoverage?:{configured:number;healthy:number;total:number;companyIds?:string[];configuredCompanyIds?:string[];healthyCompanyIds?:string[]};
   sourceDocuments?:IntelligenceSourceDocument[]; statisticsComplete?:boolean;
   warnings:string[]; truncated:boolean; limit:number;
 };

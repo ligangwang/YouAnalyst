@@ -222,6 +222,20 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await expect(page.locator('[data-list-company="US:AMD"]')).toHaveAttribute('data-selected','true');
 });
 
+test('region selection filters company lists between China A-shares and US stocks',async({page})=>{
+  await page.setViewportSize({width:1500,height:900});
+  await page.goto('/en?view=table&region=CN_A');
+  const region=page.getByRole('combobox',{name:'Region',exact:true});
+  await expect(region).toHaveValue('CN_A');
+  const companies=page.locator('[data-list-company]');
+  await expect(companies.first()).toBeVisible();
+  expect(await companies.evaluateAll(rows=>rows.every(row=>/^(XSHG:|XSHE:)/.test(row.getAttribute('data-list-company')||'')))).toBe(true);
+  await region.selectOption('US');
+  await expect(companies.first()).toBeVisible();
+  await expect.poll(()=>companies.evaluateAll(rows=>rows.every(row=>(row.getAttribute('data-list-company')||'').startsWith('US:')))).toBe(true);
+  await region.selectOption('');await expect(page).not.toHaveURL(/region=/);
+});
+
 test("global map companies open localized profiles", async ({ page, request }) => {
   const response = await request.get("/api/knowledge-graph");
   expect(response.ok()).toBeTruthy();

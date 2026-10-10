@@ -75,7 +75,7 @@ test('enabled official news arrives through the shared snapshot with current sou
     const service=await isolated(db,async()=>graph);
     const snapshot=await service.loadIntelligenceSnapshot(now);
     assert.equal(snapshot.coverage.find(item=>item.channel==='IR')?.status,'connected');
-    assert.deepEqual(snapshot.newsCoverage,{configured:2,healthy:2,total:2});
+    assert.deepEqual(snapshot.newsCoverage,{configured:2,healthy:2,total:2,companyIds:graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id),configuredCompanyIds:graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id),healthyCompanyIds:graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id)});
     assert.deepEqual(filters.slice(0,3),[['type','==','company_news'],['sourceType','==','company_ir'],['published_at','>=','2026-09-03T00:00:00.000Z']]);
     const arrival=snapshot.events.find(event=>event.id==='news-amd-release');assert.ok(arrival);
     assert.equal(arrival.published_at,'2026-10-02T12:05:00.000Z');assert.equal('collected_at' in arrival,false);assert.equal('processed_at' in arrival,false);assert.equal(arrival.evidence[0].channel,'IR');assert.deepEqual(arrival.edgeIds,[]);
