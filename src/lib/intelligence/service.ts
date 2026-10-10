@@ -22,6 +22,20 @@ const requests=new Map<CompanyThemeId,Promise<IntelligenceSnapshot>>();
 const periods=new WeakMap<IntelligenceSnapshot,IntelligenceSnapshot['events']>();
 const companyRequests=new WeakMap<IntelligenceSnapshot,Map<string,Promise<IntelligenceSnapshot>>>();
 
+/** The directory can render without waiting for source reads or price enrichment. */
+export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyThemeId='ai'):Promise<IntelligenceSnapshot>{
+  const cached=caches.get(theme);
+  if(cached&&cached.expires>now.getTime()&&cached.value.session.date===intelligenceSession(now).date)return cached.value;
+  const graph=await loadUniverseGraph(theme);
+  return {theme,graph,graphVersion:createHash('sha256').update(JSON.stringify(graph)).digest('hex'),events:[],sourceDocuments:[],eventsPending:true,statisticsComplete:false,generatedAt:now.toISOString(),session:intelligenceSession(now),coverage:[],warnings:[],truncated:false,limit:LIMIT};
+}
+
+async function loadUniverseGraph(theme:CompanyThemeId){
+  return process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'
+    ?await fetch(`https://youanalyst.com/api/knowledge-graph?theme=${theme}`,{cache:'no-store',signal:AbortSignal.timeout(15_000)}).then(async response=>{if(!response.ok)throw new Error('Published graph unavailable');return await response.json() as Awaited<ReturnType<typeof loadKnowledgeGraph>>;})
+    :await (theme==='ai'?loadKnowledgeGraph():loadThemeGraph(theme));
+}
+
 export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company=''):Promise<IntelligenceSnapshot>{
   const base=await loadIntelligenceSnapshot(now,theme);
   if(!company)return base;
@@ -52,9 +66,7 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
   if(cached&&cached.expires>now.getTime()&&cached.value.session.date===session.date)return cached.value;
   if(pending)return pending;
   const request=(async()=>{
-    const graph=process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'
-      ?await fetch(`https://youanalyst.com/api/knowledge-graph?theme=${theme}`,{cache:'no-store',signal:AbortSignal.timeout(15_000)}).then(async response=>{if(!response.ok)throw new Error('Published graph unavailable');return await response.json() as Awaited<ReturnType<typeof loadKnowledgeGraph>>;})
-      :await (theme==='ai'?loadKnowledgeGraph():loadThemeGraph(theme));
+    const graph=await loadUniverseGraph(theme);
     const warnings:string[]=[];
     let statisticsComplete=true;
     let filings:ReturnType<typeof projectSecIntelligence>=[],secAvailable=false,secFresh=false,truncated=false;

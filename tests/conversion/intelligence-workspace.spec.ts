@@ -19,8 +19,8 @@ const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],source
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
-async function workspaceFixture(realCharts=false,fixture=snapshot){
-  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence initialSnapshot={${JSON.stringify(fixture)}}/>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
+async function workspaceFixture(realCharts=false,fixture=snapshot,initial=true){
+  return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';createRoot(document.getElementById('root')).render(<LiveInvestmentIntelligence ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
     build.onResolve({filter:realCharts?/(?:locale-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
     build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
   }},...(realCharts?[tourClockPlugin]:[])]},'body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}');
@@ -40,6 +40,50 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
+
+test('universe is usable before events arrive and pending totals are not zero counts',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false);
+ const bootstrap={...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true,statisticsComplete:false};
+ let release!:()=>void;const ready=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/intelligence')){
+   if(new URL(route.request().url()).searchParams.get('section')==='universe')return route.fulfill({json:bootstrap});
+   await ready;return route.fulfill({json:snapshot});
+  }
+  return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=table');
+ const panel=page.getByRole('complementary',{name:'Events and sources'});
+ await expect(panel.getByText('Loading events and sources…')).toBeVisible();
+ const companyList=page.getByRole('region',{name:'Company list',exact:true});
+ await expect(companyList.getByRole('button',{name:'Micron',exact:true})).toBeVisible();
+ await expect(panel.getByText('0 loaded source documents',{exact:true})).toHaveCount(0);
+ await expect(panel.getByText('No new events in the available records today.')).toHaveCount(0);
+ await companyList.getByRole('button',{name:'Micron',exact:true}).click();
+ await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Micron');
+ release();
+ await expect(panel.getByRole('button',{name:/Published company update 1 /})).toBeVisible();
+ await expect(panel.getByText('Loading events and sources…')).toHaveCount(0);
+ await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Micron');
+});
+
+test('late universe response cannot replace a completed event feed',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false);
+ let release!:()=>void;const ready=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/intelligence')){
+   if(new URL(route.request().url()).searchParams.get('section')==='universe'){await ready;return route.fulfill({json:{...snapshot,events:[],sourceDocuments:[],eventsPending:true}});}
+   return route.fulfill({json:snapshot});
+  }
+  return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=table');
+ const panel=page.getByRole('complementary',{name:'Events and sources'});
+ await expect(panel.getByText('200 loaded source documents',{exact:true})).toBeVisible();
+ release();await page.waitForTimeout(100);
+ await expect(panel.getByText('200 loaded source documents',{exact:true})).toBeVisible();
+ await expect(panel.getByText('Loading events and sources…')).toHaveCount(0);
+});
 
 for(const zh of [false,true])test('grouped announcement shows one event, two source documents and both reference links in '+(zh?'Chinese':'English'),async({page})=>{
  const title='AMD to Report Fiscal Third Quarter 2026 Financial Results';
