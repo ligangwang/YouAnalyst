@@ -13,6 +13,7 @@ import { loadCollectedNews } from './collectors/projection';
 import {loadMapDisclosures} from '../events/disclosure-projection';
 import {attachPricePerformance} from './price-performance-service';
 import {attachCalendarLinks} from '../calendar/intelligence-links';
+import {groupCompanyAnnouncements} from './announcement-grouping';
 
 const LIMIT=200,CACHE_MS=60_000;
 const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;expires:number}>();
@@ -31,17 +32,14 @@ export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:Compa
   const pending=requests.get(id);if(pending)return pending;
   const request=(async()=>{
     const matching=(periods.get(base)??base.events).filter(event=>event.companyIds.includes(id));
-    let events=matching.slice(0,LIMIT);
-    const warnings=[...base.warnings];
+    const events=matching.slice(0,LIMIT);
     let eventReturns:IntelligenceSnapshot['eventReturns']={};
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
-      try{events=await attachCalendarLinks(getAdminFirestore(),events);}
-      catch(error){console.error('Company intelligence calendar links unavailable',error);if(!warnings.includes('Calendar event links are temporarily unavailable.'))warnings.push('Calendar event links are temporarily unavailable.');}
       // Only the selected company needs return enrichment; retain the shared graph.
       const graph={...base.graph,nodes:base.graph.nodes.filter(node=>node.id===id)};
       eventReturns=(await attachPricePerformance(getAdminFirestore(),graph,events,now)).eventReturns;
     }
-    return {...base,events,eventReturns,warnings,truncated:matching.length>LIMIT};
+    return {...base,events,eventReturns,truncated:matching.length>LIMIT};
   })();
   requests.set(id,request);
   try{return await request;}catch(error){requests.delete(id);throw error;}
@@ -102,11 +100,13 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
       truncated=truncated||disclosures.truncated;
     }catch(error){statisticsComplete=false;console.error('Map disclosure feed unavailable',error);warnings.push('Company disclosure arrivals are temporarily unavailable.');}
     // A discovery and a research citation of the same filing are one document.
-    const ordered=mergeIntelligenceEvents([...filings,...(news?.events??[]),...(disclosures?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date).sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
-    let events=ordered.slice(0,LIMIT);truncated=truncated||ordered.length>LIMIT;
+    let ordered=mergeIntelligenceEvents([...filings,...(news?.events??[]),...(disclosures?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date);
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
-      events=await attachCalendarLinks(getAdminFirestore(),events);
+      // Resolve every candidate's schedules before grouping or limiting the feed.
+      ordered=groupCompanyAnnouncements(await attachCalendarLinks(getAdminFirestore(),ordered));
     }catch(error){console.error('Intelligence calendar links unavailable',error);warnings.push('Calendar event links are temporarily unavailable.');}
+    ordered.sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
+    const events=ordered.slice(0,LIMIT);truncated=truncated||ordered.length>LIMIT;
     let priced={graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
       priced=await attachPricePerformance(getAdminFirestore(),graph,events,now);

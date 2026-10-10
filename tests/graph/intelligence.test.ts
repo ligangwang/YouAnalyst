@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { canonicalEvidenceUrl, intelligenceSession, observation, secCollectorIsFresh, sourceChannel, summarizeIntelligence, sourceDocumentsForEvents, intelligenceEventMatchesId, type IntelligenceEvent } from '../../src/lib/intelligence/model';
+import {groupCompanyAnnouncements} from '../../src/lib/intelligence/announcement-grouping';
 import { mergeIntelligenceEvents, projectResearchIntelligence } from '../../src/lib/intelligence/project';
 import { projectSecIntelligence } from '../../src/lib/intelligence/sec-events';
 import { createSecFilingDiscovered } from '../../src/lib/sec-filings/event';
@@ -14,13 +15,13 @@ test('matching official announcements become one event with two source documents
   const ir=announcement('ir','https://ir.amd.com/release');
   const newsroom={...announcement('newsroom','https://newsroom.amd.com/release'),published_at:'2026-10-06T00:00:00.000Z',publication_date:'2026-10-05',title:' AMD to Report Fiscal Third Quarter 2026  Financial Results '};
   const input=structuredClone([ir,newsroom]);
-  const [grouped]=mergeIntelligenceEvents(input,[]);
-  assert.equal(mergeIntelligenceEvents(input,[]).length,1);
+  const [grouped]=groupCompanyAnnouncements(mergeIntelligenceEvents(input,[]));
+  assert.equal(groupCompanyAnnouncements(mergeIntelligenceEvents(input,[])).length,1);
   assert.equal(grouped.evidence.length,2);assert.equal(grouped.published_at,ir.published_at);assert.equal(grouped.publication_date,'2026-10-06');
   assert.equal(summarizeIntelligence([grouped],['US:AMD'],'').signals,2);
   assert.equal(sourceDocumentsForEvents([grouped]).length,2);
   assert(intelligenceEventMatchesId(grouped,ir.id));assert(intelligenceEventMatchesId(grouped,newsroom.id));
-  const reversed=mergeIntelligenceEvents([newsroom,ir],[])[0];assert.equal(reversed.id,grouped.id);assert.equal(reversed.published_at,grouped.published_at);
+  const reversed=groupCompanyAnnouncements(mergeIntelligenceEvents([newsroom,ir],[]))[0];assert.equal(reversed.id,grouped.id);assert.equal(reversed.published_at,grouped.published_at);
   assert.deepEqual(input,[ir,newsroom]);
 });
 
@@ -35,18 +36,18 @@ test('announcement grouping leaves generic, conflicting, translated-only and oth
     {...b,category:'FILING' as const},
     {...b,published_at:'2026-10-09T20:15:00.000Z'},
     {...b,evidence:[{...b.evidence[0],sourceDate:null}]},
-  ])assert.equal(mergeIntelligenceEvents([a,changed],[]).length,2);
-  assert.equal(mergeIntelligenceEvents([{...a,title:'Company update'},{...b,title:'Company update'}],[]).length,2);
+  ])assert.equal(groupCompanyAnnouncements(mergeIntelligenceEvents([a,changed],[])).length,2);
+  assert.equal(groupCompanyAnnouncements(mergeIntelligenceEvents([{...a,title:'Company update'},{...b,title:'Company update'}],[])).length,2);
   const generic='AMD General Business Update for Shareholders and Investors';
-  assert.equal(mergeIntelligenceEvents([{...a,title:generic},{...b,title:generic}],[]).length,2);
-  assert.equal(mergeIntelligenceEvents([{...a,summary:'Results will be published November 3.'},{...b,summary:'Results will be published November 4.'}],[]).length,2);
-  assert.equal(mergeIntelligenceEvents([{...a,calendarEvents:[{id:'one',companyId:'US:AMD',day:'2026-11-03'}]},{...b,calendarEvents:[{id:'two',companyId:'US:AMD',day:'2026-11-04'}]}],[]).length,2);
+  assert.equal(groupCompanyAnnouncements(mergeIntelligenceEvents([{...a,title:generic},{...b,title:generic}],[])).length,2);
+  assert.equal(groupCompanyAnnouncements(mergeIntelligenceEvents([{...a,summary:'Results will be published November 3.'},{...b,summary:'Results will be published November 4.'}],[])).length,2);
+  assert.equal(groupCompanyAnnouncements(mergeIntelligenceEvents([{...a,calendarEvents:[{id:'one',companyId:'US:AMD',day:'2026-11-03'}]},{...b,calendarEvents:[{id:'two',companyId:'US:AMD',day:'2026-11-04'}]}],[])).length,2);
 });
 
 test('a publisher date without an invented time wins over an inconsistent midnight timestamp',()=>{
   const dated={...announcement('dated','https://ir.amd.com/dated'),published_at:null};
   const alias={...announcement('alias','https://newsroom.amd.com/alias'),published_at:'2026-10-06T00:00:00.000Z',publication_date:'2026-10-05'};
-  const grouped=mergeIntelligenceEvents([alias,dated],[])[0];
+  const grouped=groupCompanyAnnouncements(mergeIntelligenceEvents([alias,dated],[]))[0];
   assert.equal(grouped.publication_date,'2026-10-06');assert.equal(grouped.published_at,null);
 });
 
@@ -54,7 +55,7 @@ test('grouped announcements retain translations, documented paths, distinct cale
   const a={...announcement('a','https://ir.amd.com/release?utm_source=ir'),titleZh:'AMD将公布财务业绩',edgeIds:['relationship-a'],calendarEvents:[{id:'call',companyId:'US:AMD',day:'2026-11-03'}]};
   const b={...announcement('b','https://newsroom.amd.com/release'),edgeIds:['relationship-b'],summary:'Results will be published November 3.',calendarEvents:[{id:'call',companyId:'US:AMD',day:'2026-11-03'},{id:'release',companyId:'US:AMD',day:'2026-11-03'}]};
   const c=announcement('c','https://ir.amd.com/release?utm_source=news');
-  const [grouped]=mergeIntelligenceEvents([a,b,c],[]);
+  const [grouped]=groupCompanyAnnouncements(mergeIntelligenceEvents([a,b,c],[]));
   assert.equal(grouped.evidence.length,2);assert.equal(grouped.titleZh,a.titleZh);assert.equal(grouped.summary,b.summary);
   assert.deepEqual(new Set(grouped.edgeIds),new Set(['relationship-a','relationship-b']));
   assert.deepEqual(grouped.calendarEvents?.map(link=>link.id),['call','release']);

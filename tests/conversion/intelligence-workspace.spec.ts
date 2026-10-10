@@ -5,6 +5,7 @@ import path from 'node:path';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
 import {sourceDocumentsForEvents} from '../../src/lib/intelligence/model';
 import {mergeIntelligenceEvents} from '../../src/lib/intelligence/project';
+import {groupCompanyAnnouncements} from '../../src/lib/intelligence/announcement-grouping';
 import {accelerateTours,tourClockPlugin} from './fixtures/tour-clock';
 
 const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',summaryZh:'通信设备供应商。',kind:'COMPANY',order:1,stageIds:['optics']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']},{id:'US:MEM',symbol:'MEM',name:'Memory Supplier',summary:'Memory partner',kind:'COMPANY',order:4,stageIds:['memory']}];
@@ -44,7 +45,7 @@ for(const zh of [false,true])test('grouped announcement shows one event, two sou
  const title='AMD to Report Fiscal Third Quarter 2026 Financial Results';
  const a={...events[0],id:'news-company_news_ir',origin:'US:AMD',companyIds:['US:AMD'],title,titleZh:'AMD将公布2026财年第三季度财务业绩',summary:'Official company news. Open the source for details.',publication_date:'2026-10-02',published_at:'2026-10-02T20:15:00.000Z',eventDate:'2026-10-02',evidence:[{id:'company_news_ir',title,url:'https://ir.amd.com/release',sourceDate:'2026-10-02',channel:'IR'}],calendarEvents:[{id:'scheduled_event_amd_call',companyId:'US:AMD',day:'2026-11-03'}]} as IntelligenceSnapshot['events'][number];
  const b={...a,id:'news-company_news_newsroom',published_at:'2026-10-02T00:00:00.000Z',publication_date:'2026-10-01',evidence:[{...a.evidence[0],id:'company_news_newsroom',url:'https://newsroom.amd.com/release'}]};
- const grouped=mergeIntelligenceEvents([a,b],[]);
+ const grouped=groupCompanyAnnouncements(mergeIntelligenceEvents([a,b],[]));
  const fixture={...snapshot,events:grouped,sourceDocuments:sourceDocumentsForEvents(grouped),graph:{...snapshot.graph,nodes:[...companies,{id:'US:AMD',symbol:'AMD',name:'AMD',kind:'COMPANY',stageIds:['compute']}]}} as IntelligenceSnapshot;
  await open(page,zh,fixture);
  const panel=page.getByRole('complementary',{name:'Events and sources'}),label=zh?a.titleZh!:title;
