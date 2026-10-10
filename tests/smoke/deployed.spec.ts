@@ -213,7 +213,9 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await page.reload();
   await expect(page.getByRole('button',{name:'Filter to active companies'})).toContainText(`/ ${count}`);
   await page.goto('/en?event=amd-anthropic-mi450-20260722');
-  const selected=page.getByRole('region',{name:'Selected sources'});
+  const selected=page.getByRole('region',{name:'Company details',exact:true});
+  await expect(selected.locator('[data-card-drag]')).toBeVisible();
+  await expect(page.locator('[class*="eventOverlay"]')).toHaveCount(0);
   await expect(selected.getByRole('link',{name:/AMD · Anthropic strategic partnership/})).toBeVisible();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await expect(selected.getByRole('link',{name:/AMD · Anthropic strategic partnership/})).toBeVisible();
