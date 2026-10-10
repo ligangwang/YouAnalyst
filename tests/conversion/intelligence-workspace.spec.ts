@@ -59,7 +59,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await expect(documents).toContainText('2');await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(2);
  await expect(news).toContainText('1/1');await expect(panel.locator('a[href*="event=cn-calendar"]')).toHaveCount(0);
  await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);
- await expect(page.getByLabel('Theme activity summary').getByRole('img')).toHaveCount(0);
+ await expect(page.getByLabel('Theme activity summary').locator('span[role=img]')).toHaveCount(0);
  await expect(panel.getByRole('button',{name:/Market event private|Market event shanghai|Market event shenzhen/})).toHaveCount(0);
  await panel.getByRole('button',{name:/Market event mixed/}).click();
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toBeVisible();
@@ -70,7 +70,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await expect(news).toContainText('2/2');await expect(panel.locator('a[href*="event=us-calendar"]')).toHaveCount(0);
  await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(0);
  await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);
- await expect(page.getByLabel('Theme activity summary').getByRole('img')).toHaveCount(1);
+ await expect(page.getByLabel('Theme activity summary').locator('span[role=img]')).toHaveCount(1);
  await expect(panel.getByRole('button',{name:/Market event mixed/})).toBeVisible();
  await panel.getByRole('button',{name:/Market event mixed/}).click();
  const mixedCard=page.getByRole('region',{name:'Company details',exact:true});await expect(mixedCard.locator('[data-card-drag]')).toContainText('Piotech');await expect(mixedCard).toContainText('+20.00%');await expect(mixedCard).not.toContainText('+10.00%');await mixedCard.press('Escape');
