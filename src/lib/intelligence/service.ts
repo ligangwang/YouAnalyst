@@ -60,7 +60,8 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
       const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY'&&(theme!=='ai'||node.id.startsWith('US:'))).map(node=>node.id);
       const configured=new Set(news.configuredCompanyIds);
       const covered=companyIds.filter(id=>configured.has(id)).length;
-      newsCoverage={configured:covered,total:companyIds.length,healthy:companyIds.filter(id=>news!.healthyCompanyIds.includes(id)).length};
+      const configuredCompanyIds=companyIds.filter(id=>configured.has(id)),healthyCompanyIds=companyIds.filter(id=>news!.healthyCompanyIds.includes(id));
+      newsCoverage={configured:covered,total:companyIds.length,healthy:healthyCompanyIds.length,companyIds,configuredCompanyIds,healthyCompanyIds};
       if(covered<companyIds.length)warnings.push(`Verified IR/news feeds cover ${covered} of ${companyIds.length} ${theme==='ai'?'US-listed ':''}${themeName(theme)} Map companies. US-listed companies use SEC disclosures and Chinese issuers use exchange filings; other companies require supported official-news adapters.`);
       truncated=truncated||news.truncated;
       if(!news.fresh)warnings.push(`Company news collector freshness is unverified: ${news.unhealthy.join(', ')}.`);
