@@ -52,6 +52,17 @@ test('unavailable SEC reads preserve real evidence and explicitly disclose parti
   assert(snapshot.warnings.some(warning=>warning.includes('temporarily unavailable')));
 });
 
+test('universe bootstrap needs only the graph and never reports empty sources as complete',async()=>{
+ const service=await isolated({collection:()=>{throw new Error('Feed must not be read by bootstrap');}},async()=>graph);
+ const universe=await service.loadIntelligenceUniverse(now);
+ assert.equal(universe.graph,graph);
+ assert.equal(universe.eventsPending,true);
+ assert.equal(universe.statisticsComplete,false);
+ assert.deepEqual(universe.events,[]);
+ assert.deepEqual(universe.coverage,[]);
+ assert.equal(universe.session.date,'2026-10-02');
+});
+
 test('graph failure rejects the snapshot instead of returning a mock universe',async()=>{
   const service=await isolated({},async()=>{throw new Error('real graph unavailable');});
   await assert.rejects(service.loadIntelligenceSnapshot(now),/real graph unavailable/);

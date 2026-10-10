@@ -16,6 +16,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const selectedEvent = useIndustryBrowseParam('event');
   const selectedRelationship = useIndustryBrowseParam('relationship');
   const [snapshot, setSnapshot] = useState<IntelligenceSnapshot | null>(initialSnapshot ?? null);
+  const bootstrapRequired = useRef(!initialSnapshot || Boolean(initialSnapshot.eventsPending));
   const themeSnapshots = useRef(new Map<CompanyThemeId, IntelligenceSnapshot>(
     initialSnapshot ? [[parseCompanyTheme(initialSnapshot.theme), initialSnapshot]] : [],
   ));
@@ -28,10 +29,27 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   useEffect(() => {
     let disposed = false, inFlight = false;
     let controller: AbortController | null = null;
+    const universeController = new AbortController();
     const isCurrentTheme = () => {
       const params = new URLSearchParams(window.location.search);
       return !disposed && parseCompanyTheme(params.get('theme')) === theme && (themeIntent.current === theme || feedCompany(params) === company);
     };
+    // Start the directory independently. A late bootstrap must never replace
+    // a complete feed or a response belonging to another theme/company.
+    if (bootstrapRequired.current) {
+      const universeTimeout = setTimeout(() => universeController.abort(), 15_000);
+      void fetch(`/api/intelligence?theme=${theme}&section=universe`, {cache:'no-store',signal:universeController.signal})
+        .then(async response => {
+          if (!response.ok) return;
+          const data:IntelligenceSnapshot = await response.json();
+          if ((data.theme??'ai')!==theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt || !isCurrentTheme()) return;
+          const cached=themeSnapshots.current.get(theme);
+          if(!cached||cached.eventsPending)themeSnapshots.current.set(theme,data);
+          setSnapshot(current => current && !current.eventsPending ? current : data);
+        })
+        .catch(() => {}) // The full request owns the retry/error state.
+        .finally(() => clearTimeout(universeTimeout));
+    }
     const refresh = async () => {
       if (disposed || inFlight || document.visibilityState === 'hidden') return;
       inFlight = true;
@@ -52,6 +70,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
             updateIndustryBrowse(clearedThemeSelection);
           }
           snapshotScope.current = company;
+          bootstrapRequired.current = false;
           setSnapshot(next);
           setError('');
         }
@@ -70,6 +89,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     return () => {
       disposed = true;
       controller?.abort();
+      universeController.abort();
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
