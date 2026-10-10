@@ -21,3 +21,8 @@
 .eventOverlay a{color:inherit;text-decoration:underline;text-underline-offset:3px}.eventOverlay a:hover{color:var(--accent)}.eventOverlay a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:2px}
 
 .eventList small>span:last-child{margin-left:auto}
+.companyList>.selectedCompany{background:#173c42;box-shadow:inset 4px 0 #9ff4e1,inset 0 0 0 1px #77dcca}
+.companyList>.selectedCompany>button:first-child,.companyList>.selectedCompany span{color:#edfff9;font-weight:700}
+.companyList>.selectedCompany strong{color:#a8ffeb;font-weight:800}
+.sectors button[aria-pressed=true]{background:#173c42;box-shadow:inset 4px 0 #9ff4e1,inset 0 0 0 1px #77dcca;color:#edfff9;font-weight:700}
+.sectors button[aria-pressed=true] small{color:#a8ffeb;font-weight:700}

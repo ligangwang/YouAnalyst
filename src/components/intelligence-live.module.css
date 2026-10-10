@@ -15,6 +15,8 @@
 .windowControls { display:flex; gap:8px; padding:0 10px 8px; }
 .windowControls button { padding:5px 7px; font-size:10px; color:#9ab0c3; }
 .windowControls button[aria-pressed=true] { background:#203a3e; color:#98e7d6; }
+.windowControls { flex-wrap:wrap; }
+.windowControls .companyFilter { border:1px solid #98e7d6; color:#e8fff9; background:#244c4d; font-weight:700; }
 .regionWorkspace { --left-panel-width:260px; }
 .browseSelectors { display:grid; grid-template-columns:1fr 1.05fr; gap:8px; margin:0 10px 12px; flex-shrink:0; }
 .browseSelectors>div,.regionFilter { min-width:0; }
@@ -23,6 +25,7 @@
 .browseSelectors small { font-size:10px; }
 .regionFilter select { width:100%; min-width:0; height:42px; padding:7px 6px; border:1px solid #2a414f; border-radius:7px; background:#162d35; color:#98e7d6; font:inherit; font-size:11px; cursor:pointer; }
 .regionFilter select:focus-visible { outline:2px solid #98e7d6; outline-offset:2px; }
+.regionFilter select[data-filtered=true] { border-color:#98e7d6; color:#edfff9; font-weight:700; box-shadow:inset 3px 0 #98e7d6; }
 @media(min-width:851px) and (max-width:1150px){.regionWorkspace{--left-panel-width:210px}.browseSelectors{grid-template-columns:1fr}}
 @media(max-width:850px){.browseSelectors{grid-template-columns:1fr}.browseSelectors>div>label,.regionFilter select{height:40px}.selectorLabel{margin:2px 0 4px}}
 .dates { color:#849bae; font-size:9px; line-height:1.7; }
