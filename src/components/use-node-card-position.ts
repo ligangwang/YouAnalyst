@@ -1,12 +1,12 @@
 "use client";
 import {useLayoutEffect,useRef} from 'react';
 // Open near a company click when provided; keep manual placement until the next click.
-export function useNodeCardPosition(companyId:string,kind:'graph'|'tree'|'workspace',enabled=true,anchor?:{x:number;y:number}|null,placement:'auto'|'top-right'='auto'){
+export function useNodeCardPosition(companyId:string,kind:'graph'|'tree'|'workspace',enabled=true,anchor?:{x:number;y:number}|null,placement:'auto'|'top-right'='auto',selectionId=companyId){
  const card=useRef<HTMLElement>(null),position=useRef<{x:number;y:number}|null>(null);
  useLayoutEffect(()=>{
   // Start each company at the top of its details.
   const el=card.current;if(el){el.scrollTop=0;el.scrollLeft=0;}
- },[companyId]);
+ },[selectionId]);
  useLayoutEffect(()=>{
   const el=card.current;if(!el||!enabled)return;
   const host=el.closest<HTMLElement>(kind==='workspace'?'[data-company-workspace]':kind==='tree'?'[data-industry-tree]':'[data-view="graph"]');if(!host)return;
@@ -30,6 +30,6 @@ export function useNodeCardPosition(companyId:string,kind:'graph'|'tree'|'worksp
   const key=(e:KeyboardEvent)=>{if(!(e.target instanceof Element)||!e.target.matches('[data-card-drag]'))return;const d=({ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]} as Record<string,number[]>)[e.key];if(d){e.preventDefault();position.current={x:(parseFloat(el.style.left)||0)+d[0],y:(parseFloat(el.style.top)||0)+d[1]};}};
   el.addEventListener('pointerdown',down);el.addEventListener('pointermove',move);el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up);el.addEventListener('keydown',key);place();
   return()=>{cancelAnimationFrame(frame);el.removeEventListener('pointerdown',down);el.removeEventListener('pointermove',move);el.removeEventListener('pointerup',up);el.removeEventListener('pointercancel',up);el.removeEventListener('keydown',key);for(const property of ['left','top','right','bottom','width','max-height'])el.style.removeProperty(property);delete el.dataset.nodeCard;};
- },[companyId,kind,enabled,anchor,placement]);
+ },[companyId,kind,enabled,anchor,placement,selectionId]);
  return card;
 }
