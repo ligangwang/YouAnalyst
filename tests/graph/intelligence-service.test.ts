@@ -100,6 +100,17 @@ test('full-period statistics include sources beyond the 200-entry feed and pagin
   assert.equal(snapshot.sourceDocuments?.length,622);assert.deepEqual(reads,[0,500]);
   assert.equal(summarizeIntelligence(snapshot.events,['US:OLD'],'').events.length,0);
   assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:OLD'],'').signals,1);
+  const [older,repeatedOlder]=await Promise.all([service.loadCompanyIntelligenceSnapshot(now,'ai','US:OLD'),service.loadCompanyIntelligenceSnapshot(now,'ai','OLD')]);
+  assert.equal(older,repeatedOlder);
+  assert.equal(older.events.length,1);assert(older.events[0].companyIds.includes('US:OLD'));
+  assert.equal(older.truncated,false);assert.equal(older.graph,snapshot.graph);
+  assert.equal(older.sourceDocuments,snapshot.sourceDocuments);
+  const amd=await service.loadCompanyIntelligenceSnapshot(now,'ai','AMD');
+  assert.equal(amd.events.length,200);assert(amd.events.every(event=>event.companyIds.includes('US:AMD')));
+  assert.equal(amd.truncated,true);
+  assert.equal((await service.loadCompanyIntelligenceSnapshot(now,'ai','NOT_IN_THEME')).events.length,0);
+  assert.equal((await service.loadCompanyIntelligenceSnapshot(now)).events.length,200);
+  assert.deepEqual(reads,[0,500]);
   const stats=summarizeSourceDocuments(snapshot.sourceDocuments!,['US:AMD'],'SEC');
   assert.equal(stats.signals,311);assert.equal(stats.sources.find(source=>source.name==='SEC')?.count,311);
   assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:MU'],'IR').signals,0);

@@ -17,6 +17,35 @@ import {attachCalendarLinks} from '../calendar/intelligence-links';
 const LIMIT=200,CACHE_MS=60_000;
 const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;expires:number}>();
 const requests=new Map<CompanyThemeId,Promise<IntelligenceSnapshot>>();
+// Retain the full period privately; company feeds reuse the same database read.
+const periods=new WeakMap<IntelligenceSnapshot,IntelligenceSnapshot['events']>();
+const companyRequests=new WeakMap<IntelligenceSnapshot,Map<string,Promise<IntelligenceSnapshot>>>();
+
+export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company=''):Promise<IntelligenceSnapshot>{
+  const base=await loadIntelligenceSnapshot(now,theme);
+  if(!company)return base;
+  const id=company.includes(':')?company.toUpperCase():`US:${company.toUpperCase()}`;
+  if(!base.graph.nodes.some(node=>node.kind==='COMPANY'&&node.id===id))return {...base,events:[],eventReturns:{},truncated:false};
+  let requests=companyRequests.get(base);
+  if(!requests){requests=new Map();companyRequests.set(base,requests);}
+  const pending=requests.get(id);if(pending)return pending;
+  const request=(async()=>{
+    const matching=(periods.get(base)??base.events).filter(event=>event.companyIds.includes(id));
+    let events=matching.slice(0,LIMIT);
+    const warnings=[...base.warnings];
+    let eventReturns:IntelligenceSnapshot['eventReturns']={};
+    if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
+      try{events=await attachCalendarLinks(getAdminFirestore(),events);}
+      catch(error){console.error('Company intelligence calendar links unavailable',error);if(!warnings.includes('Calendar event links are temporarily unavailable.'))warnings.push('Calendar event links are temporarily unavailable.');}
+      // Only the selected company needs return enrichment; retain the shared graph.
+      const graph={...base.graph,nodes:base.graph.nodes.filter(node=>node.id===id)};
+      eventReturns=(await attachPricePerformance(getAdminFirestore(),graph,events,now)).eventReturns;
+    }
+    return {...base,events,eventReturns,warnings,truncated:matching.length>LIMIT};
+  })();
+  requests.set(id,request);
+  try{return await request;}catch(error){requests.delete(id);throw error;}
+}
 
 /** One cached, paginated period read shared by browsers; only the event list is capped. */
 export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai'):Promise<IntelligenceSnapshot>{
@@ -87,6 +116,7 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     const evidenceChannels=new Set(graph.sources.map(source=>sourceChannel(source.url)));
     for(const event of ordered)for(const source of event.evidence)evidenceChannels.add(source.channel);
     const value:IntelligenceSnapshot={theme,graph:priced.graph,eventReturns:priced.eventReturns,graphVersion,events,sourceDocuments:sourceDocumentsForEvents(ordered),statisticsComplete,generatedAt:now.toISOString(),session,newsCoverage,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
+    periods.set(value,ordered);
     caches.set(theme,{value,expires:now.getTime()+CACHE_MS});
     return value;
   })();
