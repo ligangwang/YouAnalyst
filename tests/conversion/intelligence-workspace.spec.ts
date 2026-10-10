@@ -3,6 +3,8 @@ import {componentFixtureHtml} from './fixtures/component-html';
 import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import path from 'node:path';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
+import {sourceDocumentsForEvents} from '../../src/lib/intelligence/model';
+import {mergeIntelligenceEvents} from '../../src/lib/intelligence/project';
 import {accelerateTours,tourClockPlugin} from './fixtures/tour-clock';
 
 const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communication supplier',summaryZh:'通信设备供应商。',kind:'COMPANY',order:1,stageIds:['optics']},{id:'US:MULT',symbol:'MULT',name:'Multiple Systems',kind:'COMPANY',order:2,stageIds:['compute']},{id:'US:MU',symbol:'MU',name:'Micron',kind:'COMPANY',order:3,stageIds:['memory']},{id:'US:MEM',symbol:'MEM',name:'Memory Supplier',summary:'Memory partner',kind:'COMPANY',order:4,stageIds:['memory']}];
@@ -37,6 +39,28 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
+
+for(const zh of [false,true])test('grouped announcement shows one event, two source documents and both reference links in '+(zh?'Chinese':'English'),async({page})=>{
+ const title='AMD to Report Fiscal Third Quarter 2026 Financial Results';
+ const a={...events[0],id:'news-company_news_ir',origin:'US:AMD',companyIds:['US:AMD'],title,titleZh:'AMD将公布2026财年第三季度财务业绩',summary:'Official company news. Open the source for details.',publication_date:'2026-10-02',published_at:'2026-10-02T20:15:00.000Z',eventDate:'2026-10-02',evidence:[{id:'company_news_ir',title,url:'https://ir.amd.com/release',sourceDate:'2026-10-02',channel:'IR'}],calendarEvents:[{id:'scheduled_event_amd_call',companyId:'US:AMD',day:'2026-11-03'}]} as IntelligenceSnapshot['events'][number];
+ const b={...a,id:'news-company_news_newsroom',published_at:'2026-10-02T00:00:00.000Z',publication_date:'2026-10-01',evidence:[{...a.evidence[0],id:'company_news_newsroom',url:'https://newsroom.amd.com/release'}]};
+ const grouped=mergeIntelligenceEvents([a,b],[]);
+ const fixture={...snapshot,events:grouped,sourceDocuments:sourceDocumentsForEvents(grouped),graph:{...snapshot.graph,nodes:[...companies,{id:'US:AMD',symbol:'AMD',name:'AMD',kind:'COMPANY',stageIds:['compute']}]}} as IntelligenceSnapshot;
+ await open(page,zh,fixture);
+ const panel=page.getByRole('complementary',{name:'Events and sources'}),label=zh?a.titleZh!:title;
+ const row=panel.getByRole('button',{name:new RegExp(label)});
+ await expect(row).toHaveCount(1);await expect(row).toContainText(zh?'2 份来源文档':'2 source documents');
+ await expect(panel.getByText(zh?'2 份已加载来源文档':'2 loaded source documents',{exact:true})).toBeVisible();
+ await expect(panel.getByText(zh?'来源文档':'Source documents',{exact:true}).locator('..').locator('strong')).toHaveText('2');
+ await expect(panel.locator('a[href*="event=scheduled_event_amd_call"]')).toHaveCount(1);
+ await row.click();
+ const card=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(card.locator('a[href="https://ir.amd.com/release"]').first()).toBeVisible();
+ await expect(card.locator('a[href="https://newsroom.amd.com/release"]')).toHaveCount(1);
+ // A bookmark to the former duplicate still opens the grouped announcement.
+ await page.goto(`http://workspace.test/?${zh?'lang=zh-CN&':''}event=${b.id}&company=US%3AAMD`);
+ await expect(card).toContainText(label);await expect(row).toHaveAttribute('aria-pressed','true');
+});
 
 test('company feed fetches older matching documents before the global cap and restores the full feed',async({page})=>{
  const arm={id:'US:ARM',symbol:'ARM',name:'Arm',kind:'COMPANY',order:5,stageIds:['compute']};

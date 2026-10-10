@@ -1,5 +1,6 @@
 import type { KnowledgeGraph } from '../knowledge-graph/model';
 import type { BusinessEvent } from '../knowledge-graph/business-events';
+import { groupCompanyAnnouncements } from './announcement-grouping';
 import { canonicalEvidenceUrl, easternDate, observation, sourceChannel, type IntelligenceEvent, type IntelligenceEvidence } from './model';
 
 /** Clusters share an actual source URL. Co-mentions never create business edges. */
@@ -48,8 +49,8 @@ export function mergeIntelligenceEvents(filings:IntelligenceEvent[],research:Int
   filings=[...observed.values()];
   const byUrl=new Map(research.flatMap(event=>event.evidence.map(source=>[source.url,event] as const)));
   const filingUrls=new Set(filings.flatMap(event=>event.evidence.map(source=>source.url)));
-  return [...filings.map(filing=>{
+  return groupCompanyAnnouncements([...filings.map(filing=>{
     const related=filing.evidence.flatMap(source=>byUrl.has(source.url)?[byUrl.get(source.url)!]:[]);
     return {...filing,companyIds:[...new Set([...filing.companyIds,...related.flatMap(event=>event.companyIds)])],edgeIds:[...new Set([...filing.edgeIds,...related.flatMap(event=>event.edgeIds)])]};
-  }),...research.filter(event=>!event.evidence.some(source=>filingUrls.has(source.url)))];
+  }),...research.filter(event=>!event.evidence.some(source=>filingUrls.has(source.url)))]);
 }
