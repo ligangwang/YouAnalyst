@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingSpinner } from './loading-spinner';
 import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
@@ -672,7 +673,7 @@ export default function CompanyGraph3D(props: Props) {
   }, [attempt]);
   const fallback = <GraphUnavailable onRetry={retry}/>;
   if (!supported) return <div className={styles.canvas3d}>
-    {supported === null ? <p role="status" className={styles.empty}>{text("Loading graph…", "正在加载图谱…")}</p> : fallback}
+    {supported === null ? <p role="status" className={styles.empty}><LoadingSpinner/>{text("Loading graph…", "正在加载图谱…")}</p> : fallback}
     {props.musicControls && <UniverseMusicToggle/>}
   </div>;
   return <div ref={wheelGateRef} className={styles.canvas3d} data-graph-interaction data-context-lost={contextLost}

@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingSpinner } from './loading-spinner';
 import { useEffect, useState } from "react";
 import { useLocale } from "./providers/locale-provider";
 import { LocalizedLink as Link } from "./localized-link";
@@ -66,7 +67,7 @@ function PublicCalls({ ticker }: { ticker: string }) {
     <div className={styles.heading}><h3>{text("Analyst views", "分析师观点")}</h3><button type="button" aria-expanded={expanded} onClick={() => { setExpanded(value => !value); setCursor(null); setLoadingMore(false); }}>{expanded ? text("Show less", "收起") : text("View all", "查看全部")} {expanded ? "↑" : "→"}</button></div>
     {summary && summary.analysts > 0 && <ViewSummaryLine summary={summary} />}
     {failed ? <p role="status">{text("Views could not be loaded.", "暂时无法读取观点。")}{" "}<button type="button" onClick={() => setAttempt(value => value + 1)}>{text("Retry", "重试")}</button></p>
-      : items === null ? <p role="status">{text("Loading views…", "正在读取观点…")}</p>
+      : items === null ? <p role="status"><LoadingSpinner/>{text("Loading views…", "正在读取观点…")}</p>
       : items.length === 0 ? <p>{nextCursor ? text("No views in this preview. View all to browse more.", "当前预览暂无观点，可查看全部继续浏览。") : text("No analyst views yet. Publish one that cites the research.", "暂无分析师观点。欢迎发布一条引用研究依据的观点。")}</p>
       : (expanded ? items : items.slice(0, 3)).map(call => <article key={call.id} className={styles.call}>
         <div className={styles.meta}><Link className={call.direction === "UP" ? styles.bullish : styles.bearish} href={`/predictions/${encodeURIComponent(call.id)}`}>{call.direction === "UP" ? text("Bullish", "看多") : text("Bearish", "看空")}</Link><span>{call.authorNickname ? `@${call.authorNickname}` : call.authorDisplayName || text("Anonymous", "匿名")}</span>{call.createdAt && <RelativeTime value={call.createdAt} />}</div>
@@ -74,7 +75,7 @@ function PublicCalls({ ticker }: { ticker: string }) {
         <ViewEvidenceList evidence={call.evidence} compact />
         <PredictionReturnSummary prediction={call} status={call.status} />
       </article>)}
-    {expanded && nextCursor && <button type="button" disabled={loadingMore} onClick={() => { setLoadingMore(true); setCursor(nextCursor); }}>{loadingMore ? text("Loading views…", "正在读取观点…") : text("Load more", "加载更多")}</button>}
+    {expanded && nextCursor && <button type="button" disabled={loadingMore} onClick={() => { setLoadingMore(true); setCursor(nextCursor); }}>{loadingMore&&<LoadingSpinner/>}{loadingMore ? text("Loading views…", "正在读取观点…") : text("Load more", "加载更多")}</button>}
   </section>;
 }
 
