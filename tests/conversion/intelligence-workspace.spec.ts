@@ -84,6 +84,16 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);
 });
 
+test('source status distinguishes missing regional metadata from an empty regional coverage set',async({page})=>{
+ const fixture={...snapshot,graph:{...snapshot.graph,nodes:[...companies,{id:'XSHG:688072',name:'Piotech',kind:'COMPANY',stageIds:['memory']}]},newsCoverage:{total:4,configured:3,healthy:2},warnings:['Verified IR/news feeds cover 3 of 4 US-listed AI Map companies.','Company news collector freshness is unverified: US-only adapter.']} as IntelligenceSnapshot;
+ const region=page.getByRole('combobox',{name:'Region',exact:true}),panel=page.getByRole('complementary',{name:'Events and sources'}),indicator=page.getByLabel('Theme activity summary').locator('span[role=img]');
+ await open(page,false,fixture);if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await region.selectOption('US');
+ await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(1);await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);await expect(indicator).toHaveCount(1);
+ fixture.newsCoverage={...fixture.newsCoverage!,companyIds:companies.map(c=>c.id),configuredCompanyIds:companies.slice(0,3).map(c=>c.id),healthyCompanyIds:companies.slice(0,2).map(c=>c.id)};
+ await open(page,false,fixture);if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await region.selectOption('CN_A');
+ await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(0);await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);await expect(indicator).toHaveCount(0);await expect(page.getByLabel('Company news collector coverage')).toHaveCount(0);
+});
+
 for(const zh of [false,true])test('company selection scopes events and activity through periods and event clicks in '+(zh?'Chinese':'English'),async({page})=>{
  const nodes=[...companies,{id:'US:AAPL',name:'Apple',symbol:'AAPL',kind:'COMPANY',stageIds:['compute']},{id:'XSHG:688072',name:'Piotech',symbol:'688072',kind:'COMPANY',stageIds:['memory']}];
  const updates=[['apple','US:AAPL'],['micron','US:MU'],['mixed','US:MU'],['china','XSHG:688072'],['prior','US:AAPL']].map(([id,origin])=>({...events[0],id,origin,companyIds:id==='mixed'?['US:MU','US:AAPL']:[origin],title:`Company event ${id}`,publication_date:id==='prior'?'2026-10-02':snapshot.session.date,calendarEvents:undefined,evidence:[{...events[0].evidence[0],url:`https://investors.example.com/company-${id}`}]}));
@@ -350,6 +360,8 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await expect(page.getByRole('status').filter({hasText:'MU followed'})).toBeVisible();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await page.getByPlaceholder('Search company / ticker').fill('MU');
+  await page.getByRole('complementary',{name:'Universe navigation'}).getByRole('button',{name:/MU.*Micron/}).click();
+  await expect(page).toHaveURL(/feedCompany=US%3AMU/);
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('robotics');
   await expect(page.getByRole('status').filter({hasText:'Loading Robotics…'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Reset universe view',exact:true})).toBeDisabled();
@@ -358,6 +370,7 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await expect(page.getByText('Loading companies and recorded events…',{exact:true})).toHaveCount(0);
   releaseRobotics();
   await expect(page).toHaveURL(/theme=robotics/);await expect(page.getByRole('combobox',{name:'Investment theme',exact:true})).toHaveCount(1);
+  await expect(page).not.toHaveURL(/feedCompany=/);
   await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
   await expect(page.locator('[data-list-company]')).toHaveCount(2);await expect(page.locator('[data-list-company="US:MU"]')).toHaveCount(0);
   expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);

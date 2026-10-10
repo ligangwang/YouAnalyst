@@ -115,8 +115,9 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
     if(!ids.length)return undefined;
     return {total:ids.length,configured:ids.filter(id=>coverage.configuredCompanyIds!.includes(id)).length,healthy:ids.filter(id=>coverage.healthyCompanyIds!.includes(id)).length};
   },[snapshot.newsCoverage,region,companiesById]);
-  // Regional collector counts above replace global feed totals and adapter names.
-  const warnings=snapshot.warnings.filter(warning=>!region||(!warning.startsWith('Verified IR/news feeds cover ')&&!warning.startsWith('Company news collector freshness is unverified: ')));
+  // Known company IDs distinguish an empty regional coverage set from missing metadata.
+  const canScopeNewsCoverage=Boolean(snapshot.newsCoverage?.companyIds&&snapshot.newsCoverage.configuredCompanyIds&&snapshot.newsCoverage.healthyCompanyIds);
+  const warnings=snapshot.warnings.filter(warning=>!region||!canScopeNewsCoverage||(!warning.startsWith('Verified IR/news feeds cover ')&&!warning.startsWith('Company news collector freshness is unverified: ')));
   const partialCoverage=!snapshot.statisticsComplete||warnings.length>0||Boolean(newsCoverage&&(newsCoverage.configured<newsCoverage.total||newsCoverage.healthy<newsCoverage.configured));
   const scope=useMemo(()=>{
     const search=query.normalize('NFKC').trim().replace(/^\$/,'');
