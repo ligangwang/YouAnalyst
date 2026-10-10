@@ -1,5 +1,6 @@
 "use client";
 
+import { LoadingSpinner } from './loading-spinner';
 import {CompanyPriceChange} from './company-price-change';
 import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { industryTree } from '@/lib/knowledge-graph/industry-tree';
@@ -68,7 +69,7 @@ export function IndustryStructure({musicControls=false,companies,selected,onSele
       {musicControls&&active&&<UniverseMusicToggle/>}
       <WheelZoomHint hint={wheelHint}/>
       {/* Preserve initialized renderers across tabs; hidden trees pause without recreating WebGL contexts. */}
-      {seen&&!unavailable&&<Suspense fallback={<p role="status">{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene key={attempt} tour={tour} paused={!active||!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onRevealLayer={revealLayer} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback} onRetry={retry}/></Suspense>}
+      {seen&&!unavailable&&<Suspense fallback={<p role="status"><LoadingSpinner/>{text('Loading 3D tree…','正在加载三维树…')}</p>}><Scene key={attempt} tour={tour} paused={!active||!onScreen} vertical={vertical} layers={layers} open={open} focus={focus} request={request} selected={selected} followedIds={followedIds} onRevealLayer={revealLayer} onToggle={toggle} onSelect={onSelect} onUnavailable={showFallback} onRetry={retry}/></Suspense>}
       {unavailable&&<div className={styles.fallback}><p role="alert">{text('The 3D tree could not start. Browse the same tree below or try reloading.','三维树暂时无法启动，可使用下方层级树或尝试重新加载。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></p>{layers.map(l=><details key={l.id} open={open.includes(l.id)}><summary onClick={e=>{e.preventDefault();toggle(l.id);}}>{text(l.en,l.zh)} · {l.companies.length}</summary>{l.directCompanies?l.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)} <CompanyPriceChange price={c.dailyPrice} locale={locale}/></button>):l.branches.map(b=><details key={b.id} open={open.includes(b.id)}><summary onClick={e=>{e.preventDefault();toggle(b.id);}}>{text(b.en,b.zh)} · {b.companies.length}</summary>{b.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)} <CompanyPriceChange price={c.dailyPrice} locale={locale}/></button>)}</details>)}</details>)}</div>}
       {active&&showCard&&company&&<TreeCompanyCard closing={closing} key={company.id} reveal={revealCard} company={company} color={layers.find(l=>l.companies.some(c=>c.id===company.id))?.color??'#7dd3fc'} onClose={()=>onSelect('')}/>}
     </div>
