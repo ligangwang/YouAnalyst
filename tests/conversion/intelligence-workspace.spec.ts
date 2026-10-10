@@ -38,6 +38,34 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+for(const zh of [false,true])test('event market filter keeps feed and complete source counts aligned in '+(zh?'Chinese':'English'),async({page})=>{
+ const marketNodes=[...companies,{id:'XSHG:688072',symbol:'688072',name:'Piotech',kind:'COMPANY',stageIds:['memory']},{id:'XSHE:300308',symbol:'300308',name:'Innolight',kind:'COMPANY',stageIds:['optics']},{id:'PRIVATE:OPENAI',name:'OpenAI',kind:'COMPANY',stageIds:['compute']}];
+ const marketEvents=[['us','US:MU'],['shanghai','XSHG:688072'],['shenzhen','XSHE:300308'],['private','PRIVATE:OPENAI'],['mixed','US:MU']].map(([id,origin],i)=>({...events[0],id,origin,companyIds:id==='mixed'?['US:MU','XSHG:688072']:[origin],title:`Market event ${id}`,titleZh:undefined,titleEn:undefined,calendarEvents:undefined,publication_date:snapshot.session.date,evidence:[{...events[0].evidence[0],id:`market-${i}`,url:`https://investors.example.com/market-${i}`}]}));
+ const prior={...marketEvents[0],id:'prior',title:'Prior US event',publication_date:'2026-10-02',evidence:[{...marketEvents[0].evidence[0],id:'prior',url:'https://investors.example.com/prior'}]};
+ const fixture={...snapshot,graph:{...snapshot.graph,nodes:marketNodes},events:[...marketEvents,prior],sourceDocuments:[...marketEvents.map(e=>({id:e.evidence[0].url,channel:'IR',companyIds:e.companyIds,published_at:null,publication_date:e.publication_date})),{id:'extra-cn',channel:'IR',companyIds:['XSHG:688072'],published_at:null,publication_date:snapshot.session.date},{id:prior.evidence[0].url,channel:'IR',companyIds:prior.companyIds,published_at:null,publication_date:prior.publication_date}]} as IntelligenceSnapshot;
+ await open(page,zh,fixture);
+ const panel=page.getByRole('complementary',{name:'Events and sources'}),filter=panel.getByRole('combobox',{name:zh?'事件市场':'Event market'});
+ const documents=panel.getByText(zh?'来源文档':'Source documents',{exact:true}).locator('..');
+ await expect(filter).toHaveValue('');await expect(documents).toContainText('6');
+ await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(5);
+ await filter.selectOption('US');await expect(page).toHaveURL(/eventMarket=US/);
+ await expect(documents).toContainText('2');await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(2);
+ await expect(panel.getByRole('button',{name:/Market event private|Market event shanghai|Market event shenzhen/})).toHaveCount(0);
+ await panel.getByRole('button',{name:/Market event mixed/}).click();
+ await expect(page.getByRole('region',{name:'Company details',exact:true})).toBeVisible();
+ await filter.selectOption('CN_A');
+ await expect(page.getByRole('region',{name:'Company details',exact:true})).toHaveCount(0);
+ await expect(documents).toContainText('4');await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(3);
+ await expect(panel.getByRole('button',{name:/Market event mixed/})).toBeVisible();
+ await page.getByRole('tab',{name:zh?'公司列表':'Company list',exact:true}).click();
+ await expect(page.locator('[data-list-company]')).toHaveCount(marketNodes.length);
+ await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(filter).toHaveValue('CN_A');await expect(documents).toContainText('4');
+ await page.reload();await expect(filter).toHaveValue('CN_A');
+ await filter.selectOption('US');await expect(documents).toContainText('2');
+ await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(documents).toContainText('3');await expect(panel.getByRole('button',{name:/Prior US event/})).toBeVisible();
+ await filter.selectOption('');await expect(page).not.toHaveURL(/eventMarket=/);await expect(documents).toContainText('7');await expect(panel.getByRole('button',{name:/Market event private/})).toBeVisible();
+});
+
 test('first phone visit starts in List and explicit chart choices remain available',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await open(page);

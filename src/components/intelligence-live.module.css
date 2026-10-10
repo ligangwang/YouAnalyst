@@ -15,6 +15,9 @@
 .windowControls { display:flex; gap:8px; padding:0 10px 8px; }
 .windowControls button { padding:5px 7px; font-size:10px; color:#9ab0c3; }
 .windowControls button[aria-pressed=true] { background:#203a3e; color:#98e7d6; }
+.marketFilter { display:flex; align-items:center; gap:10px; margin:0 10px 10px; color:#9ab0c3; font-size:11px; }
+.marketFilter select { flex:1; min-width:0; padding:7px 9px; border:1px solid #294156; border-radius:6px; background:#10232e; color:#e4edf5; font:inherit; cursor:pointer; }
+.marketFilter select:focus-visible { outline:2px solid #98e7d6; outline-offset:2px; }
 .dates { color:#849bae; font-size:9px; line-height:1.7; }
 .evidenceLinks { display:flex; flex-direction:column; gap:5px; margin:8px 0; }
 .evidenceLinks a { color:#98e7d6; font-size:10px; padding:6px 0; line-height:1.5; overflow-wrap:anywhere; }
