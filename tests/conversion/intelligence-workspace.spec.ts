@@ -38,6 +38,40 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+test('company feed fetches older matching documents before the global cap and restores the full feed',async({page})=>{
+ const arm={id:'US:ARM',symbol:'ARM',name:'Arm',kind:'COMPANY',order:5,stageIds:['compute']};
+ const older=Array.from({length:12},(_,i)=>({...events[0],id:`arm-${i}`,origin:arm.id,companyIds:[arm.id],calendarEvents:undefined,title:`Older ARM document ${i+1}`,evidence:[{...events[0].evidence[0],url:`https://investors.example.com/arm-${i}`}]}));
+ const fixture={...snapshot,graph:{...snapshot.graph,nodes:[...companies,arm]},sourceDocuments:[...snapshot.sourceDocuments!,...older.map(event=>({id:event.evidence[0].url,channel:'IR',companyIds:event.companyIds,published_at:null,publication_date:event.publication_date}))]} as IntelligenceSnapshot;
+ const body=await workspaceFixture(false,fixture);
+ const requested:string[]=[];
+ await page.route('**/*',route=>{
+   if(route.request().url().includes('/api/intelligence')){
+     const company=new URL(route.request().url()).searchParams.get('company')??'';requested.push(company);
+     return route.fulfill({json:company==='US:ARM'?{...fixture,events:older,truncated:false}:company==='US:MU'?{...fixture,events:events.filter(event=>event.companyIds.includes(company))}:fixture});
+   }
+   return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/');
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const panel=page.getByRole('complementary',{name:'Events and sources'});
+ const left=page.getByRole('complementary',{name:'Universe navigation'});
+ await left.getByRole('combobox',{name:'Region',exact:true}).selectOption('US');
+ await left.getByRole('button',{name:/ARM.*Arm/}).click();
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
+ expect(requested).toContain('US:ARM');
+ await expect(panel.getByText('12 loaded source documents',{exact:true})).toBeVisible();
+ await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('12');
+ await page.reload();
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
+ await panel.getByRole('button',{name:'Clear company event filter'}).click();
+ await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(198);
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await left.getByRole('button',{name:/MU.*Micron/}).click();
+ await expect.poll(()=>requested.at(-1)).toBe('US:MU');
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
+});
+
 for(const zh of [false,true])test('region filter keeps companies, feed and complete source counts aligned in '+(zh?'Chinese':'English'),async({page})=>{
  const marketNodes=[...companies,{id:'XSHG:688072',symbol:'688072',name:'Piotech',kind:'COMPANY',stageIds:['memory']},{id:'XSHE:300308',symbol:'300308',name:'Innolight',kind:'COMPANY',stageIds:['optics']},{id:'PRIVATE:OPENAI',name:'OpenAI',kind:'COMPANY',stageIds:['compute']}];
  const marketEvents=[['us','US:MU'],['shanghai','XSHG:688072'],['shenzhen','XSHE:300308'],['private','PRIVATE:OPENAI'],['mixed','US:MU']].map(([id,origin],i)=>({...events[0],id,origin,companyIds:id==='mixed'?['US:MU','XSHG:688072']:[origin],title:`Market event ${id}`,titleZh:undefined,titleEn:undefined,calendarEvents:undefined,publication_date:snapshot.session.date,evidence:[{...events[0].evidence[0],id:`market-${i}`,url:`https://investors.example.com/market-${i}`}]}));
