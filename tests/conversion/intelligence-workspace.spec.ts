@@ -1,6 +1,6 @@
 import {expect,test} from '@playwright/test';
 import {componentFixtureHtml} from './fixtures/component-html';
-import {mkdirSync,writeFileSync} from 'node:fs';
+import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import path from 'node:path';
 import type {IntelligenceSnapshot} from '../../src/lib/intelligence/model';
 import {accelerateTours,tourClockPlugin} from './fixtures/tour-clock';
@@ -9,6 +9,8 @@ const companies=[{id:'US:LITE',symbol:'LITE',name:'Lumentum',summary:'Communicat
 const events=Array.from({length:200},(_,i)=>({id:`event-${i}`,origin:'US:MU',companyIds:['US:MU'],edgeIds:[],category:'BUSINESS',title:`Published company update ${i+1}`,titleZh:undefined as string|undefined,titleEn:undefined as string|undefined,summary:`Source summary ${i+1}`,published_at:i===0?'2026-10-02T12:00:00Z':null,publication_date:'2026-10-02',eventDate:null,evidence:[{id:`source-${i}`,url:`https://investors.example.com/${i}`,title:`Original release ${i+1}`,sourceDate:'2026-10-02',channel:'IR'}],planned:false}));
 events[1].companyIds=['US:MU','US:MEM','US:MULT','US:LITE','US:UNKNOWN'];
 events[198]={...events[198],title:'关于召开股东大会的公告',titleEn:'Announcement of a shareholders meeting'};
+events[198].summary='交易所上市公司原始公告。';
+events[198].evidence[0].title=events[198].title;
 events[199]={...events[199],origin:'US:LITE',companyIds:['US:LITE'],title:'Lumentum communication update',titleZh:'Lumentum 通信业务最新进展'};
 const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],sources:[]},graphVersion:'fixture',events,generatedAt:'2026-10-04T16:00:00Z',session:{date:'2026-10-04',timeZone:'America/New_York',startAt:'2026-10-04T04:00:00Z',endAt:'2026-10-05T04:00:00Z'},coverage:[{channel:'IR',status:'connected'}],sourceDocuments:Array.from({length:350},(_,i)=>({id:`https://investors.example.com/${i}`,channel:'IR',companyIds:['US:MU'],published_at:null,publication_date:'2026-10-02'})),statisticsComplete:true,warnings:[],truncated:true,limit:200} as IntelligenceSnapshot;
 let html:string;
@@ -22,7 +24,13 @@ async function workspaceFixture(realCharts=false,fixture=snapshot){
 }
 test.beforeAll(async()=>{
   html=await workspaceFixture();
-  if(process.env.INTELLIGENCE_PREVIEW_OUT){const directory=process.env.INTELLIGENCE_PREVIEW_OUT;mkdirSync(path.join(directory,'api'),{recursive:true});writeFileSync(path.join(directory,'index.html'),html);writeFileSync(path.join(directory,'api/intelligence'),JSON.stringify(snapshot));}
+  if(process.env.INTELLIGENCE_PREVIEW_OUT){
+    const directory=process.env.INTELLIGENCE_PREVIEW_OUT;
+    const previewSnapshot=process.env.INTELLIGENCE_PREVIEW_SNAPSHOT?JSON.parse(readFileSync(process.env.INTELLIGENCE_PREVIEW_SNAPSHOT,'utf8')) as IntelligenceSnapshot:snapshot;
+    mkdirSync(path.join(directory,'api'),{recursive:true});
+    writeFileSync(path.join(directory,'index.html'),await workspaceFixture(true,previewSnapshot));
+    writeFileSync(path.join(directory,'api/intelligence'),JSON.stringify(previewSnapshot));
+  }
 });
 async function open(page:import('@playwright/test').Page,zh=false,fixture=snapshot){
   const body=fixture===snapshot?html:await workspaceFixture(false,fixture);
@@ -156,8 +164,9 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('1');
   await input.fill('');
   await panel.getByRole('button',{name:/Published company update 1 /}).click();
-  const selection=panel.getByRole('region',{name:'Selected sources'});await expect(selection).toBeVisible();await expect(selection).toBeFocused();
-  const bounds=await selection.boundingBox();expect(bounds!.y).toBeLessThan(180);expect(bounds!.height).toBeLessThan(400);
+  const selection=page.getByRole('region',{name:'Company details',exact:true});await expect(selection).toBeVisible();await expect(selection).toBeFocused();
+  await expect(panel.getByRole('region',{name:'Company details'})).toHaveCount(0);
+  const bounds=await selection.boundingBox();expect(bounds!.y).toBeLessThan(180);
   await expect(selection.getByRole('link',{name:/Original release 1/})).toBeVisible();
   const graphSource=page.getByRole('region',{name:'Graph universe'}).getByRole('link',{name:'Published company update 1 ↗',exact:true});
   await expect(graphSource).toHaveAttribute('href','https://investors.example.com/0');
@@ -221,7 +230,7 @@ test('mobile workspace exposes saved companies and event details retain their Ch
   expect(await companyLine.evaluate(el=>el.getBoundingClientRect().height)).toBeLessThan(20);
   expect(await companyLine.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await eventRow.click();
-  const selection=panel.getByRole('region',{name:'选中来源'});await expect(selection).toBeVisible();await expect(selection.getByText('选中事件',{exact:true})).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
+  const selection=page.getByRole('region',{name:'Company details',exact:true});await expect(selection).toBeVisible();await expect(selection.getByText('选中事件',{exact:true})).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
 });
 
 test('one theme selector switches companies and sources, clears stale filters, retains the list view and session watchlist',async({page},info)=>{
@@ -386,6 +395,12 @@ test('English event feed displays saved English translations of Chinese headline
  const headline=page.getByText('Announcement of a shareholders meeting',{exact:true});
  await expect(headline).toBeVisible();await expect(headline).toHaveAttribute('title','关于召开股东大会的公告');
  await expect(page.getByText('关于召开股东大会的公告',{exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:/Announcement of a shareholders meeting/}).click();
+ const card=page.getByRole('region',{name:'Company details',exact:true});
+ const source=card.getByRole('link',{name:/IR · Announcement of a shareholders meeting/});
+ await expect(source).toHaveAttribute('title','关于召开股东大会的公告');
+ await expect(card).toContainText('Original announcement from an exchange-listed company.');
+ await expect(card.getByText('关于召开股东大会的公告',{exact:true})).toHaveCount(0);
 });
 
 for(const chinese of [false,true])test('research connection descriptions follow '+(chinese?'Chinese':'English')+' language',async({page})=>{
@@ -400,6 +415,43 @@ for(const chinese of [false,true])test('research connection descriptions follow 
  await expect(page.getByRole('link',{name:(chinese?titleZh:title)+' ↗',exact:true})).toBeVisible();
  await expect(page.getByRole('link',{name:(chinese?'关系来源':'Untranslated English source')+' ↗',exact:true}).and(page.locator('a[href="https://example.com/missing"]'))).toBeVisible();
  if(chinese)await expect(page.getByRole('link',{name:/Joint AI networking source|Untranslated English source/})).toHaveCount(0);
+});
+
+for(const view of ['graph','tree','hierarchy','table'])test(view+' event selection opens the company card at the chart top right',async({page},info)=>{
+ await open(page);
+ await page.goto('http://workspace.test/?view='+view);
+ const panel=page.getByRole('complementary',{name:'Events and sources'});
+ await panel.getByRole('button',{name:/Published company update 1 /}).click();
+ const card=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(card).toBeVisible();await expect(card).toBeFocused();
+ await expect(card.locator('[data-card-drag]')).toContainText('Micron');
+ await expect(card.getByRole('heading',{name:'Selected event',exact:true})).toBeVisible();
+ await expect(card).toContainText('Source summary 1');
+ await expect(card.getByRole('link',{name:/Original release 1/})).toHaveAttribute('href','https://investors.example.com/0');
+ await expect(panel.getByRole('region',{name:'Company details'})).toHaveCount(0);
+ const host=page.locator('[data-company-workspace]');
+ const atTopRight=async()=>{
+  const box=(await card.boundingBox())!,bounds=(await host.boundingBox())!;
+  expect(Math.abs(box.x+box.width-(bounds.x+bounds.width-12))).toBeLessThanOrEqual(2);
+  expect(Math.abs(box.y-Math.max(bounds.y+12,12))).toBeLessThanOrEqual(2);
+ };
+ await atTopRight();
+ const before=(await card.boundingBox())!,handle=card.locator('[data-card-drag]');
+ await handle.press('ArrowDown');
+ await expect.poll(async()=>(await card.boundingBox())!.y-before.y).toBeGreaterThan(10);
+ const drag=(await handle.boundingBox())!;
+ await page.mouse.move(drag.x+20,drag.y+10);await page.mouse.down();
+ await page.mouse.move(drag.x-30,drag.y+50,{steps:6});await page.mouse.up();
+ await expect.poll(async()=>Math.abs((await card.boundingBox())!.x-before.x)+Math.abs((await card.boundingBox())!.y-before.y)).toBeGreaterThan(30);
+ // Selecting another event for the same company replaces its content and resets placement.
+ await panel.getByRole('button',{name:/Published company update 2 /}).click();
+ await expect(card).toContainText('Source summary 2');await atTopRight();
+ await page.screenshot({path:info.outputPath('selected-event-company-card.png')});
+ await card.press('Escape');await expect(card).toHaveCount(0);
+ await panel.getByRole('button',{name:/Published company update 1 /}).click();
+ await expect(card).toBeVisible();await atTopRight();
+ await page.getByRole('button',{name:'Close company details',exact:true}).click();
+ await expect(card).toHaveCount(0);
 });
 
 for(const view of ['tree','hierarchy','table'])test(view+' company selection opens a movable card at the chart top right',async({page})=>{
