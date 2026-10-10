@@ -44,6 +44,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  const prior={...marketEvents[0],id:'prior',title:'Prior US event',publication_date:'2026-10-02',evidence:[{...marketEvents[0].evidence[0],id:'prior',url:'https://investors.example.com/prior'}]};
  const fixture={...snapshot,graph:{...snapshot.graph,nodes:marketNodes},events:[...marketEvents,prior],sourceDocuments:[...marketEvents.map(e=>({id:e.evidence[0].url,channel:'IR',companyIds:e.companyIds,published_at:null,publication_date:e.publication_date})),{id:'extra-cn',channel:'IR',companyIds:['XSHG:688072'],published_at:null,publication_date:snapshot.session.date},{id:prior.evidence[0].url,channel:'IR',companyIds:prior.companyIds,published_at:null,publication_date:prior.publication_date}]} as IntelligenceSnapshot;
  fixture.newsCoverage={total:4,configured:3,healthy:2,companyIds:['US:MU','XSHG:688072','XSHE:300308','PRIVATE:OPENAI'],configuredCompanyIds:['US:MU','XSHG:688072','XSHE:300308'],healthyCompanyIds:['US:MU','XSHG:688072']};
+ fixture.warnings=['Verified IR/news feeds cover 3 of 4 US-listed AI Map companies.','Company news collector freshness is unverified: US-only adapter.'];
  fixture.eventReturns={mixed:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:110,change:.1,dateOnly:true},{companyId:'XSHG:688072',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:120,change:.2,dateOnly:true}]};
  fixture.events[4].calendarEvents=[{id:'us-calendar',companyId:'US:MU',day:'2026-10-28'},{id:'cn-calendar',companyId:'XSHG:688072',day:'2026-10-28'}];
  await open(page,zh,fixture);
@@ -51,11 +52,14 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  const panel=page.getByRole('complementary',{name:'Events and sources'}),filter=page.getByRole('complementary',{name:'Universe navigation'}).getByRole('combobox',{name:zh?'地区':'Region'});
  const documents=panel.getByText(zh?'来源文档':'Source documents',{exact:true}).locator('..');
  await expect(filter).toHaveValue('');await expect(documents).toContainText('6');
+ await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);
  const news=page.getByLabel(zh?'公司新闻采集覆盖':'Company news collector coverage');await expect(news).toContainText('3/4');
  await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(5);
  await filter.selectOption('US');await expect(page).toHaveURL(/region=US/);
  await expect(documents).toContainText('2');await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(2);
  await expect(news).toContainText('1/1');await expect(panel.locator('a[href*="event=cn-calendar"]')).toHaveCount(0);
+ await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);
+ await expect(page.getByLabel('Theme activity summary').getByRole('img')).toHaveCount(0);
  await expect(panel.getByRole('button',{name:/Market event private|Market event shanghai|Market event shenzhen/})).toHaveCount(0);
  await panel.getByRole('button',{name:/Market event mixed/}).click();
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toBeVisible();
@@ -64,6 +68,9 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toHaveCount(0);
  await expect(documents).toContainText('4');await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(3);
  await expect(news).toContainText('2/2');await expect(panel.locator('a[href*="event=us-calendar"]')).toHaveCount(0);
+ await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(0);
+ await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);
+ await expect(page.getByLabel('Theme activity summary').getByRole('img')).toHaveCount(1);
  await expect(panel.getByRole('button',{name:/Market event mixed/})).toBeVisible();
  await panel.getByRole('button',{name:/Market event mixed/}).click();
  const mixedCard=page.getByRole('region',{name:'Company details',exact:true});await expect(mixedCard.locator('[data-card-drag]')).toContainText('Piotech');await expect(mixedCard).toContainText('+20.00%');await expect(mixedCard).not.toContainText('+10.00%');await mixedCard.press('Escape');
@@ -74,6 +81,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await filter.selectOption('US');await expect(documents).toContainText('2');
  await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(documents).toContainText('3');await expect(panel.getByRole('button',{name:/Prior US event/})).toBeVisible();
  await filter.selectOption('');await expect(page).not.toHaveURL(/region=/);await expect(documents).toContainText('7');await expect(panel.getByRole('button',{name:/Market event private/})).toBeVisible();await expect(page.locator('[data-list-company]')).toHaveCount(marketNodes.length);
+ await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);
 });
 
 test('region selection rebuilds the real graph with only matching companies',async({page},info)=>{
