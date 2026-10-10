@@ -10,12 +10,13 @@ import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
 const now=new Date('2026-10-02T16:00:00Z');
 const graph:KnowledgeGraph={asOf:'2026-10-02',nodes:[{id:'US:AMD',name:'AMD',kind:'COMPANY',order:0},{id:'US:MU',name:'Micron',kind:'COMPANY',order:1}],sources:[{id:'s',title:'Filing',url:'https://www.sec.gov/Archives/filing.htm',sourceDate:'2026-09-03'}],relationships:[{id:'edge',source:'US:MU',target:'US:AMD',type:'SUPPLIER_OF',summary:'Stored evidence',sourceIds:['s'],commercialStatus:'DOCUMENTED',researchReviewedAt:'2026-10-01'}]};
 
-async function isolated(db:unknown,loadGraph:()=>Promise<KnowledgeGraph>,collectorResult:unknown={failed:0,partial:0,remaining:0,outboxIncomplete:false},loadThemedGraph=loadGraph){
-  const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service']});
+async function isolated(db:unknown,loadGraph:()=>Promise<KnowledgeGraph>,collectorResult:unknown={failed:0,partial:0,remaining:0,outboxIncomplete:false},loadThemedGraph=loadGraph,calendarLinks?:(events:import('../../src/lib/intelligence/model').IntelligenceEvent[])=>Promise<import('../../src/lib/intelligence/model').IntelligenceEvent[]>){
+  const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service',...(calendarLinks?['../calendar/intelligence-links']:[])]});
   const realRequire=createRequire(import.meta.url);
   const evaluated={exports:{}};
   const injected=(name:string)=>{
     if(name==='./price-performance-service')return {attachPricePerformance:async(_db:unknown,graph:KnowledgeGraph)=>({graph,eventReturns:{}})};
+    if(name==='../calendar/intelligence-links')return {attachCalendarLinks:async(_db:unknown,events:import('../../src/lib/intelligence/model').IntelligenceEvent[])=>calendarLinks!(events)};
     if(name==='../firebase/admin')return {getAdminFirestore:()=>db};
     if(name==='../company-themes/graph-service')return {loadThemeGraph:loadThemedGraph};
     if(name==='../knowledge-graph/service')return {loadKnowledgeGraph:loadGraph};
@@ -80,6 +81,33 @@ test('enabled official news arrives through the shared snapshot with current sou
     const arrival=snapshot.events.find(event=>event.id==='news-amd-release');assert.ok(arrival);
     assert.equal(arrival.published_at,'2026-10-02T12:05:00.000Z');assert.equal('collected_at' in arrival,false);assert.equal('processed_at' in arrival,false);assert.equal(arrival.evidence[0].channel,'IR');assert.deepEqual(arrival.edgeIds,[]);
     await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.equal(newsReads,4);
+  }finally{if(previous===undefined)delete process.env.INTELLIGENCE_NEWS_ENABLED;else process.env.INTELLIGENCE_NEWS_ENABLED=previous;}
+});
+
+test('production snapshots check enriched schedules before grouping, and retain separate records if enrichment fails',async()=>{
+  const previous=process.env.INTELLIGENCE_NEWS_ENABLED;process.env.INTELLIGENCE_NEWS_ENABLED='1';
+  try{
+    const records=['a','b'].map((id,index)=>({version:1,id:`company_news_${id}`,type:'company_news',sourceType:'company_ir',companyIds:['US:AMD'],sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'AMD to Report Fiscal Third Quarter 2026 Financial Results',summary:'Official company news. Open the source for details.',url:index?'https://newsroom.amd.com/news/earnings-date/':'https://ir.amd.com/press-releases/detail/1300/earnings-date',published_at:'2026-10-02T12:05:00.000Z',publication_date:'2026-10-02'}));
+    const db={collection:(name:string)=>{
+      const query={where:()=>query,orderBy:()=>query,limit:()=>query,doc:(id:string)=>({id}),get:async()=>name==='companies'?{docs:graph.nodes.map(node=>({id:node.id,data:()=>({name:node.name,status:'DIRECTORY',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:NEWS_SOURCES.filter(source=>source.companyId===node.id).map(source=>({...source,status:'PUBLISHED',reviewedAt:'2026-10-04'}))})}))}:name==='events'?{size:2,docs:records.map(record=>({data:()=>record}))}:{size:0,docs:[]}};return query;
+    },getAll:async(...refs:unknown[])=>refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}))};
+    for(const mode of ['matching','conflicting','unavailable']){
+      let calendarReads=0;
+      const service=await isolated(db,async()=>graph,undefined,undefined,async events=>{
+        calendarReads++;assert.equal(events.filter(event=>event.id.startsWith('news-company_news_')).length,2);
+        if(mode==='unavailable')throw new Error('test calendar unavailable');
+        return events.map(event=>event.id.startsWith('news-company_news_')?{...event,calendarEvents:[{id:`schedule-${event.id}`,companyId:'US:AMD',day:mode==='conflicting'&&event.id.endsWith('_b')?'2026-11-04':'2026-11-03'}]}:event);
+      });
+      const snapshot=await service.loadIntelligenceSnapshot(now);
+      const announcements=snapshot.events.filter(event=>event.id.startsWith('news-company_news_'));
+      assert.equal(announcements.length,mode==='matching'?1:2);
+      assert.equal(snapshot.sourceDocuments?.filter(document=>records.some(record=>record.url===document.id)).length,2);
+      if(mode==='matching')assert.equal(announcements[0].calendarEvents?.length,2);
+      if(mode==='unavailable')assert(snapshot.warnings.includes('Calendar event links are temporarily unavailable.'));
+      const company=await service.loadCompanyIntelligenceSnapshot(now,'ai','US:AMD');
+      assert.equal(company.events.filter(event=>event.id.startsWith('news-company_news_')).length,announcements.length);
+      assert.equal(calendarReads,1);
+    }
   }finally{if(previous===undefined)delete process.env.INTELLIGENCE_NEWS_ENABLED;else process.env.INTELLIGENCE_NEWS_ENABLED=previous;}
 });
 

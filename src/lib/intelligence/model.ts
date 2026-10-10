@@ -9,7 +9,9 @@ export type IntelligenceEvent = {
   title:string; titleZh?:string; titleEn?:string; summary:string; published_at:string|null; publication_date:string; eventDate:string|null;
   evidence:IntelligenceEvidence[]; planned:boolean;
   calendarEvents?:IntelligenceCalendarEvent[];
+  relatedEventIds?:string[];
 };
+export const intelligenceEventMatchesId = (event:IntelligenceEvent,id:string) => event.id===id||Boolean(event.relatedEventIds?.includes(id));
 export function intelligenceEventTitle(event:Pick<IntelligenceEvent,'title'|'titleZh'|'titleEn'|'evidence'>,locale:string){
   if(event.evidence.some(source=>source.channel==='SEC')){
     const filing=event.title.match(/^(.+) · (4|144)(\/A)? filing$/);
