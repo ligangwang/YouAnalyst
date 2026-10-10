@@ -85,6 +85,34 @@ test('late universe response cannot replace a completed event feed',async({page}
  await expect(panel.getByText('Loading events and sources…')).toHaveCount(0);
 });
 
+test('company changes retain the pending unscoped universe instead of the previous company feed',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false);
+ let releaseFirst!:()=>void,releaseNext!:()=>void;
+ const first=new Promise<void>(resolve=>{releaseFirst=resolve;}),next=new Promise<void>(resolve=>{releaseNext=resolve;});
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/intelligence')){
+   const params=new URL(route.request().url()).searchParams,company=params.get('company');
+   if(params.get('section')==='universe')return route.fulfill({json:{...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true}});
+   await (company==='US:MU'?first:next);
+   return route.fulfill({json:{...snapshot,events:company?snapshot.events.filter(event=>event.companyIds.includes(company)):snapshot.events}});
+  }
+  return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/?view=table&company=US%3AMU');
+ const panel=page.getByRole('complementary',{name:'Events and sources'}),card=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(panel.getByText('Loading events and sources…')).toBeVisible();
+ releaseFirst();await panel.getByRole('button',{name:'30d',exact:true}).click();
+ await expect(panel.getByRole('button',{name:/Published company update 1 /})).toBeVisible();
+ // Selection clears immediately, while the next unscoped feed is held back.
+ await card.getByRole('button',{name:'Close company details',exact:true}).click();
+ await expect(panel.getByText('Loading events and sources…')).toBeVisible();
+ await expect(panel.getByRole('button',{name:/Published company update 1 /})).toHaveCount(0);
+ await page.getByRole('region',{name:'Company list',exact:true}).getByRole('button',{name:'Lumentum',exact:true}).click();
+ await expect(card).toContainText('Lumentum');await expect(panel.getByText('Loading events and sources…')).toBeVisible();
+ releaseNext();await expect(panel.getByRole('button',{name:/Lumentum communication update/})).toBeVisible();
+ await expect(panel.getByText('Loading events and sources…')).toHaveCount(0);
+});
+
 for(const zh of [false,true])test('grouped announcement shows one event, two source documents and both reference links in '+(zh?'Chinese':'English'),async({page})=>{
  const title='AMD to Report Fiscal Third Quarter 2026 Financial Results';
  const a={...events[0],id:'news-company_news_ir',origin:'US:AMD',companyIds:['US:AMD'],title,titleZh:'AMD将公布2026财年第三季度财务业绩',summary:'Official company news. Open the source for details.',publication_date:'2026-10-02',published_at:'2026-10-02T20:15:00.000Z',eventDate:'2026-10-02',evidence:[{id:'company_news_ir',title,url:'https://ir.amd.com/release',sourceDate:'2026-10-02',channel:'IR'}],calendarEvents:[{id:'scheduled_event_amd_call',companyId:'US:AMD',day:'2026-11-03'}]} as IntelligenceSnapshot['events'][number];

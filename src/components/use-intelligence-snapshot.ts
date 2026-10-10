@@ -43,6 +43,8 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
           if (!response.ok) return;
           const data:IntelligenceSnapshot = await response.json();
           if ((data.theme??'ai')!==theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt || !isCurrentTheme()) return;
+          const cached=themeSnapshots.current.get(theme);
+          if(!cached||cached.eventsPending)themeSnapshots.current.set(theme,data);
           setSnapshot(current => current && !current.eventsPending ? current : data);
         })
         .catch(() => {}) // The full request owns the retry/error state.
