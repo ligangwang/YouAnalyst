@@ -296,3 +296,6 @@
 @media(prefers-reduced-motion:reduce){
  .workspace[data-view="graph"] .viewContent,.workspace[data-view="graph"] .canvas3d{transition-duration:.1s}
 }
+.label3d[data-company-focus="selected"]{background:#112f36ed;border:2px solid #98e7d6;border-radius:7px;padding:6px 9px;box-shadow:0 0 18px #98e7d640}
+.label3d[data-company-focus="selected"] strong{color:#effffb;font-weight:800}
+.label3d[data-company-focus="selected"] span{color:#ccf6eb}

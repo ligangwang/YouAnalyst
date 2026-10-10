@@ -44,6 +44,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  const prior={...marketEvents[0],id:'prior',title:'Prior US event',publication_date:'2026-10-02',evidence:[{...marketEvents[0].evidence[0],id:'prior',url:'https://investors.example.com/prior'}]};
  const fixture={...snapshot,graph:{...snapshot.graph,nodes:marketNodes},events:[...marketEvents,prior],sourceDocuments:[...marketEvents.map(e=>({id:e.evidence[0].url,channel:'IR',companyIds:e.companyIds,published_at:null,publication_date:e.publication_date})),{id:'extra-cn',channel:'IR',companyIds:['XSHG:688072'],published_at:null,publication_date:snapshot.session.date},{id:prior.evidence[0].url,channel:'IR',companyIds:prior.companyIds,published_at:null,publication_date:prior.publication_date}]} as IntelligenceSnapshot;
  fixture.newsCoverage={total:4,configured:3,healthy:2,companyIds:['US:MU','XSHG:688072','XSHE:300308','PRIVATE:OPENAI'],configuredCompanyIds:['US:MU','XSHG:688072','XSHE:300308'],healthyCompanyIds:['US:MU','XSHG:688072']};
+ fixture.warnings=['Verified IR/news feeds cover 3 of 4 US-listed AI Map companies.','Company news collector freshness is unverified: US-only adapter.'];
  fixture.eventReturns={mixed:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:110,change:.1,dateOnly:true},{companyId:'XSHG:688072',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:120,change:.2,dateOnly:true}]};
  fixture.events[4].calendarEvents=[{id:'us-calendar',companyId:'US:MU',day:'2026-10-28'},{id:'cn-calendar',companyId:'XSHG:688072',day:'2026-10-28'}];
  await open(page,zh,fixture);
@@ -51,11 +52,14 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  const panel=page.getByRole('complementary',{name:'Events and sources'}),filter=page.getByRole('complementary',{name:'Universe navigation'}).getByRole('combobox',{name:zh?'地区':'Region'});
  const documents=panel.getByText(zh?'来源文档':'Source documents',{exact:true}).locator('..');
  await expect(filter).toHaveValue('');await expect(documents).toContainText('6');
+ await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);
  const news=page.getByLabel(zh?'公司新闻采集覆盖':'Company news collector coverage');await expect(news).toContainText('3/4');
  await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(5);
  await filter.selectOption('US');await expect(page).toHaveURL(/region=US/);
  await expect(documents).toContainText('2');await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(2);
  await expect(news).toContainText('1/1');await expect(panel.locator('a[href*="event=cn-calendar"]')).toHaveCount(0);
+ await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);
+ await expect(page.getByLabel('Theme activity summary').locator('span[role=img]')).toHaveCount(0);
  await expect(panel.getByRole('button',{name:/Market event private|Market event shanghai|Market event shenzhen/})).toHaveCount(0);
  await panel.getByRole('button',{name:/Market event mixed/}).click();
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toBeVisible();
@@ -64,6 +68,9 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toHaveCount(0);
  await expect(documents).toContainText('4');await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(3);
  await expect(news).toContainText('2/2');await expect(panel.locator('a[href*="event=us-calendar"]')).toHaveCount(0);
+ await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(0);
+ await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);
+ await expect(page.getByLabel('Theme activity summary').locator('span[role=img]')).toHaveCount(1);
  await expect(panel.getByRole('button',{name:/Market event mixed/})).toBeVisible();
  await panel.getByRole('button',{name:/Market event mixed/}).click();
  const mixedCard=page.getByRole('region',{name:'Company details',exact:true});await expect(mixedCard.locator('[data-card-drag]')).toContainText('Piotech');await expect(mixedCard).toContainText('+20.00%');await expect(mixedCard).not.toContainText('+10.00%');await mixedCard.press('Escape');
@@ -74,6 +81,40 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await filter.selectOption('US');await expect(documents).toContainText('2');
  await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(documents).toContainText('3');await expect(panel.getByRole('button',{name:/Prior US event/})).toBeVisible();
  await filter.selectOption('');await expect(page).not.toHaveURL(/region=/);await expect(documents).toContainText('7');await expect(panel.getByRole('button',{name:/Market event private/})).toBeVisible();await expect(page.locator('[data-list-company]')).toHaveCount(marketNodes.length);
+ await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);
+});
+
+test('source status distinguishes missing regional metadata from an empty regional coverage set',async({page})=>{
+ const fixture={...snapshot,graph:{...snapshot.graph,nodes:[...companies,{id:'XSHG:688072',name:'Piotech',kind:'COMPANY',stageIds:['memory']}]},newsCoverage:{total:4,configured:3,healthy:2},warnings:['Verified IR/news feeds cover 3 of 4 US-listed AI Map companies.','Company news collector freshness is unverified: US-only adapter.']} as IntelligenceSnapshot;
+ const region=page.getByRole('combobox',{name:'Region',exact:true}),panel=page.getByRole('complementary',{name:'Events and sources'}),indicator=page.getByLabel('Theme activity summary').locator('span[role=img]');
+ await open(page,false,fixture);if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await region.selectOption('US');
+ await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(1);await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);await expect(indicator).toHaveCount(1);
+ fixture.newsCoverage={...fixture.newsCoverage!,companyIds:companies.map(c=>c.id),configuredCompanyIds:companies.slice(0,3).map(c=>c.id),healthyCompanyIds:companies.slice(0,2).map(c=>c.id)};
+ await open(page,false,fixture);if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await region.selectOption('CN_A');
+ await expect(panel.getByText(fixture.warnings[0],{exact:true})).toHaveCount(0);await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(0);await expect(indicator).toHaveCount(0);await expect(page.getByLabel('Company news collector coverage')).toHaveCount(0);
+});
+
+for(const zh of [false,true])test('company selection scopes events and activity through periods and event clicks in '+(zh?'Chinese':'English'),async({page})=>{
+ const nodes=[...companies,{id:'US:AAPL',name:'Apple',symbol:'AAPL',kind:'COMPANY',stageIds:['compute']},{id:'XSHG:688072',name:'Piotech',symbol:'688072',kind:'COMPANY',stageIds:['memory']}];
+ const updates=[['apple','US:AAPL'],['micron','US:MU'],['mixed','US:MU'],['china','XSHG:688072'],['prior','US:AAPL']].map(([id,origin])=>({...events[0],id,origin,companyIds:id==='mixed'?['US:MU','US:AAPL']:[origin],title:`Company event ${id}`,publication_date:id==='prior'?'2026-10-02':snapshot.session.date,calendarEvents:undefined,evidence:[{...events[0].evidence[0],url:`https://investors.example.com/company-${id}`}]}));
+ const fixture={...snapshot,graph:{...snapshot.graph,nodes},events:updates,sourceDocuments:[...updates.map(e=>({id:e.evidence[0].url,channel:'IR',companyIds:e.companyIds,published_at:null,publication_date:e.publication_date})),{id:'outside-loaded-feed',channel:'IR',companyIds:['US:AAPL'],published_at:null,publication_date:snapshot.session.date}],eventReturns:{mixed:[{companyId:'US:AAPL',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:120,change:.2,dateOnly:true},{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-02',baselineClose:100,latestClose:110,change:.1,dateOnly:true}]}} as IntelligenceSnapshot;
+ fixture.events[2].calendarEvents=[{id:'apple-calendar',companyId:'US:AAPL',day:'2026-10-28'},{id:'micron-calendar',companyId:'US:MU',day:'2026-10-28'}];
+ await open(page,zh,fixture);
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const left=page.getByRole('complementary',{name:'Universe navigation'}),panel=page.getByRole('complementary',{name:'Events and sources'}),region=left.getByRole('combobox',{name:zh?'地区':'Region'});
+ const count=panel.getByText(zh?'来源文档':'Source documents',{exact:true}).locator('..').locator('strong');
+ await region.selectOption('US');
+ const apple=left.getByRole('button',{name:/AAPL.*Apple/});await apple.click();await expect(apple).toHaveAttribute('aria-pressed','true');
+ await expect(count).toHaveText('3');await expect(panel.getByText(zh?'活跃公司':'Active companies',{exact:true}).locator('..').locator('strong')).toHaveText('1');
+ await expect(panel.getByRole('button',{name:/Company event /})).toHaveCount(2);await expect(panel.getByRole('button',{name:/Company event micron|Company event china/})).toHaveCount(0);
+ await expect(panel.locator('a[href*="event=micron-calendar"]')).toHaveCount(0);await expect(panel.locator('a[href*="event=apple-calendar"]')).toHaveCount(1);
+ await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event prior/})).toBeVisible();
+ await panel.getByRole('button',{name:/Company event mixed/}).click();const card=page.getByRole('region',{name:'Company details',exact:true});await expect(card.locator('[data-card-drag]')).toContainText('Apple');await expect(card).toContainText('+20.00%');await expect(card).not.toContainText('+10.00%');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
+ await card.getByRole('button',{name:'Close company details',exact:true}).click();await expect(count).toHaveText('5');await expect(panel.getByRole('button',{name:/Company event micron/})).toBeVisible();await expect(apple).toHaveAttribute('aria-pressed','false');
+ await apple.click();await page.reload();if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
+ await panel.getByRole('button',{name:zh?'清除公司事件筛选':'Clear company event filter'}).click();await expect(panel.getByRole('button',{name:/Company event micron/})).toBeVisible();
+ await apple.click();await region.selectOption('CN_A');await expect(panel.getByRole('button',{name:zh?'清除公司事件筛选':'Clear company event filter'})).toHaveCount(0);await expect(panel.getByRole('button',{name:/Company event china/})).toBeVisible();await expect(panel.getByRole('button',{name:/Company event apple/})).toHaveCount(0);
+ await region.selectOption('US');await left.getByRole('button',{name:/LITE.*Lumentum/}).click();await expect(page.getByLabel('Theme activity summary').getByRole('button',{name:/Source documents|来源文档/}).locator('strong')).toHaveText('0');await expect(panel.getByRole('button',{name:/Company event /})).toHaveCount(0);
 });
 
 test('region selection rebuilds the real graph with only matching companies',async({page},info)=>{
@@ -319,6 +360,8 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await expect(page.getByRole('status').filter({hasText:'MU followed'})).toBeVisible();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await page.getByPlaceholder('Search company / ticker').fill('MU');
+  await page.getByRole('complementary',{name:'Universe navigation'}).getByRole('button',{name:/MU.*Micron/}).click();
+  await expect(page).toHaveURL(/feedCompany=US%3AMU/);
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('robotics');
   await expect(page.getByRole('status').filter({hasText:'Loading Robotics…'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Reset universe view',exact:true})).toBeDisabled();
@@ -327,6 +370,7 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await expect(page.getByText('Loading companies and recorded events…',{exact:true})).toHaveCount(0);
   releaseRobotics();
   await expect(page).toHaveURL(/theme=robotics/);await expect(page.getByRole('combobox',{name:'Investment theme',exact:true})).toHaveCount(1);
+  await expect(page).not.toHaveURL(/feedCompany=/);
   await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
   await expect(page.locator('[data-list-company]')).toHaveCount(2);await expect(page.locator('[data-list-company="US:MU"]')).toHaveCount(0);
   expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);

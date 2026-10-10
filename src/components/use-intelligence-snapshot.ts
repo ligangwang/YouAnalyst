@@ -5,7 +5,7 @@ import { parseCompanyTheme, type CompanyThemeId } from '@/lib/company-themes/mod
 import type { IntelligenceSnapshot } from '@/lib/intelligence/model';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-const clearedThemeSelection = { company: '', relationship: '', event: '', q: '', page: '' };
+const clearedThemeSelection = { company: '', feedCompany: '', relationship: '', event: '', q: '', page: '' };
 
 /** Keeps the displayed theme usable until a validated replacement is ready. */
 export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, initialTheme = 'ai') {
