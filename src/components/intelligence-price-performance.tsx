@@ -5,6 +5,13 @@ import type { DailyPrice, EventPriceReturn } from '@/lib/intelligence/price-perf
 import { signedPercent } from '@/lib/intelligence/price-performance';
 import styles from './intelligence-price-performance.module.css';
 
+/** Compact, noninteractive price returns for the clickable event cards. */
+export function IntelligenceEventPriceReturns({returns=[],symbol}:{returns?:EventPriceReturn[];symbol:(id:string)=>string}){
+  const {locale}=useLocale(),zh=locale==='zh-CN';
+  if(!returns.length)return null;
+  return <span className={styles.eventReturns}>{returns.map(value=><span key={value.companyId} title={`${value.baselineDate} → ${value.latestDate} · ${zh?'使用公告前最后一个完整交易日收盘价。不含股息与拆股调整。':'Uses the last completed close before publication. Excludes dividend and split adjustments.'}${value.dateOnly?(zh?' 公告仅提供日期。':' Publication date only.'):''}`}><span>{symbol(value.companyId)} · {zh?'发布以来':'Since publication'}</span>{' '}<b data-direction={value.change>0?'up':value.change<0?'down':'flat'}>{signedPercent(value.change)}</b></span>)}</span>;
+}
+
 export function IntelligencePricePerformance({price,returns=[],symbol,compact=false}:{price?:DailyPrice;returns?:EventPriceReturn[];symbol?:(id:string)=>string;compact?:boolean}){
   const {locale}=useLocale(),zh=locale==='zh-CN';
   const hintId=useId();
