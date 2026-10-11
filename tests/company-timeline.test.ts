@@ -52,8 +52,29 @@ test("clustering preserves lane and true date anchors, with bounded density", ()
   assert.equal(timelineWindow(180, "2026-10-09").end, "2026-10-09");
 });
 import {layoutTimelineMarkers} from '../src/lib/company-timeline';
-test('dated marker band preserves x dates, caps levels and counts crowded events without dropping them',()=>{
+test('dated marker band groups matching symbols without dropping events',()=>{
  const event=companyTimelineEvents('US:AMD',graph,[])[0];
  const groups=layoutTimelineMarkers(Array.from({length:20},(_,i)=>({...event,id:String(i),date:'2026-04-10'})),'2026-04-01','2026-04-30',290);
- assert.equal(groups.length,2);assert.equal(groups[0].x,90);assert.equal(groups[1].x,90);assert.equal(groups[1].level,1);assert.equal(groups.reduce((sum,g)=>sum+g.events.length,0),20);
+ assert.equal(groups.length,1);assert.equal(groups[0].x,90);assert.equal(groups[0].events.length,20);
+});
+test('different categories and insider directions stay separate at their actual dates',()=>{
+ const event=companyTimelineEvents('US:AMD',graph,[])[0];
+ const entries=[
+  {...event,id:'earnings',date:'2026-04-10',eventType:'earnings' as const},
+  {...event,id:'buy',date:'2026-04-10',eventType:'insider_trade' as const,eventSubtype:'insider_buy'},
+  {...event,id:'sell',date:'2026-04-11',eventType:'insider_trade' as const,eventSubtype:'insider_sell'},
+  {...event,id:'business',date:'2026-04-11',eventType:'product_business' as const},
+ ];
+ const groups=layoutTimelineMarkers(entries,'2026-04-01','2026-04-30',290);
+ assert.equal(groups.length,4);
+ assert.equal(new Set(groups.map(group=>group.level)).size,4);
+ for(const group of groups)assert.equal(group.x,group.events[0].date==='2026-04-10'?90:100);
+});
+test('matching symbols on nearby different dates never combine',()=>{
+ const event=companyTimelineEvents('US:AMD',graph,[])[0];
+ const entries=[10,11,12].map(day=>({...event,id:String(day),date:`2026-04-${day}`}));
+ const groups=layoutTimelineMarkers(entries,'2026-04-01','2026-04-30',290);
+ assert.deepEqual(groups.map(group=>group.x),[90,100,110]);
+ assert.ok(groups.every(group=>group.events.length===1));
+ assert.deepEqual(groups.map(group=>group.level),[0,1,2]);
 });
