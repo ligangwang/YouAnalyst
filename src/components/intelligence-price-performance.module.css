@@ -5,6 +5,10 @@
 .performance small{font-size:11px;line-height:1.5;font-weight:400}
 .performance [data-direction="up"]{color:#6ae0bc}
 .performance [data-direction="down"]{color:#ffa0b1}
+.eventReturns{display:grid;gap:4px;margin-top:8px;color:#a8bfce;font-size:12px;line-height:1.5}
+.eventReturns b{font-weight:600;font-variant-numeric:tabular-nums;color:#e6f1f6;white-space:nowrap}
+.eventReturns [data-direction="up"]{color:#6ae0bc}
+.eventReturns [data-direction="down"]{color:#ffa0b1}
 .performance .returnLine{display:flex;align-items:center;gap:7px}
 .hint{position:relative;display:inline-flex}
 .hint button{display:grid;place-items:center;width:17px;height:17px;padding:0;border:1px solid #587181;border-radius:50%;background:transparent;color:#a8bfce;font-size:11px;cursor:help}
