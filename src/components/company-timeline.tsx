@@ -93,7 +93,10 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     const index=prices.findIndex(price=>price.date===date);
     if(index<1)return;
     const current=prices[index],previous=prices[index-1];
-    return {baselineDate:previous.date,latestDate:current.date,change:current.close/previous.close-1};
+    const gap=(Date.parse(current.date)-Date.parse(previous.date))/86_400_000;
+    // A weekday gap may be a holiday or missing history; do not infer a daily return.
+    const adjacent=gap===1||(gap===3&&new Date(previous.date).getUTCDay()===5&&new Date(current.date).getUTCDay()===1);
+    return {baselineDate:previous.date,latestDate:current.date,change:current.close/previous.close-1,adjacent};
   };
   const hoverReturn=nearest?dailyReturnFor(nearest.date):undefined;
   const returnLabel=(value:EventPriceReturn)=>{
@@ -126,7 +129,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
       {hoverPrice && hoverDate && nearest && <div className={styles.priceTooltip} role="tooltip" style={{left:Math.max(90,Math.min(width-90,x(nearest.date))),top:y(nearest.close)-12}}>
         <span>{nearest.date}</span>
         <strong>{text("Close", "收盘价")} · {new Intl.NumberFormat(locale, data?.currency ? {style:"currency",currency:data.currency,minimumFractionDigits:2,maximumFractionDigits:2} : {minimumFractionDigits:2,maximumFractionDigits:2}).format(nearest.close)}</strong>
-        {hoverReturn&&<span title={`${hoverReturn.baselineDate} → ${hoverReturn.latestDate}`}>{text('Daily change','当日涨跌幅')} · <b data-return-direction={hoverReturn.change>0?'up':hoverReturn.change<0?'down':'flat'}>{hoverReturn.change>0?'▲':hoverReturn.change<0?'▼':'—'} {signedPercent(hoverReturn.change)}</b></span>}
+        {hoverReturn&&<span title={`${hoverReturn.baselineDate} → ${hoverReturn.latestDate}`}>{hoverReturn.adjacent?text('Daily change','当日涨跌幅'):`${text('Change since','较')} ${hoverReturn.baselineDate}`} · <b data-return-direction={hoverReturn.change>0?'up':hoverReturn.change<0?'down':'flat'}>{hoverReturn.change>0?'▲':hoverReturn.change<0?'▼':'—'} {signedPercent(hoverReturn.change)}</b></span>}
         <span>{text("Volume", "成交量")} · {nearest.volume === null ? text("Not recorded", "未记录") : new Intl.NumberFormat(locale).format(nearest.volume)}</span>
       </div>}
       {groups.map(group=>{const style=eventPresentation(group.events[0],chinese),multiple=group.events.length>1;return <button key={group.events[0].id} className={styles.marker} data-event-type={style.type} data-event-count={group.events.length} type="button" style={{left:left+group.x,top:24+group.level*levelSpacing,color:style.color,borderColor:style.color}} title={group.events.map(e=>`${eventPresentation(e,chinese).label} · ${formatDate(e.date)}: ${e.title}`).join('; ')} aria-label={multiple?`${group.events.length} ${text('events','个事件')} · ${style.label} · ${formatDate(group.events[0].date)}`:`${formatDate(group.events[0].date)}: ${group.events[0].title}`} aria-pressed={clusterId===group.events[0].id||group.events.some(e=>e.id===selectedId)} onClick={e=>{if(multiple){chooserTrigger.current=e.currentTarget;setClusterId(group.events[0].id);}else selectEvent(group.events[0].id);}} onPointerEnter={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onFocus={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onBlur={()=>{setHoverDate(null);}}>{style.symbol}{multiple&&<span className={styles.countBadge} aria-hidden="true">{group.events.length}</span>}</button>;})}
