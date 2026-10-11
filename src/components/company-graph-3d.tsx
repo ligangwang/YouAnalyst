@@ -139,6 +139,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   useEffect(()=>{
     const media=window.matchMedia("(prefers-reduced-motion: reduce)");
     const update=()=>{reducedMotion.current=media.matches;resumeElapsed.current=0;invalidate();};
+    let wasEditing=false;
     // Pause automatic motion while editing a form; wake the demand renderer
     // on blur so it resumes from the same camera position.
     const formFocus=()=>{
@@ -148,6 +149,8 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       if(c&&editing){
         void c.setLookAt(...c.getPosition(new Vector3(),false).toArray(),...c.getTarget(new Vector3(),false).toArray(),false);
       }
+      if(wasEditing&&!editing&&!introOrbitRef.current)scheduleResume.current();
+      wasEditing=editing;
       invalidate();
     };
     update();media.addEventListener("change",update);
@@ -155,7 +158,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     document.addEventListener('focusin',formFocus);
     document.addEventListener('focusout',formFocus);
     return ()=>{media.removeEventListener("change",update);document.removeEventListener("visibilitychange",update);document.removeEventListener('focusin',formFocus);document.removeEventListener('focusout',formFocus);};
-  },[invalidate,gl]);
+  },[invalidate,gl,introOrbitRef]);
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const projected = useMemo(() => new Vector3(), []);
   const [pointHovered, setPointHovered] = useState("");

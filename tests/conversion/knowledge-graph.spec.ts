@@ -502,6 +502,9 @@ test('filtering from external graph search stops the intro and reframes results'
  await page.waitForTimeout(600);
  expect(await projectedGraphPositions(page)).toEqual(stopped);
  await expect(label).toBeVisible();
+ await page.getByRole('textbox',{name:'Search companies',exact:true}).blur();
+ await expect(canvas).toHaveAttribute('data-rotation','resumed',{timeout:10000});
+ await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(await canvas.getAttribute('data-camera-position'));
 });
 
 test('compact map controls keep list filters out of the graph', async ({page}) => {
