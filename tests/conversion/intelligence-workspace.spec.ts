@@ -847,7 +847,7 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await expect(card).toContainText(companies.find(c=>c.id===previous)!.name);
 });
 
- test('Explore compact timeline uses 1M, overlays events and can close and reopen',async({page})=>{
+ test('Explore compact timeline uses 1M, dated event band and can close and reopen',async({page})=>{
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-10-01',close:100,volume:0},{date:'2026-10-02',close:102,volume:null}]}}));
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
@@ -857,11 +857,11 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await expect(timeline.getByRole('group',{name:'Timeline range'})).toContainText('1M');
  await expect(timeline.getByRole('button',{name:/^(3M|6M|1Y|5Y)$/})).toHaveCount(0);
  await expect(timeline.locator('svg')).not.toContainText('Sources');
- expect((await timeline.locator('svg').boundingBox())?.height).toBe(160);
+ expect((await timeline.locator('svg').boundingBox())?.height).toBeGreaterThanOrEqual(190);
  const marker=timeline.getByRole('button',{name:/Oct 2: Published company update/}).first();
  const markerBounds=await marker.boundingBox(),chartBounds=await timeline.locator('svg').boundingBox();
- expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeGreaterThan(32);
- expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeLessThan(102);
+ expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeGreaterThan(0);
+ expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeLessThan(80);
  await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
  await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeFocused();
  await expect(timeline.locator('svg')).toHaveCount(0);
@@ -877,3 +877,30 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await expect(timeline.getByRole('group',{name:'Timeline range'})).toContainText('1M');
  const bounds=await timeline.boundingBox();expect(bounds?.width).toBeLessThanOrEqual(await page.evaluate(()=>innerWidth));
  });
+
+
+test('timeline category symbols, count chooser and docked card retain all event references',async({page},info)=>{
+ const classified=snapshot.events.map((e,i)=>({...e,eventType:i===0?'earnings':'insider_trade',eventSubtype:i===0?'earnings_results':'insider_sell',eventClassification:{version:1,method:'parser',rule:'fixture',evidence:['fixture']}})) as IntelligenceSnapshot['events'];
+ classified[0]={...classified[0],evidence:[...classified[0].evidence,{id:'second-reference',url:'https://example.com/second',title:'Second filing reference',sourceDate:'2026-10-02',channel:'SEC'}]};
+ await open(page,false,{...snapshot,events:classified});
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[]}}));
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]'),card=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(timeline.locator('[data-event-type="earnings"]')).toContainText('◆');
+ await timeline.getByRole('button',{name:/events · Oct 2/}).click();
+ await expect(timeline.getByRole('group',{name:'Choose an event'})).toBeVisible();
+ await expect(page).not.toHaveURL(/event=/);
+ await timeline.getByRole('group',{name:'Choose an event'}).getByRole('button',{name:/Insider sell.*Published company update 2$/}).click();
+ await expect(card).toContainText('Insider sell');
+ await timeline.locator('[data-event-type="earnings"]').click();
+ await expect(card).toContainText('Earnings results');await expect(card).toContainText('Second filing reference');
+ await card.getByRole('button',{name:'Close event details',exact:true}).click();
+ await expect(page).not.toHaveURL(/event=/);await expect(card).toBeVisible();
+ if(info.project.name==='desktop'){
+  const cardBounds=await card.boundingBox(),timelineBounds=await timeline.boundingBox();
+  expect(Math.abs(cardBounds!.y+cardBounds!.height-timelineBounds!.y)).toBeLessThanOrEqual(14);
+  await card.getByRole('button',{name:'Reset card position'}).click();
+ }
+ await page.screenshot({path:`output/event-types-${info.project.name}.png`});
+});

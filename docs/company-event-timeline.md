@@ -2,7 +2,7 @@
 
 Selecting a company in Graph, Tree, Hierarchy, or List opens a compact company card and a full-width research timeline at the bottom of the workspace. Company pages for US listings, China A-shares, and global/private companies use the same timeline and snapshot components.
 
-The UI shows only one month (30 calendar days), matching the initial historical coverage. Events overlay the price line with a Business/Filing/Research legend; there are no separate event rows or Sources axis label. Volume remains a compact strip below the price. Nearby markers cluster across categories to avoid overlap; choosing a cluster exposes its individual dated events. Date anchors do not move when events cluster. Markers between stored closes use the line's interpolated position; outside price coverage or across a gap longer than seven days they remain at the top of the chart without inventing a close. The chart is 160px tall and can be closed and reopened without closing the company card.
+The UI shows only one month (30 calendar days). Event symbols occupy two shallow levels above the price plot, aligned to source publication dates. Symbols and colors distinguish detailed event types; a neutral count marker expands crowded groups before selecting an event. Price and volume retain separate scales. There is no Sources axis label. The chart is 190px tall (216px on narrow screens) and can close and reopen without closing the company card. Desktop cards initially extend to just above the timeline; dragging releases this docking, and Reset card position restores it.
 
 Events come from existing curated primary-source announcements and public relationship evidence. Only source publication dates place events on the timeline. Review dates, ingestion dates, and future planned delivery dates are not substitutes. Current coverage is not a complete earnings or news calendar. Events with unknown publication dates are excluded.
 
@@ -18,4 +18,4 @@ Run `npm run dev -- --webpack --hostname 127.0.0.1 --port 3000` and open `/dev/c
 
 ## Validation
 
-`npx tsx --test tests/company-timeline.test.ts` checks publication-time placement, unknown dates, market isolation, nullable volume, and bounded event clustering. Browser checks also cover all four views, company-page rendering, compact overlays, close/reopen, event selection, and mobile overflow.
+`npx tsx --test tests/company-timeline.test.ts` checks publication-time placement, unknown dates, market isolation, nullable volume, and bounded event clustering. Browser checks also cover all four views, company-page rendering, dated event bands, close/reopen, event selection, and mobile overflow.

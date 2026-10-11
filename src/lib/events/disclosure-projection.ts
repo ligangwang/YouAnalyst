@@ -6,6 +6,8 @@ import {canonicalEvidenceUrl,observation,type IntelligenceEvent} from '../intell
 import {EVENTS_COLLECTION} from './model';
 import {mapListedCompanies} from './disclosures';
 import {safeSecDocumentPath} from './sec-filing-metadata';
+import {eventClassification} from './classification';
+import {validInsiderGroup,type InsiderEventGroup} from './insider-transactions';
 
 export function projectDisclosures(records:Record<string,unknown>[],graph:KnowledgeGraph,now:Date):IntelligenceEvent[]{
   const ids=new Set(mapListedCompanies(graph).map(n=>n.id));
@@ -17,7 +19,10 @@ export function projectDisclosures(records:Record<string,unknown>[],graph:Knowle
     const sec=row.sourceType==='sec'&&row.companyId.startsWith('US:')&&parsed.hostname==='www.sec.gov'&&Boolean(secPath&&safeSecDocumentPath(secPath[1]));
     const exchange=row.sourceType==='exchange'&&/^(?:XSHG|XSHE):/.test(row.companyId)&&parsed.hostname==='static.cninfo.com.cn'&&/^\/finalpage\/\d{4}-\d{2}-\d{2}\/[\w.-]+\.pdf$/i.test(parsed.pathname);
     if(!sec&&!exchange)return [];
-    return [{id:`disclosure-${row.id}`,origin:row.companyId,companyIds:[row.companyId],edgeIds:[],category:row.category==='EARNINGS'?'BUSINESS':'FILING',title:row.title,titleEn:translatedSummary(row.title,(row.titleTranslations as Record<string,unknown>|undefined)?.en),titleZh:translatedSummary(row.title,(row.titleTranslations as Record<string,unknown>|undefined)?.["zh-CN"]),summary:typeof row.summary==='string'?row.summary:'Official company disclosure.',published_at:date.at,publication_date:date.day,eventDate:typeof row.publication_date==='string'?row.publication_date:null,evidence:[{id:row.id,url,title:row.title,sourceDate:typeof row.publication_date==='string'?row.publication_date:null,channel:sec?'SEC':'Exchange'}],planned:false} satisfies IntelligenceEvent];
+    const base={...eventClassification(row),id:`disclosure-${row.id}`,origin:row.companyId,companyIds:[row.companyId],edgeIds:[],category:row.category==='EARNINGS'?'BUSINESS' as const:'FILING' as const,title:row.title,titleEn:translatedSummary(row.title,(row.titleTranslations as Record<string,unknown>|undefined)?.en),titleZh:translatedSummary(row.title,(row.titleTranslations as Record<string,unknown>|undefined)?.["zh-CN"]),summary:typeof row.summary==='string'?row.summary:'Official company disclosure.',published_at:date.at,publication_date:date.day,eventDate:typeof row.publication_date==='string'?row.publication_date:null,evidence:[{id:row.id as string,url,title:row.title as string,sourceDate:typeof row.publication_date==='string'?row.publication_date:null,channel:sec?'SEC' as const:'Exchange' as const}],planned:false} satisfies IntelligenceEvent;
+    const groups=Array.isArray(row.insiderEventGroups)?row.insiderEventGroups as InsiderEventGroup[]:[];
+    if(sec&&groups.length&&groups.every(group=>validInsiderGroup(group,row.companyId as string)))return groups.map((group,index)=>({...base,...eventClassification(group as unknown as Record<string,unknown>),id:`${base.id}:trade:${index}`,relatedEventIds:index===0?[base.id]:[],eventGroupingKey:group.eventGroupingKey,insiderTransactions:group.transactions,amendment:group.amendment,amendmentPublishedAt:group.amendment?date.day:undefined,eventDate:group.transactions[0].date}));
+    return [base];
   });
 }
 export async function loadMapDisclosures(db:Firestore,graph:KnowledgeGraph,now:Date,from:string,limit?:number){

@@ -5,6 +5,7 @@ const defaultSummary = normalize('Official company news. Open the source for det
 const details = (event:IntelligenceEvent) => normalize(event.summary) === defaultSummary ? '' : normalize(event.summary);
 
 function announcementKey(event:IntelligenceEvent):string|null {
+  if(event.eventType==='insider_trade'&&event.eventGroupingKey&&event.insiderTransactions?.length)return event.eventGroupingKey;
   // Only verified company-news projections qualify, never filings or research.
   if(!event.id.startsWith('news-company_news_')||event.category!=='BUSINESS'||event.companyIds.length!==1||event.companyIds[0]!==event.origin||!event.evidence.length||event.evidence.some(source=>source.channel!=='IR'))return null;
   const title=normalize(event.title);
@@ -18,6 +19,7 @@ function announcementKey(event:IntelligenceEvent):string|null {
 }
 
 function compatible(a:IntelligenceEvent,b:IntelligenceEvent):boolean {
+  if(a.eventGroupingKey&&a.eventGroupingKey===b.eventGroupingKey)return true;
   if(a.eventDate&&b.eventDate&&a.eventDate!==b.eventDate)return false;
   if(details(a)&&details(b)&&details(a)!==details(b))return false;
   if(a.calendarEvents?.length&&b.calendarEvents?.length){
@@ -31,10 +33,11 @@ function merge(a:IntelligenceEvent,b:IntelligenceEvent):IntelligenceEvent {
   const day=a.evidence[0].sourceDate!;
   // Prefer a timestamp consistent with the publisher day over midnight aliases.
   const quality=(event:IntelligenceEvent)=>event.publication_date!==day?0:event.published_at?2:1;
-  const preferred=quality(b)>quality(a)||(quality(b)===quality(a)&&(b.published_at??'')>(a.published_at??''))?b:a;
+  const preferred=a.eventGroupingKey&&a.eventGroupingKey===b.eventGroupingKey?(b.amendment&&(!a.amendment||(b.amendmentPublishedAt??b.publication_date)>(a.amendmentPublishedAt??a.publication_date))?b:a):quality(b)>quality(a)||(quality(b)===quality(a)&&(b.published_at??'')>(a.published_at??''))?b:a;
   const other=preferred===a?b:a;
   const ids=[...new Set([a.id,b.id,...(a.relatedEventIds??[]),...(b.relatedEventIds??[])])].sort();
   return {...preferred,id:ids[0],relatedEventIds:ids.slice(1),
+    ...(a.eventGroupingKey?{publication_date:a.publication_date<b.publication_date?a.publication_date:b.publication_date,published_at:a.publication_date===b.publication_date?[a.published_at,b.published_at].filter((at):at is string=>Boolean(at)).sort()[0]??null:a.publication_date<b.publication_date?a.published_at:b.published_at,insiderTransactions:preferred.amendment?preferred.insiderTransactions:[...new Map([...(a.insiderTransactions??[]),...(b.insiderTransactions??[])].map(transaction=>[JSON.stringify(transaction),transaction])).values()]}:{}),
     titleEn:preferred.titleEn||other.titleEn,titleZh:preferred.titleZh||other.titleZh,
     summary:details(preferred)?preferred.summary:other.summary,
     eventDate:preferred.eventDate??other.eventDate,

@@ -12,6 +12,7 @@ import {randomUUID} from 'node:crypto';
 import {translateCollectedHeadlines} from '../src/lib/intelligence/collectors/headline-translations';
 import {analyzeCollectedNews} from '../src/lib/intelligence/collectors/news-analysis-worker';
 import {collectCalendarSchedules} from '../src/lib/calendar/worker';
+import {backfillEventClassifications} from '../src/lib/events/classification-worker';
 
 async function main(){
   const args=process.argv.slice(2);if(args.some(arg=>!['--apply','--revalidate-calendar'].includes(arg)))throw new Error('Usage: collect-intelligence-news [--apply] [--revalidate-calendar]');
@@ -36,6 +37,8 @@ async function main(){
     console.log(JSON.stringify({job:'revalidate-calendar',calendar}));return;
   }
   const deadline=Date.now()+18*60_000,newsDeadline=Date.now()+8*60_000;
+  const classificationState=await db.collection('collectors').doc('event-classification-v1').get();
+  const classifications=await backfillEventClassifications(db,{apply:true,enrichInsiders:Boolean(process.env.SEC_USER_AGENT),after:String(classificationState.get('afterEventId')??''),deadline:Date.now()+90_000,maxPages:5});
   // Rotate the start hourly; slow publishers cannot starve later map companies.
   const start=Math.floor(Date.now()/3600000)%Math.max(1,sources.length);
   const results=await collectNewsSources([...sources.slice(start),...sources.slice(0,start)],firestoreNewsStore(db),undefined,undefined,{deadline:newsDeadline});
@@ -46,7 +49,7 @@ async function main(){
   const exchange=await collectCnMapDisclosures(db,graph,transport.request,{deadline:Math.min(deadline-4*60_000,Date.now()+6*60_000),runId:randomUUID(),earningsEnabled:process.env.EARNINGS_COLLECTION_ENABLED==='1'});
   const headlines=await translateCollectedHeadlines(db,mapped,{deadline:Math.min(deadline-2*60_000,Date.now()+150_000)});
   const calendar=process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline}):{disabled:true};
-  console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange,calendar,headlines,analysis}));
+  console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange,calendar,headlines,analysis,classifications}));
   if(results.some(result=>result.status==='failed'))process.exitCode=1;
   if('failed' in exchange&&exchange.failed)process.exitCode=1;
   if('failed' in calendar&&calendar.failed)process.exitCode=1;

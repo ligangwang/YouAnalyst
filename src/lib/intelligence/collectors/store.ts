@@ -4,6 +4,7 @@ import type {NewsResponse} from './news';
 import type {CollectedNews,NewsCursor,NewsStore} from './collector';
 import {NEWS_HISTORY_START} from './collector';
 import {EVENTS_COLLECTION,eventDocumentId} from '../../events/model';
+import {classifyEvent} from '../../events/classification';
 
 export const NEWS_EVENTS_COLLECTION=EVENTS_COLLECTION;
 export const NEWS_COLLECTORS_COLLECTION='collectors';
@@ -31,7 +32,7 @@ export function firestoreNewsStore(db:Firestore):NewsStore{
       candidates.forEach((item,index)=>{
         if(existing[index].exists)return;
         const event:CollectedNews={...item,id:eventDocumentId('company_news',item.id),version:1,type:'company_news',sourceType:'company_ir',companyIds:[source.companyId],collected_at:response.status==='modified'?response.collected_at??at.toISOString():at.toISOString(),processed_at:at.toISOString(),baseline};
-        tx.create(refs[index],event);created++;
+        tx.create(refs[index],{...event,...classifyEvent(event)});created++;
       });
       // Align successful scans to the next schedule boundary, not an hour after
       // completion; otherwise a few seconds of jitter can skip the next run.
