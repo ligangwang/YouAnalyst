@@ -765,6 +765,7 @@ test("admin edits a company name in place and stale edits show a conflict", asyn
  await revealMapSearch(page);
  await page.getByRole("textbox",{name:"搜索公司",exact:true}).fill("TSM");
  await page.getByRole("region",{name:"搜索结果"}).getByRole("button",{name:"台积公司 · TSM",exact:true}).click();
+ await page.locator('summary').filter({hasText:'公司信息'}).click();
  await page.getByRole("button",{name:"修改显示名",exact:true}).click();
  await page.getByRole("textbox",{name:"中文显示名",exact:true}).fill("台积电");
  await page.getByRole("button",{name:"保存",exact:true}).click();
@@ -1003,7 +1004,8 @@ test("opening relationship evidence preserves the current company",async({page})
  await page.waitForTimeout(800);
  const orbited=await projection();
  expect(orbited).toContain("translate");
- await page.getByRole("button",{name:"TSMC → NVIDIA",exact:true}).click();
+  await page.locator('summary').filter({hasText:'Connections & roles'}).click();
+  await page.getByRole("button",{name:"TSMC → NVIDIA",exact:true}).click();
  await expect.poll(projection).toBe(orbited);
  await expect(page.getByRole("complementary").getByRole("heading",{level:2})).toHaveText("NVIDIA");
  await page.getByRole("region",{name:"Selected connection"}).getByRole("button",{name:"Explore TSMC →"}).click();
@@ -1062,6 +1064,7 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await page.mouse.move(5,5);
   const labels=page.locator('button[class*="edgeLabel3d"]:visible');
   await expect(labels).toHaveCount(0);
+  await page.locator('summary').filter({hasText:'Connections & roles'}).click();
   await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
   await expect(labels).toHaveCount(1);
   await labels.first().click();
@@ -1128,6 +1131,7 @@ test("selected relationship label has priority and company details remain readab
  await revealMapSearch(page);
  await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
  await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+  await page.locator('summary').filter({hasText:'Connections & roles'}).click();
  await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
  await expect(page.getByRole("button",{name:"DELL Integrates technology from NVDA",exact:true})).toBeVisible();
  await expect(page.getByRole("button",{name:"NVIDIA · NVDA",exact:true})).toBeVisible();
@@ -1168,6 +1172,7 @@ test("relationship labels always have a visible company endpoint",async({page})=
  await revealMapSearch(page);
  await page.getByRole("textbox",{name:"Search companies",exact:true}).fill("NVDA");
  await page.getByRole("region",{name:"Search results"}).getByRole("button",{name:"NVIDIA · NVDA",exact:true}).click();
+  await page.locator('summary').filter({hasText:'Connections & roles'}).click();
  await page.getByRole("button",{name:"Dell Technologies → NVIDIA",exact:true}).click();
  await expect(page.locator('[data-active="true"]')).toBeVisible();
  const orphanLabels=()=>page.locator('[data-source]').evaluateAll(els=>{
@@ -1595,7 +1600,7 @@ test('navigation: cards dock away from graph nodes and can be dragged with point
  await expect.poll(async()=>{const c=(await card.boundingBox())!,v=(await canvas.boundingBox())!;return test.info().project.name==='mobile'?v.y+v.height<=c.y+2:v.x+v.width<=c.x+2;}).toBe(true);
  const before=(await card.boundingBox())!;await handle.focus();await page.keyboard.press('ArrowLeft');
  await expect.poll(async()=> (await card.boundingBox())!.x).toBeLessThan(before.x);
- const box=(await handle.boundingBox())!;await page.mouse.move(box.x+20,box.y+10);await page.mouse.down();await page.mouse.move(box.x+20,box.y+(test.info().project.name==='mobile'?-55:75),{steps:6});await page.mouse.up();
+ const box=(await handle.boundingBox())!;await page.mouse.move(box.x+20,box.y+10);await page.mouse.down();await page.mouse.move(box.x+20,box.y-55,{steps:6});await page.mouse.up();
  await expect.poll(async()=> (await card.boundingBox())!.y).not.toBe(before.y);
  const after=(await card.boundingBox())!;expect(after.x).toBeGreaterThanOrEqual(0);expect(after.y).toBeGreaterThanOrEqual(0);
  await page.getByRole('tab',{name:'Company list',exact:true}).click();

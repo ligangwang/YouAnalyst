@@ -285,9 +285,9 @@
 .workspace[data-view="graph"] > .detail { position:absolute; z-index:60; width:min(360px,calc(100% - 20px)); min-height:0; max-height:65vh; padding:16px; border:1px solid #36536a; border-radius:16px; box-shadow:0 14px 42px #0009; overscroll-behavior:contain; }
 .workspace[data-view="graph"] .detailHeader { position:sticky; top:-16px; z-index:1; background:#0b1520; padding:8px 0; }
 
-/* The compact card overlays the scene above the full-width timeline. */
-.workspace[data-view="graph"].withDetail .viewContent{padding-right:0}
-@media(max-width:800px){.workspace[data-view="graph"].withDetail .viewContent{padding-right:0;padding-bottom:0}}
+/* Keep the compact card outside the interactive scene; the timeline spans both lanes. */
+.workspace[data-view="graph"].withDetail .viewContent{padding-right:364px}
+@media(max-width:800px){.workspace[data-view="graph"].withDetail .viewContent{padding-right:0;padding-bottom:220px}}
 
 @media(max-width:800px){.workspace[data-view="graph"].withDetail .canvas3d{height:max(240px,calc(62vh - 220px));min-height:240px}}
 
