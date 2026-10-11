@@ -1,7 +1,7 @@
 import type { BusinessEvent } from "./knowledge-graph/business-events";
 import { intelligenceEventTitle, type IntelligenceEvent, type IntelligenceSource } from "./intelligence/model";
 import { relationshipSourceTitle, relationshipSummary, type KnowledgeGraph } from "./knowledge-graph/model";
-import {classifyEvent,type ClassifiedEvent} from './events/classification';
+import {classifyEvent,eventPresentation,type ClassifiedEvent} from './events/classification';
 
 export const TIMELINE_RANGES = [30, 90, 180, 365, 1826] as const;
 export const DEFAULT_TIMELINE_RANGE = 30;
@@ -52,16 +52,22 @@ export function companyTimelineEvents(companyId: string, graph: KnowledgeGraph |
   }
   return [...unique.values()].map(event=>{const classification=classifyEvent({title:event.title,type:event.lane==='business'?'company_news':'research'});return {...event,...classification,...(event.lane==='research'&&classification.eventType==='other'?{eventType:'relationship' as const,eventSubtype:'relationship_disclosure'}:{})};}).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
-/** Two collision-free levels in an event band. Dense columns become neutral count markers. */
+/** Only same-date events with the same symbol share a badge; all other dates retain their anchors. */
 export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:string,width:number,spacing=36){
  const groups:{x:number;level:number;events:TimelineEvent[]}[]=[];
- const last:[typeof groups[number]|null,typeof groups[number]|null]=[null,null];
+ const last:typeof groups=[];
  const span=Math.max(1,Date.parse(end)-Date.parse(start));
  for(const event of events.filter(event=>event.date>=start&&event.date<=end).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))){
   const x=(Date.parse(event.date)-Date.parse(start))/span*width;
-  const level=last.findIndex(group=>!group||x-group.x>=spacing);
-  if(level===-1){last[1]!.events.push(event);continue;}
-  const group={x,level,events:[event]};groups.push(group);last[level as 0|1]=group;
+  const presentation=eventPresentation(event);
+  const matching=groups.findLast(group=>{
+   const previous=eventPresentation(group.events[0]);
+   return group.events[0].date===event.date&&previous.type===presentation.type&&previous.symbol===presentation.symbol&&previous.color===presentation.color;
+  });
+  if(matching){matching.events.push(event);continue;}
+  const freeLevel=last.findIndex(group=>x-group.x>=spacing);
+  const level=freeLevel===-1?last.length:freeLevel;
+  const group={x,level,events:[event]};groups.push(group);last[level]=group;
  }
  return groups;
 }
