@@ -16,7 +16,8 @@ import {attachCalendarLinks} from '../calendar/intelligence-links';
 import {groupCompanyAnnouncements} from './announcement-grouping';
 import {companySearchRank,companySearchText,matchesCompanySearch} from '../knowledge-graph/model';
 
-const LIMIT=200,CACHE_MS=60_000;
+const LIMIT=200,CACHE_MS=60_000,STALE_MS=5*60_000;
+type ScheduleRefresh=(refresh:()=>Promise<void>)=>void;
 const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;expires:number}>();
 const requests=new Map<CompanyThemeId,Promise<IntelligenceSnapshot>>();
 // Retain the full period privately; company feeds reuse the same database read.
@@ -37,8 +38,8 @@ async function loadUniverseGraph(theme:CompanyThemeId){
     :await (theme==='ai'?loadKnowledgeGraph():loadThemeGraph(theme));
 }
 
-export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region=''):Promise<IntelligenceSnapshot>{
-  const base=await loadIntelligenceSnapshot(now,theme);
+export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region='',scheduleRefresh?:ScheduleRefresh):Promise<IntelligenceSnapshot>{
+  const base=await loadIntelligenceSnapshot(now,theme,scheduleRefresh);
   const search=query.normalize('NFKC').trim().replace(/^\$/,'');
   if(!company&&!search&&region!=='US'&&region!=='CN_A')return base;
   const id=company.includes(':')?company.toUpperCase():`US:${company.toUpperCase()}`;
@@ -66,10 +67,20 @@ export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:Compa
 }
 
 /** One cached, paginated period read shared by browsers; only the event list is capped. */
-export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai'):Promise<IntelligenceSnapshot>{
+export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',scheduleRefresh?:ScheduleRefresh):Promise<IntelligenceSnapshot>{
   const session=intelligenceSession(now);
   const cached=caches.get(theme),pending=requests.get(theme);
   if(cached&&cached.expires>now.getTime()&&cached.value.session.date===session.date)return cached.value;
+  // Keep ticker switches independent of the shared period rebuild. The route
+  // owns the refresh lifetime; never serve yesterday's session or old failures.
+  if(scheduleRefresh&&cached&&cached.value.session.date===session.date&&now.getTime()-Date.parse(cached.value.generatedAt)<STALE_MS){
+    const scheduledAt=Date.now();
+    scheduleRefresh(async()=>{
+      try{await loadIntelligenceSnapshot(new Date(now.getTime()+Math.max(0,Date.now()-scheduledAt)),theme);}
+      catch(error){console.error('Intelligence snapshot refresh unavailable',error);}
+    });
+    return cached.value;
+  }
   if(pending)return pending;
   const request=(async()=>{
     const graph=await loadUniverseGraph(theme);
