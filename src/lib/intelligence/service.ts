@@ -16,9 +16,10 @@ import {attachCalendarLinks} from '../calendar/intelligence-links';
 import {groupCompanyAnnouncements} from './announcement-grouping';
 import {companySearchRank,companySearchText,matchesCompanySearch} from '../knowledge-graph/model';
 
-const LIMIT=200,CACHE_MS=60_000;
+const LIMIT=200,CACHE_MS=60_000,STALE_MS=5*60_000;
+type ScheduleRefresh=(refresh:()=>Promise<void>)=>void;
 const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;expires:number}>();
-const requests=new Map<CompanyThemeId,Promise<IntelligenceSnapshot>>();
+const requests=new Map<string,Promise<IntelligenceSnapshot>>();
 // Retain the full period privately; company feeds reuse the same database read.
 const periods=new WeakMap<IntelligenceSnapshot,IntelligenceSnapshot['events']>();
 const companyRequests=new WeakMap<IntelligenceSnapshot,Map<string,Promise<IntelligenceSnapshot>>>();
@@ -37,8 +38,8 @@ async function loadUniverseGraph(theme:CompanyThemeId){
     :await (theme==='ai'?loadKnowledgeGraph():loadThemeGraph(theme));
 }
 
-export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region=''):Promise<IntelligenceSnapshot>{
-  const base=await loadIntelligenceSnapshot(now,theme);
+export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region='',scheduleRefresh?:ScheduleRefresh):Promise<IntelligenceSnapshot>{
+  const base=await loadIntelligenceSnapshot(now,theme,scheduleRefresh);
   const search=query.normalize('NFKC').trim().replace(/^\$/,'');
   if(!company&&!search&&region!=='US'&&region!=='CN_A')return base;
   const id=company.includes(':')?company.toUpperCase():`US:${company.toUpperCase()}`;
@@ -66,10 +67,21 @@ export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:Compa
 }
 
 /** One cached, paginated period read shared by browsers; only the event list is capped. */
-export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai'):Promise<IntelligenceSnapshot>{
+export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',scheduleRefresh?:ScheduleRefresh):Promise<IntelligenceSnapshot>{
   const session=intelligenceSession(now);
-  const cached=caches.get(theme),pending=requests.get(theme);
+  const requestKey=`${theme}:${session.date}`;
+  const cached=caches.get(theme),pending=requests.get(requestKey);
   if(cached&&cached.expires>now.getTime()&&cached.value.session.date===session.date)return cached.value;
+  // Keep ticker switches independent of the shared period rebuild. The route
+  // owns the refresh lifetime; never serve yesterday's session or old failures.
+  if(scheduleRefresh&&cached&&cached.value.session.date===session.date&&now.getTime()-Date.parse(cached.value.generatedAt)<STALE_MS){
+    const scheduledAt=Date.now();
+    scheduleRefresh(async()=>{
+      try{await loadIntelligenceSnapshot(new Date(now.getTime()+Math.max(0,Date.now()-scheduledAt)),theme);}
+      catch(error){console.error('Intelligence snapshot refresh unavailable',error);}
+    });
+    return cached.value;
+  }
   if(pending)return pending;
   const request=(async()=>{
     const graph=await loadUniverseGraph(theme);
@@ -135,9 +147,11 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     for(const event of ordered)for(const source of event.evidence)evidenceChannels.add(source.channel);
     const value:IntelligenceSnapshot={theme,graph:priced.graph,eventReturns:priced.eventReturns,graphVersion,events,sourceDocuments:sourceDocumentsForEvents(ordered),statisticsComplete,generatedAt:now.toISOString(),session,newsCoverage,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
     periods.set(value,ordered);
-    caches.set(theme,{value,expires:now.getTime()+CACHE_MS});
+    // An older in-flight session must not overwrite a newer day's cache.
+    const current=caches.get(theme);
+    if(!current||Date.parse(current.value.generatedAt)<=now.getTime())caches.set(theme,{value,expires:now.getTime()+CACHE_MS});
     return value;
   })();
-  requests.set(theme,request);
-  try{return await request;}finally{if(requests.get(theme)===request)requests.delete(theme);}
+  requests.set(requestKey,request);
+  try{return await request;}finally{if(requests.get(requestKey)===request)requests.delete(requestKey);}
 }

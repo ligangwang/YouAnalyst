@@ -6,6 +6,7 @@ import {createSecFilingDiscovered} from '../../src/lib/sec-filings/event';
 import {summarizeIntelligence,summarizeSourceDocuments} from '../../src/lib/intelligence/model';
 import {NEWS_SOURCES} from '../../scripts/seed-news-sources';
 import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
+import {gunzipSync} from 'node:zlib';
 
 const now=new Date('2026-10-02T16:00:00Z');
 const graph:KnowledgeGraph={asOf:'2026-10-02',nodes:[{id:'US:AMD',name:'AMD',kind:'COMPANY',order:0},{id:'US:MU',name:'Micron',kind:'COMPANY',order:1}],sources:[{id:'s',title:'Filing',url:'https://www.sec.gov/Archives/filing.htm',sourceDate:'2026-09-03'}],relationships:[{id:'edge',source:'US:MU',target:'US:AMD',type:'SUPPLIER_OF',summary:'Stored evidence',sourceIds:['s'],commercialStatus:'DOCUMENTED',researchReviewedAt:'2026-10-01'}]};
@@ -50,6 +51,71 @@ test('unavailable SEC reads preserve real evidence and explicitly disclose parti
   assert.equal(snapshot.statisticsComplete,false);
   assert.equal(snapshot.coverage.find(item=>item.channel==='SEC')?.status,'stored_evidence');
   assert(snapshot.warnings.some(warning=>warning.includes('temporarily unavailable')));
+});
+
+test('ticker switches use the cached full period while one deferred refresh is blocked',async()=>{
+  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
+  let graphReads=0,release:()=>void=()=>{};
+  const blocked=new Promise<void>(resolve=>{release=resolve;});
+  const service=await isolated({collection:()=>query},async()=>{if(++graphReads===2)await blocked;return graph;});
+  const first=await service.loadIntelligenceSnapshot(now);
+  const refreshes:Array<()=>Promise<void>>=[];
+  const later=new Date(now.getTime()+61_000);
+  const amd=await service.loadCompanyIntelligenceSnapshot(later,'ai','','AMD','',refresh=>refreshes.push(refresh));
+  assert.equal(amd.generatedAt,first.generatedAt);
+  assert.equal(graphReads,1);assert.equal(refreshes.length,1);
+  const refreshing=refreshes[0]();
+  const micron=await service.loadCompanyIntelligenceSnapshot(later,'ai','','MU','',refresh=>refreshes.push(refresh));
+  assert(micron.events.every(event=>event.companyIds.includes('US:MU')));
+  assert.equal(micron.graph,first.graph);
+  const concurrentRefresh=refreshes[1]();
+  assert.equal(graphReads,2);
+  release();await Promise.all([refreshing,concurrentRefresh]);
+  const fresh=await service.loadIntelligenceSnapshot(later);
+  assert.notEqual(fresh,first);assert.equal(graphReads,2);
+  assert(Date.parse(fresh.generatedAt)>=later.getTime());
+});
+
+test('deferred refresh is bounded and never serves the previous Eastern session',async()=>{
+  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
+  for(const later of [new Date(now.getTime()+300_000),new Date('2026-10-03T04:00:00Z')]){
+    let graphReads=0;
+    const service=await isolated({collection:()=>query},async()=>{graphReads++;return graph;});
+    const first=await service.loadIntelligenceSnapshot(now);
+    const next=await service.loadIntelligenceSnapshot(later,'ai',()=>assert.fail('Old snapshots must rebuild before responding'));
+    assert.notEqual(next,first);assert.equal(graphReads,2);assert.equal(next.generatedAt,later.toISOString());
+  }
+});
+
+test('a failed deferred refresh is handled and retries without discarding usable data',async()=>{
+  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
+  let graphReads=0;
+  const service=await isolated({collection:()=>query},async()=>{if(++graphReads===2)throw new Error('refresh failed');return graph;});
+  const first=await service.loadIntelligenceSnapshot(now);
+  const refreshes:Array<()=>Promise<void>>=[];
+  const later=new Date(now.getTime()+61_000);
+  assert.equal(await service.loadIntelligenceSnapshot(later,'ai',refresh=>refreshes.push(refresh)),first);
+  await refreshes[0]();
+  assert.equal(await service.loadIntelligenceSnapshot(later,'ai',refresh=>refreshes.push(refresh)),first);
+  await refreshes[1]();
+  assert.notEqual(await service.loadIntelligenceSnapshot(later),first);assert.equal(graphReads,3);
+});
+
+test('a pre-midnight refresh cannot block or overwrite the new Eastern session',async()=>{
+  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
+  let reads=0,release:()=>void=()=>{};
+  const blocked=new Promise<void>(resolve=>{release=resolve;});
+  const service=await isolated({collection:()=>query},async()=>{if(++reads===2)await blocked;return graph;});
+  const first=await service.loadIntelligenceSnapshot(new Date('2026-10-03T03:58:59Z'));
+  const refreshes:Array<()=>Promise<void>>=[];
+  assert.equal(await service.loadIntelligenceSnapshot(new Date('2026-10-03T03:59:59Z'),'ai',refresh=>refreshes.push(refresh)),first);
+  const oldRefresh=refreshes[0]();
+  const midnight=new Date('2026-10-03T04:00:00Z');
+  const next=await service.loadIntelligenceSnapshot(midnight,'ai',()=>assert.fail('New session must load fresh data'));
+  assert.equal(next.session.date,'2026-10-03');assert.equal(reads,3);
+  release();await oldRefresh;
+  assert.equal(await service.loadIntelligenceSnapshot(midnight),next);
+  assert.equal(reads,3);
 });
 
 test('universe bootstrap needs only the graph and never reports empty sources as complete',async()=>{
@@ -172,4 +238,38 @@ test('theme snapshots keep graph and full-period activity caches isolated during
   assert.equal(ai.graph,graph);assert.equal(robot.graph,robotics);assert.equal(robot.sourceDocuments?.length,0);assert.equal(ai.sourceDocuments?.length,1);
   const repeated=await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000),'robotics');assert.equal(repeated,robot);
   assert.equal(await service.loadIntelligenceSnapshot(now),ai);assert.equal(aiReads,1);assert.equal(roboticsReads,1);
+});
+
+test('the events route negotiates compression and preserves filters and deferred refresh scheduling',async()=>{
+  const result=await build({entryPoints:['src/app/api/intelligence/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['@/lib/intelligence/service','@/lib/company-themes/model','next/server']});
+  const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
+  const callbacks:Array<()=>Promise<void>>=[];
+  let fail=false;
+  const payload={theme:'ai',graph,events:[],sourceDocuments:[],padding:'source evidence '.repeat(500)};
+  const after=(callback:()=>Promise<void>)=>{callbacks.push(callback);};
+  const injected=(name:string)=>{
+    if(name==='next/server')return {after};
+    if(name==='@/lib/company-themes/model')return {parseCompanyTheme:()=> 'ai'};
+    if(name==='@/lib/intelligence/service')return {loadCompanyIntelligenceSnapshot:async(_now:Date,theme:string,company:string,query:string,region:string,schedule:typeof after)=>{
+      assert.equal(theme,'ai');assert.equal(company,'');assert.equal(query,'QCOM');assert.equal(region,'US');assert.equal(schedule,after);
+      if(fail)throw new Error('unavailable');
+      schedule(async()=>{});return payload;
+    }};
+    return realRequire(name);
+  };
+  new Function('require','module','exports',result.outputFiles[0].text)(injected,evaluated,evaluated.exports);
+  const route=evaluated.exports as typeof import('../../src/app/api/intelligence/route');
+  for(const [accept,compressed] of [['gzip',true],['br, gzip;q=0.5',true],['gzip;q=0',false],['identity',false],['',false]] as const){
+    const response=await route.GET(new Request('http://localhost/api/intelligence?q=QCOM&region=US',{headers:{'accept-encoding':accept}}));
+    assert.equal(response.status,200);assert.equal(response.headers.get('vary'),'Accept-Encoding');
+    assert.equal(response.headers.get('cache-control'),'no-store');
+    assert.equal(response.headers.get('content-encoding'),compressed?'gzip':null);
+    const bytes=Buffer.from(await response.arrayBuffer());
+    if(compressed)assert(bytes.length<JSON.stringify(payload).length/2);
+    assert.deepEqual(JSON.parse(compressed?gunzipSync(bytes).toString():bytes.toString()),payload);
+  }
+  assert.equal(callbacks.length,5);
+  fail=true;
+  const error=await route.GET(new Request('http://localhost/api/intelligence?q=QCOM&region=US'));
+  assert.equal(error.status,503);assert.equal(error.headers.get('content-encoding'),null);
 });
