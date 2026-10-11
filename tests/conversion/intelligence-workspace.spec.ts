@@ -847,20 +847,33 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await expect(card).toContainText(companies.find(c=>c.id===previous)!.name);
 });
 
- test('Explore timeline loads stored prices, selects grouped events and remembers its range',async({page})=>{
+ test('Explore compact timeline uses 1M, overlays events and can close and reopen',async({page})=>{
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-10-01',close:100,volume:0},{date:'2026-10-02',close:102,volume:null}]}}));
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
  await expect(timeline).toBeVisible();await expect(timeline).toContainText('2 stored daily bars');
+ await expect(timeline.getByRole('group',{name:'Timeline range'})).toContainText('1M');
+ await expect(timeline.getByRole('button',{name:/^(3M|6M|1Y|5Y)$/})).toHaveCount(0);
+ await expect(timeline.locator('svg')).not.toContainText('Sources');
+ expect((await timeline.locator('svg').boundingBox())?.height).toBe(160);
+ const marker=timeline.getByRole('button',{name:/Oct 2: Published company update/}).first();
+ const markerBounds=await marker.boundingBox(),chartBounds=await timeline.locator('svg').boundingBox();
+ expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeGreaterThan(32);
+ expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeLessThan(102);
+ await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
+ await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeFocused();
+ await expect(timeline.locator('svg')).toHaveCount(0);
+ await expect(page.getByRole('region',{name:'Company details',exact:true})).toBeVisible();
+ await timeline.getByRole('button',{name:'Show timeline',exact:true}).press('Enter');
+ await expect(timeline.getByRole('button',{name:'Close timeline',exact:true})).toBeFocused();
+ await expect(timeline.locator('svg')).toBeVisible();
  await timeline.getByRole('button',{name:/Oct 2: Published company update/}).first().click();
  await expect(page).toHaveURL(/event=event-0/);
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Selected event');
- await timeline.getByRole('button',{name:'3M',exact:true}).click();
- await expect(timeline.getByRole('button',{name:'3M',exact:true})).toHaveAttribute('aria-pressed','true');
  await page.getByRole('button',{name:'Close company details'}).click();await expect(timeline).toHaveCount(0);
  await search.fill('');await search.fill('MU');await search.press('Enter');
- await expect(timeline.getByRole('button',{name:'3M',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(timeline.getByRole('group',{name:'Timeline range'})).toContainText('1M');
  const bounds=await timeline.boundingBox();expect(bounds?.width).toBeLessThanOrEqual(await page.evaluate(()=>innerWidth));
  });
