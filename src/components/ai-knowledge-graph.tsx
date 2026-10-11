@@ -8,7 +8,6 @@ import { marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 import { lazy, Suspense, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocale } from "./providers/locale-provider";
 import { relationshipSourceTitle, relationshipSummary, companySummary, companyName, filterGraph, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
-import { companyPageUrl } from "@/lib/market-companies/routes";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyGeographyLabel } from "@/lib/market-companies/identity";
 import { IndustryCompanyTable } from "./industry-company-views";
@@ -16,8 +15,7 @@ import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-
 import { companySectors, INDUSTRY_VIEWS, LEGACY_VERTICAL_VIEW, parseIndustryView, type IndustryView } from "@/lib/knowledge-graph/views";
 import {NavigationSettings} from "./navigation-settings";
 import {UniverseMusic, UniverseMusicToggle} from "./universe-music";
-import { CompanyFollowButton, useCompanyFollows } from "./company-follow-button";
-import { CompanyCountryFlag } from "./company-country-flag";
+import { useCompanyFollows } from "./company-follow-button";
 import { CompanyNameEditor } from "./company-name-editor";
 import { AiMapDirectory } from "./ai-map-directory";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
@@ -28,6 +26,9 @@ import { relationshipVerification, verificationLabel } from "@/lib/knowledge-gra
 import { trackEvent } from "@/lib/analytics";
 import styles from "./ai-knowledge-graph.module.css";
 import { useNodeCardPosition } from './use-node-card-position';
+import { CompanyTimeline } from './company-timeline';
+import { CompanySnapshot } from './company-snapshot';
+import type { TimelinePrices } from '@/lib/company-timeline';
 import { useCardDismiss } from './use-card-dismiss';
 import cardFade from './card-fade.module.css';
 
@@ -46,7 +47,7 @@ function ViewIcon({ view }: { view: IndustryView }) {
     {view === "table" ? <><path d="M9 5h12M9 12h12M9 19h12" /><path d="M3 5h1M3 12h1M3 19h1" /></> : (view === "tree" || view === "hierarchy") ? <><rect x="9" y="2" width="6" height="5" rx="1" /><path d="M12 7v5M5 17v-5h14v5" /><rect x="2" y="17" width="6" height="5" rx="1" /><rect x="16" y="17" width="6" height="5" rx="1" /></> : <><path d="m6 7 10-2M6 7l5 11M18 5l-7 13" /><circle cx="5" cy="6" r="3" /><circle cx="19" cy="4" r="3" /><circle cx="11" cy="19" r="3" /></>}
   </svg>;
 }
-export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", startingPoints, introduction, allowedRelationshipIds }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; startingPoints?: React.ReactNode; introduction?: React.ReactNode; allowedRelationshipIds?: string[] }) {
+export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", startingPoints, introduction, allowedRelationshipIds, initialGraph, previewPrices }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; startingPoints?: React.ReactNode; introduction?: React.ReactNode; allowedRelationshipIds?: string[]; initialGraph?: KnowledgeGraph; previewPrices?: TimelinePrices }) {
   const { text, locale } = useLocale();
   const defaultView: IndustryView = "graph";
   const view = useSyncExternalStore(subscribeView, () => {
@@ -92,17 +93,18 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const sectorControlsId = useId();
   const [cameraRequest, setCameraRequest] = useState(0);
-  const [graph, setGraph] = useState(EMPTY);
-  const [status, setStatus] = useState("loading");
+  const [graph, setGraph] = useState(initialGraph ?? EMPTY);
+  const [status, setStatus] = useState(initialGraph ? "ready" : "loading");
   const [retry, setRetry] = useState(0);
   const query = useIndustryBrowseParam('q', '', initialQuery);
   const setQuery = (value: string) => updateIndustryBrowse({q:value}, true);
   const [selected, setSelected] = useState(initialCompany ? (initialCompany.includes(":") ? initialCompany.toUpperCase() : `US:${initialCompany.toUpperCase()}`) : "");
   useEffect(() => {
+    if (initialGraph) return;
     const controller = new AbortController();
     fetch("/api/knowledge-graph", { signal: controller.signal }).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(data => { setGraph(data); setStatus("ready"); }).catch(() => { if (!controller.signal.aborted) setStatus("error"); });
     return () => controller.abort();
-  }, [retry]);
+  }, [retry, initialGraph]);
   const scoped = useMemo(() => {
     if (!allowedRelationshipIds) return graph;
     const relationships = graph.relationships.filter(e=>allowedRelationshipIds.includes(e.id));
@@ -228,7 +230,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     {onlyFollowed && !follows.user && <p className={styles.filterNotice}>{text("Sign in and follow companies to use this filter.", "登录并关注公司后，可使用此筛选。")}</p>}
     {onlyFollowed && follows.user && !follows.ready && <p className={styles.filterNotice} role="status">{follows.error?<button onClick={()=>void follows.refresh()}>{text("Could not load follows. Retry", "关注列表加载失败，重试")}</button>:text("Loading followed companies…", "正在加载关注公司…")}</p>}
     </div>
-    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length && view!=='graph' ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company && !treeView ? styles.withDetail : ""}`}>
+    {status === "loading" ? <p className={styles.empty} role="status">{text("Loading the knowledge graph…", "正在加载知识图谱…")}</p> : status === "error" ? <div className={styles.empty} role="alert">{text("The graph could not be loaded.", "暂时无法加载图谱。")} <button onClick={() => { setStatus("loading"); setRetry(n => n + 1); }}>{text("Try again", "重试")}</button></div> : !companies.length && view!=='graph' ? <p className={styles.empty}>{text("No matching companies.", "没有匹配的公司。")}</p> : <div ref={workspaceRef} data-view={view} data-has-timeline={Boolean(company)} id={viewId+"-panel"} role="tabpanel" aria-labelledby={viewId+"-"+view} className={`${styles.workspace} ${company && !treeView ? styles.withDetail : ""}`}>
       <div className={styles.viewContent}>
     {view === "graph" && status === "ready" && <div className={styles.graphTools} onKeyDown={e=>{if(e.key==='Escape'){setSectorsExpanded(false);document.getElementById(sectorControlsId+"-toggle")?.focus();}}}><button type="button" className={styles.graphSearchToggle} aria-expanded={searchExpanded || Boolean(query)} onClick={()=>setSearchExpanded(value=>!value)}>{text('Find company','查找公司')}</button><button type="button" className={styles.sectorToggle} id={sectorControlsId+"-toggle"} aria-expanded={sectorsExpanded} aria-controls={sectorControlsId} onClick={()=>setSectorsExpanded(value=>!value)}>{text("Sectors", "产业环节")}{sectorFocus && <> · {text((GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).en,(GRAPH_SECTORS.find(s=>s.id===sectorFocus)??OTHER_SECTOR).zh)}</>} <span aria-hidden="true">{sectorsExpanded?"−":"+"}</span></button><div id={sectorControlsId} className={styles.sectorLegend} data-expanded={sectorsExpanded} role="group" aria-label={text("Colors by primary AI sector", "按主要 AI 产业环节着色")}><span>{text("Highlight sector", "突出显示产业环节")}</span>{[...GRAPH_SECTORS, OTHER_SECTOR].filter(s => sectorIds.has(s.id)).map(s => <button key={s.id} type="button" aria-pressed={sectorFocus === s.id} onClick={() => {toggleSector(s.id);document.getElementById(sectorControlsId+"-toggle")?.focus();}} style={{ color: s.color }}><i aria-hidden="true" style={{ background: s.color }}/>{text(s.en, s.zh)}</button>)}</div><button type="button" className={styles.graphSearchToggle} aria-pressed={showAllEdges} onClick={()=>setShowAllEdges(value=>!value)}>{text("All connections", "全部关系")}{showAllEdges ? " ✓" : ""}</button><p className={styles.interactionHint}><span className={styles.pointerHint}>{text(selected || showAllEdges ? "Hover a line to preview · Click for sources" : "Click a company to explore its connections", selected || showAllEdges ? "悬停连线预览关系 · 点击查看依据" : "点击公司，探索产业关联")}</span><span className={styles.touchHint}>{text(selected || showAllEdges ? "Tap a line for relationship sources" : "Tap a company to explore its connections", selected || showAllEdges ? "点按连线查看关系依据" : "点击公司，探索产业关联")}</span><span style={{display:"block",marginTop:4,fontSize:".85em",opacity:.75}}>{text("Solid: other statuses · Dashed: announced · Open sources for details", "实线：其他状态 · 虚线：已宣布 · 具体进展请查看依据")}</span></p><button className={styles.graphSearchToggle} onClick={resetGraphView}>{text("Reset view", "重置视图")}</button></div>}
     {view==='graph' && (searchExpanded || query) && <div className={styles.graphSearch}><input aria-label={text('Search companies','搜索公司')} placeholder={text('Company or ticker…','公司或股票代码…')} value={query} onChange={e=>setQuery(e.target.value)}/><button onClick={()=>{setQuery('');setSearchExpanded(false);}}>{text('Clear filters','清除筛选')}</button></div>}
@@ -251,17 +253,18 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
           <span className={styles.sectorBadge}><i aria-hidden="true" style={{ background: companySector(company).color }}/>{text(companySector(company).en, companySector(company).zh)}</span>
           <button className={styles.clear} onClick={() => selectCompany("")} aria-label={text("Clear selection", "取消选择")}>×</button>
         </div>
-        <h2><CompanyCountryFlag country={company.country} locale={locale}/>{companyName(company,locale)}</h2>
+        <CompanySnapshot company={company} compact />
+        <details className={styles.detailSection}><summary>{text("Company information", "公司信息")}</summary>
         <CompanyNameEditor key={`${company.id}-${locale}`} company={company} onSaved={updated => setGraph(previous => ({ ...previous, nodes: previous.nodes.map(node => node.id === updated.id ? { ...node, ...updated } : node) }))} />
         {company.symbol && <p className={styles.eyebrow}>{company.symbol}</p>}
         <p>{companyGeographyLabel(company, locale)}</p>
         {company.privateValuation && <PrivateValuationDisplay valuation={company.privateValuation}/>}
         {company.marketCap && <p>{marketCapDescription(company.marketCap, locale)}</p>}
         <p>{companySummary(company,locale)}</p>
-        <CompanyFollowButton companyId={company.id} /><a className={styles.profileLink} href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}>{text("Company profile", "公司详情")} →</a>
+        </details>
         {eventId && curatedEvents.filter(e => e.id === eventId && e.companyIds.includes(company.id)).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected event sources", "选中事件来源")}><BusinessEventEvidence event={e} /></section>)}
         {activeEdge && graph.relationships.filter(e => e.id === activeEdge && (e.source === company.id || e.target === company.id)).map(e => <section key={e.id} className={styles.connectionFocus} aria-label={text("Selected connection", "选中关系")}><h3>{text(...(relationLabels[e.type] ?? [e.type, e.type]) as [string, string])}</h3><p>{label(e.source)} → {label(e.target)}</p><RelationshipEvidence edge={e} graph={graph} /><button onClick={() => selectCompany(e.target === company.id ? e.source : e.target)}>{text("Explore", "探索")} {label(e.target === company.id ? e.source : e.target)} →</button></section>)}
-        <details key={`${company.id}-connections`} className={styles.detailSection} open>
+        <details key={`${company.id}-connections`} className={styles.detailSection}>
           <summary>{text("Connections & roles", "关系与产业归属")} <span>{relations.length}</span></summary>
           {relations.length === 0 && <p>{text("No documented connections yet.", "暂无已收录关系。")}</p>}
           {relations.map(e => <article key={e.id}>
@@ -276,6 +279,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
         </details>
         <GraphCompanyOutlook company={company}/>
       </aside>}
+      {company && <div className={styles.timelineDock} data-timeline-dock><CompanyTimeline companyId={company.id} graph={graph} initialPrices={previewPrices?.companyId === company.id ? previewPrices : undefined} /></div>}
     </div>}
     <div className={styles.legend}><span role="status">{status === "ready" ? <>{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</> : text(status === "loading" ? "Loading company and connection totals…" : "Company and connection totals unavailable", status === "loading" ? "正在加载公司与关系数量…" : "暂时无法获取公司与关系数量")}</span></div>
     {startingPoints}

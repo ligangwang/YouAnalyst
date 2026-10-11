@@ -15,6 +15,7 @@ import { ChinaMarketCap } from "./china-market-cap";
 import type { PublicCnMarketCap } from "@/lib/fundamentals/cn-service";
 import type { CnAnnual } from '@/lib/fundamentals/cn-annual';
 import { ChinaAnnualFinancials } from './china-annual-financials';
+import { CompanyResearchTimeline } from './company-timeline';
 import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
@@ -31,6 +32,7 @@ export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale
 
     </header>
     <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
+    <CompanyResearchTimeline company={{ id: company.id, kind: "COMPANY", order: 0, name: company.name, names: company.names, country: company.country, symbol: company.id.split(":")[1], market: "CN_A", listingStatus: company.listingStatus, summary: company.descriptionEn || company.description }} />
     {company.listingStatus !== "PRIVATE" && <ChinaMarketCap data={marketCap} />}
     {company.listingStatus !== "PRIVATE" && <ChinaAnnualFinancials annual={annual} stale={stale}/>}
     <CompanyResearchPanel companyId={company.id} />

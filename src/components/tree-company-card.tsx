@@ -47,6 +47,7 @@ export function TreeCompanyCard({company,color,onClose,reveal=false,closing=fals
     <div className={styles.cardBody}>
       <h3><CompanyCountryFlag country={company.country} locale={locale}/>{companyName(company,locale)}</h3>
       <p className={styles.cardTicker}>{company.symbol??text('Private / unlisted','非上市')}</p>
+      <details><summary>{text('Financial details','财务详情')}</summary>
       <div className={styles.cardCap}>{company.privateValuation ? <PrivateValuationDisplay valuation={company.privateValuation}/> : <><small>{text('Estimated market cap','估算市值')}</small><p>{cap?marketCapDescription(cap,locale):text('Unavailable','暂无')}</p></>}</div>
       {(company.id.startsWith('US:')||china)&&!result&&<p role="status">{text('Loading cached financials…','正在读取已缓存财务数据…')}</p>}
       <dl className={styles.cardMetrics}>
@@ -63,6 +64,7 @@ export function TreeCompanyCard({company,color,onClose,reveal=false,closing=fals
       {china&&data?.annual&&<small><a href={data.annual.sourceUrl} target="_blank" rel="noopener noreferrer">{text('Source: Eastmoney via AKShare; annual consolidated statements, CNY.','来源：东方财富（AKShare）；年度合并报表，人民币元。')}</a> · {text('Published','公告日期')} {data.annual.filed}</small>}
       {!china&&data&&<small>{text('Source: SEC annual filings; annual figures, not TTM.','来源：SEC 年报；年度数据，非滚动十二个月。')}</small>}
       {company.summary&&<p className={styles.cardSummary}>{companySummary(company,locale)}</p>}
+      </details>
       <div className={styles.cardActions}><CompanyFollowButton companyId={company.id}/><a href={companyPageUrl(company.id.startsWith('US:')?company.id.slice(3):company.id,company.market)}>{text('Company profile','公司详情')} ↗</a></div>
     </div>
   </aside>;

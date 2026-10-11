@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import type { CompanyResearch } from "@/lib/company-research";
 import { CompanyOutlook } from "./company-outlook";
 import { CompanyProfileDetails } from "./company-profile-details";
+import { CompanyResearchTimeline } from "./company-timeline";
 import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
@@ -38,6 +39,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       </nav>
     </header>
     <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
+    <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />
     {fundamentals}
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <section id="company-information" className="scroll-mt-24 py-6">      <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-4 text-sm">
