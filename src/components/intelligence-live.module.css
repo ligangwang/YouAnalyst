@@ -52,4 +52,4 @@
 
 .timelineDock{flex-shrink:0;max-height:min(340px,calc(100% - 330px));min-width:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#314354 transparent}
 .timelineDock>p{display:flex;align-items:center;gap:8px;padding:12px}
-@media(max-width:850px){.hasTimeline{height:auto;min-height:650px}.hasTimeline>[role=tabpanel]{flex:0 0 360px}.timelineDock{max-height:340px}}
+@media(max-width:850px){.hasTimeline.hasTimeline{height:auto;min-height:650px}.hasTimeline>[role=tabpanel]{flex:0 0 360px}.timelineDock{max-height:340px}}
