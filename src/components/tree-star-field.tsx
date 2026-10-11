@@ -12,7 +12,7 @@ function starRandom(index: number) {
 
 // Fixed world positions, with two depths so the orbit has visible parallax.
 // Twinkling uses the scene's frame loop; positions remain stationary.
-export function TreeStarField({ height, paused }: { height: number; paused?: boolean }) {
+export function TreeStarField({ height, paused, pauseForForms }: { height: number; paused?: boolean; pauseForForms?:boolean }) {
   const material = useRef<ShaderMaterial>(null);
   const reduced = useRef(false);
   const uniforms = useMemo(() => ({ time: { value: 0 }, motion: { value: 1 } }), []);
@@ -23,7 +23,7 @@ export function TreeStarField({ height, paused }: { height: number; paused?: boo
     return () => media.removeEventListener('change', update);
   }, []);
   useFrame((state, delta) => {
-    if (paused || reduced.current || document.hidden || !material.current) return;
+    if (paused || reduced.current || document.hidden || !material.current || pauseForForms&&document.activeElement?.matches('input,textarea,[contenteditable="true"]')) return;
     material.current.uniforms.time.value += Math.min(delta, .1);
     state.invalidate();
   });

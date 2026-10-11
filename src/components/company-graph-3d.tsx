@@ -139,10 +139,23 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   useEffect(()=>{
     const media=window.matchMedia("(prefers-reduced-motion: reduce)");
     const update=()=>{reducedMotion.current=media.matches;resumeElapsed.current=0;invalidate();};
+    // Pause automatic motion while editing a form; wake the demand renderer
+    // on blur so it resumes from the same camera position.
+    const formFocus=()=>{
+      const c=controls.current;
+      const editing=Boolean(document.activeElement?.matches('input,textarea,[contenteditable="true"]'));
+      gl.domElement.closest('[data-graph-interaction]')?.toggleAttribute('data-editing-form',editing);
+      if(c&&editing){
+        void c.setLookAt(...c.getPosition(new Vector3(),false).toArray(),...c.getTarget(new Vector3(),false).toArray(),false);
+      }
+      invalidate();
+    };
     update();media.addEventListener("change",update);
     document.addEventListener("visibilitychange", update);
-    return ()=>{media.removeEventListener("change",update);document.removeEventListener("visibilitychange",update);};
-  },[invalidate]);
+    document.addEventListener('focusin',formFocus);
+    document.addEventListener('focusout',formFocus);
+    return ()=>{media.removeEventListener("change",update);document.removeEventListener("visibilitychange",update);document.removeEventListener('focusin',formFocus);document.removeEventListener('focusout',formFocus);};
+  },[invalidate,gl]);
   const labelElements = useRef(new Map<string, HTMLButtonElement>());
   const projected = useMemo(() => new Vector3(), []);
   const [pointHovered, setPointHovered] = useState("");
@@ -373,6 +386,10 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     return [x,Math.max(30,Math.min(size.height-70,y))];
   };
   useFrame((_, delta) => {
+    const editingForm=Boolean(document.activeElement?.matches('input,textarea,[contenteditable="true"]'));
+    const immediate=reducedMotion.current||editingForm;
+    const surface=gl.domElement.closest('[data-graph-interaction]');
+    if(surface&&surface.hasAttribute('data-editing-form')!==editingForm)surface.toggleAttribute('data-editing-form',editingForm);
     const colors = lines.getAttribute("color"), positions = lines.getAttribute("position");
     let fading = false, colorsChanged = false;
     // Change only the highlight buffer. Replacing/disposal of the points geometry
@@ -382,14 +399,14 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     for (let index = 0; index < pointTargets.length; index++) {
       const current = pointEmphasis.getX(index);
       const target = pointTargets[index];
-      const next = fadeEdge(current, target, delta, reducedMotion.current);
+      const next = fadeEdge(current, target, delta, immediate);
       if (Math.abs(next - current) > .000001) { pointEmphasis.setX(index, next); pointsChanged = true; }
       if (Math.abs(next - target) > .0001) fading = true;
     }
     if (pointsChanged) pointEmphasis.needsUpdate = true;
     for (const edge of layout.edges) {
       const target = edgeTargets.get(edge.id) ?? 0;
-      const next = fadeEdge(edgeFades.current.get(edge.id) ?? 0, target, delta, reducedMotion.current);
+      const next = fadeEdge(edgeFades.current.get(edge.id) ?? 0, target, delta, immediate);
       edgeFades.current.set(edge.id, next);
       if (Math.abs(next - target) > .0001) fading = true;
     }
@@ -418,6 +435,15 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       material.opacity = (edgeFades.current.get(edge.id) ?? 0) * (edge.id === displayedEdge ? .8 : .6 * depthOpacity(depth));
     }
     const focused=Boolean(selected || activeEdge || sectorFocus);
+    if(editingForm&&controls.current){
+      const c=controls.current,position=c.getPosition(new Vector3(),false),target=c.getTarget(new Vector3(),false);
+      // A resize during result loading can start a new camera transition.
+      // Cancel its destination at the current view, without scheduling frames
+      // continuously once the camera is stationary.
+      if(position.distanceTo(c.getPosition(new Vector3()))>1e-6||target.distanceTo(c.getTarget(new Vector3()))>1e-6){
+        void c.setLookAt(...position.toArray(),...target.toArray(),false);
+      }
+    }
     // Correct unsafe destinations smoothly; never teleport the rendered camera mid-return.
     if(controls.current){const p=controls.current.getPosition(new Vector3());if(p.length()<layout.radius*1.12){if(!p.length())p.z=1;p.setLength(layout.radius*1.15);const t=controls.current.getTarget(new Vector3());void controls.current.setLookAt(...p.toArray(),...t.toArray(),true);}}
     gl.domElement.dataset.ballRadius=String(layout.radius);
@@ -427,6 +453,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     if(focused)rotation='focused';
     else if(reducedMotion.current)rotation='reduced';
     else if(document.hidden)rotation='hidden';
+    else if(editingForm)rotation='input';
     else if(hovered)rotation='hovered';
     else if(returningView.current)rotation='returning';
     else if (introOrbitRef.current && controls.current) {
@@ -463,7 +490,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     // Camera rest must not move or hide a company they were tracking to avoid overlap.
     const now=performance.now();
     // Matches the 1.2s CSS fade. Keep retiring labels' space until it completes.
-    const fadeMs=reducedMotion.current?0:1200;
+    const fadeMs=immediate?0:1200;
     const view=[...camera.matrixWorld.elements,...camera.projectionMatrix.elements,size.width,size.height];
     const viewChanged=view.some((value,index)=>value!==lastLabelView.current[index]);
     lastLabelView.current=view;
@@ -543,7 +570,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       // Hover emphasizes color/glow without resizing the pointer target.
       const targetScale=n.id===selected?1.5:labelScale(n.x,n.y,n.z);
       const previous=companyScales.current.get(element)??targetScale;
-      const next=reducedMotion.current?targetScale:previous+(targetScale-previous)*blend;
+      const next=immediate?targetScale:previous+(targetScale-previous)*blend;
       const scale=Math.abs(next-targetScale)<.001?targetScale:next;
       if(scale!==targetScale)scalesSettling=true;
       companyScales.current.set(element,scale);
@@ -612,7 +639,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
     {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
-    <TreeStarField height={0}/>
+    <TreeStarField height={0} pauseForForms/>
     <TreeGalaxies height={0}/>
     <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
@@ -690,4 +717,3 @@ export default function CompanyGraph3D(props: Props) {
     <p className={styles.canvasHint} data-hover-help data-visible={pointerOverCanvas&&!hoveringEntity&&!contextLost} aria-hidden={!pointerOverCanvas||hoveringEntity||contextLost}>{text("Drag: orbit · Right-drag: pan · Scroll / pinch: zoom", "拖动旋转 · 右键拖动平移 · 滚轮／双指缩放")}</p>
   </div>;
 }
-

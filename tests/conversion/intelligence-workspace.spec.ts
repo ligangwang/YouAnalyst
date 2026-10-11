@@ -41,6 +41,31 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+test('graph automatic orbit pauses for focused search and resumes on blur',async({page})=>{
+ const body=await workspaceFixture(true);
+ await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
+ await page.goto('http://workspace.test/?view=graph');
+ const canvas=page.locator('[data-graph-interaction] canvas');
+ await expect(canvas).toHaveAttribute('data-rotation','intro');
+ const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
+ if(await expand.isVisible())await expand.click();
+ const search=page.getByRole('textbox',{name:'Search companies'});
+ await search.focus();
+ await expect(canvas).toHaveAttribute('data-rotation','input');
+ await expect(page.locator('[data-company-id]').first()).toHaveCSS('transition-duration','0s');
+ await search.fill('MU');
+ await expect(page).toHaveURL(/q=MU/);
+ await expect(page.getByRole('complementary',{name:'Events and sources'}).locator('[data-loading-spinner]')).toHaveCount(0);
+ await expect(canvas).toHaveAttribute('data-camera','idle');
+ await page.waitForTimeout(100);
+ const paused=await canvas.getAttribute('data-camera-position');
+ await page.waitForTimeout(300);
+ await expect(canvas).toHaveAttribute('data-camera-position',paused!);
+ await search.blur();
+ await expect(canvas).toHaveAttribute('data-rotation','intro');
+ await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(paused);
+});
+
 test('universe is usable before events arrive and pending totals are not zero counts',async({page})=>{
  const body=await workspaceFixture(false,snapshot,false);
  const bootstrap={...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true,statisticsComplete:false};
