@@ -90,8 +90,8 @@ test('graph automatic orbit pauses for focused search and resumes on blur',async
  await search.focus();
  await expect(canvas).toHaveAttribute('data-rotation','input');
  await expect(page.locator('[data-company-id]').first()).toHaveCSS('transition-duration','0s');
- await search.fill('MU');
- await expect(page).toHaveURL(/q=MU/);
+ await search.fill('M');
+ await expect(page).toHaveURL(/q=M/);
  await expect(page.getByRole('complementary',{name:'Events and sources'}).locator('[data-loading-spinner]')).toHaveCount(0);
  await expect(canvas).toHaveAttribute('data-camera','idle');
  await page.waitForTimeout(100);
@@ -620,7 +620,8 @@ test('detail save confirms beside the click',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Desktop detail panel placement');
   await page.setViewportSize({width:1500,height:800});
   await open(page);
-  await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
+  await page.getByRole('textbox',{name:'Search companies'}).fill('Lument');
+  await expect(page).toHaveURL(/q=Lument/);
   await page.getByRole('button',{name:'LITE Lumentum',exact:true}).click();
   const save=page.getByRole('button',{name:/Save company/});
   const bounds=(await save.boundingBox())!;
@@ -641,7 +642,8 @@ test('graph company details float inside the graph and move independently of the
   await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
   const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
   if(await expand.isVisible())await expand.click();
-  await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
+  await page.getByRole('textbox',{name:'Search companies'}).fill('Lument');
+  await expect(page).toHaveURL(/q=Lument/);
   await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
   await page.getByRole('button',{name:'LITE Lumentum',exact:true}).click();
   const card=page.getByRole('region',{name:'Company details',exact:true});
@@ -673,7 +675,8 @@ test('graph company details float inside the graph and move independently of the
   const moved=(await card.boundingBox())!;
   expect(Math.abs(moved.x-before.x)+Math.abs(moved.y-before.y)).toBeGreaterThan(20);
   await page.screenshot({path:info.outputPath('floating-company-card.png')});
-  await page.getByRole('textbox',{name:'Search companies'}).fill('MU');
+  await page.getByRole('textbox',{name:'Search companies'}).fill('Micr');
+  await expect(page).toHaveURL(/q=Micr/);
   await page.getByRole('button',{name:'MU Micron',exact:true}).click();
   await expect(card).toContainText('Micron');
   await atTopRight();
@@ -768,7 +771,10 @@ for(const view of ['tree','hierarchy','table'])test(view+' company selection ope
  const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
  if(await expand.isVisible())await expand.click();
  await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
- if(view!=='table')await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
+ if(view!=='table'){
+  await page.getByRole('textbox',{name:'Search companies'}).fill('Lument');
+  await expect(page).toHaveURL(/q=Lument/);
+ }
  const companyButton=view==='table'?page.locator('[data-list-company="US:LITE"] button'):page.getByRole('button',{name:'LITE Lumentum',exact:true});
  await companyButton.click();
  const card=page.getByRole('region',{name:'Company details',exact:true});
