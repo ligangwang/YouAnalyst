@@ -9,7 +9,10 @@ import styles from './intelligence-price-performance.module.css';
 export function IntelligenceEventPriceReturns({returns=[],symbol}:{returns?:EventPriceReturn[];symbol:(id:string)=>string}){
   const {locale}=useLocale(),zh=locale==='zh-CN';
   if(!returns.length)return null;
-  return <span className={styles.eventReturns}>{returns.map(value=><span key={value.companyId} title={`${value.baselineDate} → ${value.latestDate} · ${zh?'使用公告前最后一个完整交易日收盘价。不含股息与拆股调整。':'Uses the last completed close before publication. Excludes dividend and split adjustments.'}${value.dateOnly?(zh?' 公告仅提供日期。':' Publication date only.'):''}`}><span>{symbol(value.companyId)} · {zh?'发布以来':'Since publication'}</span>{' '}<b data-direction={value.change>0?'up':value.change<0?'down':'flat'}>{signedPercent(value.change)}</b></span>)}</span>;
+  return <span className={styles.eventReturns}>{returns.map(value=>{
+    const days=Math.round((Date.parse(value.latestDate)-Date.parse(value.baselineDate))/86400000);
+    return <span key={value.companyId} title={`${value.baselineDate} → ${value.latestDate} · ${days} ${zh?'个自然日':'calendar days'} · ${zh?'使用公告前最后一个完整交易日收盘价。不含股息与拆股调整。':'Uses the last completed close before publication. Excludes dividend and split adjustments.'}${value.dateOnly?(zh?' 公告仅提供日期。':' Publication date only.'):''}`}><span>{symbol(value.companyId)} · {zh?'发布以来':'Since pub.'} ({days}{zh?'天':'d'}):</span>{' '}<b data-direction={value.change>0?'up':value.change<0?'down':'flat'}>{signedPercent(value.change)}</b></span>;
+  })}</span>;
 }
 
 export function IntelligencePricePerformance({price,returns=[],symbol,compact=false}:{price?:DailyPrice;returns?:EventPriceReturn[];symbol?:(id:string)=>string;compact?:boolean}){
