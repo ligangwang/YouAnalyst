@@ -21,5 +21,6 @@ test("live refresh wrapper preserves cached financials and filing links in crawl
   assert.match(html, /previously fetched snapshot/);
   assert.doesNotMatch(html, /Estimated market cap/);
   const empty = renderToStaticMarkup(createElement(CompanyFundamentalsLive, { ticker: "AMD", initialData: null }));
-  assert.equal(empty, "");
+  assert.match(empty, /id="company-fundamentals"/);
+  assert.doesNotMatch(empty, /<section|Business and financials|Unavailable|Missing data/);
 });

@@ -12,7 +12,8 @@ export function CompanyFundamentalsView({ data }: { data: CompanyFundamentals | 
   const marketCap = data?.marketCap;
   const hasMarketCap = marketCap?.status === "estimated" && typeof marketCap.value === "number"
     && Number.isFinite(marketCap.value) && marketCap.value > 0 && marketCap.priceDate && marketCap.shares;
-  if (!data) return null;
+  // Keep section navigation valid while the live wrapper polls for financials.
+  if (!data) return <span id="company-fundamentals" className="block scroll-mt-24" aria-hidden="true" />;
   return <section aria-labelledby="company-fundamentals" className="border-b border-white/15 py-6">
     <h2 id="company-fundamentals" className="scroll-mt-24 text-xl font-semibold text-cyan-100"><UiText text={"Business and financials"} /></h2>
     <>
