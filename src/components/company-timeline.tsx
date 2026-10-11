@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { clusterTimelineEvents, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, TIMELINE_RANGES, timelineWindow, type TimelinePrices, type TimelineRange } from "@/lib/company-timeline";
+import { clusterTimelineEvents, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, TIMELINE_RANGES, timelineWindow, type TimelineEvent, type TimelinePrices, type TimelineRange } from "@/lib/company-timeline";
 import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
 import type { GraphNode, KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { useLocale } from "./providers/locale-provider";
@@ -23,7 +23,7 @@ function changeRange(value: TimelineRange) {
   window.dispatchEvent(new Event("company-timeline-range"));
 }
 
-export function CompanyTimeline({ companyId, graph, initialPrices }: { companyId: string; graph?: KnowledgeGraph; initialPrices?: TimelinePrices }) {
+export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent }: { companyId: string; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string) => void }) {
   const { text, chinese, locale } = useLocale();
   const days = useSyncExternalStore(subscribeRange, readRange, () => DEFAULT_TIMELINE_RANGE as TimelineRange);
   const [loaded, setLoaded] = useState<{ key: string; data: TimelinePrices } | null>(null);
@@ -56,7 +56,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices }: { companyId
   }, []);
   const data = initialPrices?.companyId === companyId ? initialPrices : loaded?.key === key ? loaded.data : null;
   const { start, end } = timelineWindow(days, data?.end);
-  const events = useMemo(() => companyTimelineEvents(companyId, graph ?? loadedGraph, curatedEvents, chinese), [companyId, graph, loadedGraph, chinese]);
+  const events = useMemo(() => suppliedEvents ?? companyTimelineEvents(companyId, graph ?? loadedGraph, curatedEvents, chinese), [suppliedEvents, companyId, graph, loadedGraph, chinese]);
   const left = width < 440 ? 60 : 72, right = Math.max(left + 1, width - 24), plotWidth = right - left;
   const x = (date: string) => left + (Date.parse(date) - Date.parse(start)) / Math.max(1, Date.parse(end) - Date.parse(start)) * plotWidth;
   const prices = data?.prices.filter(p => p.date >= start && p.date <= end) ?? [];
@@ -71,6 +71,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices }: { companyId
   const pricePath = prices.map((p, index) => { const command = index === 0 || Date.parse(p.date) - Date.parse(prices[index - 1].date) > 7 * 86_400_000 ? "M" : "L"; return `${command}${x(p.date).toFixed(2)},${y(p.close).toFixed(2)}`; }).join(" ");
   const nearest = activeDate ? prices.reduce<(typeof prices)[number] | null>((best, p) => !best || Math.abs(Date.parse(p.date) - Date.parse(activeDate)) < Math.abs(Date.parse(best.date) - Date.parse(activeDate)) ? p : best, null) : null;
   const formatDate = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString(locale, { month: "short", day: "numeric", ...(days >= 365 ? { year: "2-digit" } : {}), timeZone: "UTC" });
+  const selectEvent = (id: string) => { setSelectedId(id); setHoverDate(null); onSelectEvent?.(id); };
   const pointerDate = (clientX: number) => {
     const rect = chart.current?.getBoundingClientRect(); if (!rect) return;
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left - left) / plotWidth));
@@ -97,12 +98,12 @@ export function CompanyTimeline({ companyId, graph, initialPrices }: { companyId
         {Array.from({ length: width < 440 ? 3 : 5 }, (_, i) => i).map((i, _, values) => { const date = new Date(Date.parse(start) + i / (values.length - 1) * (Date.parse(end) - Date.parse(start))).toISOString().slice(0, 10); return <text key={i} x={x(date)} y={239} textAnchor={i === 0 ? "start" : i === values.length - 1 ? "end" : "middle"}>{formatDate(date)}</text>; })}
         {activeDate && <line x1={x(activeDate)} x2={x(activeDate)} y1={8} y2={221} stroke="#c4e8f4" opacity={.55} />}
       </svg>
-      {groups.map(group => <button key={group.events[0].id} className={styles.marker} data-lane={group.lane} type="button" style={{ left: left + group.x, top: group.lane === "business" ? 28 : 64 }} aria-label={group.events.map(e => `${formatDate(e.date)}: ${e.title}`).join("; ")} aria-pressed={group.events.some(e => e.id === selectedId)} onClick={() => { setSelectedId(group.events[0].id); setHoverDate(null); }} onPointerEnter={() => setHoverDate(group.events[0].date)} onFocus={() => setHoverDate(group.events[0].date)} onBlur={() => setHoverDate(null)}>{group.events.length > 1 ? `+${group.events.length}` : group.lane === "business" ? "●" : "◆"}</button>)}
+      {groups.map(group => <button key={group.events[0].id} className={styles.marker} data-lane={group.lane} type="button" style={{ left: left + group.x, top: group.lane === "business" ? 28 : 64 }} aria-label={group.events.map(e => `${formatDate(e.date)}: ${e.title}`).join("; ")} aria-pressed={group.events.some(e => e.id === selectedId)} onClick={() => { selectEvent(group.events[0].id); }} onPointerEnter={() => setHoverDate(group.events[0].date)} onFocus={() => setHoverDate(group.events[0].date)} onBlur={() => setHoverDate(null)}>{group.events.length > 1 ? `+${group.events.length}` : group.lane === "business" ? "●" : "◆"}</button>)}
     </div>
     <p className={styles.coverage}>{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${text("stored daily bars", "条已存储日线")} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>
     {data && !data.available && <button type="button" className={styles.retry} onClick={() => setRetry(value => value + 1)}>{text("Retry prices", "重试读取股价")}</button>}
     {selected && <details className={styles.detail} key={selected.id} open><summary>{formatDate(selected.date)} · {selected.title}</summary>
-      {selectedGroup && selectedGroup.events.length > 1 && <div className={styles.eventList}>{selectedGroup.events.map(event => <button key={event.id} type="button" aria-pressed={event.id === selected.id} onClick={() => { setSelectedId(event.id); setHoverDate(null); }}>{formatDate(event.date)} · {event.title}</button>)}</div>}
+      {selectedGroup && selectedGroup.events.length > 1 && <div className={styles.eventList}>{selectedGroup.events.map(event => <button key={event.id} type="button" aria-pressed={event.id === selected.id} onClick={() => { selectEvent(event.id); }}>{formatDate(event.date)} · {event.title}</button>)}</div>}
       <p>{selected.description}</p>{selected.planned && <p>{text("Announced / planned; completion is not established.", "已宣布／计划中；尚不代表已完成。")}</p>}<a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer">{selected.sourceTitle} ↗</a>
     </details>}
   </section>;

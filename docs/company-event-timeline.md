@@ -6,6 +6,8 @@ The default range is one month (30 calendar days), matching the limited initial 
 
 Events come from existing curated primary-source announcements and public relationship evidence. Only source publication dates place events on the timeline. Review dates, ingestion dates, and future planned delivery dates are not substitutes. Current coverage is not a complete earnings or news calendar. Events with unknown publication dates are excluded.
 
+The current Explore workspace (`/en?view=graph`) also shows the timeline below each of its four chart views when a company is selected, including exact ticker search. It uses the workspace's grouped source events and current source filter; selecting a marker opens the same company/event card as the right panel. Its remembered timeline range is independent of the right panel's Today/30d switch. Only events present in the loaded snapshot are shown, so the timeline does not claim complete historical event coverage.
+
 `GET /api/company-timeline?company=US:AMD&days=30` reads existing `eod_prices` documents using the current `market_ticker_date` IDs and a bounded document-ID range. It creates no collections, adds no indexes, fetches no provider data, and performs no writes. Missing history remains missing; gaps longer than seven calendar days break the price line. Missing volume differs from recorded zero volume. Stored closes may be provider-adjusted according to the existing ingestion pipeline; this component does not redefine that pipeline. Private companies display available events without inventing public price history.
 
 The endpoint currently supports the existing US and China A-share price-storage conventions. Five years of history is selectable but does not guarantee that five years has been stored.

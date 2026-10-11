@@ -1,5 +1,6 @@
 import type { BusinessEvent } from "./knowledge-graph/business-events";
-import type { KnowledgeGraph } from "./knowledge-graph/model";
+import { intelligenceEventTitle, type IntelligenceEvent, type IntelligenceSource } from "./intelligence/model";
+import { relationshipSourceTitle, relationshipSummary, type KnowledgeGraph } from "./knowledge-graph/model";
 
 export const TIMELINE_RANGES = [30, 90, 180, 365, 1826] as const;
 export const DEFAULT_TIMELINE_RANGE = 30;
@@ -36,7 +37,9 @@ export function companyTimelineEvents(companyId: string, graph: KnowledgeGraph |
       for (const source of graph!.sources.filter(s => fact.sourceIds.includes(s.id))) {
         const date = timelineDate(source.sourceDate);
         if (!date || !/^https:\/\//.test(source.url)) continue;
-        result.push({ id: `${edge.id}:${fact.id ?? index}:${source.id}`, date, title: source.title, description: fact.scope, lane: "research", sourceUrl: source.url, sourceTitle: source.title, planned: fact.state === "ANNOUNCED" });
+        const locale = chinese ? "zh-CN" : "en";
+        const title = relationshipSourceTitle(source, locale);
+        result.push({ id: `${edge.id}:${fact.id ?? index}:${source.id}`, date, title, description: relationshipSummary({ summary: fact.scope, summaryZh: edge.summaryZh }, locale), lane: "research", sourceUrl: source.url, sourceTitle: title, planned: fact.state === "ANNOUNCED" });
       }
     });
   }
@@ -59,4 +62,15 @@ export function clusterTimelineEvents(events: TimelineEvent[], start: string, en
     else groups.push({ lane: event.lane, x, events: [event] });
   }
   return groups;
+}
+
+// Keep grouped feed events grouped; references retain their own source links in the company card.
+export function intelligenceTimelineEvents(companyId: string, events: IntelligenceEvent[], chinese = false, sourceFilter: IntelligenceSource | "" = ""): TimelineEvent[] {
+  return events.filter(event => event.companyIds.includes(companyId)).flatMap(event => {
+    const date = timelineDate(event.publication_date);
+    const source = event.evidence.find(source => (!sourceFilter || source.channel === sourceFilter) && /^https:\/\//.test(source.url));
+    if (!date || !source) return [];
+    const title = intelligenceEventTitle(event, chinese ? "zh-CN" : "en");
+    return [{ id: event.id, date, title, description: event.summary === "交易所上市公司原始公告。" && !chinese ? "Original announcement from an exchange-listed company." : event.summary, lane: event.category === "BUSINESS" ? "business" as const : "research" as const, sourceUrl: source.url, sourceTitle: title, planned: event.planned }];
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
