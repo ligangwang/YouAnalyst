@@ -1,12 +1,13 @@
 "use client";
 
 import { LoadingSpinner } from './loading-spinner';
+import { DebouncedCompanySearch } from './debounced-company-search';
 import { IntelligenceLoadingShell } from './intelligence-loading-shell';
 import { useNodeCardPosition } from './use-node-card-position';
 import { GraphCompanyOutlook } from "./company-outlook";
 import { UiText, useUiText } from "./ui-text";
 import { IntelligenceSectorLegend } from './intelligence-sector-legend';
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { LocalizedLink as Link } from './localized-link';
 import { useLocale } from './providers/locale-provider';
 import { NavigationSettings } from './navigation-settings';
@@ -79,7 +80,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const leftOpen=leftChoice??wide;
   const [sector,setSector]=useState(''),[tab,setTab]=useState('all');
   const query=useIndustryBrowseParam('q','',initialQuery);
-  const setQuery=(value:string)=>updateIndustryBrowse({q:value},true);
   const phone=useSyncExternalStore(subscribePhone,phoneWidth,()=>true);
   const defaultView=initialEdge||initialEvent?'graph':phone?'table':'graph';
   const view=parseIndustryView(useIndustryBrowseParam('view',defaultView,initialView||defaultView))??defaultView;
@@ -106,6 +106,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const selected=requestedId||snapshot.events.find(item=>intelligenceEventMatchesId(item,eventId))?.origin||linkedEvent?.companyIds[0]||snapshot.graph.relationships.find(item=>item.id===edgeId)?.source||'';
   const [camera,setCamera]=useState(0),[reset,setReset]=useState(0),[pulse,setPulse]=useState(0);
   const [propagating,setPropagating]=useState(false);
+  const setQuery=useCallback((value:string)=>{updateIndustryBrowse({q:value,company:'',feedCompany:'',event:'',relationship:''},true);setPropagating(false);},[]);
   const start=Date.parse(snapshot.session.startAt),until=Date.parse(snapshot.generatedAt);
   const graph=useMemo(()=>{
     if(!region)return snapshot.graph;
@@ -201,7 +202,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
     <h1 className={styles.srOnly}><UiText text="Investment Intelligence"/></h1>
     <aside className={styles.left} aria-label="Universe navigation" data-filtered={Boolean(region)||Boolean(query)||tab==='watchlist'||activeOnly||Boolean(sourceFilter)}>
       <div className={styles.panelTitle}><strong><UiText text={"Explore universe"}/></strong><button aria-label="Collapse left panel" onClick={()=>setLeftOpen(false)}>‹</button></div>
-      <label className={styles.search}><span className={styles.srOnly}><UiText text={"Search companies"}/></span><input disabled={switching} value={query} onChange={change=>{setQuery(change.target.value);clearSelection();}} placeholder={ui('Search company / ticker')}/></label>
+      <label className={styles.search}><span className={styles.srOnly}><UiText text={"Search companies"}/></span><DebouncedCompanySearch disabled={switching} value={query} onSearch={setQuery} placeholder={ui('Search company / ticker')}/></label>
       <div className={liveStyles.browseSelectors}><div><div className={liveStyles.selectorLabel}><UiText text="INVESTMENT THEME"/></div><IntelligenceThemeSelector theme={requestedTheme} onChange={changeTheme} count={switching?undefined:allCompanies.length}/></div><label className={liveStyles.regionFilter}><span className={liveStyles.selectorLabel}>{chinese?'地区':'REGION'}</span><select aria-label={chinese?'地区':'Region'} disabled={switching} data-filtered={Boolean(region)} value={region} onChange={change=>{updateIndustryBrowse({region:change.target.value},true);clearSelection();setReset(value=>value+1);}}><option value="">{chinese?'全部':'All'}</option><option value="US">{chinese?'美股':'US stocks'}</option><option value="CN_A">{chinese?'中国 A 股':'China A-shares'}</option></select></label></div>
       <div className={liveStyles.themeFilters} inert={switching}>
       <div className={styles.sectionLabel}><UiText text={"SECTORS"}/>{' '}<button aria-label="Clear sector focus" onClick={()=>{setSector('');clearSelection();}}><UiText text={"All"}/></button></div>
