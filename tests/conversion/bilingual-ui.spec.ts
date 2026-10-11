@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { build } from "esbuild";
 import path from "node:path";
+import { readFileSync } from "node:fs";
 
 let html: string;
 test.beforeAll(async () => {
@@ -11,7 +12,8 @@ test.beforeAll(async () => {
     builder.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: "navigation", namespace: "fixture" }));
     builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "export function useRouter(){return {replace(url){location.assign(url)}}} export function usePathname(){return location.pathname} export function useSearchParams(){return new URLSearchParams(location.search)}", loader: "js" }));
   } }], alias: { "next/link": path.resolve("tests/industry/link.tsx") }, define: { "process.env.NODE_ENV": '"test"' } });
-  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body><div id="root"></div><script>${result.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  const globalCss = readFileSync("src/app/globals.css", "utf8").replace('@import "tailwindcss";', '');
+  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${globalCss}</style></head><body><div id="root"></div><script>${result.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 test.beforeEach(async ({ page }) => {
   await page.route("**/*", route => {
@@ -113,6 +115,9 @@ test("primary navigation marks the current section on localized pages and compan
         await expect(active).toHaveText(label);
         await expect(active).toHaveClass(/aria-\[current=page\]:underline/);
         await expect(active).not.toHaveClass(/aria-\[current=page\]:bg-/);
+        await expect(active).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+        await expect(active).toHaveCSS("border-radius", "0px");
+        await expect(active).toHaveCSS("text-decoration-line", "underline");
       }
     }
   }
