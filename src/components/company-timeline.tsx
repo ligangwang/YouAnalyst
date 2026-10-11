@@ -74,6 +74,9 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * 50;
   const maxVolume = Math.max(1, ...prices.map(p => p.volume ?? 0));
   const pricePath = prices.map((p, index) => { const command = index === 0 || Date.parse(p.date) - Date.parse(prices[index - 1].date) > 7 * 86_400_000 ? "M" : "L"; return `${command}${x(p.date).toFixed(2)},${y(p.close).toFixed(2)}`; }).join(" ");
+  // Bridge long intervals without implying that daily bars were recorded inside them.
+  const gapPath = prices.flatMap((p,index)=>index>0&&Date.parse(p.date)-Date.parse(prices[index-1].date)>7*86_400_000
+    ? [`M${x(prices[index-1].date).toFixed(2)},${y(prices[index-1].close).toFixed(2)} L${x(p.date).toFixed(2)},${y(p.close).toFixed(2)}`]:[]).join(" ");
   const nearest = activeDate ? prices.reduce<(typeof prices)[number] | null>((best, p) => !best || Math.abs(Date.parse(p.date) - Date.parse(activeDate)) < Math.abs(Date.parse(best.date) - Date.parse(activeDate)) ? p : best, null) : null;
   const formatDate = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: "UTC" });
   const selectEvent = (id: string) => { setSelectedId(id);if(clusterId)closeChooser(); setHoverDate(null); onSelectEvent?.(id); };
@@ -93,7 +96,8 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         <text x={0} y={priceTop-8}>{text("Close", "收盘价")} {data?.currency === "USD" ? "($)" : data?.currency ?? ""}</text>
         {prices.length > 0 ? <>
           {[low, (low + high) / 2, high].map(value => <g key={value}><text x={left - 7} y={y(value) + 4} textAnchor="end">{new Intl.NumberFormat(locale, { notation: value >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value)}</text><line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="#263c4e" /></g>)}
-          <path d={pricePath} fill="none" stroke="#79cfe9" strokeWidth={2} />
+          <path data-price-line d={pricePath} fill="none" stroke="#79cfe9" strokeWidth={2} />
+          {gapPath&&<path data-price-gap d={gapPath} fill="none" stroke="#79cfe9" strokeWidth={2} strokeDasharray="4 4" />}
           {prices.map(p => <circle key={p.date} cx={x(p.date)} cy={y(p.close)} r={prices.length < 3 ? 3 : 1} fill="#79cfe9" />)}
         </> : <text x={left + 8} y={priceTop+25}>{!data ? text("Loading stored prices…", "正在读取历史股价…") : !data.available ? text("Stored prices unavailable", "历史股价暂时无法读取") : companyId.startsWith("ORG:") ? text("No supported price history", "暂无支持的股价记录") : text("No stored prices in this range", "此范围暂无已存储股价")}</text>}
         <text x={0} y={volumeBottom-12}>{text("Volume", "成交量")}</text>

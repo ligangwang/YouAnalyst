@@ -62,6 +62,40 @@ for(const view of ['graph','tree','hierarchy','table'])test(`exact ticker search
  await expect(page).not.toHaveURL(/company=/);
 });
 
+for(const pending of [false,true])test(`sector selection replaces ${pending?'pending':'committed'} company search`,async({page},info)=>{
+ await open(page);
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');
+ await search.fill('MULT');
+ if(!pending){await search.press('Enter');await expect(page).toHaveURL(/company=US%3AMULT/);}
+ await page.getByRole('button',{name:/^Memory & storage/}).click();
+ await expect(search).toHaveValue('');
+ const companyList=info.project.name==='mobile'?page.getByRole('region',{name:'Company list',exact:true}):page.getByRole('complementary',{name:'Universe navigation'});
+ await expect(companyList.getByRole('button',{name:info.project.name==='mobile'?'Micron':'MU Micron',exact:true})).toBeVisible();
+ await expect(companyList.getByRole('button',{name:info.project.name==='mobile'?'Memory Supplier':'MEM Memory Supplier',exact:true})).toBeVisible();
+ await expect(companyList.getByRole('button',{name:info.project.name==='mobile'?'Multiple Systems':'MULT Multiple Systems',exact:true})).toHaveCount(0);
+ await page.waitForTimeout(1200);
+ await expect(page).not.toHaveURL(/company=|q=/);
+ await expect(page.getByRole('button',{name:/^Memory & storage/})).toHaveAttribute('aria-pressed','true');
+});
+
+test('long price gaps connect recorded closes without synthetic bars',async({page})=>{
+ await open(page);
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-28',close:100,volume:10},{date:'2026-10-08',close:102,volume:20}]}}));
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]');
+ await expect(timeline).toContainText('2 stored daily bars');
+ await expect(timeline.locator('[data-price-gap]')).toHaveAttribute('d',/^M[\d.,]+ L[\d.,]+$/);
+ await expect(timeline.locator('[data-price-gap]')).toHaveAttribute('stroke-dasharray','4 4');
+ await expect(timeline.locator('svg rect')).toHaveCount(2);
+ await timeline.locator('svg').scrollIntoViewIfNeeded();
+ const bounds=(await timeline.locator('svg').boundingBox())!;
+ await page.mouse.move(bounds.x+bounds.width*.82,bounds.y+bounds.height-50);
+ await expect(timeline.getByRole('tooltip')).toContainText('2026-10-08');
+ await expect(timeline.getByRole('tooltip')).toContainText('Close · $102.00');
+});
+
 test('exact ticker search emphasizes connected graph nodes like a node click',async({page},info)=>{
  test.skip(info.project.name!=='desktop','Actual WebGL selection regression');
  test.setTimeout(60000);
