@@ -7,7 +7,11 @@ test("exact tickers and ticker prefixes survive a full page of name matches", as
   const company = (symbol: string, name: string, status = "PUBLISHED") => ({ id: `US:${symbol}`, data: () => ({ symbol, symbolLower: symbol.toLowerCase(), name, market: "US", active: true, predictionSupported: true, status }) });
   const names = Array.from({length: 50}, (_, index) => company(`A${index}`, `Systems ${index}`));
   const exact = company("TEM", "Tempus AI"), prefix = company("TEMX", "Ticker prefix company"), hidden = company("TEMH", "Hidden company", "WITHDRAWN");
-  const fixture = { db: { collection: () => ({ where: (field: string) => ({ limit: (limit: number) => ({ get: async () => ({ docs: (field === "symbolLower" ? [exact] : field === "symbolPrefixes" ? [exact, prefix, hidden] : names).slice(0, limit) }) }) }) }) } };
+  const reads: string[] = [];
+  const fixture = { db: { collection: () => ({ where: (field: string) => ({ limit: (limit: number) => ({ get: async () => {
+    reads.push(field);
+    return { docs: (field === "symbolLower" ? [exact] : field === "symbolPrefixes" ? [exact, prefix, hidden] : names).slice(0, limit) };
+  } }) }) }) } };
   const bundle = await build({ entryPoints: ["src/app/api/tickers/search/route.ts"], bundle: true, write: false, platform: "node", format: "cjs", packages: "external", plugins: [{ name: "no-live-services", setup(builder) {
     builder.onLoad({ filter: /[\\/]firebase[\\/]admin\.ts$/ }, () => ({ contents: "export const getAdminFirestore = () => fixture.db;", loader: "js" }));
   } }] });
@@ -20,6 +24,11 @@ test("exact tickers and ticker prefixes survive a full page of name matches", as
     assert.deepEqual(items.slice(0, 2).map((item: {id:string}) => item.id), ["US:TEM", "US:TEMX"]);
     assert.equal(items.filter((item: {id:string}) => item.id === "US:TEM").length, 1);
     assert.ok(items.every((item: {id:string}) => item.id !== "US:TEMH"));
+  }
+  for (const scope of ["calls", ""]) {
+    reads.length = 0;
+    await testModule.exports.GET({nextUrl: new URL(`https://example.com/api/tickers/search?q=T&scope=${scope}`)});
+    assert.equal(reads.filter(field => field === "symbolPrefixes").length, 1);
   }
 });
 
