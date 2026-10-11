@@ -41,3 +41,10 @@
 .timeline button:focus-visible,.snapshot a:focus-visible { outline:2px solid #a7e9fa; outline-offset:3px; }
 @media(max-width:600px) { .timeline {padding:10px 8px;} .header h2 {font-size:13px;} .ranges button {min-height:36px;padding:5px 8px;} .snapshot {padding:12px;} }
 @media(pointer:coarse) { .timeline .marker {width:44px;height:44px;} }
+
+.markerReturn {position:absolute; left:calc(100% + 7px); top:50%; transform:translateY(-50%); padding:2px 4px; border-radius:4px; background:#0a1522; white-space:nowrap; font-size:11px; font-weight:600; pointer-events:none; z-index:2;}
+.marker[data-return-side=left] .markerReturn {left:auto; right:calc(100% + 7px);}
+.chooserReturn {display:block; margin-top:3px; font-weight:600;}
+.timeline [data-return-direction=up] {color:#55dfbb;}
+.timeline [data-return-direction=down] {color:#ff8ea1;}
+.timeline [data-return-direction=flat] {color:#b8cfe1;}

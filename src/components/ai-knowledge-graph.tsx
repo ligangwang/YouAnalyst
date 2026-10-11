@@ -28,7 +28,7 @@ import styles from "./ai-knowledge-graph.module.css";
 import { useNodeCardPosition } from './use-node-card-position';
 import { CompanyTimeline } from './company-timeline';
 import { CompanySnapshot } from './company-snapshot';
-import type { TimelinePrices } from '@/lib/company-timeline';
+import type { TimelinePrices } from '@/lib/ui/company-timeline';
 import { useCardDismiss } from './use-card-dismiss';
 import cardFade from './card-fade.module.css';
 

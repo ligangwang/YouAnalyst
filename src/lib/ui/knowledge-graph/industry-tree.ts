@@ -1,5 +1,5 @@
-import type { GraphNode } from './model';
-import { graphTheme, graphSectors } from './sectors';
+import type { GraphNode } from '../../knowledge-graph/model';
+import { graphTheme, graphSectors } from '../../knowledge-graph/sectors';
 
 // Five-layer framework: https://blogs.nvidia.com/blog/ai-5-layer-cake/
 // Subdivisions are our industry-role mapping, not a standard sector taxonomy.

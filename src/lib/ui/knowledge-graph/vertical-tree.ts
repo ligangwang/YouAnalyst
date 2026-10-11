@@ -1,4 +1,4 @@
-import { companyName } from './model';
+import { companyName } from '../../knowledge-graph/model';
 import { industryRootLabel } from './industry-tree';
 import type { TreeLayer, TreePoint } from './industry-tree';
 

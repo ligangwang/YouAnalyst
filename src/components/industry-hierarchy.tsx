@@ -1,7 +1,7 @@
 "use client";
 import {CompanyPriceChange} from './company-price-change';
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {industryTree,industryRootLabel} from '@/lib/knowledge-graph/industry-tree';
+import {industryTree,industryRootLabel} from '@/lib/ui/knowledge-graph/industry-tree';
 import {companyName,type GraphNode} from '@/lib/knowledge-graph/model';
 import {useLocale} from './providers/locale-provider';
 import {CompanyCountryFlag} from './company-country-flag';
@@ -9,7 +9,7 @@ import {marketCapLabel} from '@/lib/knowledge-graph/market-cap';
 import {TreeCompanyCard} from './tree-company-card';
 import styles from './industry-hierarchy.module.css';
 import {useNodePresence} from './use-node-presence';
-import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
+import { tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 type Node={id:string;parent?:string;x:number;y:number;label:string;color:string;company?:GraphNode};
 export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=false}:{companies:GraphNode[];selected:string;onSelect:(id:string)=>void;closing:boolean;embedded?:boolean}){
  const {text,locale}=useLocale();

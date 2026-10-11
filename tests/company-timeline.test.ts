@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/company-timeline";
+import { clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
 
@@ -51,7 +51,7 @@ test("clustering preserves lane and true date anchors, with bounded density", ()
   assert.equal(overlay[0].events[0].date, "2026-04-10");
   assert.equal(timelineWindow(180, "2026-10-09").end, "2026-10-09");
 });
-import {layoutTimelineMarkers} from '../src/lib/company-timeline';
+import {layoutTimelineMarkers} from '../src/lib/ui/company-timeline';
 test('dated marker band groups matching symbols without dropping events',()=>{
  const event=companyTimelineEvents('US:AMD',graph,[])[0];
  const groups=layoutTimelineMarkers(Array.from({length:20},(_,i)=>({...event,id:String(i),date:'2026-04-10'})),'2026-04-01','2026-04-30',290);

@@ -6,7 +6,7 @@ import { AiKnowledgeGraph } from "./ai-knowledge-graph";
 import { CompanyResearchTimeline } from "./company-timeline";
 import { CompanyResearchPanel } from "./company-research-panel";
 import type { KnowledgeGraph } from "@/lib/knowledge-graph/model";
-import type { TimelinePrices } from "@/lib/company-timeline";
+import type { TimelinePrices } from "@/lib/ui/company-timeline";
 
 export function CompanyTimelinePreview({ graph }: { graph: KnowledgeGraph }) {
   const { text } = useLocale();

@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTreeTour, treeTourStops, treeTourPlan, treeTourFromView, type TreeTourStop, type TreeShot } from '../src/lib/knowledge-graph/tree-tour';
-import type { TreePoint } from '../src/lib/knowledge-graph/industry-tree';
-import { industryTree } from '../src/lib/knowledge-graph/industry-tree';
-import { layoutVerticalTree } from '../src/lib/knowledge-graph/vertical-tree';
-import { createStrandWriter, verticalTreeStrands, verticalTreeStrandGeometries } from '../src/lib/knowledge-graph/vertical-tree-geometry';
+import { createTreeTour, treeTourStops, treeTourPlan, treeTourFromView, type TreeTourStop, type TreeShot } from '../src/lib/ui/knowledge-graph/tree-tour';
+import type { TreePoint } from '../src/lib/ui/knowledge-graph/industry-tree';
+import { industryTree } from '../src/lib/ui/knowledge-graph/industry-tree';
+import { layoutVerticalTree } from '../src/lib/ui/knowledge-graph/vertical-tree';
+import { createStrandWriter, verticalTreeStrands, verticalTreeStrandGeometries } from '../src/lib/ui/knowledge-graph/vertical-tree-geometry';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 import graph from '../data/ai-supply-chain/ai-us.json';
-import { createTreeOverviewTour, treeOverviewPlan, treeOverviewShot } from '../src/lib/knowledge-graph/tree-tour';
+import { createTreeOverviewTour, treeOverviewPlan, treeOverviewShot } from '../src/lib/ui/knowledge-graph/tree-tour';
 
 test('overview frames every layer and leaf on desktop and mobile without camera travel',()=>{
   const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
@@ -163,9 +163,9 @@ test('layer tour pulls back, travels along the trunk, approaches the next layer 
 });
 
 
-import { hierarchyTourPlan, hierarchyTourIndex } from '../src/lib/knowledge-graph/hierarchy-tour';
-import { createIntroOrbit } from '../src/lib/knowledge-graph/intro-orbit';
-import { tourDelta } from '../src/lib/knowledge-graph/tour-motion';
+import { hierarchyTourPlan, hierarchyTourIndex } from '../src/lib/ui/knowledge-graph/hierarchy-tour';
+import { createIntroOrbit } from '../src/lib/ui/knowledge-graph/intro-orbit';
+import { tourDelta } from '../src/lib/ui/knowledge-graph/tour-motion';
 
 test('hierarchy groups cover every company at desktop and phone sizes without individual stops',()=>{
   const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
@@ -220,7 +220,7 @@ test('hierarchy parent redirects visit children, skip every closed group and wra
 });
 
 
-import { createTreePresentation, TREE_PRESENTATION } from '../src/lib/knowledge-graph/tree-tour';
+import { createTreePresentation, TREE_PRESENTATION } from '../src/lib/ui/knowledge-graph/tree-tour';
 test('tree cinematic orbit stays on the trunk with continuous velocity through every turnaround',()=>{
  const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);
  const nodes=layoutVerticalTree(layers,new Set(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),'en');

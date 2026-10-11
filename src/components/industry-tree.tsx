@@ -3,7 +3,7 @@
 import { LoadingSpinner } from './loading-spinner';
 import {CompanyPriceChange} from './company-price-change';
 import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { industryTree } from '@/lib/knowledge-graph/industry-tree';
+import { industryTree } from '@/lib/ui/knowledge-graph/industry-tree';
 import { companyName, type GraphNode } from '@/lib/knowledge-graph/model';
 import { useLocale } from './providers/locale-provider';
 import { UniverseMusicToggle } from './universe-music';

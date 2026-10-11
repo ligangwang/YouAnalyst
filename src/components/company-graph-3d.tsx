@@ -1,7 +1,7 @@
 "use client";
 
 import { LoadingSpinner } from './loading-spinner';
-import { tourDelta } from '@/lib/knowledge-graph/tour-motion';
+import { tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -13,7 +13,7 @@ import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/kno
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
 import { layout3D } from "@/lib/knowledge-graph/layout-3d";
-import { createIntroCamera, createIntroOrbit } from "@/lib/knowledge-graph/intro-orbit";
+import { createIntroCamera, createIntroOrbit } from "@/lib/ui/knowledge-graph/intro-orbit";
 import { relationLabels } from "@/lib/knowledge-graph/relationship-labels";
 import { companySector } from "@/lib/knowledge-graph/sectors";
 import { useLocale } from "./providers/locale-provider";

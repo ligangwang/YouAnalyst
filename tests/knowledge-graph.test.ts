@@ -4,10 +4,10 @@ import { readFileSync } from "node:fs";
 import { validateGraph, type Graph } from "../src/lib/knowledge-graph/validate-seed";
 
 import { graphFromMarket, type MarketCompany } from "../src/lib/knowledge-graph/market-store";
-import { layoutVerticalTree, verticalBranchOrigin } from '../src/lib/knowledge-graph/vertical-tree';
-import { industryTree, layoutIndustryTree, type TreePoint } from '../src/lib/knowledge-graph/industry-tree';
+import { layoutVerticalTree, verticalBranchOrigin } from '../src/lib/ui/knowledge-graph/vertical-tree';
+import { industryTree, layoutIndustryTree, type TreePoint } from '../src/lib/ui/knowledge-graph/industry-tree';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
-import { createIntroCamera, createIntroOrbit } from '../src/lib/knowledge-graph/intro-orbit';
+import { createIntroCamera, createIntroOrbit } from '../src/lib/ui/knowledge-graph/intro-orbit';
 import { layout3D } from '../src/lib/knowledge-graph/layout-3d';
 import { combineGraphs } from '../src/lib/knowledge-graph/model';
 import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';

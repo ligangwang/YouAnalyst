@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useRef,useState} from 'react';
-import {tourDelta} from '@/lib/knowledge-graph/tour-motion';
+import {tourDelta} from '@/lib/ui/knowledge-graph/tour-motion';
 
 export type NodePresence<T>={node:T;exiting:boolean};
 // Keep removed nodes mounted for their exit, and introduce parents before leaves.

@@ -1,7 +1,7 @@
 import { FieldPath } from "firebase-admin/firestore";
 import type { NextRequest } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { DEFAULT_TIMELINE_RANGE, mapTimelinePrice, TIMELINE_RANGES, timelineWindow, type TimelineRange } from "@/lib/company-timeline";
+import { DEFAULT_TIMELINE_RANGE, mapTimelinePrice, TIMELINE_RANGES, timelineWindow, type TimelineRange } from "@/lib/ui/company-timeline";
 import { marketDate, predictionInstrument } from "@/lib/predictions/instrument";
 
 export const runtime = "nodejs";
