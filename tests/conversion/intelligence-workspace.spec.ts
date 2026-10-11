@@ -41,6 +41,43 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+for(const view of ['graph','tree','hierarchy','table'])test(`exact ticker search selects the company in ${view}`,async({page})=>{
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'memory-partner',source:'US:MU',target:'US:MEM',type:'PARTNER_OF',summary:'Memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
+ await open(page,false,fixture);
+ await page.goto(`http://workspace.test/?view=${view}`);
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');
+ await search.fill('mu');if(view!=='tree')await search.press('Enter');
+ await expect(page).toHaveURL(/company=US%3AMU/);
+ const card=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(card).toBeVisible();await expect(card).toContainText('Micron');
+ await expect(card).toContainText('Memory partnership');
+ await expect(page.getByRole('button',{name:'Clear company event filter'})).toContainText('MU');
+ // Repeated exact submission stays selected rather than toggling it off.
+ await search.press('Enter');await expect(card).toBeVisible();
+ await search.fill('M');await search.press('Enter');
+ await expect(card).toHaveCount(0);
+ await expect(page).not.toHaveURL(/company=/);
+});
+
+test('exact ticker search emphasizes connected graph nodes like a node click',async({page},info)=>{
+ test.skip(info.project.name!=='desktop','Actual WebGL selection regression');
+ test.setTimeout(60000);
+ await page.setViewportSize({width:1500,height:900});await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'memory-partner',source:'US:MU',target:'US:MEM',type:'PARTNER_OF',summary:'Memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
+ const body=await workspaceFixture(true,fixture);
+ await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
+ await page.goto('http://workspace.test/?view=graph');
+ await expect(page.locator('canvas')).toHaveAttribute('data-camera-position',/.+/);
+ const search=page.getByPlaceholder('Search company / ticker');
+ await search.fill('mu');await search.press('Enter');await search.blur();
+ await expect(page.locator('[data-company-id="US:MU"]')).toHaveAttribute('data-company-focus','selected');
+ const partner=page.locator('[data-company-id="US:MEM"]');
+ await expect(partner).toHaveAttribute('data-company-focus','connected');
+ await expect.poll(()=>partner.evaluate(el=>el.style.getPropertyValue('--label-emphasis'))).toBe('');
+ await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Memory partnership');
+});
+
 test('graph automatic orbit pauses for focused search and resumes on blur',async({page})=>{
  const body=await workspaceFixture(true);
  await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));

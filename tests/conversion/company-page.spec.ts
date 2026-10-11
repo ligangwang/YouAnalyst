@@ -57,8 +57,8 @@ for (const predictionsAvailable of [true, false]) {
     await page.locator('details').filter({has:page.getByText("Synthetic business excerpt for company-page testing.")}).locator('summary').click();
     await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Filed 2026-02-01 ↗", exact: true })).toHaveAttribute("href", /sec.gov\/Archives\/edgar\/data\/2488\//);
-    await expect(page.getByText("Estimated market cap", { exact: true })).toBeVisible();
-    await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(predictionsAvailable ? 5 : 6);
+    await expect(page.getByText("Estimated market cap", { exact: true })).toHaveCount(predictionsAvailable ? 1 : 0);
+    await expect(page.getByText("Unavailable", { exact: true })).toHaveCount(5);
     if (predictionsAvailable) {
       await expect(page.getByText("2.5B USD", {exact:true})).toBeVisible();
       await expect(page.getByText("As of 2026-09-18", {exact:true})).toBeVisible();
