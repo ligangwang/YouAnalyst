@@ -863,9 +863,11 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeGreaterThan(32);
  expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeLessThan(102);
  await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
+ await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeFocused();
  await expect(timeline.locator('svg')).toHaveCount(0);
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toBeVisible();
- await timeline.getByRole('button',{name:'Show timeline',exact:true}).click();
+ await timeline.getByRole('button',{name:'Show timeline',exact:true}).press('Enter');
+ await expect(timeline.getByRole('button',{name:'Close timeline',exact:true})).toBeFocused();
  await expect(timeline.locator('svg')).toBeVisible();
  await timeline.getByRole('button',{name:/Oct 2: Published company update/}).first().click();
  await expect(page).toHaveURL(/event=event-0/);

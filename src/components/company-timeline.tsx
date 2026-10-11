@@ -19,6 +19,12 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const [hoverDate, setHoverDate] = useState<string | null>(null);
   const [width, setWidth] = useState(600);
   const chart = useRef<HTMLDivElement>(null);
+  const toggleButton = useRef<HTMLButtonElement>(null);
+  const restoreToggleFocus = useRef(false);
+  useEffect(() => {
+    if (restoreToggleFocus.current) { toggleButton.current?.focus(); restoreToggleFocus.current = false; }
+  }, [closed]);
+  const toggleTimeline = (value: boolean) => { restoreToggleFocus.current = true; setClosed(value); };
   const key = `${companyId}:${days}:${retry}`;
   useEffect(() => {
     if (initialPrices?.companyId === companyId) return;
@@ -73,9 +79,9 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left - left) / plotWidth));
     setHoverDate(new Date(Date.parse(start) + ratio * (Date.parse(end) - Date.parse(start))).toISOString().slice(0, 10));
   };
-  if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button className={styles.retry} type="button" onClick={() => setClosed(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
+  if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
   return <section className={styles.timeline} aria-label={text("Company event and price timeline", "公司事件与股价时间轴")} data-company-timeline={companyId}>
-    <header className={styles.header}><h2>{text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><span>1M</span><button type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => setClosed(true)}>×</button></div></header>
+    <header className={styles.header}><h2>{text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><span>1M</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
     <div className={styles.legend}><span data-category="business">● {text("Business", "业务")}</span><span data-category="filing">◆ {text("Filing", "公告")}</span><span data-category="research">■ {text("Research", "研究")}</span></div>
     <div ref={chart} className={styles.chart} onPointerMove={e => { if (!(e.target as Element).closest("button")) pointerDate(e.clientX); }} onPointerLeave={() => setHoverDate(null)} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
       <svg viewBox={`0 0 ${width} 160`} role="img" aria-label={text("Event categories overlaid on daily close, with volume below", "事件分类叠加在每日收盘价上，下方显示成交量")}>
