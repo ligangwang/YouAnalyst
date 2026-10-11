@@ -106,7 +106,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const selected=requestedId||snapshot.events.find(item=>intelligenceEventMatchesId(item,eventId))?.origin||linkedEvent?.companyIds[0]||snapshot.graph.relationships.find(item=>item.id===edgeId)?.source||'';
   const [camera,setCamera]=useState(0),[reset,setReset]=useState(0),[pulse,setPulse]=useState(0);
   const [propagating,setPropagating]=useState(false);
-  const setQuery=useCallback((value:string)=>updateIndustryBrowse({q:value},true),[]);
   const onSearchTyping=useCallback(()=>{updateIndustryBrowse({company:'',feedCompany:'',event:'',relationship:''});setPropagating(false);},[]);
   const start=Date.parse(snapshot.session.startAt),until=Date.parse(snapshot.generatedAt);
   const graph=useMemo(()=>{
@@ -138,7 +137,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const activityCompany=companiesById.get(feedCompanyId);
   const activityScope=activityCompany?[activityCompany]:scope;
   const inWindow=snapshot.events.filter(event=>window==='recent'||event.publication_date===snapshot.session.date);
-  const scopeIds=scope.map(node=>node.id);
   const activityIds=activityScope.map(node=>node.id);
   const sourceDocuments=snapshot.sourceDocuments??sourceDocumentsForEvents(snapshot.events);
   const periodDocuments=sourceDocuments.filter(document=>window==='recent'||document.publication_date===snapshot.session.date);
@@ -164,18 +162,32 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const event=candidateEvent?.companyIds.some(id=>companiesById.has(id))?candidateEvent:undefined;
   const clickAnchor=useRef<{x:number;y:number}|null>(null);
   const [companyAnchor,setCompanyAnchor]=useState<{x:number;y:number}|null>(null);
+  const selectCompany=useCallback((id:string,anchor:{x:number;y:number}|null=null,search?:string)=>{
+    setCompanyAnchor(anchor);
+    updateIndustryBrowse({company:id,feedCompany:id,event:'',relationship:'',...(search!==undefined?{q:search}:{})},search!==undefined);
+    setPropagating(false);
+    setCamera(value=>value+1);
+  },[]);
+  const setQuery=useCallback((value:string)=>{
+    const search=value.normalize('NFKC').trim().replace(/^\$/,'');
+    const exact=search?allCompanies.filter(node=>companySearchRank(node,search)===0):[];
+    if(exact.length===1)selectCompany(exact[0].id,null,value);
+    else {updateIndustryBrowse({q:value,company:'',feedCompany:'',event:'',relationship:''},true);setPropagating(false);}
+  },[allCompanies,selectCompany]);
   const floatingCompany=Boolean(company||event);
   const companyCard=useNodeCardPosition(selected,'workspace',floatingCompany,companyAnchor,'top-right',eventId||selected);
   const sourceTitle=(source:IntelligenceEvent['evidence'][number])=>event&&source.title===event.title?intelligenceEventTitle(event,locale):source.title;
   const eventSource=event?.evidence.find(source=>source.channel==='SEC')??event?.evidence[0];
   const connections=graph.relationships.filter(edge=>edge.type!=='PARTICIPATES_IN'&&relationshipVerification(edge)!=='TERMINATED'&&(event?event.edgeIds.includes(edge.id):selected&&(edge.source===selected||edge.target===selected)));
   const intelligence={origin:propagating?event?.origin??'':'',edges:event?propagating?event.edgeIds:[]:selected?graph.relationships.filter(edge=>edge.type!=='PARTICIPATES_IN'&&relationshipVerification(edge)!=='TERMINATED'&&(edge.source===selected||edge.target===selected)).map(edge=>edge.id):[]};
-  const filteredCompanyIds=activeOnly||sourceFilter?activity.activeIds:query||tab==='watchlist'||(theme!=='ai'&&sector)?scopeIds:undefined;
+  const exactSearchSelected=Boolean(query.trim()&&company&&companySearchRank(company,query)===0);
+  const chartCompanies=exactSearchSelected?allCompanies.filter(node=>(!sector||matchesCompanySector(node,sector))&&(tab!=='watchlist'||saved.includes(node.id))&&((!activeOnly&&!sourceFilter)||activeIds.has(node.id))):companies;
+  const filteredCompanyIds=activeOnly||sourceFilter?activity.activeIds:((!exactSearchSelected&&query)||tab==='watchlist'||(theme!=='ai'&&sector))?chartCompanies.map(node=>node.id):undefined;
   const label=(id:string)=>{const node=companiesById.get(id);return node?.symbol||node?.name||id;};
 
   function clearSelection(preserveCompany=false){const company=preserveCompany?activityCompany?.id??'':'';updateIndustryBrowse({company,feedCompany:company,event:'',relationship:''});setPropagating(false);}
   function showEvents(){setRightOpen(true);clearSelection(true);}
-  function focusCompany(id:string){if(!id||id===selected&&!eventId&&!edgeId){clearSelection();return;}clearSelection();setCompanyAnchor(clickAnchor.current);updateIndustryBrowse({company:id,feedCompany:id});setCamera(value=>value+1);}
+  function focusCompany(id:string){if(!id||id===selected&&!eventId&&!edgeId){clearSelection();return;}selectCompany(id,clickAnchor.current);}
   function activate(id:string){const next=snapshot.events.find(item=>intelligenceEventMatchesId(item,id));if(!next)return;const company=activityCompany&&next.companyIds.includes(activityCompany.id)?activityCompany.id:companiesById.has(next.origin)?next.origin:next.companyIds.find(id=>companiesById.has(id))??'';setRightOpen(true);updateIndustryBrowse({event:id,company,relationship:'',feedCompany:activityCompany?.id??''});setCamera(value=>value+1);setPropagating(true);setPulse(value=>value+1);}
   async function changeSaved(id:string,follow:boolean,anchor?:FollowFeedbackAnchor){
     setSaveError('');
@@ -221,7 +233,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
         {/* Keep the old scene while loading; initialize camera, growth and branch state for the committed theme. */}
         <div className={liveStyles.themeContents} data-company-workspace inert={switching} aria-busy={switching&&!error}>
         {view==='graph'?<div className={styles.graph} data-view="graph" style={{height:"100%"}}><Suspense fallback={<p className={styles.loading} role="status"><LoadingSpinner/><UiText text={"Loading universe…"}/></p>}><Universe key={theme} graph={graph} selected={selected} onSelect={focusCompany} sectorFocus={theme!=='ai'?'':sector} cameraRequest={camera} reset={reset} onReset={()=>setReset(value=>value+1)} intelligence={intelligence} companyFocus={filteredCompanyIds} activeEdge={edgeId} onSelectEdge={setEdgeId} hideReset/></Suspense><IntelligenceSectorLegend theme={theme}/></div>:<Suspense fallback={<p className={styles.loading} role="status"><LoadingSpinner/><UiText text={"Loading universe…"}/></p>}>
-          {view==='tree'?<Tree key={`${theme}:${reset}`} embedded vertical companies={companies} selected={selected} onSelect={focusCompany} followedIds={saved} active showCard={false}/>:view==='hierarchy'?<Hierarchy key={`${theme}:${reset}`} embedded companies={companies} selected={selected} onSelect={focusCompany} closing={false}/>:<div className={viewStyles.table}><CompanyTable companies={companies} selected={selected} onSelect={focusCompany} followedIds={saved}/></div>}
+          {view==='tree'?<Tree key={`${theme}:${reset}`} embedded vertical companies={chartCompanies} selected={selected} onSelect={focusCompany} followedIds={saved} active showCard={false}/>:view==='hierarchy'?<Hierarchy key={`${theme}:${reset}`} embedded companies={chartCompanies} selected={selected} onSelect={focusCompany} closing={false}/>:<div className={viewStyles.table}><CompanyTable companies={chartCompanies} selected={selected} onSelect={focusCompany} followedIds={saved}/></div>}
         </Suspense>}
         {floatingCompany&&selectedDetails}
         </div>

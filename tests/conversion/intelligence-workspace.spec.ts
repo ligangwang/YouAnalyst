@@ -41,6 +41,43 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+for(const view of ['graph','tree','hierarchy','table'])test(`exact ticker search selects the company in ${view}`,async({page})=>{
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'memory-partner',source:'US:MU',target:'US:MEM',type:'PARTNER_OF',summary:'Memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
+ await open(page,false,fixture);
+ await page.goto(`http://workspace.test/?view=${view}`);
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');
+ await search.fill('mu');if(view!=='tree')await search.press('Enter');
+ await expect(page).toHaveURL(/company=US%3AMU/);
+ const card=page.getByRole('region',{name:'Company details',exact:true});
+ await expect(card).toBeVisible();await expect(card).toContainText('Micron');
+ await expect(card).toContainText('Memory partnership');
+ await expect(page.getByRole('button',{name:'Clear company event filter'})).toContainText('MU');
+ // Repeated exact submission stays selected rather than toggling it off.
+ await search.press('Enter');await expect(card).toBeVisible();
+ await search.fill('M');await search.press('Enter');
+ await expect(card).toHaveCount(0);
+ await expect(page).not.toHaveURL(/company=/);
+});
+
+test('exact ticker search emphasizes connected graph nodes like a node click',async({page},info)=>{
+ test.skip(info.project.name!=='desktop','Actual WebGL selection regression');
+ test.setTimeout(60000);
+ await page.setViewportSize({width:1500,height:900});await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'memory-partner',source:'US:MU',target:'US:MEM',type:'PARTNER_OF',summary:'Memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
+ const body=await workspaceFixture(true,fixture);
+ await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
+ await page.goto('http://workspace.test/?view=graph');
+ await expect(page.locator('canvas')).toHaveAttribute('data-camera-position',/.+/);
+ const search=page.getByPlaceholder('Search company / ticker');
+ await search.fill('mu');await search.press('Enter');await search.blur();
+ await expect(page.locator('[data-company-id="US:MU"]')).toHaveAttribute('data-company-focus','selected');
+ const partner=page.locator('[data-company-id="US:MEM"]');
+ await expect(partner).toHaveAttribute('data-company-focus','connected');
+ await expect.poll(()=>partner.evaluate(el=>el.style.getPropertyValue('--label-emphasis'))).toBe('');
+ await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Memory partnership');
+});
+
 test('graph automatic orbit pauses for focused search and resumes on blur',async({page})=>{
  const body=await workspaceFixture(true);
  await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:snapshot}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
@@ -53,8 +90,8 @@ test('graph automatic orbit pauses for focused search and resumes on blur',async
  await search.focus();
  await expect(canvas).toHaveAttribute('data-rotation','input');
  await expect(page.locator('[data-company-id]').first()).toHaveCSS('transition-duration','0s');
- await search.fill('MU');
- await expect(page).toHaveURL(/q=MU/);
+ await search.fill('M');
+ await expect(page).toHaveURL(/q=M/);
  await expect(page.getByRole('complementary',{name:'Events and sources'}).locator('[data-loading-spinner]')).toHaveCount(0);
  await expect(canvas).toHaveAttribute('data-camera','idle');
  await page.waitForTimeout(100);
@@ -583,7 +620,8 @@ test('detail save confirms beside the click',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Desktop detail panel placement');
   await page.setViewportSize({width:1500,height:800});
   await open(page);
-  await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
+  await page.getByRole('textbox',{name:'Search companies'}).fill('Lument');
+  await expect(page).toHaveURL(/q=Lument/);
   await page.getByRole('button',{name:'LITE Lumentum',exact:true}).click();
   const save=page.getByRole('button',{name:/Save company/});
   const bounds=(await save.boundingBox())!;
@@ -604,7 +642,8 @@ test('graph company details float inside the graph and move independently of the
   await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
   const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
   if(await expand.isVisible())await expand.click();
-  await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
+  await page.getByRole('textbox',{name:'Search companies'}).fill('Lument');
+  await expect(page).toHaveURL(/q=Lument/);
   await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
   await page.getByRole('button',{name:'LITE Lumentum',exact:true}).click();
   const card=page.getByRole('region',{name:'Company details',exact:true});
@@ -636,7 +675,8 @@ test('graph company details float inside the graph and move independently of the
   const moved=(await card.boundingBox())!;
   expect(Math.abs(moved.x-before.x)+Math.abs(moved.y-before.y)).toBeGreaterThan(20);
   await page.screenshot({path:info.outputPath('floating-company-card.png')});
-  await page.getByRole('textbox',{name:'Search companies'}).fill('MU');
+  await page.getByRole('textbox',{name:'Search companies'}).fill('Micr');
+  await expect(page).toHaveURL(/q=Micr/);
   await page.getByRole('button',{name:'MU Micron',exact:true}).click();
   await expect(card).toContainText('Micron');
   await atTopRight();
@@ -731,7 +771,10 @@ for(const view of ['tree','hierarchy','table'])test(view+' company selection ope
  const expand=page.getByRole('button',{name:'Expand left panel',exact:true});
  if(await expand.isVisible())await expand.click();
  await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
- if(view!=='table')await page.getByRole('textbox',{name:'Search companies'}).fill('LITE');
+ if(view!=='table'){
+  await page.getByRole('textbox',{name:'Search companies'}).fill('Lument');
+  await expect(page).toHaveURL(/q=Lument/);
+ }
  const companyButton=view==='table'?page.locator('[data-list-company="US:LITE"] button'):page.getByRole('button',{name:'LITE Lumentum',exact:true});
  await companyButton.click();
  const card=page.getByRole('region',{name:'Company details',exact:true});
