@@ -144,6 +144,11 @@ test('full-period statistics include sources beyond the 200-entry feed and pagin
   assert.equal(older.events.length,1);assert(older.events[0].companyIds.includes('US:OLD'));
   assert.equal(older.truncated,false);assert.equal(older.graph,snapshot.graph);
   assert.equal(older.sourceDocuments,snapshot.sourceDocuments);
+  // Searches must use the retained full period before applying the event cap.
+  assert.equal(await service.loadCompanyIntelligenceSnapshot(now,'ai','',' $ＯＬＤ '),older);
+  assert.equal(await service.loadCompanyIntelligenceSnapshot(now,'ai','','Older source company','US'),older);
+  assert.equal((await service.loadCompanyIntelligenceSnapshot(now,'ai','','OLD','CN_A')).events.length,0);
+  assert.equal((await service.loadCompanyIntelligenceSnapshot(now,'ai','','no matching company')).events.length,0);
   const amd=await service.loadCompanyIntelligenceSnapshot(now,'ai','AMD');
   assert.equal(amd.events.length,200);assert(amd.events.every(event=>event.companyIds.includes('US:AMD')));
   assert.equal(amd.truncated,true);

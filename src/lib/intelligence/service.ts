@@ -14,6 +14,7 @@ import {loadMapDisclosures} from '../events/disclosure-projection';
 import {attachPricePerformance} from './price-performance-service';
 import {attachCalendarLinks} from '../calendar/intelligence-links';
 import {groupCompanyAnnouncements} from './announcement-grouping';
+import {companySearchRank,companySearchText,matchesCompanySearch} from '../knowledge-graph/model';
 
 const LIMIT=200,CACHE_MS=60_000;
 const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;expires:number}>();
@@ -36,27 +37,32 @@ async function loadUniverseGraph(theme:CompanyThemeId){
     :await (theme==='ai'?loadKnowledgeGraph():loadThemeGraph(theme));
 }
 
-export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company=''):Promise<IntelligenceSnapshot>{
+export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region=''):Promise<IntelligenceSnapshot>{
   const base=await loadIntelligenceSnapshot(now,theme);
-  if(!company)return base;
+  const search=query.normalize('NFKC').trim().replace(/^\$/,'');
+  if(!company&&!search&&region!=='US'&&region!=='CN_A')return base;
   const id=company.includes(':')?company.toUpperCase():`US:${company.toUpperCase()}`;
-  if(!base.graph.nodes.some(node=>node.kind==='COMPANY'&&node.id===id))return {...base,events:[],eventReturns:{},truncated:false};
+  const candidates=base.graph.nodes.filter(node=>node.kind==='COMPANY'&&(!region||(region==='US'?node.id.startsWith('US:'):region==='CN_A'?/^(XSHG:|XSHE:)/.test(node.id):true)));
+  const exact=search?candidates.filter(node=>companySearchRank(node,search)===0):[];
+  const ids=new Set(company?base.graph.nodes.filter(node=>node.kind==='COMPANY'&&node.id===id).map(node=>node.id):(exact.length?exact:candidates.filter(node=>matchesCompanySearch(companySearchText(base.graph,node),search))).map(node=>node.id));
+  if(!ids.size)return {...base,events:[],eventReturns:{},truncated:false};
+  const scopeKey=[...ids].sort().join('|');
   let requests=companyRequests.get(base);
   if(!requests){requests=new Map();companyRequests.set(base,requests);}
-  const pending=requests.get(id);if(pending)return pending;
+  const pending=requests.get(scopeKey);if(pending)return pending;
   const request=(async()=>{
-    const matching=(periods.get(base)??base.events).filter(event=>event.companyIds.includes(id));
+    const matching=(periods.get(base)??base.events).filter(event=>event.companyIds.some(id=>ids.has(id)));
     const events=matching.slice(0,LIMIT);
     let eventReturns:IntelligenceSnapshot['eventReturns']={};
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
-      // Only the selected company needs return enrichment; retain the shared graph.
-      const graph={...base.graph,nodes:base.graph.nodes.filter(node=>node.id===id)};
+      // Enrich only companies in the selected/search scope; retain the shared graph.
+      const graph={...base.graph,nodes:base.graph.nodes.filter(node=>ids.has(node.id))};
       eventReturns=(await attachPricePerformance(getAdminFirestore(),graph,events,now)).eventReturns;
     }
     return {...base,events,eventReturns,truncated:matching.length>LIMIT};
   })();
-  requests.set(id,request);
-  try{return await request;}catch(error){requests.delete(id);throw error;}
+  requests.set(scopeKey,request);
+  try{return await request;}catch(error){requests.delete(scopeKey);throw error;}
 }
 
 /** One cached, paginated period read shared by browsers; only the event list is capped. */

@@ -143,7 +143,8 @@ test('company feed fetches older matching documents before the global cap and re
  const requested:string[]=[];
  await page.route('**/*',route=>{
    if(route.request().url().includes('/api/intelligence')){
-     const company=new URL(route.request().url()).searchParams.get('company')??'';requested.push(company);
+     const params=new URL(route.request().url()).searchParams;
+     const company=params.get('company')||(params.get('q')==='ARM'?'US:ARM':'');requested.push(company);
      return route.fulfill({json:company==='US:ARM'?{...fixture,events:older,truncated:false}:company==='US:MU'?{...fixture,events:events.filter(event=>event.companyIds.includes(company))}:fixture});
    }
    return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
@@ -161,6 +162,21 @@ test('company feed fetches older matching documents before the global cap and re
  await page.reload();
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
  await panel.getByRole('button',{name:'Clear company event filter'}).click();
+ await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(198);
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
+ const search=page.getByPlaceholder('Search company / ticker');
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await search.click();
+ const beforeSearch=requested.length;
+ await search.pressSequentially('ARM',{delay:60});
+ expect(requested.length).toBe(beforeSearch);
+ await expect(search).toHaveValue('ARM');
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
+ await expect(page).toHaveURL(/q=ARM/);
+ await expect(panel.getByText('12 loaded source documents',{exact:true})).toBeVisible();
+ await page.reload();await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await search.fill('');await search.press('Enter');
  await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(198);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
