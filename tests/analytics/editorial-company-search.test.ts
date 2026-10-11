@@ -3,6 +3,26 @@ import test from "node:test";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
 
+test("exact tickers and ticker prefixes survive a full page of name matches", async () => {
+  const company = (symbol: string, name: string, status = "PUBLISHED") => ({ id: `US:${symbol}`, data: () => ({ symbol, symbolLower: symbol.toLowerCase(), name, market: "US", active: true, predictionSupported: true, status }) });
+  const names = Array.from({length: 50}, (_, index) => company(`A${index}`, `Systems ${index}`));
+  const exact = company("TEM", "Tempus AI"), prefix = company("TEMX", "Ticker prefix company"), hidden = company("TEMH", "Hidden company", "WITHDRAWN");
+  const fixture = { db: { collection: () => ({ where: (field: string) => ({ limit: (limit: number) => ({ get: async () => ({ docs: (field === "symbolLower" ? [exact] : field === "symbolPrefixes" ? [exact, prefix, hidden] : names).slice(0, limit) }) }) }) }) } };
+  const bundle = await build({ entryPoints: ["src/app/api/tickers/search/route.ts"], bundle: true, write: false, platform: "node", format: "cjs", packages: "external", plugins: [{ name: "no-live-services", setup(builder) {
+    builder.onLoad({ filter: /[\\/]firebase[\\/]admin\.ts$/ }, () => ({ contents: "export const getAdminFirestore = () => fixture.db;", loader: "js" }));
+  } }] });
+  const testModule = { exports: {} as { GET: (request: { nextUrl: URL }) => Promise<Response> } };
+  new Function("fixture", "require", "module", bundle.outputFiles[0].text)(fixture, createRequire(import.meta.url), testModule);
+  for (const scope of ["all", "calls", ""]) {
+    const response = await testModule.exports.GET({nextUrl: new URL(`https://example.com/api/tickers/search?q=TEM&limit=8&scope=${scope}`)});
+    assert.equal(response.status, 200);
+    const {items} = await response.json();
+    assert.deepEqual(items.slice(0, 2).map((item: {id:string}) => item.id), ["US:TEM", "US:TEMX"]);
+    assert.equal(items.filter((item: {id:string}) => item.id === "US:TEM").length, 1);
+    assert.ok(items.every((item: {id:string}) => item.id !== "US:TEMH"));
+  }
+});
+
 test("research directory finds missing editorial identities without exposing hidden rows or enabling calls", async () => {
   const records = new Map<string, Record<string, unknown>>();
   let failed = false;

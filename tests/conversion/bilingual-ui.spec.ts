@@ -111,7 +111,8 @@ test("primary navigation marks the current section on localized pages and compan
       await expect(active).toHaveCount(label ? 1 : 0);
       if (label) {
         await expect(active).toHaveText(label);
-        await expect(active).toHaveClass(/aria-\[current=page\]:bg-white\/10/);
+        await expect(active).toHaveClass(/aria-\[current=page\]:underline/);
+        await expect(active).not.toHaveClass(/aria-\[current=page\]:bg-/);
       }
     }
   }

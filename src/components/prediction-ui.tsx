@@ -1,7 +1,7 @@
 "use client";
 
 import { SHOW_ANALYST_LEVELS } from "@/lib/community";
-import { UiText } from "@/components/ui-text";
+import { UiText, useUiText } from "@/components/ui-text";
 
 import Link from "next/link";
 import { formatCallPrice } from "@/lib/predictions/instrument";
@@ -158,6 +158,7 @@ export function PredictionReturnSummary({
   href?: string;
   status?: PredictionStatus;
 }) {
+  const ui = useUiText();
   const markReturnValue = typeof prediction.markReturnValue === "number" ? prediction.markReturnValue : null;
   const entryPrice = typeof prediction.entryPrice === "number" ? prediction.entryPrice : null;
   const sinceCallDays = daysSinceCall(prediction.entryDate, prediction.markPriceDate);
@@ -174,10 +175,10 @@ export function PredictionReturnSummary({
     <>
       {hasReturn ? (
         <>
+          <span className="text-slate-400" title={`${prediction.entryDate} → ${prediction.markPriceDate} · ${ui('Return calculated from the entry price, which may be set after the call is published. The day count covers the entry-to-mark period.')}`}><UiText text={`Since call (${sinceCallDays}d): `} /></span>
           <span className={`font-semibold ${markToneClass(markReturnValue)}`}>
             {formatReturnPercent(markReturnValue)}
           </span>
-          <span className="text-slate-400"><UiText text={` since entry (${sinceCallDays}d)`} /></span>
         </>
       ) : null}
       {isAwaitingEntry ? <span className="text-slate-400"><UiText text={"Awaiting entry price"} /></span> : null}
