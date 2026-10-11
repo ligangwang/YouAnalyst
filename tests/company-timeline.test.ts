@@ -11,6 +11,8 @@ test("Explore timeline preserves grouped events, company/source filters and publ
   assert.equal(result.length, 1);
   assert.equal(result[0].date, "2026-10-01");
   assert.equal(result[0].title, "English title");
+  assert.equal(result[0].category, "business");
+  assert.equal(intelligenceTimelineEvents("US:AMD", [{ ...event, category: "FILING" }])[0].category, "filing");
   assert.equal(intelligenceTimelineEvents("US:AMD", [event], true)[0].title, "中文标题");
   assert.equal(intelligenceTimelineEvents("US:AMD", [event], false, "SEC")[0].sourceUrl, "https://example.com/two");
   assert.equal(intelligenceTimelineEvents("US:AMD", [event], false, "Exchange").length, 0);
@@ -44,5 +46,8 @@ test("clustering preserves lane and true date anchors, with bounded density", ()
   const groups = clusterTimelineEvents(events, "2026-04-01", "2026-04-30", 290, 25);
   assert.equal(groups.length, 2); assert.equal(groups[0].events.length, 3); assert.equal(groups[0].events[0].date, "2026-04-10");
   assert.equal(clusterTimelineEvents([...events, { ...events[0], id: "business", lane: "business" }], "2026-04-01", "2026-04-30", 290, 25).length, 3);
+  const overlay = clusterTimelineEvents([{ ...events[0], id: "business", lane: "business" }, ...events.toReversed()], "2026-04-01", "2026-04-30", 290, 25, false);
+  assert.equal(overlay.length, 2); assert.equal(overlay[0].events.length, 4);
+  assert.equal(overlay[0].events[0].date, "2026-04-10");
   assert.equal(timelineWindow(180, "2026-10-09").end, "2026-10-09");
 });

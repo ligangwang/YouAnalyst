@@ -6,7 +6,7 @@ export const TIMELINE_RANGES = [30, 90, 180, 365, 1826] as const;
 export const DEFAULT_TIMELINE_RANGE = 30;
 export type TimelineRange = (typeof TIMELINE_RANGES)[number];
 export type TimelinePrice = { date: string; close: number; volume: number | null };
-export type TimelineEvent = { id: string; date: string; title: string; description: string; lane: "business" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
+export type TimelineEvent = { id: string; date: string; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
 export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; available: boolean };
 export function timelineDate(value: unknown): string | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value)) return null;
@@ -51,12 +51,12 @@ export function companyTimelineEvents(companyId: string, graph: KnowledgeGraph |
   }
   return [...unique.values()].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
-export function clusterTimelineEvents(events: TimelineEvent[], start: string, end: string, width: number, spacing = 36) {
+export function clusterTimelineEvents(events: TimelineEvent[], start: string, end: string, width: number, spacing = 36, separateLanes = true) {
   const first = Date.parse(start), span = Math.max(1, Date.parse(end) - first);
   const groups: { lane: TimelineEvent["lane"]; x: number; events: TimelineEvent[] }[] = [];
-  for (const event of events.filter(e => e.date >= start && e.date <= end)) {
+  for (const event of events.filter(e => e.date >= start && e.date <= end).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
     const x = (Date.parse(event.date) - first) / span * width;
-    const previous = groups.filter(g => g.lane === event.lane).at(-1);
+    const previous = (separateLanes ? groups.filter(g => g.lane === event.lane) : groups).at(-1);
     // Bound cluster width from its anchor, so a dense run cannot swallow an entire range.
     if (previous && x - previous.x < spacing) previous.events.push(event);
     else groups.push({ lane: event.lane, x, events: [event] });
@@ -71,6 +71,6 @@ export function intelligenceTimelineEvents(companyId: string, events: Intelligen
     const source = event.evidence.find(source => (!sourceFilter || source.channel === sourceFilter) && /^https:\/\//.test(source.url));
     if (!date || !source) return [];
     const title = intelligenceEventTitle(event, chinese ? "zh-CN" : "en");
-    return [{ id: event.id, date, title, description: event.summary === "交易所上市公司原始公告。" && !chinese ? "Original announcement from an exchange-listed company." : event.summary, lane: event.category === "BUSINESS" ? "business" as const : "research" as const, sourceUrl: source.url, sourceTitle: title, planned: event.planned }];
+    return [{ id: event.id, date, title, description: event.summary === "交易所上市公司原始公告。" && !chinese ? "Original announcement from an exchange-listed company." : event.summary, lane: event.category === "BUSINESS" ? "business" as const : "research" as const, category: event.category === "BUSINESS" ? "business" as const : event.category === "FILING" ? "filing" as const : "research" as const, sourceUrl: source.url, sourceTitle: title, planned: event.planned }];
   }).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
