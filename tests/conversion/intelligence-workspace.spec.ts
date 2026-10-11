@@ -904,8 +904,13 @@ test('timeline category symbols, count chooser and docked card retain all event 
  const initialTimelineHeight=(await timeline.boundingBox())!.height;
  const insiderMarker=timeline.getByRole('button',{name:/events · Insider sell · Oct 2/});
  await expect(insiderMarker).toContainText('▼');
- await insiderMarker.click();
+ await insiderMarker.focus();await insiderMarker.press('Enter');
  await expect(timeline.getByRole('group',{name:'Choose an event'})).toBeVisible();
+ await expect(timeline.getByRole('button',{name:'Close event list',exact:true})).toBeFocused();
+ await page.keyboard.press('Escape');
+ await expect(timeline.getByRole('group',{name:'Choose an event'})).toHaveCount(0);
+ await expect(insiderMarker).toBeFocused();
+ await insiderMarker.press('Enter');
  expect((await timeline.boundingBox())!.height).toBe(initialTimelineHeight);
  await expect(page).not.toHaveURL(/event=/);
  await timeline.getByRole('group',{name:'Choose an event'}).getByRole('button',{name:/Insider sell.*Published company update 2$/}).click();
