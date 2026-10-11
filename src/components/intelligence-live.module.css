@@ -49,3 +49,7 @@
 .companyCard [data-card-drag]:active{cursor:grabbing}
 .companyCard [data-card-drag]:focus-visible{outline:2px solid #98e7d6;outline-offset:-2px;border-radius:8px}
 @media(prefers-reduced-motion:reduce){.companyCard{animation:none}}
+
+.timelineDock{flex-shrink:0;max-height:min(340px,calc(100% - 330px));min-width:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#314354 transparent}
+.timelineDock>p{display:flex;align-items:center;gap:8px;padding:12px}
+@media(max-width:850px){.hasTimeline.hasTimeline{height:auto;min-height:650px}.hasTimeline>[role=tabpanel]{flex:0 0 360px}.timelineDock{max-height:340px}}

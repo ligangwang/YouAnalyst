@@ -1,7 +1,7 @@
 "use client";
 import {useLayoutEffect,useRef} from 'react';
 // Open near a company click when provided; keep manual placement until the next click.
-export function useNodeCardPosition(companyId:string,kind:'graph'|'tree'|'workspace',enabled=true,anchor?:{x:number;y:number}|null,placement:'auto'|'top-right'='auto',selectionId=companyId){
+export function useNodeCardPosition(companyId:string,kind:'graph'|'tree'|'workspace',enabled=true,anchor?:{x:number;y:number}|null,placement:'auto'|'top-right'|'bottom-right'='auto',selectionId=companyId){
  const card=useRef<HTMLElement>(null),position=useRef<{x:number;y:number}|null>(null);
  useLayoutEffect(()=>{
   // Start each company at the top of its details.
@@ -10,15 +10,19 @@ export function useNodeCardPosition(companyId:string,kind:'graph'|'tree'|'worksp
  useLayoutEffect(()=>{
   const el=card.current;if(!el||!enabled)return;
   const host=el.closest<HTMLElement>(kind==='workspace'?'[data-company-workspace]':kind==='tree'?'[data-industry-tree]':'[data-view="graph"]');if(!host)return;
-  if(placement==='top-right')position.current=null;
+  if(placement==='top-right'||placement==='bottom-right')position.current=null;
   else if(anchor){const r=host.getBoundingClientRect();position.current={x:anchor.x-r.left+14,y:anchor.y-r.top+14};}
   let frame=0,drag:{id:number;x:number;y:number;left:number;top:number}|null=null;
   const place=()=>{
-   const r=host.getBoundingClientRect(),width=Math.min(340,r.width-24),height=r.width<=800?200:Math.min(520,innerHeight*.55,r.height-24);
+   const r=host.getBoundingClientRect(),dock=host.querySelector<HTMLElement>(':scope > [data-timeline-dock]');
+   const availableHeight=dock?dock.offsetTop:r.height;
+   const compact=kind!=='workspace';
+   // Leave room to move a workspace card even when a timeline reduces chart height.
+   const width=Math.min(340,r.width-24),height=compact?Math.min(kind==='graph'?180:210,availableHeight-24):Math.min(r.width<=800?200:520,innerHeight*.55,availableHeight-64);
    el.style.width=`${Math.max(160,width)}px`;el.style.maxHeight=`${Math.max(100,height)}px`;
    const left=Math.max(12,-r.left+12),right=Math.max(left,Math.min(r.width-width-12,innerWidth-r.left-width-12));
-   const top=Math.max(12,-r.top+12),bottom=Math.max(top,Math.min(r.height-el.offsetHeight-12,innerHeight-r.top-el.offsetHeight-12));
-   const p=position.current??{x:right,y:placement==='top-right'?top:r.width<=800?bottom:top};
+   const top=Math.max(12,-r.top+12),bottom=Math.max(top,Math.min(availableHeight-el.offsetHeight-12,innerHeight-r.top-el.offsetHeight-12));
+   const p=position.current??{x:right,y:placement==='top-right'?top:compact||placement==='bottom-right'||r.width<=800?bottom:top};
    el.style.left=`${Math.max(left,Math.min(right,p.x))}px`;el.style.top=`${Math.max(top,Math.min(bottom,p.y))}px`;
    el.style.right='auto';el.style.bottom='auto';el.dataset.nodeCard=companyId;
    frame=requestAnimationFrame(place);

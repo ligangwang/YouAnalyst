@@ -23,7 +23,7 @@ test("A-share company page reuses direction links, CNY entry and close controls;
   await expect(page.getByRole("button", { name: "Close Bullish", exact: true })).toBeVisible();
   await expect(link).toHaveCount(0);
   await page.goto(`${origin}?china&private`);
-  await expect(page.getByRole("heading", { name: "JCET" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "JCET", level: 1 })).toBeVisible();
   await expect(page.getByRole("link", { name: /Bullish|Bearish/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Bullish|Bearish/ })).toHaveCount(0);
 });
