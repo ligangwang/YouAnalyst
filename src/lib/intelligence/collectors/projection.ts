@@ -7,6 +7,7 @@ import type {NewsSource} from './sources';
 import {loadNewsSources} from './source-service';
 import {newsArticles} from './article-quality';
 import {NEWS_COLLECTORS_COLLECTION,NEWS_EVENTS_COLLECTION} from './store';
+import {eventClassification} from '../../events/classification';
 
 /** Weekend pauses are expected; compare against the latest weekday poll slot. */
 export function newsCollectorIsFresh(lastSuccess:unknown,failures:unknown,partial:unknown,now:Date,pollMs:number){
@@ -29,7 +30,7 @@ export function projectCollectedNews(records:Record<string,unknown>[],graph:Know
     const url=typeof record.url==='string'?canonicalEvidenceUrl(record.url):null;
     const publication=observation(record.published_at??record.publication_date);
     if(!url||!source.allowedHosts.includes(new URL(url).hostname)||!publication||(publication.at&&Date.parse(publication.at)>now.getTime())||typeof record.title!=='string'||!record.title||typeof record.id!=='string')return [];
-    return [{id:`news-${record.id}`,origin:source.companyId,companyIds:[source.companyId],edgeIds:[],category:'BUSINESS',title:record.title,titleEn:translatedSummary(record.title,(record.titleTranslations as Record<string,unknown>|undefined)?.["en"]),titleZh:translatedSummary(record.title,(record.titleTranslations as Record<string,unknown>|undefined)?.["zh-CN"]),summary:typeof record.summary==='string'&&record.summary?record.summary:'Official company news. Open the source for details.',published_at:publication.at,publication_date:publication.day,eventDate:typeof record.publication_date==='string'?record.publication_date:null,evidence:[{id:record.id,url,title:record.title,sourceDate:typeof record.publication_date==='string'?record.publication_date:null,channel:'IR'}],planned:false} satisfies IntelligenceEvent];
+    return [{...eventClassification(record),id:`news-${record.id}`,origin:source.companyId,companyIds:[source.companyId],edgeIds:[],category:'BUSINESS',title:record.title,titleEn:translatedSummary(record.title,(record.titleTranslations as Record<string,unknown>|undefined)?.["en"]),titleZh:translatedSummary(record.title,(record.titleTranslations as Record<string,unknown>|undefined)?.["zh-CN"]),summary:typeof record.summary==='string'&&record.summary?record.summary:'Official company news. Open the source for details.',published_at:publication.at,publication_date:publication.day,eventDate:typeof record.publication_date==='string'?record.publication_date:null,evidence:[{id:record.id,url,title:record.title,sourceDate:typeof record.publication_date==='string'?record.publication_date:null,channel:'IR'}],planned:false} satisfies IntelligenceEvent];
   });
 }
 export async function loadCollectedNews(db:Firestore,graph:KnowledgeGraph,now:Date,earliestDay:string,limit?:number){

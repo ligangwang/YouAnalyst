@@ -11,17 +11,17 @@
 .chart { position:relative; width:100%; height:160px; touch-action:pan-y; }
 .chart svg { display:block; width:100%; height:160px; overflow:visible; }
 .chart text { fill:#9db4c8; font-size:11px; }
-.marker { position:absolute; transform:translate(-50%,-50%); width:26px; height:26px; border:1px solid #76b8c0; border-radius:50%; background:#112639; color:#9ce7ef; font-size:11px; cursor:pointer; }
+.timeline .marker { position:absolute; transform:translate(-50%,-50%); width:26px; height:26px; padding:0; border:1px solid #76b8c0; border-radius:50%; background:#112639; color:#9ce7ef; font-size:13px; cursor:pointer; }
 .marker[data-category=filing] { border-radius:6px; color:#f1c478; border-color:#ad8b52; }
 .marker[data-category=research] { border-radius:6px; color:#c5b2ff; border-color:#9d84cf; }
-.marker[aria-pressed=true] { outline:2px solid #d7f5ff; outline-offset:2px; }
+.timeline .marker[aria-pressed=true] { outline:2px solid #d7f5ff; outline-offset:2px; }
 .status { color:#9db4c8; font-size:12px; }
 .coverage { margin:0; color:#9db4c8; font-size:11px; }
 .detail { margin-top:8px; padding-top:8px; border-top:1px solid #233d50; font-size:12px; }
 .detail summary { cursor:pointer; color:#dbedf7; }
 .detail p { color:#adbfce; margin:7px 0; line-height:1.6; }
 .detail a { color:#90d4ed; text-decoration:underline; }
-.eventList { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.eventList { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; max-height:160px; overflow:auto; }
 .eventList button { color:#bdd9e8; border:1px solid #345367; border-radius:5px; padding:5px 8px; text-align:left; background:#102638; font-size:12px; cursor:pointer; }
 .eventList button[aria-pressed=true] { border-color:#a2dce9; }
 .snapshot { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px; border:1px solid #30485a; border-radius:12px; background:#0d1d2b; color:#d9eaf4; }
@@ -34,4 +34,4 @@
 .pageResearch .snapshot { border:0; border-radius:0; }
 .timeline button:focus-visible,.snapshot a:focus-visible { outline:2px solid #a7e9fa; outline-offset:3px; }
 @media(max-width:600px) { .timeline {padding:10px 8px;} .header h2 {font-size:13px;} .ranges button {min-height:36px;padding:5px 8px;} .snapshot {padding:12px;} }
-@media(pointer:coarse) { .marker {width:44px;height:44px;} }
+@media(pointer:coarse) { .timeline .marker {width:44px;height:44px;} }

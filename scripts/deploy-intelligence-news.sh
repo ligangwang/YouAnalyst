@@ -21,6 +21,7 @@ trap 'rm -f "$env_file"' EXIT
 node - "$env_file" <<'NODE'
 const fs = require('node:fs');
 const env = {GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA || 'unknown',
+  SEC_USER_AGENT:process.env.SEC_USER_AGENT || '',
   INTELLIGENCE_NEWS_COLLECTOR_ENABLED:process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED || '0',
   EARNINGS_COLLECTION_ENABLED:process.env.EARNINGS_COLLECTION_ENABLED || '0',
   NEWS_ANALYSIS_MONTHLY_BUDGET_USD:process.env.NEWS_ANALYSIS_MONTHLY_BUDGET_USD || '5',

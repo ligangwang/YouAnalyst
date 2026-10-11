@@ -51,3 +51,9 @@ test("clustering preserves lane and true date anchors, with bounded density", ()
   assert.equal(overlay[0].events[0].date, "2026-04-10");
   assert.equal(timelineWindow(180, "2026-10-09").end, "2026-10-09");
 });
+import {layoutTimelineMarkers} from '../src/lib/company-timeline';
+test('dated marker band preserves x dates, caps levels and counts crowded events without dropping them',()=>{
+ const event=companyTimelineEvents('US:AMD',graph,[])[0];
+ const groups=layoutTimelineMarkers(Array.from({length:20},(_,i)=>({...event,id:String(i),date:'2026-04-10'})),'2026-04-01','2026-04-30',290);
+ assert.equal(groups.length,2);assert.equal(groups[0].x,90);assert.equal(groups[1].x,90);assert.equal(groups[1].level,1);assert.equal(groups.reduce((sum,g)=>sum+g.events.length,0),20);
+});

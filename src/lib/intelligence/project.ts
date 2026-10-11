@@ -1,6 +1,7 @@
 import type { KnowledgeGraph } from '../knowledge-graph/model';
 import type { BusinessEvent } from '../knowledge-graph/business-events';
 import { canonicalEvidenceUrl, easternDate, observation, sourceChannel, type IntelligenceEvent, type IntelligenceEvidence } from './model';
+import {classifyEvent} from '../events/classification';
 
 /** Clusters share an actual source URL. Co-mentions never create business edges. */
 export function projectResearchIntelligence(graph:KnowledgeGraph,business:BusinessEvent[]=[],now=new Date()):IntelligenceEvent[] {
@@ -35,15 +36,22 @@ export function projectResearchIntelligence(graph:KnowledgeGraph,business:Busine
     add({url:event.sourceUrl,title:event.sourceTitle,sourceDate:event.sourceDate,companyIds:event.companyIds,edgeIds:edge?[edge.id]:[],summary:event.summary,category:'BUSINESS',eventDate:event.eventDate,planned:event.planned});
     const cluster=clusters.get(canonicalEvidenceUrl(event.sourceUrl)??'');if(cluster){cluster.title=event.title;cluster.titleZh=event.titleZh;}
   }
-  return [...clusters.values()].sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
+  return [...clusters.values()].map(event=>{
+    const classification=classifyEvent({title:event.title,type:event.category==='BUSINESS'?'company_news':'research'});
+    if(event.edgeIds.length&&classification.eventType==='other')return {...event,eventType:'relationship' as const,eventSubtype:'relationship_disclosure',eventClassification:{version:1 as const,method:'parser' as const,rule:'documented.relationship',evidence:['Source supports an existing documented relationship; does not imply a new change.']}};
+    return {...event,...classification};
+  }).sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
 }
 
 /** Source publication owns the timestamp; its existing research paths remain visible. */
 export function mergeIntelligenceEvents(filings:IntelligenceEvent[],research:IntelligenceEvent[]):IntelligenceEvent[]{
   const observed=new Map<string,IntelligenceEvent>();
+  const enrichedUrls=new Set(filings.filter(event=>event.eventGroupingKey).flatMap(event=>event.evidence.map(source=>source.url)));
   for(const event of filings){
-    const key=event.evidence[0]?.url??event.id,previous=observed.get(key);
-    observed.set(key,previous?{...previous,companyIds:[...new Set([...previous.companyIds,...event.companyIds])],edgeIds:[...new Set([...previous.edgeIds,...event.edgeIds])],evidence:[...new Map([...previous.evidence,...event.evidence].map(source=>[source.url,source])).values()]}:event);
+    if(!event.eventGroupingKey&&event.evidence.some(source=>enrichedUrls.has(source.url)))continue;
+    const key=(event.evidence[0]?.url??event.id)+(event.eventGroupingKey?':'+event.eventGroupingKey:''),previous=observed.get(key);
+    const preferred=previous?.eventSubtype==='other_disclosure'&&event.eventType!=='other'||!previous?.eventClassification&&event.eventClassification?event:previous??event;
+    observed.set(key,previous?{...preferred,companyIds:[...new Set([...previous.companyIds,...event.companyIds])],edgeIds:[...new Set([...previous.edgeIds,...event.edgeIds])],evidence:[...new Map([...previous.evidence,...event.evidence].map(source=>[source.url,source])).values()]}:event);
   }
   filings=[...observed.values()];
   const byUrl=new Map(research.flatMap(event=>event.evidence.map(source=>[source.url,event] as const)));

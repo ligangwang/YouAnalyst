@@ -1,6 +1,7 @@
 import type { KnowledgeGraph } from '../knowledge-graph/model';
 import { parseSecFilingDiscovered } from '../sec-filings/event';
 import { observation, type IntelligenceEvent } from './model';
+import {classifyEvent} from '../events/classification';
 
 export type FilingDocument={id:string;data:Record<string,unknown>};
 export function projectSecIntelligence(documents:FilingDocument[],graph:KnowledgeGraph,now=new Date()):IntelligenceEvent[] {
@@ -22,7 +23,7 @@ export function projectSecIntelligence(documents:FilingDocument[],graph:Knowledg
     const publication=observation(first.published_at??first.filingDate);
     if(!publication||(publication.at&&Date.parse(publication.at)>now.getTime()))continue;
     const url=`https://www.sec.gov/Archives/edgar/data/${Number(first.cik)}/${first.accessionNumber.replaceAll('-','')}/${first.primaryDocument}`;
-    events.push({id:`sec:${document.id}`,origin:companyIds[0],companyIds,edgeIds:[],category:'FILING',title:`${first.companyId} · ${first.form} filing`,summary:`SEC ${first.form} filed ${first.filingDate}. Filing discovery is not a claim about price impact or a completed graph extraction.`,published_at:publication.at,publication_date:publication.day,eventDate:first.filingDate,evidence:[{id:url,url,title:`${first.companyId} ${first.form} · ${first.accessionNumber}`,sourceDate:first.filingDate,channel:'SEC'}],planned:false});
+    events.push({...classifyEvent({form:first.form}),id:`sec:${document.id}`,origin:companyIds[0],companyIds,edgeIds:[],category:'FILING',title:`${first.companyId} · ${first.form} filing`,summary:`SEC ${first.form} filed ${first.filingDate}. Filing discovery is not a claim about price impact or a completed graph extraction.`,published_at:publication.at,publication_date:publication.day,eventDate:first.filingDate,evidence:[{id:url,url,title:`${first.companyId} ${first.form} · ${first.accessionNumber}`,sourceDate:first.filingDate,channel:'SEC'}],planned:false});
   }
   return events;
 }

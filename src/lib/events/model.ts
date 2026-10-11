@@ -1,7 +1,7 @@
 /** Shared storage envelope for collected events; type identifies the payload. */
 export const EVENTS_COLLECTION='events';
 
-export type StoredEvent = {
+export type StoredEvent = import('./classification').ClassifiedEvent & {
   version:1;
   id:string;
   type:string;

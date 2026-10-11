@@ -4,12 +4,15 @@ export const INTELLIGENCE_SOURCES = ['SEC','IR','Exchange','GitHub','X','Reddit'
 export type IntelligenceSource = typeof INTELLIGENCE_SOURCES[number];
 export type IntelligenceEvidence = { id:string; url:string; title:string; sourceDate:string|null; channel:IntelligenceSource };
 export type IntelligenceCalendarEvent = { id:string; companyId:string; day:string; validationWarning?:boolean };
-export type IntelligenceEvent = {
+export type IntelligenceEvent = import('../events/classification').ClassifiedEvent & {
   id:string; origin:string; companyIds:string[]; edgeIds:string[]; category:'FILING'|'RESEARCH'|'BUSINESS';
   title:string; titleZh?:string; titleEn?:string; summary:string; published_at:string|null; publication_date:string; eventDate:string|null;
   evidence:IntelligenceEvidence[]; planned:boolean;
   calendarEvents?:IntelligenceCalendarEvent[];
   relatedEventIds?:string[];
+  insiderTransactions?:import('../events/insider-transactions').InsiderTransaction[];
+  amendment?:boolean;
+  amendmentPublishedAt?:string;
 };
 export const intelligenceEventMatchesId = (event:IntelligenceEvent,id:string) => event.id===id||Boolean(event.relatedEventIds?.includes(id));
 export function intelligenceEventTitle(event:Pick<IntelligenceEvent,'title'|'titleZh'|'titleEn'|'evidence'>,locale:string){

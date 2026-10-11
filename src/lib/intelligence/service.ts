@@ -125,6 +125,7 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     }catch(error){statisticsComplete=false;console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}
     const projected=projectResearchIntelligence(graph,theme==='ai'?curatedEvents:[],now);
     let disclosures:Awaited<ReturnType<typeof loadMapDisclosures>>|undefined;
+    let calendarAvailable=true;
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       disclosures=await loadMapDisclosures(getAdminFirestore(),graph,now,earliestDay);
       truncated=truncated||disclosures.truncated;
@@ -133,8 +134,9 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     let ordered=mergeIntelligenceEvents([...filings,...(news?.events??[]),...(disclosures?.events??[])],projected).filter(event=>event.publication_date>=earliestDay&&event.publication_date<=session.date);
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
       // Resolve every candidate's schedules before grouping or limiting the feed.
-      ordered=groupCompanyAnnouncements(await attachCalendarLinks(getAdminFirestore(),ordered));
-    }catch(error){console.error('Intelligence calendar links unavailable',error);warnings.push('Calendar event links are temporarily unavailable.');}
+      ordered=await attachCalendarLinks(getAdminFirestore(),ordered);
+    }catch(error){calendarAvailable=false;console.error('Intelligence calendar links unavailable',error);warnings.push('Calendar event links are temporarily unavailable.');}
+    ordered=calendarAvailable?groupCompanyAnnouncements(ordered):[...groupCompanyAnnouncements(ordered.filter(event=>event.eventType==='insider_trade')),...ordered.filter(event=>event.eventType!=='insider_trade')];
     ordered.sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
     const events=ordered.slice(0,LIMIT);truncated=truncated||ordered.length>LIMIT;
     let priced={graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};
