@@ -272,6 +272,8 @@
    waits for fade-out, while pointer and keyboard access stop immediately. */
 .label3d { opacity:0; visibility:hidden; pointer-events:none; transition:opacity 1.2s ease, visibility 0s linear 1.2s; }
 .label3d[data-visible="true"] { opacity:var(--label-emphasis,1); visibility:visible; pointer-events:auto; transition-delay:0s; }
+[data-graph-interaction][data-editing-form] .label3d,
+[data-graph-interaction][data-editing-form] .label3d strong { transition:none; }
 @media (prefers-reduced-motion:reduce) {
   .label3d { transition:none; }
   .label3d strong { transition:none; }
