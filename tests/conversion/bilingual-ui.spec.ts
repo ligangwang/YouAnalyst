@@ -117,6 +117,7 @@ test("primary navigation marks the current section on localized pages and compan
         await expect(active).not.toHaveClass(/aria-\[current=page\]:bg-/);
         await expect(active).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
         await expect(active).toHaveCSS("border-radius", "0px");
+        await expect(active).toHaveCSS("text-decoration-line", "underline");
       }
     }
   }
