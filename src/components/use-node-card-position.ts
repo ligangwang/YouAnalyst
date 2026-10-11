@@ -17,7 +17,8 @@ export function useNodeCardPosition(companyId:string,kind:'graph'|'tree'|'worksp
    const r=host.getBoundingClientRect(),dock=host.querySelector<HTMLElement>(':scope > [data-timeline-dock]');
    const availableHeight=dock?dock.offsetTop:r.height;
    const compact=kind!=='workspace';
-   const width=Math.min(340,r.width-24),height=compact?Math.min(kind==='graph'?180:210,availableHeight-24):r.width<=800?200:Math.min(520,innerHeight*.55,r.height-24);
+   // Leave room to move a workspace card even when a timeline reduces chart height.
+   const width=Math.min(340,r.width-24),height=compact?Math.min(kind==='graph'?180:210,availableHeight-24):Math.min(r.width<=800?200:520,innerHeight*.55,availableHeight-64);
    el.style.width=`${Math.max(160,width)}px`;el.style.maxHeight=`${Math.max(100,height)}px`;
    const left=Math.max(12,-r.left+12),right=Math.max(left,Math.min(r.width-width-12,innerWidth-r.left-width-12));
    const top=Math.max(12,-r.top+12),bottom=Math.max(top,Math.min(availableHeight-el.offsetHeight-12,innerHeight-r.top-el.offsetHeight-12));
