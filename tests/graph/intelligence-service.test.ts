@@ -101,6 +101,23 @@ test('a failed deferred refresh is handled and retries without discarding usable
   assert.notEqual(await service.loadIntelligenceSnapshot(later),first);assert.equal(graphReads,3);
 });
 
+test('a pre-midnight refresh cannot block or overwrite the new Eastern session',async()=>{
+  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
+  let reads=0,release:()=>void=()=>{};
+  const blocked=new Promise<void>(resolve=>{release=resolve;});
+  const service=await isolated({collection:()=>query},async()=>{if(++reads===2)await blocked;return graph;});
+  const first=await service.loadIntelligenceSnapshot(new Date('2026-10-03T03:58:59Z'));
+  const refreshes:Array<()=>Promise<void>>=[];
+  assert.equal(await service.loadIntelligenceSnapshot(new Date('2026-10-03T03:59:59Z'),'ai',refresh=>refreshes.push(refresh)),first);
+  const oldRefresh=refreshes[0]();
+  const midnight=new Date('2026-10-03T04:00:00Z');
+  const next=await service.loadIntelligenceSnapshot(midnight,'ai',()=>assert.fail('New session must load fresh data'));
+  assert.equal(next.session.date,'2026-10-03');assert.equal(reads,3);
+  release();await oldRefresh;
+  assert.equal(await service.loadIntelligenceSnapshot(midnight),next);
+  assert.equal(reads,3);
+});
+
 test('universe bootstrap needs only the graph and never reports empty sources as complete',async()=>{
  const service=await isolated({collection:()=>{throw new Error('Feed must not be read by bootstrap');}},async()=>graph);
  const universe=await service.loadIntelligenceUniverse(now);
