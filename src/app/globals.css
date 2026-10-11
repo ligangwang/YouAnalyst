@@ -53,6 +53,7 @@ button:disabled {
 }
 
 nav a[aria-current="page"] { color: var(--foreground); background: var(--surface-selected); border-radius: var(--radius-control); }
+header nav a[aria-current="page"] { background: transparent; border-radius: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
