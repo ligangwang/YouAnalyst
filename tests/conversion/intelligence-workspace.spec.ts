@@ -79,20 +79,25 @@ for(const pending of [false,true])test(`sector selection replaces ${pending?'pen
  await expect(page.getByRole('button',{name:/^Memory & storage/})).toHaveAttribute('aria-pressed','true');
 });
 
-test('timeline shows publication returns only for hovered or selected events and individual chooser entries',async({page})=>{
- const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
+test('timeline markers show daily returns while event chooser retains publication returns',async({page})=>{
+ const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'closed',eventType:'financing',publication_date:'2026-10-04'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
  await open(page,false,fixture);
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-30',close:100,volume:10},{date:'2026-10-01',close:104,volume:20},{date:'2026-10-02',close:103,volume:30}]}}));
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
+ await expect(timeline).toContainText('3 stored daily bars');
  const earnings=timeline.locator('[data-event-type="earnings"]');
  await expect(timeline.locator('[data-return-direction]')).toHaveCount(0);
  await earnings.focus();
- await expect(earnings.locator('[data-return-direction="up"]')).toContainText('▲ +3.20%');
- await expect(earnings).toHaveAttribute('title',/Since pub\. \(3d\): \+3\.20%.*2026-09-30 → 2026-10-03/);
+ await expect(earnings.locator('[data-return-direction="up"]')).toContainText('Daily ▲ +4.00%');
+ await expect(earnings).toHaveAttribute('title',/Daily return: \+4\.00%.*2026-09-30 → 2026-10-01/);
  await earnings.press('Enter');
  await expect(earnings.locator('[data-return-direction="up"]')).toBeVisible();
- await timeline.getByRole('button',{name:/2 events · Business/}).click();
+ const closed=timeline.locator('[data-event-type="financing"]');await closed.focus();await expect(closed.locator('[data-return-direction]')).toHaveCount(0);
+ const business=timeline.getByRole('button',{name:/2 events · Business/});await business.focus();
+ await expect(business.locator('[data-return-direction="down"]')).toContainText('Daily ▼ -0.96%');
+ await business.click();
  const chooser=timeline.getByRole('group',{name:'Choose an event'});
  await expect(chooser.locator('[data-return-direction="down"]')).toContainText('Since pub. (2d): ▼ -1.80%');
  await expect(chooser.locator('[data-return-direction]')).toHaveCount(1);
