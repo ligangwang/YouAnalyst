@@ -2,7 +2,7 @@
 
 import { LoadingSpinner } from './loading-spinner';
 import { CompanyTimeline } from './company-timeline';
-import { intelligenceTimelineEvents } from '@/lib/company-timeline';
+import { intelligenceTimelineEvents } from '@/lib/ui/company-timeline';
 import { DebouncedCompanySearch } from './debounced-company-search';
 import { IntelligenceLoadingShell } from './intelligence-loading-shell';
 import { useNodeCardPosition } from './use-node-card-position';

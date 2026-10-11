@@ -1,29 +1,32 @@
 import {runInNewContext} from 'node:vm';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {backgroundJobTarget,chartOnlyLibraries} from '../../scripts/background-job-changes.mjs';
+import {backgroundJobTarget,UI_LIBRARY_ROOT} from '../../scripts/background-job-changes.mjs';
 import {build} from 'esbuild';
 import {readFileSync,existsSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {parseCompanyGraphPublisherArgs} from '../../src/lib/company-graph/cli';
 const require=createRequire(import.meta.url);
 
-test('chart-only exclusions cannot hide dependencies of any deployed worker',async()=>{
-  const result=await build({entryPoints:[
-    'scripts/serve-eod-maintenance.ts','scripts/refresh-sec-fundamentals.ts','scripts/serve-sec-fundamentals.ts',
-    'scripts/collect-sec-filings.ts','scripts/refresh-company-graph.ts','scripts/serve-company-graph.ts',
-    'scripts/refresh-cn-fundamentals.ts','scripts/refresh-private-valuations.ts',
-    'scripts/sync-cni-directory.ts','scripts/serve-private-valuations.ts','scripts/serve-ticker-sync.ts','scripts/serve-cn-fundamentals.ts','scripts/serve-cni-directory.ts',
-  ],bundle:true,platform:'node',packages:'external',outdir:'unused',write:false,metafile:true});
+test('UI library boundary cannot hide dependencies of any bundled worker',async()=>{
+  const entryPoints=[...new Set(['Dockerfile.fundamentals','Dockerfile.directory-sync'].flatMap(file=>
+    [...readFileSync(file,'utf8').matchAll(/scripts\/[\w-]+\.ts(?=\s+--bundle)/g)].map(match=>match[0])
+  ))];
+  assert.ok(entryPoints.includes('scripts/collect-intelligence-news.ts'));
+  assert.ok(entryPoints.includes('scripts/collect-earnings.ts'));
+  assert.ok(entryPoints.includes('scripts/backfill-event-classifications.ts'));
+  assert.ok(entryPoints.includes('scripts/sync-cni-directory.ts'));
+  const result=await build({entryPoints,bundle:true,platform:'node',packages:'external',outdir:'unused',write:false,metafile:true});
   const inputs=new Set(Object.keys(result.metafile!.inputs).map(p=>p.replaceAll('\\','/')));
-  for(const path of chartOnlyLibraries) {
-    assert.ok(!inputs.has(path),`${path} is used by a worker and must trigger deployment`);
-    assert.equal(backgroundJobTarget([path]),'none');
-  }
+  assert.deepEqual([...inputs].filter(path=>path.startsWith(UI_LIBRARY_ROOT)),[], 'Workers must not import website presentation libraries');
 });
 
 test('website-only changes skip workers and worker inputs select their images',()=>{
   assert.equal(backgroundJobTarget(['src/components/admin-jobs-page.tsx','docs/github-actions.md']),'none');
+  assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/ui/knowledge-graph/tree-tour.ts']),'none');
+  assert.equal(backgroundJobTarget(['src/lib/ui/future-chart-helper.ts']),'none');
+  assert.equal(backgroundJobTarget(['src/lib/company-timeline.ts','src/lib/knowledge-graph/tree-tour.ts','src/lib/ui/company-timeline.ts','scripts/background-job-changes.mjs']),'none');
+  assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/events/classification.ts']),'all');
   assert.equal(backgroundJobTarget(['scripts/fetch-cn-annual.py']),'fundamentals');
   assert.equal(backgroundJobTarget(['scripts/serve-private-valuations.ts']),'fundamentals');
   assert.equal(backgroundJobTarget(['scripts/deploy-private-valuations-pubsub.sh']),'fundamentals');

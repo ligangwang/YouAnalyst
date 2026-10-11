@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { Group, Material, Mesh, Texture } from 'three';
-import type { TreePoint } from '@/lib/knowledge-graph/industry-tree';
-import { createStrandWriter, verticalTreeDust, verticalTreeObjects, verticalTreeStrandGeometries, verticalTreeStrands } from '@/lib/knowledge-graph/vertical-tree-geometry';
+import type { TreePoint } from '@/lib/ui/knowledge-graph/industry-tree';
+import { createStrandWriter, verticalTreeDust, verticalTreeObjects, verticalTreeStrandGeometries, verticalTreeStrands } from '@/lib/ui/knowledge-graph/vertical-tree-geometry';
 
 // Tapered, shaded tubes give the wood depth while sharing geometry on phones.
 // Their endpoints follow animated node groups, so branches grow with the tree.

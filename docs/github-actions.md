@@ -8,7 +8,7 @@ Deployment validates selected jobs' IAM configuration before building. Financial
 
 SEC Pub/Sub push authentication requires a one-time `roles/iam.serviceAccountTokenCreator` binding for the Pub/Sub service agent on the scheduler service account. An authorized operator can set `PUBSUB_BOOTSTRAP_IAM=1` when running `scripts/deploy-sec-fundamentals.sh` to create that binding. Routine releases reuse it and do not need service-account IAM administration. The post-deployment cached-company delivery probe verifies that authenticated push delivery still works. If it fails, inspect the subscription and IAM configuration before rerunning; a successful Cloud Run deployment alone is not proof of delivery.
 
-Chart layout and tour libraries are excluded from worker triggers only when they are absent from every worker bundle. A deployment test checks the exclusion list against the bundled dependencies so future imports cannot silently bypass a needed worker update.
+Website presentation libraries live under `src/lib/ui/`, separate from shared data and background processing. Changes there skip worker deployment. CI bundles every entry point declared in both worker Dockerfiles and rejects any direct or transitive dependency on this directory. This includes news, earnings, and maintenance tools. Changes to shared libraries outside the UI directory still rebuild workers. The deployment selector itself contains no worker runtime code and does not trigger worker rebuilds; missing comparison baselines and manual releases retain the full recovery rollout. Retired UI module locations skip workers only while those files remain removed, so this directory migration also avoids an unnecessary rebuild.
 
 ## Admin Tasks
 

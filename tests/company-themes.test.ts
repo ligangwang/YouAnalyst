@@ -123,8 +123,8 @@ test('withdrawn AI enrollment overrides legacy graph flags while neighbors and a
 
 test('theme presentation retains canonical identities and secondary roles without copying AI edges or publication dates',async()=>{
   const {roboticsGraph}=await import('../src/lib/company-themes/presentation');
-  const {industryTree,industryRootLabel,layoutIndustryTree}=await import('../src/lib/knowledge-graph/industry-tree');
-  const {layoutVerticalTree}=await import('../src/lib/knowledge-graph/vertical-tree');
+  const {industryTree,industryRootLabel,layoutIndustryTree}=await import('../src/lib/ui/knowledge-graph/industry-tree');
+  const {layoutVerticalTree}=await import('../src/lib/ui/knowledge-graph/vertical-tree');
   const {companySector,matchesCompanySector}=await import('../src/lib/knowledge-graph/sectors');
   const {parseCompanyTheme}=await import('../src/lib/company-themes/model');
   const member={status:'PUBLISHED' as const,primarySector:'compute-control',secondaryRoles:['software-simulation'],reviewedAt:'2026-10-04',sources:[{url:'https://www.nvidia.com/en-us/industries/robotics/',title:'Robotics',summary:'Platform'}]};
@@ -152,8 +152,8 @@ test('theme presentation retains canonical identities and secondary roles withou
 
 
 test('sparse sector themes retain full decorative canopies without inventing companies',async()=>{
-  const {layoutVerticalTree}=await import('../src/lib/knowledge-graph/vertical-tree');
-  const {verticalTreeStrands,verticalTreeStrandGeometries,createStrandWriter}=await import('../src/lib/knowledge-graph/vertical-tree-geometry');
+  const {layoutVerticalTree}=await import('../src/lib/ui/knowledge-graph/vertical-tree');
+  const {verticalTreeStrands,verticalTreeStrandGeometries,createStrandWriter}=await import('../src/lib/ui/knowledge-graph/vertical-tree-geometry');
   for(const theme of ['robotics','space']){
     const layers=[0,1,2].map(i=>({id:`${theme}:sector-${i}`,en:`Sector ${i}`,zh:`Sector ${i}`,color:'#67e6bc',stages:[],branches:[],directCompanies:true,
       companies:[{id:`US:COMPANY-${i}`,name:`Company ${i}`,kind:'COMPANY' as const,order:i}]}));

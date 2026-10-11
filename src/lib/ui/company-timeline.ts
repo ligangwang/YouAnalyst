@@ -1,7 +1,7 @@
-import type { BusinessEvent } from "./knowledge-graph/business-events";
-import { intelligenceEventTitle, type IntelligenceEvent, type IntelligenceSource } from "./intelligence/model";
-import { relationshipSourceTitle, relationshipSummary, type KnowledgeGraph } from "./knowledge-graph/model";
-import {classifyEvent,eventPresentation,type ClassifiedEvent} from './events/classification';
+import type { BusinessEvent } from "../knowledge-graph/business-events";
+import { intelligenceEventTitle, type IntelligenceEvent, type IntelligenceSource } from "../intelligence/model";
+import { relationshipSourceTitle, relationshipSummary, type KnowledgeGraph } from "../knowledge-graph/model";
+import {classifyEvent,eventPresentation,type ClassifiedEvent} from '../events/classification';
 
 export const TIMELINE_RANGES = [30, 90, 180, 365, 1826] as const;
 export const DEFAULT_TIMELINE_RANGE = 30;

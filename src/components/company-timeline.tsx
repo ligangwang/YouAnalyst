@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { layoutTimelineMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineEvent, type TimelinePrices } from "@/lib/company-timeline";
+import { layoutTimelineMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
 import {EVENT_TYPES,eventPresentation} from '@/lib/events/classification';
 import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
 import type { GraphNode, KnowledgeGraph } from "@/lib/knowledge-graph/model";
