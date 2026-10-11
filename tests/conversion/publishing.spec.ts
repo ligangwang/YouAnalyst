@@ -42,7 +42,7 @@ test("comparison shows individual returns without a spread or average", async ({
   await expect(page.getByText(/20.00%/)).toBeVisible();
   await expect(page.getByText(/15.00%/)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "NVDA vs AMD Entry: 2026-04-10" })).toBeVisible();
-  await expect(page.getByText("since entry (10d)", { exact: false })).toHaveCount(2);
+  await expect(page.getByText("Since call (10d):", { exact: false })).toHaveCount(2);
 });
 
 for (const chinese of [false, true]) test(`group predictions are inline and scoped to the profile (${chinese ? "zh" : "en"})`, async ({ page }) => {
@@ -91,7 +91,7 @@ for (const chinese of [false, true]) test(`comparison supports four stocks with 
   await expect(page.getByRole("heading", { name: /AI chips.*2026-04-10/ })).toBeVisible();
   await expect(page.getByRole("link", { name: chinese ? "↓ QCOM · 看空" : "↓ QCOM · Bearish" })).toBeVisible();
   await expect(page.getByText("-10.00%", { exact: true })).toBeVisible();
-  await expect(page.getByText(chinese ? "入场以来（10天）" : "since entry (10d)", { exact: false })).toHaveCount(4);
+  await expect(page.getByText(chinese ? "观点以来（10天）：" : "Since call (10d):", { exact: false })).toHaveCount(4);
   await expect(page.getByText(/percentage points|个百分点/)).toHaveCount(0);
 });
 

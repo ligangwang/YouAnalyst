@@ -294,6 +294,7 @@
   "today": "今日",
   "score today": "今日得分",
   "since entry": "自起始价",
+  "Return calculated from the entry price, which may be set after the call is published. The day count covers the entry-to-mark period.": "收益按起始价计算，起始价可能在观点发布后确定。天数表示从起始价日期到最新估值日期的期间。",
   "Top Calls Today": "今日热门观点",
   "The strongest prediction moves from the latest end-of-day update.": "最近一次收盘更新中表现最强的观点。",
   "today &middot;": "今日 ·",
