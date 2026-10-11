@@ -45,6 +45,6 @@
 .markerReturn {position:absolute; left:calc(100% + 7px); top:50%; transform:translateY(-50%); padding:2px 4px; border-radius:4px; background:#0a1522; white-space:nowrap; font-size:11px; font-weight:600; pointer-events:none; z-index:2;}
 .marker[data-return-side=left] .markerReturn {left:auto; right:calc(100% + 7px);}
 .chooserReturn {display:block; margin-top:3px; font-weight:600;}
-[data-return-direction=up] {color:#55dfbb;}
-[data-return-direction=down] {color:#ff8ea1;}
-[data-return-direction=flat] {color:#b8cfe1;}
+.timeline [data-return-direction=up] {color:#55dfbb;}
+.timeline [data-return-direction=down] {color:#ff8ea1;}
+.timeline [data-return-direction=flat] {color:#b8cfe1;}
