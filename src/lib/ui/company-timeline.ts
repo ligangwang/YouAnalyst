@@ -13,6 +13,11 @@ export type TimelinePrices = { companyId: string; start: string; end: string; cu
 export function timelineWeek(date:string) {
  const day=new Date(`${date}T00:00:00Z`);day.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);return day.toISOString().slice(0,10);
 }
+export function adjacentTimelineBars(previous:string,current:string,weekly:boolean){
+ if(weekly)return Date.parse(timelineWeek(current))-Date.parse(timelineWeek(previous))===7*86_400_000;
+ const gap=(Date.parse(current)-Date.parse(previous))/86_400_000;
+ return gap===1||(gap===3&&new Date(previous).getUTCDay()===5&&new Date(current).getUTCDay()===1);
+}
 /** Monday-based trading weeks: missing OHLC/volume stays missing, never inferred. */
 export function weeklyTimelinePrices(prices:TimelinePrice[]):TimelinePrice[] {
  const weeks=new Map<string,TimelinePrice[]>();

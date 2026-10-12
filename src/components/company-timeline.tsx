@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { TIMELINE_RANGES, TIMELINE_RANGE_LABELS, timelinePriceBars, timelineWeek, weeklyTimelinePrices, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
+import { adjacentTimelineBars, TIMELINE_RANGES, TIMELINE_RANGE_LABELS, timelinePriceBars, timelineWeek, weeklyTimelinePrices, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
 import { MA_PERIODS, MA_COLORS, simpleMovingAverage, movingAverageConvergence, type IndicatorPoint } from '@/lib/ui/technical-indicators';
 import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { FloatingEventWindow, eventWindowAnchor, type EventWindowAnchor } from './event-details-window';
@@ -131,9 +131,8 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     const index=prices.findIndex(price=>price.date===date);
     if(index<1)return;
     const current=prices[index],previous=prices[index-1];
-    const gap=(Date.parse(current.date)-Date.parse(previous.date))/86_400_000;
     // A weekday gap may be a holiday or missing history; do not infer a daily return.
-    const adjacent=!weekly&&(gap===1||(gap===3&&new Date(previous.date).getUTCDay()===5&&new Date(current.date).getUTCDay()===1));
+    const adjacent=adjacentTimelineBars(previous.date,current.date,weekly);
     return {baselineDate:previous.date,latestDate:current.date,change:current.close/previous.close-1,adjacent};
   };
   const hoverReturn=nearest?dailyReturnFor(nearest.date):undefined;
@@ -211,7 +210,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         <div className={styles.priceDetailsHeader}><span>{weekly&&nearest.periodStart?`${nearest.periodStart} – ${nearest.date}`:nearest.date}</span><button type="button" aria-label={text("Close price details", "关闭股价详情")} onClick={()=>closePriceDetails(true)}>×</button></div>
         {useCandles&&nearest.open!==undefined&&nearest.high!==undefined&&nearest.low!==undefined&&<span data-hover-ohlc>{text('O','开')} {nearest.open.toFixed(2)} · {text('H','高')} {nearest.high.toFixed(2)} · {text('L','低')} {nearest.low.toFixed(2)}</span>}
         <strong>{text("Close", "收盘价")} · {new Intl.NumberFormat(locale, data?.currency ? {style:"currency",currency:data.currency,minimumFractionDigits:2,maximumFractionDigits:2} : {minimumFractionDigits:2,maximumFractionDigits:2}).format(nearest.close)}</strong>
-        {hoverReturn&&<span title={`${hoverReturn.baselineDate} → ${hoverReturn.latestDate}`}>{weekly?text('Weekly change','周涨跌幅'):hoverReturn.adjacent?text('Daily change','当日涨跌幅'):`${text('Change since','较')} ${hoverReturn.baselineDate}`} · <b data-daily-return data-return-direction={hoverReturn.change>0?'up':hoverReturn.change<0?'down':'flat'}>{hoverReturn.change>0?'▲':hoverReturn.change<0?'▼':'—'} {signedPercent(hoverReturn.change)}</b></span>}
+        {hoverReturn&&<span title={`${hoverReturn.baselineDate} → ${hoverReturn.latestDate}`}>{weekly&&hoverReturn.adjacent?text('Weekly change','周涨跌幅'):hoverReturn.adjacent?text('Daily change','当日涨跌幅'):`${text('Change since','较')} ${hoverReturn.baselineDate}`} · <b data-daily-return data-return-direction={hoverReturn.change>0?'up':hoverReturn.change<0?'down':'flat'}>{hoverReturn.change>0?'▲':hoverReturn.change<0?'▼':'—'} {signedPercent(hoverReturn.change)}</b></span>}
         {toLatest!==undefined&&latest&&<span title={`${nearest.date} → ${latest.date}`} data-latest-return>{text('Change to latest close','至最新收盘涨跌幅')} ({formatDate(latest.date)}) · <b data-return-direction={toLatest>0?'up':toLatest<0?'down':'flat'}>{toLatest>0?'▲':toLatest<0?'▼':'—'} {signedPercent(toLatest)}</b></span>}
         <span>{text("Volume", "成交量")} · {nearest.volume === null ? text("Not recorded", "未记录") : new Intl.NumberFormat(locale).format(nearest.volume)}</span>
         {movingAverages.map((points,index)=>{const point=points.find(point=>point.date===nearest.date);return averages.includes(MA_PERIODS[index])&&<span key={MA_PERIODS[index]} style={{color:MA_COLORS[index]}}>{text('MA','MA')}{MA_PERIODS[index]} · {point?.value.toFixed(2)??text('Insufficient history','历史数据不足')}</span>;})}

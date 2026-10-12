@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
+import { adjacentTimelineBars, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
 import { simpleMovingAverage, movingAverageConvergence } from '../src/lib/ui/technical-indicators';
@@ -207,4 +207,11 @@ test('indicator warmup cannot change the first visible weekly candle',()=>{
  const full=timelinePriceBars(rows,'2026-10-01',true);
  const visible=timelinePriceBars(rows.slice(3),'2026-10-01',true);
  assert.deepEqual(full.prices,visible.prices);assert.equal(full.prices[0].open,13);assert.equal(full.warmupPrices.length,1);assert.equal(full.warmupPrices[0].date,'2026-09-25');
+});
+
+test('weekly change labels distinguish adjacent holiday-shortened weeks from missing weeks',()=>{
+ assert.equal(adjacentTimelineBars('2026-09-30','2026-10-09',true),true);
+ assert.equal(adjacentTimelineBars('2026-09-25','2026-10-09',true),false);
+ assert.equal(adjacentTimelineBars('2026-09-25','2026-09-28',false),true);
+ assert.equal(adjacentTimelineBars('2026-09-25','2026-10-09',false),false);
 });

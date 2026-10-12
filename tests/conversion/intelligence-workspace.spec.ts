@@ -168,6 +168,16 @@ test('all six history ranges include YTD and five-year weekly prices with exact 
  await range.selectOption('30');await expect(timeline.locator('[data-price-candle]')).toHaveCount(3);await expect(timeline).toContainText('Daily bars');
 });
 
+test('a missing weekly candle shows its actual return baseline',async({page})=>{
+ await open(page,false,{...snapshot,events:[]});
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2021-10-11',end:'2026-10-11',currency:'USD',available:true,interval:'weekly',prices:[{date:'2026-09-25',periodStart:'2026-09-21',open:100,high:105,low:95,close:100,volume:100},{date:'2026-10-09',periodStart:'2026-10-05',open:100,high:115,low:99,close:110,volume:100}]}}));
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]');await timeline.getByRole('combobox',{name:'Price history range'}).selectOption('1826');await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);
+ await timeline.locator('svg').press('Enter');const tooltip=timeline.getByRole('group',{name:'Price details'});
+ await expect(tooltip).toContainText('Change since 2026-09-25');await expect(tooltip).toContainText('+10.00%');await expect(tooltip).not.toContainText('Weekly change');
+});
+
 test('event windows open beside list items and markers, including fullscreen, without replacing company details',async({page},info)=>{
  const first={...snapshot.events[0],id:'near-first',title:'Nearby earnings announcement',eventType:'earnings' as const,publication_date:'2026-10-02',evidence:[snapshot.events[0].evidence[0],{id:'extra',url:'https://example.com/extra',title:'Second event reference',sourceDate:'2026-10-02',channel:'SEC' as const}]};
  const second={...snapshot.events[0],id:'near-second',title:'Nearby business announcement',eventType:'product_business' as const,publication_date:'2026-10-01'};
