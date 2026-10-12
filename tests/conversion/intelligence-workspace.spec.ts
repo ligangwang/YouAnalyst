@@ -1031,7 +1031,7 @@ test('dense overlay keeps exact dates and every category accessible without grow
 
 test('candles are default, line is optional and missing OHLC never creates candles',async({page},info)=>{
  await open(page);
- await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-28',open:100,high:110,low:95,close:105,volume:10},{date:'2026-09-29',open:108,high:112,low:99,close:100,volume:20},{date:'2026-09-30',open:101,high:107,low:98,close:101,volume:30},{date:'2026-10-08',close:103,volume:0}]}}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-28',open:100,high:110,low:95,close:110,volume:10},{date:'2026-09-29',open:108,high:112,low:99,close:100,volume:20},{date:'2026-09-30',open:101,high:107,low:98,close:101,volume:30},{date:'2026-10-08',close:103,volume:0}]}}));
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline).toContainText('4 stored daily bars');
@@ -1039,8 +1039,8 @@ test('candles are default, line is optional and missing OHLC never creates candl
  await expect(svg.locator('[data-price-candle]')).toHaveCount(3);await expect(svg.locator('[data-candle-direction="up"] rect')).toHaveAttribute('fill','#55dfbb');await expect(svg.locator('[data-candle-direction="down"] rect')).toHaveAttribute('fill','#ff8ea1');await expect(svg.locator('[data-candle-direction="flat"] rect')).toHaveAttribute('height','1');await expect(svg.locator('[data-price-candle="2026-10-08"]')).toHaveCount(0);await expect(svg.locator('[data-price-gap]')).toHaveCount(0);
  const bounds=(await svg.boundingBox())!,viewWidth=await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width),cx=Number(await svg.locator('[data-price-candle="2026-09-29"] line').getAttribute('x1'));
  await svg.hover({position:{x:cx/viewWidth*bounds.width,y:bounds.height-32}});
- const tooltip=timeline.getByRole('tooltip');await expect(tooltip.locator('[data-hover-ohlc]')).toContainText('O 108.00 · H 112.00 · L 99.00');await expect(tooltip).toContainText('Daily change · ▼ -4.76%');await expect(tooltip.locator('[data-latest-return]')).toContainText('▲ +3.00%');
- await page.screenshot({path:`output/candlestick-${info.project.name}.png`});
+ const tooltip=timeline.getByRole('tooltip');await expect(tooltip.locator('[data-hover-ohlc]')).toContainText('O 108.00 · H 112.00 · L 99.00');await expect(tooltip).toContainText('Daily change · ▼ -9.09%');await expect(tooltip.locator('[data-latest-return]')).toContainText('▲ +3.00%');
+ const highX=Number(await svg.locator('[data-price-candle="2026-09-28"] line').getAttribute('x1'));await svg.hover({position:{x:highX/viewWidth*bounds.width,y:bounds.height-32}});const cardBounds=(await tooltip.boundingBox())!,chartBounds=(await svg.boundingBox())!;expect(cardBounds.y).toBeGreaterThanOrEqual(chartBounds.y);expect(cardBounds.y+cardBounds.height).toBeLessThanOrEqual(chartBounds.y+chartBounds.height);await page.screenshot({path:`output/candlestick-${info.project.name}.png`});
  await timeline.getByRole('button',{name:'Line',exact:true}).click();await expect(svg).toHaveAttribute('data-chart-type','line');await expect(svg.locator('[data-price-candle]')).toHaveCount(0);await expect(svg.locator('[data-price-line]')).toHaveCount(1);await expect(svg.locator('[data-price-gap]')).toHaveCount(1);
  await timeline.getByRole('button',{name:'Candles',exact:true}).click();await expect(svg.locator('[data-price-candle]')).toHaveCount(3);
 });
