@@ -6,7 +6,7 @@ import type { IntelligenceSnapshot } from '@/lib/intelligence/model';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
 const clearedThemeSelection = { company: '', feedCompany: '', relationship: '', event: '', q: '', page: '' };
-const feedCompany = (params: URLSearchParams) => (params.get('feedCompany') || (!params.get('event') && !params.get('relationship') ? params.get('company') : '') || '').toUpperCase();
+const feedCompany = (params: URLSearchParams) => params.get('feedCompany')?.toUpperCase()==='ALL'?'':(params.get('feedCompany') || (!params.get('event') && !params.get('relationship') ? params.get('company') : '') || '').toUpperCase();
 const feedScope = (company:string,query:string,region:string) => JSON.stringify([company,company?'':query.normalize('NFKC').trim(),company?'':region==='US'||region==='CN_A'?region:'']);
 
 /** Keeps the displayed theme usable until a validated replacement is ready. */
@@ -25,7 +25,7 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   ));
   const themeIntent = useRef<CompanyThemeId | null>(null);
   const snapshotScope = useRef(feedScope('','',''));
-  const company = themeIntent.current === theme ? '' : (explicitCompany || (!selectedEvent && !selectedRelationship ? selectedCompany : '')).toUpperCase();
+  const company = themeIntent.current === theme || explicitCompany.toUpperCase()==='ALL' ? '' : (explicitCompany || (!selectedEvent && !selectedRelationship ? selectedCompany : '')).toUpperCase();
   const query = themeIntent.current === theme || company ? '' : searchQuery.normalize('NFKC').trim();
   const region = themeIntent.current === theme || company ? '' : searchRegion==='US'||searchRegion==='CN_A'?searchRegion:'';
   const scope = feedScope(company,query,region);

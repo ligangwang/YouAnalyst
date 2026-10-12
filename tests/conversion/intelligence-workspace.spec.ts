@@ -145,6 +145,35 @@ test('a longer supplied price history remains illustrative and supplies indicato
  await expect(timeline.getByRole('status')).toHaveCount(0);expect(requests).toEqual([]);
 });
 
+test('event windows open beside list items and markers, including fullscreen, without replacing company details',async({page},info)=>{
+ const first={...snapshot.events[0],id:'near-first',title:'Nearby earnings announcement',eventType:'earnings' as const,publication_date:'2026-10-02',evidence:[snapshot.events[0].evidence[0],{id:'extra',url:'https://example.com/extra',title:'Second event reference',sourceDate:'2026-10-02',channel:'SEC' as const}]};
+ const second={...snapshot.events[0],id:'near-second',title:'Nearby business announcement',eventType:'product_business' as const,publication_date:'2026-10-01'};
+ await open(page,false,{...snapshot,events:[first,second],eventReturns:{'near-first':[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-05',baselineClose:100,latestClose:110,change:.1,dateOnly:true}]}});
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-10-01',close:100,volume:10},{date:'2026-10-02',close:105,volume:20},{date:'2026-10-05',close:110,volume:30}]}}));
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]'),card=page.getByRole('region',{name:'Company details',exact:true}),window=page.getByRole('dialog',{name:'Event details',exact:true});
+ const row=page.getByRole('complementary',{name:'Events and sources'}).getByRole('button',{name:/Nearby earnings announcement/});
+ const near=async(trigger:import('@playwright/test').Locator)=>{
+  const point=(await trigger.boundingBox())!,box=(await window.boundingBox())!,cx=point.x+point.width/2,cy=point.y+point.height/2;
+  expect(Math.hypot(Math.max(box.x-cx,0,cx-box.x-box.width),Math.max(box.y-cy,0,cy-box.y-box.height))).toBeLessThan(36);
+  expect(box.x).toBeGreaterThanOrEqual(11);expect(box.y).toBeGreaterThanOrEqual(11);expect(box.x+box.width).toBeLessThanOrEqual(page.viewportSize()!.width-11);expect(box.y+box.height).toBeLessThanOrEqual(page.viewportSize()!.height-11);
+ };
+ await row.click();await expect(window).toBeVisible();await expect(window).toBeFocused();await near(row);
+ await expect(window).toContainText('Source summary 1');await expect(window).toContainText('Since pub.');await expect(window).toContainText('+10.00%');await expect(window.getByRole('link',{name:/Second event reference/})).toHaveAttribute('href','https://example.com/extra');
+ await expect(card).not.toContainText('Nearby earnings announcement');await expect(card).not.toContainText('Second event reference');
+ await page.screenshot({path:`output/event-window-list-${info.project.name}.png`});
+ await window.getByRole('button',{name:'Close event details'}).click();await expect(window).toHaveCount(0);await expect(row).toBeFocused();await expect(card).toBeVisible();
+ await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
+ const marker=timeline.getByRole('button',{name:/Oct 2: Nearby earnings announcement/});await marker.click();await expect(window).toBeVisible();await near(marker);
+ await expect(timeline.locator('[data-event-window]')).toHaveCount(1);
+ await page.screenshot({path:`output/event-window-chart-${info.project.name}.png`});
+ await page.keyboard.press('Escape');await expect(window).toHaveCount(0);await expect(timeline).toHaveAttribute('data-chart-size','full');await expect(marker).toBeFocused();
+ await marker.press('Enter');await expect(window).toBeVisible();await window.getByRole('button',{name:'Close event details'}).click();await expect(window).toHaveCount(0);
+ await page.keyboard.press('Escape');await expect(timeline).toHaveAttribute('data-chart-size','compact');
+ await row.click();await expect(window).toBeVisible();await page.mouse.click(2,2);await expect(window).toHaveCount(0);
+});
+
 test('clicked price details show daily changes independently of event markers',async({page})=>{
  const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'closed',eventType:'financing',publication_date:'2026-10-04'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
  await open(page,false,fixture);
@@ -164,7 +193,7 @@ test('clicked price details show daily changes independently of event markers',a
  const business=timeline.getByRole('button',{name:/2 events · Business/});await business.focus();
  await expect(business.locator('[data-return-direction]')).toHaveCount(0);
  await business.click();
- const chooser=timeline.getByRole('group',{name:'Choose an event'});
+ const chooser=page.getByRole('group',{name:'Choose an event'});
  await expect(chooser.locator('[data-return-direction="down"]')).toContainText('Since pub. (2d): ▼ -1.80%');
  await expect(chooser.locator('[data-return-direction]')).toHaveCount(1);
  await chooser.getByRole('button',{name:'Close event list',exact:true}).click();
@@ -344,7 +373,7 @@ for(const zh of [false,true])test('grouped announcement shows one event, two sou
  await expect(panel.getByText(zh?'来源文档':'Source documents',{exact:true}).locator('..').locator('strong')).toHaveText('2');
  await expect(panel.locator('a[href*="event=scheduled_event_amd_call"]')).toHaveCount(1);
  await row.click();
- const card=page.getByRole('region',{name:'Company details',exact:true});
+ const card=page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true});
  await expect(card.locator('a[href="https://ir.amd.com/release"]').first()).toBeVisible();
  await expect(card.locator('a[href="https://newsroom.amd.com/release"]')).toHaveCount(1);
  // A bookmark to the former duplicate still opens the grouped announcement.
@@ -427,7 +456,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await expect(panel.getByRole('button',{name:/Market event private|Market event shanghai|Market event shenzhen/})).toHaveCount(0);
  await panel.getByRole('button',{name:/Market event mixed/}).click();
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toBeVisible();
- await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('+10.00%');
+ await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).toContainText('+10.00%');
  await filter.selectOption('CN_A');
  await expect(page.getByRole('region',{name:'Company details',exact:true})).toHaveCount(0);
  await expect(documents).toContainText('4');await expect(panel.getByRole('button',{name:/Market event /})).toHaveCount(3);
@@ -437,7 +466,7 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  await expect(page.getByLabel('Theme activity summary').locator('span[role=img]')).toHaveCount(1);
  await expect(panel.getByRole('button',{name:/Market event mixed/})).toBeVisible();
  await panel.getByRole('button',{name:/Market event mixed/}).click();
- const mixedCard=page.getByRole('region',{name:'Company details',exact:true});await expect(mixedCard.locator('[data-card-drag]')).toContainText('Piotech');await expect(mixedCard).toContainText('+20.00%');await expect(mixedCard).not.toContainText('+10.00%');await mixedCard.press('Escape');
+ const mixedCard=page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true});await expect(page.getByRole('region',{name:'Company details',exact:true}).locator('[data-card-drag]')).toContainText('Piotech');await expect(mixedCard).toContainText('+20.00%');await expect(mixedCard).not.toContainText('+10.00%');await mixedCard.press('Escape');
  await page.getByRole('tab',{name:zh?'公司列表':'Company list',exact:true}).click();
  await expect(page.locator('[data-list-company]')).toHaveCount(2);
  await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(filter).toHaveValue('CN_A');await expect(documents).toContainText('4');
@@ -473,7 +502,7 @@ for(const zh of [false,true])test('company selection scopes events and activity 
  await expect(panel.getByRole('button',{name:/Company event /})).toHaveCount(2);await expect(panel.getByRole('button',{name:/Company event micron|Company event china/})).toHaveCount(0);
  await expect(panel.locator('a[href*="event=micron-calendar"]')).toHaveCount(0);await expect(panel.locator('a[href*="event=apple-calendar"]')).toHaveCount(1);
  await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event prior/})).toBeVisible();
- await panel.getByRole('button',{name:/Company event mixed/}).click();const card=page.getByRole('region',{name:'Company details',exact:true});await expect(card.locator('[data-card-drag]')).toContainText('Apple');await expect(card).toContainText('+20.00%');await expect(card).not.toContainText('+10.00%');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
+ await panel.getByRole('button',{name:/Company event mixed/}).click();const card=page.getByRole('region',{name:'Company details',exact:true});await expect(card.locator('[data-card-drag]')).toContainText('Apple');await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).toContainText('+20.00%');await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).not.toContainText('+10.00%');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
  await card.getByRole('button',{name:'Close company details',exact:true}).click();await expect(count).toHaveText('5');await expect(panel.getByRole('button',{name:/Company event micron/})).toBeVisible();await expect(apple).toHaveAttribute('aria-pressed','false');
  await apple.click();await page.reload();if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
  await panel.getByRole('button',{name:zh?'清除公司事件筛选':'Clear company event filter'}).click();await expect(panel.getByRole('button',{name:/Company event micron/})).toBeVisible();
@@ -624,11 +653,11 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('1');
   await input.fill('');
   await panel.getByRole('button',{name:/Published company update 1 /}).click();
-  const selection=page.getByRole('region',{name:'Company details',exact:true});await expect(selection).toBeVisible();await expect(selection).toBeFocused();
+  const selection=page.getByRole('dialog',{name:'Event details',exact:true});await expect(selection).toBeVisible();await expect(selection).toBeFocused();
   await expect(panel.getByRole('region',{name:'Company details'})).toHaveCount(0);
-  const bounds=await selection.boundingBox();expect(bounds!.y).toBeLessThan(180);
+  const bounds=(await selection.boundingBox())!,rowBounds=(await panel.getByRole('button',{name:/Published company update 1 /}).boundingBox())!;expect(bounds.y).toBeGreaterThanOrEqual(12);expect(bounds.y+bounds.height).toBeLessThanOrEqual(page.viewportSize()!.height-11);expect(Math.hypot(Math.max(bounds.x-rowBounds.x-rowBounds.width/2,0,rowBounds.x+rowBounds.width/2-bounds.x-bounds.width),Math.max(bounds.y-rowBounds.y-rowBounds.height/2,0,rowBounds.y+rowBounds.height/2-bounds.y-bounds.height))).toBeLessThan(36);
   await expect(selection.getByRole('link',{name:/Original release 1/})).toBeVisible();
-  const graphSource=page.getByRole('region',{name:'Graph universe'}).getByRole('link',{name:'Published company update 1 ↗',exact:true});
+  const graphSource=selection.getByRole('link',{name:/Original release 1/});
   await expect(graphSource).toHaveAttribute('href','https://investors.example.com/0');
   await expect(graphSource).toHaveAttribute('target','_blank');
   expect(await graphSource.evaluate(element=>getComputedStyle(element).pointerEvents)).toBe('auto');
@@ -639,7 +668,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await expect(page.locator('[data-list-company="US:MU"]')).toHaveAttribute('data-selected','true');
   await expect(page.getByRole('navigation',{name:'Company list pagination'})).toContainText('of 4 companies');
-  await expect(selection.getByRole('link',{name:/Original release 1/})).toBeVisible();
+  await expect(selection).toHaveCount(0);
   await page.getByRole('tab',{name:'Company hierarchy',exact:true}).click();
   await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -648,7 +677,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(page.getByRole('combobox',{name:'Tour speed'})).toBeVisible();
   await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
   await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
-  await expect(selection).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
+  await expect(selection).toHaveCount(0);
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await input.fill('Micron');
   await expect(page.locator('[data-list-company]')).toHaveCount(1);
@@ -690,7 +719,7 @@ test('mobile workspace exposes saved companies and event details retain their Ch
   expect(await companyLine.evaluate(el=>el.getBoundingClientRect().height)).toBeLessThan(20);
   expect(await companyLine.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
   await eventRow.click();
-  const selection=page.getByRole('region',{name:'Company details',exact:true});await expect(selection).toBeVisible();await expect(selection.getByText('选中事件',{exact:true})).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
+  const selection=page.getByRole('dialog',{name:'事件详情',exact:true});await expect(selection).toBeVisible();await expect(selection.getByRole('heading',{name:'Published company update 1'})).toBeVisible();await selection.press('Escape');await expect(selection).toHaveCount(0);
 });
 
 test('one theme selector switches companies and sources, clears stale filters, retains the list view and session watchlist',async({page},info)=>{
@@ -862,7 +891,7 @@ test('English event feed displays saved English translations of Chinese headline
  await expect(headline).toBeVisible();await expect(headline).toHaveAttribute('title','关于召开股东大会的公告');
  await expect(page.getByText('关于召开股东大会的公告',{exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:/Announcement of a shareholders meeting/}).click();
- const card=page.getByRole('region',{name:'Company details',exact:true});
+ const card=page.getByRole('dialog',{name:'Event details',exact:true});
  const source=card.getByRole('link',{name:/IR · Announcement of a shareholders meeting/});
  await expect(source).toHaveAttribute('title','关于召开股东大会的公告');
  await expect(card).toContainText('Original announcement from an exchange-listed company.');
@@ -883,41 +912,16 @@ for(const chinese of [false,true])test('research connection descriptions follow 
  if(chinese)await expect(page.getByRole('link',{name:/Joint AI networking source|Untranslated English source/})).toHaveCount(0);
 });
 
-for(const view of ['graph','tree','hierarchy','table'])test(view+' event selection opens the company card at the chart top right',async({page},info)=>{
- await open(page);
- await page.goto('http://workspace.test/?view='+view);
- const panel=page.getByRole('complementary',{name:'Events and sources'});
- await panel.getByRole('button',{name:/Published company update 1 /}).click();
- const card=page.getByRole('region',{name:'Company details',exact:true});
- await expect(card).toBeVisible();await expect(card).toBeFocused();
- await expect(card.locator('[data-card-drag]')).toContainText('Micron');
- await expect(card.getByRole('heading',{name:'Selected event',exact:true})).toBeVisible();
- await expect(card).toContainText('Source summary 1');
- await expect(card.getByRole('link',{name:/Original release 1/})).toHaveAttribute('href','https://investors.example.com/0');
- await expect(panel.getByRole('region',{name:'Company details'})).toHaveCount(0);
- const host=page.locator('[data-company-workspace]');
- const atTopRight=async()=>{
-  const box=(await card.boundingBox())!,bounds=(await host.boundingBox())!;
-  expect(Math.abs(box.x+box.width-(bounds.x+bounds.width-12))).toBeLessThanOrEqual(2);
-  expect(Math.abs(box.y-Math.max(bounds.y+12,12))).toBeLessThanOrEqual(2);
- };
- await atTopRight();
- const before=(await card.boundingBox())!,handle=card.locator('[data-card-drag]');
- await handle.press('ArrowDown');
- await expect.poll(async()=>(await card.boundingBox())!.y-before.y).toBeGreaterThan(10);
- const drag=(await handle.boundingBox())!;
- await page.mouse.move(drag.x+20,drag.y+10);await page.mouse.down();
- await page.mouse.move(drag.x-30,drag.y+50,{steps:6});await page.mouse.up();
- await expect.poll(async()=>Math.abs((await card.boundingBox())!.x-before.x)+Math.abs((await card.boundingBox())!.y-before.y)).toBeGreaterThan(30);
- // Selecting another event for the same company replaces its content and resets placement.
- await panel.getByRole('button',{name:/Published company update 2 /}).click();
- await expect(card).toContainText('Source summary 2');await atTopRight();
- await page.screenshot({path:info.outputPath('selected-event-company-card.png')});
- await card.press('Escape');await expect(card).toHaveCount(0);
- await panel.getByRole('button',{name:/Published company update 1 /}).click();
- await expect(card).toBeVisible();await atTopRight();
- await page.getByRole('button',{name:'Close company details',exact:true}).click();
- await expect(card).toHaveCount(0);
+for(const view of ['graph','tree','hierarchy','table'])test(view+' event selection opens a separate window by the event row',async({page},info)=>{
+ await open(page);await page.goto('http://workspace.test/?view='+view);
+ const panel=page.getByRole('complementary',{name:'Events and sources'}),row=panel.getByRole('button',{name:/Published company update 1 /}),details=page.getByRole('dialog',{name:'Event details',exact:true});
+ await row.click();await expect(details).toBeVisible();await expect(details).toBeFocused();
+ await expect(details).toContainText('Source summary 1');await expect(details.getByRole('link',{name:/Original release 1/})).toHaveAttribute('href','https://investors.example.com/0');
+ const card=page.getByRole('region',{name:'Company details',exact:true});await expect(card.locator('[data-card-drag]')).toContainText('Micron');await expect(card).not.toContainText('Source summary 1');
+ await panel.getByRole('button',{name:/Published company update 2 /}).click();await expect(details).toContainText('Source summary 2');await expect(page.locator('[data-event-window]')).toHaveCount(1);
+ await page.screenshot({path:info.outputPath('anchored-event-window.png')});
+ await details.press('Escape');await expect(details).toHaveCount(0);
+ await row.click();await expect(details).toBeVisible();await details.getByRole('button',{name:'Close event details',exact:true}).click();await expect(details).toHaveCount(0);
 });
 
 for(const view of ['tree','hierarchy','table'])test(view+' company selection opens a movable card at the chart top right',async({page})=>{
@@ -1028,6 +1032,7 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Volume · Not recorded');
  await marker.click();
  await expect(timeline.getByRole('group',{name:'Price details'})).toHaveCount(0);
+ if(await page.getByRole('group',{name:'Choose an event'}).count())await page.getByRole('button',{name:'Close event list',exact:true}).click();
  await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
  await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeFocused();
  await expect(timeline.locator('svg')).toHaveCount(0);
@@ -1036,9 +1041,9 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await expect(timeline.getByRole('button',{name:'Close timeline',exact:true})).toBeFocused();
  await expect(timeline.locator('svg')).toBeVisible();
  await timeline.getByRole('button',{name:/events · .* · Oct 2/}).first().click();
- await timeline.getByRole('group',{name:'Choose an event'}).getByRole('button',{name:/Published company update 1$/}).click();
+ await page.getByRole('group',{name:'Choose an event'}).getByRole('button',{name:/Published company update 1$/}).click();
  await expect(page).toHaveURL(/event=event-0/);
- await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Selected event');
+ await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toContainText('Published company update 1');
  await page.getByRole('button',{name:'Close company details'}).click();await expect(timeline).toHaveCount(0);
  await search.fill('');await search.fill('MU');await search.press('Enter');
  await expect(timeline.getByRole('group',{name:'Timeline range'})).toContainText('1M');
@@ -1059,19 +1064,20 @@ test('timeline category symbols, count chooser and docked card retain all event 
  const insiderMarker=timeline.getByRole('button',{name:/events · Insider sell · Oct 2/});
  await expect(insiderMarker).toContainText('▼');
  await insiderMarker.focus();await insiderMarker.press('Enter');
- await expect(timeline.getByRole('group',{name:'Choose an event'})).toBeVisible();
- await expect(timeline.getByRole('button',{name:'Close event list',exact:true})).toBeFocused();
+ await expect(page.getByRole('group',{name:'Choose an event'})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Close event list',exact:true})).toBeFocused();
  await page.keyboard.press('Escape');
- await expect(timeline.getByRole('group',{name:'Choose an event'})).toHaveCount(0);
+ await expect(page.getByRole('group',{name:'Choose an event'})).toHaveCount(0);
  await expect(insiderMarker).toBeFocused();
  await insiderMarker.press('Enter');
  expect((await timeline.boundingBox())!.height).toBe(initialTimelineHeight);
  await expect(page).not.toHaveURL(/event=/);
- await timeline.getByRole('group',{name:'Choose an event'}).getByRole('button',{name:/Insider sell.*Published company update 2$/}).click();
- await expect(card).toContainText('Insider sell');
+ await page.getByRole('group',{name:'Choose an event'}).getByRole('button',{name:/Insider sell.*Published company update 2$/}).click();
+ await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toContainText('Insider sell');
+ await page.getByRole('dialog',{name:'Event details',exact:true}).getByRole('button',{name:'Close event details'}).click();
  await timeline.locator('[data-event-type="earnings"]').click();
- await expect(card).toContainText('Earnings results');await expect(card).toContainText('Second filing reference');
- await card.getByRole('button',{name:'Close event details',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toContainText('Earnings results');await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toContainText('Second filing reference');
+ await page.getByRole('dialog',{name:'Event details',exact:true}).getByRole('button',{name:'Close event details',exact:true}).click();
  await expect(page).not.toHaveURL(/event=/);await expect(card).toBeVisible();
  if(info.project.name==='desktop'){
   const cardBounds=await card.boundingBox(),timelineBounds=await timeline.boundingBox();
@@ -1097,7 +1103,7 @@ test('dense overlay keeps exact dates and every category accessible without grow
  const mixed=timeline.locator('[data-event-type="multiple"]');await expect(mixed).toHaveCount(1);await expect(mixed).toHaveAttribute('data-event-count','8');
  const next=timeline.getByRole('button',{name:/Oct 3: Next day event/});
  expect((await next.boundingBox())!.x).toBeGreaterThan((await mixed.boundingBox())!.x);
- if(info.project.name==='mobile'){const hit=await mixed.evaluate(el=>({width:getComputedStyle(el,'::before').width,height:getComputedStyle(el,'::before').height}));expect(hit).toEqual({width:'44px',height:'44px'});await mixed.scrollIntoViewIfNeeded();const box=(await mixed.boundingBox())!;await page.touchscreen.tap(box.x+box.width/2-20,box.y+box.height/2);}else await mixed.click();const chooser=timeline.getByRole('group',{name:'Choose an event'});await expect(chooser.getByRole('button')).toHaveCount(9);
+ if(info.project.name==='mobile'){const hit=await mixed.evaluate(el=>({width:getComputedStyle(el,'::before').width,height:getComputedStyle(el,'::before').height}));expect(hit).toEqual({width:'44px',height:'44px'});await mixed.scrollIntoViewIfNeeded();const box=(await mixed.boundingBox())!;await page.touchscreen.tap(box.x+box.width/2-20,box.y+box.height/2);}else await mixed.click();const chooser=page.getByRole('group',{name:'Choose an event'});await expect(chooser.getByRole('button')).toHaveCount(9);
  expect((await svg.boundingBox())!.height).toBe(bounds.height);await page.keyboard.press('Escape');await expect(mixed).toBeFocused();
  await page.mouse.move(0,0);await page.screenshot({path:`output/overlay-dense-${info.project.name}.png`});
 });
