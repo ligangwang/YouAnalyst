@@ -6,7 +6,7 @@ import {classifyEvent,eventPresentation,type ClassifiedEvent} from '../events/cl
 export const TIMELINE_RANGES = [30, 90, 180, 365, 1826] as const;
 export const DEFAULT_TIMELINE_RANGE = 30;
 export type TimelineRange = (typeof TIMELINE_RANGES)[number];
-export type TimelinePrice = { date: string; close: number; volume: number | null };
+export type TimelinePrice = { date: string; close: number; volume: number | null; open?:number; high?:number; low?:number };
 export type TimelineEvent = ClassifiedEvent & { id: string; date: string; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
 export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; available: boolean };
 export function timelineDate(value: unknown): string | null {
@@ -23,7 +23,15 @@ export function timelineWindow(days: TimelineRange, end = new Date().toISOString
 export function mapTimelinePrice(data: Record<string, unknown>, ticker: string, market: string): TimelinePrice | null {
   const date = timelineDate(data.tradingDate);
   if (data.ticker !== ticker || data.market !== market || !date || typeof data.close !== "number" || !Number.isFinite(data.close) || data.close <= 0) return null;
-  return { date, close: data.close, volume: typeof data.volume === "number" && Number.isFinite(data.volume) && data.volume >= 0 ? data.volume : null };
+  const rawClose=typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0?data.rawClose:data.close;
+  const values=[data.open,data.high,data.low];
+  const valid=values.every(value=>typeof value==='number'&&Number.isFinite(value)&&value>0)
+    && Number(data.high)>=Math.max(Number(data.open),Number(data.low),rawClose)
+    && Number(data.low)<=Math.min(Number(data.open),rawClose)
+    && !((data.source==='eodhd-bulk-eod'||data.source==='eodhd-eod')&&!(typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0));
+  // Preserve the existing close series; scale raw OHLC to its provider-adjusted basis.
+  const scale=data.close/rawClose;
+  return { date, close: data.close, ...(valid&&values.every(value=>Number.isFinite(Number(value)*scale))?{open:Number(data.open)*scale,high:Number(data.high)*scale,low:Number(data.low)*scale}:{}), volume: typeof data.volume === "number" && Number.isFinite(data.volume) && data.volume >= 0 ? data.volume : null };
 }
 // Publication dates anchor the chart. Reviews and collection timestamps never become disclosure dates.
 export function companyTimelineEvents(companyId: string, graph: KnowledgeGraph | null, business: BusinessEvent[], chinese = false): TimelineEvent[] {

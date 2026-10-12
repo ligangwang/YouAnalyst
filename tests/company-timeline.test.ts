@@ -95,3 +95,14 @@ test('crowded dates use a mixed-symbol chooser without combining dates or losing
  for(const group of result){assert.equal(new Set(group.events.map(e=>e.date)).size,1);assert.ok(group.y-group.size/2>=24);assert.ok(group.y+group.size/2<=164);}
  for(let i=0;i<result.length;i++)for(let j=i+1;j<result.length;j++)assert.ok(Math.hypot(result[i].x-result[j].x,result[i].y-result[j].y)>=(result[i].size+result[j].size)/2);
 });
+
+test('OHLC uses the existing adjusted close basis without mixing raw prices',()=>{
+ const row={ticker:'AMD',market:'US',tradingDate:'2026-10-09',open:100,high:120,low:90,rawClose:110,close:55,source:'eodhd-bulk-eod',volume:0};
+ const bar=mapTimelinePrice(row,'AMD','US');assert.equal(bar?.open,50);assert.equal(bar?.high,60);assert.equal(bar?.low,45);assert.equal(bar?.close,55);
+ assert.equal(mapTimelinePrice({...row,rawClose:undefined},'AMD','US')?.open,undefined);
+ assert.equal(mapTimelinePrice({...row,source:'eodhd-eod',rawClose:undefined,close:105},'AMD','US')?.open,undefined);
+ assert.equal(mapTimelinePrice({...row,source:'eodhd-eod'},'AMD','US')?.open,50);
+ assert.equal(mapTimelinePrice({...row,high:80},'AMD','US')?.open,undefined);
+ assert.equal(mapTimelinePrice({...row,low:NaN},'AMD','US')?.open,undefined);
+ assert.equal(mapTimelinePrice({...row,open:undefined},'AMD','US')?.open,undefined);
+});

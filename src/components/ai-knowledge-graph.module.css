@@ -311,3 +311,7 @@
 .workspace .detail .detailSection { margin-top:12px; padding-top:10px; }
 .workspace .detail .detailSection > summary { padding:2px 0; }
 @media(max-width:800px) { .workspace[data-view="graph"][data-has-timeline="true"] .canvas3d {height:400px;min-height:400px;} .workspace[data-has-timeline="true"] [data-industry-tree] {height:400px;min-height:400px;} .workspace[data-view="table"] > .detail {position:static;max-height:240px;} }
+
+.edgeLabel3d[data-displayed="true"] {width:max-content;max-width:224px;white-space:normal;overflow:visible;border-color:#8ac4d4;}
+.edgeLabel3d strong {display:block;font-weight:600;}
+.edgeLabel3d small {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:#a9c5d4;margin-top:3px;}
