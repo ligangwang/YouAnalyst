@@ -41,6 +41,26 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+for(const theme of ['ai','robotics','space'] as const)test(`Explore ${theme} chart share retains the selected event and restores chart controls`,async({page})=>{
+ await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async(value:string)=>{(window as unknown as {copiedLink:string}).copiedLink=value;}}}));
+ await open(page,false,{...snapshot,theme});
+ await page.goto(`http://workspace.test/?theme=${theme}&company=US%3AMU&event=event-0&chartRange=90&chartStyle=line&chartMA=10&chartMacd=1&q=private-search&tab=watchlist`);
+ const copy=page.getByRole('button',{name:'Copy chart link',exact:true});
+ await expect(copy).toBeVisible();
+ await copy.focus();await copy.press('Enter');
+ const link=new URL(await page.evaluate(()=>(window as unknown as {copiedLink:string}).copiedLink));
+ expect(link.pathname).toBe('/en');
+ expect(link.searchParams.get('company')).toBe('US:MU');
+ expect(link.searchParams.get('event')).toBe('event-0');
+ expect(link.searchParams.get('theme')).toBe(theme);
+ expect(link.searchParams.has('q')).toBe(false);
+ expect(link.searchParams.has('tab')).toBe(false);
+ await page.goto(`http://workspace.test${link.pathname}${link.search}`);
+ await expect(page.getByLabel('Price history range')).toHaveValue('90');
+ await expect(page.getByRole('button',{name:'Line',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(page.getByRole('dialog',{name:'Event details'})).toContainText(snapshot.events[0].title);
+});
+
 for(const view of ['graph','tree','hierarchy','table'])test(`exact ticker search selects the company in ${view}`,async({page})=>{
  const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'memory-partner',source:'US:MU',target:'US:MEM',type:'PARTNER_OF',summary:'Memory partnership',commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
  await open(page,false,fixture);

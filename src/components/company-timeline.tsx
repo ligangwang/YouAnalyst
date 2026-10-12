@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { adjacentTimelineBars, TIMELINE_RANGES, TIMELINE_RANGE_LABELS, timelinePriceBars, timelineWeek, weeklyTimelinePrices, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
+import { adjacentTimelineBars, TIMELINE_RANGES, TIMELINE_RANGE_LABELS, timelinePriceBars, timelineWeek, weeklyTimelinePrices, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, timelineWindow, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
 import { MA_PERIODS, MA_COLORS, simpleMovingAverage, movingAverageConvergence, type IndicatorPoint } from '@/lib/ui/technical-indicators';
 import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { FloatingEventWindow, eventWindowAnchor, type EventWindowAnchor } from './event-details-window';
@@ -12,25 +12,44 @@ import { useLocale } from "./providers/locale-provider";
 import { CompanySnapshot } from "./company-snapshot";
 import styles from "./company-timeline.module.css";
 import {signedPercent,type EventPriceReturn} from '@/lib/intelligence/price-performance';
+import type { CompanyThemeId } from '@/lib/company-themes/model';
+import { chartShareUrl, parseSharedChart, sharedChartParams, type SharedChart } from '@/lib/ui/chart-share';
+import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,onDismissEvent,selectedEventId,eventReturns }: { companyId: string; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
+export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,onDismissEvent,selectedEventId,eventReturns,shareTheme = 'ai' }: { companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
   const categoryColor = (color: string) => `color-mix(in srgb, ${color} var(--event-color-weight,100%), var(--ui-text,${color}))`;
   const chartHelpId = useId();
-  const [days,setDays] = useState<TimelineRange>(DEFAULT_TIMELINE_RANGE);
+  const chartRange = useIndustryBrowseParam('chartRange');
+  const chartStyle = useIndustryBrowseParam('chartStyle');
+  const chartMA = useIndustryBrowseParam('chartMA');
+  const chartMacd = useIndustryBrowseParam('chartMacd');
+  const chartEvents = useIndustryBrowseParam('chartEvents');
+  const sharedEventId = useIndustryBrowseParam('chartEvent');
+  const settings = parseSharedChart(new URLSearchParams({chartRange,chartStyle,chartMA,chartMacd,chartEvents}));
+  const { range: days, averages, macd: showMacd, events: showEvents, style: chartMode } = settings;
+  const [shareResult,setShareResult] = useState<{url:string;copied:boolean}|null>(null);
+  const changeSettings = (patch: Partial<SharedChart>) => { updateIndustryBrowse(sharedChartParams({...settings,...patch})); setShareResult(null); };
+  const setDays = (range: TimelineRange) => changeSettings({range});
+  const setChartMode = (style: 'candles'|'line') => changeSettings({style});
+  const setAverages = (change: (values:number[])=>number[]) => changeSettings({averages:change(averages)});
+  const setShowMacd = (change: (value:boolean)=>boolean) => changeSettings({macd:change(showMacd)});
+  const setShowEvents = (change: (value:boolean)=>boolean) => changeSettings({events:change(showEvents)});
   const {size:chartSize,setSize:setChartSize,root:chartSizeRef,viewportHeight} = useChartSize();
-  const [averages,setAverages] = useState<number[]>([]);
-  const [showMacd,setShowMacd] = useState(false);
-  const [showEvents,setShowEvents] = useState(true);
   const needsHistory = averages.length>0 || showMacd;
-  const [chartMode,setChartMode]=useState<"candles"|"line">("candles");
   const [closed, setClosed] = useState(false);
   const [loaded, setLoaded] = useState<{ key: string; data: TimelinePrices } | null>(null);
   const [loadedGraph, setLoadedGraph] = useState<KnowledgeGraph | null>(null);
   const [retry, setRetry] = useState(0);
-  const [localSelectedId, setSelectedId] = useState("");
+  const localSelectedId = sharedEventId;
+  const setSelectedId = (id:string) => { if(!onSelectEvent) updateIndustryBrowse({chartEvent:id}); setShareResult(null); };
   const [eventAnchor,setEventAnchor] = useState<EventWindowAnchor|null>(null);
   const selectedId=selectedEventId??localSelectedId;
+  const copyChartLink = async () => {
+    const url = chartShareUrl(companyId,locale,settings,showEvents?selectedId:'',Boolean(onSelectEvent),shareTheme);
+    try { await navigator.clipboard.writeText(url); setShareResult({url,copied:true}); }
+    catch { setShareResult({url,copied:false}); }
+  };
   const [clusterId,setClusterId]=useState('');
   const [hoverDate, setHoverDate] = useState<string | null>(null);
   const [priceSelection, setPriceSelection] = useState<{companyId:string;date:string} | null>(null);
@@ -150,9 +169,10 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     return <span className={styles.chooserReturn} data-return-direction={value.change>0?'up':value.change<0?'down':'flat'} title={hint} aria-label={hint}>{`${label} `}{value.change>0?'▲':value.change<0?'▼':'—'} {signedPercent(value.change)}</span>;
   };
   if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
-  return <section ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴")} data-company-timeline={companyId}>
+  return <section id="company-timeline" ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴")} data-company-timeline={companyId}>
     <header className={styles.header}><h2>{text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><div role="group" aria-label={text('Chart type','图表类型')} className={styles.chartModes}><button type="button" aria-pressed={chartMode==='candles'} onClick={()=>setChartMode('candles')}>{text('Candles','蜡烛图')}</button><button type="button" aria-pressed={chartMode==='line'} onClick={()=>setChartMode('line')}>{text('Line','曲线')}</button></div><span>{TIMELINE_RANGE_LABELS[days]}</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
     <div className={styles.tools}>
+      <button type="button" onClick={()=>void copyChartLink()}>{text('Copy chart link','复制图表链接')}</button>
       <ChartSizeControls size={chartSize} onChange={setChartSize}/>
       <span>{weekly?text('Weekly bars','周线'):text('Daily bars','日线')}</span>
       <label>{text('Range','范围')} <select aria-label={text('Price history range','股价时间范围')} value={days} onChange={event=>{setDays(event.target.value==='ytd'?'ytd':Number(event.target.value) as TimelineRange);setPriceSelection(null);setClusterId('');setHoverDate(null);}}>{TIMELINE_RANGES.map(range=><option key={range} value={range}>{TIMELINE_RANGE_LABELS[range]}</option>)}</select></label>
@@ -162,6 +182,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         <button type="button" aria-pressed={showEvents} onClick={()=>{setShowEvents(value=>!value);setClusterId('');setHoverDate(null);}}>{text('Events','事件')}</button>
       </div>
     </div>
+    {shareResult&&<div className={styles.status} role="status">{shareResult.copied?text('Chart link copied','图表链接已复制'):text('Copy this chart link:','请复制此图表链接：')}{!shareResult.copied&&<input aria-label={text('Chart link','图表链接')} readOnly value={shareResult.url} onFocus={event=>event.target.select()} style={{width:'100%'}}/>}<button type="button" aria-label={text('Dismiss share message','关闭分享提示')} onClick={()=>setShareResult(null)}>×</button></div>}
     {needsHistory&&loaded?.key!==key&&!initialHistoryReady&&<p className={styles.status} role="status">{text('Loading indicator history…','正在加载指标历史数据…')}</p>}
     {needsHistory&&loaded?.key===key&&averages.some(period=>!movingAverages[MA_PERIODS.indexOf(period as typeof MA_PERIODS[number])]?.length)&&<p className={styles.status}>{text('Some moving averages have insufficient stored history.','部分均线的已存储历史数据不足。')}</p>}
     {showMacd&&<div className={styles.indicatorLegend}><span style={{color:MA_COLORS[0]}}>{text('DIF','DIF')}</span><span style={{color:MA_COLORS[1]}}>{text('DEA','DEA')}</span><span>{text('Histogram = DIF − DEA','柱值 = DIF − DEA')}</span></div>}
