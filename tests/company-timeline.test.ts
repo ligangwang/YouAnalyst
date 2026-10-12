@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
+import { tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
 
@@ -105,4 +105,28 @@ test('OHLC uses the existing adjusted close basis without mixing raw prices',()=
  assert.equal(mapTimelinePrice({...row,high:80},'AMD','US')?.open,undefined);
  assert.equal(mapTimelinePrice({...row,low:NaN},'AMD','US')?.open,undefined);
  assert.equal(mapTimelinePrice({...row,open:undefined},'AMD','US')?.open,undefined);
+});
+
+
+test('trading sessions remove weekend and holiday widths while preserving publication dates',()=>{
+ const dates=['2026-09-25','2026-09-28','2026-09-29','2026-09-30','2026-10-08'];
+ const axis=tradingSessionAxis(dates,'2026-09-11','2026-10-11');
+ for(let i=1;i<dates.length;i++)assert.ok(Math.abs(axis.ratio(dates[i])-axis.ratio(dates[i-1])-.2)<1e-10);
+ assert.ok(axis.ratio('2026-09-26')>axis.ratio('2026-09-25'));
+ assert.ok(axis.ratio('2026-09-27')<axis.ratio('2026-09-28'));
+ assert.ok(axis.ratio('2026-10-02')>axis.ratio('2026-09-30'));
+ assert.ok(axis.ratio('2026-10-02')<axis.ratio('2026-10-08'));
+ assert.ok(axis.ratio('2026-10-03')>axis.ratio('2026-10-02'));
+ assert.equal(axis.dateAt(axis.ratio('2026-10-08')),'2026-10-08');
+ assert.equal(axis.dateAt(0),'2026-09-25');assert.equal(axis.dateAt(1),'2026-10-08');
+ const events=['2026-10-02','2026-10-03'].map((date,i)=>({id:String(i),date,title:'Business',description:'',lane:'business' as const,sourceUrl:'https://example.com',sourceTitle:'Source',planned:false}));
+ const markers=layoutTimelineMarkers(events,'2026-09-11','2026-10-11',600,36,date=>axis.ratio(date)*600);
+ assert.equal(markers.length,2);assert.ok(markers[1].x>markers[0].x);
+ assert.deepEqual(markers.map(marker=>marker.events[0].date),['2026-10-02','2026-10-03']);
+});
+
+test('session axis handles missing, single and unordered stored prices without inventing bars',()=>{
+ const none=tradingSessionAxis([],'2026-10-01','2026-10-11');assert.equal(none.ratio('2026-10-06'),.5);assert.equal(none.dateAt(.5),'2026-10-06');
+ const single=tradingSessionAxis(['2026-10-08'],'2026-10-01','2026-10-11');assert.equal(single.ratio('2026-10-08'),.5);assert.equal(single.dateAt(0),'2026-10-08');assert.equal(single.dateAt(1),'2026-10-08');assert.ok(single.ratio('2026-10-05')<.5);assert.ok(single.ratio('2026-10-10')>.5);
+ assert.deepEqual(tradingSessionAxis(['2026-10-09','2026-10-08','2026-10-08','2026-09-30'],'2026-10-01','2026-10-11').sessions,['2026-10-08','2026-10-09']);
 });

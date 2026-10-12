@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { layoutOverlayMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
+import { tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
 import {EVENT_TYPES,eventPresentation} from '@/lib/events/classification';
 import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
 import type { GraphNode, KnowledgeGraph } from "@/lib/knowledge-graph/model";
@@ -63,18 +63,21 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const { start, end } = timelineWindow(days, data?.end);
   const events = useMemo(() => suppliedEvents ?? companyTimelineEvents(companyId, graph ?? loadedGraph, curatedEvents, chinese), [suppliedEvents, companyId, graph, loadedGraph, chinese]);
   const left = width < 440 ? 60 : 72, right = Math.max(left + 1, width - 24), plotWidth = right - left;
-  const x = (date: string) => left + (Date.parse(date) - Date.parse(start)) / Math.max(1, Date.parse(end) - Date.parse(start)) * plotWidth;
-  const prices = data?.prices.filter(p => p.date >= start && p.date <= end) ?? [];
+  const prices = data?.prices.filter(p => p.date >= start && p.date <= end).sort((a,b)=>a.date.localeCompare(b.date)) ?? [];
+  const axis = tradingSessionAxis(prices.map(price=>price.date),start,end);
+  const x = (date: string) => left + axis.ratio(date) * plotWidth;
+  const tickCount = width < 440 ? 3 : 5;
+  const tickDates = [...new Set(Array.from({length:tickCount},(_,i)=>axis.dateAt(i/(tickCount-1))))];
   const small=width<440,priceTop=24,priceBottom=small?164:140,volumeBottom=priceBottom+32,chartHeight=volumeBottom+24;
   const selected = events.find(e => e.id === selectedId && e.date >= start && e.date <= end);
   const activeDate = hoverDate && hoverDate >= start && hoverDate <= end ? hoverDate : selected?.date;
   const candles=prices.filter((price):price is typeof price&{open:number;high:number;low:number}=>price.open!==undefined&&price.high!==undefined&&price.low!==undefined);
   const useCandles=chartMode==='candles'&&candles.length>0;
   const min = prices.length ? Math.min(...prices.map(p => useCandles?p.low??p.close:p.close)) : 0, max = prices.length ? Math.max(...prices.map(p => useCandles?p.high??p.close:p.close)) : 1;
-  const candleWidth=Math.max(2,Math.min(10,plotWidth/days*.65));
+  const candleWidth=Math.max(2,Math.min(10,plotWidth/Math.max(1,prices.length)*.65));
   const pad = Math.max((max - min) * .1, max * .01), low = Math.max(0, min - pad), high = max + pad;
   const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * (priceBottom-priceTop);
-  const groups=layoutOverlayMarkers(events,start,end,plotWidth,priceTop,priceBottom,prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26);
+  const groups=layoutOverlayMarkers(events,start,end,plotWidth,priceTop,priceBottom,prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26,date=>x(date)-left);
   const openCluster=groups.find(group=>group.events.some(event=>event.id===clusterId));
   const selectedGroup=groups.find(group=>group.events.some(event=>event.id===selectedId));
   const maxVolume = Math.max(1, ...prices.map(p => p.volume ?? 0));
@@ -89,8 +92,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     const rect = chart.current?.getBoundingClientRect(); if (!rect) return;
     setHoverPrice(true);
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left - left) / plotWidth));
-    const dayOffset=Math.round(ratio*(Date.parse(end)-Date.parse(start))/86_400_000);
-    setHoverDate(new Date(Date.parse(start)+dayOffset*86_400_000).toISOString().slice(0, 10));
+    setHoverDate(axis.dateAt(ratio));
   };
   const returnFor=(id:string)=>eventReturns?.[id]?.find(value=>value.companyId===companyId);
   const dailyReturnFor=(date:string)=>{
@@ -117,7 +119,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     <header className={styles.header}><h2>{text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><div role="group" aria-label={text('Chart type','图表类型')} className={styles.chartModes}><button type="button" aria-pressed={chartMode==='candles'} onClick={()=>setChartMode('candles')}>{text('Candles','蜡烛图')}</button><button type="button" aria-pressed={chartMode==='line'} onClick={()=>setChartMode('line')}>{text('Line','曲线')}</button></div><span>1M</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
     <div className={styles.legend}>{EVENT_TYPES.map(eventType=>{const style=eventPresentation({eventType},chinese);return <span key={eventType} style={{color:categoryColor(style.color)}}>{style.symbol} {style.typeLabel}</span>;})}</div>
     <div ref={chart} className={styles.chart} style={{height:chartHeight}} onKeyDown={e=>{if(e.key==='Escape'&&clusterId){e.stopPropagation();closeChooser();}}} onPointerMove={e => { if (!(e.target as Element).closest("button")) pointerDate(e.clientX); else setHoverPrice(false); }} onPointerLeave={() => {setHoverDate(null);setHoverPrice(false);}} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
-      <svg data-chart-type={useCandles?"candles":"line"} data-event-layout="overlay" data-price-top={priceTop} data-price-bottom={priceBottom} style={{height:chartHeight}} viewBox={`0 0 ${width} ${chartHeight}`} role="img" aria-label={useCandles?text("Dated event markers over daily candlesticks, with volume below","事件按发布日期叠加在日线蜡烛图中，下方为成交量"):text("Dated event markers over daily close, with volume below", "事件按发布日期叠加在收盘价图中，下方为成交量")}>
+      <svg data-time-axis={prices.length?"trading-sessions":"calendar"} data-chart-type={useCandles?"candles":"line"} data-event-layout="overlay" data-price-top={priceTop} data-price-bottom={priceBottom} style={{height:chartHeight}} viewBox={`0 0 ${width} ${chartHeight}`} role="img" aria-label={useCandles?text("Dated event markers over daily candlesticks, with volume below","事件按发布日期叠加在日线蜡烛图中，下方为成交量"):text("Dated event markers over daily close, with volume below", "事件按发布日期叠加在收盘价图中，下方为成交量")}>
         <text x={0} y={priceTop-8}>{useCandles?text("Price","股价"):text("Close", "收盘价")} {data?.currency === "USD" ? "($)" : data?.currency ?? ""}</text>
         {prices.length > 0 ? <>
           {[low, (low + high) / 2, high].map(value => <g key={value}><text x={left - 7} y={y(value) + 4} textAnchor="end">{new Intl.NumberFormat(locale, { notation: value >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value)}</text><line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--ui-line,#263c4e)" /></g>)}
@@ -130,7 +132,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         {prices.filter(p => p.volume !== null).map(p => <rect key={p.date} x={x(p.date) - 1} y={volumeBottom - p.volume! / maxVolume * 22} width={Math.max(1, Math.min(4, plotWidth / Math.max(1, prices.length) * .65))} height={p.volume! / maxVolume * 22} fill="#65879b" />)}
         {prices.length > 0 && prices.every(p => p.volume === null) && <text x={left + 8} y={volumeBottom-6}>{text("Volume not recorded", "未记录成交量")}</text>}
         <line x1={left} x2={right} y1={volumeBottom+2} y2={volumeBottom+2} stroke="var(--ui-line,#30485a)" />
-        {Array.from({ length: width < 440 ? 3 : 5 }, (_, i) => i).map((i, _, values) => { const date = new Date(Date.parse(start) + i / (values.length - 1) * (Date.parse(end) - Date.parse(start))).toISOString().slice(0, 10); return <text key={i} x={x(date)} y={chartHeight-6} textAnchor={i === 0 ? "start" : i === values.length - 1 ? "end" : "middle"}>{formatDate(date)}</text>; })}
+        {tickDates.map(date => <text key={date} data-session-tick={date} x={x(date)} y={chartHeight-6} textAnchor="middle">{formatDate(date)}</text>)}
         {activeDate && <line x1={hoverPrice && nearest ? x(nearest.date) : x(activeDate)} x2={hoverPrice && nearest ? x(nearest.date) : x(activeDate)} y1={8} y2={volumeBottom+2} stroke="var(--ui-muted,#c4e8f4)" opacity={.55} />}
         {hoverPrice && hoverDate && nearest && <circle cx={x(nearest.date)} cy={y(nearest.close)} r={4} fill="var(--chart-line,#79cfe9)" stroke="#e5f7ff" strokeWidth={2} />}
       </svg>

@@ -9,6 +9,27 @@ export type TimelineRange = (typeof TIMELINE_RANGES)[number];
 export type TimelinePrice = { date: string; close: number; volume: number | null; open?:number; high?:number; low?:number };
 export type TimelineEvent = ClassifiedEvent & { id: string; date: string; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
 export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; available: boolean };
+/** Stored sessions have equal spacing; closure publications keep distinct, interpolated dates. */
+export function tradingSessionAxis(dates: string[], start: string, end: string) {
+  const sessions = [...new Set(dates.filter(date => date >= start && date <= end))].sort();
+  const calendarRatio = (date: string) => (Date.parse(date) - Date.parse(start)) / Math.max(1, Date.parse(end) - Date.parse(start));
+  const anchors = sessions.map((date, index) => ({ date, position: (index + .5) / sessions.length }));
+  if (sessions.length && start < sessions[0]) anchors.unshift({ date: start, position: 0 });
+  if (sessions.length && end > sessions.at(-1)!) anchors.push({ date: end, position: 1 });
+  const ratio = (date: string) => {
+    if (!sessions.length) return calendarRatio(date);
+    if (date <= anchors[0].date) return anchors[0].position;
+    for (let i = 1; i < anchors.length; i++) {
+      const a = anchors[i - 1], b = anchors[i];
+      if (date <= b.date) return a.position + (Date.parse(date) - Date.parse(a.date)) / Math.max(1, Date.parse(b.date) - Date.parse(a.date)) * (b.position - a.position);
+    }
+    return anchors.at(-1)!.position;
+  };
+  const dateAt = (position: number) => sessions.length
+    ? sessions[Math.max(0, Math.min(sessions.length - 1, Math.round(position * sessions.length - .5)))]
+    : new Date(Date.parse(start) + Math.max(0, Math.min(1, position)) * (Date.parse(end) - Date.parse(start))).toISOString().slice(0, 10);
+  return { sessions, ratio, dateAt };
+}
 export function timelineDate(value: unknown): string | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}(?:T.*)?$/.test(value)) return null;
   if (value.length > 10 && !Number.isFinite(Date.parse(value))) return null;
@@ -61,12 +82,12 @@ export function companyTimelineEvents(companyId: string, graph: KnowledgeGraph |
   return [...unique.values()].map(event=>{const classification=classifyEvent({title:event.title,type:event.lane==='business'?'company_news':'research'});return {...event,...classification,...(event.lane==='research'&&classification.eventType==='other'?{eventType:'relationship' as const,eventSubtype:'relationship_disclosure'}:{})};}).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
 /** Only same-date events with the same symbol share a badge; all other dates retain their anchors. */
-export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:string,width:number,spacing=36){
+export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:string,width:number,spacing=36,position?: (date:string)=>number){
  const groups:{x:number;level:number;events:TimelineEvent[]}[]=[];
  const last:typeof groups=[];
  const span=Math.max(1,Date.parse(end)-Date.parse(start));
  for(const event of events.filter(event=>event.date>=start&&event.date<=end).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))){
-  const x=(Date.parse(event.date)-Date.parse(start))/span*width;
+  const x=position?position(event.date):(Date.parse(event.date)-Date.parse(start))/span*width;
   const presentation=eventPresentation(event);
   const matching=groups.findLast(group=>{
    const previous=eventPresentation(group.events[0]);
@@ -80,9 +101,9 @@ export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:st
  return groups;
 }
 /** Place date-anchored markers in a fixed price plot, using the chooser for crowded dates. */
-export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:string,width:number,top:number,bottom:number,curve:{x:number;y:number}[],preferredSize=28){
+export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:string,width:number,top:number,bottom:number,curve:{x:number;y:number}[],preferredSize=28,position?: (date:string)=>number){
  const rows=4,gap=8,padding=4;
- let groups=layoutTimelineMarkers(events,start,end,width).map(group=>({...group,events:[...group.events]}));
+ let groups=layoutTimelineMarkers(events,start,end,width,36,position).map(group=>({...group,events:[...group.events]}));
  // Consolidate only a crowded date, never neighboring publication dates.
  for(;;){
   const dense=groups.findIndex((group,index)=>index>=rows&&group.x-groups[index-rows].x<22);
