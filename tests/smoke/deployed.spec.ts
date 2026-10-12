@@ -217,7 +217,7 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await expect(selected.locator('[data-card-drag]')).toBeVisible();
   await expect(page.locator('[class*="eventOverlay"]')).toHaveCount(0);
   const eventDetails=page.getByRole('dialog',{name:'Event details',exact:true});
-  await expect(eventDetails.getByRole('heading',{name:'AMD · Anthropic strategic partnership'})).toBeVisible();
+  await expect(eventDetails.getByRole('heading',{name:'AMD and Anthropic announce MI450 partnership'})).toBeVisible();
   await expect(eventDetails.getByRole('navigation',{name:'Primary sources'}).getByRole('link').first()).toBeVisible();
   await eventDetails.getByRole('button',{name:'Close event details',exact:true}).click();
   await expect(eventDetails).toHaveCount(0);
