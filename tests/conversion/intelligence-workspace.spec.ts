@@ -1024,7 +1024,7 @@ test('dense overlay keeps exact dates and every category accessible without grow
  const mixed=timeline.locator('[data-event-type="multiple"]');await expect(mixed).toHaveCount(1);await expect(mixed).toHaveAttribute('data-event-count','8');
  const next=timeline.getByRole('button',{name:/Oct 3: Next day event/});
  expect((await next.boundingBox())!.x).toBeGreaterThan((await mixed.boundingBox())!.x);
- await mixed.click();const chooser=timeline.getByRole('group',{name:'Choose an event'});await expect(chooser.getByRole('button')).toHaveCount(9);
+ if(info.project.name==='mobile'){const hit=await mixed.evaluate(el=>({width:getComputedStyle(el,'::before').width,height:getComputedStyle(el,'::before').height}));expect(hit).toEqual({width:'44px',height:'44px'});await mixed.scrollIntoViewIfNeeded();const box=(await mixed.boundingBox())!;await page.touchscreen.tap(box.x+box.width/2-20,box.y+box.height/2);}else await mixed.click();const chooser=timeline.getByRole('group',{name:'Choose an event'});await expect(chooser.getByRole('button')).toHaveCount(9);
  expect((await svg.boundingBox())!.height).toBe(bounds.height);await page.keyboard.press('Escape');await expect(mixed).toBeFocused();
  await page.mouse.move(0,0);await page.screenshot({path:`output/overlay-dense-${info.project.name}.png`});
 });
