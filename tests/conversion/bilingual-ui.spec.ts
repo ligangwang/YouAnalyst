@@ -45,11 +45,11 @@ test("legacy market selection does not hide calls or reappear after language cha
 test("signed-in language preference saves and failed saves stay on the current page", async ({ page }) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   const writes: unknown[] = [];
-  await page.route("**/api/preferences", route => { writes.push(route.request().postDataJSON()); return route.fulfill({ status: 503, json: { error: "unavailable" } }); });
+  await page.route("**/api/preferences", route => { if(route.request().method()==="GET") return route.fulfill({json:{preferences:null}}); writes.push(route.request().postDataJSON()); return route.fulfill({ status: 503, json: { error: "unavailable" } }); });
   await page.goto("http://bilingual.test/predictions?lang=zh-CN&market=US");
   await page.getByRole("button", { name: "Switch to English" }).click();
   await expect(page.getByRole("alert")).toContainText("偏好保存失败");
-  expect(writes).toEqual([{ language: "en", market: "ALL" }]);
+  expect(writes).toEqual([{ language: "en", market: "ALL", theme: "dark", priceColors: "green-up" }]);
   await expect(page).toHaveURL(/market=US/);
   await page.route("**/api/preferences", route => route.fulfill({ json: { preferences: route.request().postDataJSON() } }));
   await page.getByRole("button", { name: "Switch to English" }).click();
@@ -68,9 +68,9 @@ test("signing in restores account language without restoring market filters when
   await page.route("**/api/preferences", route => route.fulfill({ json: { preferences: { language: "zh-CN", market: "CN_A" } } }));
   await page.goto("http://bilingual.test/profile");
   await expect(page).toHaveURL(/lang=zh-CN$/);
-  await expect(page.getByRole("heading", { name: "语言" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "显示偏好" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "界面语言" })).toHaveValue("zh-CN");
-  await expect(page.getByRole("combobox")).toHaveCount(1);
+  await expect(page.getByRole("combobox")).toHaveCount(3);
 });
 
 for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tools accessible (${language})`, async ({page}) => {

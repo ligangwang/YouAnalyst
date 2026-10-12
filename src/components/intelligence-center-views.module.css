@@ -1,8 +1,8 @@
-.theme{display:flex;align-items:center;gap:4px;flex-shrink:0;padding-right:10px;border-right:1px solid #213242;white-space:nowrap}
-.theme strong{color:#98e7d6}
+.theme{display:flex;align-items:center;gap:4px;flex-shrink:0;padding-right:10px;border-right:1px solid var(--ui-line,#213242);white-space:nowrap}
+.theme strong{color:var(--ui-text,#98e7d6)}
 .tabs{display:flex;align-items:center;gap:2px;flex-shrink:0}
-.tabs button{padding:5px 9px!important;font-size:11px!important;color:#9ab0c3!important}
-.tabs button[aria-selected=true]{background:#203a3e;color:#98e7d6!important}
+.tabs button{padding:5px 9px!important;font-size:11px!important;color:var(--ui-muted,#9ab0c3)!important}
+.tabs button[aria-selected=true]{background:var(--ui-selected,#203a3e);color:var(--ui-text,#98e7d6)!important}
 .panel{flex:1;min-height:200px;min-width:0;overflow:hidden;position:relative}
 .table{display:flex;flex-direction:column;height:100%;min-height:0}
 .table>nav{flex-shrink:0;padding:8px 10px;font-size:11px;gap:8px}
@@ -15,11 +15,11 @@
 @media(max-width:850px){.theme{padding-right:7px}.tabs button{padding:5px 6px!important;font-size:10px!important}}
 @media(pointer:coarse){.table table td button{min-height:32px}}
 
-.themeSelector{display:flex;align-items:center;gap:6px;margin:0 10px 10px;padding:8px 10px;border:1px solid #2a414f;border-radius:7px;background:#162d35;color:#98e7d6;min-width:0}
+.themeSelector{display:flex;align-items:center;gap:6px;margin:0 10px 10px;padding:8px 10px;border:1px solid var(--ui-line,#2a414f);border-radius:7px;background:var(--ui-surface,#162d35);color:var(--ui-text,#98e7d6);min-width:0}
 .themeSelector select{flex:1;min-width:0;cursor:pointer;background:transparent;color:inherit;border:0;font:inherit;font-weight:600;padding:3px 0}
 .themeSelector select:focus-visible{outline:2px solid #65d9ff;outline-offset:3px}
-.themeSelector option{background:#10212d;color:#dbe7ed}
-.themeSelector small{color:#8aa6ba;font-size:11px}
+.themeSelector option{background:var(--ui-surface,#10212d);color:var(--ui-text,#dbe7ed)}
+.themeSelector small{color:var(--ui-muted,#8aa6ba);font-size:11px}
 .compactTheme{margin:0;padding:2px 6px;background:transparent;border-color:transparent}
 .compactTheme select{font-size:11px;max-width:95px}
 @media(pointer:coarse){.themeSelector select{min-height:32px}}

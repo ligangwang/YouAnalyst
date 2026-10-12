@@ -2,14 +2,14 @@
 .intro { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
 .intro h1 { font-size: clamp(28px, 3vw, 38px); font-weight: 600; letter-spacing: -.04em; }
 .intro nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
-.intro a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; color: #a5c9da; }
+.intro a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; color: var(--ui-muted,#a5c9da); }
 .intro a:hover { color: #67e8f9; }
 .intro a:focus-visible { outline: 2px solid #67e8f9; outline-offset: 4px; }
 .overview > section { width: 100%; max-width: none; margin: 0; padding: 0; min-width: 0; scroll-margin-top: 112px; }
-.overview > section + section { margin-top: 36px; padding-top: 32px; border-top: 1px solid #243647; }
+.overview > section + section { margin-top: 36px; padding-top: 32px; border-top: 1px solid var(--ui-line,#243647); }
 .sectionHeading { margin-bottom: 20px; }
 .sectionHeading h2 { margin: 0; font-size: 23px; line-height: 1.4; font-weight: 500; letter-spacing: -.02em; }
-.sectionHeading p { margin-top: 8px; max-width: 720px; font-size: 14px; line-height: 1.7; color: #a4b4c5; }
+.sectionHeading p { margin-top: 8px; max-width: 720px; font-size: 14px; line-height: 1.7; color: var(--ui-muted,#a4b4c5); }
 @media (max-width: 760px) {
   .overview { padding: 24px 16px 32px; }
   .intro { margin-bottom: 24px; gap: 8px; }

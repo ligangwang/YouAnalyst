@@ -86,7 +86,7 @@ test('price hover card shows daily changes independently of event markers',async
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
- await expect(timeline).toContainText('5 stored daily bars');await expect(timeline.locator('[data-latest-close-reference]')).toContainText('Latest close 106');await expect(timeline.locator('[data-latest-close-reference] line')).toHaveAttribute('stroke','#c9b879');await expect(timeline.locator('[data-latest-close-reference] line')).toHaveAttribute('stroke-dasharray','2 4');
+ await expect(timeline).toContainText('5 stored daily bars');await expect(timeline.locator('[data-latest-close-reference]')).toContainText('Latest close 106');await expect(timeline.locator('[data-latest-close-reference] line')).toHaveCSS('stroke','rgb(201, 184, 121)');await expect(timeline.locator('[data-latest-close-reference] line')).toHaveAttribute('stroke-dasharray','2 4');
  const earnings=timeline.locator('[data-event-type="earnings"]');
  await expect(timeline.locator('[data-return-direction]')).toHaveCount(0);
  await earnings.focus();
@@ -944,8 +944,7 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  const priceTop=Number(await timeline.locator('svg').getAttribute('data-price-top')),priceBottom=Number(await timeline.locator('svg').getAttribute('data-price-bottom'));
  expect(markerBounds!.y-chartBounds!.y).toBeGreaterThanOrEqual(priceTop);
  expect(markerBounds!.y+markerBounds!.height-chartBounds!.y).toBeLessThanOrEqual(priceBottom);
- const chartLeft=chartBounds!.width<440?60:72;
- await page.mouse.move(chartBounds!.x+chartLeft+(20/30)*(chartBounds!.width-chartLeft-24),chartBounds!.y+priceBottom+16);
+ await page.mouse.move(chartBounds!.x+Number(await timeline.locator("svg circle").first().getAttribute("cx"))/Number(await timeline.locator("svg").evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width))*chartBounds!.width,chartBounds!.y+priceBottom+16);
  await expect(timeline.getByRole('tooltip')).toContainText('2026-10-01');
  await expect(timeline.getByRole('tooltip')).toContainText('Close · $100.00');
  await expect(timeline.getByRole('tooltip')).toContainText('Volume · 0');
@@ -1036,7 +1035,13 @@ test('candles are default, line is optional and missing OHLC never creates candl
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline).toContainText('4 stored daily bars');
  const svg=timeline.locator('svg');await expect(svg).toHaveAttribute('data-chart-type','candles');await expect(timeline.getByRole('button',{name:'Candles',exact:true})).toHaveAttribute('aria-pressed','true');
- await expect(svg.locator('[data-price-candle]')).toHaveCount(3);await expect(svg.locator('[data-candle-direction="up"] rect')).toHaveAttribute('fill','#55dfbb');await expect(svg.locator('[data-candle-direction="down"] rect')).toHaveAttribute('fill','#ff8ea1');await expect(svg.locator('[data-candle-direction="flat"] rect')).toHaveAttribute('height','1');await expect(svg.locator('[data-price-candle="2026-10-08"]')).toHaveCount(0);await expect(svg.locator('[data-price-gap]')).toHaveCount(0);
+ await expect(svg.locator('[data-price-candle]')).toHaveCount(3);await expect(svg.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(85, 223, 187)');await expect(svg.locator('[data-candle-direction="down"] rect')).toHaveCSS('fill','rgb(255, 142, 161)');await expect(svg.locator('[data-candle-direction="flat"] rect')).toHaveAttribute('height','1');await expect(svg.locator('[data-price-candle="2026-10-08"]')).toHaveCount(0);await expect(svg.locator('[data-price-gap]')).toHaveCount(0);
+ await expect(svg).toHaveAttribute('data-time-axis','trading-sessions');
+ const positions=await svg.locator('circle').evaluateAll(elements=>elements.map(el=>Number(el.getAttribute('cx'))));
+ expect(positions).toHaveLength(4);for(let i=2;i<positions.length;i++)expect(positions[i]-positions[i-1]).toBeCloseTo(positions[1]-positions[0],5);
+ expect(await svg.locator('[data-session-tick]').evaluateAll(elements=>elements.map(el=>el.getAttribute('data-session-tick')))).toEqual(['2026-09-28','2026-09-29','2026-09-30','2026-10-08'].filter((_,i)=>info.project.name==='desktop'||i!==1));
+ const publication=timeline.locator('button[data-event-type]').first();await expect(publication).toHaveAttribute('title',/Oct 2/);
+ const publicationX=await publication.evaluate(el=>parseFloat((el as HTMLElement).style.left));expect(publicationX).toBeCloseTo(positions[2]+(positions[3]-positions[2])*2/8,4);
  const bounds=(await svg.boundingBox())!,viewWidth=await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width),cx=Number(await svg.locator('[data-price-candle="2026-09-29"] line').getAttribute('x1'));
  await svg.hover({position:{x:cx/viewWidth*bounds.width,y:bounds.height-32}});
  const tooltip=timeline.getByRole('tooltip');await expect(tooltip.locator('[data-hover-ohlc]')).toContainText('O 108.00 · H 112.00 · L 99.00');await expect(tooltip).toContainText('Daily change · ▼ -9.09%');await expect(tooltip.locator('[data-latest-return]')).toContainText('▲ +3.00%');

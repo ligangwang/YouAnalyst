@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { layoutOverlayMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
+import { tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
 import {EVENT_TYPES,eventPresentation} from '@/lib/events/classification';
 import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
 import type { GraphNode, KnowledgeGraph } from "@/lib/knowledge-graph/model";
@@ -12,6 +12,7 @@ import {signedPercent,type EventPriceReturn} from '@/lib/intelligence/price-perf
 
 export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,selectedEventId,eventReturns }: { companyId: string; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string) => void; selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
+  const categoryColor = (color: string) => `color-mix(in srgb, ${color} var(--event-color-weight,100%), var(--ui-text,${color}))`;
   const days = DEFAULT_TIMELINE_RANGE;
   const [chartMode,setChartMode]=useState<"candles"|"line">("candles");
   const [closed, setClosed] = useState(false);
@@ -62,18 +63,21 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const { start, end } = timelineWindow(days, data?.end);
   const events = useMemo(() => suppliedEvents ?? companyTimelineEvents(companyId, graph ?? loadedGraph, curatedEvents, chinese), [suppliedEvents, companyId, graph, loadedGraph, chinese]);
   const left = width < 440 ? 60 : 72, right = Math.max(left + 1, width - 24), plotWidth = right - left;
-  const x = (date: string) => left + (Date.parse(date) - Date.parse(start)) / Math.max(1, Date.parse(end) - Date.parse(start)) * plotWidth;
-  const prices = data?.prices.filter(p => p.date >= start && p.date <= end) ?? [];
+  const prices = data?.prices.filter(p => p.date >= start && p.date <= end).sort((a,b)=>a.date.localeCompare(b.date)) ?? [];
+  const axis = tradingSessionAxis(prices.map(price=>price.date),start,end);
+  const x = (date: string) => left + axis.ratio(date) * plotWidth;
+  const tickCount = width < 440 ? 3 : 5;
+  const tickDates = [...new Set(Array.from({length:tickCount},(_,i)=>axis.dateAt(i/(tickCount-1))))];
   const small=width<440,priceTop=24,priceBottom=small?164:140,volumeBottom=priceBottom+32,chartHeight=volumeBottom+24;
   const selected = events.find(e => e.id === selectedId && e.date >= start && e.date <= end);
   const activeDate = hoverDate && hoverDate >= start && hoverDate <= end ? hoverDate : selected?.date;
   const candles=prices.filter((price):price is typeof price&{open:number;high:number;low:number}=>price.open!==undefined&&price.high!==undefined&&price.low!==undefined);
   const useCandles=chartMode==='candles'&&candles.length>0;
   const min = prices.length ? Math.min(...prices.map(p => useCandles?p.low??p.close:p.close)) : 0, max = prices.length ? Math.max(...prices.map(p => useCandles?p.high??p.close:p.close)) : 1;
-  const candleWidth=Math.max(2,Math.min(10,plotWidth/days*.65));
+  const candleWidth=Math.max(2,Math.min(10,plotWidth/Math.max(1,prices.length)*.65));
   const pad = Math.max((max - min) * .1, max * .01), low = Math.max(0, min - pad), high = max + pad;
   const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * (priceBottom-priceTop);
-  const groups=layoutOverlayMarkers(events,start,end,plotWidth,priceTop,priceBottom,prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26);
+  const groups=layoutOverlayMarkers(events,start,end,plotWidth,priceTop,priceBottom,prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26,date=>x(date)-left);
   const openCluster=groups.find(group=>group.events.some(event=>event.id===clusterId));
   const selectedGroup=groups.find(group=>group.events.some(event=>event.id===selectedId));
   const maxVolume = Math.max(1, ...prices.map(p => p.volume ?? 0));
@@ -88,8 +92,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     const rect = chart.current?.getBoundingClientRect(); if (!rect) return;
     setHoverPrice(true);
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left - left) / plotWidth));
-    const dayOffset=Math.round(ratio*(Date.parse(end)-Date.parse(start))/86_400_000);
-    setHoverDate(new Date(Date.parse(start)+dayOffset*86_400_000).toISOString().slice(0, 10));
+    setHoverDate(axis.dateAt(ratio));
   };
   const returnFor=(id:string)=>eventReturns?.[id]?.find(value=>value.companyId===companyId);
   const dailyReturnFor=(date:string)=>{
@@ -114,24 +117,24 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
   return <section className={styles.timeline} aria-label={text("Company event and price timeline", "公司事件与股价时间轴")} data-company-timeline={companyId}>
     <header className={styles.header}><h2>{text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><div role="group" aria-label={text('Chart type','图表类型')} className={styles.chartModes}><button type="button" aria-pressed={chartMode==='candles'} onClick={()=>setChartMode('candles')}>{text('Candles','蜡烛图')}</button><button type="button" aria-pressed={chartMode==='line'} onClick={()=>setChartMode('line')}>{text('Line','曲线')}</button></div><span>1M</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
-    <div className={styles.legend}>{EVENT_TYPES.map(eventType=>{const style=eventPresentation({eventType},chinese);return <span key={eventType} style={{color:style.color}}>{style.symbol} {style.typeLabel}</span>;})}</div>
+    <div className={styles.legend}>{EVENT_TYPES.map(eventType=>{const style=eventPresentation({eventType},chinese);return <span key={eventType} style={{color:categoryColor(style.color)}}>{style.symbol} {style.typeLabel}</span>;})}</div>
     <div ref={chart} className={styles.chart} style={{height:chartHeight}} onKeyDown={e=>{if(e.key==='Escape'&&clusterId){e.stopPropagation();closeChooser();}}} onPointerMove={e => { if (!(e.target as Element).closest("button")) pointerDate(e.clientX); else setHoverPrice(false); }} onPointerLeave={() => {setHoverDate(null);setHoverPrice(false);}} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
-      <svg data-chart-type={useCandles?"candles":"line"} data-event-layout="overlay" data-price-top={priceTop} data-price-bottom={priceBottom} style={{height:chartHeight}} viewBox={`0 0 ${width} ${chartHeight}`} role="img" aria-label={useCandles?text("Dated event markers over daily candlesticks, with volume below","事件按发布日期叠加在日线蜡烛图中，下方为成交量"):text("Dated event markers over daily close, with volume below", "事件按发布日期叠加在收盘价图中，下方为成交量")}>
+      <svg data-time-axis={prices.length?"trading-sessions":"calendar"} data-chart-type={useCandles?"candles":"line"} data-event-layout="overlay" data-price-top={priceTop} data-price-bottom={priceBottom} style={{height:chartHeight}} viewBox={`0 0 ${width} ${chartHeight}`} role="img" aria-label={useCandles?text("Dated event markers over daily candlesticks, with volume below","事件按发布日期叠加在日线蜡烛图中，下方为成交量"):text("Dated event markers over daily close, with volume below", "事件按发布日期叠加在收盘价图中，下方为成交量")}>
         <text x={0} y={priceTop-8}>{useCandles?text("Price","股价"):text("Close", "收盘价")} {data?.currency === "USD" ? "($)" : data?.currency ?? ""}</text>
         {prices.length > 0 ? <>
-          {[low, (low + high) / 2, high].map(value => <g key={value}><text x={left - 7} y={y(value) + 4} textAnchor="end">{new Intl.NumberFormat(locale, { notation: value >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value)}</text><line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="#263c4e" /></g>)}
-          {latest&&<g data-latest-close-reference><line x1={left} x2={right} y1={y(latest.close)} y2={y(latest.close)} stroke="#c9b879" strokeWidth={1} strokeDasharray="2 4"/><text x={right} y={y(latest.close)-6} textAnchor="end" style={{fill:'#c9b879',fontSize:10}}>{text('Latest close','最新收盘')} {new Intl.NumberFormat(locale,{maximumFractionDigits:2}).format(latest.close)}</text></g>}
-          {useCandles?candles.map(price=>{const color=price.close>price.open?'#55dfbb':price.close<price.open?'#ff8ea1':'#b8cfe1';return <g key={price.date} data-price-candle={price.date} data-candle-direction={price.close>price.open?'up':price.close<price.open?'down':'flat'}><line x1={x(price.date)} x2={x(price.date)} y1={y(price.high)} y2={y(price.low)} stroke={color}/><rect x={x(price.date)-candleWidth/2} y={Math.min(y(price.open),y(price.close))} width={candleWidth} height={Math.max(1,Math.abs(y(price.open)-y(price.close)))} fill={color}/></g>}):<path data-price-line d={pricePath} fill="none" stroke="#79cfe9" strokeWidth={2} />}
-          {!useCandles&&gapPath&&<path data-price-gap d={gapPath} fill="none" stroke="#79cfe9" strokeWidth={2} strokeDasharray="4 4" />}
-          {prices.map(p => <circle key={p.date} cx={x(p.date)} cy={y(p.close)} r={useCandles?(p.open===undefined?2:0):prices.length < 3 ? 3 : 1} fill="#79cfe9" />)}
+          {[low, (low + high) / 2, high].map(value => <g key={value}><text x={left - 7} y={y(value) + 4} textAnchor="end">{new Intl.NumberFormat(locale, { notation: value >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value)}</text><line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--ui-line,#263c4e)" /></g>)}
+          {latest&&<g data-latest-close-reference><line x1={left} x2={right} y1={y(latest.close)} y2={y(latest.close)} stroke="var(--chart-reference,#c9b879)" strokeWidth={1} strokeDasharray="2 4"/><text x={right} y={y(latest.close)-6} textAnchor="end" style={{fill:'var(--chart-reference,#c9b879)',fontSize:10}}>{text('Latest close','最新收盘')} {new Intl.NumberFormat(locale,{maximumFractionDigits:2}).format(latest.close)}</text></g>}
+          {useCandles?candles.map(price=>{const color=price.close>price.open?'var(--price-up,#55dfbb)':price.close<price.open?'var(--price-down,#ff8ea1)':'var(--price-flat,#b8cfe1)';return <g key={price.date} data-price-candle={price.date} data-candle-direction={price.close>price.open?'up':price.close<price.open?'down':'flat'}><line x1={x(price.date)} x2={x(price.date)} y1={y(price.high)} y2={y(price.low)} stroke={color}/><rect x={x(price.date)-candleWidth/2} y={Math.min(y(price.open),y(price.close))} width={candleWidth} height={Math.max(1,Math.abs(y(price.open)-y(price.close)))} fill={color}/></g>}):<path data-price-line d={pricePath} fill="none" stroke="var(--chart-line,#79cfe9)" strokeWidth={2} />}
+          {!useCandles&&gapPath&&<path data-price-gap d={gapPath} fill="none" stroke="var(--chart-line,#79cfe9)" strokeWidth={2} strokeDasharray="4 4" />}
+          {prices.map(p => <circle key={p.date} cx={x(p.date)} cy={y(p.close)} r={useCandles?(p.open===undefined?2:0):prices.length < 3 ? 3 : 1} fill="var(--chart-line,#79cfe9)" />)}
         </> : <text x={left + 8} y={volumeBottom-8}>{!data ? text("Loading stored prices…", "正在读取历史股价…") : !data.available ? text("Stored prices unavailable", "历史股价暂时无法读取") : companyId.startsWith("ORG:") ? text("No supported price history", "暂无支持的股价记录") : text("No stored prices in this range", "此范围暂无已存储股价")}</text>}
         <text x={0} y={volumeBottom-12}>{text("Volume", "成交量")}</text>
         {prices.filter(p => p.volume !== null).map(p => <rect key={p.date} x={x(p.date) - 1} y={volumeBottom - p.volume! / maxVolume * 22} width={Math.max(1, Math.min(4, plotWidth / Math.max(1, prices.length) * .65))} height={p.volume! / maxVolume * 22} fill="#65879b" />)}
         {prices.length > 0 && prices.every(p => p.volume === null) && <text x={left + 8} y={volumeBottom-6}>{text("Volume not recorded", "未记录成交量")}</text>}
-        <line x1={left} x2={right} y1={volumeBottom+2} y2={volumeBottom+2} stroke="#30485a" />
-        {Array.from({ length: width < 440 ? 3 : 5 }, (_, i) => i).map((i, _, values) => { const date = new Date(Date.parse(start) + i / (values.length - 1) * (Date.parse(end) - Date.parse(start))).toISOString().slice(0, 10); return <text key={i} x={x(date)} y={chartHeight-6} textAnchor={i === 0 ? "start" : i === values.length - 1 ? "end" : "middle"}>{formatDate(date)}</text>; })}
-        {activeDate && <line x1={hoverPrice && nearest ? x(nearest.date) : x(activeDate)} x2={hoverPrice && nearest ? x(nearest.date) : x(activeDate)} y1={8} y2={volumeBottom+2} stroke="#c4e8f4" opacity={.55} />}
-        {hoverPrice && hoverDate && nearest && <circle cx={x(nearest.date)} cy={y(nearest.close)} r={4} fill="#79cfe9" stroke="#e5f7ff" strokeWidth={2} />}
+        <line x1={left} x2={right} y1={volumeBottom+2} y2={volumeBottom+2} stroke="var(--ui-line,#30485a)" />
+        {tickDates.map(date => <text key={date} data-session-tick={date} x={x(date)} y={chartHeight-6} textAnchor="middle">{formatDate(date)}</text>)}
+        {activeDate && <line x1={hoverPrice && nearest ? x(nearest.date) : x(activeDate)} x2={hoverPrice && nearest ? x(nearest.date) : x(activeDate)} y1={8} y2={volumeBottom+2} stroke="var(--ui-muted,#c4e8f4)" opacity={.55} />}
+        {hoverPrice && hoverDate && nearest && <circle cx={x(nearest.date)} cy={y(nearest.close)} r={4} fill="var(--chart-line,#79cfe9)" stroke="#e5f7ff" strokeWidth={2} />}
       </svg>
       {hoverPrice && hoverDate && nearest && <div className={styles.priceTooltip} role="tooltip" style={{left:Math.max(tooltipHalfWidth+8,Math.min(width-tooltipHalfWidth-8,x(nearest.date))),top:4}}>
         <span>{nearest.date}</span>
@@ -141,10 +144,10 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         {toLatest!==undefined&&latest&&<span title={`${nearest.date} → ${latest.date}`} data-latest-return>{text('Change to latest close','至最新收盘涨跌幅')} ({formatDate(latest.date)}) · <b data-return-direction={toLatest>0?'up':toLatest<0?'down':'flat'}>{toLatest>0?'▲':toLatest<0?'▼':'—'} {signedPercent(toLatest)}</b></span>}
         <span>{text("Volume", "成交量")} · {nearest.volume === null ? text("Not recorded", "未记录") : new Intl.NumberFormat(locale).format(nearest.volume)}</span>
       </div>}
-      {groups.map(group=>{const presentations=[...new Map(group.events.map(event=>{const p=eventPresentation(event,chinese);return [p.symbol+p.color,p] as const;})).values()],style=presentations[0],multiple=group.events.length>1;return <button key={group.events[0].id} className={styles.marker} data-event-type={presentations.length>1?'multiple':style.type} data-marker-size={group.size} data-event-count={group.events.length} type="button" style={{left:left+group.x,top:group.y,width:group.size,height:group.size,color:style.color,borderColor:style.color}} title={group.events.map(e=>`${eventPresentation(e,chinese).label} · ${formatDate(e.date)}: ${e.title}`).join('; ')} aria-label={multiple?`${group.events.length} ${text('events','个事件')} · ${presentations.map(p=>p.label).join(' / ')} · ${formatDate(group.events[0].date)}`:`${formatDate(group.events[0].date)}: ${group.events[0].title}`} aria-pressed={group.events.some(e=>e.id===clusterId||e.id===selectedId)} onClick={e=>{if(multiple){chooserTrigger.current=e.currentTarget;setClusterId(group.events[0].id);}else selectEvent(group.events[0].id);}} onPointerEnter={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onFocus={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onBlur={()=>{setHoverDate(null);}}><span className={styles.markerSymbols} data-mixed={presentations.length>1||undefined}>{presentations.slice(0,3).map(p=><span key={p.symbol+p.color} style={{color:p.color}}>{p.symbol}</span>)}</span>{multiple&&<span className={styles.countBadge} aria-hidden="true">{group.events.length}</span>}</button>;})}
+      {groups.map(group=>{const presentations=[...new Map(group.events.map(event=>{const p=eventPresentation(event,chinese);return [p.symbol+p.color,p] as const;})).values()],style=presentations[0],multiple=group.events.length>1;return <button key={group.events[0].id} className={styles.marker} data-event-type={presentations.length>1?'multiple':style.type} data-marker-size={group.size} data-event-count={group.events.length} type="button" style={{left:left+group.x,top:group.y,width:group.size,height:group.size,color:categoryColor(style.color),borderColor:categoryColor(style.color)}} title={group.events.map(e=>`${eventPresentation(e,chinese).label} · ${formatDate(e.date)}: ${e.title}`).join('; ')} aria-label={multiple?`${group.events.length} ${text('events','个事件')} · ${presentations.map(p=>p.label).join(' / ')} · ${formatDate(group.events[0].date)}`:`${formatDate(group.events[0].date)}: ${group.events[0].title}`} aria-pressed={group.events.some(e=>e.id===clusterId||e.id===selectedId)} onClick={e=>{if(multiple){chooserTrigger.current=e.currentTarget;setClusterId(group.events[0].id);}else selectEvent(group.events[0].id);}} onPointerEnter={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onFocus={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onBlur={()=>{setHoverDate(null);}}><span className={styles.markerSymbols} data-mixed={presentations.length>1||undefined}>{presentations.slice(0,3).map(p=><span key={p.symbol+p.color} style={{color:categoryColor(p.color)}}>{p.symbol}</span>)}</span>{multiple&&<span className={styles.countBadge} aria-hidden="true">{group.events.length}</span>}</button>;})}
       {openCluster&&<div ref={eventChooser} className={`${styles.eventList} ${styles.clusterPopup}`} role="group" aria-label={text('Choose an event','选择事件')} onPointerMove={e=>{e.stopPropagation();setHoverPrice(false);}}>
         <div className={styles.popupHeader}><span>{openCluster.events.length} {text('events','个事件')}</span><button type="button" aria-label={text('Close event list','关闭事件列表')} onClick={closeChooser}>×</button></div>
-        {openCluster.events.map(event=>{const style=eventPresentation(event,chinese);return <button key={event.id} type="button" onClick={()=>selectEvent(event.id)}><span style={{color:style.color}}>{style.symbol} {style.label}</span> · {formatDate(event.date)} · {event.title}{returnFor(event.id)&&returnLabel(returnFor(event.id)!)}</button>;})}
+        {openCluster.events.map(event=>{const style=eventPresentation(event,chinese);return <button key={event.id} type="button" onClick={()=>selectEvent(event.id)}><span style={{color:categoryColor(style.color)}}>{style.symbol} {style.label}</span> · {formatDate(event.date)} · {event.title}{returnFor(event.id)&&returnLabel(returnFor(event.id)!)}</button>;})}
       </div>}
     </div>
     <p className={styles.coverage}>{chartMode==='candles'&&prices.length>0&&!useCandles&&<span>{text("OHLC unavailable; showing closes","暂无完整开高低收数据，显示收盘价")} · </span>}{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${text("stored daily bars", "条已存储日线")} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>

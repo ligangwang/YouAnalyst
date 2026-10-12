@@ -95,10 +95,10 @@ export function formatTimeHorizon(value: PredictionTimeHorizon | null | undefine
 
 export function markToneClass(value: number): string {
   if (value > 0) {
-    return "text-emerald-300";
+    return "price-up";
   }
   if (value < 0) {
-    return "text-rose-300";
+    return "price-down";
   }
   return "text-slate-300";
 }
@@ -142,7 +142,7 @@ export function DirectionBadge({ direction }: { direction: PredictionDirection }
   const isUp = direction === "UP";
 
   return (
-    <span className={`inline-flex items-center gap-1 font-semibold ${isUp ? "text-emerald-300" : "text-rose-300"}`}>
+    <span className={`inline-flex items-center gap-1 font-semibold ${isUp ? "price-up" : "price-down"}`}>
       <span aria-hidden="true">{isUp ? "\u2191" : "\u2193"}</span>
       {<UiText text={direction} />}
     </span>

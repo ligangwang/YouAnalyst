@@ -14,6 +14,7 @@ import { absoluteUrl, getSiteUrl, isProductionAppEnvironment, noIndexRobots } fr
 import "./globals.css";
 import { headers } from "next/headers";
 import { parseLocale } from "@/lib/locale";
+import { displayPreferencesBootstrap } from "@/lib/preferences";
 
 const GOOGLE_ANALYTICS_ID = process.env.GOOGLE_ANALYTICS_ID;
 
@@ -74,10 +75,12 @@ export default async function RootLayout({
 
   return (
     <html
+      suppressHydrationWarning
       lang={locale}
       className={`${sora.variable} ${ibmPlexSans.variable} h-full antialiased`}
     >
       <head>
+        <script dangerouslySetInnerHTML={{ __html: displayPreferencesBootstrap }} />
         <meta name="youanalyst-analytics" content="disabled" suppressHydrationWarning />
       </head>
       <body className="min-h-full flex flex-col">
