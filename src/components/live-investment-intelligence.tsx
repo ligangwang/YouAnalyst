@@ -206,7 +206,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   async function toggleSaved(id:string,event:React.MouseEvent<HTMLButtonElement>){
     const bounds=event.currentTarget.getBoundingClientRect();
     const anchor=event.detail?{x:event.clientX,y:event.clientY}:{x:bounds.right,y:bounds.bottom};
-    try{await changeSaved(id,!saved.includes(id),anchor);}catch{setSaveError('Could not save this company. Retry.');}
+    try{await changeSaved(id,!saved.includes(id),anchor);}catch{setSaveError('Could not update follow status. Retry.');}
   }
   useEffect(()=>{
     if(selected&&!eventId&&lastFocusedCompany.current!==selected)companyCard.current?.focus({preventScroll:true});
@@ -220,7 +220,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const closeEvent=()=>{updateIndustryBrowse({event:'',relationship:'',company:company?.id??requestedId,feedCompany:activityCompany?.id??'ALL'});setPropagating(false);};
   const selectedDetails=company?<section ref={companyCard} tabIndex={-1} aria-label={ui('Company details')} className={`${styles.evidence} ${liveStyles.selectedPanel} ${liveStyles.companyCard}`} onKeyDown={key=>{if(key.key==='Escape'){key.stopPropagation();clearSelection();}}}>
     <div className={styles.panelTitle} data-card-drag tabIndex={0} aria-label={chinese?'移动公司卡片':'Move company card'}><strong>{companyName(company,locale)}</strong><button type="button" data-card-reset aria-label={chinese?'重置卡片位置':'Reset card position'}>↺</button><button aria-label="Close company details" onClick={()=>clearSelection()}>×</button></div>
-    <p>{companySummary(company,locale)||(chinese?'查看该公司已公开的关系来源。':'Explore the company’s published relationship sources.')}<button className={styles.saveButton} onClick={event=>void toggleSaved(selected,event)}><UiText text={saved.includes(selected)?'★ Saved':'☆ Save company'}/></button></p>
+    <p>{companySummary(company,locale)||(chinese?'查看该公司已公开的关系来源。':'Explore the company’s published relationship sources.')}<button className={styles.saveButton} aria-pressed={saved.includes(selected)} onClick={event=>void toggleSaved(selected,event)}><UiText text={saved.includes(selected)?'★ Followed':'☆ Follow'}/></button></p>
     {eventsPending?<p role={error?'alert':'status'}>{!error&&<LoadingSpinner/>}{error?(chinese?'无法加载价格。':'Could not load prices.'):(chinese?'正在加载价格…':'Loading prices…')}</p>:<IntelligencePricePerformance price={company.dailyPrice} symbol={label}/>}
     <h2><UiText text="Relationships"/></h2><div className={styles.researchPaths}>{connections.map(edge=><button key={edge.id} aria-pressed={edgeId===edge.id} onClick={()=>setEdgeId(edge.id)}><span>{label(edge.source)} <i>→</i> {label(edge.target)}</span><small>{relationshipSummary(edge,locale)}</small></button>)}{!connections.length&&<p><UiText text="No documented relationship paths for this signal."/></p>}</div>
     <nav aria-label={ui('Relationship sources')} className={liveStyles.evidenceLinks}><Link href={researchCompanyUrl(company)}><UiText text="Relationship sources ↗"/></Link>{graph.sources.filter(source=>connections.some(edge=>edge.sourceIds.includes(source.id))||(theme!=='ai'&&company.sourceIds?.includes(source.id))).slice(0,8).map(source=><a key={source.id} href={source.url} target="_blank" rel="noopener noreferrer">{relationshipSourceTitle(source,locale)} ↗</a>)}</nav>

@@ -58,7 +58,7 @@ export function CompanyFollowStar({ label, followed, disabled, onChange, confirm
     <span aria-hidden="true">{active ? "★" : "☆"}</span>
     {notice && (confirmation || notice === "error") && <span key={notice} className={`${styles.notice} ${notice === "error" ? styles.error : styles.success}`}
       role={notice === "error" ? "alert" : "status"}>
-      {notice === "error" ? text(`Could not save ${label}. Retry.`, `${label} 保存失败，请重试。`)
+      {notice === "error" ? text(`Could not update follow status for ${label}. Retry.`, `${label} 关注状态更新失败，请重试。`)
         : notice === "followed" ? text(`${label} followed`, `已关注 ${label}`) : text(`${label} unfollowed`, `已取消关注 ${label}`)}
     </span>}
   </button>;
