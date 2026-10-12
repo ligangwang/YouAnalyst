@@ -1074,7 +1074,10 @@ test('timeline category symbols, count chooser and docked card retain all event 
  await expect(page).not.toHaveURL(/event=/);
  await page.getByRole('group',{name:'Choose an event'}).getByRole('button',{name:/Insider sell.*Published company update 2$/}).click();
  await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toContainText('Insider sell');
- await page.getByRole('dialog',{name:'Event details',exact:true}).getByRole('button',{name:'Close event details'}).click();
+ // Reopening the same grouped marker replaces details rather than stacking windows.
+ await insiderMarker.focus();await insiderMarker.press('Enter');await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('group',{name:'Choose an event'})).toBeVisible();await expect(page.locator('[data-event-window]')).toHaveCount(1);
+ await page.keyboard.press('Escape');await expect(page.locator('[data-event-window]')).toHaveCount(0);await expect(insiderMarker).toBeFocused();
  await timeline.locator('[data-event-type="earnings"]').click();
  await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toContainText('Earnings results');await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toContainText('Second filing reference');
  await page.getByRole('dialog',{name:'Event details',exact:true}).getByRole('button',{name:'Close event details',exact:true}).click();
