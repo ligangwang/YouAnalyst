@@ -22,7 +22,8 @@ test("authored static JSX labels have a translation or an explicit language/bran
         }
         if (ts.isJsxText(node)) {
           const value = node.text.replace(/\s+/g, " ").trim();
-          if (/[a-zA-Z]{2}/.test(value) && !/[\u4e00-\u9fff]/.test(value) && !intentional.has(value)) missing.push(`${file}: ${value}`);
+          const brandLettering = file === path.join("src", "components", "brand-logo.tsx") && ["You", "Analyst"].includes(value);
+          if (!brandLettering && /[a-zA-Z]{2}/.test(value) && !/[\u4e00-\u9fff]/.test(value) && !intentional.has(value)) missing.push(`${file}: ${value}`);
         }
         if (ts.isJsxAttribute(node) && node.name.getText(source) === "text" && ts.isJsxSelfClosingElement(node.parent.parent) && node.parent.parent.tagName.getText(source) === "UiText") {
           const initializer = node.initializer;

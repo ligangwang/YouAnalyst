@@ -4,6 +4,7 @@ import { UiText, useUiText } from "@/components/ui-text";
 
 import { LanguageSwitch, useLocale } from "@/components/providers/locale-provider";
 import Image from "next/image";
+import { BrandLogo } from "./brand-logo";
 import { PreferenceError } from "./display-preferences";
 import { LocalizedLink as Link } from "./localized-link";
 import { unlocalizedPath } from "@/lib/i18n/urls";
@@ -206,20 +207,11 @@ export function SiteNav() {
         <div className="flex items-center justify-between gap-1 sm:gap-3">
           <div className="flex items-center gap-5">
             <Link href="/" className="inline-flex shrink-0 items-center">
-              <Image
-                src="/youanalyst-logo-mobile.svg"
-                alt="YouAnalyst"
-                width={200}
-                height={44}
-                priority
+              <BrandLogo
+                mobile
                 className="h-7 w-auto max-w-[80px] min-[375px]:max-w-[110px] sm:max-w-[150px] lg:hidden"
               />
-              <Image
-                src="/youanalyst-logo.svg"
-                alt="YouAnalyst"
-                width={176}
-                height={40}
-                priority
+              <BrandLogo
                 className="hidden h-10 w-auto lg:block"
               />
             </Link>
