@@ -110,12 +110,12 @@ test('price hover card shows daily changes independently of event markers',async
    await page.mouse.move(bounds.x+cx/viewWidth*bounds.width,bounds.y+bounds.height-45);
  };
  const tooltip=timeline.getByRole('tooltip');
- await hoverDay(0);await expect(tooltip).toContainText('2026-09-30');await expect(tooltip).not.toContainText('Daily change');
- await hoverDay(1);await expect(tooltip).toContainText('Daily change · ▲ +4.00%');await expect(tooltip.locator('[data-return-direction="up"]')).toHaveCSS('color','rgb(85, 223, 187)');
- await hoverDay(2);await expect(tooltip).toContainText('Daily change · ▼ -0.96%');await expect(tooltip.locator('[data-return-direction="down"]')).toHaveCSS('color','rgb(255, 142, 161)');
+ await hoverDay(0);await expect(tooltip).toContainText('2026-09-30');await expect(tooltip).not.toContainText('Daily change');await expect(tooltip.locator('[data-latest-return]')).toContainText('Change to latest close (Oct 6) · ▲ +6.00%');
+ await hoverDay(1);await expect(tooltip).toContainText('Daily change · ▲ +4.00%');await expect(tooltip.locator('[data-daily-return][data-return-direction="up"]')).toHaveCSS('color','rgb(85, 223, 187)');
+ await hoverDay(2);await expect(tooltip).toContainText('Daily change · ▼ -0.96%');await expect(tooltip.locator('[data-daily-return][data-return-direction="down"]')).toHaveCSS('color','rgb(255, 142, 161)');
  // This recorded trading day has no event, but still gets a daily change.
  await hoverDay(3);await expect(tooltip).toContainText('2026-10-05');await expect(tooltip).toContainText('Daily change · ▲ +2.91%');await expect(tooltip).toContainText('Volume · 40');
- await hoverDay(4);await expect(tooltip).toContainText('Daily change · — 0.00%');
+ await hoverDay(4);await expect(tooltip).toContainText('Daily change · — 0.00%');await expect(tooltip.locator('[data-latest-return]')).toContainText('— 0.00%');
  await earnings.focus();await expect(tooltip).toHaveCount(0);await expect(earnings.locator('[data-return-direction]')).toHaveCount(0);
 });
 
