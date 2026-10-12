@@ -78,3 +78,20 @@ test('matching symbols on nearby different dates never combine',()=>{
  assert.ok(groups.every(group=>group.events.length===1));
  assert.deepEqual(groups.map(group=>group.level),[0,1,2]);
 });
+
+test('overlay markers stay in the price plot, avoid a sparse curve and retain exact dates',async()=>{
+ const {layoutOverlayMarkers}=await import('../src/lib/ui/company-timeline');
+ const events=Array.from({length:3},(_,i)=>({id:`overlay-${i}`,date:`2026-09-${String(5+i*10).padStart(2,'0')}`,title:'Event',description:'',lane:'business' as const,eventType:'product_business' as const,sourceUrl:'https://example.com',sourceTitle:'Source',planned:false}));
+ const result=layoutOverlayMarkers(events,'2026-09-01','2026-10-01',300,24,140,[{x:0,y:82},{x:300,y:82}]);
+ assert.equal(result.length,3);
+ for(const group of result){assert.ok(group.y-group.size/2>=24);assert.ok(group.y+group.size/2<=140);assert.ok(Math.abs(group.y-82)>group.size/2+6);assert.equal(group.x,(Date.parse(group.events[0].date)-Date.parse('2026-09-01'))/86400000*10);}
+});
+test('crowded dates use a mixed-symbol chooser without combining dates or losing events',async()=>{
+ const {layoutOverlayMarkers}=await import('../src/lib/ui/company-timeline');
+ const types=['earnings','insider_trade','relationship','product_business','corporate_action','financing','regulatory_governance','other'] as const;
+ const events=types.flatMap((eventType,i)=>[1,2].map(day=>({id:`dense-${day}-${i}`,date:`2026-09-0${day}`,title:'Event',description:'',lane:'business' as const,eventType,sourceUrl:'https://example.com',sourceTitle:'Source',planned:false})));
+ const result=layoutOverlayMarkers(events,'2026-09-01','2026-10-01',277,24,164,[],34);
+ assert.deepEqual(result.flatMap(g=>g.events.map(e=>e.id)).sort(),events.map(e=>e.id).sort());
+ for(const group of result){assert.equal(new Set(group.events.map(e=>e.date)).size,1);assert.ok(group.y-group.size/2>=24);assert.ok(group.y+group.size/2<=164);}
+ for(let i=0;i<result.length;i++)for(let j=i+1;j<result.length;j++)assert.ok(Math.hypot(result[i].x-result[j].x,result[i].y-result[j].y)>=(result[i].size+result[j].size)/2);
+});

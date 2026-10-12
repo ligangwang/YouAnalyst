@@ -71,6 +71,43 @@ export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:st
  }
  return groups;
 }
+/** Place date-anchored markers in a fixed price plot, using the chooser for crowded dates. */
+export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:string,width:number,top:number,bottom:number,curve:{x:number;y:number}[],preferredSize=28){
+ const rows=4,gap=8,padding=4;
+ let groups=layoutTimelineMarkers(events,start,end,width).map(group=>({...group,events:[...group.events]}));
+ // Consolidate only a crowded date, never neighboring publication dates.
+ for(;;){
+  const dense=groups.findIndex((group,index)=>index>=rows&&group.x-groups[index-rows].x<22);
+  if(dense<0)break;
+  const window=groups.slice(dense-rows,dense+1);
+  const date=window.map(group=>group.events[0].date).sort((a,b)=>groups.filter(g=>g.events[0].date===b).length-groups.filter(g=>g.events[0].date===a).length).find(date=>groups.filter(g=>g.events[0].date===date).length>1);
+  if(!date)break;
+  const matching=groups.filter(group=>group.events[0].date===date),first=matching[0];
+  groups=groups.filter(group=>group.events[0].date!==date);
+  groups.push({...first,events:matching.flatMap(group=>group.events)});
+  groups.sort((a,b)=>a.x-b.x||a.events[0].id.localeCompare(b.events[0].id));
+ }
+ const span=Math.min(Infinity,...groups.slice(rows).map((group,index)=>group.x-groups[index].x));
+ const size=Math.max(4,Math.min(preferredSize,(bottom-top)/rows-6,span-gap));
+ const ys=Array.from({length:rows},(_,row)=>top+size/2+padding+row*(bottom-top-size-2*padding)/(rows-1));
+ const distance=(x:number,y:number)=>{
+  let nearest=Infinity;
+  for(let i=0;i<curve.length;i++){
+   const a=curve[i],b=curve[i+1]??a,dx=b.x-a.x,dy=b.y-a.y;
+   const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
+   nearest=Math.min(nearest,Math.hypot(x-a.x-t*dx,y-a.y-t*dy));
+  }
+  return nearest;
+ };
+ const last=Array<number>(rows).fill(-Infinity);
+ return groups.map(group=>{
+  const free=ys.map((y,row)=>({y,row,clearance:distance(group.x,y)})).filter(candidate=>group.x-last[candidate.row]>=size+gap-0.01);
+  const candidates=free.length?free:ys.map((y,row)=>({y,row,clearance:group.x-last[row]}));
+  candidates.sort((a,b)=>b.clearance-a.clearance||a.row-b.row);
+  const chosen=candidates[0];last[chosen.row]=group.x;
+  return {...group,level:chosen.row,y:chosen.y,size};
+ });
+}
 export function clusterTimelineEvents(events: TimelineEvent[], start: string, end: string, width: number, spacing = 36, separateLanes = true) {
   const first = Date.parse(start), span = Math.max(1, Date.parse(end) - first);
   const groups: { lane: TimelineEvent["lane"]; x: number; events: TimelineEvent[] }[] = [];
