@@ -234,6 +234,8 @@ test('event shares preserve public selection without personal browsing state',()
   assert.equal(url.searchParams.get('event'),'news_a/b & c');
   assert.equal(url.searchParams.get('company'),'US:AMD');
   assert.equal(url.hash,'#company-timeline');
-  assert.deepEqual([...url.searchParams.keys()].sort(),['chartEvents','chartMA','chartMacd','chartRange','chartStyle','company','event','view'].sort());
+  assert.equal(url.searchParams.get('theme'),'ai');
+  for(const theme of ['robotics','space'] as const) assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'event',true,theme)).searchParams.get('theme'),theme);
+  assert.deepEqual([...url.searchParams.keys()].sort(),['chartEvents','chartMA','chartMacd','chartRange','chartStyle','company','event','theme','view'].sort());
   assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'business_1')).searchParams.get('chartEvent'),'business_1');
 });

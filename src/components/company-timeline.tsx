@@ -12,10 +12,11 @@ import { useLocale } from "./providers/locale-provider";
 import { CompanySnapshot } from "./company-snapshot";
 import styles from "./company-timeline.module.css";
 import {signedPercent,type EventPriceReturn} from '@/lib/intelligence/price-performance';
+import type { CompanyThemeId } from '@/lib/company-themes/model';
 import { chartShareUrl, parseSharedChart, sharedChartParams, type SharedChart } from '@/lib/ui/chart-share';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,onDismissEvent,selectedEventId,eventReturns }: { companyId: string; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
+export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,onDismissEvent,selectedEventId,eventReturns,shareTheme = 'ai' }: { companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
   const categoryColor = (color: string) => `color-mix(in srgb, ${color} var(--event-color-weight,100%), var(--ui-text,${color}))`;
   const chartHelpId = useId();
@@ -45,7 +46,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const [eventAnchor,setEventAnchor] = useState<EventWindowAnchor|null>(null);
   const selectedId=selectedEventId??localSelectedId;
   const copyChartLink = async () => {
-    const url = chartShareUrl(companyId,locale,settings,showEvents?selectedId:'',Boolean(onSelectEvent));
+    const url = chartShareUrl(companyId,locale,settings,showEvents?selectedId:'',Boolean(onSelectEvent),shareTheme);
     try { await navigator.clipboard.writeText(url); setShareResult({url,copied:true}); }
     catch { setShareResult({url,copied:false}); }
   };

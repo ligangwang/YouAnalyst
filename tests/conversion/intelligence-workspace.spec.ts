@@ -41,10 +41,10 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
-test('Explore chart share retains the selected event and restores chart controls',async({page})=>{
+for(const theme of ['ai','robotics','space'] as const)test(`Explore ${theme} chart share retains the selected event and restores chart controls`,async({page})=>{
  await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async(value:string)=>{(window as unknown as {copiedLink:string}).copiedLink=value;}}}));
- await open(page);
- await page.goto('http://workspace.test/?company=US%3AMU&event=event-0&chartRange=90&chartStyle=line&chartMA=10&chartMacd=1&q=private-search&tab=watchlist');
+ await open(page,false,{...snapshot,theme});
+ await page.goto(`http://workspace.test/?theme=${theme}&company=US%3AMU&event=event-0&chartRange=90&chartStyle=line&chartMA=10&chartMacd=1&q=private-search&tab=watchlist`);
  const copy=page.getByRole('button',{name:'Copy chart link',exact:true});
  await expect(copy).toBeVisible();
  await copy.focus();await copy.press('Enter');
@@ -52,6 +52,7 @@ test('Explore chart share retains the selected event and restores chart controls
  expect(link.pathname).toBe('/en');
  expect(link.searchParams.get('company')).toBe('US:MU');
  expect(link.searchParams.get('event')).toBe('event-0');
+ expect(link.searchParams.get('theme')).toBe(theme);
  expect(link.searchParams.has('q')).toBe(false);
  expect(link.searchParams.has('tab')).toBe(false);
  await page.goto(`http://workspace.test${link.pathname}${link.search}`);
