@@ -50,3 +50,6 @@
 
 .markerSymbols {display:flex; align-items:center; justify-content:center; gap:1px;}
 .markerSymbols[data-mixed] {font-size:8px; flex-wrap:wrap;}
+
+.chartModes {display:flex;gap:2px;}
+.chartModes button {padding:3px 6px;font-size:11px;}
