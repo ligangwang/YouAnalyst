@@ -3,7 +3,7 @@ import { UiText } from "./ui-text";
 import { IntelligenceSectorLegend } from './intelligence-sector-legend';
 import { lazy, Suspense, useEffect, useEffectEvent, useMemo, useState, useSyncExternalStore } from 'react';
 import { LocalizedLink as Link } from './localized-link';
-import Image from 'next/image';
+import {BrandLogo} from './brand-logo';
 import { demoEvents, demoGraph, demoSourceNames, type DemoSource } from '@/lib/knowledge-graph/intelligence-demo';
 import { companySector, GRAPH_SECTORS } from '@/lib/knowledge-graph/sectors';
 import { useAuth } from './providers/auth-provider';
@@ -59,7 +59,7 @@ export function InvestmentIntelligence(){
   useEffect(()=>{if(!playing)return;const timer=setInterval(()=>replayTick(),100);return()=>clearInterval(timer);},[playing]);
   return <main className={`${styles.shell} ${leftOpen?'':styles.leftClosed} ${rightOpen?'':styles.rightClosed}`} data-intelligence-preview>
     <header className={styles.topbar}>
-      <div className={styles.identity}><Link href="/" aria-label="YouAnalyst home"><Image src="/youanalyst-logo-mobile.svg" width={134} height={30} alt="YouAnalyst" priority/></Link><h1 className={styles.srOnly}><UiText text={"Investment Intelligence"}/></h1><span className={styles.demoBadge}><UiText text={"MOCK DATA"}/></span></div>
+      <div className={styles.identity}><Link href="/" aria-label="YouAnalyst home"><BrandLogo mobile width={134} height={30}/></Link><h1 className={styles.srOnly}><UiText text={"Investment Intelligence"}/></h1><span className={styles.demoBadge}><UiText text={"MOCK DATA"}/></span></div>
       <nav aria-label="Workspace navigation" className={styles.navigation}><Link href="/?view=graph"><UiText text={"Map ↗"}/></Link><Link href="/feed"><UiText text={"Feed"}/></Link><Link href="/watchlists"><UiText text={"Watchlists"}/></Link></nav>
       <div className={styles.session}><div className={compactStyles.liveControls}>{mode==='live'?<><span className={compactStyles.liveStatus}><i/><UiText text={"Live"}/>{' '}<small><UiText text={"demo"}/></small></span><button aria-expanded={false} aria-controls="intraday-replay" onClick={()=>{setMode('replay');setPlaying(false);}}><UiText text={"Replay"}/></button></>:<span className={compactStyles.liveStatus}><UiText text={"Replay"}/>{' '}<small><UiText text={"today"}/></small></span>}</div><details className={compactStyles.more} onKeyDown={e=>{if(e.key==='Escape'){e.currentTarget.open=false;e.currentTarget.querySelector('summary')?.focus();}}}><summary><UiText text={"More ▾"}/></summary><nav aria-label="More navigation" onClick={e=>{if((e.target as HTMLElement).closest('a'))e.currentTarget.closest('details')?.removeAttribute('open');}}>{[['/research','Research'],['/companies','Companies'],['/watchlists/following','Following'],['/predictions','Investment ideas'],['/my/predictions','My ideas'],['/compare','Performance comparison'],['/predictions/new','Publish an idea'],['/daily/calls','Top Calls'],['/how-it-works','How it works']].map(([href,label])=><Link key={href} href={href}>{label}</Link>)}</nav></details><Link href={user?`/analysts/${user.uid}`:'/auth'} className={styles.account}>{user?'Account':'Sign in'}</Link></div>
     </header>
