@@ -1,0 +1,5 @@
+.controls {display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px;}
+.controls button {min-height:32px;padding:4px 8px;border:1px solid var(--ui-line,#354c60);border-radius:5px;background:transparent;color:var(--ui-text,#dbeaf6);cursor:pointer;}
+.controls button[aria-pressed=true] {background:var(--ui-selected,#24516a);}
+.controls button:focus-visible {outline:2px solid var(--selection-outline,#79cfe9);outline-offset:2px;}
+@media(pointer:coarse){.controls button{min-height:44px;}}
