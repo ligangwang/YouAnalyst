@@ -27,6 +27,8 @@ export function useChartSize() {
     document.body.style.overflow = 'hidden';
     element.focus();
     const keyboard = (event: KeyboardEvent) => {
+      // A fullscreen price chart inside this view owns its keyboard interaction.
+      if (element.querySelector('[data-chart-size="full"]')) return;
       if (event.key === 'Escape' && !element.querySelector('[data-event-window]')) { event.preventDefault(); event.stopPropagation(); setSize('compact'); }
       if (event.key === 'Tab') {
         const focusable = [...element.querySelectorAll<HTMLElement>('button:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]')].filter(el => el.getClientRects().length);
@@ -46,9 +48,9 @@ export function useChartSize() {
   return {size,setSize,root,viewportHeight};
 }
 
-export function ChartSizeControls({size,onChange}: {size:'compact'|'half'|'full';onChange:(size:'compact'|'half'|'full')=>void}) {
+export function ChartSizeControls({size,onChange,label}: {size:'compact'|'half'|'full';onChange:(size:'compact'|'half'|'full')=>void;label?:string}) {
   const {text} = useLocale();
-  return <div className={styles.controls} role="group" aria-label={text('Chart size','图表大小')}>
+  return <div className={styles.controls} role="group" aria-label={label??text('Chart size','图表大小')}>
     <button type="button" aria-pressed={size==='half'} onClick={()=>onChange('half')}>{text('Half screen','半屏')}</button>
     <button type="button" aria-pressed={size==='full'} onClick={()=>onChange('full')}>{text('Full screen','全屏')}</button>
     {size!=='compact'&&<button type="button" onClick={()=>onChange('compact')}>{text('Restore layout','恢复布局')}</button>}
