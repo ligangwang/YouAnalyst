@@ -103,7 +103,7 @@ for(const view of ['graph','tree','hierarchy','table'])test(`selected company pr
  await open(page);
  await page.goto(`http://workspace.test/?view=${view}&company=US%3AMU`);
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
- await workspace.getByRole('button',{name:'Full screen',exact:true}).click();
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
  await expect(workspace).toHaveAttribute('data-chart-size','full');
  const timeline=workspace.locator('[data-company-timeline="US:MU"]');
  await expect(timeline).toBeVisible();
@@ -115,9 +115,37 @@ for(const view of ['graph','tree','hierarchy','table'])test(`selected company pr
  await page.keyboard.press('Escape');
  await expect(timeline).toHaveAttribute('data-chart-size','compact');
  await expect(workspace).toHaveAttribute('data-chart-size','full');
- await workspace.getByRole('button',{name:'Restore layout',exact:true}).click();
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Restore layout',exact:true}).click();
  await expect(workspace).toHaveAttribute('data-chart-size','compact');
  await expect(page.locator('[data-company-timeline="US:MU"]').getByLabel('Price history range')).toHaveValue('90');
+});
+
+test('workspace sizing preserves the timeline instance, closed state and loaded prices',async({page})=>{
+ await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{}}}));
+ await open(page);
+ let requests=0;
+ await page.route('**/api/company-timeline?*',route=>{requests++;return route.fulfill({json:{companyId:'US:MU',start:'2026-09-04',end:'2026-10-04',currency:'USD',available:true,prices:[{date:'2026-10-01',open:100,high:110,low:99,close:105,volume:1000},{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}});});
+ await page.goto('http://workspace.test/?view=table&company=US%3AMU');
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ const timeline=workspace.locator('[data-company-timeline="US:MU"]');
+ await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);
+ await timeline.evaluate(el=>{(window as unknown as {timelineNode:Element}).timelineNode=el;});
+ const loadedRequests=requests;
+ await timeline.getByRole('button',{name:'Copy chart link',exact:true}).click();
+ await expect(timeline.getByRole('status')).toContainText('Chart link copied');
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ expect(await timeline.evaluate(el=>el===(window as unknown as {timelineNode:Element}).timelineNode)).toBe(true);
+ await expect(timeline.getByRole('status')).toContainText('Chart link copied');
+ await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
+ await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeVisible();
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Restore layout',exact:true}).click();
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Half screen',exact:true}).click();
+ await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeVisible();
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeVisible();
+ await timeline.getByRole('button',{name:'Show timeline',exact:true}).click();
+ await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);
+ expect(requests).toBe(loadedRequests);
 });
 
 test('chart sizes preserve selection and indicators read preceding history',async({page},info)=>{
@@ -135,14 +163,14 @@ test('chart sizes preserve selection and indicators read preceding history',asyn
   return route.fulfill({json:{companyId:'US:MU',start,end:'2026-10-11',currency:'USD',available:true,prices:bars.filter(bar=>bar.date>=start),...(url.includes('indicators=1')?{warmupPrices:bars.filter(bar=>bar.date<start)}: {})}});
  });
  const relationship=page.locator('section[aria-label="Company relationship chart"]');
- await relationship.getByRole('button',{name:'Half screen',exact:true}).click();await expect(relationship).toHaveAttribute('data-chart-size','half');
+ await relationship.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Half screen',exact:true}).click();await expect(relationship).toHaveAttribute('data-chart-size','half');
  expect((await relationship.boundingBox())!.height).toBeGreaterThanOrEqual(page.viewportSize()!.height*.49);
- await relationship.getByRole('button',{name:'Full screen',exact:true}).click();
+ await relationship.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
  await expect(page.getByRole('dialog',{name:'Company relationship chart'})).toBeVisible();
  const graphBounds=(await relationship.boundingBox())!;expect(graphBounds.width).toBeGreaterThanOrEqual(page.viewportSize()!.width-1);
  await page.screenshot({path:`output/graph-full-${info.project.name}.png`});
  await page.keyboard.press('Escape');await expect(relationship).toHaveAttribute('data-chart-size','compact');
- await expect(relationship.getByRole('button',{name:'Full screen',exact:true})).toBeFocused();
+ await expect(relationship.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true})).toBeFocused();
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline.locator('[data-price-candle]')).not.toHaveCount(0);

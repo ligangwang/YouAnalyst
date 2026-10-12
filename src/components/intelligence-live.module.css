@@ -54,11 +54,14 @@
 .timelineDock>p{display:flex;align-items:center;gap:8px;padding:12px}
 .graphViewport{display:contents;}
 .sizeToolbar{display:flex;justify-content:flex-end;padding:3px 10px;background:var(--ui-surface,#0a1522);flex-shrink:0;}
-.graphViewport[data-chart-size=half]{display:flex;flex-direction:column;height:50dvh;min-height:320px;flex-shrink:0;}
+.graphStage{display:contents;}
+.graphViewport[data-chart-size=half]{display:flex;flex-direction:column;min-height:320px;flex-shrink:0;}
+.graphViewport[data-chart-size=half]>.graphStage{display:flex;flex-direction:column;height:50dvh;min-height:320px;flex-shrink:0;}
+.graphViewport[data-chart-size=full]>.graphStage{display:flex;flex-direction:column;flex:1;min-height:0;}
 .graphViewport[data-chart-size=full]{display:flex;flex-direction:column;position:fixed;inset:0;width:100vw;height:100dvh;z-index:5000;background:var(--ui-surface,#0a1522);}
 .timelineDock:has([data-chart-size=half]){max-height:55dvh;}
 .regionWorkspace section[aria-label="Graph universe"]:has([data-chart-size=half]){overflow:auto;}
 .timelineDock:has([data-chart-size=full]){overflow:visible;}
-.graphViewport[data-chart-size=half]>[role=tabpanel],.graphViewport[data-chart-size=full]>[role=tabpanel]{flex:1;min-height:0;}
+.graphViewport[data-chart-size=half]>.graphStage>[role=tabpanel],.graphViewport[data-chart-size=full]>.graphStage>[role=tabpanel]{flex:1;min-height:0;}
 @media(max-width:850px){.hasTimeline.hasTimeline{height:auto;min-height:650px}.hasTimeline>[role=tabpanel]{flex:0 0 360px}.timelineDock{max-height:340px}}
-@media(max-width:850px){.hasTimeline .graphViewport[data-chart-size=compact]>[role=tabpanel]{flex:0 0 360px;}}
+@media(max-width:850px){.hasTimeline .graphViewport[data-chart-size=compact]>.graphStage>[role=tabpanel]{flex:0 0 360px;}}
