@@ -3,6 +3,31 @@ import assert from "node:assert/strict";
 import { tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
+import { simpleMovingAverage, movingAverageConvergence } from '../src/lib/ui/technical-indicators';
+
+test('moving averages use full preceding sessions without future closes or fabricated warmup',()=>{
+  const prices=Array.from({length:80},(_,index)=>({date:new Date(Date.UTC(2026,5,1+index)).toISOString().slice(0,10),close:index+1,volume:0}));
+  const average=simpleMovingAverage(prices,60);
+  assert.equal(average[0].date,prices[59].date);assert.equal(average[0].value,30.5);
+  assert.equal(average.at(-1)!.value,50.5);
+  assert.deepEqual(simpleMovingAverage(prices.slice(0,59),60),[]);
+  assert.deepEqual(simpleMovingAverage(prices.slice(0,65),60),average.slice(0,6));
+});
+test('MACD uses 12/26/9 EMA with complete signal warmup and no lookahead',()=>{
+  const prices=Array.from({length:80},(_,index)=>({date:new Date(Date.UTC(2026,5,1+index)).toISOString().slice(0,10),close:index+1,volume:0}));
+  const macd=movingAverageConvergence(prices);
+  assert.deepEqual(movingAverageConvergence(prices.slice(0,33)),[]);
+  assert.equal(macd[0].date,prices[33].date);
+  for(const point of macd){assert.ok(Math.abs(point.dif-7)<1e-10);assert.ok(Math.abs(point.signal-7)<1e-10);assert.ok(Math.abs(point.histogram)<1e-10);}
+  const varied=prices.map((price,index)=>({...price,close:100+Math.sin(index)*5+index*.2}));
+  assert.deepEqual(movingAverageConvergence(varied.slice(0,50)),movingAverageConvergence(varied).filter(point=>point.date<=varied[49].date));
+  const step=prices.map((price,index)=>({...price,close:index<40?100:110}));
+  const firstStep=movingAverageConvergence(step).find(point=>point.date===step[40].date)!;
+  const expectedDif=10*(2/13-2/27);
+  assert.ok(Math.abs(firstStep.dif-expectedDif)<1e-10);
+  assert.ok(Math.abs(firstStep.signal-expectedDif*.2)<1e-10);
+  assert.ok(Math.abs(firstStep.histogram-expectedDif*.8)<1e-10);
+});
 
 const graph: KnowledgeGraph = { asOf: "2026-10-11", nodes: [], sources: [{ id: "s", title: "Primary disclosure", url: "https://example.com/disclosure", sourceDate: "2026-04-10" }], relationships: [{ id: "r", source: "US:AMD", target: "US:NVDA", type: "PARTNER_OF", summary: "Evidence", commercialStatus: "ANNOUNCED", sourceIds: ["s"], publishedAt: "2026-09-20", researchReviewedAt: "2026-10-01", facts: [{ state: "ANNOUNCED", scope: "Planned partnership", sourceIds: ["s"], eventDate: "2027-01-01", reviewedAt: "2026-10-10" }] }] };
 test("Explore timeline preserves grouped events, company/source filters and publication dates", () => {

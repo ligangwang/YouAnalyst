@@ -8,7 +8,7 @@ export const DEFAULT_TIMELINE_RANGE = 30;
 export type TimelineRange = (typeof TIMELINE_RANGES)[number];
 export type TimelinePrice = { date: string; close: number; volume: number | null; open?:number; high?:number; low?:number };
 export type TimelineEvent = ClassifiedEvent & { id: string; date: string; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
-export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; available: boolean };
+export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; warmupPrices?:TimelinePrice[]; available: boolean };
 /** Stored sessions have equal spacing; closure publications keep distinct, interpolated dates. */
 export function tradingSessionAxis(dates: string[], start: string, end: string) {
   const sessions = [...new Set(dates.filter(date => date >= start && date <= end))].sort();

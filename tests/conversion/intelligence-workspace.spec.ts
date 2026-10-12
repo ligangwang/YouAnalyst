@@ -79,6 +79,55 @@ for(const pending of [false,true])test(`sector selection replaces ${pending?'pen
  await expect(page.getByRole('button',{name:/^Memory & storage/})).toHaveAttribute('aria-pressed','true');
 });
 
+test('chart sizes preserve selection and indicators read preceding history',async({page},info)=>{
+ await open(page);
+ const bars:import('../../src/lib/ui/company-timeline').TimelinePrice[]=[];
+ for(let date=Date.parse('2026-04-01'),index=0;date<=Date.parse('2026-10-09');date+=86_400_000){
+  if([0,6].includes(new Date(date).getUTCDay()))continue;
+  const close=100+index*.3+Math.sin(index++);
+  bars.push({date:new Date(date).toISOString().slice(0,10),open:close-.5,high:close+1,low:close-1,close,volume:1000});
+ }
+ const requests:string[]=[];
+ await page.route('**/api/company-timeline?*',route=>{
+  const url=route.request().url();requests.push(url);
+  const days=Number(new URL(url).searchParams.get('days')??30),start=new Date(Date.parse('2026-10-11')-days*86_400_000).toISOString().slice(0,10);
+  return route.fulfill({json:{companyId:'US:MU',start,end:'2026-10-11',currency:'USD',available:true,prices:bars.filter(bar=>bar.date>=start),...(url.includes('indicators=1')?{warmupPrices:bars.filter(bar=>bar.date<start)}: {})}});
+ });
+ const relationship=page.locator('section[aria-label="Company relationship chart"]');
+ await relationship.getByRole('button',{name:'Half screen',exact:true}).click();await expect(relationship).toHaveAttribute('data-chart-size','half');
+ expect((await relationship.boundingBox())!.height).toBeGreaterThanOrEqual(page.viewportSize()!.height*.49);
+ await relationship.getByRole('button',{name:'Full screen',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Company relationship chart'})).toBeVisible();
+ const graphBounds=(await relationship.boundingBox())!;expect(graphBounds.width).toBeGreaterThanOrEqual(page.viewportSize()!.width-1);
+ await page.screenshot({path:`output/graph-full-${info.project.name}.png`});
+ await page.keyboard.press('Escape');await expect(relationship).toHaveAttribute('data-chart-size','compact');
+ await expect(relationship.getByRole('button',{name:'Full screen',exact:true})).toBeFocused();
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline.locator('[data-price-candle]')).not.toHaveCount(0);
+ await expect(timeline.getByRole('button',{name:'MA60',exact:true})).toHaveAttribute('aria-pressed','false');
+ await expect(timeline.locator('[data-macd-panel]')).toHaveCount(0);
+ await timeline.getByRole('button',{name:'Half screen',exact:true}).click();await expect(timeline).toHaveAttribute('data-chart-size','half');
+ await timeline.getByRole('button',{name:'Full screen',exact:true}).click();await expect(timeline).toHaveAttribute('role','dialog');
+ await timeline.getByRole('button',{name:'MA60',exact:true}).click();
+ await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
+ expect(requests.some(url=>url.includes('indicators=1'))).toBeTruthy();
+ await timeline.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();await expect(timeline.locator('[data-macd-histogram]')).not.toHaveCount(0);
+ const candles=await timeline.locator('[data-price-candle]').count();
+ await timeline.getByRole('combobox',{name:'Price history range'}).selectOption('90');
+ await expect(timeline.locator('[data-price-candle]')).toHaveCount(bars.filter(bar=>bar.date>='2026-07-13').length);
+ expect(await timeline.locator('[data-price-candle]').count()).toBeGreaterThan(candles);
+ await timeline.getByRole('combobox',{name:'Price history range'}).selectOption('30');await expect(timeline.locator('[data-price-candle]')).toHaveCount(candles);
+ await timeline.getByRole('button',{name:'Events',exact:true}).click();await expect(timeline.locator('button[data-event-type]')).toHaveCount(0);
+ await page.screenshot({path:`output/indicators-full-${info.project.name}-dark.png`});
+ await page.addStyleTag({content:':root{--ui-surface:#fff;--ui-text:#172d40;--ui-muted:#536e85;--ui-line:#cad7e3;--ui-selected:#dceff3;--price-up:#008763;--price-down:#e52650;--chart-line:#0087a8;}'});
+ await page.screenshot({path:`output/indicators-full-${info.project.name}-light.png`});
+ await page.keyboard.press('Escape');await expect(timeline).toHaveAttribute('data-chart-size','compact');
+ await expect(page).toHaveURL(/company=US%3AMU/);
+ await timeline.getByRole('button',{name:'Full screen',exact:true}).click();await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Show timeline'})).toBeVisible();expect(await page.evaluate(()=>document.body.style.overflow)).not.toBe('hidden');
+});
+
 test('clicked price details show daily changes independently of event markers',async({page})=>{
  const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'closed',eventType:'financing',publication_date:'2026-10-04'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
  await open(page,false,fixture);
@@ -105,9 +154,11 @@ test('clicked price details show daily changes independently of event markers',a
  const svg=timeline.locator('svg');await svg.scrollIntoViewIfNeeded();
  const bounds=(await svg.boundingBox())!;
  const selectDay=async(index:number)=>{
+   await svg.scrollIntoViewIfNeeded();
+   const currentBounds=(await svg.boundingBox())!;
    const cx=Number(await svg.locator('circle').nth(index).getAttribute('cx'));
    const viewWidth=await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width);
-   await page.mouse.click(bounds.x+cx/viewWidth*bounds.width,bounds.y+bounds.height-24);
+   await page.mouse.click(currentBounds.x+cx/viewWidth*currentBounds.width,currentBounds.y+currentBounds.height-24);
  };
  const tooltip=timeline.getByRole('group',{name:'Price details'});
  await svg.hover({position:{x:bounds.width/2,y:bounds.height-24}});await expect(tooltip).toHaveCount(0);
