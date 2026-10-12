@@ -99,6 +99,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     return {baselineDate:previous.date,latestDate:current.date,change:current.close/previous.close-1,adjacent};
   };
   const hoverReturn=nearest?dailyReturnFor(nearest.date):undefined;
+  const tooltipHalfWidth=Math.min(140,Math.max(0,width/2-8));
   const returnLabel=(value:EventPriceReturn)=>{
     const days=Math.round((Date.parse(value.latestDate)-Date.parse(value.baselineDate))/86_400_000);
     const label=`${text('Since pub.','发布以来')} (${days}${text('d','天')}):`;
@@ -126,7 +127,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         {activeDate && <line x1={hoverPrice && nearest ? x(nearest.date) : x(activeDate)} x2={hoverPrice && nearest ? x(nearest.date) : x(activeDate)} y1={8} y2={volumeBottom+2} stroke="#c4e8f4" opacity={.55} />}
         {hoverPrice && hoverDate && nearest && <circle cx={x(nearest.date)} cy={y(nearest.close)} r={4} fill="#79cfe9" stroke="#e5f7ff" strokeWidth={2} />}
       </svg>
-      {hoverPrice && hoverDate && nearest && <div className={styles.priceTooltip} role="tooltip" style={{left:Math.max(90,Math.min(width-90,x(nearest.date))),top:y(nearest.close)-12}}>
+      {hoverPrice && hoverDate && nearest && <div className={styles.priceTooltip} role="tooltip" style={{left:Math.max(tooltipHalfWidth+8,Math.min(width-tooltipHalfWidth-8,x(nearest.date))),top:y(nearest.close)-12}}>
         <span>{nearest.date}</span>
         <strong>{text("Close", "收盘价")} · {new Intl.NumberFormat(locale, data?.currency ? {style:"currency",currency:data.currency,minimumFractionDigits:2,maximumFractionDigits:2} : {minimumFractionDigits:2,maximumFractionDigits:2}).format(nearest.close)}</strong>
         {hoverReturn&&<span title={`${hoverReturn.baselineDate} → ${hoverReturn.latestDate}`}>{hoverReturn.adjacent?text('Daily change','当日涨跌幅'):`${text('Change since','较')} ${hoverReturn.baselineDate}`} · <b data-return-direction={hoverReturn.change>0?'up':hoverReturn.change<0?'down':'flat'}>{hoverReturn.change>0?'▲':hoverReturn.change<0?'▼':'—'} {signedPercent(hoverReturn.change)}</b></span>}

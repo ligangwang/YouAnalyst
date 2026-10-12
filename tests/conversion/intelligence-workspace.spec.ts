@@ -136,6 +136,9 @@ test('long price gaps connect recorded closes without synthetic bars',async({pag
  await expect(timeline.getByRole('tooltip')).toContainText('Close · $102.00');
  await expect(timeline.getByRole('tooltip')).toContainText('Change since 2026-09-28 · ▲ +2.00%');
  await expect(timeline.getByRole('tooltip')).not.toContainText('Daily change');
+ const tooltipBounds=(await timeline.getByRole('tooltip').boundingBox())!;
+ expect(tooltipBounds.x).toBeGreaterThanOrEqual(bounds.x);
+ expect(tooltipBounds.x+tooltipBounds.width).toBeLessThanOrEqual(bounds.x+bounds.width);
 });
 
 test('exact ticker search emphasizes connected graph nodes like a node click',async({page},info)=>{
