@@ -1044,3 +1044,25 @@ test('candles are default, line is optional and missing OHLC never creates candl
  await timeline.getByRole('button',{name:'Line',exact:true}).click();await expect(svg).toHaveAttribute('data-chart-type','line');await expect(svg.locator('[data-price-candle]')).toHaveCount(0);await expect(svg.locator('[data-price-line]')).toHaveCount(1);await expect(svg.locator('[data-price-gap]')).toHaveCount(1);
  await timeline.getByRole('button',{name:'Candles',exact:true}).click();await expect(svg.locator('[data-price-candle]')).toHaveCount(3);
 });
+
+test('selected graph keeps its relationships while hovering partners and clicking lines',async({page},info)=>{
+ test.skip(info.project.name!=='desktop','Actual WebGL relationship hit regression');test.setTimeout(60000);
+ await page.setViewportSize({width:1500,height:900});await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'selected-partner',source:'US:MU',target:'US:LITE',type:'PARTNER_OF',summary:'Selected memory optics relationship',commercialStatus:'ANNOUNCED',sourceIds:[]},{id:'secondary-partner',source:'US:LITE',target:'US:MEM',type:'PARTNER_OF',summary:'Partner secondary network',commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
+ const body=await workspaceFixture(true,fixture);await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.fulfill({status:404,body:''}));
+ await page.goto('http://workspace.test/?view=graph');const canvas=page.locator('canvas');await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');await search.blur();
+ await page.getByRole('button',{name:'Collapse left panel',exact:true}).click();await page.getByRole('button',{name:'Collapse right panel',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-visible-relationships','selected-partner');
+ const partner=page.locator('[data-company-id="US:LITE"]');await partner.hover();await expect(canvas).toHaveAttribute('data-visible-relationships','selected-partner');
+ await expect.poll(()=>canvas.evaluate(el=>Math.abs(el.getBoundingClientRect().width-el.parentElement!.getBoundingClientRect().width))).toBeLessThan(1);
+ await page.mouse.move(1,1);await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+ const candidates=await page.evaluate(()=>{const center=(id:string)=>{const r=document.querySelector(`[data-company-id="${id}"]`)!.parentElement!.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};};const a=center('US:MU'),b=center('US:LITE');return [.3,.4,.5,.6,.7].map(t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t})).filter(p=>document.elementFromPoint(p.x,p.y) instanceof HTMLCanvasElement);});
+ expect(candidates.length).toBeGreaterThan(0);let point:typeof candidates[number]|undefined;
+ for(const candidate of candidates){await page.mouse.move(candidate.x,candidate.y);await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>resolve())));if(await canvas.getAttribute('data-hovered-relationship')==='selected-partner'){point=candidate;break;}}
+ expect(point,'Visible dashed relationship should be hoverable in screen space').toBeTruthy();
+ await expect(page.locator('[data-relationship-id="selected-partner"][data-displayed="true"]')).toContainText('Selected memory optics relationship');
+ await page.mouse.click(point!.x,point!.y);await expect(page).toHaveURL(/company=US%3AMU/);await expect(page).toHaveURL(/relationship=selected-partner/);
+ await expect(canvas).toHaveAttribute('data-rotation','focused');await expect(canvas).toHaveAttribute('data-visible-relationships','selected-partner');await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Micron');
+ await page.screenshot({path:'output/selected-relationship-hit.png'});
+});
