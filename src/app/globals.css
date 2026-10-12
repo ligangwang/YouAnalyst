@@ -77,7 +77,7 @@ a {
 .price-down { color:var(--price-down); }
 :root[data-theme="light"] {
   color-scheme:light;
-  --brand-you:#142536; --brand-analyst:#168c42; --brand-green-start:#128a64; --brand-green-end:#087b56;
+  --brand-you:#142536;
   --background:#f4f7fa; --foreground:#142536;
   --color-paper:#ffffff; --color-ink:#142536; --color-shell:#ffffff; --color-line:#ccd7e1;
   --text-secondary:#475f73; --text-muted:#526a7d;
