@@ -130,3 +130,16 @@ test('session axis handles missing, single and unordered stored prices without i
  const single=tradingSessionAxis(['2026-10-08'],'2026-10-01','2026-10-11');assert.equal(single.ratio('2026-10-08'),.5);assert.equal(single.dateAt(0),'2026-10-08');assert.equal(single.dateAt(1),'2026-10-08');assert.ok(single.ratio('2026-10-05')<.5);assert.ok(single.ratio('2026-10-10')>.5);
  assert.deepEqual(tradingSessionAxis(['2026-10-09','2026-10-08','2026-10-08','2026-09-30'],'2026-10-01','2026-10-11').sessions,['2026-10-08','2026-10-09']);
 });
+
+
+test('event symbols clear full candle wicks and bodies while retaining date columns',async()=>{
+ const {layoutOverlayMarkers}=await import('../src/lib/ui/company-timeline');
+ const events=['2026-09-10','2026-09-20'].map((date,i)=>({id:String(i),date,title:'Event',description:'',lane:'business' as const,eventType:'product_business' as const,sourceUrl:'https://example.com',sourceTitle:'Source',planned:false}));
+ const bounds=[{left:85,right:95,top:65,bottom:132},{left:185,right:195,top:72,bottom:137}];
+ const groups=layoutOverlayMarkers(events,'2026-09-01','2026-10-01',300,24,140,[],26,undefined,bounds);
+ assert.equal(groups.length,2);
+ for(const group of groups){
+  assert.equal(group.x,(Date.parse(group.events[0].date)-Date.parse('2026-09-01'))/86400000*10);
+  for(const candle of bounds){const dx=Math.max(candle.left-group.x,0,group.x-candle.right),dy=Math.max(candle.top-group.y,0,group.y-candle.bottom);assert.ok(Math.hypot(dx,dy)-group.size/2>=8-1e-9);}
+ }
+});
