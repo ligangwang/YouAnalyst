@@ -1048,7 +1048,7 @@ test('candles are default, line is optional and missing OHLC never creates candl
 test('selected graph keeps its relationships while hovering partners and clicking lines',async({page},info)=>{
  test.skip(info.project.name!=='desktop','Actual WebGL relationship hit regression');test.setTimeout(60000);
  await page.setViewportSize({width:1500,height:900});await page.emulateMedia({reducedMotion:'reduce'});
- const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'selected-partner',source:'US:MU',target:'US:LITE',type:'PARTNER_OF',summary:'Selected memory optics relationship',commercialStatus:'ANNOUNCED',sourceIds:[]},{id:'secondary-partner',source:'US:LITE',target:'US:MEM',type:'PARTNER_OF',summary:'Partner secondary network',commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,relationships:[{id:'selected-partner',source:'US:LITE',target:'US:MU',type:'PARTNER_OF',summary:'Selected memory optics relationship',commercialStatus:'ANNOUNCED',sourceIds:[]},{id:'secondary-partner',source:'US:LITE',target:'US:MEM',type:'PARTNER_OF',summary:'Partner secondary network',commercialStatus:'DOCUMENTED',sourceIds:[]}]}};
  const body=await workspaceFixture(true,fixture);await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.fulfill({status:404,body:''}));
  await page.goto('http://workspace.test/?view=graph');const canvas=page.locator('canvas');await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');await search.blur();
@@ -1064,5 +1064,5 @@ test('selected graph keeps its relationships while hovering partners and clickin
  await expect(page.locator('[data-relationship-id="selected-partner"][data-displayed="true"]')).toContainText('Selected memory optics relationship');
  await page.mouse.click(point!.x,point!.y);await expect(page).toHaveURL(/company=US%3AMU/);await expect(page).toHaveURL(/relationship=selected-partner/);
  await expect(canvas).toHaveAttribute('data-rotation','focused');await expect(canvas).toHaveAttribute('data-visible-relationships','selected-partner');await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Micron');
- await page.screenshot({path:'output/selected-relationship-hit.png'});
+ await page.getByRole('region',{name:'Company details',exact:true}).getByRole('button',{name:/LITE.*MU/}).click();await expect(page).toHaveURL(/company=US%3AMU/);await expect(canvas).toHaveAttribute('data-rotation','focused');await page.screenshot({path:'output/selected-relationship-hit.png'});
 });
