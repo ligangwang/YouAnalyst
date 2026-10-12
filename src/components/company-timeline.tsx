@@ -90,8 +90,10 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const min = prices.length ? Math.min(...prices.map(p => useCandles?p.low??p.close:p.close)) : 0, max = prices.length ? Math.max(...prices.map(p => useCandles?p.high??p.close:p.close)) : 1;
   const candleWidth=Math.max(2,Math.min(10,plotWidth/Math.max(1,prices.length)*.65));
   const pad = Math.max((max - min) * .1, max * .01), low = Math.max(0, min - pad), high = max + pad;
-  const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * (priceBottom-priceTop);
-  const groups=layoutOverlayMarkers(events,start,end,plotWidth,priceTop,priceBottom,prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26,date=>x(date)-left);
+  // Keep a compact escape row above the full wick range, within the existing chart height.
+  const headroom=useCandles&&events.some(event=>event.date>=start&&event.date<=end)?Math.min(40,(priceBottom-priceTop)*.3):0;
+  const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * (priceBottom-priceTop-headroom);
+  const groups=layoutOverlayMarkers(events,start,end,plotWidth,priceTop,priceBottom,useCandles?[]:prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26,date=>x(date)-left,useCandles?prices.map(price=>({left:x(price.date)-left-candleWidth/2,right:x(price.date)-left+candleWidth/2,top:y(price.high??price.close),bottom:y(price.low??price.close)})):[]);
   const openCluster=groups.find(group=>group.events.some(event=>event.id===clusterId));
   const selectedGroup=groups.find(group=>group.events.some(event=>event.id===selectedId));
   const maxVolume = Math.max(1, ...prices.map(p => p.volume ?? 0));
@@ -153,6 +155,11 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         {prices.length > 0 && prices.every(p => p.volume === null) && <text x={left + 8} y={volumeBottom-6}>{text("Volume not recorded", "未记录成交量")}</text>}
         <line x1={left} x2={right} y1={volumeBottom+2} y2={volumeBottom+2} stroke="var(--ui-line,#30485a)" />
         {tickDates.map(date => <text key={date} data-session-tick={date} x={x(date)} y={chartHeight-6} textAnchor="middle">{formatDate(date)}</text>)}
+        {useCandles&&groups.map(group=>{
+          const candle=candles.find(price=>price.date===group.events[0].date);if(!candle)return null;
+          const above=group.y<y(candle.high),below=group.y>y(candle.low);if(!above&&!below)return null;
+          return <line key={group.events[0].id} data-event-connector={group.events[0].date} x1={left+group.x} x2={left+group.x} y1={group.y+(above?group.size/2:-group.size/2)} y2={y(above?candle.high:candle.low)} stroke="var(--ui-muted,#9db4c8)" strokeDasharray="2 3" opacity={.35} pointerEvents="none"/>;
+        })}
         {activeDate && <line x1={priceDate && nearest ? x(nearest.date) : x(activeDate)} x2={priceDate && nearest ? x(nearest.date) : x(activeDate)} y1={8} y2={volumeBottom+2} stroke="var(--ui-muted,#c4e8f4)" opacity={.55} />}
         {priceDate && nearest && <circle cx={x(nearest.date)} cy={y(nearest.close)} r={4} fill="var(--chart-line,#79cfe9)" stroke="#e5f7ff" strokeWidth={2} />}
       </svg>

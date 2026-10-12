@@ -137,7 +137,7 @@ test('long price gaps connect recorded closes without synthetic bars',async({pag
  await expect(timeline.locator('svg rect')).toHaveCount(2);
  await timeline.locator('svg').scrollIntoViewIfNeeded();
  const bounds=(await timeline.locator('svg').boundingBox())!;
- await page.mouse.move(bounds.x+bounds.width*.82,bounds.y+bounds.height-50);
+ await page.mouse.click(bounds.x+bounds.width*.82,bounds.y+bounds.height-24);
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('2026-10-08');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Close · $102.00');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Change since 2026-09-28 · ▲ +2.00%');
@@ -1035,7 +1035,8 @@ test('dense overlay keeps exact dates and every category accessible without grow
 });
 
 test('candles are default, line is optional and missing OHLC never creates candles',async({page},info)=>{
- await open(page);
+ const candleFixture={...snapshot,events:[...snapshot.events,{...snapshot.events[0],id:'wick-clearance',title:'Full wick clearance event',publication_date:'2026-09-29',eventType:'earnings' as const}]};
+ await open(page,false,candleFixture);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-28',open:100,high:110,low:95,close:110,volume:10},{date:'2026-09-29',open:108,high:112,low:99,close:100,volume:20},{date:'2026-09-30',open:101,high:107,low:98,close:101,volume:30},{date:'2026-10-08',close:103,volume:0}]}}));
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
@@ -1046,8 +1047,18 @@ test('candles are default, line is optional and missing OHLC never creates candl
  const positions=await svg.locator('circle').evaluateAll(elements=>elements.map(el=>Number(el.getAttribute('cx'))));
  expect(positions).toHaveLength(4);for(let i=2;i<positions.length;i++)expect(positions[i]-positions[i-1]).toBeCloseTo(positions[1]-positions[0],5);
  expect(await svg.locator('[data-session-tick]').evaluateAll(elements=>elements.map(el=>el.getAttribute('data-session-tick')))).toEqual(['2026-09-28','2026-09-29','2026-09-30','2026-10-08'].filter((_,i)=>info.project.name==='desktop'||i!==1));
- const publication=timeline.locator('button[data-event-type]').first();await expect(publication).toHaveAttribute('title',/Oct 2/);
+ const publication=timeline.getByRole('button',{name:/events .* Oct 2/}).first();await expect(publication).toHaveAttribute('title',/Oct 2/);
  const publicationX=await publication.evaluate(el=>parseFloat((el as HTMLElement).style.left));expect(publicationX).toBeCloseTo(positions[2]+(positions[3]-positions[2])*2/8,4);
+ const wickEvent=timeline.getByRole('button',{name:/Sep 29: Full wick clearance event/});
+ const eventBox=(await wickEvent.boundingBox())!,svgBox=(await svg.boundingBox())!;
+ const viewScale=svgBox.width/await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width);
+ for(const candle of await svg.locator('[data-price-candle]').all()){
+  const wick=candle.locator('line'),body=candle.locator('rect');
+  const top=svgBox.y+Number(await wick.getAttribute('y1'))*viewScale,bottom=svgBox.y+Number(await wick.getAttribute('y2'))*viewScale,left=svgBox.x+Number(await body.getAttribute('x'))*viewScale,right=left+Number(await body.getAttribute('width'))*viewScale;
+  const centerX=eventBox.x+eventBox.width/2,centerY=eventBox.y+eventBox.height/2;
+  expect(Math.hypot(Math.max(left-centerX,0,centerX-right),Math.max(top-centerY,0,centerY-bottom))-eventBox.width/2).toBeGreaterThanOrEqual(8*viewScale-.1);
+ }
+ await expect(svg.locator('[data-event-connector="2026-09-29"]')).toHaveCount(1);
  const bounds=(await svg.boundingBox())!,viewWidth=await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width),cx=Number(await svg.locator('[data-price-candle="2026-09-29"] line').getAttribute('x1'));
  await svg.click({position:{x:cx/viewWidth*bounds.width,y:bounds.height-24}});
  const tooltip=timeline.getByRole('group',{name:'Price details'});await expect(tooltip.locator('[data-hover-ohlc]')).toContainText('O 108.00 · H 112.00 · L 99.00');await expect(tooltip).toContainText('Daily change · ▼ -9.09%');await expect(tooltip.locator('[data-latest-return]')).toContainText('▲ +3.00%');

@@ -101,7 +101,7 @@ export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:st
  return groups;
 }
 /** Place date-anchored markers in a fixed price plot, using the chooser for crowded dates. */
-export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:string,width:number,top:number,bottom:number,curve:{x:number;y:number}[],preferredSize=28,position?: (date:string)=>number){
+export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:string,width:number,top:number,bottom:number,curve:{x:number;y:number}[],preferredSize=28,position?: (date:string)=>number,candleBounds:{left:number;right:number;top:number;bottom:number}[]=[]){
  const rows=4,gap=8,padding=4;
  let groups=layoutTimelineMarkers(events,start,end,width,36,position).map(group=>({...group,events:[...group.events]}));
  // Consolidate only a crowded date, never neighboring publication dates.
@@ -126,16 +126,33 @@ export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:str
    const t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
    nearest=Math.min(nearest,Math.hypot(x-a.x-t*dx,y-a.y-t*dy));
   }
+  for(const candle of candleBounds){
+   const dx=Math.max(candle.left-x,0,x-candle.right),dy=Math.max(candle.top-y,0,y-candle.bottom);
+   nearest=Math.min(nearest,Math.hypot(dx,dy));
+  }
   return nearest;
  };
- const last=Array<number>(rows).fill(-Infinity);
- return groups.map(group=>{
-  const free=ys.map((y,row)=>({y,row,clearance:distance(group.x,y)})).filter(candidate=>group.x-last[candidate.row]>=size+gap-0.01);
-  const candidates=free.length?free:ys.map((y,row)=>({y,row,clearance:group.x-last[row]}));
-  candidates.sort((a,b)=>b.clearance-a.clearance||a.row-b.row);
-  const chosen=candidates[0];last[chosen.row]=group.x;
-  return {...group,level:chosen.row,y:chosen.y,size};
- });
+ const placed: Array<(typeof groups)[number]&{y:number;size:number}> = [];
+ for(const group of groups){
+  let chosen:{y:number;clearance:number}|undefined,markerSize=size;
+  for(;markerSize>=4;markerSize=Math.max(4,markerSize-2)){
+   const minY=top+markerSize/2+padding,maxY=bottom-markerSize/2-padding;
+   const candidates=[minY,maxY,...Array.from({length:Math.max(0,Math.floor((maxY-minY)/2))},(_,i)=>minY+i*2)]
+    .filter(y=>placed.every(previous=>Math.hypot(group.x-previous.x,y-previous.y)>=(markerSize+previous.size)/2+2))
+    .map(y=>({y,clearance:distance(group.x,y)})).sort((a,b)=>b.clearance-a.clearance||a.y-b.y);
+   chosen=candidates.find(candidate=>candidate.clearance>=markerSize/2+8);
+   if(chosen)break;
+   if(markerSize===4){
+    // If one date is crowded, retain its symbols/references in the same-date chooser.
+    const sameDate=placed.find(previous=>previous.events[0].date===group.events[0].date);
+    if(sameDate){sameDate.events.push(...group.events);break;}
+    chosen=candidates[0]??{y:minY,clearance:distance(group.x,minY)};break;
+   }
+  }
+  if(!chosen)continue;
+  placed.push({...group,level:ys.reduce((best,y,i)=>Math.abs(y-chosen!.y)<Math.abs(ys[best]-chosen!.y)?i:best,0),y:chosen.y,size:markerSize});
+ }
+ return placed;
 }
 export function clusterTimelineEvents(events: TimelineEvent[], start: string, end: string, width: number, spacing = 36, separateLanes = true) {
   const first = Date.parse(start), span = Math.max(1, Date.parse(end) - first);
