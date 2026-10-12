@@ -3,12 +3,33 @@ import { intelligenceEventTitle, type IntelligenceEvent, type IntelligenceSource
 import { relationshipSourceTitle, relationshipSummary, type KnowledgeGraph } from "../knowledge-graph/model";
 import {classifyEvent,eventPresentation,type ClassifiedEvent} from '../events/classification';
 
-export const TIMELINE_RANGES = [30, 90, 180, 365, 1826] as const;
+export const TIMELINE_RANGES = [30, 90, 180, 'ytd', 365, 1826] as const;
+export const TIMELINE_RANGE_LABELS = {30:'1M',90:'3M',180:'6M',ytd:'YTD',365:'1Y',1826:'5Y'} as const;
 export const DEFAULT_TIMELINE_RANGE = 30;
 export type TimelineRange = (typeof TIMELINE_RANGES)[number];
-export type TimelinePrice = { date: string; close: number; volume: number | null; open?:number; high?:number; low?:number };
+export type TimelinePrice = { date: string; close: number; volume: number | null; open?:number; high?:number; low?:number; periodStart?:string };
 export type TimelineEvent = ClassifiedEvent & { id: string; date: string; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
-export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; warmupPrices?:TimelinePrice[]; available: boolean };
+export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; warmupPrices?:TimelinePrice[]; interval?:'daily'|'weekly'; available: boolean };
+export function timelineWeek(date:string) {
+ const day=new Date(`${date}T00:00:00Z`);day.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);return day.toISOString().slice(0,10);
+}
+/** Monday-based trading weeks: missing OHLC/volume stays missing, never inferred. */
+export function weeklyTimelinePrices(prices:TimelinePrice[]):TimelinePrice[] {
+ const weeks=new Map<string,TimelinePrice[]>();
+ for(const price of [...prices].sort((a,b)=>a.date.localeCompare(b.date))){const key=timelineWeek(price.date);const rows=weeks.get(key)??[];rows.push(price);weeks.set(key,rows);}
+ return [...weeks.values()].map(rows=>{
+  const first=rows[0],last=rows.at(-1)!;
+  const complete=rows.every(row=>row.open!==undefined&&row.high!==undefined&&row.low!==undefined);
+  return {date:last.date,periodStart:first.date,close:last.close,volume:rows.every(row=>row.volume!==null)?rows.reduce((sum,row)=>sum+row.volume!,0):null,
+   ...(complete?{open:first.open,high:Math.max(...rows.map(row=>row.high!)),low:Math.min(...rows.map(row=>row.low!))}:{})};
+ });
+}
+/** Keep the first visible partial week stable when indicator warmup is requested. */
+export function timelinePriceBars(prices:TimelinePrice[],start:string,weekly:boolean){
+ const visible=prices.filter(price=>price.date>=start);
+ const preceding=prices.filter(price=>price.date<start&&(!weekly||timelineWeek(price.date)<timelineWeek(start)));
+ return {prices:weekly?weeklyTimelinePrices(visible):visible,warmupPrices:weekly?weeklyTimelinePrices(preceding):preceding};
+}
 /** Stored sessions have equal spacing; closure publications keep distinct, interpolated dates. */
 export function tradingSessionAxis(dates: string[], start: string, end: string) {
   const sessions = [...new Set(dates.filter(date => date >= start && date <= end))].sort();
@@ -39,6 +60,8 @@ export function timelineDate(value: unknown): string | null {
 }
 export function timelineWindow(days: TimelineRange, end = new Date().toISOString().slice(0, 10)) {
   if (!timelineDate(end)) throw new Error("Invalid timeline end date");
+  if(days==='ytd')return {start:`${end.slice(0,4)}-01-01`,end};
+  if(days===365||days===1826){const date=new Date(`${end}T00:00:00Z`),month=date.getUTCMonth();date.setUTCFullYear(date.getUTCFullYear()-(days===365?1:5));if(date.getUTCMonth()!==month)date.setUTCDate(0);return {start:date.toISOString().slice(0,10),end};}
   return { start: new Date(Date.parse(`${end}T00:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10), end };
 }
 export function mapTimelinePrice(data: Record<string, unknown>, ticker: string, market: string): TimelinePrice | null {
@@ -82,7 +105,7 @@ export function companyTimelineEvents(companyId: string, graph: KnowledgeGraph |
   return [...unique.values()].map(event=>{const classification=classifyEvent({title:event.title,type:event.lane==='business'?'company_news':'research'});return {...event,...classification,...(event.lane==='research'&&classification.eventType==='other'?{eventType:'relationship' as const,eventSubtype:'relationship_disclosure'}:{})};}).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }
 /** Only same-date events with the same symbol share a badge; all other dates retain their anchors. */
-export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:string,width:number,spacing=36,position?: (date:string)=>number){
+export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:string,width:number,spacing=36,position?: (date:string)=>number,groupDate:(date:string)=>string=date=>date){
  const groups:{x:number;level:number;events:TimelineEvent[]}[]=[];
  const last:typeof groups=[];
  const span=Math.max(1,Date.parse(end)-Date.parse(start));
@@ -91,7 +114,7 @@ export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:st
   const presentation=eventPresentation(event);
   const matching=groups.findLast(group=>{
    const previous=eventPresentation(group.events[0]);
-   return group.events[0].date===event.date&&previous.type===presentation.type&&previous.symbol===presentation.symbol&&previous.color===presentation.color;
+   return groupDate(group.events[0].date)===groupDate(event.date)&&previous.type===presentation.type&&previous.symbol===presentation.symbol&&previous.color===presentation.color;
   });
   if(matching){matching.events.push(event);continue;}
   const freeLevel=last.findIndex(group=>x-group.x>=spacing);
@@ -101,18 +124,18 @@ export function layoutTimelineMarkers(events:TimelineEvent[],start:string,end:st
  return groups;
 }
 /** Place date-anchored markers in a fixed price plot, using the chooser for crowded dates. */
-export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:string,width:number,top:number,bottom:number,curve:{x:number;y:number}[],preferredSize=28,position?: (date:string)=>number,candleBounds:{left:number;right:number;top:number;bottom:number}[]=[]){
+export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:string,width:number,top:number,bottom:number,curve:{x:number;y:number}[],preferredSize=28,position?: (date:string)=>number,candleBounds:{left:number;right:number;top:number;bottom:number}[]=[],groupDate:(date:string)=>string=date=>date){
  const rows=4,gap=8,padding=4;
- let groups=layoutTimelineMarkers(events,start,end,width,36,position).map(group=>({...group,events:[...group.events]}));
+ let groups=layoutTimelineMarkers(events,start,end,width,36,position,groupDate).map(group=>({...group,events:[...group.events]}));
  // Consolidate only a crowded date, never neighboring publication dates.
  for(;;){
   const dense=groups.findIndex((group,index)=>index>=rows&&group.x-groups[index-rows].x<22);
   if(dense<0)break;
   const window=groups.slice(dense-rows,dense+1);
-  const date=window.map(group=>group.events[0].date).sort((a,b)=>groups.filter(g=>g.events[0].date===b).length-groups.filter(g=>g.events[0].date===a).length).find(date=>groups.filter(g=>g.events[0].date===date).length>1);
+  const date=window.map(group=>groupDate(group.events[0].date)).sort((a,b)=>groups.filter(g=>groupDate(g.events[0].date)===b).length-groups.filter(g=>groupDate(g.events[0].date)===a).length).find(date=>groups.filter(g=>groupDate(g.events[0].date)===date).length>1);
   if(!date)break;
-  const matching=groups.filter(group=>group.events[0].date===date),first=matching[0];
-  groups=groups.filter(group=>group.events[0].date!==date);
+  const matching=groups.filter(group=>groupDate(group.events[0].date)===date),first=matching[0];
+  groups=groups.filter(group=>groupDate(group.events[0].date)!==date);
   groups.push({...first,events:matching.flatMap(group=>group.events)});
   groups.sort((a,b)=>a.x-b.x||a.events[0].id.localeCompare(b.events[0].id));
  }
@@ -144,7 +167,7 @@ export function layoutOverlayMarkers(events:TimelineEvent[],start:string,end:str
    if(chosen)break;
    if(markerSize===4){
     // If one date is crowded, retain its symbols/references in the same-date chooser.
-    const sameDate=placed.find(previous=>previous.events[0].date===group.events[0].date);
+    const sameDate=placed.find(previous=>groupDate(previous.events[0].date)===groupDate(group.events[0].date));
     if(sameDate){sameDate.events.push(...group.events);break;}
     chosen=candidates[0]??{y:minY,clearance:distance(group.x,minY)};break;
    }

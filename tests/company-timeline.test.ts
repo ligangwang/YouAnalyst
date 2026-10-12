@@ -1,9 +1,42 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
+import { timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
 import { simpleMovingAverage, movingAverageConvergence } from '../src/lib/ui/technical-indicators';
+import {cachedTimelinePrices} from '../src/lib/ui/timeline-cache';
+
+test('YTD and annual windows use calendar boundaries, including leap days',()=>{
+ assert.deepEqual(timelineWindow('ytd','2026-10-12'),{start:'2026-01-01',end:'2026-10-12'});
+ assert.equal(timelineWindow('ytd','2026-01-01').start,'2026-01-01');
+ assert.equal(timelineWindow(1826,'2026-10-12').start,'2021-10-12');
+ assert.equal(timelineWindow(365,'2024-02-29').start,'2023-02-28');
+});
+
+test('weekly bars retain true OHLC, summed volume, partial holiday weeks and missing values',()=>{
+ const rows=[{date:'2026-09-28',open:10,high:15,low:9,close:12,volume:100},{date:'2026-09-30',open:12,high:14,low:8,close:11,volume:200},{date:'2026-10-09',open:11,high:13,low:10,close:12,volume:null}];
+ assert.deepEqual(weeklyTimelinePrices(rows),[{date:'2026-09-30',periodStart:'2026-09-28',open:10,high:15,low:8,close:11,volume:300},{date:'2026-10-09',periodStart:'2026-10-09',open:11,high:13,low:10,close:12,volume:null}]);
+ assert.deepEqual(weeklyTimelinePrices([{date:'2026-10-01',close:11,volume:0}]),[{date:'2026-10-01',periodStart:'2026-10-01',close:11,volume:0}]);
+ assert.equal(timelineWeek('2026-10-04'),'2026-09-28');
+});
+
+test('weekly event grouping retains individual publication dates and separates following weeks',()=>{
+ const dates=['2026-09-28','2026-09-30','2026-10-05'];
+ const events=dates.map((date,index)=>({id:String(index),date,title:'Business update',description:'',lane:'business' as const,eventType:'product_business' as const,eventSubtype:'business_update',sourceUrl:'https://example.com/'+index,sourceTitle:'Original',planned:false}));
+ const weekly=layoutTimelineMarkers(events,'2026-09-01','2026-10-12',500,36,undefined,timelineWeek);
+ assert.deepEqual(weekly.map(group=>group.events.map(event=>event.date)),[dates.slice(0,2),dates.slice(2)]);
+ assert.equal(layoutTimelineMarkers(events,'2026-09-01','2026-10-12',500).length,3);
+});
+
+test('timeline cache shares pending reads, expires, separates revisions and retries failures',async()=>{
+ let calls=0;const data={companyId:'US:TEST',start:'2021-01-01',end:'2026-01-01',prices:[],currency:'USD',available:true};
+ const load=async()=>{calls++;return data;};
+ await Promise.all([cachedTimelinePrices('test-revision-1',load,0),cachedTimelinePrices('test-revision-1',load,1)]);assert.equal(calls,1);
+ await cachedTimelinePrices('test-revision-1',load,60_001);assert.equal(calls,2);
+ await cachedTimelinePrices('test-revision-2',load,60_002);assert.equal(calls,3);
+ await assert.rejects(cachedTimelinePrices('test-failure',async()=>{throw Error('read failed');},0));
+ await cachedTimelinePrices('test-failure',load,1);assert.equal(calls,4);
+});
 
 test('moving averages use full preceding sessions without future closes or fabricated warmup',()=>{
   const prices=Array.from({length:80},(_,index)=>({date:new Date(Date.UTC(2026,5,1+index)).toISOString().slice(0,10),close:index+1,volume:0}));
@@ -167,4 +200,11 @@ test('event symbols clear full candle wicks and bodies while retaining date colu
   assert.equal(group.x,(Date.parse(group.events[0].date)-Date.parse('2026-09-01'))/86400000*10);
   for(const candle of bounds){const dx=Math.max(candle.left-group.x,0,group.x-candle.right),dy=Math.max(candle.top-group.y,0,group.y-candle.bottom);assert.ok(Math.hypot(dx,dy)-group.size/2>=8-1e-9);}
  }
+});
+
+test('indicator warmup cannot change the first visible weekly candle',()=>{
+ const rows=['2026-09-25','2026-09-28','2026-09-30','2026-10-01','2026-10-02'].map((date,index)=>({date,open:10+index,high:15+index,low:9+index,close:11+index,volume:100}));
+ const full=timelinePriceBars(rows,'2026-10-01',true);
+ const visible=timelinePriceBars(rows.slice(3),'2026-10-01',true);
+ assert.deepEqual(full.prices,visible.prices);assert.equal(full.prices[0].open,13);assert.equal(full.warmupPrices.length,1);assert.equal(full.warmupPrices[0].date,'2026-09-25');
 });
