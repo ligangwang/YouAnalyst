@@ -60,16 +60,17 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   }, [closed]);
   const toggleTimeline = (value: boolean) => { restoreToggleFocus.current = true; setClosed(value); if(value)setChartSize("compact"); setPriceSelection(null); setClusterId(''); setHoverDate(null); };
   const key = `${companyId}:${days}:${needsHistory}:${retry}`;
-  const matchingInitial = initialPrices?.companyId===companyId && initialPrices.start===timelineWindow(days,initialPrices.end).start ? initialPrices : null;
+  const matchingInitial = initialPrices?.companyId===companyId && initialPrices.start<=timelineWindow(days,initialPrices.end).start ? initialPrices : null;
+  const initialHistoryReady = Boolean(matchingInitial && (matchingInitial.warmupPrices || matchingInitial.prices.filter(price=>price.date<timelineWindow(days,matchingInitial.end).start).length>=100));
   useEffect(() => {
-    if (matchingInitial && (!needsHistory || matchingInitial.warmupPrices)) return;
+    if (matchingInitial && (!needsHistory || initialHistoryReady)) return;
     const controller = new AbortController();
     fetch(`/api/company-timeline?company=${encodeURIComponent(companyId)}&days=${days}${needsHistory?'&indicators=1':''}`, { signal: controller.signal })
       .then(async r => { const data = await r.json(); if (!data || data.companyId !== companyId || !Array.isArray(data.prices)) throw new Error(); return data as TimelinePrices; })
       .then(data => setLoaded({ key, data }))
       .catch(() => { if (!controller.signal.aborted) setLoaded({ key, data: { companyId, ...timelineWindow(days), currency: null, prices: [], available: false } }); });
     return () => controller.abort();
-  }, [companyId, days, matchingInitial, needsHistory, key]);
+  }, [companyId, days, matchingInitial, initialHistoryReady, needsHistory, key]);
   useEffect(() => {
     if (graph) return;
     const controller = new AbortController();
@@ -157,7 +158,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         <button type="button" aria-pressed={showEvents} onClick={()=>{setShowEvents(value=>!value);setClusterId('');setHoverDate(null);}}>{text('Events','事件')}</button>
       </div>
     </div>
-    {needsHistory&&loaded?.key!==key&&!matchingInitial?.warmupPrices&&<p className={styles.status} role="status">{text('Loading indicator history…','正在加载指标历史数据…')}</p>}
+    {needsHistory&&loaded?.key!==key&&!initialHistoryReady&&<p className={styles.status} role="status">{text('Loading indicator history…','正在加载指标历史数据…')}</p>}
     {needsHistory&&loaded?.key===key&&averages.some(period=>!movingAverages[MA_PERIODS.indexOf(period as typeof MA_PERIODS[number])]?.length)&&<p className={styles.status}>{text('Some moving averages have insufficient stored history.','部分均线的已存储历史数据不足。')}</p>}
     {showMacd&&<div className={styles.indicatorLegend}><span style={{color:MA_COLORS[0]}}>{text('DIF','DIF')}</span><span style={{color:MA_COLORS[1]}}>{text('DEA','DEA')}</span><span>{text('Histogram = DIF − DEA','柱值 = DIF − DEA')}</span></div>}
     {showEvents&&<div className={styles.legend}>{EVENT_TYPES.map(eventType=>{const style=eventPresentation({eventType},chinese);return <span key={eventType} style={{color:categoryColor(style.color)}}>{style.symbol} {style.typeLabel}</span>;})}</div>}

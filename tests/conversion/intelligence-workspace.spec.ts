@@ -128,6 +128,23 @@ test('chart sizes preserve selection and indicators read preceding history',asyn
  await expect(page.getByRole('button',{name:'Show timeline'})).toBeVisible();expect(await page.evaluate(()=>document.body.style.overflow)).not.toBe('hidden');
 });
 
+test('a longer supplied price history remains illustrative and supplies indicator warmup',async({page})=>{
+ const prices=Array.from({length:300},(_,index)=>({date:new Date(Date.parse('2025-12-15')+index*86_400_000).toISOString().slice(0,10),close:100+index*.2,volume:100}));
+ const fixture=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CompanyTimeline} from './src/components/company-timeline';createRoot(document.getElementById('root')).render(<CompanyTimeline companyId="US:AMD" graph={{asOf:'2026-10-11',nodes:[],relationships:[],sources:[]}} initialPrices={${JSON.stringify({companyId:'US:AMD',start:'2021-10-09',end:'2026-10-11',currency:'USD',available:true,prices})}}/>);`,{jsx:'automatic',alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'timeline-preview',setup(build){
+  build.onResolve({filter:/(?:locale-provider|company-follow-button)$/},args=>({path:args.path,namespace:'preview'}));
+  build.onLoad({filter:/.*/,namespace:'preview'},args=>({loader:'js',contents:args.path.endsWith('locale-provider')?`export function useLocale(){return {locale:'en',chinese:false,text:(en,zh)=>en}}`:`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[]}}`}));
+ }}]},'body{margin:0;font-family:Arial}');
+ const requests:string[]=[];
+ await page.route('**/*',route=>{if(route.request().url().includes('/api/company-timeline'))requests.push(route.request().url());return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:fixture}):route.fulfill({status:503,body:'No live data in illustrative preview'});});
+ await page.goto('http://timeline-preview.test/');
+ const timeline=page.locator('[data-company-timeline="US:AMD"]');
+ await expect(timeline.locator('[data-price-line]')).toBeVisible();
+ await timeline.getByRole('button',{name:'MA60',exact:true}).click();await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
+ await timeline.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();await expect(timeline.locator('[data-macd-histogram]')).not.toHaveCount(0);
+ await timeline.getByRole('combobox',{name:'Price history range'}).selectOption('90');await expect(timeline).toContainText('90 stored daily bars');
+ await expect(timeline.getByRole('status')).toHaveCount(0);expect(requests).toEqual([]);
+});
+
 test('clicked price details show daily changes independently of event markers',async({page})=>{
  const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'closed',eventType:'financing',publication_date:'2026-10-04'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
  await open(page,false,fixture);
