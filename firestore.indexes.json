@@ -278,6 +278,16 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "eod_prices",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "ticker",
           "order": "ASCENDING"
         },
