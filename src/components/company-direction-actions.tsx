@@ -16,7 +16,7 @@ export function CompanyDirectionActions({ ticker, entryPoint = "company" }: { ti
       const destination = `/predictions/new?${new URLSearchParams({ ticker, direction })}`;
       return <Link key={direction} href={!loading && !user ? `${predictionSignInHref(ticker, "", direction)}&mode=register` : destination}
         onClick={() => trackEvent("graph_predict_click", { ticker, action: direction, entry_point: entryPoint })}
-        className={`inline-flex min-h-11 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold ${direction === "UP" ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/20" : "border-rose-400/50 bg-rose-400/10 text-rose-200 hover:bg-rose-400/20"}`}>
+        className={`inline-flex min-h-11 items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold ${direction === "UP" ? "price-up price-direction-action" : "price-down price-direction-action"}`}>
         {ui(label)}
       </Link>;
     })}

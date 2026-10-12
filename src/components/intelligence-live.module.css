@@ -1,50 +1,50 @@
-.loadingShell { min-height:70vh; background:#07111b; color:#e4edf5; padding:24px; }
+.loadingShell { min-height:70vh; background:var(--ui-surface,#07111b); color:var(--ui-text,#e4edf5); padding:24px; }
 .eventRow { position:relative; }
 .eventRow>button { display:block; }
 .eventRow[data-calendar="true"]>button>div:first-child { padding-right:30px; }
 .calendarLinks { position:absolute; top:5px; right:11px; display:flex; gap:3px; }
-.calendarLinks a { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:5px; color:#98e7d6; }
+.calendarLinks a { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:5px; color:var(--ui-text,#98e7d6); }
 .calendarLinks a:hover { background:#98e7d61a; }
 .calendarLinks a.calendarWarning { color:#ffc67c; }
 .calendarLinks a:focus-visible { outline:2px solid #98e7d6; outline-offset:1px; }
 .loadingShell h1 { font-size:18px; margin-top:22px; }
 .loadingShell nav { display:flex; flex-wrap:wrap; gap:16px; margin-top:20px; font-size:12px; }
-.loadingShell a { color:#98e7d6; }
-.loadingShell button,.notice button { color:#98e7d6; background:transparent; border:1px solid #294156; border-radius:4px; padding:6px 10px; cursor:pointer; }
-.notice { padding:7px 12px; color:#dec797; background:#493a1e35; font-size:10px; }
+.loadingShell a { color:var(--ui-text,#98e7d6); }
+.loadingShell button,.notice button { color:var(--ui-text,#98e7d6); background:transparent; border:1px solid var(--ui-line,#294156); border-radius:4px; padding:6px 10px; cursor:pointer; }
+.notice { padding:7px 12px; color:var(--ui-muted,#dec797); background:var(--ui-surface,#493a1e35); font-size:10px; }
 .windowControls { display:flex; gap:8px; padding:0 10px 8px; }
-.windowControls button { padding:5px 7px; font-size:10px; color:#9ab0c3; }
-.windowControls button[aria-pressed=true] { background:#203a3e; color:#98e7d6; }
+.windowControls button { padding:5px 7px; font-size:10px; color:var(--ui-muted,#9ab0c3); }
+.windowControls button[aria-pressed=true] { background:var(--ui-selected,#203a3e); color:var(--ui-text,#98e7d6); }
 .windowControls { flex-wrap:wrap; }
-.windowControls .companyFilter { border:1px solid #98e7d6; color:#e8fff9; background:#244c4d; font-weight:700; }
+.windowControls .companyFilter { border:1px solid var(--ui-line,#98e7d6); color:var(--ui-text,#e8fff9); background:var(--ui-selected,#244c4d); font-weight:700; }
 .regionWorkspace { --left-panel-width:260px; }
 .browseSelectors { display:grid; grid-template-columns:1fr 1.05fr; gap:8px; margin:0 10px 12px; flex-shrink:0; }
 .browseSelectors>div,.regionFilter { min-width:0; }
-.selectorLabel { display:block; margin:4px 0 8px; color:#849bae; font-size:9px; letter-spacing:.06em; }
+.selectorLabel { display:block; margin:4px 0 8px; color:var(--ui-muted,#849bae); font-size:9px; letter-spacing:.06em; }
 .browseSelectors>div>label { margin:0; padding:8px 6px; gap:4px; height:42px; font-size:11px; }
 .browseSelectors small { font-size:10px; }
-.regionFilter select { width:100%; min-width:0; height:42px; padding:7px 6px; border:1px solid #2a414f; border-radius:7px; background:#162d35; color:#98e7d6; font:inherit; font-size:11px; cursor:pointer; }
+.regionFilter select { width:100%; min-width:0; height:42px; padding:7px 6px; border:1px solid var(--ui-line,#2a414f); border-radius:7px; background:var(--ui-surface,#162d35); color:var(--ui-text,#98e7d6); font:inherit; font-size:11px; cursor:pointer; }
 .regionFilter select:focus-visible { outline:2px solid #98e7d6; outline-offset:2px; }
-.regionFilter select[data-filtered=true] { border-color:#98e7d6; color:#edfff9; font-weight:700; box-shadow:inset 3px 0 #98e7d6; }
+.regionFilter select[data-filtered=true] { border-color:var(--ui-line,#98e7d6); color:var(--ui-text,#edfff9); font-weight:700; box-shadow:inset 3px 0 #98e7d6; }
 @media(min-width:851px) and (max-width:1150px){.regionWorkspace{--left-panel-width:210px}.browseSelectors{grid-template-columns:1fr}}
 @media(max-width:850px){.browseSelectors{grid-template-columns:1fr}.browseSelectors>div>label,.regionFilter select{height:40px}.selectorLabel{margin:2px 0 4px}}
-.dates { color:#849bae; font-size:9px; line-height:1.7; }
+.dates { color:var(--ui-muted,#849bae); font-size:9px; line-height:1.7; }
 .evidenceLinks { display:flex; flex-direction:column; gap:5px; margin:8px 0; }
-.evidenceLinks a { color:#98e7d6; font-size:10px; padding:6px 0; line-height:1.5; overflow-wrap:anywhere; }
-.evidenceLinks small { display:block; color:#849bae; font-size:9px; }
+.evidenceLinks a { color:var(--ui-text,#98e7d6); font-size:10px; padding:6px 0; line-height:1.5; overflow-wrap:anywhere; }
+.evidenceLinks small { display:block; color:var(--ui-muted,#849bae); font-size:9px; }
 .themeFilters{display:contents}
 .themeContents{position:relative;height:100%;min-height:0;display:flex;flex-direction:column;isolation:isolate}
-.themeProgress{position:absolute;z-index:5;top:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:calc(100% - 24px);width:max-content;padding:10px 14px;border:1px solid #43616b;border-radius:10px;background:#10212def;color:#ccece7;box-shadow:0 8px 28px #0005;font-size:12px;line-height:1.5;animation:themeAppear .15s ease-out}
-.themeProgress button{padding:3px 7px!important;color:#98e7d6!important;border:1px solid #43616b!important;flex-shrink:0}
-.themeSpinner{width:14px;height:14px;flex-shrink:0;border:2px solid #98e7d640;border-top-color:#98e7d6;border-radius:50%;animation:themeSpin .8s linear infinite}
+.themeProgress{position:absolute;z-index:5;top:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:calc(100% - 24px);width:max-content;padding:10px 14px;border:1px solid var(--ui-line,#43616b);border-radius:10px;background:var(--ui-surface,#10212def);color:var(--ui-text,#ccece7);box-shadow:0 8px 28px #0005;font-size:12px;line-height:1.5;animation:themeAppear .15s ease-out}
+.themeProgress button{padding:3px 7px!important;color:var(--ui-text,#98e7d6)!important;border:1px solid var(--ui-line,#43616b)!important;flex-shrink:0}
+.themeSpinner{width:14px;height:14px;flex-shrink:0;border:2px solid var(--ui-line,#98e7d640);border-top-color:#98e7d6;border-radius:50%;animation:themeSpin .8s linear infinite}
 @keyframes themeSpin{to{transform:rotate(360deg)}}
 @keyframes themeAppear{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.themeProgress,.themeSpinner{animation:none}}
 
-.rightPanel{overflow:hidden}.rightBody{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#314354 transparent}.selectedPanel{flex-shrink:0;max-height:45%;overflow:auto;background:#10232e;border-block:1px solid #386057;scrollbar-width:thin;outline:none}.selectedPanel:focus-visible{outline:2px solid #98e7d6;outline-offset:-2px}.selectedPanel>div:first-child{position:sticky;top:0;background:#10232e}.rightPanel>details{flex-shrink:0}.rightPanel>details>summary{cursor:pointer;color:#9ab0c3;font-size:10px}.selectedPanel h2{font-size:11px}.selectedPanel nav{margin:5px 0}
+.rightPanel{overflow:hidden}.rightBody{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#314354 transparent}.selectedPanel{flex-shrink:0;max-height:45%;overflow:auto;background:var(--ui-surface,#10232e);border-block:1px solid #386057;scrollbar-width:thin;outline:none}.selectedPanel:focus-visible{outline:2px solid #98e7d6;outline-offset:-2px}.selectedPanel>div:first-child{position:sticky;top:0;background:var(--ui-surface,#10232e)}.rightPanel>details{flex-shrink:0}.rightPanel>details>summary{cursor:pointer;color:var(--ui-muted,#9ab0c3);font-size:10px}.selectedPanel h2{font-size:11px}.selectedPanel nav{margin:5px 0}
 @media(max-width:850px){.rightBody{max-height:65vh;overflow:auto}.selectedPanel{max-height:45vh}.rightPanel{overflow:visible}}
 
-.companyCard{position:absolute;z-index:40;top:12px;right:12px;width:340px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);border:1px solid #386057;border-radius:12px;background:#10232ef5;box-shadow:0 14px 40px #0007;overflow-wrap:anywhere;animation:themeAppear .15s ease-out}
+.companyCard{position:absolute;z-index:40;top:12px;right:12px;width:340px;max-width:calc(100% - 24px);max-height:calc(100% - 24px);border:1px solid var(--ui-line,#386057);border-radius:12px;background:var(--ui-surface,#10232ef5);box-shadow:0 14px 40px #0007;overflow-wrap:anywhere;animation:themeAppear .15s ease-out}
 .companyCard [data-card-drag]{cursor:grab;touch-action:none;user-select:none}
 .companyCard [data-card-drag]:active{cursor:grabbing}
 .companyCard [data-card-drag]:focus-visible{outline:2px solid #98e7d6;outline-offset:-2px;border-radius:8px}

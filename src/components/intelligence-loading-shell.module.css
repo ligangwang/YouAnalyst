@@ -1,32 +1,32 @@
-.shell { background:#07111b; color:#c9d8e3; min-height:70vh; padding:20px clamp(14px,2vw,28px); animation:appear .2s ease-out; }
+.shell { background:var(--ui-surface,#07111b); color:var(--ui-text,#c9d8e3); min-height:70vh; padding:20px clamp(14px,2vw,28px); animation:appear .2s ease-out; }
 .toolbar { display:flex; align-items:center; gap:18px; min-height:44px; margin-bottom:18px; flex-wrap:wrap; }
-.theme { color:#9de6d6; font-size:14px; font-weight:600; padding:8px 12px; background:#11252d; border:1px solid #24414b; border-radius:9px; }
-.status { display:flex; align-items:center; gap:9px; margin:0; color:#91a8b8; font-size:13px; line-height:1.6; }
+.theme { color:var(--ui-text,#9de6d6); font-size:14px; font-weight:600; padding:8px 12px; background:var(--ui-surface,#11252d); border:1px solid var(--ui-line,#24414b); border-radius:9px; }
+.status { display:flex; align-items:center; gap:9px; margin:0; color:var(--ui-muted,#91a8b8); font-size:13px; line-height:1.6; }
 .mapSpinner { position:absolute; top:50%; left:50%; }
-.workspace { display:grid; grid-template-columns:190px minmax(0,1fr) 230px; min-height:clamp(340px,60vh,680px); border:1px solid #1b2e3b; border-radius:14px; overflow:hidden; background:#091620; }
-.sidebar { padding:24px 18px; border-right:1px solid #1b2e3b; }
-.shortLine,.line,.search { display:block; height:7px; border-radius:4px; background:#1a2d39; }
+.workspace { display:grid; grid-template-columns:190px minmax(0,1fr) 230px; min-height:clamp(340px,60vh,680px); border:1px solid var(--ui-line,#1b2e3b); border-radius:14px; overflow:hidden; background:var(--ui-surface,#091620); }
+.sidebar { padding:24px 18px; border-right:1px solid var(--ui-line,#1b2e3b); }
+.shortLine,.line,.search { display:block; height:7px; border-radius:4px; background:var(--ui-surface,#1a2d39); }
 .shortLine { width:55%; margin-bottom:20px; }
-.search { height:28px; margin-bottom:28px; background:#122530; }
+.search { height:28px; margin-bottom:28px; background:var(--ui-surface,#122530); }
 .row { display:flex; align-items:center; gap:12px; margin:25px 0; }
-.dot { width:8px; height:8px; border-radius:50%; background:#29424d; flex-shrink:0; }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--ui-surface,#29424d); flex-shrink:0; }
 .line { width:100%; }
 .row:nth-child(even) .line { width:65%; }
-.map { position:relative; min-width:0; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse at center,#0e202a 0%,#091620 70%); }
+.map { position:relative; min-width:0; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse at center,var(--ui-surface,#0e202a) 0%,var(--ui-surface,#091620) 70%); }
 .map svg { width:100%; max-height:440px; opacity:.55; }
 .tabs { position:absolute; top:24px; left:24px; display:flex; gap:12px; }
-.tabs span { width:44px; height:6px; border-radius:4px; background:#1b3340; }
-.edges { fill:none; stroke:#294b56; stroke-width:1; }
+.tabs span { width:44px; height:6px; border-radius:4px; background:var(--ui-surface,#1b3340); }
+.edges { fill:none; stroke:var(--ui-surface,#294b56); stroke-width:1; }
 .nodes { fill:#426c73; }
-.events { border-right:0; border-left:1px solid #1b2e3b; }
-.event { padding:22px 0; border-top:1px solid #182c37; }
+.events { border-right:0; border-left:1px solid var(--ui-line,#1b2e3b); }
+.event { padding:22px 0; border-top:1px solid var(--ui-line,#182c37); }
 .event .shortLine { margin-bottom:14px; width:35%; }
 .event .line { margin:10px 0; }
 .event .line:last-child { width:70%; }
 .navigation { display:flex; gap:20px; margin-top:16px; font-size:12px; }
-.navigation a { color:#809eac; text-decoration:none; }
-.navigation a:hover { color:#a6e6d7; }
-.retry { color:#a6e6d7; background:#122832; border:1px solid #31505b; border-radius:8px; padding:7px 12px; cursor:pointer; font-size:12px; }
+.navigation a { color:var(--ui-muted,#809eac); text-decoration:none; }
+.navigation a:hover { color:var(--ui-text,#a6e6d7); }
+.retry { color:var(--ui-text,#a6e6d7); background:var(--ui-surface,#122832); border:1px solid var(--ui-line,#31505b); border-radius:8px; padding:7px 12px; cursor:pointer; font-size:12px; }
 .srOnly { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 @keyframes appear { from { opacity:0; } to { opacity:1; } }
 @media(max-width:1000px) { .workspace { grid-template-columns:160px minmax(0,1fr); } .events { display:none; } }

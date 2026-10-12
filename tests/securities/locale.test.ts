@@ -18,10 +18,10 @@ test("explicit language overrides cookie without changing market or company", ()
   assert.equal(rendered.headers.get("location"), null);
 });
 test("market and language preferences remain independent and reject unsupported markets", () => {
-  assert.deepEqual(parsePreferences({ language: "en", market: "CN_A" }), { language: "en", market: "CN_A" });
-  assert.deepEqual(parsePreferences({ language: "zh-CN", market: "ALL" }), { language: "zh-CN", market: "ALL" });
+  assert.deepEqual(parsePreferences({ language: "en", market: "CN_A" }), { language: "en", market: "CN_A", priceColors: "green-up", theme: "dark" });
+  assert.deepEqual(parsePreferences({ language: "zh-CN", market: "ALL" }), { language: "zh-CN", market: "ALL", priceColors: "green-up", theme: "dark" });
   assert.equal(parsePreferences({ language: "zh-CN", market: "HK" }), null);
-  assert.deepEqual(parsePreferences({ language: "en", market: "US", uid: "someone-else", isAdmin: true }), { language: "en", market: "US" });
+  assert.deepEqual(parsePreferences({ language: "en", market: "US", uid: "someone-else", isAdmin: true }), { language: "en", market: "US", priceColors: "green-up", theme: "dark" });
   const response = proxy(new NextRequest("https://youanalyst.com/?market=ALL", { headers: { cookie: "ya-language=zh-CN; ya-market=US", "x-ya-market": "CN_A" } }));
   assert.equal(new URL(response.headers.get("location")!).pathname, "/zh-cn");
   const rendered = proxy(new NextRequest(response.headers.get("location")!, { headers: { cookie: "ya-market=ALL", "x-ya-language": "en", "x-ya-market": "CN_A" } }));

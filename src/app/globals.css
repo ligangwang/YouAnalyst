@@ -69,3 +69,30 @@ a {
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 28px 28px;
 }
+
+/* Price direction is independent of language, market and semantic status colors. */
+:root { color-scheme:dark; --price-green:#55dfbb; --price-red:#ff8ea1; --price-up:var(--price-green); --price-down:var(--price-red); --price-flat:#a8bfce; }
+:root[data-price-colors="red-up"] { --price-up:var(--price-red); --price-down:var(--price-green); }
+.price-up { color:var(--price-up); }
+.price-down { color:var(--price-down); }
+:root[data-theme="light"] {
+  color-scheme:light;
+  --background:#f4f7fa; --foreground:#142536;
+  --color-paper:#ffffff; --color-ink:#142536; --color-shell:#ffffff; --color-line:#ccd7e1;
+  --text-secondary:#475f73; --text-muted:#526a7d;
+  --surface-hover:#1425360a; --surface-selected:#d8edf0;
+  --ui-accent:#087b72; --ui-surface:#ffffff; --ui-selected:#d8edf0; --ui-text:#142536; --ui-muted:#475f73; --ui-line:#ccd7e1;
+  --event-color-weight:55%; --chart-line:#167f9b; --chart-reference:#826c20; --selection-outline:#167f9b;
+  --price-green:#087b56; --price-red:#c83148; --price-flat:#526a7d;
+}
+:root[data-theme="light"] :is(.bg-slate-950,.bg-slate-900,.bg-slate-800,[class~="bg-slate-800/70"],[class~="bg-slate-900/40"],[class~="bg-slate-900/50"],[class~="bg-slate-900/55"],[class~="bg-slate-900/70"],[class~="bg-slate-900/80"],[class~="bg-slate-950/40"],[class~="bg-slate-950/45"],[class~="bg-slate-950/50"],[class~="bg-slate-950/55"],[class~="bg-slate-950/60"],[class~="bg-slate-950/70"],[class~="bg-slate-950/80"],[class~="bg-slate-950/85"]) { background-color:#ffffff; }
+:root[data-theme="light"] :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-slate-900,.text-slate-950) { color:#142536; }
+:root[data-theme="light"] :is(.text-slate-400,.text-slate-500) { color:#475f73; }
+:root[data-theme="light"] :is(.text-cyan-100,.text-cyan-200,.text-cyan-300) { color:#086f89; }
+:root[data-theme="light"] :is(.text-rose-200,.text-rose-300) { color:#ba3047; }
+:root[data-theme="light"] :is(.text-emerald-200,.text-emerald-300) { color:#087b56; }
+:root[data-theme="light"] :is([class~="border-white/10"],[class~="border-white/15"],[class~="border-white/20"]) { border-color:#ccd7e1; }
+:root[data-theme="light"] :is(button,a):hover { --surface-hover:#1425360a; }
+
+.price-direction-action { border-color:currentColor; background:color-mix(in srgb,currentColor 10%,transparent); }
+.price-direction-action:hover { background:color-mix(in srgb,currentColor 20%,transparent); }

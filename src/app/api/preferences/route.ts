@@ -19,10 +19,14 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const uid = await authenticatedUser(request);
   if (!uid) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
-  const preferences = parsePreferences(await request.json().catch(() => null));
-  if (!preferences) return NextResponse.json({ error: "Invalid preferences" }, { status: 400, headers });
+  const input = await request.json().catch(() => null);
+  if (!parsePreferences(input)) return NextResponse.json({ error: "Invalid preferences" }, { status: 400, headers });
   try {
-    await getAdminFirestore().collection("users").doc(uid).set({ displayPreferences: preferences }, { merge: true });
+    const document = getAdminFirestore().collection("users").doc(uid);
+    const snapshot = await document.get();
+    // Older clients changing language must not reset the newer appearance fields.
+    const preferences = parsePreferences({ ...parsePreferences(snapshot.data()?.displayPreferences), ...input });
+    await document.set({ displayPreferences: preferences }, { merge: true });
     return NextResponse.json({ preferences }, { headers });
   } catch { return NextResponse.json({ error: "Could not save preferences" }, { status: 503, headers }); }
 }

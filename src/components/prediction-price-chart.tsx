@@ -196,7 +196,7 @@ export function PredictionPriceChart({
           className="h-auto w-full"
           preserveAspectRatio="xMidYMid meet"
         >
-          <rect width={CHART_WIDTH} height={CHART_HEIGHT} fill="#020617" />
+          <rect width={CHART_WIDTH} height={CHART_HEIGHT} fill="var(--ui-surface,#020617)" />
           <line
             x1={CHART_PADDING.left}
             x2={CHART_WIDTH - CHART_PADDING.right}
@@ -206,14 +206,14 @@ export function PredictionPriceChart({
             strokeDasharray="6 6"
             strokeWidth="1"
           />
-          <text x={CHART_PADDING.left} y={entryY - 8} fill="#94a3b8" fontSize="12"><UiText text={"Entry "} />{formatCurrency(history.entryPrice)}
+          <text x={CHART_PADDING.left} y={entryY - 8} fill="var(--ui-muted,#94a3b8)" fontSize="12"><UiText text={"Entry "} />{formatCurrency(history.entryPrice)}
           </text>
           <line
             x1={CHART_PADDING.left}
             x2={CHART_PADDING.left}
             y1={CHART_PADDING.top}
             y2={CHART_HEIGHT - CHART_PADDING.bottom}
-            stroke="#1e293b"
+            stroke="var(--ui-line,#1e293b)"
             strokeWidth="1"
           />
           <line
@@ -221,22 +221,22 @@ export function PredictionPriceChart({
             x2={CHART_WIDTH - CHART_PADDING.right}
             y1={CHART_HEIGHT - CHART_PADDING.bottom}
             y2={CHART_HEIGHT - CHART_PADDING.bottom}
-            stroke="#1e293b"
+            stroke="var(--ui-line,#1e293b)"
             strokeWidth="1"
           />
-          <text x={CHART_PADDING.left} y={CHART_HEIGHT - 10} fill="#94a3b8" fontSize="12">
+          <text x={CHART_PADDING.left} y={CHART_HEIGHT - 10} fill="var(--ui-muted,#94a3b8)" fontSize="12">
             {formatDateLabel(firstPoint.date)}
           </text>
-          <text x={CHART_WIDTH - CHART_PADDING.right - 54} y={CHART_HEIGHT - 10} fill="#94a3b8" fontSize="12">
+          <text x={CHART_WIDTH - CHART_PADDING.right - 54} y={CHART_HEIGHT - 10} fill="var(--ui-muted,#94a3b8)" fontSize="12">
             {formatDateLabel(latestPoint.date)}
           </text>
-          <text x="8" y={priceY(yMax, yMin, yMax) + 4} fill="#94a3b8" fontSize="12">
+          <text x="8" y={priceY(yMax, yMin, yMax) + 4} fill="var(--ui-muted,#94a3b8)" fontSize="12">
             {formatCurrency(yMax)}
           </text>
-          <text x="8" y={priceY(yMin, yMin, yMax)} fill="#94a3b8" fontSize="12">
+          <text x="8" y={priceY(yMin, yMin, yMax)} fill="var(--ui-muted,#94a3b8)" fontSize="12">
             {formatCurrency(yMin)}
           </text>
-          <path d={path} fill="none" stroke="#67e8f9" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+          <path d={path} fill="none" stroke="var(--chart-line,#67e8f9)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
           {visiblePoints.map((point, index) => {
             if (index !== 0 && index !== visiblePoints.length - 1 && visiblePoints.length > 48) {
               return null;
@@ -245,12 +245,12 @@ export function PredictionPriceChart({
             const x = pointX(index, visiblePoints.length);
             const y = priceY(point.close, yMin, yMax);
             return (
-              <circle key={`${point.date}-${index}`} cx={x} cy={y} r={index === visiblePoints.length - 1 ? 5 : 3} fill="#67e8f9">
+              <circle key={`${point.date}-${index}`} cx={x} cy={y} r={index === visiblePoints.length - 1 ? 5 : 3} fill="var(--chart-line,#67e8f9)">
                 <title>{pointTitle(point, ticker)}</title>
               </circle>
             );
           })}
-          <circle cx={latestX} cy={latestY} r="8" fill="none" stroke="#67e8f9" strokeWidth="2" />
+          <circle cx={latestX} cy={latestY} r="8" fill="none" stroke="var(--chart-line,#67e8f9)" strokeWidth="2" />
         </svg>
       </div>
 

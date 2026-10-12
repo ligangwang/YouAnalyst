@@ -12,3 +12,11 @@ test("preferences cannot be read or saved by supplying another user's ID without
     assert.deepEqual(await response.json(), { error: "Unauthorized" });
   }
 });
+
+
+test("legacy accounts default to dark and world colors; appearance is independent of language", async () => {
+  const { parsePreferences } = await import("../../src/lib/preferences");
+  assert.deepEqual(parsePreferences({ language: "zh-CN", market: "ALL" }), { language: "zh-CN", market: "ALL", theme: "dark", priceColors: "green-up" });
+  assert.deepEqual(parsePreferences({ language: "en", market: "US", theme: "light", priceColors: "red-up" }), { language: "en", market: "US", theme: "light", priceColors: "red-up" });
+  for (const input of [{ theme: "system" }, { theme: null }, { priceColors: "china" }, { priceColors: null }]) assert.equal(parsePreferences({ language: "en", market: "ALL", ...input }), null);
+});
