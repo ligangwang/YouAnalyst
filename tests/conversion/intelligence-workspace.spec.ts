@@ -926,7 +926,7 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await expect(card).toContainText(companies.find(c=>c.id===previous)!.name);
 });
 
- test('Explore compact timeline uses 1M, dated event band and can close and reopen',async({page})=>{
+ test('Explore compact timeline uses 1M, overlaid dated events and can close and reopen',async({page})=>{
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-10-01',close:100,volume:0},{date:'2026-10-02',close:102,volume:null}]}}));
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
@@ -941,13 +941,15 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await timeline.locator('svg').scrollIntoViewIfNeeded();
  const markerBounds=await marker.boundingBox(),chartBounds=await timeline.locator('svg').boundingBox();
  expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeGreaterThan(0);
- expect(markerBounds!.y+markerBounds!.height/2-chartBounds!.y).toBeLessThan(80);
+ const priceTop=Number(await timeline.locator('svg').getAttribute('data-price-top')),priceBottom=Number(await timeline.locator('svg').getAttribute('data-price-bottom'));
+ expect(markerBounds!.y-chartBounds!.y).toBeGreaterThanOrEqual(priceTop);
+ expect(markerBounds!.y+markerBounds!.height-chartBounds!.y).toBeLessThanOrEqual(priceBottom);
  const chartLeft=chartBounds!.width<440?60:72;
- await page.mouse.move(chartBounds!.x+chartLeft+(20/30)*(chartBounds!.width-chartLeft-24),chartBounds!.y+140);
+ await page.mouse.move(chartBounds!.x+chartLeft+(20/30)*(chartBounds!.width-chartLeft-24),chartBounds!.y+priceBottom+16);
  await expect(timeline.getByRole('tooltip')).toContainText('2026-10-01');
  await expect(timeline.getByRole('tooltip')).toContainText('Close · $100.00');
  await expect(timeline.getByRole('tooltip')).toContainText('Volume · 0');
- await page.mouse.move(chartBounds!.x+chartBounds!.width-25,chartBounds!.y+140);
+ await page.mouse.move(chartBounds!.x+chartBounds!.width-25,chartBounds!.y+priceBottom+16);
  await expect(timeline.getByRole('tooltip')).toContainText('2026-10-02');
  await expect(timeline.getByRole('tooltip')).toContainText('Close · $102.00');
  await expect(timeline.getByRole('tooltip')).toContainText('Volume · Not recorded');
@@ -1004,4 +1006,25 @@ test('timeline category symbols, count chooser and docked card retain all event 
   await card.getByRole('button',{name:'Reset card position'}).click();
  }
  await page.screenshot({path:`output/event-types-${info.project.name}.png`});
+});
+
+test('dense overlay keeps exact dates and every category accessible without growing',async({page},info)=>{
+ const types=['earnings','insider_trade','relationship','product_business','corporate_action','financing','regulatory_governance','other'] as const;
+ const classified=types.map((eventType,i)=>({...snapshot.events[0],id:`dense-${i}`,title:`Distinct event ${i}`,eventType,eventSubtype:undefined,publication_date:'2026-10-02',evidence:[{id:`dense-source-${i}`,url:`https://example.com/dense/${i}`,title:`Reference ${i}`,sourceDate:'2026-10-02',channel:'IR' as const}]}));
+ const fixture:IntelligenceSnapshot={...snapshot,events:[...classified,{...classified[3],id:'next-day',title:'Next day event',publication_date:'2026-10-03',evidence:[{id:'next-source',url:'https://example.com/next',title:'Next reference',sourceDate:'2026-10-03',channel:'IR'}]}]};
+ await open(page,false,fixture);
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:Array.from({length:20},(_,i)=>({date:`2026-09-${String(i+11).padStart(2,'0')}`,close:100+Math.sin(i/4)*10+i,volume:100+i*15}))}}));
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline).toContainText('20 stored daily bars');
+ const svg=timeline.locator('svg');await expect(svg).toHaveAttribute('data-event-layout','overlay');
+ const bounds=(await svg.boundingBox())!;expect(bounds.height).toBe(info.project.name==='mobile'?220:196);
+ const markers=timeline.locator('button[data-event-type]');
+ expect(await markers.evaluateAll(elements=>elements.reduce((sum,el)=>sum+Number(el.getAttribute('data-event-count')),0))).toBe(9);
+ const mixed=timeline.locator('[data-event-type="multiple"]');await expect(mixed).toHaveCount(1);await expect(mixed).toHaveAttribute('data-event-count','8');
+ const next=timeline.getByRole('button',{name:/Oct 3: Next day event/});
+ expect((await next.boundingBox())!.x).toBeGreaterThan((await mixed.boundingBox())!.x);
+ await mixed.click();const chooser=timeline.getByRole('group',{name:'Choose an event'});await expect(chooser.getByRole('button')).toHaveCount(9);
+ expect((await svg.boundingBox())!.height).toBe(bounds.height);await page.keyboard.press('Escape');await expect(mixed).toBeFocused();
+ await page.mouse.move(0,0);await page.screenshot({path:`output/overlay-dense-${info.project.name}.png`});
 });

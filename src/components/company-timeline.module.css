@@ -46,3 +46,6 @@
 .timeline [data-return-direction=up] {color:#55dfbb;}
 .timeline [data-return-direction=down] {color:#ff8ea1;}
 .timeline [data-return-direction=flat] {color:#b8cfe1;}
+
+.markerSymbols {display:flex; align-items:center; justify-content:center; gap:1px;}
+.markerSymbols[data-mixed] {font-size:8px; flex-wrap:wrap;}

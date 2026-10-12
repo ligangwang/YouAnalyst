@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { layoutTimelineMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
+import { layoutOverlayMarkers, companyTimelineEvents, DEFAULT_TIMELINE_RANGE, timelineWindow, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
 import {EVENT_TYPES,eventPresentation} from '@/lib/events/classification';
 import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
 import type { GraphNode, KnowledgeGraph } from "@/lib/knowledge-graph/model";
@@ -29,7 +29,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   useEffect(() => {
     if (clusterId) eventChooser.current?.querySelector<HTMLButtonElement>('button')?.focus();
   }, [clusterId]);
-  const closeChooser = () => {setClusterId('');chooserTrigger.current?.focus();};
+  const closeChooser = () => {setClusterId('');(chooserTrigger.current?.isConnected?chooserTrigger.current:chart.current?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]'))?.focus();};
   const toggleButton = useRef<HTMLButtonElement>(null);
   const restoreToggleFocus = useRef(false);
   useEffect(() => {
@@ -63,16 +63,15 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const left = width < 440 ? 60 : 72, right = Math.max(left + 1, width - 24), plotWidth = right - left;
   const x = (date: string) => left + (Date.parse(date) - Date.parse(start)) / Math.max(1, Date.parse(end) - Date.parse(start)) * plotWidth;
   const prices = data?.prices.filter(p => p.date >= start && p.date <= end) ?? [];
-  const groups = layoutTimelineMarkers(events, start, end, plotWidth, width < 440 ? 48 : 36);
-  const small=width<440,levelSpacing=small?44:28;
-  const priceTop=Math.max(small?106:80,24+Math.max(0,...groups.map(group=>group.level))*levelSpacing+(small?38:28)),priceBottom=priceTop+50,volumeBottom=priceBottom+34,chartHeight=volumeBottom+26;
-  const openCluster=groups.find(group=>group.events[0].id===clusterId);
+  const small=width<440,priceTop=24,priceBottom=small?164:140,volumeBottom=priceBottom+32,chartHeight=volumeBottom+24;
   const selected = events.find(e => e.id === selectedId && e.date >= start && e.date <= end);
   const activeDate = hoverDate && hoverDate >= start && hoverDate <= end ? hoverDate : selected?.date;
-  const selectedGroup = groups.find(g => g.events.some(e => e.id === selectedId));
   const min = prices.length ? Math.min(...prices.map(p => p.close)) : 0, max = prices.length ? Math.max(...prices.map(p => p.close)) : 1;
   const pad = Math.max((max - min) * .1, max * .01), low = Math.max(0, min - pad), high = max + pad;
-  const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * 50;
+  const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * (priceBottom-priceTop);
+  const groups=layoutOverlayMarkers(events,start,end,plotWidth,priceTop,priceBottom,prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26);
+  const openCluster=groups.find(group=>group.events.some(event=>event.id===clusterId));
+  const selectedGroup=groups.find(group=>group.events.some(event=>event.id===selectedId));
   const maxVolume = Math.max(1, ...prices.map(p => p.volume ?? 0));
   const pricePath = prices.map((p, index) => { const command = index === 0 || Date.parse(p.date) - Date.parse(prices[index - 1].date) > 7 * 86_400_000 ? "M" : "L"; return `${command}${x(p.date).toFixed(2)},${y(p.close).toFixed(2)}`; }).join(" ");
   // Bridge long intervals without implying that daily bars were recorded inside them.
@@ -111,14 +110,14 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     <header className={styles.header}><h2>{text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><span>1M</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
     <div className={styles.legend}>{EVENT_TYPES.map(eventType=>{const style=eventPresentation({eventType},chinese);return <span key={eventType} style={{color:style.color}}>{style.symbol} {style.typeLabel}</span>;})}</div>
     <div ref={chart} className={styles.chart} style={{height:chartHeight}} onKeyDown={e=>{if(e.key==='Escape'&&clusterId){e.stopPropagation();closeChooser();}}} onPointerMove={e => { if (!(e.target as Element).closest("button")) pointerDate(e.clientX); else setHoverPrice(false); }} onPointerLeave={() => {setHoverDate(null);setHoverPrice(false);}} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
-      <svg style={{height:chartHeight}} viewBox={`0 0 ${width} ${chartHeight}`} role="img" aria-label={text("Dated event markers above daily close and volume", "按发布日期排列的事件标记，下方为收盘价与成交量")}>
+      <svg data-event-layout="overlay" data-price-top={priceTop} data-price-bottom={priceBottom} style={{height:chartHeight}} viewBox={`0 0 ${width} ${chartHeight}`} role="img" aria-label={text("Dated event markers over daily close, with volume below", "事件按发布日期叠加在收盘价图中，下方为成交量")}>
         <text x={0} y={priceTop-8}>{text("Close", "收盘价")} {data?.currency === "USD" ? "($)" : data?.currency ?? ""}</text>
         {prices.length > 0 ? <>
           {[low, (low + high) / 2, high].map(value => <g key={value}><text x={left - 7} y={y(value) + 4} textAnchor="end">{new Intl.NumberFormat(locale, { notation: value >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value)}</text><line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="#263c4e" /></g>)}
           <path data-price-line d={pricePath} fill="none" stroke="#79cfe9" strokeWidth={2} />
           {gapPath&&<path data-price-gap d={gapPath} fill="none" stroke="#79cfe9" strokeWidth={2} strokeDasharray="4 4" />}
           {prices.map(p => <circle key={p.date} cx={x(p.date)} cy={y(p.close)} r={prices.length < 3 ? 3 : 1} fill="#79cfe9" />)}
-        </> : <text x={left + 8} y={priceTop+25}>{!data ? text("Loading stored prices…", "正在读取历史股价…") : !data.available ? text("Stored prices unavailable", "历史股价暂时无法读取") : companyId.startsWith("ORG:") ? text("No supported price history", "暂无支持的股价记录") : text("No stored prices in this range", "此范围暂无已存储股价")}</text>}
+        </> : <text x={left + 8} y={volumeBottom-8}>{!data ? text("Loading stored prices…", "正在读取历史股价…") : !data.available ? text("Stored prices unavailable", "历史股价暂时无法读取") : companyId.startsWith("ORG:") ? text("No supported price history", "暂无支持的股价记录") : text("No stored prices in this range", "此范围暂无已存储股价")}</text>}
         <text x={0} y={volumeBottom-12}>{text("Volume", "成交量")}</text>
         {prices.filter(p => p.volume !== null).map(p => <rect key={p.date} x={x(p.date) - 1} y={volumeBottom - p.volume! / maxVolume * 22} width={Math.max(1, Math.min(4, plotWidth / Math.max(1, prices.length) * .65))} height={p.volume! / maxVolume * 22} fill="#65879b" />)}
         {prices.length > 0 && prices.every(p => p.volume === null) && <text x={left + 8} y={volumeBottom-6}>{text("Volume not recorded", "未记录成交量")}</text>}
@@ -133,7 +132,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         {hoverReturn&&<span title={`${hoverReturn.baselineDate} → ${hoverReturn.latestDate}`}>{hoverReturn.adjacent?text('Daily change','当日涨跌幅'):`${text('Change since','较')} ${hoverReturn.baselineDate}`} · <b data-return-direction={hoverReturn.change>0?'up':hoverReturn.change<0?'down':'flat'}>{hoverReturn.change>0?'▲':hoverReturn.change<0?'▼':'—'} {signedPercent(hoverReturn.change)}</b></span>}
         <span>{text("Volume", "成交量")} · {nearest.volume === null ? text("Not recorded", "未记录") : new Intl.NumberFormat(locale).format(nearest.volume)}</span>
       </div>}
-      {groups.map(group=>{const style=eventPresentation(group.events[0],chinese),multiple=group.events.length>1;return <button key={group.events[0].id} className={styles.marker} data-event-type={style.type} data-event-count={group.events.length} type="button" style={{left:left+group.x,top:24+group.level*levelSpacing,color:style.color,borderColor:style.color}} title={group.events.map(e=>`${eventPresentation(e,chinese).label} · ${formatDate(e.date)}: ${e.title}`).join('; ')} aria-label={multiple?`${group.events.length} ${text('events','个事件')} · ${style.label} · ${formatDate(group.events[0].date)}`:`${formatDate(group.events[0].date)}: ${group.events[0].title}`} aria-pressed={clusterId===group.events[0].id||group.events.some(e=>e.id===selectedId)} onClick={e=>{if(multiple){chooserTrigger.current=e.currentTarget;setClusterId(group.events[0].id);}else selectEvent(group.events[0].id);}} onPointerEnter={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onFocus={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onBlur={()=>{setHoverDate(null);}}>{style.symbol}{multiple&&<span className={styles.countBadge} aria-hidden="true">{group.events.length}</span>}</button>;})}
+      {groups.map(group=>{const presentations=[...new Map(group.events.map(event=>{const p=eventPresentation(event,chinese);return [p.symbol+p.color,p] as const;})).values()],style=presentations[0],multiple=group.events.length>1;return <button key={group.events[0].id} className={styles.marker} data-event-type={presentations.length>1?'multiple':style.type} data-marker-size={group.size} data-event-count={group.events.length} type="button" style={{left:left+group.x,top:group.y,width:group.size,height:group.size,color:style.color,borderColor:style.color}} title={group.events.map(e=>`${eventPresentation(e,chinese).label} · ${formatDate(e.date)}: ${e.title}`).join('; ')} aria-label={multiple?`${group.events.length} ${text('events','个事件')} · ${presentations.map(p=>p.label).join(' / ')} · ${formatDate(group.events[0].date)}`:`${formatDate(group.events[0].date)}: ${group.events[0].title}`} aria-pressed={group.events.some(e=>e.id===clusterId||e.id===selectedId)} onClick={e=>{if(multiple){chooserTrigger.current=e.currentTarget;setClusterId(group.events[0].id);}else selectEvent(group.events[0].id);}} onPointerEnter={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onFocus={()=>{setHoverPrice(false);setHoverDate(group.events[0].date);}} onBlur={()=>{setHoverDate(null);}}><span className={styles.markerSymbols} data-mixed={presentations.length>1||undefined}>{presentations.slice(0,3).map(p=><span key={p.symbol+p.color} style={{color:p.color}}>{p.symbol}</span>)}</span>{multiple&&<span className={styles.countBadge} aria-hidden="true">{group.events.length}</span>}</button>;})}
       {openCluster&&<div ref={eventChooser} className={`${styles.eventList} ${styles.clusterPopup}`} role="group" aria-label={text('Choose an event','选择事件')} onPointerMove={e=>{e.stopPropagation();setHoverPrice(false);}}>
         <div className={styles.popupHeader}><span>{openCluster.events.length} {text('events','个事件')}</span><button type="button" aria-label={text('Close event list','关闭事件列表')} onClick={closeChooser}>×</button></div>
         {openCluster.events.map(event=>{const style=eventPresentation(event,chinese);return <button key={event.id} type="button" onClick={()=>selectEvent(event.id)}><span style={{color:style.color}}>{style.symbol} {style.label}</span> · {formatDate(event.date)} · {event.title}{returnFor(event.id)&&returnLabel(returnFor(event.id)!)}</button>;})}
