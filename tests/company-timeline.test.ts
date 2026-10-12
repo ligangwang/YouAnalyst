@@ -1,3 +1,4 @@
+import { chartShareUrl, parseSharedChart, sharedChartParams, type SharedChart } from '../src/lib/ui/chart-share';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { adjacentTimelineBars, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
@@ -214,4 +215,25 @@ test('weekly change labels distinguish adjacent holiday-shortened weeks from mis
  assert.equal(adjacentTimelineBars('2026-09-25','2026-10-09',true),false);
  assert.equal(adjacentTimelineBars('2026-09-25','2026-09-28',false),true);
  assert.equal(adjacentTimelineBars('2026-09-25','2026-10-09',false),false);
+});
+
+const chart:SharedChart={range:1826,style:'line',averages:[5,20],macd:true,events:true};
+test('shared settings round trip and malformed settings use safe defaults',()=>{
+  assert.deepEqual(parseSharedChart(new URLSearchParams(sharedChartParams(chart))),chart);
+  assert.deepEqual(parseSharedChart(new URLSearchParams('chartRange=999&chartStyle=unknown&chartMA=20,20,999,5&chartMacd=true')), {...chart,range:30,style:'candles',macd:false});
+});
+test('company links resolve to the appropriate public profile and preserve language',()=>{
+  assert.equal(new URL(chartShareUrl('US:AMD','en',chart)).pathname,'/en/ticker/AMD');
+  assert.equal(new URL(chartShareUrl('XSHG:600519','zh-CN',chart)).pathname,'/zh-cn/ticker/XSHG:600519');
+  assert.equal(decodeURIComponent(new URL(chartShareUrl('ORG:OPENAI','en',chart)).pathname),'/en/company/ORG:OPENAI');
+});
+test('event shares preserve public selection without personal browsing state',()=>{
+  const url=new URL(chartShareUrl('US:AMD','zh-CN',chart,'news_a/b & c',true));
+  assert.equal(url.origin,'https://youanalyst.com');
+  assert.equal(url.pathname,'/zh-cn');
+  assert.equal(url.searchParams.get('event'),'news_a/b & c');
+  assert.equal(url.searchParams.get('company'),'US:AMD');
+  assert.equal(url.hash,'#company-timeline');
+  assert.deepEqual([...url.searchParams.keys()].sort(),['chartEvents','chartMA','chartMacd','chartRange','chartStyle','company','event','view'].sort());
+  assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'business_1')).searchParams.get('chartEvent'),'business_1');
 });
