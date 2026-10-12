@@ -86,7 +86,7 @@ test('price hover card shows daily changes independently of event markers',async
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
- await expect(timeline).toContainText('5 stored daily bars');
+ await expect(timeline).toContainText('5 stored daily bars');await expect(timeline.locator('[data-latest-close-reference]')).toContainText('Latest close 106');await expect(timeline.locator('[data-latest-close-reference] line')).toHaveAttribute('stroke','#c9b879');await expect(timeline.locator('[data-latest-close-reference] line')).toHaveAttribute('stroke-dasharray','2 4');
  const earnings=timeline.locator('[data-event-type="earnings"]');
  await expect(timeline.locator('[data-return-direction]')).toHaveCount(0);
  await earnings.focus();

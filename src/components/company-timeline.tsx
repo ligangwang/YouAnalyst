@@ -116,6 +116,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         <text x={0} y={priceTop-8}>{text("Close", "收盘价")} {data?.currency === "USD" ? "($)" : data?.currency ?? ""}</text>
         {prices.length > 0 ? <>
           {[low, (low + high) / 2, high].map(value => <g key={value}><text x={left - 7} y={y(value) + 4} textAnchor="end">{new Intl.NumberFormat(locale, { notation: value >= 10000 ? "compact" : "standard", maximumFractionDigits: 1 }).format(value)}</text><line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="#263c4e" /></g>)}
+          {latest&&<g data-latest-close-reference><line x1={left} x2={right} y1={y(latest.close)} y2={y(latest.close)} stroke="#c9b879" strokeWidth={1} strokeDasharray="2 4"/><text x={right} y={y(latest.close)-6} textAnchor="end" style={{fill:'#c9b879',fontSize:10}}>{text('Latest close','最新收盘')} {new Intl.NumberFormat(locale,{maximumFractionDigits:2}).format(latest.close)}</text></g>}
           <path data-price-line d={pricePath} fill="none" stroke="#79cfe9" strokeWidth={2} />
           {gapPath&&<path data-price-gap d={gapPath} fill="none" stroke="#79cfe9" strokeWidth={2} strokeDasharray="4 4" />}
           {prices.map(p => <circle key={p.date} cx={x(p.date)} cy={y(p.close)} r={prices.length < 3 ? 3 : 1} fill="#79cfe9" />)}
