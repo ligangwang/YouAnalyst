@@ -79,7 +79,7 @@ for(const pending of [false,true])test(`sector selection replaces ${pending?'pen
  await expect(page.getByRole('button',{name:/^Memory & storage/})).toHaveAttribute('aria-pressed','true');
 });
 
-test('price hover card shows daily changes independently of event markers',async({page})=>{
+test('clicked price details show daily changes independently of event markers',async({page})=>{
  const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'closed',eventType:'financing',publication_date:'2026-10-04'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
  await open(page,false,fixture);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-30',close:100,volume:10},{date:'2026-10-01',close:104,volume:20},{date:'2026-10-02',close:103,volume:30},{date:'2026-10-05',close:106,volume:40},{date:'2026-10-06',close:106,volume:50}]}}));
@@ -104,18 +104,24 @@ test('price hover card shows daily changes independently of event markers',async
  await chooser.getByRole('button',{name:'Close event list',exact:true}).click();
  const svg=timeline.locator('svg');await svg.scrollIntoViewIfNeeded();
  const bounds=(await svg.boundingBox())!;
- const hoverDay=async(index:number)=>{
+ const selectDay=async(index:number)=>{
    const cx=Number(await svg.locator('circle').nth(index).getAttribute('cx'));
    const viewWidth=await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width);
-   await page.mouse.move(bounds.x+cx/viewWidth*bounds.width,bounds.y+bounds.height-45);
+   await page.mouse.click(bounds.x+cx/viewWidth*bounds.width,bounds.y+bounds.height-24);
  };
- const tooltip=timeline.getByRole('tooltip');
- await hoverDay(0);await expect(tooltip).toContainText('2026-09-30');await expect(tooltip).not.toContainText('Daily change');await expect(tooltip.locator('[data-latest-return]')).toContainText('Change to latest close (Oct 6) · ▲ +6.00%');
- await hoverDay(1);await expect(tooltip).toContainText('Daily change · ▲ +4.00%');await expect(tooltip.locator('[data-daily-return][data-return-direction="up"]')).toHaveCSS('color','rgb(85, 223, 187)');
- await hoverDay(2);await expect(tooltip).toContainText('Daily change · ▼ -0.96%');await expect(tooltip.locator('[data-daily-return][data-return-direction="down"]')).toHaveCSS('color','rgb(255, 142, 161)');
+ const tooltip=timeline.getByRole('group',{name:'Price details'});
+ await svg.hover({position:{x:bounds.width/2,y:bounds.height-24}});await expect(tooltip).toHaveCount(0);
+ await selectDay(0);await expect(tooltip).toBeVisible();
+ await page.mouse.move(bounds.x+bounds.width-25,bounds.y+bounds.height-24);await expect(tooltip).toContainText('2026-09-30');
+ await tooltip.getByRole('button',{name:'Close price details'}).click();await expect(tooltip).toHaveCount(0);await expect(svg).toBeFocused();
+ await svg.press('Enter');await expect(tooltip).toContainText('2026-10-06');await svg.press('ArrowLeft');await expect(tooltip).toContainText('2026-10-05');await svg.press('Escape');await expect(tooltip).toHaveCount(0);
+ await selectDay(0);await page.getByRole('button',{name:'Candles',exact:true}).click();await expect(tooltip).toHaveCount(0);
+ await selectDay(0);await expect(tooltip).toContainText('2026-09-30');await expect(tooltip).not.toContainText('Daily change');await expect(tooltip.locator('[data-latest-return]')).toContainText('Change to latest close (Oct 6) · ▲ +6.00%');
+ await selectDay(1);await expect(tooltip).toContainText('Daily change · ▲ +4.00%');await expect(tooltip.locator('[data-daily-return][data-return-direction="up"]')).toHaveCSS('color','rgb(85, 223, 187)');
+ await selectDay(2);await expect(tooltip).toContainText('Daily change · ▼ -0.96%');await expect(tooltip.locator('[data-daily-return][data-return-direction="down"]')).toHaveCSS('color','rgb(255, 142, 161)');
  // This recorded trading day has no event, but still gets a daily change.
- await hoverDay(3);await expect(tooltip).toContainText('2026-10-05');await expect(tooltip).toContainText('Daily change · ▲ +2.91%');await expect(tooltip).toContainText('Volume · 40');
- await hoverDay(4);await expect(tooltip).toContainText('Daily change · — 0.00%');await expect(tooltip.locator('[data-latest-return]')).toContainText('— 0.00%');
+ await selectDay(3);await expect(tooltip).toContainText('2026-10-05');await expect(tooltip).toContainText('Daily change · ▲ +2.91%');await expect(tooltip).toContainText('Volume · 40');
+ await selectDay(4);await expect(tooltip).toContainText('Daily change · — 0.00%');await expect(tooltip.locator('[data-latest-return]')).toContainText('— 0.00%');
  await earnings.focus();await expect(tooltip).toHaveCount(0);await expect(earnings.locator('[data-return-direction]')).toHaveCount(0);
 });
 
@@ -132,11 +138,11 @@ test('long price gaps connect recorded closes without synthetic bars',async({pag
  await timeline.locator('svg').scrollIntoViewIfNeeded();
  const bounds=(await timeline.locator('svg').boundingBox())!;
  await page.mouse.move(bounds.x+bounds.width*.82,bounds.y+bounds.height-50);
- await expect(timeline.getByRole('tooltip')).toContainText('2026-10-08');
- await expect(timeline.getByRole('tooltip')).toContainText('Close · $102.00');
- await expect(timeline.getByRole('tooltip')).toContainText('Change since 2026-09-28 · ▲ +2.00%');
- await expect(timeline.getByRole('tooltip')).not.toContainText('Daily change');
- const tooltipBounds=(await timeline.getByRole('tooltip').boundingBox())!;
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('2026-10-08');
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Close · $102.00');
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Change since 2026-09-28 · ▲ +2.00%');
+ await expect(timeline.getByRole('group',{name:'Price details'})).not.toContainText('Daily change');
+ const tooltipBounds=(await timeline.getByRole('group',{name:'Price details'}).boundingBox())!;
  expect(tooltipBounds.x).toBeGreaterThanOrEqual(bounds.x);
  expect(tooltipBounds.x+tooltipBounds.width).toBeLessThanOrEqual(bounds.x+bounds.width);
 });
@@ -944,16 +950,16 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  const priceTop=Number(await timeline.locator('svg').getAttribute('data-price-top')),priceBottom=Number(await timeline.locator('svg').getAttribute('data-price-bottom'));
  expect(markerBounds!.y-chartBounds!.y).toBeGreaterThanOrEqual(priceTop);
  expect(markerBounds!.y+markerBounds!.height-chartBounds!.y).toBeLessThanOrEqual(priceBottom);
- await page.mouse.move(chartBounds!.x+Number(await timeline.locator("svg circle").first().getAttribute("cx"))/Number(await timeline.locator("svg").evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width))*chartBounds!.width,chartBounds!.y+priceBottom+16);
- await expect(timeline.getByRole('tooltip')).toContainText('2026-10-01');
- await expect(timeline.getByRole('tooltip')).toContainText('Close · $100.00');
- await expect(timeline.getByRole('tooltip')).toContainText('Volume · 0');
- await page.mouse.move(chartBounds!.x+chartBounds!.width-25,chartBounds!.y+priceBottom+16);
- await expect(timeline.getByRole('tooltip')).toContainText('2026-10-02');
- await expect(timeline.getByRole('tooltip')).toContainText('Close · $102.00');
- await expect(timeline.getByRole('tooltip')).toContainText('Volume · Not recorded');
- await marker.hover();
- await expect(timeline.getByRole('tooltip')).toHaveCount(0);
+ await page.mouse.click(chartBounds!.x+Number(await timeline.locator("svg circle").first().getAttribute("cx"))/Number(await timeline.locator("svg").evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width))*chartBounds!.width,chartBounds!.y+priceBottom+26);
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('2026-10-01');
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Close · $100.00');
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Volume · 0');
+ await page.mouse.click(chartBounds!.x+chartBounds!.width-25,chartBounds!.y+priceBottom+26);
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('2026-10-02');
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Close · $102.00');
+ await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Volume · Not recorded');
+ await marker.click();
+ await expect(timeline.getByRole('group',{name:'Price details'})).toHaveCount(0);
  await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
  await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeFocused();
  await expect(timeline.locator('svg')).toHaveCount(0);
@@ -1043,9 +1049,9 @@ test('candles are default, line is optional and missing OHLC never creates candl
  const publication=timeline.locator('button[data-event-type]').first();await expect(publication).toHaveAttribute('title',/Oct 2/);
  const publicationX=await publication.evaluate(el=>parseFloat((el as HTMLElement).style.left));expect(publicationX).toBeCloseTo(positions[2]+(positions[3]-positions[2])*2/8,4);
  const bounds=(await svg.boundingBox())!,viewWidth=await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width),cx=Number(await svg.locator('[data-price-candle="2026-09-29"] line').getAttribute('x1'));
- await svg.hover({position:{x:cx/viewWidth*bounds.width,y:bounds.height-32}});
- const tooltip=timeline.getByRole('tooltip');await expect(tooltip.locator('[data-hover-ohlc]')).toContainText('O 108.00 · H 112.00 · L 99.00');await expect(tooltip).toContainText('Daily change · ▼ -9.09%');await expect(tooltip.locator('[data-latest-return]')).toContainText('▲ +3.00%');
- const highX=Number(await svg.locator('[data-price-candle="2026-09-28"] line').getAttribute('x1'));await svg.hover({position:{x:highX/viewWidth*bounds.width,y:bounds.height-32}});const cardBounds=(await tooltip.boundingBox())!,chartBounds=(await svg.boundingBox())!;expect(cardBounds.y).toBeGreaterThanOrEqual(chartBounds.y);expect(cardBounds.y+cardBounds.height).toBeLessThanOrEqual(chartBounds.y+chartBounds.height);await page.screenshot({path:`output/candlestick-${info.project.name}.png`});
+ await svg.click({position:{x:cx/viewWidth*bounds.width,y:bounds.height-24}});
+ const tooltip=timeline.getByRole('group',{name:'Price details'});await expect(tooltip.locator('[data-hover-ohlc]')).toContainText('O 108.00 · H 112.00 · L 99.00');await expect(tooltip).toContainText('Daily change · ▼ -9.09%');await expect(tooltip.locator('[data-latest-return]')).toContainText('▲ +3.00%');
+ const highX=Number(await svg.locator('[data-price-candle="2026-09-28"] line').getAttribute('x1'));await svg.click({position:{x:highX/viewWidth*bounds.width,y:bounds.height-24}});const cardBounds=(await tooltip.boundingBox())!,chartBounds=(await svg.boundingBox())!;expect(cardBounds.y).toBeGreaterThanOrEqual(chartBounds.y);expect(cardBounds.y+cardBounds.height).toBeLessThanOrEqual(chartBounds.y+chartBounds.height);await page.screenshot({path:`output/candlestick-${info.project.name}.png`});
  await timeline.getByRole('button',{name:'Line',exact:true}).click();await expect(svg).toHaveAttribute('data-chart-type','line');await expect(svg.locator('[data-price-candle]')).toHaveCount(0);await expect(svg.locator('[data-price-line]')).toHaveCount(1);await expect(svg.locator('[data-price-gap]')).toHaveCount(1);
  await timeline.getByRole('button',{name:'Candles',exact:true}).click();await expect(svg.locator('[data-price-candle]')).toHaveCount(3);
 });
