@@ -28,7 +28,7 @@ export function mapTimelinePrice(data: Record<string, unknown>, ticker: string, 
   const valid=values.every(value=>typeof value==='number'&&Number.isFinite(value)&&value>0)
     && Number(data.high)>=Math.max(Number(data.open),Number(data.low),rawClose)
     && Number(data.low)<=Math.min(Number(data.open),rawClose)
-    && !(data.source==='eodhd-bulk-eod'&&!(typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0));
+    && !((data.source==='eodhd-bulk-eod'||data.source==='eodhd-eod')&&!(typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0));
   // Preserve the existing close series; scale raw OHLC to its provider-adjusted basis.
   const scale=data.close/rawClose;
   return { date, close: data.close, ...(valid&&values.every(value=>Number.isFinite(Number(value)*scale))?{open:Number(data.open)*scale,high:Number(data.high)*scale,low:Number(data.low)*scale}:{}), volume: typeof data.volume === "number" && Number.isFinite(data.volume) && data.volume >= 0 ? data.volume : null };
