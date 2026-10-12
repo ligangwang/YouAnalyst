@@ -14,7 +14,7 @@ test.beforeAll(async () => {
     import {CompanyPriceChange} from './src/components/company-price-change';
     import {DirectionBadge} from './src/components/prediction-ui';
     const prices={companyId:'US:AMD',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-10-08',open:100,high:110,low:98,close:108,volume:1000},{date:'2026-10-09',open:108,high:109,low:101,close:104,volume:1100}]};
-    createRoot(document.getElementById('root')).render(<LocaleProvider locale="en"><MarketProvider><DisplayPreferencesPanel/><LanguageSwitch/><p><CompanyPriceChange price={{change:.04,close:104,currency:'USD',tradingDate:'2026-10-09',previousTradingDate:'2026-10-08'}} locale="en"/><DirectionBadge direction="UP"/></p><p className="text-rose-300" role="note">Error colors stay red</p><CompanyTimeline companyId="US:AMD" initialPrices={prices} events={[]} graph={{nodes:[],relationships:[],sources:[]}}/></MarketProvider></LocaleProvider>);
+    createRoot(document.getElementById('root')).render(<LocaleProvider locale="en"><MarketProvider><DisplayPreferencesPanel/><LanguageSwitch/><p><CompanyPriceChange price={{change:.04,close:104,currency:'USD',tradingDate:'2026-10-09',previousTradingDate:'2026-10-08'}} locale="en"/><DirectionBadge direction="UP"/></p><p className="text-rose-300" role="note">Error colors stay red</p><p className="text-amber-200" role="status">Stale data warning</p><CompanyTimeline companyId="US:AMD" initialPrices={prices} events={[]} graph={{nodes:[],relationships:[],sources:[]}}/></MarketProvider></LocaleProvider>);
   `, {jsx:'automatic', plugins:[{name:'preference-services',setup(build){
     build.onResolve({filter:/auth-provider$|next\/navigation$/},args=>({path:args.path,namespace:'preference-mock'}));
     build.onLoad({filter:/.*/,namespace:'preference-mock'},args=>({loader:'tsx',contents:args.path==='next/navigation'?`const router={replace:url=>history.replaceState(null,'',url)};export function useRouter(){return router}`:`const user={uid:'viewer'};const token=async()=>'fixture-token';export function useAuth(){return {user:window.visitor?null:user,loading:false,getIdToken:token}}`}));
@@ -44,6 +44,8 @@ test('localized profile restores account appearance and swaps only price directi
   await expect(page.locator('[data-candle-direction="down"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');
   await expect(page.locator('.price-up')).toHaveCSS('color','rgb(200, 49, 72)');
   await expect(page.getByRole('note')).toHaveCSS('color','rgb(186, 48, 71)');
+  await expect(page.getByRole('status')).toHaveCSS('color','rgb(133, 77, 14)');
+  const themeSelect=page.getByLabel('UI theme');await themeSelect.focus();await expect(themeSelect).toHaveCSS('outline-color','rgb(22, 127, 155)');
   await page.getByLabel('Price color convention').selectOption('green-up');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');
   expect(writes.at(-1)).toEqual({language:'en',market:'ALL',theme:'light',priceColors:'green-up'});

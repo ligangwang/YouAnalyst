@@ -38,7 +38,7 @@
 .compact { padding:0; border:0; border-radius:0; background:transparent; gap:8px; }
 .pageResearch { margin:24px 0; border:1px solid var(--ui-line,#294354); border-radius:16px; overflow:hidden; }
 .pageResearch .snapshot { border:0; border-radius:0; }
-.timeline button:focus-visible,.snapshot a:focus-visible { outline:2px solid #a7e9fa; outline-offset:3px; }
+.timeline button:focus-visible,.snapshot a:focus-visible { outline:2px solid var(--selection-outline,#a7e9fa); outline-offset:3px; }
 @media(max-width:600px) { .timeline {padding:10px 8px;} .header h2 {font-size:13px;} .ranges button {min-height:36px;padding:5px 8px;} .snapshot {padding:12px;} }
 /* Keep the visible symbol compact while its transparent touch target stays 44px. */
 @media(pointer:coarse) { .marker::before {content:"";position:absolute;width:44px;height:44px;left:50%;top:50%;transform:translate(-50%,-50%);} }

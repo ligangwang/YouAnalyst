@@ -944,8 +944,7 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  const priceTop=Number(await timeline.locator('svg').getAttribute('data-price-top')),priceBottom=Number(await timeline.locator('svg').getAttribute('data-price-bottom'));
  expect(markerBounds!.y-chartBounds!.y).toBeGreaterThanOrEqual(priceTop);
  expect(markerBounds!.y+markerBounds!.height-chartBounds!.y).toBeLessThanOrEqual(priceBottom);
- const chartLeft=chartBounds!.width<440?60:72;
- await page.mouse.move(chartBounds!.x+chartLeft+(20/30)*(chartBounds!.width-chartLeft-24),chartBounds!.y+priceBottom+16);
+ await page.mouse.move(chartBounds!.x+Number(await timeline.locator("svg circle").first().getAttribute("cx"))/Number(await timeline.locator("svg").evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width))*chartBounds!.width,chartBounds!.y+priceBottom+16);
  await expect(timeline.getByRole('tooltip')).toContainText('2026-10-01');
  await expect(timeline.getByRole('tooltip')).toContainText('Close · $100.00');
  await expect(timeline.getByRole('tooltip')).toContainText('Volume · 0');
