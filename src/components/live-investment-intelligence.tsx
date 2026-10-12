@@ -104,7 +104,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const requestedCompany=useIndustryBrowseParam('company','',initialCompany);
   const eventId=useIndustryBrowseParam('event','',initialEvent),edgeId=useIndustryBrowseParam('relationship','',initialEdge);
   const requestedFeedCompany=useIndustryBrowseParam('feedCompany');
-  const setSelected=(company:string)=>updateIndustryBrowse({company});
   const setEdgeId=(relationship:string)=>updateIndustryBrowse({relationship});
   const requestedId=requestedCompany.includes(':')?requestedCompany.toUpperCase():requestedCompany?`US:${requestedCompany.toUpperCase()}`:'';
   const linkedEvent=theme==='ai'?curatedEvents.find(item=>item.id===eventId):undefined;
