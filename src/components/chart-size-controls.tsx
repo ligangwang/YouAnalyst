@@ -27,6 +27,8 @@ export function useChartSize() {
     document.body.style.overflow = 'hidden';
     element.focus();
     const keyboard = (event: KeyboardEvent) => {
+      // A fullscreen price chart inside this view owns its keyboard interaction.
+      if (element.querySelector('[data-chart-size="full"]')) return;
       if (event.key === 'Escape' && !element.querySelector('[data-event-window]')) { event.preventDefault(); event.stopPropagation(); setSize('compact'); }
       if (event.key === 'Tab') {
         const focusable = [...element.querySelectorAll<HTMLElement>('button:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]')].filter(el => el.getClientRects().length);

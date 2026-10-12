@@ -99,6 +99,27 @@ for(const pending of [false,true])test(`sector selection replaces ${pending?'pen
  await expect(page.getByRole('button',{name:/^Memory & storage/})).toHaveAttribute('aria-pressed','true');
 });
 
+for(const view of ['graph','tree','hierarchy','table'])test(`selected company price chart remains usable inside fullscreen ${view}`,async({page})=>{
+ await open(page);
+ await page.goto(`http://workspace.test/?view=${view}&company=US%3AMU`);
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('button',{name:'Full screen',exact:true}).click();
+ await expect(workspace).toHaveAttribute('data-chart-size','full');
+ const timeline=workspace.locator('[data-company-timeline="US:MU"]');
+ await expect(timeline).toBeVisible();
+ const range=timeline.getByLabel('Price history range');await range.selectOption('90');
+ await expect(range).toHaveValue('90');
+ expect(await timeline.evaluate(el=>Boolean(el.closest('[inert]')))).toBe(false);
+ await timeline.getByRole('button',{name:'Full screen',exact:true}).click();
+ await expect(timeline).toHaveAttribute('data-chart-size','full');
+ await page.keyboard.press('Escape');
+ await expect(timeline).toHaveAttribute('data-chart-size','compact');
+ await expect(workspace).toHaveAttribute('data-chart-size','full');
+ await workspace.getByRole('button',{name:'Restore layout',exact:true}).click();
+ await expect(workspace).toHaveAttribute('data-chart-size','compact');
+ await expect(page.locator('[data-company-timeline="US:MU"]').getByLabel('Price history range')).toHaveValue('90');
+});
+
 test('chart sizes preserve selection and indicators read preceding history',async({page},info)=>{
  await open(page);
  const bars:import('../../src/lib/ui/company-timeline').TimelinePrice[]=[];
