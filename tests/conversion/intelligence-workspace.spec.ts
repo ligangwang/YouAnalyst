@@ -1016,10 +1016,10 @@ test('dense overlay keeps exact dates and every category accessible without grow
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:Array.from({length:20},(_,i)=>({date:`2026-09-${String(i+11).padStart(2,'0')}`,close:100+Math.sin(i/4)*10+i,volume:100+i*15}))}}));
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
- const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline).toContainText('20 stored daily bars');
+ await page.addStyleTag({content:"button{min-height:32px}"});const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline).toContainText('20 stored daily bars');
  const svg=timeline.locator('svg');await expect(svg).toHaveAttribute('data-event-layout','overlay');
  const bounds=(await svg.boundingBox())!;expect(bounds.height).toBe(info.project.name==='mobile'?220:196);
- const markers=timeline.locator('button[data-event-type]');
+ const markers=timeline.locator('button[data-event-type]');for(const marker of await markers.all()){const box=(await marker.boundingBox())!;expect(Math.abs(box.width-box.height)).toBeLessThan(1);}
  expect(await markers.evaluateAll(elements=>elements.reduce((sum,el)=>sum+Number(el.getAttribute('data-event-count')),0))).toBe(9);
  const mixed=timeline.locator('[data-event-type="multiple"]');await expect(mixed).toHaveCount(1);await expect(mixed).toHaveAttribute('data-event-count','8');
  const next=timeline.getByRole('button',{name:/Oct 3: Next day event/});
