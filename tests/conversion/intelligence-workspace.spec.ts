@@ -145,6 +145,39 @@ test('a longer supplied price history remains illustrative and supplies indicato
  await expect(timeline.getByRole('status')).toHaveCount(0);expect(requests).toEqual([]);
 });
 
+test('all six history ranges include YTD and five-year weekly prices with exact event dates',async({page})=>{
+ const items=['2026-09-28','2026-09-30'].map((publication_date,index)=>({...snapshot.events[0],id:'week-'+index,title:'Weekly business '+index,published_at:null,publication_date,eventType:'product_business' as const,eventSubtype:'business_update'}));
+ await open(page,false,{...snapshot,events:items});
+ const requests:string[]=[];
+ await page.route('**/api/company-timeline?*',route=>{
+  const range=new URL(route.request().url()).searchParams.get('days')!;requests.push(range);
+  const weekly=range==='1826';
+  return route.fulfill({json:{companyId:'US:MU',start:range==='ytd'?'2026-01-01':weekly?'2021-10-11':'2026-09-01',end:'2026-10-11',currency:'USD',available:true,interval:weekly?'weekly':'daily',prices:weekly?[{date:'2026-10-02',periodStart:'2026-09-28',open:10,high:15,low:8,close:13,volume:1500},{date:'2026-10-09',periodStart:'2026-10-05',open:13,high:17,low:12,close:14,volume:600}]:[{date:'2026-09-28',open:10,high:12,low:9,close:11,volume:100},{date:'2026-09-30',open:11,high:15,low:8,close:13,volume:200},{date:'2026-10-09',open:13,high:17,low:12,close:14,volume:600}]}});
+ });
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]'),range=timeline.getByRole('combobox',{name:'Price history range'});
+ await expect(range).toHaveValue('30');await expect(range.locator('option')).toHaveText(['1M','3M','6M','YTD','1Y','5Y']);
+ for(const value of ['90','180','ytd','365','1826']){await range.selectOption(value);await expect.poll(()=>requests.at(-1)).toBe(value);await expect(timeline.locator('[data-price-candle]')).not.toHaveCount(0);}
+ await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);await expect(timeline).toContainText('Weekly bars');
+ const svg=timeline.locator('svg');await svg.scrollIntoViewIfNeeded();const box=(await svg.boundingBox())!;await page.mouse.click(box.x+box.width*.75,box.y+90);
+ const prices=timeline.getByRole('group',{name:'Price details'});await expect(prices).toContainText('Weekly change');await expect(prices).toContainText('2026-10-05 – 2026-10-09');
+ await prices.getByRole('button',{name:'Close price details'}).click();
+ await timeline.locator('button[data-event-count="2"]').click();const chooser=page.getByRole('group',{name:'Choose an event'});
+ await expect(chooser).toContainText('Sep 28');await expect(chooser).toContainText('Sep 30');await chooser.getByRole('button',{name:'Close event list'}).click();
+ await range.selectOption('30');await expect(timeline.locator('[data-price-candle]')).toHaveCount(3);await expect(timeline).toContainText('Daily bars');
+});
+
+test('a missing weekly candle shows its actual return baseline',async({page})=>{
+ await open(page,false,{...snapshot,events:[]});
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2021-10-11',end:'2026-10-11',currency:'USD',available:true,interval:'weekly',prices:[{date:'2026-09-25',periodStart:'2026-09-21',open:100,high:105,low:95,close:100,volume:100},{date:'2026-10-09',periodStart:'2026-10-05',open:100,high:115,low:99,close:110,volume:100}]}}));
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
+ const timeline=page.locator('[data-company-timeline="US:MU"]');await timeline.getByRole('combobox',{name:'Price history range'}).selectOption('1826');await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);
+ await timeline.locator('svg').press('Enter');const tooltip=timeline.getByRole('group',{name:'Price details'});
+ await expect(tooltip).toContainText('Change since 2026-09-25');await expect(tooltip).toContainText('+10.00%');await expect(tooltip).not.toContainText('Weekly change');
+});
+
 test('event windows open beside list items and markers, including fullscreen, without replacing company details',async({page},info)=>{
  const first={...snapshot.events[0],id:'near-first',title:'Nearby earnings announcement',eventType:'earnings' as const,publication_date:'2026-10-02',evidence:[snapshot.events[0].evidence[0],{id:'extra',url:'https://example.com/extra',title:'Second event reference',sourceDate:'2026-10-02',channel:'SEC' as const}]};
  const second={...snapshot.events[0],id:'near-second',title:'Nearby business announcement',eventType:'product_business' as const,publication_date:'2026-10-01'};

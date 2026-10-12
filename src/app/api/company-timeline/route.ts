@@ -1,25 +1,33 @@
 import { FieldPath } from "firebase-admin/firestore";
 import type { NextRequest } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { DEFAULT_TIMELINE_RANGE, mapTimelinePrice, TIMELINE_RANGES, timelineWindow, type TimelineRange } from "@/lib/ui/company-timeline";
+import { DEFAULT_TIMELINE_RANGE, mapTimelinePrice, TIMELINE_RANGES, timelineWindow, timelinePriceBars, type TimelineRange } from "@/lib/ui/company-timeline";
+import {cachedTimelinePrices} from '@/lib/ui/timeline-cache';
 import { marketDate, predictionInstrument } from "@/lib/predictions/instrument";
 
 export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   const companyId = request.nextUrl.searchParams.get("company") ?? "";
-  const days = Number(request.nextUrl.searchParams.get("days") ?? DEFAULT_TIMELINE_RANGE);
+  const requestedRange=request.nextUrl.searchParams.get('days');
+  const days = requestedRange==='ytd'?'ytd':Number(requestedRange??DEFAULT_TIMELINE_RANGE);
   const indicators = request.nextUrl.searchParams.get('indicators') === '1';
   if (!/^(US:[A-Z0-9][A-Z0-9.-]{0,11}|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(companyId) || !TIMELINE_RANGES.includes(days as TimelineRange)) {
     return Response.json({ error: "Invalid company or timeline range" }, { status: 400 });
   }
   const instrument = companyId.startsWith("ORG:") ? null : predictionInstrument(companyId.replace(/^US:/, ""));
   const window = timelineWindow(days as TimelineRange, instrument ? marketDate(instrument.market) : undefined);
-  const base = { companyId, ...window, currency: instrument?.currency ?? null };
-  const historyStart = indicators ? new Date(Date.parse(window.start)-180*86_400_000).toISOString().slice(0,10) : window.start;
+  const weekly=days===1826;
+  const base = { companyId, ...window, currency: instrument?.currency ?? null,interval:weekly?'weekly' as const:'daily' as const };
+  const historyStart = indicators ? new Date(Date.parse(window.start)-(weekly?540:180)*86_400_000).toISOString().slice(0,10) : window.start;
   if (!instrument) return Response.json({ ...base, prices: [], available: true });
   try {
     // Existing document IDs are market_ticker_date. A document-ID range needs no new composite index.
     const prefix = `${instrument.market}_${instrument.ticker}_`;
+    const collection=getAdminFirestore().collection('eod_prices');
+    const latest=await collection.where(FieldPath.documentId(),'>=',prefix).where(FieldPath.documentId(),'<=',prefix+window.end).orderBy(FieldPath.documentId(),'desc').limit(1).get();
+    const revision=latest.docs[0];
+    const cacheKey=JSON.stringify([companyId,days,indicators,window.end,base.interval,revision?.id,revision?.updateTime.toMillis()]);
+    const result=await cachedTimelinePrices(cacheKey,async()=>{
     const snapshot = await getAdminFirestore().collection("eod_prices")
       .where(FieldPath.documentId(), ">=", prefix + historyStart)
       .where(FieldPath.documentId(), "<=", prefix + window.end)
@@ -28,7 +36,10 @@ export async function GET(request: NextRequest) {
       const price = mapTimelinePrice(doc.data(), instrument.ticker, instrument.market);
       return price && price.date >= historyStart && price.date <= window.end ? [price] : [];
     }).sort((a, b) => a.date.localeCompare(b.date));
-    return Response.json({ ...base, prices:prices.filter(price=>price.date>=window.start), ...(indicators?{warmupPrices:prices.filter(price=>price.date<window.start)}:{}), available: true }, { headers: { "Cache-Control": "public, max-age=60" } });
+    const bars=timelinePriceBars(prices,window.start,weekly);
+    return {...base,prices:bars.prices,...(indicators?{warmupPrices:bars.warmupPrices}:{}),available:true};
+    });
+    return Response.json(result,{headers:{'Cache-Control':'public, max-age=60'}});
   } catch {
     return Response.json({ ...base, prices: [], available: false }, { status: 503 });
   }
