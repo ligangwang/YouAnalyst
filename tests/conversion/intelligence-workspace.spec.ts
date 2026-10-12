@@ -853,22 +853,25 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await expect(page.locator('[data-list-company]')).toHaveCount(4);await expect(page.getByRole('button',{name:'Unfollow MU',exact:true})).toBeVisible();
 });
 
-test('detail save confirms beside the click',async({page},info)=>{
+test('detail follow confirms beside the click and shows Followed',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Desktop detail panel placement');
   await page.setViewportSize({width:1500,height:800});
   await open(page);
   await page.getByRole('textbox',{name:'Search companies'}).fill('Lument');
   await expect(page).toHaveURL(/q=Lument/);
   await page.getByRole('button',{name:'LITE Lumentum',exact:true}).click();
-  const save=page.getByRole('button',{name:/Save company/});
+  const save=page.getByRole('button',{name:/☆ Follow/});
   const bounds=(await save.boundingBox())!;
   const x=bounds.x+bounds.width/2,y=bounds.y+bounds.height/2;
   await save.click();
+  await expect(page.getByRole('button',{name:'★ Followed',exact:true})).toHaveAttribute('aria-pressed','true');
   const notice=page.getByRole('status').filter({hasText:'LITE followed'});
   await expect(notice).toBeVisible();
   const confirmation=(await notice.boundingBox())!;
   expect(Math.abs(confirmation.y-y-14)).toBeLessThanOrEqual(1);
   expect(Math.min(Math.abs(confirmation.x-x-14),Math.abs(confirmation.x+confirmation.width-x+14))).toBeLessThanOrEqual(1);
+  await page.getByRole('button',{name:'★ Followed',exact:true}).click();
+  await expect(page.getByRole('button',{name:'☆ Follow',exact:true})).toHaveAttribute('aria-pressed','false');
 });
 
 

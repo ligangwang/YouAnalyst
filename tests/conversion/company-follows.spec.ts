@@ -119,7 +119,7 @@ test("company star confirms saved changes, blocks repeat writes, and restores fa
   await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4000 });
   fail = true;
   await star.click();
-  await expect(page.getByRole("alert")).toHaveText("Could not save AMD. Retry.");
+  await expect(page.getByRole("alert")).toHaveText("Could not update follow status for AMD. Retry.");
   await expect(star).toHaveAttribute("aria-pressed", "true");
   expect(await star.evaluate(el => getComputedStyle(el).cursor)).toBe("pointer");
   expect(await star.locator("span").first().evaluate(el => getComputedStyle(el).opacity)).toBe("1");
@@ -177,8 +177,8 @@ test("follow registration preserves original research location and synchronizes 
   expect(new URL(page.url()).pathname).toBe("/auth");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page).toHaveURL(origin + destination);
-  await expect(page.getByRole("button", { name: "Following", exact: true })).toHaveCount(2);
-  await page.getByRole("button", { name: "Following", exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "Followed", exact: true })).toHaveCount(2);
+  await page.getByRole("button", { name: "Followed", exact: true }).first().click();
   await expect(page.getByRole("button", { name: "＋ Follow", exact: true })).toHaveCount(3);
   expect(ids).toEqual([]);
 });
