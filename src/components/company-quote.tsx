@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocale } from './providers/locale-provider';
 import { tradingViewSymbol } from '@/lib/tradingview';
+import { useMarket } from './providers/preferences-context';
+import type { UiTheme } from '@/lib/preferences';
 
-function QuoteEmbed({ symbol, chinese }: { symbol: string; chinese: boolean }) {
+function QuoteEmbed({ symbol, chinese, theme }: { symbol: string; chinese: boolean; theme: UiTheme }) {
   const host = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -16,11 +18,11 @@ function QuoteEmbed({ symbol, chinese }: { symbol: string; chinese: boolean }) {
     const script = document.createElement('script');
     script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-single-quote.js';
     script.async = true;
-    script.textContent = JSON.stringify({ symbol, width: '100%', colorTheme: 'dark', isTransparent: true, locale: chinese ? 'zh_CN' : 'en' });
+    script.textContent = JSON.stringify({ symbol, width: '100%', colorTheme: theme, isTransparent: true, locale: chinese ? 'zh_CN' : 'en' });
     script.onerror = () => { if (active) setFailed(true); };
     container.replaceChildren(widget, script);
     return () => { active = false; container.replaceChildren(); };
-  }, [symbol, chinese]);
+  }, [symbol, chinese, theme]);
   return <>
     <div ref={host} className="tradingview-widget-container min-h-[126px]" />
     {failed && <p className="text-sm text-slate-400">{chinese ? '行情暂不可用，请通过下方链接查看。' : 'Quote unavailable. Open TradingView below.'}</p>}
@@ -29,12 +31,13 @@ function QuoteEmbed({ symbol, chinese }: { symbol: string; chinese: boolean }) {
 
 export function CompanyQuote({ ticker, exchange }: { ticker: string; exchange?: string | null }) {
   const { chinese, text } = useLocale();
+  const { theme } = useMarket();
   const symbol = tradingViewSymbol(ticker, exchange);
   if (!symbol) return null;
   const label = ticker.includes(':') ? ticker.split(':')[1] : ticker;
   const href = `https://www.tradingview.com/symbols/${symbol.replace(':', '-')}/`;
   return <section aria-label={text('Stock quote', '股票行情')} className="mt-5 w-full max-w-sm">
-    <QuoteEmbed key={`${symbol}:${chinese}`} symbol={symbol} chinese={chinese} />
+    <QuoteEmbed key={`${symbol}:${chinese}:${theme}`} symbol={symbol} chinese={chinese} theme={theme} />
     <p className="tradingview-widget-copyright mt-1 text-xs leading-5 text-slate-400">
       <a href={href} target="_blank" rel="noopener noreferrer" className="text-cyan-200 hover:underline">{text(`${label} quotes by TradingView`, `${label} 行情由 TradingView 提供`)}</a>
       {' · '}{text('Quotes may be delayed.', '行情可能存在延迟。')}

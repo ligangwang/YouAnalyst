@@ -3,6 +3,7 @@
 import { useLocale } from "./providers/locale-provider";
 import { useEffect, useRef } from "react";
 import { INDUSTRY_STARTERS } from "@/lib/industry-graph/catalog";
+import { useMarket } from './providers/preferences-context';
 
 // Explicit US listings for the AI map's starter companies; never guess an
 // exchange for a newly added company or accidentally select a foreign listing.
@@ -20,6 +21,7 @@ const AI_SYMBOLS = INDUSTRY_STARTERS.flatMap(({ ticker }) => {
 
 export function MarketTicker() {
   const { chinese } = useLocale();
+  const { theme } = useMarket();
   const host = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export function MarketTicker() {
         { proName: "FOREXCOM:DJI", title: "Dow 30" },
         ...AI_SYMBOLS,
       ],
-      colorTheme: "dark", isTransparent: true, showSymbolLogo: false,
+      colorTheme: theme, isTransparent: true, showSymbolLogo: false,
       displayMode: "regular", locale: chinese ? "zh_CN" : "en",
     });
     script.onerror = () => {
@@ -58,7 +60,7 @@ export function MarketTicker() {
     mount.appendChild(script);
     container.appendChild(mount);
     return () => { observer.disconnect(); script.onerror = null; mount.remove(); };
-  }, [chinese]);
+  }, [chinese, theme]);
 
   return (
     <section className="border-b border-white/5 bg-slate-950/50" aria-label={chinese ? "市场指数与 AI 股票" : "Market indices and AI stocks"}>
