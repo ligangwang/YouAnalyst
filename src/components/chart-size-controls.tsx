@@ -27,7 +27,7 @@ export function useChartSize() {
     document.body.style.overflow = 'hidden';
     element.focus();
     const keyboard = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setSize('compact'); }
+      if (event.key === 'Escape' && !element.querySelector('[data-event-window]')) { event.preventDefault(); event.stopPropagation(); setSize('compact'); }
       if (event.key === 'Tab') {
         const focusable = [...element.querySelectorAll<HTMLElement>('button:not(:disabled),select:not(:disabled),a[href],[tabindex="0"]')].filter(el => el.getClientRects().length);
         const first = focusable[0], last = focusable.at(-1);
