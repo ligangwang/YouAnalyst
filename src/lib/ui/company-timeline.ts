@@ -79,9 +79,18 @@ export function mapTimelinePrice(data: Record<string, unknown>, ticker: string, 
     && Number(data.high)>=Math.max(Number(data.open),Number(data.low),rawClose)
     && Number(data.low)<=Math.min(Number(data.open),rawClose)
     && !((data.source==='eodhd-bulk-eod'||data.source==='eodhd-eod')&&!(typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0));
-  // Preserve the existing close series; scale raw OHLC to its provider-adjusted basis.
-  const scale=data.close/rawClose;
-  return { date, close: data.close, ...(valid&&values.every(value=>Number.isFinite(Number(value)*scale))?{open:Number(data.open)*scale,high:Number(data.high)*scale,low:Number(data.low)*scale}:{}), ...(typeof data.amount==='number'&&Number.isFinite(data.amount)&&data.amount>=0?{amount:data.amount}:{}), volume: typeof data.volume === "number" && Number.isFinite(data.volume) && data.volume >= 0 ? data.volume : null };
+  // Mapped history starts 2020-12-31. NVIDIA's subsequent splits began trading
+  // on 2021-07-20 (4:1) and 2024-06-10 (10:1). Use explicit raw prices so an
+  // already adjusted stored close is never divided a second time. Earlier
+  // history needs its additional corporate actions before it can use this rule.
+  const nvdaSplitBasis=ticker==='NVDA'&&market==='US'&&date>='2020-12-31'
+    && typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0;
+  const factor=date<'2021-07-20'?40:date<'2024-06-10'?10:1;
+  const close=nvdaSplitBasis?rawClose/factor:data.close;
+  // Other instruments retain their existing provider-adjusted close basis.
+  const scale=close/rawClose;
+  // EODHD volume is already split-adjusted; amount is monetary and unchanged.
+  return { date, close, ...(valid&&values.every(value=>Number.isFinite(Number(value)*scale))?{open:Number(data.open)*scale,high:Number(data.high)*scale,low:Number(data.low)*scale}:{}), ...(typeof data.amount==='number'&&Number.isFinite(data.amount)&&data.amount>=0?{amount:data.amount}:{}), volume: typeof data.volume === "number" && Number.isFinite(data.volume) && data.volume >= 0 ? data.volume : null };
 }
 // Publication dates anchor the chart. Reviews and collection timestamps never become disclosure dates.
 export function companyTimelineEvents(companyId: string, graph: KnowledgeGraph | null, business: BusinessEvent[], chinese = false): TimelineEvent[] {
