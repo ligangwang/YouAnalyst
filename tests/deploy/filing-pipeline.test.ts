@@ -135,6 +135,7 @@ test('graph subscriber keeps request and filing delivery isolated and processing
   assert.deepEqual(r.workerEnv, {
     GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit', SEC_USER_AGENT: 'test contact',
     OPENAI_API_KEY: 'test-existing-key', OPENAI_MODEL: 'test-existing-model',
+    OPENAI_COMPANY_GRAPH_MODEL: 'gpt-6-luna',
     COMPANY_GRAPH_SUBSCRIPTION: 'company-graph-worker', COMPANY_GRAPH_FILINGS_SUBSCRIPTION: 'company-graph-filings',
     COMPANY_GRAPH_PROCESSING_ENABLED: '0', COMPANY_GRAPH_PAID_ADMISSION_ENABLED: '0',
   });
