@@ -18,7 +18,7 @@ import { eventReturnDays } from '@/lib/ui/event-return-age';
 import { useRelativeTimeClock } from './relative-time';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,onDismissEvent,selectedEventId,eventReturns,shareTheme = 'ai' }: { companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
+export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,onDismissEvent,selectedEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange }: { onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
   const researchPath=companyResearchPath(companyId,locale);
   useEffect(()=>{
@@ -132,6 +132,8 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const events = useMemo(() => suppliedEvents ?? companyTimelineEvents(companyId, graph ?? loadedGraph, curatedEvents, chinese), [suppliedEvents, companyId, graph, loadedGraph, chinese]);
   const left = width < 440 ? 60 : 72, right = Math.max(left + 1, width - 24), plotWidth = right - left;
   const rawHistory=[...new Map([...(data?.warmupPrices??[]),...(data?.prices??[])].map(price=>[price.date,price])).values()].sort((a,b)=>a.date.localeCompare(b.date));
+  const hasPriceHistory = rawHistory.length > 0;
+  useEffect(() => { onPriceHistoryChange?.(hasPriceHistory); }, [onPriceHistoryChange, hasPriceHistory]);
   const periodHistory=timelinePriceBars(rawHistory,rangeStart,interval);
   const history=aggregated&&data?.interval!==interval?[...periodHistory.warmupPrices,...periodHistory.prices]:rawHistory;
   const allPrices = history.filter(p => p.date >= rangeStart && p.date <= rangeEnd).sort((a,b)=>a.date.localeCompare(b.date));
@@ -375,5 +377,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
 }
 
 export function CompanyResearchTimeline({ company, graph, initialPrices }: { company: GraphNode; graph?: KnowledgeGraph; initialPrices?: TimelinePrices }) {
-  return <div className={styles.pageResearch}><CompanySnapshot company={company} profileLink={false} /><CompanyTimeline companyId={company.id} graph={graph} initialPrices={initialPrices} /></div>;
+  const [history, setHistory] = useState({ companyId: company.id, available: Boolean(initialPrices?.companyId === company.id && initialPrices.prices.length) });
+  const onPriceHistoryChange = useCallback((available: boolean) => setHistory({ companyId: company.id, available }), [company.id]);
+  return <div className={styles.pageResearch} hidden={history.companyId !== company.id || !history.available}><CompanySnapshot company={company} profileLink={false} /><CompanyTimeline companyId={company.id} graph={graph} initialPrices={initialPrices} onPriceHistoryChange={onPriceHistoryChange} /></div>;
 }
