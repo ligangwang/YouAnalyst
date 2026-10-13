@@ -48,7 +48,18 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
   expect(body).toContain("<sitemapindex");
   expect(body).toContain("/sitemaps/companies/US-N.xml");
   expect(body).toContain("/sitemaps/companies/XSHG-6.xml");
-  for (const [bucket, companyPath] of [["US-N", "company/nvidia"], ["XSHG-6", "ticker/XSHG%3A688041"]]) {
+  const pagesResponse = await request.get("/sitemaps/pages/sitemap.xml");
+  expect(pagesResponse.status()).toBe(200);
+  const pagesXml = await pagesResponse.text();
+  const pageUrls = [...pagesXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+  expect(new Set(pageUrls).size).toBe(pageUrls.length);
+  for (const locale of ["en", "zh-cn"]) {
+    expect(pageUrls.some(url => url.endsWith(`/${locale}/calendar`))).toBeTruthy();
+    expect(pageUrls.some(url => url.endsWith(`/${locale}/daily/calls`))).toBeTruthy();
+    expect(pageUrls.some(url => url.endsWith(`/${locale}/daily`) || url.endsWith(`/${locale}/watchlists`))).toBeFalsy();
+  }
+  expect(pageUrls.some(url => /\/(company|ticker)\//.test(url))).toBeFalsy();
+  for (const [bucket, companyPath] of [["US-N", "company/nvidia"], ["XSHG-6", "ticker/XSHG:688041"]]) {
     const response = await request.get(`/sitemaps/companies/${bucket}.xml`);
     expect(response.status()).toBe(200);
     const xml = await response.text();

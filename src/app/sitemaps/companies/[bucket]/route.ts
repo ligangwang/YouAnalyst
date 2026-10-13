@@ -11,7 +11,7 @@ const loadPaths = unstable_cache(async (prefix: string) => {
     const path = companySitemapPath(doc.id, doc.data());
     return path ? [path] : [];
   });
-}, ["company-sitemap-v1"], { revalidate: 3600 });
+}, ["company-sitemap-v2"], { revalidate: 3600 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ bucket: string }> }) {
   const { bucket } = await params;
