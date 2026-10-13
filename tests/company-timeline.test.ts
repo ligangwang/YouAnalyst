@@ -2,11 +2,75 @@ import { chartShareUrl, parseSharedChart, sharedChartParams, type SharedChart } 
 import { eventReturnDays } from '../src/lib/ui/event-return-age';
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adjacentTimelineBars, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
+import { adjacentTimelineBars, aggregateTimelinePrices, resolvedTimelineInterval, TIMELINE_RANGES, TIMELINE_INTERVALS, timelinePeriod, timelineIndicatorHistoryStart, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
 import { movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands } from '../src/lib/ui/technical-indicators';
 import {cachedTimelinePrices} from '../src/lib/ui/timeline-cache';
+
+test('automatic intervals follow range defaults while manual choices override every range',()=>{
+ for(const range of TIMELINE_RANGES){
+  assert.equal(resolvedTimelineInterval(range),range===1826?'weekly':'daily');
+  for(const interval of TIMELINE_INTERVALS)assert.equal(resolvedTimelineInterval(range,interval),interval);
+ }
+ assert.equal(parseSharedChart(new URLSearchParams()).interval,'auto');
+ assert.equal(parseSharedChart(new URLSearchParams('chartInterval=invalid')).interval,'auto');
+ for(const interval of ['auto',...TIMELINE_INTERVALS] as const){
+  const settings={...chart,interval};assert.deepEqual(parseSharedChart(new URLSearchParams(sharedChartParams(settings))),settings);
+ }
+});
+
+test('calendar month, quarter and year bars preserve OHLC and actual activity across boundaries',()=>{
+ const rows=[
+  {date:'2025-12-31',open:10,high:15,low:8,close:12,volume:10,amount:100},
+  {date:'2026-01-02',open:12,high:17,low:9,close:14,volume:20,amount:200},
+  {date:'2026-01-30',open:14,high:16,low:7,close:11,volume:0,amount:0},
+  {date:'2026-02-27',open:11,high:20,low:10,close:19,volume:30,amount:300},
+  {date:'2026-04-01',open:19,high:21,low:18,close:20,volume:40,amount:400},
+ ];
+ assert.deepEqual(aggregateTimelinePrices(rows,'monthly')[1],{date:'2026-01-30',periodStart:'2026-01-02',open:12,high:17,low:7,close:11,volume:20,amount:200});
+ assert.deepEqual(aggregateTimelinePrices(rows,'quarterly')[1],{date:'2026-02-27',periodStart:'2026-01-02',open:12,high:20,low:7,close:19,volume:50,amount:500});
+ assert.deepEqual(aggregateTimelinePrices(rows,'yearly')[1],{date:'2026-04-01',periodStart:'2026-01-02',open:12,high:21,low:7,close:20,volume:90,amount:900});
+ assert.equal(timelinePeriod('2024-02-29','monthly'),'2024-02-01');
+ assert.equal(timelinePeriod('2026-03-31','quarterly'),'2026-01-01');
+ assert.equal(timelinePeriod('2026-04-01','quarterly'),'2026-04-01');
+ assert.equal(timelinePeriod('2026-12-31','yearly'),'2026-01-01');
+ for(const interval of ['monthly','quarterly','yearly'] as const){
+  const missing=aggregateTimelinePrices([{date:'2026-01-02',close:10,volume:0},{date:'2026-01-30',open:10,high:11,low:9,close:11,volume:null,amount:100}],interval)[0];
+  assert.equal(missing.volume,null);assert.equal(missing.amount,undefined);assert.equal(missing.open,undefined);
+ }
+ assert.deepEqual(aggregateTimelinePrices([...rows].reverse(),'daily'),rows);
+});
+
+test('period warmup cannot alter the first visible partial month, quarter or year',()=>{
+ const rows=[{date:'2025-12-31',close:100,volume:1},{date:'2026-01-02',close:500,volume:1},{date:'2026-02-13',close:10,volume:1},{date:'2026-02-16',close:11,volume:1},{date:'2026-03-02',close:12,volume:1}];
+ for(const interval of ['monthly','quarterly','yearly'] as const){
+  const all=timelinePriceBars(rows,'2026-02-15',interval),visible=timelinePriceBars(rows.slice(3),'2026-02-15',interval);
+  assert.deepEqual(all.prices,visible.prices);
+  assert.ok(all.warmupPrices.every(bar=>timelinePeriod(bar.date,interval)<timelinePeriod('2026-02-15',interval)));
+ }
+ assert.equal(adjacentTimelineBars('2025-12-31','2026-01-30','monthly'),true);
+ assert.equal(adjacentTimelineBars('2026-01-30','2026-03-31','monthly'),false);
+ assert.equal(adjacentTimelineBars('2025-12-31','2026-03-31','quarterly'),true);
+ assert.equal(adjacentTimelineBars('2025-12-31','2026-06-30','quarterly'),false);
+ assert.equal(adjacentTimelineBars('2024-12-31','2025-12-31','yearly'),true);
+ assert.equal(adjacentTimelineBars('2024-12-31','2026-12-31','yearly'),false);
+ assert.ok(timelineIndicatorHistoryStart('2026-10-13','monthly',60)<'2022-01-01');
+ assert.ok(timelineIndicatorHistoryStart('2026-10-13','yearly',5)<'2020-01-01');
+});
+
+test('timeline API validates explicit intervals and retains automatic defaults without database access',async()=>{
+ const {NextRequest}=await import('next/server');
+ const {GET}=await import('../src/app/api/company-timeline/route');
+ const request=(query:string)=>GET(new NextRequest(`https://example.test/api/company-timeline?company=ORG:OPENAI&${query}`));
+ for(const interval of TIMELINE_INTERVALS){
+  const response=await request(`days=1826&interval=${interval}`);assert.equal(response.status,200);
+  const data=await response.json();assert.equal(data.interval,interval);assert.deepEqual(data.prices,[]);
+ }
+ assert.equal((await (await request('days=1826')).json()).interval,'weekly');
+ assert.equal((await (await request('days=30&interval=auto')).json()).interval,'daily');
+ assert.equal((await request('days=1826&interval=invalid')).status,400);
+});
 
 test('NVDA raw OHLC uses cumulative splits without re-adjusting volume or adjusted closes',()=>{
  const row={ticker:'NVDA',market:'US',tradingDate:'2024-06-07',open:1197.38,high:1216.92,low:1180.22,rawClose:1208.88,close:1208.88,source:'eodhd-eod',volume:412386000,amount:123456};
@@ -270,7 +334,7 @@ test('weekly change labels distinguish adjacent holiday-shortened weeks from mis
  assert.equal(adjacentTimelineBars('2026-09-25','2026-10-09',false),false);
 });
 
-const chart:SharedChart={range:1826,style:'line',averages:[5,20],macd:true,indicator:'macd',activity:'volume',events:true};
+const chart:SharedChart={range:1826,interval:'auto',style:'line',averages:[5,20],macd:true,indicator:'macd',activity:'volume',events:true};
 test('return ages count from publication, not the preceding Friday or holiday close',()=>{
   const monday=Date.parse('2026-10-12T22:00:00Z');
   assert.equal(eventReturnDays('2026-10-12','2026-10-12',null,monday),0);
@@ -317,6 +381,6 @@ test('event shares preserve public selection without personal browsing state',()
   assert.equal(url.hash,'#company-timeline');
   assert.equal(url.searchParams.get('theme'),'ai');
   for(const theme of ['robotics','space'] as const) assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'event',true,theme)).searchParams.get('theme'),theme);
-  assert.deepEqual([...url.searchParams.keys()].sort(),['chartActivity','chartIndicator','chartEvents','chartMA','chartMacd','chartRange','chartStyle','company','event','theme','view'].sort());
+  assert.deepEqual([...url.searchParams.keys()].sort(),['chartActivity','chartIndicator','chartInterval','chartEvents','chartMA','chartMacd','chartRange','chartStyle','company','event','theme','view'].sort());
   assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'business_1')).searchParams.get('chartEvent'),'business_1');
 });

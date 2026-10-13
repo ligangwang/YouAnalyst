@@ -7,22 +7,45 @@ export const TIMELINE_RANGES = [30, 90, 180, 'ytd', 365, 1826] as const;
 export const TIMELINE_RANGE_LABELS = {30:'1M',90:'3M',180:'6M',ytd:'YTD',365:'1Y',1826:'5Y'} as const;
 export const DEFAULT_TIMELINE_RANGE = 30;
 export type TimelineRange = (typeof TIMELINE_RANGES)[number];
+export const TIMELINE_INTERVALS = ['daily','weekly','monthly','quarterly','yearly'] as const;
+export type TimelineInterval = (typeof TIMELINE_INTERVALS)[number];
+export type TimelineIntervalChoice = 'auto' | TimelineInterval;
+export function resolvedTimelineInterval(range:TimelineRange,choice:TimelineIntervalChoice='auto'):TimelineInterval {
+ return choice==='auto'?(range===1826?'weekly':'daily'):choice;
+}
 export type TimelinePrice = { date: string; close: number; volume: number | null; amount?:number; open?:number; high?:number; low?:number; periodStart?:string };
 export type TimelineEvent = ClassifiedEvent & { id: string; date: string; publishedAt?: string | null; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
-export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; warmupPrices?:TimelinePrice[]; interval?:'daily'|'weekly'; available: boolean };
+export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; warmupPrices?:TimelinePrice[]; interval?:TimelineInterval; available: boolean };
 export function timelineWeek(date:string) {
  const day=new Date(`${date}T00:00:00Z`);day.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);return day.toISOString().slice(0,10);
 }
-export function adjacentTimelineBars(previous:string,current:string,weekly:boolean){
- if(weekly)return Date.parse(timelineWeek(current))-Date.parse(timelineWeek(previous))===7*86_400_000;
+export function timelinePeriod(date:string,interval:TimelineInterval){
+ if(interval==='weekly')return timelineWeek(date);
+ if(interval==='monthly')return date.slice(0,7)+'-01';
+ if(interval==='quarterly')return `${date.slice(0,4)}-${String(Math.floor((Number(date.slice(5,7))-1)/3)*3+1).padStart(2,'0')}-01`;
+ if(interval==='yearly')return date.slice(0,4)+'-01-01';
+ return date;
+}
+export function adjacentTimelineBars(previous:string,current:string,choice:TimelineInterval|boolean){
+ const interval=typeof choice==='boolean'?(choice?'weekly':'daily'):choice;
+ if(interval==='weekly')return Date.parse(timelineWeek(current))-Date.parse(timelineWeek(previous))===7*86_400_000;
+ if(interval!=='daily'){
+  const index=(date:string)=>Number(date.slice(0,4))*12+Number(date.slice(5,7))-1;
+  return index(timelinePeriod(current,interval))-index(timelinePeriod(previous,interval))===(interval==='monthly'?1:interval==='quarterly'?3:12);
+ }
  const gap=(Date.parse(current)-Date.parse(previous))/86_400_000;
  return gap===1||(gap===3&&new Date(previous).getUTCDay()===5&&new Date(current).getUTCDay()===1);
 }
 /** Monday-based trading weeks: missing OHLC/volume stays missing, never inferred. */
 export function weeklyTimelinePrices(prices:TimelinePrice[]):TimelinePrice[] {
- const weeks=new Map<string,TimelinePrice[]>();
- for(const price of [...prices].sort((a,b)=>a.date.localeCompare(b.date))){const key=timelineWeek(price.date);const rows=weeks.get(key)??[];rows.push(price);weeks.set(key,rows);}
- return [...weeks.values()].map(rows=>{
+ return aggregateTimelinePrices(prices,'weekly');
+}
+/** Calendar periods use first open, highest high, lowest low, last close and sums. */
+export function aggregateTimelinePrices(prices:TimelinePrice[],interval:TimelineInterval):TimelinePrice[] {
+ if(interval==='daily')return [...prices].sort((a,b)=>a.date.localeCompare(b.date));
+ const periods=new Map<string,TimelinePrice[]>();
+ for(const price of [...prices].sort((a,b)=>a.date.localeCompare(b.date))){const key=timelinePeriod(price.date,interval);const rows=periods.get(key)??[];rows.push(price);periods.set(key,rows);}
+ return [...periods.values()].map(rows=>{
   const first=rows[0],last=rows.at(-1)!;
   const complete=rows.every(row=>row.open!==undefined&&row.high!==undefined&&row.low!==undefined);
   return {date:last.date,periodStart:first.date,close:last.close,volume:rows.every(row=>row.volume!==null)?rows.reduce((sum,row)=>sum+row.volume!,0):null,
@@ -30,11 +53,16 @@ export function weeklyTimelinePrices(prices:TimelinePrice[]):TimelinePrice[] {
    ...(complete?{open:first.open,high:Math.max(...rows.map(row=>row.high!)),low:Math.min(...rows.map(row=>row.low!))}:{})};
  });
 }
-/** Keep the first visible partial week stable when indicator warmup is requested. */
-export function timelinePriceBars(prices:TimelinePrice[],start:string,weekly:boolean){
+/** Keep the first visible partial period stable when indicator warmup is requested. */
+export function timelinePriceBars(prices:TimelinePrice[],start:string,choice:TimelineInterval|boolean){
+ const interval=typeof choice==='boolean'?(choice?'weekly':'daily'):choice;
  const visible=prices.filter(price=>price.date>=start);
- const preceding=prices.filter(price=>price.date<start&&(!weekly||timelineWeek(price.date)<timelineWeek(start)));
- return {prices:weekly?weeklyTimelinePrices(visible):visible,warmupPrices:weekly?weeklyTimelinePrices(preceding):preceding};
+ const preceding=prices.filter(price=>price.date<start&&(interval==='daily'||timelinePeriod(price.date,interval)<timelinePeriod(start,interval)));
+ return {prices:aggregateTimelinePrices(visible,interval),warmupPrices:aggregateTimelinePrices(preceding,interval)};
+}
+export function timelineIndicatorHistoryStart(start:string,interval:TimelineInterval,period:number){
+ const [minimum,perBar]={daily:[180,2],weekly:[540,10],monthly:[1800,35],quarterly:[5400,100],yearly:[21900,370]}[interval];
+ return new Date(Date.parse(start)-Math.max(minimum,period*perBar)*86_400_000).toISOString().slice(0,10);
 }
 /** Stored sessions have equal spacing; closure publications keep distinct, interpolated dates. */
 export function tradingSessionAxis(dates: string[], start: string, end: string) {

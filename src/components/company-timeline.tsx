@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { adjacentTimelineBars, TIMELINE_RANGES, TIMELINE_RANGE_LABELS, timelinePriceBars, timelineWeek, weeklyTimelinePrices, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, timelineWindow, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
+import { adjacentTimelineBars, TIMELINE_RANGES, TIMELINE_RANGE_LABELS, TIMELINE_INTERVALS, resolvedTimelineInterval, timelinePriceBars, timelinePeriod, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, timelineWindow, type TimelineIntervalChoice, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
 import { MA_PERIODS, MA_COLORS, movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands, type IndicatorPoint } from '@/lib/ui/technical-indicators';
 import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { FloatingEventWindow, eventWindowAnchor, type EventWindowAnchor } from './event-details-window';
@@ -28,11 +28,13 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     };
     document.addEventListener('keydown',openResearch);return ()=>document.removeEventListener('keydown',openResearch);
   },[researchPath]);
-  const rangeLabel = (range: TimelineRange) => text(TIMELINE_RANGE_LABELS[range], ({30:'1个月',90:'3个月',180:'6个月',ytd:'今年以来',365:'1年',1826:'5年'} as const)[range]);
+  const rangeLabel = (range: TimelineRange) => text(TIMELINE_RANGE_LABELS[range], ({30:'近1个月',90:'近3个月',180:'近6个月',ytd:'今年以来',365:'近1年',1826:'近5年'} as const)[range]);
+  const intervalLabel=(value:TimelineIntervalChoice)=>text(({auto:'Auto',daily:'Daily',weekly:'Weekly',monthly:'Monthly',quarterly:'Quarterly',yearly:'Yearly'} as const)[value],({auto:'自动',daily:'日K',weekly:'周K',monthly:'月K',quarterly:'季K',yearly:'年K'} as const)[value]);
   const categoryColor = (color: string) => `color-mix(in srgb, ${color} var(--event-color-weight,100%), var(--ui-text,${color}))`;
   const chartHelpId = useId();
   const now = useRelativeTimeClock();
   const chartRange = useIndustryBrowseParam('chartRange');
+  const chartInterval = useIndustryBrowseParam('chartInterval');
   const chartStyle = useIndustryBrowseParam('chartStyle');
   const chartMA = useIndustryBrowseParam('chartMA');
   const chartMacd = useIndustryBrowseParam('chartMacd');
@@ -40,8 +42,11 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const chartActivity = useIndustryBrowseParam('chartActivity');
   const chartEvents = useIndustryBrowseParam('chartEvents');
   const sharedEventId = useIndustryBrowseParam('chartEvent');
-  const settings = parseSharedChart(new URLSearchParams({chartRange,chartStyle,chartMA,chartMacd,chartIndicator,chartActivity,chartEvents}));
+  const settings = parseSharedChart(new URLSearchParams({chartRange,chartInterval,chartStyle,chartMA,chartMacd,chartIndicator,chartActivity,chartEvents}));
   const { range: days, averages, macd: showMacd, indicator, activity, events: showEvents, style: chartMode } = settings;
+  const interval=resolvedTimelineInterval(days,settings.interval),aggregated=interval!=='daily';
+  const periodChangeLabel=text(({daily:'Daily change',weekly:'Weekly change',monthly:'Monthly change',quarterly:'Quarterly change',yearly:'Yearly change'} as const)[interval],({daily:'当日涨跌幅',weekly:'周涨跌幅',monthly:'月涨跌幅',quarterly:'季度涨跌幅',yearly:'年度涨跌幅'} as const)[interval]);
+  const barsLabel=text(({daily:'stored daily bars',weekly:'weekly bars',monthly:'monthly bars',quarterly:'quarterly bars',yearly:'yearly bars'} as const)[interval],({daily:'条已存储日线',weekly:'条周线',monthly:'条月线',quarterly:'条季线',yearly:'条年线'} as const)[interval]);
   const showKdj=indicator==='kdj',showBoll=indicator==='boll',showOscillator=showMacd||showKdj||showBoll;
   const [shareResult,setShareResult] = useState<{url:string;copied:boolean}|null>(null);
   const changeSettings = (patch: Partial<SharedChart>) => { updateIndustryBrowse(sharedChartParams({...settings,...patch})); setShareResult(null); };
@@ -98,18 +103,19 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     if (restoreToggleFocus.current) { toggleButton.current?.focus(); restoreToggleFocus.current = false; }
   }, [closed]);
   const toggleTimeline = (value: boolean) => { restoreToggleFocus.current = true; setClosed(value); if(value)setChartSize("compact"); setPriceSelection(null); setClusterId(''); setHoverDate(null); };
-  const key = `${companyId}:${days}:${needsHistory}:${maxAverage}:${retry}`;
-  const matchingInitial = initialPrices?.companyId===companyId && (days===1826||initialPrices.interval!=='weekly') && initialPrices.start<=timelineWindow(days,initialPrices.end).start ? initialPrices : null;
-  const initialHistoryReady = Boolean(matchingInitial && (days===1826?weeklyTimelinePrices([...(matchingInitial.warmupPrices??[]),...matchingInitial.prices].filter(price=>price.date<timelineWindow(days,matchingInitial.end).start)).length>=maxAverage:[...(matchingInitial.warmupPrices??[]),...matchingInitial.prices].filter(price=>price.date<timelineWindow(days,matchingInitial.end).start).length>=maxAverage));
+  const key = `${companyId}:${days}:${interval}:${needsHistory}:${maxAverage}:${retry}`;
+  const compatibleInterval=(value:TimelinePrices)=>value.interval===interval||(value.interval??'daily')==='daily';
+  const matchingInitial = initialPrices?.companyId===companyId && compatibleInterval(initialPrices) && initialPrices.start<=timelineWindow(days,initialPrices.end).start ? initialPrices : null;
+  const initialHistoryReady = Boolean(matchingInitial && (matchingInitial.interval===interval?[...(matchingInitial.warmupPrices??[]),...matchingInitial.prices].filter(price=>price.date<timelineWindow(days,matchingInitial.end).start):timelinePriceBars([...(matchingInitial.warmupPrices??[]),...matchingInitial.prices],timelineWindow(days,matchingInitial.end).start,interval).warmupPrices).length>=maxAverage);
   useEffect(() => {
     if (matchingInitial && (!needsHistory || initialHistoryReady)) return;
     const controller = new AbortController();
-    fetch(`/api/company-timeline?company=${encodeURIComponent(companyId)}&days=${days}${needsHistory?'&indicators=1':''}${needsHistory&&maxAverage>60?`&maPeriod=${maxAverage}`:''}`, { signal: controller.signal })
-      .then(async r => { const data = await r.json(); if (!r.ok || !data || data.available===false || data.companyId !== companyId || !Array.isArray(data.prices)) throw new Error(); return data as TimelinePrices; })
+    fetch(`/api/company-timeline?company=${encodeURIComponent(companyId)}&days=${days}&interval=${interval}${needsHistory?'&indicators=1':''}${needsHistory&&maxAverage>60?`&maPeriod=${maxAverage}`:''}`, { signal: controller.signal })
+      .then(async r => { const data = await r.json(); if (!r.ok || !data || data.available===false || data.companyId !== companyId || !Array.isArray(data.prices) || (data.interval&&data.interval!==interval&&data.interval!=='daily')) throw new Error(); return data as TimelinePrices; })
       .then(data => setLoaded({ key, data }))
       .catch(() => { if (!controller.signal.aborted) {const fallback=matchingInitial?.prices.length?matchingInitial:null;setLoaded({key,data:fallback??{companyId,...timelineWindow(days),currency:null,prices:[],available:false},indicatorError:Boolean(fallback&&needsHistory)});} });
     return () => controller.abort();
-  }, [companyId, days, matchingInitial, initialHistoryReady, needsHistory, maxAverage, key]);
+  }, [companyId, days, interval, matchingInitial, initialHistoryReady, needsHistory, maxAverage, key]);
   useEffect(() => {
     if (graph) return;
     const controller = new AbortController();
@@ -121,24 +127,23 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     const observer = new ResizeObserver(([entry]) => { if (entry.contentRect.width > 0) setWidth(entry.contentRect.width); });
     observer.observe(el); return () => observer.disconnect();
   }, [closed]);
-  const data = loaded?.key===key ? loaded.data : matchingInitial ?? (loaded?.data.companyId===companyId && loaded.data.start===timelineWindow(days,loaded.data.end).start ? loaded.data : null);
+  const data = loaded?.key===key ? loaded.data : matchingInitial ?? (loaded?.data.companyId===companyId && compatibleInterval(loaded.data) && loaded.data.start===timelineWindow(days,loaded.data.end).start ? loaded.data : null);
   const { start:rangeStart, end:rangeEnd } = timelineWindow(days, data?.end);
   const events = useMemo(() => suppliedEvents ?? companyTimelineEvents(companyId, graph ?? loadedGraph, curatedEvents, chinese), [suppliedEvents, companyId, graph, loadedGraph, chinese]);
   const left = width < 440 ? 60 : 72, right = Math.max(left + 1, width - 24), plotWidth = right - left;
-  const weekly=days===1826;
   const rawHistory=[...new Map([...(data?.warmupPrices??[]),...(data?.prices??[])].map(price=>[price.date,price])).values()].sort((a,b)=>a.date.localeCompare(b.date));
-  const weeklyHistory=timelinePriceBars(rawHistory,rangeStart,weekly);
-  const history=weekly&&data?.interval!=='weekly'?[...weeklyHistory.warmupPrices,...weeklyHistory.prices]:rawHistory;
+  const periodHistory=timelinePriceBars(rawHistory,rangeStart,interval);
+  const history=aggregated&&data?.interval!==interval?[...periodHistory.warmupPrices,...periodHistory.prices]:rawHistory;
   const allPrices = history.filter(p => p.date >= rangeStart && p.date <= rangeEnd).sort((a,b)=>a.date.localeCompare(b.date));
-  const viewKey=`${companyId}:${days}`;
+  const viewKey=`${companyId}:${days}:${interval}`;
   const view=viewport.key===viewKey?viewport:{key:viewKey,zoom:1,offset:0};
   const visibleCount=Math.min(allPrices.length,Math.max(5,Math.ceil(allPrices.length/view.zoom)));
   const offset=Math.min(Math.max(0,allPrices.length-visibleCount),view.offset);
   const prices=allPrices.slice(Math.max(0,allPrices.length-visibleCount-offset),allPrices.length-offset);
   const start=view.zoom>1?prices[0]?.date??rangeStart:rangeStart,end=view.zoom>1&&offset>0?prices.at(-1)?.date??rangeEnd:rangeEnd;
   const axis = tradingSessionAxis(prices.map(price=>price.date),start,end);
-  const weekDates=new Map(prices.map(price=>[timelineWeek(price.date),price.date]));
-  const barDate=(date:string)=>weekly?(weekDates.get(timelineWeek(date))??date):date;
+  const periodDates=new Map(prices.map(price=>[timelinePeriod(price.date,interval),price.date]));
+  const barDate=(date:string)=>aggregated?(periodDates.get(timelinePeriod(date,interval))??date):date;
   const x = (date: string) => left + axis.ratio(barDate(date)) * plotWidth;
   const tickCount = width < 440 ? 3 : 5;
   const tickDates = [...new Set(Array.from({length:tickCount},(_,i)=>axis.dateAt(i/(tickCount-1))))];
@@ -158,18 +163,20 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   // Keep a compact escape row above the full wick range, within the existing chart height.
   const headroom=useCandles&&showEvents&&events.some(event=>event.date>=start&&event.date<=end)?Math.min(40,(priceBottom-priceTop)*.3):0;
   const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * (priceBottom-priceTop-headroom);
-  const groups=layoutOverlayMarkers(showEvents?events:[],start,end,plotWidth,priceTop,priceBottom,useCandles?[]:prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26,date=>x(date)-left,useCandles?prices.map(price=>({left:x(price.date)-left-candleWidth/2,right:x(price.date)-left+candleWidth/2,top:y(price.high??price.close),bottom:y(price.low??price.close)})):[],weekly?timelineWeek:undefined);
+  const groups=layoutOverlayMarkers(showEvents?events:[],start,end,plotWidth,priceTop,priceBottom,useCandles?[]:prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26,date=>x(date)-left,useCandles?prices.map(price=>({left:x(price.date)-left-candleWidth/2,right:x(price.date)-left+candleWidth/2,top:y(price.high??price.close),bottom:y(price.low??price.close)})):[],aggregated?date=>timelinePeriod(date,interval):undefined);
   const openCluster=groups.find(group=>group.events.some(event=>event.id===clusterId));
   const selectedGroup=groups.find(group=>group.events.some(event=>event.id===selectedId));
   const activityValue=(price:typeof prices[number])=>activity==='turnover'?price.amount??null:price.volume;
   const activityLabel=activity==='turnover'?text('Turnover','成交额'):text('Volume','成交量');
   const maxVolume = Math.max(1, ...prices.map(p => activityValue(p) ?? 0));
-  const pricePath = prices.map((p, index) => { const command = index === 0 || Date.parse(p.date) - Date.parse(prices[index - 1].date) > 7 * 86_400_000 ? "M" : "L"; return `${command}${x(p.date).toFixed(2)},${y(p.close).toFixed(2)}`; }).join(" ");
+  const hasPriceGap=(previous:string,current:string)=>aggregated?!adjacentTimelineBars(previous,current,interval):Date.parse(current)-Date.parse(previous)>7*86_400_000;
+  const pricePath = prices.map((p, index) => { const command = index === 0 || hasPriceGap(prices[index-1].date,p.date) ? "M" : "L"; return `${command}${x(p.date).toFixed(2)},${y(p.close).toFixed(2)}`; }).join(" ");
   // Bridge long intervals without implying that daily bars were recorded inside them.
-  const gapPath = prices.flatMap((p,index)=>index>0&&Date.parse(p.date)-Date.parse(prices[index-1].date)>7*86_400_000
+  const gapPath = prices.flatMap((p,index)=>index>0&&hasPriceGap(prices[index-1].date,p.date)
     ? [`M${x(prices[index-1].date).toFixed(2)},${y(prices[index-1].close).toFixed(2)} L${x(p.date).toFixed(2)},${y(p.close).toFixed(2)}`]:[]).join(" ");
   const nearest = activeDate ? prices.reduce<(typeof prices)[number] | null>((best, p) => !best || Math.abs(Date.parse(p.date) - Date.parse(barDate(activeDate))) < Math.abs(Date.parse(best.date) - Date.parse(barDate(activeDate))) ? p : best, null) : null;
-  const formatDate = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString(locale, { ...(days===1826?{year:'numeric' as const}:{}), month: "short", day: "numeric", timeZone: "UTC" });
+  const formatDate = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString(locale, { ...(days===1826||aggregated?{year:'numeric' as const}:{}), month: "short", day: "numeric", timeZone: "UTC" });
+  const formatTickDate=(date:string)=>interval==='yearly'?date.slice(0,4):interval==='quarterly'?text(`${date.slice(0,4)} Q${Math.ceil(Number(date.slice(5,7))/3)}`,`${date.slice(0,4)}年第${Math.ceil(Number(date.slice(5,7))/3)}季度`):interval==='monthly'?new Date(`${date}T00:00:00Z`).toLocaleDateString(locale,{year:'numeric',month:'short',timeZone:'UTC'}):formatDate(date);
   const selectEvent = (id: string,click?:React.MouseEvent<HTMLButtonElement>) => { const anchor=click?eventWindowAnchor(click):null;if(anchor&&clusterId&&chooserTrigger.current?.isConnected)anchor.trigger=chooserTrigger.current;setEventAnchor(anchor);setPriceSelection(null); setSelectedId(id);if(clusterId)closeChooser(); setHoverDate(null); onSelectEvent?.(id,anchor??undefined); };
   const selectPriceAt = (clientX: number) => {
     const rect = chart.current?.getBoundingClientRect(); if (!rect) return;
@@ -182,7 +189,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     if(index<1)return;
     const current=allPrices[index],previous=allPrices[index-1];
     // A weekday gap may be a holiday or missing history; do not infer a daily return.
-    const adjacent=adjacentTimelineBars(previous.date,current.date,weekly);
+    const adjacent=adjacentTimelineBars(previous.date,current.date,interval);
     return {baselineDate:previous.date,latestDate:current.date,change:current.close/previous.close-1,adjacent};
   };
   const hoverReturn=nearest?dailyReturnFor(nearest.date):undefined;
@@ -238,6 +245,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
       <button type="button" onClick={()=>void copyChartLink()}>{text('Copy chart link','复制图表链接')}</button>
       <ChartSizeControls size={chartSize} onChange={setChartSize}/>
       <label>{text('Range','时间范围')} <select aria-label={text('Price history range','股价时间范围')} value={days} onChange={event=>{setDays(event.target.value==='ytd'?'ytd':Number(event.target.value) as TimelineRange);setPriceSelection(null);setClusterId('');setHoverDate(null);}}>{TIMELINE_RANGES.map(range=><option key={range} value={range}>{rangeLabel(range)}</option>)}</select></label>
+      <label>{text('Interval','K线周期')} <select aria-label={text('Candlestick interval','K线周期')} value={settings.interval} onChange={event=>{changeSettings({interval:event.target.value as TimelineIntervalChoice});closePriceDetails();setClusterId('');setHoverDate(null);}}>{(['auto',...TIMELINE_INTERVALS] as const).map(value=><option key={value} value={value}>{intervalLabel(value)}</option>)}</select></label>
       <div role="group" aria-label={text('Technical indicators','技术指标')} className={styles.indicatorControls}>
         {averagePeriods.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):movingAveragePeriods([...values,period]))}>{text('MA','MA')}{period}</button>)}
         <button type="button" onClick={click=>setMaSettings(eventWindowAnchor(click))}>{text('MA settings','均线设置')}</button>
@@ -256,7 +264,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     </div>
     {maSettings&&<FloatingEventWindow role="dialog" anchor={maSettings} title={text('Moving average settings','均线设置')} closeLabel={text('Close MA settings','关闭均线设置')} onClose={()=>setMaSettings(null)}>
       <form className={styles.maSettings} onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);setAverages(()=>movingAveragePeriods(Array.from({length:8},(_,index)=>Number(form.get(`ma-${index}`)))));setMaSettings(null);}}>
-        <p>{text('Periods count chart bars: daily sessions or weekly bars. Set 0 to disable a line.','周期按K线根数计算：日线为交易日，周线为周。填 0 关闭该线。')}</p>
+        <p>{text('MA periods count bars in the selected interval. Set 0 to disable a line.','均线周期按所选K线的根数计算。填 0 关闭该线。')}</p>
         {Array.from({length:8},(_,index)=><label key={index}>{text('Line','第')}{index+1}{chinese?'条':''}<input name={`ma-${index}`} type="number" min={0} max={500} step={1} defaultValue={averages[index]??0}/></label>)}
         <button type="submit">{text('Apply','应用')}</button>
       </form>
@@ -286,7 +294,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         const current = Math.max(0,prices.findIndex(price=>price.date===(priceDate??prices.at(-1)!.date)));
         const index = e.key==='Home'?0:e.key==='End'?prices.length-1:Math.max(0,Math.min(prices.length-1,current+(e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0)));
         setClusterId(''); setPriceSelection({companyId,date:prices[index].date});
-      }} data-time-axis={prices.length?"trading-sessions":"calendar"} data-chart-type={useCandles?"candles":"line"} data-event-layout="overlay" data-price-top={priceTop} data-price-bottom={priceBottom} style={{height:chartHeight}} viewBox={`0 0 ${width} ${chartHeight}`} role="img" aria-label={useCandles?weekly?text("Dated event markers over weekly candlesticks, with volume below","事件按周排列在周线蜡烛图中，下方为成交量"):text("Dated event markers over daily candlesticks, with volume below","事件按发布日期叠加在日线蜡烛图中，下方为成交量"):text("Dated event markers over daily close, with volume below", "事件按发布日期叠加在收盘价图中，下方为成交量")}>
+      }} data-time-axis={prices.length?"trading-sessions":"calendar"} data-chart-interval={interval} data-chart-type={useCandles?"candles":"line"} data-event-layout="overlay" data-price-top={priceTop} data-price-bottom={priceBottom} style={{height:chartHeight}} viewBox={`0 0 ${width} ${chartHeight}`} role="img" aria-label={useCandles?text(`Dated event markers over ${interval} candlesticks, with volume below`,`事件叠加在${intervalLabel(interval)}图中，下方为成交量`):text("Dated event markers over closing prices, with volume below", "事件按发布日期叠加在收盘价图中，下方为成交量")}>
         <desc id={chartHelpId}>{text("Hover over a candle or line to view details; moving away hides them. Use wheel or up/down keys to zoom; left/right keys pan when zoomed. Touch screens: tap to view. Enter opens keyboard details; Escape closes.","鼠标移到K线或曲线上显示详情，移开消失。滚轮或上下键缩放，放大后左右键平移。触屏点击查看；回车打开键盘详情，Esc 关闭。")}</desc>
         <text x={0} y={priceTop-8}>{useCandles?text("Price","股价"):text("Close", "收盘价")} {data?.currency === "USD" ? "($)" : data?.currency ?? ""}</text>
         {prices.length > 0 ? <>
@@ -323,7 +331,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
           {(['upper','middle','lower'] as const).map((band,index)=><path key={band} data-boll-band={band} d={indicatorPath(boll.map(point=>({date:point.date,value:point[band]})),bollY)} fill="none" stroke={MA_COLORS[index]} strokeWidth={1.5} pointerEvents="none"/>)}
           {!boll.length&&<text x={left+8} y={macdTop+12}>{text('Insufficient history','历史数据不足')}</text>}
         </g>}
-        {tickDates.map(date => <text key={date} data-session-tick={date} x={x(date)} y={chartHeight-6} textAnchor="middle">{formatDate(date)}</text>)}
+        {tickDates.map(date => <text key={date} data-session-tick={date} x={x(date)} y={chartHeight-6} textAnchor="middle">{formatTickDate(date)}</text>)}
         {useCandles&&groups.map(group=>{
           const candle=candles.find(price=>price.date===barDate(group.events[0].date));if(!candle)return null;
           const above=group.y<y(candle.high),below=group.y>y(candle.low);if(!above&&!below)return null;
@@ -333,10 +341,10 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         {priceDate && nearest && <circle cx={x(nearest.date)} cy={y(nearest.close)} r={4} fill="var(--chart-line,#79cfe9)" stroke="#e5f7ff" strokeWidth={2} pointerEvents="none"/>}
       </svg>
       {priceDate && nearest && <div className={styles.priceTooltip} role="group" aria-label={text("Price details", "股价详情")} data-price-details data-price-mode={hoverOnly?'hover':'pinned'} style={{right:8,top:4,transform:'none'}}>
-        <div className={styles.priceDetailsHeader}><span>{weekly&&nearest.periodStart?`${nearest.periodStart} – ${nearest.date}`:nearest.date}</span>{!hoverOnly&&<button type="button" aria-label={text("Close price details", "关闭股价详情")} onClick={()=>closePriceDetails(true)}>×</button>}</div>
+        <div className={styles.priceDetailsHeader}><span>{aggregated&&nearest.periodStart?`${nearest.periodStart} – ${nearest.date}`:nearest.date}</span>{!hoverOnly&&<button type="button" aria-label={text("Close price details", "关闭股价详情")} onClick={()=>closePriceDetails(true)}>×</button>}</div>
         {useCandles&&nearest.open!==undefined&&nearest.high!==undefined&&nearest.low!==undefined&&<span data-hover-ohlc>{text('O','开')} {nearest.open.toFixed(2)} · {text('H','高')} {nearest.high.toFixed(2)} · {text('L','低')} {nearest.low.toFixed(2)}</span>}
         <strong>{text("Close", "收盘价")} · {new Intl.NumberFormat(locale, data?.currency ? {style:"currency",currency:data.currency,minimumFractionDigits:2,maximumFractionDigits:2} : {minimumFractionDigits:2,maximumFractionDigits:2}).format(nearest.close)}</strong>
-        {hoverReturn&&<span title={`${hoverReturn.baselineDate} → ${hoverReturn.latestDate}`}>{weekly&&hoverReturn.adjacent?text('Weekly change','周涨跌幅'):hoverReturn.adjacent?text('Daily change','当日涨跌幅'):`${text('Change since','较')} ${hoverReturn.baselineDate}`} · <b data-daily-return data-return-direction={hoverReturn.change>0?'up':hoverReturn.change<0?'down':'flat'}>{hoverReturn.change>0?'▲':hoverReturn.change<0?'▼':'—'} {signedPercent(hoverReturn.change)}</b></span>}
+        {hoverReturn&&<span title={`${hoverReturn.baselineDate} → ${hoverReturn.latestDate}`}>{hoverReturn.adjacent?periodChangeLabel:`${text('Change since','较')} ${hoverReturn.baselineDate}`} · <b data-daily-return data-return-direction={hoverReturn.change>0?'up':hoverReturn.change<0?'down':'flat'}>{hoverReturn.change>0?'▲':hoverReturn.change<0?'▼':'—'} {signedPercent(hoverReturn.change)}</b></span>}
         {toLatest!==undefined&&latest&&<span title={`${nearest.date} → ${latest.date}`} data-latest-return>{text('Change to latest close','至最新收盘涨跌幅')} ({formatDate(latest.date)}) · <b data-return-direction={toLatest>0?'up':toLatest<0?'down':'flat'}>{toLatest>0?'▲':toLatest<0?'▼':'—'} {signedPercent(toLatest)}</b></span>}
         <span>{text("Volume", "成交量")} · {nearest.volume === null ? text("Not recorded", "未记录") : new Intl.NumberFormat(locale).format(nearest.volume)}</span>
         {(activity==='turnover'||nearest.amount!==undefined)&&<span>{text('Turnover','成交额')} · {nearest.amount===undefined?text('Not recorded','暂无数据'):new Intl.NumberFormat(locale,data?.currency?{style:'currency',currency:data.currency,maximumFractionDigits:0}:{}).format(nearest.amount)}</span>}
@@ -352,7 +360,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
         <div className={styles.eventList}>{openCluster.events.map(event=>{const style=eventPresentation(event,chinese);return <button key={event.id} type="button" onClick={click=>selectEvent(event.id,click)}><span style={{color:categoryColor(style.color)}}>{style.symbol} {style.label}</span> · {formatDate(event.date)} · {event.title}{returnFor(event.id)&&returnLabel(returnFor(event.id)!,event)}</button>;})}</div>
       </FloatingEventWindow>}
     </div>
-    <p className={styles.coverage}>{chartMode==='candles'&&prices.length>0&&!useCandles&&<span>{text("OHLC unavailable; showing closes","暂无完整开高低收数据，显示收盘价")} · </span>}{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${weekly?text('weekly bars','条周线'):text('stored daily bars','条已存储日线')} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>
+    <p className={styles.coverage}>{chartMode==='candles'&&prices.length>0&&!useCandles&&<span>{text("OHLC unavailable; showing closes","暂无完整开高低收数据，显示收盘价")} · </span>}{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${barsLabel} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>
     {data && !data.available && <button type="button" className={styles.retry} onClick={() => setRetry(value => value + 1)}>{text("Retry prices", "重试读取股价")}</button>}
     {selected && !onSelectEvent && <FloatingEventWindow key={selected.id} anchor={eventAnchor} title={text('Event details','事件详情')} onClose={()=>{setSelectedId('');setHoverDate(null);}}>
       <strong>{eventPresentation(selected,chinese).symbol} {eventPresentation(selected,chinese).label}</strong><h2>{selected.title}</h2><p>{text('Published','发布于')} · {selected.date}</p>

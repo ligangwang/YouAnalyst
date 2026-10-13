@@ -264,6 +264,40 @@ test('a longer supplied price history remains illustrative and supplies indicato
  await expect(timeline.getByRole('status')).toHaveCount(0);expect(requests).toEqual([]);
 });
 
+for(const zh of [false,true])test(`manual candle intervals override automatic range defaults ${zh?'Chinese':'English'}`,async({page},info)=>{
+ await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async(value:string)=>{(window as unknown as {copiedLink:string}).copiedLink=value;}}}));
+ const items=['2026-09-15','2026-09-16'].map((publication_date,index)=>({...snapshot.events[0],id:`period-event-${index}`,title:`Period disclosure ${index}`,published_at:null,publication_date,eventType:'product_business' as const,eventSubtype:'business_update'}));
+ await open(page,zh,{...snapshot,events:items});
+ const rows:import('../../src/lib/ui/company-timeline').TimelinePrice[]=[];
+ for(let date=Date.parse('2020-12-31'),index=0;date<=Date.parse('2026-10-13');date+=86_400_000){if([0,6].includes(new Date(date).getUTCDay()))continue;const close=100+index++*.02;rows.push({date:new Date(date).toISOString().slice(0,10),open:close-.1,high:close+.2,low:close-.2,close,volume:100,amount:1000});}
+ const requests:string[]=[];
+ await page.route('**/api/company-timeline?*',route=>{
+  const url=new URL(route.request().url()),range=url.searchParams.get('days');requests.push(url.searchParams.get('interval')!);
+  const start=range==='1826'?'2021-10-13':range==='ytd'?'2026-01-01':new Date(Date.parse('2026-10-13')-Number(range)*86_400_000).toISOString().slice(0,10);
+  return route.fulfill({json:{companyId:'US:MU',start,end:'2026-10-13',interval:'daily',currency:'USD',available:true,prices:rows.filter(row=>row.date>=start),warmupPrices:rows.filter(row=>row.date<start)}});
+ });
+ await page.goto(`http://workspace.test/?company=US%3AMU${zh?'&lang=zh-CN':''}`);
+ const timeline=page.locator('[data-company-timeline="US:MU"]'),svg=timeline.locator('svg'),range=timeline.getByRole('combobox',{name:zh?'股价时间范围':'Price history range'}),interval=timeline.getByRole('combobox',{name:zh?'K线周期':'Candlestick interval'});
+ await expect(interval).toHaveValue('auto');await expect(interval.locator('option')).toHaveText(zh?['自动','日K','周K','月K','季K','年K']:['Auto','Daily','Weekly','Monthly','Quarterly','Yearly']);
+ await expect(svg).toHaveAttribute('data-chart-interval','daily');
+ await range.selectOption('1826');await expect(svg).toHaveAttribute('data-chart-interval','weekly');await expect.poll(()=>svg.locator('[data-price-candle]').count()).toBeGreaterThan(200);
+ await interval.selectOption('daily');await expect(svg).toHaveAttribute('data-chart-interval','daily');await expect.poll(()=>svg.locator('[data-price-candle]').count()).toBeGreaterThan(1200);
+ for(const [value,count] of [['monthly',61],['quarterly',21],['yearly',6]] as const){
+  await interval.selectOption(value);await expect(svg).toHaveAttribute('data-chart-interval',value);await expect(svg.locator('[data-price-candle]')).toHaveCount(count);
+  await expect.poll(()=>requests.at(-1)).toBe(value);
+ }
+ await interval.selectOption('monthly');await expect(svg.locator('[data-price-candle]')).toHaveCount(61);
+ await timeline.getByRole('button',{name:zh?'曲线':'Line',exact:true}).click();await expect(svg.locator('[data-price-line]')).toHaveAttribute('d',/^M.+L/);await expect(svg.locator('[data-price-gap]')).toHaveCount(0);await timeline.getByRole('button',{name:zh?'蜡烛图':'Candles',exact:true}).click();
+ await svg.press('End');const details=timeline.getByRole('group',{name:zh?'股价详情':'Price details'});await expect(details).toContainText('2026-10-01 – 2026-10-13');await expect(details).toContainText(zh?'月涨跌幅':'Monthly change');await expect(details).toContainText('900');await page.keyboard.press('Escape');
+ await timeline.locator('button[data-event-count="2"]').click();const chooser=page.getByRole('group',{name:zh?'选择事件':'Choose an event'});await expect(chooser).toContainText(zh?'9月15日':'Sep 15');await expect(chooser).toContainText(zh?'9月16日':'Sep 16');await chooser.getByRole('button',{name:zh?'关闭事件列表':'Close event list'}).click();
+ await range.selectOption('30');await expect(interval).toHaveValue('monthly');await expect(svg.locator('[data-price-candle]')).toHaveCount(2);
+ await timeline.getByRole('button',{name:zh?'复制图表链接':'Copy chart link',exact:true}).click();const shared=new URL(await page.evaluate(()=>(window as unknown as {copiedLink:string}).copiedLink));expect(shared.searchParams.get('chartInterval')).toBe('monthly');expect(shared.searchParams.get('chartRange')).toBe('30');
+ await page.reload();await expect(interval).toHaveValue('monthly');await expect(svg.locator('[data-price-candle]')).toHaveCount(2);
+ await range.selectOption('1826');await interval.selectOption('yearly');await expect(svg.locator('[data-price-candle]')).toHaveCount(6);
+ await timeline.getByRole('button',{name:zh?'全屏':'Full screen',exact:true}).click();await timeline.screenshot({path:`output/chart-periods-${info.project.name}-${zh?'zh':'en'}.png`});await page.keyboard.press('Escape');
+ await interval.selectOption('auto');await expect(svg).toHaveAttribute('data-chart-interval','weekly');await range.selectOption('30');await expect(svg).toHaveAttribute('data-chart-interval','daily');
+});
+
 test('all six history ranges include YTD and five-year weekly prices with exact event dates',async({page})=>{
  const items=['2026-09-28','2026-09-30'].map((publication_date,index)=>({...snapshot.events[0],id:'week-'+index,title:'Weekly business '+index,published_at:null,publication_date,eventType:'product_business' as const,eventSubtype:'business_update'}));
  await open(page,false,{...snapshot,events:items});
@@ -333,8 +367,8 @@ for(const zh of [false,true])test(`publication returns hide zero days and update
  await open(page,zh,fixture);
  await page.goto(`http://workspace.test/?company=US%3AMU&event=${announcement.id}${zh?'&lang=zh-CN':''}`);
  const range=page.getByRole('combobox',{name:zh?'股价时间范围':'Price history range'});
- await expect(range.locator('option')).toHaveText(zh?['1个月','3个月','6个月','今年以来','1年','5年']:['1M','3M','6M','YTD','1Y','5Y']);
- await expect(page.getByRole('group',{name:zh?'时间范围':'Timeline range',exact:true})).toContainText(zh?'1个月':'1M');
+ await expect(range.locator('option')).toHaveText(zh?['近1个月','近3个月','近6个月','今年以来','近1年','近5年']:['1M','3M','6M','YTD','1Y','5Y']);
+ await expect(page.getByRole('group',{name:zh?'时间范围':'Timeline range',exact:true})).toContainText(zh?'近1个月':'1M');
  const details=page.getByRole('dialog',{name:zh?'事件详情':'Event details'});
  await expect(details).toContainText(zh?'发布以来:':'Since pub.:');
  await expect(details).toContainText('-2.28%');
