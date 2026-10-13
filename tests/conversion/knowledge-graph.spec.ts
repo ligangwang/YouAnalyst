@@ -1525,7 +1525,7 @@ test('navigation: graph selection frames direct connections outside the ball and
  const card=page.locator('[data-node-card="US:NVDA"]');await expect(card).toBeVisible();
  await expect.poll(()=>canvas.evaluate(el=>{const p=el.dataset.cameraPosition!.split(',').map(Number);return Math.hypot(...p)/Number(el.dataset.ballRadius);})).toBeGreaterThan(1.1);
  const connections=graph.relationships.filter(e=>e.source==='US:NVDA'||e.target==='US:NVDA').flatMap(e=>[e.source,e.target]);
- const visible=await page.evaluate(ids=>{const canvas=document.querySelector('canvas')!.getBoundingClientRect();return [...document.querySelectorAll<HTMLElement>('[data-company-id]')].filter(el=>ids.includes(el.dataset.companyId!)).every(el=>{const r=el.getBoundingClientRect();return r.right>=canvas.left&&r.left<=canvas.right&&r.bottom>=canvas.top&&r.top<=canvas.bottom;});},connections);expect(visible).toBe(true);
+ await expect.poll(()=>page.evaluate(ids=>{const canvas=document.querySelector('canvas')!.getBoundingClientRect();return [...document.querySelectorAll<HTMLElement>('[data-company-id]')].filter(el=>ids.includes(el.dataset.companyId!)).every(el=>{const r=el.getBoundingClientRect();return r.right>=canvas.left&&r.left<=canvas.right&&r.bottom>=canvas.top&&r.top<=canvas.bottom;});},connections),{timeout:15000}).toBe(true);
  await card.getByRole('button',{name:'Clear selection',exact:true}).click();
  await expect.poll(pose).toBe(before);
 });
@@ -1563,12 +1563,16 @@ test('navigation: zoomed and panned graph returns from selection before resuming
  await page.mouse.down({button:'right'});await page.mouse.move(box.x+32,box.y+24,{steps:6});await page.mouse.up({button:'right'});
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
  const pose=()=>canvas.evaluate(el=>({position:el.dataset.cameraPosition!.split(',').map(Number),target:el.dataset.cameraTarget!.split(',').map(Number),distance:Number(el.dataset.cameraDistance)}));
+ // Camera sleep can precede the renderer's pose attributes by a frame.
+ await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
  const saved=await pose();expect(saved.distance).toBeLessThan(original*.8);
- await page.emulateMedia({reducedMotion:'no-preference'});
+ // Keep rotation disabled until selection owns the camera, so the app saves
+ // the same user view as this assertion rather than an already resumed orbit.
  for(const id of ['US:NVDA','US:AMD']){
   await page.locator(`[data-company-id="${id}"]`).evaluate((el:HTMLButtonElement)=>el.click());
   await expect(page.locator(`[data-node-card="${id}"]`)).toBeVisible();
  }
+ await page.emulateMedia({reducedMotion:'no-preference'});
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
  // Capture the closest return on every renderer update: polling can miss
  // the saved position once continuous rotation has already resumed.
