@@ -6,7 +6,7 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound, permanentRedirect } from "next/navigation";
 import { CompanyTickerContent, companyTickerMetadata } from "@/components/company-ticker-route";
-import { publicCompanyPath, publicCompanyTicker } from "@/lib/market-companies/slugs";
+import { organizationCompanyId, organizationCompanyPath, publicCompanyPath, publicCompanyTicker } from "@/lib/market-companies/slugs";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { companyGeography, companyGeographyLabel } from "@/lib/market-companies/identity";
 import { localizedMetadata } from "@/lib/i18n/server";
@@ -22,6 +22,7 @@ export const dynamic = "force-dynamic";
 function routeId(raw: string) {
   let id: string;
   try { id = decodeURIComponent(raw); } catch { notFound(); }
+  id = organizationCompanyId(id) ?? id;
   if (!/^ORG:[A-Z0-9][A-Z0-9.-]{0,79}$/.test(id)) notFound();
   return id;
 }
@@ -37,7 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const ticker = publicCompanyTicker(id);
   if (ticker) return companyTickerMetadata({ params: Promise.resolve({ symbol: ticker }) });
   const data = await load(id);
-  return localizedMetadata({ title: `${data.name} | YouAnalyst`, description: String(data.description ?? "") });
+  return localizedMetadata({ title: `${data.name} | YouAnalyst`, description: String(data.description ?? ""), alternates: { canonical: organizationCompanyPath(data.id) } }, { usePageCanonical: true });
 }
 export default async function CompanyPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
@@ -59,6 +60,13 @@ export default async function CompanyPage({ params, searchParams }: {
   const id = routeId(rawId);
   const data = await load(id);
   const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
+  if (decodeURIComponent(`/company/${rawId}`) !== decodeURIComponent(organizationCompanyPath(id))) {
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(await searchParams)) {
+      for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
+    }
+    permanentRedirect(localizedPath(organizationCompanyPath(id), locale) + (query.size ? `?${query}` : ""));
+  }
   const zh = locale === "zh-CN";
   const identity = companyGeography(data);
   const callTicker = identity.listingStatus === "PRIVATE" ? undefined : identity.listings.map(listing =>

@@ -7,12 +7,15 @@ import { companyPageUrl } from "../market-companies/routes";
 // Disjoint ID ranges keep each response small without imposing a company limit.
 export const COMPANY_SITEMAP_BUCKETS = [
   ..."0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map(letter => `US-${letter}`),
-  "XSHG-6", "XSHE-0", "XSHE-3",
+  "XSHG-6", "XSHE-0", "XSHE-3", "ORG",
 ];
 export function companyBucketPrefix(bucket: string): string | null {
-  return COMPANY_SITEMAP_BUCKETS.includes(bucket) ? bucket.replace("-", ":") : null;
+  return bucket === "ORG" ? "ORG:" : COMPANY_SITEMAP_BUCKETS.includes(bucket) ? bucket.replace("-", ":") : null;
 }
 export function companySitemapPath(id: string, data: Record<string, unknown>): string | null {
+  if (/^ORG:[A-Z0-9][A-Z0-9.-]{0,79}$/.test(id)) {
+    return typeof data.name === "string" && ["PUBLISHED", "DIRECTORY"].includes(String(data.status)) ? companyPageUrl(id, "GLOBAL") : null;
+  }
   const symbol = id.startsWith("US:") ? id.slice(3) : id;
   if (id.startsWith("US:") ? !data.name || !isMapTicker(symbol) : !publicChinaCompany(id, data)) return null;
   return companyPageUrl(symbol, id.startsWith("US:") ? "US" : "CN_A");

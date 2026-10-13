@@ -9,6 +9,9 @@ test("US and A-share IDs fall into exactly one sitemap range", () => {
   assert.equal(companyBucketPrefix("../private"), null);
 });
 test("sitemaps include valid public companies and omit unpublished A-shares", () => {
+  assert.equal(companyBucketPrefix("ORG"), "ORG:");
+  assert.equal(companySitemapPath("ORG:OPENAI", { name: "OpenAI", status: "DIRECTORY" }), "/company/openai");
+  assert.equal(companySitemapPath("ORG:OPENAI", { name: "OpenAI", status: "DRAFT" }), null);
   assert.equal(companySitemapPath("US:NVDA", { name: "NVIDIA" }), "/company/nvidia");
   const company = { name: "海光信息", market: "CN_A", status: "DIRECTORY", stage: "AI", description: "Company", source: "https://example.com/report", sourceLabel: "Report" };
   assert.equal(companySitemapPath("XSHG:688041", company), "/ticker/XSHG:688041");

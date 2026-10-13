@@ -8,6 +8,7 @@ test("listed A-share pages offer calls in both languages while private companies
     await expect(page.getByRole("link", { name: bearish, exact: true })).toBeVisible();
   }
   await page.goto("/en/company/ORG:OPENAI");
+  await expect(page).toHaveURL(/\/en\/company\/openai$/);
   const privateHeading = page.getByRole("heading", { level: 1 });
   await expect(privateHeading).toBeVisible();
   await expect(privateHeading).toHaveText("OpenAI");

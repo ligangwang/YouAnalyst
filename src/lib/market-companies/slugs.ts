@@ -1,4 +1,17 @@
 // Stable curated slugs; do not derive URLs from mutable company display names.
+export const ORGANIZATION_COMPANY_SLUGS: Record<string, string> = {
+  "ORG:OPENAI": "openai", "ORG:ANTHROPIC": "anthropic", "ORG:MISTRAL-AI": "mistral-ai",
+  "ORG:SPACEX": "spacex", "ORG:BLUE-ORIGIN": "blue-origin", "ORG:AXIOM-SPACE": "axiom-space",
+  "ORG:CESIUMASTRO": "cesiumastro", "ORG:D-ORBIT": "d-orbit", "ORG:VARDA-SPACE": "varda-space",
+  "ORG:HON-HAI": "hon-hai", "ORG:QUANTA-COMPUTER": "quanta-computer",
+  "ORG:SAMSUNG-ELECTRONICS": "samsung-electronics", "ORG:WISTRON": "wistron",
+};
+export function organizationCompanyPath(id: string): string {
+  return `/company/${ORGANIZATION_COMPANY_SLUGS[id.toUpperCase()] ?? encodeURIComponent(id)}`;
+}
+export function organizationCompanyId(slug: string): string | null {
+  return Object.entries(ORGANIZATION_COMPANY_SLUGS).find(([, name]) => name === slug.toLowerCase())?.[0] ?? null;
+}
 export const PUBLIC_COMPANY_SLUGS: Record<string, string> = {
   MSFT: "microsoft", NVDA: "nvidia", AMZN: "amazon", LLY: "eli-lilly",
   AAPL: "apple", GOOGL: "alphabet", META: "meta", TSLA: "tesla",
