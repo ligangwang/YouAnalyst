@@ -266,7 +266,7 @@ test('a longer supplied price history remains illustrative and supplies indicato
 
 for(const zh of [false,true])test(`manual candle intervals override automatic range defaults ${zh?'Chinese':'English'}`,async({page},info)=>{
  await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async(value:string)=>{(window as unknown as {copiedLink:string}).copiedLink=value;}}}));
- const items=['2026-09-15','2026-09-16'].map((publication_date,index)=>({...snapshot.events[0],id:`period-event-${index}`,title:`Period disclosure ${index}`,published_at:null,publication_date,eventType:'product_business' as const,eventSubtype:'business_update'}));
+ const items=['2026-09-15','2026-09-16','2026-06-15','2026-06-16','2026-02-28'].map((publication_date,index)=>({...snapshot.events[0],id:`period-event-${index}`,title:`Period disclosure ${index}`,published_at:null,publication_date,eventType:'product_business' as const,eventSubtype:'business_update'}));
  await open(page,zh,{...snapshot,events:items});
  const rows:import('../../src/lib/ui/company-timeline').TimelinePrice[]=[];
  for(let date=Date.parse('2020-12-31'),index=0;date<=Date.parse('2026-10-13');date+=86_400_000){if([0,6].includes(new Date(date).getUTCDay()))continue;const close=100+index++*.02;rows.push({date:new Date(date).toISOString().slice(0,10),open:close-.1,high:close+.2,low:close-.2,close,volume:100,amount:1000});}
@@ -289,7 +289,15 @@ for(const zh of [false,true])test(`manual candle intervals override automatic ra
  await interval.selectOption('monthly');await expect(svg.locator('[data-price-candle]')).toHaveCount(61);
  await timeline.getByRole('button',{name:zh?'曲线':'Line',exact:true}).click();await expect(svg.locator('[data-price-line]')).toHaveAttribute('d',/^M.+L/);await expect(svg.locator('[data-price-gap]')).toHaveCount(0);await timeline.getByRole('button',{name:zh?'蜡烛图':'Candles',exact:true}).click();
  await svg.press('End');const details=timeline.getByRole('group',{name:zh?'股价详情':'Price details'});await expect(details).toContainText('2026-10-01 – 2026-10-13');await expect(details).toContainText(zh?'月涨跌幅':'Monthly change');await expect(details).toContainText('900');await page.keyboard.press('Escape');
- await timeline.locator('button[data-event-count="2"]').click();const chooser=page.getByRole('group',{name:zh?'选择事件':'Choose an event'});await expect(chooser).toContainText(zh?'9月15日':'Sep 15');await expect(chooser).toContainText(zh?'9月16日':'Sep 16');await chooser.getByRole('button',{name:zh?'关闭事件列表':'Close event list'}).click();
+ await timeline.locator('button[data-event-count="2"]').last().click();const chooser=page.getByRole('group',{name:zh?'选择事件':'Choose an event'});await expect(chooser).toContainText(zh?'9月15日':'Sep 15');await expect(chooser).toContainText(zh?'9月16日':'Sep 16');await chooser.getByRole('button',{name:zh?'关闭事件列表':'Close event list'}).click();
+ await timeline.locator('button[data-event-count="2"]').first().click();await chooser.getByRole('button',{name:/Period disclosure 2/}).click();const selected=page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true});await expect(selected).toContainText('2026-06-15');
+ for(let step=0;step<4;step++)await svg.press('ArrowUp');
+ for(let step=0;step<30;step++)await svg.press('ArrowRight');
+ await expect(svg.locator('[data-price-candle]')).toHaveCount(5);await expect(svg.locator('[data-price-candle]').first()).toHaveAttribute('data-price-candle','2026-06-30');
+ await expect(selected).toBeVisible();await expect(timeline.locator('button[data-event-count="2"]')).toHaveCount(2);await selected.getByRole('button',{name:zh?'关闭事件详情':'Close event details',exact:true}).click();
+ for(let step=0;step<8;step++)await svg.press('ArrowLeft');
+ await expect(svg.locator('[data-price-candle]').last()).toHaveAttribute('data-price-candle','2026-02-27');await expect(timeline.getByRole('button',{name:/Period disclosure 4/})).toBeVisible();
+ await timeline.getByRole('button',{name:zh?'重置视图':'Reset view',exact:true}).click();
  await range.selectOption('30');await expect(interval).toHaveValue('monthly');await expect(svg.locator('[data-price-candle]')).toHaveCount(2);
  await timeline.getByRole('button',{name:zh?'复制图表链接':'Copy chart link',exact:true}).click();const shared=new URL(await page.evaluate(()=>(window as unknown as {copiedLink:string}).copiedLink));expect(shared.searchParams.get('chartInterval')).toBe('monthly');expect(shared.searchParams.get('chartRange')).toBe('30');
  await page.reload();await expect(interval).toHaveValue('monthly');await expect(svg.locator('[data-price-candle]')).toHaveCount(2);

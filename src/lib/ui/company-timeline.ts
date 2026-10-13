@@ -26,6 +26,13 @@ export function timelinePeriod(date:string,interval:TimelineInterval){
  if(interval==='yearly')return date.slice(0,4)+'-01-01';
  return date;
 }
+export function timelinePeriodEnd(date:string,interval:TimelineInterval){
+ if(interval==='daily')return date;
+ const end=new Date(`${timelinePeriod(date,interval)}T00:00:00Z`);
+ if(interval==='weekly')end.setUTCDate(end.getUTCDate()+6);
+ else{if(interval==='yearly')end.setUTCFullYear(end.getUTCFullYear()+1);else end.setUTCMonth(end.getUTCMonth()+(interval==='monthly'?1:3));end.setUTCDate(0);}
+ return end.toISOString().slice(0,10);
+}
 export function adjacentTimelineBars(previous:string,current:string,choice:TimelineInterval|boolean){
  const interval=typeof choice==='boolean'?(choice?'weekly':'daily'):choice;
  if(interval==='weekly')return Date.parse(timelineWeek(current))-Date.parse(timelineWeek(previous))===7*86_400_000;

@@ -2,7 +2,7 @@ import { chartShareUrl, parseSharedChart, sharedChartParams, type SharedChart } 
 import { eventReturnDays } from '../src/lib/ui/event-return-age';
 import test from "node:test";
 import assert from "node:assert/strict";
-import { adjacentTimelineBars, aggregateTimelinePrices, resolvedTimelineInterval, TIMELINE_RANGES, TIMELINE_INTERVALS, timelinePeriod, timelineIndicatorHistoryStart, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
+import { adjacentTimelineBars, aggregateTimelinePrices, resolvedTimelineInterval, TIMELINE_RANGES, TIMELINE_INTERVALS, timelinePeriod, timelinePeriodEnd, timelineIndicatorHistoryStart, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
 import { movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands } from '../src/lib/ui/technical-indicators';
@@ -35,6 +35,10 @@ test('calendar month, quarter and year bars preserve OHLC and actual activity ac
  assert.equal(timelinePeriod('2026-03-31','quarterly'),'2026-01-01');
  assert.equal(timelinePeriod('2026-04-01','quarterly'),'2026-04-01');
  assert.equal(timelinePeriod('2026-12-31','yearly'),'2026-01-01');
+ assert.equal(timelinePeriodEnd('2024-02-02','monthly'),'2024-02-29');
+ assert.equal(timelinePeriodEnd('2026-02-02','quarterly'),'2026-03-31');
+ assert.equal(timelinePeriodEnd('2026-02-02','yearly'),'2026-12-31');
+ assert.equal(timelinePeriodEnd('2026-10-02','weekly'),'2026-10-04');
  for(const interval of ['monthly','quarterly','yearly'] as const){
   const missing=aggregateTimelinePrices([{date:'2026-01-02',close:10,volume:0},{date:'2026-01-30',open:10,high:11,low:9,close:11,volume:null,amount:100}],interval)[0];
   assert.equal(missing.volume,null);assert.equal(missing.amount,undefined);assert.equal(missing.open,undefined);

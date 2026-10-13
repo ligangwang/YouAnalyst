@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { adjacentTimelineBars, TIMELINE_RANGES, TIMELINE_RANGE_LABELS, TIMELINE_INTERVALS, resolvedTimelineInterval, timelinePriceBars, timelinePeriod, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, timelineWindow, type TimelineIntervalChoice, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
+import { adjacentTimelineBars, TIMELINE_RANGES, TIMELINE_RANGE_LABELS, TIMELINE_INTERVALS, resolvedTimelineInterval, timelinePriceBars, timelinePeriod, timelinePeriodEnd, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, timelineWindow, type TimelineIntervalChoice, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
 import { MA_PERIODS, MA_COLORS, movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands, type IndicatorPoint } from '@/lib/ui/technical-indicators';
 import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { FloatingEventWindow, eventWindowAnchor, type EventWindowAnchor } from './event-details-window';
@@ -141,6 +141,10 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const offset=Math.min(Math.max(0,allPrices.length-visibleCount),view.offset);
   const prices=allPrices.slice(Math.max(0,allPrices.length-visibleCount-offset),allPrices.length-offset);
   const start=view.zoom>1?prices[0]?.date??rangeStart:rangeStart,end=view.zoom>1&&offset>0?prices.at(-1)?.date??rangeEnd:rangeEnd;
+  // Aggregate bars retain every publication in their calendar period when zoomed,
+  // including pre-close dates and weekend disclosures at a panned right edge.
+  const eventStart=aggregated&&view.zoom>1&&prices.length?[rangeStart,timelinePeriod(prices[0].date,interval)].sort().at(-1)!:start;
+  const eventEnd=aggregated&&view.zoom>1&&offset>0&&prices.length?[rangeEnd,timelinePeriodEnd(prices.at(-1)!.date,interval)].sort()[0]:end;
   const axis = tradingSessionAxis(prices.map(price=>price.date),start,end);
   const periodDates=new Map(prices.map(price=>[timelinePeriod(price.date,interval),price.date]));
   const barDate=(date:string)=>aggregated?(periodDates.get(timelinePeriod(date,interval))??date):date;
@@ -148,8 +152,8 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const tickCount = width < 440 ? 3 : 5;
   const tickDates = [...new Set(Array.from({length:tickCount},(_,i)=>axis.dateAt(i/(tickCount-1))))];
   const small=width<440,priceTop=24,priceBottom=chartSize==='compact'?(small?164:140):Math.max(160,Math.floor(viewportHeight*(chartSize==='full'?.65:.4))-56-(showOscillator?100:0)),volumeBottom=priceBottom+32,chartHeight=volumeBottom+24+(showOscillator?100:0);
-  const selected = events.find(e => e.id === selectedId && e.date >= start && e.date <= end);
-  const activeDate = priceDate ?? (hoverDate && hoverDate >= start && hoverDate <= end ? hoverDate : selected?.date);
+  const selected = events.find(e => e.id === selectedId && e.date >= eventStart && e.date <= eventEnd);
+  const activeDate = priceDate ?? (hoverDate && hoverDate >= eventStart && hoverDate <= eventEnd ? hoverDate : selected?.date);
   const candles=prices.filter((price):price is typeof price&{open:number;high:number;low:number}=>price.open!==undefined&&price.high!==undefined&&price.low!==undefined);
   const useCandles=chartMode==='candles'&&candles.length>0;
   const movingAverages = averagePeriods.map(period=>simpleMovingAverage(history,period).filter(point=>point.date>=start&&point.date<=end));
@@ -161,9 +165,9 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const candleWidth=Math.max(2,Math.min(10,plotWidth/Math.max(1,prices.length)*.65));
   const pad = Math.max((max - min) * .1, max * .01), low = Math.max(0, min - pad), high = max + pad;
   // Keep a compact escape row above the full wick range, within the existing chart height.
-  const headroom=useCandles&&showEvents&&events.some(event=>event.date>=start&&event.date<=end)?Math.min(40,(priceBottom-priceTop)*.3):0;
+  const headroom=useCandles&&showEvents&&events.some(event=>event.date>=eventStart&&event.date<=eventEnd)?Math.min(40,(priceBottom-priceTop)*.3):0;
   const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * (priceBottom-priceTop-headroom);
-  const groups=layoutOverlayMarkers(showEvents?events:[],start,end,plotWidth,priceTop,priceBottom,useCandles?[]:prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26,date=>x(date)-left,useCandles?prices.map(price=>({left:x(price.date)-left-candleWidth/2,right:x(price.date)-left+candleWidth/2,top:y(price.high??price.close),bottom:y(price.low??price.close)})):[],aggregated?date=>timelinePeriod(date,interval):undefined);
+  const groups=layoutOverlayMarkers(showEvents?events:[],eventStart,eventEnd,plotWidth,priceTop,priceBottom,useCandles?[]:prices.map(price=>({x:x(price.date)-left,y:y(price.close)})),small?34:26,date=>x(date)-left,useCandles?prices.map(price=>({left:x(price.date)-left-candleWidth/2,right:x(price.date)-left+candleWidth/2,top:y(price.high??price.close),bottom:y(price.low??price.close)})):[],aggregated?date=>timelinePeriod(date,interval):undefined);
   const openCluster=groups.find(group=>group.events.some(event=>event.id===clusterId));
   const selectedGroup=groups.find(group=>group.events.some(event=>event.id===selectedId));
   const activityValue=(price:typeof prices[number])=>activity==='turnover'?price.amount??null:price.volume;
