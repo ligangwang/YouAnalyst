@@ -164,11 +164,15 @@ test("gcloud permission failures and invalid invocation produce no raw errors or
 });
 
 test("the inspection workflow reuses its existing identity and does not request new permissions", () => {
-  const workflow = readFileSync(".github/workflows/inspect-sec-graph.yml", "utf8");
+  const workflow = readFileSync(".github/workflows/inspect-sec-graph.yml", "utf8").replace(/\r\n/g, "\n");
+  const inspectJob = workflow.match(/^  inspect-only:\n[\s\S]*?(?=^  [a-z][a-z0-9_-]*:|(?![\s\S]))/m)?.[0];
+  assert.ok(inspectJob, "The existing inspection job must remain present");
   assert.match(workflow, /run: node scripts\/inspect-graph-executions\.mjs/);
   assert.ok(workflow.indexOf("google-github-actions/setup-gcloud@v2") < workflow.indexOf("run: node scripts/inspect-graph-executions.mjs"));
   assert.ok(workflow.indexOf("scripts/collect-sec-filings.ts --dry-run") < workflow.indexOf("run: node scripts/inspect-graph-executions.mjs"));
-  assert.equal(workflow.match(/google-github-actions\/auth@v2/g)?.length, 1);
+  // Other read-only jobs may independently reuse the same existing identity.
+  assert.equal(inspectJob.match(/google-github-actions\/auth@v2/g)?.length, 1);
+  assert.match(inspectJob, /credentials_json: \$\{\{ secrets\.GCP_SA_KEY \}\}/);
   assert.match(workflow, /permissions:\n  contents: read/);
   assert.doesNotMatch(workflow.replace(/^\s*#.*$/gm, ""), /id-token:|impersonate|add-iam-policy-binding|set-iam-policy|gcloud run jobs execute/);
 });

@@ -60,7 +60,7 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
   if(claimed==='budget'){result.budgetBlocked++;result.deferred++;break;}
   if(claimed==='cached'){result.cached++;processed.add(doc.id);continue;}
   result.paid++;let response:NewsAnalysisResponse|null=null,error:string|null=null,analysis:ReturnType<typeof validateNewsAnalysis>|null=null;
-  try{response=await (options.analyze??((title,text)=>analyzeNewsArticle(title,text,{key:process.env.OPENAI_API_KEY??''})))(source.title,content);analysis=validateNewsAnalysis(resolveNewsAnalysis(response.analysis,resolveCompany,content),content,companies);}
+  try{response=await (options.analyze??((title,text)=>analyzeNewsArticle(title,text,{key:process.env.OPENAI_API_KEY??''})))(source.title,content);analysis=validateNewsAnalysis(resolveNewsAnalysis(response.analysis,resolveCompany,source.title+'\n'+content),content,companies);}
   catch{error=response?'Analysis needs evidence or identity review':'Provider request failed; billing may be unknown. Operator review required before retry.';result.failed++;}
   const usage=buildOpenAiUsageEvent({purpose:'news_article_analysis',model:response?.model??NEWS_ANALYSIS_MODEL,responseId:response?.responseId??'news_analysis_'+attemptId,usage:response?.usage??null,metadata:{sourceEventId:source.id,contentHash,status:analysis?'complete':'review_required'}});
   // Candidate IDs are source-specific observations; they cannot replace reviewed edges.

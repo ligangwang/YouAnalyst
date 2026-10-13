@@ -8,6 +8,7 @@ import { IntelligenceEventPriceReturns } from './intelligence-price-performance'
 import { intelligenceEventTitle, type IntelligenceEvent } from '@/lib/intelligence/model';
 import type { EventPriceReturn } from '@/lib/intelligence/price-performance';
 import styles from './event-details-window.module.css';
+import { EventCompanyNameResolution } from './company-name-resolution';
 
 export type EventWindowAnchor = {x:number;y:number;trigger:HTMLElement|null;host:HTMLElement|null};
 export function eventWindowAnchor(event:MouseEvent<HTMLElement>):EventWindowAnchor {
@@ -69,5 +70,6 @@ export function EventDetailsWindow({event,anchor,returns,symbol,onClose}:{event:
     {event.planned&&<p>{text('Announced / planned; completion is not established.','已宣布／计划中；尚不代表已完成。')}</p>}
     <IntelligenceEventPriceReturns returns={returns} symbol={symbol} publicationDate={event.publication_date} publishedAt={event.published_at}/>
     <nav aria-label={text('Primary sources','原始来源')}>{event.evidence.map(source=><a key={source.id} title={source.title===event.title&&title!==event.title?source.title:undefined} href={source.url} target="_blank" rel="noopener noreferrer">{source.channel} · {source.title===event.title?title:source.title} ↗<small>{source.sourceDate??text('Publication date unavailable','发布日期不可用')}</small></a>)}</nav>
+    {event.id.startsWith('news-')&&<EventCompanyNameResolution eventId={event.id}/>}
   </FloatingEventWindow>;
 }

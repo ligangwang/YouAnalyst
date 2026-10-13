@@ -43,16 +43,15 @@ export function createNewsCompanyResolver(companies:readonly GraphNode[]){
 export function resolveNewsAnalysis(raw:unknown,resolve:(name:string)=>string,content:string):NewsAnalysis{
  const data=raw as NewsAnalysis;
  assert(data&&Array.isArray(data.relationships)&&data.relationships.length<=15,'Invalid relationship analysis');
- const article=normalize(content).toLowerCase();
- const mentioned=(name:string)=>new RegExp('(?<![a-z0-9])'+normalize(name).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![a-z0-9])','u').test(article);
  return {relationships:data.relationships.map(r=>{
   assert(r&&typeof r.sourceName==='string'&&typeof r.targetName==='string','Missing company names');
-  let sourceId=mentioned(r.sourceName)?resolve(r.sourceName):'',targetId=mentioned(r.targetName)?resolve(r.targetName):'';
+  let sourceId=newsNameMentioned(r.sourceName,content)?resolve(r.sourceName):'',targetId=newsNameMentioned(r.targetName,content)?resolve(r.targetName):'';
   // Two aliases of the same company are not a relationship between companies.
   if(sourceId&&sourceId===targetId){sourceId='';targetId='';}
   return {...r,sourceId,targetId};
  })};
 }
+export function newsNameMentioned(name:string,content:string){return Boolean(name.trim())&&new RegExp('(?<![a-z0-9])'+normalize(name).toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![a-z0-9])','u').test(normalize(content).toLowerCase());}
 export function newsArticleInput(title:string,content:string){return JSON.stringify({title,content});}
 export async function analyzeNewsArticle(title:string,content:string,options:{key:string;request?:typeof fetch}):Promise<NewsAnalysisResponse>{
  assert(options.key&&content.length>=100&&content.length<=60_000,'Article or API key unavailable');

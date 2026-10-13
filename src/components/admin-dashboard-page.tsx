@@ -5,6 +5,7 @@ import { UiText, useUiText } from "@/components/ui-text";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useLocale } from "@/components/providers/locale-provider";
 
 type AdminStats = {
   users: number;
@@ -34,6 +35,7 @@ function countFromPayload(value: unknown): number {
 
 export function AdminDashboardPage() {
   const ui = useUiText();
+  const { text } = useLocale();
   const { user, loading, getIdToken } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -259,6 +261,13 @@ export function AdminDashboardPage() {
           <p className="mt-3 text-sm leading-6 text-slate-300"><UiText text={"Review queued tickers and generate focused SEC supply-chain graphs one at a time."} /></p>
         </Link>
 
+        <Link
+          href="/admin/company-identities"
+          className="rounded-2xl border border-white/15 bg-slate-950/60 p-6"
+        >
+          <h2 className="text-2xl font-semibold">{text("Company identity review", "公司身份审核")}</h2>
+          <p className="mt-3 text-slate-300">{text("Review article name matches and approve reusable aliases with evidence.", "审核文章名称匹配，并依据证据批准可复用别名。")}</p>
+        </Link>
         <Link
           href="/admin/feedback"
           className="rounded-2xl border border-white/15 bg-slate-900/70 p-5 transition hover:border-cyan-300/50 hover:bg-slate-900"

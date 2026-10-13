@@ -143,3 +143,11 @@ test('existing version-one receipt is reused without another provider charge',as
  const result=await analyzeCollectedNews(f.db,companies,sources,{...options,records:f.records,analyze:async()=>{calls++;return output();}});
  assert.equal(calls,1);assert.equal(result.cached,1);
 });
+
+test('companies named only in a headline resolve locally while evidence must remain in the body',async()=>{
+ const f=fake();const body='The companies announced a partnership to develop Ethernet networking for AI systems. '+ 'The products are planned for next year. '.repeat(5);
+ const result=await analyzeCollectedNews(f.db,companies,sources,{...options,records:f.records,download:async()=>body,analyze:async()=>({...output(),analysis:{relationships:[{...extractedRelationship,evidence:'The companies announced a partnership to develop Ethernet networking for AI systems.'}]}})});
+ assert.equal(result.candidates,1);
+ const candidate=[...f.state.entries()].find(([path])=>path.startsWith('company_relationships/'))![1];assert.equal(candidate.source,'US:ANET');assert.equal(candidate.target,'US:AMD');
+ assert.throws(()=>validateNewsAnalysis({relationships:[relationship]},body,companies),/evidence is absent/);
+});
