@@ -67,7 +67,7 @@ export function EventDetailsWindow({event,anchor,returns,symbol,onClose}:{event:
     {event.eventDate&&<p className={styles.meta}>{text('Business / filing date','业务／申报日期')} · {event.eventDate}</p>}
     <p>{event.summary==='交易所上市公司原始公告。'?text('Original announcement from an exchange-listed company.',event.summary):event.summary}</p>
     {event.planned&&<p>{text('Announced / planned; completion is not established.','已宣布／计划中；尚不代表已完成。')}</p>}
-    <IntelligenceEventPriceReturns returns={returns} symbol={symbol}/>
+    <IntelligenceEventPriceReturns returns={returns} symbol={symbol} publicationDate={event.publication_date} publishedAt={event.published_at}/>
     <nav aria-label={text('Primary sources','原始来源')}>{event.evidence.map(source=><a key={source.id} title={source.title===event.title&&title!==event.title?source.title:undefined} href={source.url} target="_blank" rel="noopener noreferrer">{source.channel} · {source.title===event.title?title:source.title} ↗<small>{source.sourceDate??text('Publication date unavailable','发布日期不可用')}</small></a>)}</nav>
   </FloatingEventWindow>;
 }

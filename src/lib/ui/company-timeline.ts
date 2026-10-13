@@ -8,7 +8,7 @@ export const TIMELINE_RANGE_LABELS = {30:'1M',90:'3M',180:'6M',ytd:'YTD',365:'1Y
 export const DEFAULT_TIMELINE_RANGE = 30;
 export type TimelineRange = (typeof TIMELINE_RANGES)[number];
 export type TimelinePrice = { date: string; close: number; volume: number | null; open?:number; high?:number; low?:number; periodStart?:string };
-export type TimelineEvent = ClassifiedEvent & { id: string; date: string; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
+export type TimelineEvent = ClassifiedEvent & { id: string; date: string; publishedAt?: string | null; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
 export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; warmupPrices?:TimelinePrice[]; interval?:'daily'|'weekly'; available: boolean };
 export function timelineWeek(date:string) {
  const day=new Date(`${date}T00:00:00Z`);day.setUTCDate(day.getUTCDate()-(day.getUTCDay()+6)%7);return day.toISOString().slice(0,10);
@@ -202,6 +202,6 @@ export function intelligenceTimelineEvents(companyId: string, events: Intelligen
     const source = event.evidence.find(source => (!sourceFilter || source.channel === sourceFilter) && /^https:\/\//.test(source.url));
     if (!date || !source) return [];
     const title = intelligenceEventTitle(event, chinese ? "zh-CN" : "en");
-    return [{ eventType:event.eventType,eventSubtype:event.eventSubtype,id: event.id, date, title, description: event.summary === "交易所上市公司原始公告。" && !chinese ? "Original announcement from an exchange-listed company." : event.summary, lane: event.category === "BUSINESS" ? "business" as const : "research" as const, category: event.category === "BUSINESS" ? "business" as const : event.category === "FILING" ? "filing" as const : "research" as const, sourceUrl: source.url, sourceTitle: title, planned: event.planned }];
+    return [{ eventType:event.eventType,eventSubtype:event.eventSubtype,id: event.id, date, publishedAt: event.published_at, title, description: event.summary === "交易所上市公司原始公告。" && !chinese ? "Original announcement from an exchange-listed company." : event.summary, lane: event.category === "BUSINESS" ? "business" as const : "research" as const, category: event.category === "BUSINESS" ? "business" as const : event.category === "FILING" ? "filing" as const : "research" as const, sourceUrl: source.url, sourceTitle: title, planned: event.planned }];
   }).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
 }

@@ -33,10 +33,14 @@ const snapshot = () => now;
 // Server and first hydration render agree; the browser clock takes over afterward.
 const serverSnapshot = () => 0;
 
+export function useRelativeTimeClock() {
+  return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+}
+
 /** All mounted timestamps share one local timer; no requests are made. */
 export function RelativeTime({ value, prefix, interactive = true }: { value: string; prefix?: string; interactive?: boolean }) {
   const { locale, chinese } = useLocale();
-  const currentTime = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  const currentTime = useRelativeTimeClock();
   const [expanded, setExpanded] = useState(false);
   const valid = Number.isFinite(Date.parse(value));
   const exact = chinese ? valid ? new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "medium", timeZone: "UTC" }).format(new Date(value)) + " UTC" : "时间不可用" : formatAbsoluteDateTime(value);
