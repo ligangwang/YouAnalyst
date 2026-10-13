@@ -86,7 +86,9 @@ test("English and Chinese workspace URLs retain SEO and bookmarked company links
     const name=prefix==='en'?'Company list':'公司列表';
     await expect(page.getByRole('tab',{name,exact:true})).toHaveAttribute('aria-selected','true');
     const sources=page.getByRole('region',{name:'Company details',exact:true});
-    await expect(sources.locator(`a[href="/${prefix}/company/nvidia"]`)).toBeVisible();
+    const profile = sources.getByRole('link', { name: prefix === 'en' ? 'Company profile →' : '公司详情 →', exact: true });
+    await expect(profile).toBeVisible();
+    await expect(profile).toHaveAttribute('href', `/${prefix}/company/nvidia`);
   }
   const legacy = await request.get("/map?lang=zh-CN&market=CN_A&company=XSHG%3A688041", { maxRedirects: 0 });
   expect([307, 308]).toContain(legacy.status());
