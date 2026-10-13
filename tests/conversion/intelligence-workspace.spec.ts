@@ -282,6 +282,9 @@ for(const zh of [false,true])test(`publication returns hide zero days and update
  const fixture:IntelligenceSnapshot={...snapshot,events:[announcement],generatedAt:'2026-10-12T22:00:00Z',session:{...snapshot.session,date:'2026-10-12',startAt:'2026-10-12T04:00:00Z',endAt:'2026-10-13T04:00:00Z'},eventReturns:{[announcement.id]:[{companyId:'US:MU',baselineDate:'2026-10-09',latestDate:'2026-10-12',baselineClose:100,latestClose:97.72,change:-.0228,dateOnly:false}]}};
  await open(page,zh,fixture);
  await page.goto(`http://workspace.test/?company=US%3AMU&event=${announcement.id}${zh?'&lang=zh-CN':''}`);
+ const range=page.getByRole('combobox',{name:zh?'股价时间范围':'Price history range'});
+ await expect(range.locator('option')).toHaveText(zh?['1个月','3个月','6个月','今年以来','1年','5年']:['1M','3M','6M','YTD','1Y','5Y']);
+ await expect(page.getByRole('group',{name:zh?'时间范围':'Timeline range',exact:true})).toContainText(zh?'1个月':'1M');
  const details=page.getByRole('dialog',{name:zh?'事件详情':'Event details'});
  await expect(details).toContainText(zh?'发布以来:':'Since pub.:');
  await expect(details).toContainText('-2.28%');
