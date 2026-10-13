@@ -94,7 +94,7 @@ test("Chinese company links retain the locale and supplied evidence", async ({ p
   await page.goto(`${origin}/zh-cn/ticker/AMD`);
   await expect(page.getByRole("heading", { name: "业务与财务", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "公司", exact: true })).toHaveAttribute("href", "/zh-cn/companies");
-  await expect(page.locator('a[href="/zh-cn/ticker/NVDA"]')).toBeVisible();
+  await expect(page.locator('a[href="/zh-cn/company/nvidia"]')).toBeVisible();
   await expect(page.locator('a[href="/zh-cn?company=AMD"]').first()).toBeVisible();
   await expect(page.getByRole('heading',{name:'最新业绩 · FY2026 Q2',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'年度财务数据',exact:true})).toBeVisible();

@@ -66,7 +66,7 @@ test("choosing a suggestion opens its company page straight away", async ({ page
   const searches = await open(page);
   await input(page).fill("nvidia");
   await page.getByRole("option", { name: /NVDA NVIDIA Corporation/ }).click();
-  await expect(page.getByText("Destination /en/ticker/NVDA", { exact: true })).toBeVisible();
+  await expect(page.getByText("Destination /en/company/nvidia", { exact: true })).toBeVisible();
   expect(searches).toEqual(["?q=NVIDIA&limit=8&scope=all"]);
 });
 
@@ -76,7 +76,7 @@ for (const submit of ["Enter", "Go"] as const) test(`${submit} with typed text o
   await expect(page.getByRole("option")).toHaveCount(2);
   if (submit === "Enter") await input(page).press("Enter");
   else await page.getByRole("button", { name: "Go", exact: true }).click();
-  await expect(page.getByText("Destination /en/ticker/NVDA", { exact: true })).toBeVisible();
+  await expect(page.getByText("Destination /en/company/nvidia", { exact: true })).toBeVisible();
 });
 
 test("Enter before suggestions load still resolves the best match", async ({ page }) => {
@@ -84,7 +84,7 @@ test("Enter before suggestions load still resolves the best match", async ({ pag
   await input(page).fill("nvidia");
   await input(page).press("Enter");
   await expect(page.getByRole("button", { name: "Opening...", exact: true })).toBeDisabled();
-  await expect(page.getByText("Destination /en/ticker/NVDA", { exact: true })).toBeVisible();
+  await expect(page.getByText("Destination /en/company/nvidia", { exact: true })).toBeVisible();
   expect(searches).toContain("?q=NVIDIA&limit=1&scope=all");
 });
 
@@ -99,7 +99,7 @@ test("keyboard navigation chooses among the suggestions", async ({ page }) => {
   await expect(page.getByRole("option", { name: /NVDA NVIDIA/ })).toHaveAttribute("aria-selected", "true");
   await input(page).press("ArrowDown");
   await input(page).press("Enter");
-  await expect(page.getByText("Destination /en/ticker/NVDL", { exact: true })).toBeVisible();
+  await expect(page.getByText("Destination /en/company/ticker-nvdl", { exact: true })).toBeVisible();
 });
 
 test("Escape closes the suggestions and Enter still opens the best match", async ({ page }) => {
@@ -109,7 +109,7 @@ test("Escape closes the suggestions and Enter still opens the best match", async
   await input(page).press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await input(page).press("Enter");
-  await expect(page.getByText("Destination /en/ticker/NVDA", { exact: true })).toBeVisible();
+  await expect(page.getByText("Destination /en/company/nvidia", { exact: true })).toBeVisible();
 });
 
 test("private companies open their company page and the locale prefix is kept", async ({ page }) => {
@@ -137,7 +137,7 @@ test("the AI map's most-connected companies link to their company pages", async 
   await expect(first).toContainText("NVIDIA");
   await expect(first).toContainText("NVDA");
   await expect(first).toContainText("AI compute");
-  await expect(first).toHaveAttribute("href", "/en/ticker/NVDA");
+  await expect(first).toHaveAttribute("href", "/en/company/nvidia");
   await expect(first).toContainText(/\d+connections/);
   // Counts never increase down the list.
   const counts = await list.locator("li a > span:last-child > span").allTextContents();

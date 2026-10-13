@@ -91,7 +91,7 @@ test('month and week handle crowded dates, theme overlap, source links and a fai
   await expect(test2.getByRole('link',{name:'Results source ↗',exact:true})).toHaveAttribute('href','https://example.com/results');
   await expect(page.getByRole('button',{name:'+6 more'})).toBeVisible();
   await expect(agenda.getByRole('link',{name:'Source ↗'}).first()).toHaveAttribute('href','https://example.com/earnings');
-  await expect(agenda.getByRole('article').filter({hasText:'NVDA'}).getByRole('link',{name:'Company →'})).toHaveAttribute('href','/en/ticker/NVDA');
+  await expect(agenda.getByRole('article').filter({hasText:'NVDA'}).getByRole('link',{name:'Company →'})).toHaveAttribute('href','/en/company/nvidia');
   await expect(agenda.getByRole('article').filter({hasText:'600000'}).getByRole('link',{name:'Company →'})).toHaveAttribute('href','/en/ticker/XSHG:600000');
   await page.getByRole('checkbox',{name:'Following only'}).check();
   await expect(agenda.getByRole('article')).toHaveCount(2);
