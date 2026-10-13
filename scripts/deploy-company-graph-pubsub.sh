@@ -35,7 +35,7 @@ fi
 umask 077
 env_file="$(mktemp)"
 trap 'rm -f -- "$env_file"' EXIT
-node -e 'const fs=require("fs"),e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,OPENAI_API_KEY:e.OPENAI_API_KEY,OPENAI_MODEL:e.OPENAI_MODEL||"gpt-5.4",COMPANY_GRAPH_SUBSCRIPTION:"company-graph-worker",COMPANY_GRAPH_FILINGS_SUBSCRIPTION:"company-graph-filings",COMPANY_GRAPH_PROCESSING_ENABLED:e.COMPANY_GRAPH_PROCESSING_ENABLED||"0",COMPANY_GRAPH_PAID_ADMISSION_ENABLED:e.COMPANY_GRAPH_PAID_ADMISSION_ENABLED||"0"}; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
+node -e 'const fs=require("fs"),e=process.env; const values={GCP_PROJECT_ID:e.GCP_PROJECT_ID,GIT_SHA:e.GIT_SHA||"unknown",SEC_USER_AGENT:e.SEC_USER_AGENT,OPENAI_API_KEY:e.OPENAI_API_KEY,OPENAI_MODEL:e.OPENAI_MODEL||"gpt-5.4",OPENAI_COMPANY_GRAPH_MODEL:"gpt-6-luna",COMPANY_GRAPH_SUBSCRIPTION:"company-graph-worker",COMPANY_GRAPH_FILINGS_SUBSCRIPTION:"company-graph-filings",COMPANY_GRAPH_PROCESSING_ENABLED:e.COMPANY_GRAPH_PROCESSING_ENABLED||"0",COMPANY_GRAPH_PAID_ADMISSION_ENABLED:e.COMPANY_GRAPH_PAID_ADMISSION_ENABLED||"0"}; fs.writeFileSync(process.argv[1],JSON.stringify(values));' "$env_file"
 gcloud run deploy "$service" --project "$GCP_PROJECT_ID" --region "$pipeline_region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$maintenance_runtime_account" --no-allow-unauthenticated \
   --command node --args dist/serve-company-graph.cjs --min-instances 0 --max-instances 1 \

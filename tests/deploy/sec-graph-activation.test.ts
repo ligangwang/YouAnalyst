@@ -22,7 +22,7 @@ const name=args[3], path=env.STATE+'-'+name;
 const container=(resource)=>({image:env.WRONG_IMAGE===resource ? image.replace(/c/g,'d') : image, command:['node'],
  args:['dist/refresh-company-graph.cjs',env.SEC_GRAPH_RECOVERY_SOURCE_TREE && !env.WRONG_MODE ? '--resume-live='+env.SEC_GRAPH_RECOVERY_SOURCE_TREE : '--verify-live'],env:Object.entries({GIT_SHA:sha,
  GCP_PROJECT_ID:env.WRONG_RUNTIME_PROJECT === resource ? "other-project" : project, COMPANY_GRAPH_QUEUE_BATCH_SIZE:'1', SEC_FILINGS_COLLECTOR_ENABLED:'1',
- COMPANY_GRAPH_PROCESSING_ENABLED:'1', COMPANY_GRAPH_PAID_ADMISSION_ENABLED:env.WRONG_ADMISSION===resource?'0':'1', OPENAI_MODEL:env.WRONG_MODEL || 'gpt-5.6-sol', COMPANY_GRAPH_VERIFY_ONLY:'0',
+ COMPANY_GRAPH_PROCESSING_ENABLED:'1', COMPANY_GRAPH_PAID_ADMISSION_ENABLED:env.WRONG_ADMISSION===resource?'0':'1', OPENAI_COMPANY_GRAPH_MODEL:env.WRONG_MODEL || 'gpt-6-luna', COMPANY_GRAPH_VERIFY_ONLY:'0',
  SEC_GRAPH_RELEASE_SHA:sha,SEC_GRAPH_ACTIVATION_TREE:tree}).map(([name,value])=>({name,value}))});
 if(args.slice(0,4).join(' ')==='artifacts docker images describe') console.log(env.BAD_DIGEST ? 'untrusted:tag' : image);
 else if(args.slice(0,3).join(' ')==='scheduler jobs describe') {

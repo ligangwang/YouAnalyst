@@ -2,10 +2,10 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "../firebase/admin";
-import { GRAPH_BUDGET_MODEL, GRAPH_MAX_INPUT_TOKENS, GRAPH_MAX_OUTPUT_TOKENS, graphReservationMicros,
+import { GRAPH_BUDGET_MODEL, GRAPH_LEGACY_MODEL, GRAPH_MAX_INPUT_TOKENS, GRAPH_MAX_OUTPUT_TOKENS, graphReservationMicros,
   graphBudgetFingerprint, findGraphBudgetTicket, reserveGraphBudget, recordGraphResponse, settleGraphBudget,
   GraphBudgetUncertainError, isGraphPaidAdmissionEnabled } from "./budget";
-import { getOpenAiApiKey, getOpenAiModel } from "@/lib/openai-runtime";
+import { getOpenAiApiKey } from "@/lib/openai-runtime";
 import {
   COMPANY_GRAPH_EDGE_DIRECTIONS,
   COMPANY_GRAPH_RELATIONSHIP_TYPES,
@@ -188,7 +188,7 @@ export type CompanyGraphProviderInput = {
 };
 
 // Kept byte-for-byte stable for fingerprints of already admitted Standard requests.
-export function buildLegacyCompanyGraphResponseBody(input: CompanyGraphProviderInput, model = GRAPH_BUDGET_MODEL) {
+export function buildLegacyCompanyGraphResponseBody(input: CompanyGraphProviderInput, model = GRAPH_LEGACY_MODEL) {
   return {
       model,
       background: true, store: true, service_tier: "default",
@@ -248,7 +248,7 @@ export function buildCompanyGraphResponseBody(input: CompanyGraphProviderInput, 
 
 export async function extractCompanyGraphRelationships(input: CompanyGraphProviderInput): Promise<OpenAiCompanyGraphExtractionResult> {
   const now = input.budgetNow ?? Date.now;
-  const model = getOpenAiModel();
+  let model = process.env.OPENAI_COMPANY_GRAPH_MODEL?.trim() || GRAPH_BUDGET_MODEL;
   if (model !== GRAPH_BUDGET_MODEL) throw new Error("Company graph model has no approved budget pricing.");
   const signal = input.signal ?? AbortSignal.timeout(7 * 60_000);
   if (input.responseId && !/^resp_[A-Za-z0-9_-]+$/.test(input.responseId)) throw new Error("Invalid stored OpenAI response identity");
@@ -256,6 +256,7 @@ export async function extractCompanyGraphRelationships(input: CompanyGraphProvid
   const db = input.budgetDb ?? getAdminFirestore();
   const requestKey = input.budgetRequestId ?? `direct_${randomUUID()}`;
   let ticket = await findGraphBudgetTicket(requestKey, db);
+  if (ticket) model = ticket.model;
   const body = ticket?.ticketVersion === 1 ? buildLegacyCompanyGraphResponseBody(input, model) : buildCompanyGraphResponseBody(input, model);
   const fingerprint = graphBudgetFingerprint(body);
   let responseIdToResume = ticket?.responseId ?? input.responseId;

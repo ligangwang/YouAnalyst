@@ -47,7 +47,7 @@ function fixture() {
       ticker: "NVDA", accessionNumber: event.accessionNumber, extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION });
     rows.set(`company_research_runs/_graph_budget_request_${createHash("sha256").update(runId).digest("hex")}`,
       { requestKey: runId, status: "settled", responseId: "resp_canary", spentMicros: 100, reservedMicros: GRAPH_FLEX_RESERVATION_MICROS, priceVersion: GRAPH_FLEX_PRICE_VERSION,
-        model: "gpt-5.6-sol", fingerprint: "mock-canary", inputTokens: 100, ticketVersion: 2, expectedServiceTier: "flex",
+        model: "gpt-6-luna", fingerprint: "mock-canary", inputTokens: 100, ticketVersion: 3, expectedServiceTier: "flex",
         promptCacheBreakpoints: 0, maxContextTokens: 1_050_000, maxOutputTokens: 16_384,
         serviceTier: "flex", cacheWriteTokens: 0, cachedTokens: 0, reasoningMode: "standard", promptCacheMode: "explicit" });
     rows.set("company_research_requests/NVDA", { ...rows.get("company_research_requests/NVDA"), requestId: request.requestId, status: "COMPLETED" });
@@ -134,7 +134,7 @@ test("same-tree activation retry can finish its own held response without requir
 
 test("missing activation marker cannot bypass an insufficient full reservation", async () => {
   const f = fixture();
-  f.rows.set("company_research_runs/_graph_daily_budget", { day: "2026-10-01", limitMicros: 5_000_000, spentMicros: 600_000, reservedMicros: 0 });
+  f.rows.set("company_research_runs/_graph_daily_budget", { day: "2026-10-01", limitMicros: 5_000_000, spentMicros: 5_000_000 - GRAPH_FLEX_RESERVATION_MICROS + 1, reservedMicros: 0 });
   await assert.rejects(verifyLiveCompanyGraph(f.db, tree, f.deps), /US\$5/);
   assert.equal(f.rows.has(markerPath), false); assert.equal(f.publications.length, 0);
 });

@@ -2,13 +2,13 @@ import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { extractCompanyGraphRelationships, buildCompanyGraphResponseBody, buildLegacyCompanyGraphResponseBody } from "../../src/lib/company-graph/openai";
-import { setGraphBudgetLimit, getGraphBudgetSummary, GraphBudgetExceededError, GraphBudgetUncertainError, graphBudgetFingerprint, findGraphBudgetTicket, GRAPH_LEGACY_PRICE_VERSION } from "../../src/lib/company-graph/budget";
+import { setGraphBudgetLimit, getGraphBudgetSummary, GraphBudgetExceededError, GraphBudgetUncertainError, graphBudgetFingerprint, findGraphBudgetTicket, GRAPH_LEGACY_PRICE_VERSION, GRAPH_SOL_FLEX_PRICE_VERSION, GRAPH_SOL_FLEX_RESERVATION_MICROS, GRAPH_MODEL_CONTEXT_TOKENS } from "../../src/lib/company-graph/budget";
 import { budgetFixture } from "../helpers/graph-budget";
 const now = Date.parse("2026-10-01T12:00:00Z");
 function setup(t: TestContext) {
-  const previous = [process.env.OPENAI_API_KEY, process.env.OPENAI_MODEL, process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED];
-  process.env.OPENAI_API_KEY = "mock-local-only"; process.env.OPENAI_MODEL = "gpt-5.6-sol"; process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED = "1";
-  t.after(() => { ["OPENAI_API_KEY", "OPENAI_MODEL", "COMPANY_GRAPH_PAID_ADMISSION_ENABLED"].forEach((key, i) => {
+  const previous = [process.env.OPENAI_API_KEY, process.env.OPENAI_COMPANY_GRAPH_MODEL, process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED];
+  process.env.OPENAI_API_KEY = "mock-local-only"; process.env.OPENAI_COMPANY_GRAPH_MODEL = "gpt-6-luna"; process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED = "1";
+  t.after(() => { ["OPENAI_API_KEY", "OPENAI_COMPANY_GRAPH_MODEL", "COMPANY_GRAPH_PAID_ADMISSION_ENABLED"].forEach((key, i) => {
     if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i];
   }); });
   const f = budgetFixture();
@@ -16,14 +16,32 @@ function setup(t: TestContext) {
     extractionText: "NVIDIA competes with AMD.", budgetRequestId: "graph_test", budgetDb: f.db, budgetNow: () => now } };
 }
 const count = () => Response.json({ object: "response.input_tokens", input_tokens: 1000 });
-const complete = (fields: Record<string, unknown> = {}) => Response.json({ id: "resp_test", model: "gpt-5.6-sol", service_tier: "flex", status: "completed", reasoning: { mode: "standard", effort: "medium" }, prompt_cache_options: { mode: "explicit" },
+const complete = (fields: Record<string, unknown> = {}) => Response.json({ id: "resp_test", model: "gpt-6-luna", service_tier: "flex", status: "completed", reasoning: { mode: "standard", effort: "medium" }, prompt_cache_options: { mode: "explicit" },
   output_text: '{"relationships":[]}', usage: { input_tokens: 1000, output_tokens: 100, total_tokens: 1100, input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 } }, ...fields });
+test("saved Sol Flex responses resume with the original model and fingerprint after migration", async t => {
+  const f = setup(t), key = f.input.budgetRequestId;
+  const id = `_graph_budget_request_${createHash("sha256").update(key).digest("hex")}`;
+  f.rows.set("company_research_runs/_graph_daily_budget", { day: "2026-10-01", limitMicros: 5e6, spentMicros: 0, reservedMicros: GRAPH_SOL_FLEX_RESERVATION_MICROS });
+  f.rows.set(`company_research_runs/${id}`, { id, requestKey: key, model: "gpt-5.6-sol", inputTokens: 1000,
+    fingerprint: graphBudgetFingerprint(buildCompanyGraphResponseBody(f.input, "gpt-5.6-sol")), reservedMicros: GRAPH_SOL_FLEX_RESERVATION_MICROS,
+    responseId: "resp_test", status: "reserved", ticketVersion: 2, priceVersion: GRAPH_SOL_FLEX_PRICE_VERSION,
+    expectedServiceTier: "flex", reasoningMode: "standard", promptCacheMode: "explicit", promptCacheBreakpoints: 0, maxContextTokens: GRAPH_MODEL_CONTEXT_TOKENS, maxOutputTokens: 16384 });
+  delete process.env.COMPANY_GRAPH_PAID_ADMISSION_ENABLED;
+  t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
+    assert.equal(url, "https://api.openai.com/v1/responses/resp_test"); assert.equal(init?.method, "GET");
+    return complete({ model: "gpt-5.6-sol" });
+  });
+  const result = await extractCompanyGraphRelationships({ ...f.input, responseId: "resp_test" });
+  assert.equal(result.model, "gpt-5.6-sol");
+  assert.equal((await getGraphBudgetSummary(f.db, now)).spentUsd, 0.003);
+  assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 0);
+});
 test("shared input semantics are counted as a quality guard before a fixed-reservation Flex request", async t => {
   const f = setup(t), payloads: Record<string, unknown>[] = [];
   t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
     payloads.push(JSON.parse(String(init?.body)));
     if (url.endsWith("/input_tokens")) return count();
-    assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 4.44576);
+    assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 0.111144);
     return complete();
   });
   await extractCompanyGraphRelationships(f.input);
@@ -39,7 +57,7 @@ test("shared input semantics are counted as a quality guard before a fixed-reser
   assert.equal("tools" in body, false); assert.equal("previous_response_id" in body, false);
   assert.equal("conversation" in body, false); assert.equal("context_management" in body, false);
   const budget = await getGraphBudgetSummary(f.db, now);
-  assert.equal(budget.spentUsd, 0.003); assert.equal(budget.reservedUsd, 0);
+  assert.equal(budget.spentUsd, 0.000075); assert.equal(budget.reservedUsd, 0);
 });
 test("zero budget blocks generation including direct calls without an explicit request identity", async t => {
   const f = setup(t); await setGraphBudgetLimit(0, f.db, now); let posts = 0;
@@ -53,7 +71,7 @@ test("ambiguous generation retains liability and retry never repeats a POST", as
   await assert.rejects(extractCompanyGraphRelationships(f.input), /response lost/);
   await assert.rejects(extractCompanyGraphRelationships(f.input), GraphBudgetUncertainError);
   assert.equal(posts, 1); assert.equal(allCalls, 2);
-  assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 4.44576);
+  assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 0.111144);
 });
 test("concurrent deliveries for one logical request can create only one paid response", async t => {
   const f = setup(t); let posts = 0;
@@ -75,7 +93,7 @@ test("missing terminal usage keeps the full liability and cannot authorize anoth
   t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => { if (url.endsWith("/input_tokens")) return count(); if (init?.method === "POST") posts++; return complete({ usage: null }); });
   await assert.rejects(extractCompanyGraphRelationships(f.input));
   await assert.rejects(extractCompanyGraphRelationships(f.input));
-  assert.equal(posts, 1); assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 4.44576);
+  assert.equal(posts, 1); assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 0.111144);
 });
 test("invalid or oversized token counts prevent every generation", async t => {
   const f = setup(t); let tokens: unknown = 100001, posts = 0;
@@ -86,9 +104,9 @@ test("invalid or oversized token counts prevent every generation", async t => {
 test("an unknown model, expired pricing or unavailable budget store prevents any API request", async t => {
   const f = setup(t); let calls = 0;
   t.mock.method(globalThis, "fetch", async () => { calls++; return count(); });
-  process.env.OPENAI_MODEL = "unknown";
+  process.env.OPENAI_COMPANY_GRAPH_MODEL = "unknown";
   await assert.rejects(extractCompanyGraphRelationships(f.input), /approved budget pricing/);
-  process.env.OPENAI_MODEL = "gpt-5.6-sol";
+  process.env.OPENAI_COMPANY_GRAPH_MODEL = "gpt-6-luna";
   await assert.rejects(extractCompanyGraphRelationships({ ...f.input, budgetNow: () => Date.parse("2026-11-22T00:00:00Z") }));
   t.mock.method(f.db, "collection", () => { throw Error("datastore unavailable"); });
   await assert.rejects(extractCompanyGraphRelationships(f.input), /datastore unavailable/);
@@ -128,7 +146,7 @@ test("real NVDA token-count drift settles within held dollars using only its sav
   let calls = 0;
   t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
     calls++; assert.equal(url, "https://api.openai.com/v1/responses/resp_test"); assert.equal(init?.method, "GET");
-    return complete({ service_tier: "default", reasoning: undefined, prompt_cache_options: undefined, usage: { input_tokens: 11138, output_tokens: 3806, total_tokens: 14944 } });
+    return complete({ model: "gpt-5.6-sol", service_tier: "default", reasoning: undefined, prompt_cache_options: undefined, usage: { input_tokens: 11138, output_tokens: 3806, total_tokens: 14944 } });
   });
   await extractCompanyGraphRelationships({ ...f.input, responseId: "resp_test" });
   assert.equal(calls, 1); const budget = await getGraphBudgetSummary(f.db, now);
@@ -154,7 +172,7 @@ test("409 and 429 rejections retain the full hold with no paid retry or Standard
     });
     await assert.rejects(extractCompanyGraphRelationships(f.input), /Resource Unavailable/);
     await assert.rejects(extractCompanyGraphRelationships(f.input), GraphBudgetUncertainError);
-    assert.equal(posts, 1); assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 4.44576);
+    assert.equal(posts, 1); assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 0.111144);
     mock.mock.restore();
   }
 });
@@ -166,7 +184,7 @@ test("a timed-out paid POST retains its full hold and cannot be retried", async 
   });
   await assert.rejects(extractCompanyGraphRelationships(f.input), /timed out/);
   await assert.rejects(extractCompanyGraphRelationships(f.input), GraphBudgetUncertainError);
-  assert.equal(posts, 1); assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 4.44576);
+  assert.equal(posts, 1); assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 0.111144);
 });
 test("new receipts fail closed on missing or conflicting Flex metadata and recover only with GET", async t => {
   for (const changed of [{ service_tier: "default" }, { reasoning: { mode: "pro" } }, { reasoning: undefined },
@@ -181,7 +199,7 @@ test("new receipts fail closed on missing or conflicting Flex metadata and recov
     await assert.rejects(extractCompanyGraphRelationships(f.input));
     await assert.rejects(extractCompanyGraphRelationships(f.input));
     assert.deepEqual(methods, ["POST", "GET"]);
-    assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 4.44576);
+    assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 0.111144);
     mock.mock.restore();
   }
 });
@@ -189,13 +207,13 @@ test("preflight undercount does not reduce the reservation or cap valid terminal
   const f = setup(t); let posts = 0;
   t.mock.method(globalThis, "fetch", async (url: string) => {
     if (url.endsWith("/input_tokens")) return Response.json({ object: "response.input_tokens", input_tokens: 1 });
-    posts++; assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 4.44576);
+    posts++; assert.equal((await getGraphBudgetSummary(f.db, now)).reservedUsd, 0.111144);
     return complete({ usage: { input_tokens: 300000, output_tokens: 100, total_tokens: 300100,
       input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 } } });
   });
   await extractCompanyGraphRelationships(f.input);
-  assert.equal(posts, 1); assert.equal((await getGraphBudgetSummary(f.db, now)).spentUsd, 1.2015);
-  assert.equal((await getGraphBudgetSummary(f.db, now)).blocked, true);
+  assert.equal(posts, 1); assert.equal((await getGraphBudgetSummary(f.db, now)).spentUsd, 0.030038);
+  assert.equal((await getGraphBudgetSummary(f.db, now)).blocked, false);
 });
 test("changing a resumed request payload prevents every provider call", async t => {
   const f = setup(t); let calls = 0;
