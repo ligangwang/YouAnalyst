@@ -56,7 +56,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const [maSettings,setMaSettings]=useState<EventWindowAnchor|null>(null);
   const [viewport,setViewport]=useState({key:'',zoom:1,offset:0});
   const [closed, setClosed] = useState(false);
-  const [loaded, setLoaded] = useState<{ key: string; data: TimelinePrices } | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; data: TimelinePrices; indicatorError?:boolean } | null>(null);
   const [loadedGraph, setLoadedGraph] = useState<KnowledgeGraph | null>(null);
   const [retry, setRetry] = useState(0);
   const localSelectedId = sharedEventId;
@@ -105,9 +105,9 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     if (matchingInitial && (!needsHistory || initialHistoryReady)) return;
     const controller = new AbortController();
     fetch(`/api/company-timeline?company=${encodeURIComponent(companyId)}&days=${days}${needsHistory?'&indicators=1':''}${needsHistory&&maxAverage>60?`&maPeriod=${maxAverage}`:''}`, { signal: controller.signal })
-      .then(async r => { const data = await r.json(); if (!data || data.companyId !== companyId || !Array.isArray(data.prices)) throw new Error(); return data as TimelinePrices; })
+      .then(async r => { const data = await r.json(); if (!r.ok || !data || data.available===false || data.companyId !== companyId || !Array.isArray(data.prices)) throw new Error(); return data as TimelinePrices; })
       .then(data => setLoaded({ key, data }))
-      .catch(() => { if (!controller.signal.aborted) setLoaded({ key, data: { companyId, ...timelineWindow(days), currency: null, prices: [], available: false } }); });
+      .catch(() => { if (!controller.signal.aborted) {const fallback=matchingInitial?.prices.length?matchingInitial:null;setLoaded({key,data:fallback??{companyId,...timelineWindow(days),currency:null,prices:[],available:false},indicatorError:Boolean(fallback&&needsHistory)});} });
     return () => controller.abort();
   }, [companyId, days, matchingInitial, initialHistoryReady, needsHistory, maxAverage, key]);
   useEffect(() => {
@@ -260,6 +260,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     </FloatingEventWindow>}
     {shareResult&&<div className={styles.status} role="status">{shareResult.copied?text('Chart link copied','图表链接已复制'):text('Copy this chart link:','请复制此图表链接：')}{!shareResult.copied&&<input aria-label={text('Chart link','图表链接')} readOnly value={shareResult.url} onFocus={event=>event.target.select()} style={{width:'100%'}}/>}<button type="button" aria-label={text('Dismiss share message','关闭分享提示')} onClick={()=>setShareResult(null)}>×</button></div>}
     {needsHistory&&loaded?.key!==key&&!initialHistoryReady&&<p className={styles.status} role="status">{text('Loading indicator history…','正在加载指标历史数据…')}</p>}
+    {loaded?.key===key&&loaded.indicatorError&&<p className={styles.status} role="status">{text('Indicator history unavailable; showing supplied prices.','指标历史数据暂时不可用，保留已有股价数据。')} <button type="button" onClick={()=>setRetry(value=>value+1)}>{text('Retry indicator history','重试指标历史数据')}</button></p>}
     {needsHistory&&loaded?.key===key&&averages.some(period=>!movingAverages[averagePeriods.indexOf(period)]?.length)&&<p className={styles.status}>{text('Some moving averages have insufficient stored history.','部分均线的已存储历史数据不足。')}</p>}
     {showMacd&&<div className={styles.indicatorLegend}><span style={{color:MA_COLORS[0]}}>{text('DIF','DIF')}</span><span style={{color:MA_COLORS[1]}}>{text('DEA','DEA')}</span><span>{text('Histogram = DIF − DEA','柱值 = DIF − DEA')}</span></div>}
     {showKdj&&<div className={styles.indicatorLegend}>{['K','D','J'].map((label,index)=><span key={label} style={{color:MA_COLORS[index]}}>{label}</span>)}</div>}

@@ -1248,7 +1248,7 @@ test('timeline category symbols, count chooser and docked card retain all event 
  await page.getByRole('dialog',{name:'Event details',exact:true}).getByRole('button',{name:'Close event details',exact:true}).click();
  await expect(page).not.toHaveURL(/event=/);await expect(card).toBeVisible();
  if(info.project.name==='desktop'){
-  const cardBounds=await card.boundingBox(),timelineBounds=await timeline.boundingBox();
+  const cardBounds=await card.boundingBox(),timelineBounds=await timeline.evaluate(el=>el.closest('[data-timeline-dock]')!.getBoundingClientRect().toJSON());
   expect(Math.abs(cardBounds!.y+cardBounds!.height-timelineBounds!.y)).toBeLessThanOrEqual(14);
   await card.getByRole('button',{name:'Reset card position'}).click();
  }
