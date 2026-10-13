@@ -34,6 +34,12 @@ test('copy chart link restores settings and selected event; close clears the eve
   await page.goto(`http://chart.test${url.pathname}${url.search}`);
   await expect(page.getByLabel('Price history range')).toHaveValue('ytd');
   await expect(page.getByRole('button',{name:'Line',exact:true})).toHaveAttribute('aria-pressed','true');
+  for(const period of [5,20])await page.getByRole('button',{name:`MA${period}`,exact:true}).click();
+  await copy.click();
+  const disabled=new URL(await page.evaluate(()=>(window as unknown as {copiedLink:string}).copiedLink));
+  expect(disabled.searchParams.get('chartMA')).toBe('none');
+  await page.goto(`http://chart.test${disabled.pathname}${disabled.search}`);
+  for(const period of [5,10,20,60])await expect(page.getByRole('button',{name:`MA${period}`,exact:true})).toHaveAttribute('aria-pressed','false');
 });
 test('Chinese share offers a selectable link when clipboard is blocked',async({page})=>{
   await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404}));

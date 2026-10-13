@@ -174,10 +174,12 @@ test('chart sizes preserve selection and indicators read preceding history',asyn
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline.locator('[data-price-candle]')).not.toHaveCount(0);
- await expect(timeline.getByRole('button',{name:'MA60',exact:true})).toHaveAttribute('aria-pressed','false');
+ for(const period of [5,10,20,60])await expect(timeline.getByRole('button',{name:`MA${period}`,exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(timeline.locator('[data-macd-panel]')).toHaveCount(0);
  await timeline.getByRole('button',{name:'Half screen',exact:true}).click();await expect(timeline).toHaveAttribute('data-chart-size','half');
  await timeline.getByRole('button',{name:'Full screen',exact:true}).click();await expect(timeline).toHaveAttribute('role','dialog');
+ await timeline.getByRole('button',{name:'MA60',exact:true}).click();
+ await expect(timeline.locator('[data-moving-average="60"]')).toHaveCount(0);
  await timeline.getByRole('button',{name:'MA60',exact:true}).click();
  await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
  expect(requests.some(url=>url.includes('indicators=1'))).toBeTruthy();
@@ -208,7 +210,7 @@ test('a longer supplied price history remains illustrative and supplies indicato
  await page.goto('http://timeline-preview.test/');
  const timeline=page.locator('[data-company-timeline="US:AMD"]');
  await expect(timeline.locator('[data-price-line]')).toBeVisible();
- await timeline.getByRole('button',{name:'MA60',exact:true}).click();await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
+ await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
  await timeline.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();await expect(timeline.locator('[data-macd-histogram]')).not.toHaveCount(0);
  await timeline.getByRole('combobox',{name:'Price history range'}).selectOption('90');await expect(timeline).toContainText('90 stored daily bars');
  await expect(timeline.getByRole('status')).toHaveCount(0);expect(requests).toEqual([]);
@@ -228,13 +230,13 @@ test('all six history ranges include YTD and five-year weekly prices with exact 
  const timeline=page.locator('[data-company-timeline="US:MU"]'),range=timeline.getByRole('combobox',{name:'Price history range'});
  await expect(range).toHaveValue('30');await expect(range.locator('option')).toHaveText(['1M','3M','6M','YTD','1Y','5Y']);
  for(const value of ['90','180','ytd','365','1826']){await range.selectOption(value);await expect.poll(()=>requests.at(-1)).toBe(value);await expect(timeline.locator('[data-price-candle]')).not.toHaveCount(0);}
- await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);await expect(timeline).toContainText('Weekly bars');
+ await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);await expect(timeline).toContainText('weekly bars');
  const svg=timeline.locator('svg');await svg.scrollIntoViewIfNeeded();const box=(await svg.boundingBox())!;await page.mouse.click(box.x+box.width*.75,box.y+90);
  const prices=timeline.getByRole('group',{name:'Price details'});await expect(prices).toContainText('Weekly change');await expect(prices).toContainText('2026-10-05 – 2026-10-09');
  await prices.getByRole('button',{name:'Close price details'}).click();
  await timeline.locator('button[data-event-count="2"]').click();const chooser=page.getByRole('group',{name:'Choose an event'});
  await expect(chooser).toContainText('Sep 28');await expect(chooser).toContainText('Sep 30');await chooser.getByRole('button',{name:'Close event list'}).click();
- await range.selectOption('30');await expect(timeline.locator('[data-price-candle]')).toHaveCount(3);await expect(timeline).toContainText('Daily bars');
+ await range.selectOption('30');await expect(timeline.locator('[data-price-candle]')).toHaveCount(3);await expect(timeline).toContainText('stored daily bars');
 });
 
 test('a missing weekly candle shows its actual return baseline',async({page})=>{
@@ -1252,6 +1254,14 @@ test('candles are default, line is optional and missing OHLC never creates candl
  const svg=timeline.locator('svg');await expect(svg).toHaveAttribute('data-chart-type','candles');await expect(timeline.getByRole('button',{name:'Candles',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(svg.locator('[data-price-candle]')).toHaveCount(3);await expect(svg.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(85, 223, 187)');await expect(svg.locator('[data-candle-direction="down"] rect')).toHaveCSS('fill','rgb(255, 142, 161)');await expect(svg.locator('[data-candle-direction="flat"] rect')).toHaveAttribute('height','1');await expect(svg.locator('[data-price-candle="2026-10-08"]')).toHaveCount(0);await expect(svg.locator('[data-price-gap]')).toHaveCount(0);
  await expect(svg).toHaveAttribute('data-time-axis','trading-sessions');
+ for(const direction of ['up','down','flat']){
+  const candle=svg.locator(`[data-candle-direction="${direction}"] rect`),volume=svg.locator(`[data-volume-direction="${direction}"]`).first();
+  expect(await volume.evaluate(el=>getComputedStyle(el).fill)).toBe(await candle.evaluate(el=>getComputedStyle(el).fill));
+ }
+ await page.addStyleTag({content:':root{--price-up:#ff8ea1;--price-down:#55dfbb;}'});
+ await expect(svg.locator('[data-volume-direction="up"]')).toHaveCSS('fill','rgb(255, 142, 161)');
+ await expect(svg.locator('[data-volume-direction="down"]')).toHaveCSS('fill','rgb(85, 223, 187)');
+ await page.addStyleTag({content:':root{--price-up:#55dfbb;--price-down:#ff8ea1;}'});
  const positions=await svg.locator('circle').evaluateAll(elements=>elements.map(el=>Number(el.getAttribute('cx'))));
  expect(positions).toHaveLength(4);for(let i=2;i<positions.length;i++)expect(positions[i]-positions[i-1]).toBeCloseTo(positions[1]-positions[0],5);
  expect(await svg.locator('[data-session-tick]').evaluateAll(elements=>elements.map(el=>el.getAttribute('data-session-tick')))).toEqual(['2026-09-28','2026-09-29','2026-09-30','2026-10-08'].filter((_,i)=>info.project.name==='desktop'||i!==1));

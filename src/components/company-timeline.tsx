@@ -179,7 +179,6 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     <div className={styles.tools}>
       <button type="button" onClick={()=>void copyChartLink()}>{text('Copy chart link','复制图表链接')}</button>
       <ChartSizeControls size={chartSize} onChange={setChartSize}/>
-      <span>{weekly?text('Weekly bars','周线'):text('Daily bars','日线')}</span>
       <label>{text('Range','时间范围')} <select aria-label={text('Price history range','股价时间范围')} value={days} onChange={event=>{setDays(event.target.value==='ytd'?'ytd':Number(event.target.value) as TimelineRange);setPriceSelection(null);setClusterId('');setHoverDate(null);}}>{TIMELINE_RANGES.map(range=><option key={range} value={range}>{rangeLabel(range)}</option>)}</select></label>
       <div role="group" aria-label={text('Technical indicators','技术指标')} className={styles.indicatorControls}>
         {MA_PERIODS.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):[...values,period])}>{text('MA','MA')}{period}</button>)}
@@ -211,7 +210,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
           {prices.map(p => <circle key={p.date} cx={x(p.date)} cy={y(p.close)} r={useCandles?(p.open===undefined?2:0):prices.length < 3 ? 3 : 1} fill="var(--chart-line,#79cfe9)" />)}
         </> : <text x={left + 8} y={volumeBottom-8}>{!data ? text("Loading stored prices…", "正在读取历史股价…") : !data.available ? text("Stored prices unavailable", "历史股价暂时无法读取") : companyId.startsWith("ORG:") ? text("No supported price history", "暂无支持的股价记录") : text("No stored prices in this range", "此范围暂无已存储股价")}</text>}
         <text x={0} y={volumeBottom-12}>{text("Volume", "成交量")}</text>
-        {prices.filter(p => p.volume !== null).map(p => <rect key={p.date} x={x(p.date) - 1} y={volumeBottom - p.volume! / maxVolume * 22} width={Math.max(1, Math.min(4, plotWidth / Math.max(1, prices.length) * .65))} height={p.volume! / maxVolume * 22} fill="#65879b" />)}
+        {prices.filter(p => p.volume !== null).map(p => <rect key={p.date} data-volume-bar={p.date} data-volume-direction={p.open===undefined?'flat':p.close>p.open?'up':p.close<p.open?'down':'flat'} x={x(p.date) - 1} y={volumeBottom - p.volume! / maxVolume * 22} width={Math.max(1, Math.min(4, plotWidth / Math.max(1, prices.length) * .65))} height={p.volume! / maxVolume * 22} fill={p.open===undefined?'var(--price-flat,#b8cfe1)':p.close>p.open?'var(--price-up,#55dfbb)':p.close<p.open?'var(--price-down,#ff8ea1)':'var(--price-flat,#b8cfe1)'} />)}
         {prices.length > 0 && prices.every(p => p.volume === null) && <text x={left + 8} y={volumeBottom-6}>{text("Volume not recorded", "未记录成交量")}</text>}
         <line x1={left} x2={right} y1={volumeBottom+2} y2={volumeBottom+2} stroke="var(--ui-line,#30485a)" />
         {showMacd&&<g data-macd-panel>

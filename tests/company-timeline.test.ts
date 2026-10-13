@@ -239,6 +239,11 @@ test('return ages count from publication, not the preceding Friday or holiday cl
   assert.equal(eventReturnDays('2026-10-12','2026-10-12',null,Date.parse('2026-10-12T23:00:00Z'),'XSHG:600000'),1);
 });
 test('shared settings round trip and malformed settings use safe defaults',()=>{
+  assert.deepEqual(parseSharedChart(new URLSearchParams()).averages,[5,10,20,60]);
+  assert.deepEqual(parseSharedChart(new URLSearchParams('chartMA=')).averages,[5,10,20,60]);
+  assert.deepEqual(parseSharedChart(new URLSearchParams('chartMA=none')).averages,[]);
+  const disabled={...chart,averages:[]};
+  assert.deepEqual(parseSharedChart(new URL(chartShareUrl('US:AMD','en',disabled)).searchParams),disabled);
   assert.deepEqual(parseSharedChart(new URLSearchParams(sharedChartParams(chart))),chart);
   assert.deepEqual(parseSharedChart(new URLSearchParams('chartRange=999&chartStyle=unknown&chartMA=20,20,999,5&chartMacd=true')), {...chart,range:30,style:'candles',macd:false});
 });

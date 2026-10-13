@@ -10,7 +10,8 @@ export type SharedChart = { range: TimelineRange; style: 'candles' | 'line'; ave
 export function parseSharedChart(params: URLSearchParams): SharedChart {
   const raw = params.get('chartRange');
   const range = raw === 'ytd' ? 'ytd' : Number(raw);
-  const requested = new Set((params.get('chartMA') ?? '').split(',').map(Number));
+  const rawAverages = params.get('chartMA');
+  const requested = new Set((rawAverages ? rawAverages.split(',').map(Number) : MA_PERIODS));
   return {
     range: TIMELINE_RANGES.includes(range as TimelineRange) ? range as TimelineRange : DEFAULT_TIMELINE_RANGE,
     style: params.get('chartStyle') === 'line' ? 'line' : 'candles',
@@ -21,7 +22,7 @@ export function parseSharedChart(params: URLSearchParams): SharedChart {
 }
 
 export function sharedChartParams(chart: SharedChart): Record<string, string> {
-  return { chartRange: String(chart.range), chartStyle: chart.style, chartMA: chart.averages.join(','), chartMacd: chart.macd ? '1' : '0', chartEvents: chart.events ? '1' : '0' };
+  return { chartRange: String(chart.range), chartStyle: chart.style, chartMA: chart.averages.join(',') || 'none', chartMacd: chart.macd ? '1' : '0', chartEvents: chart.events ? '1' : '0' };
 }
 
 /** Build from an allowlist; account state and browsing filters never enter a share. */
