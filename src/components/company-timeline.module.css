@@ -51,8 +51,16 @@
 .chartModes button {padding:3px 6px;font-size:11px;}
 .tools {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0;font-size:12px;}
 .tools label {display:flex;align-items:center;gap:4px;}
+.tools a {display:inline-flex;align-items:center;min-height:32px;padding:4px 7px;border:1px solid var(--ui-line,#354c60);border-radius:5px;color:var(--ui-text,#dbeaf6);font-size:11px;text-decoration:none;}
 .tools select,.indicatorControls button {min-height:32px;padding:4px 7px;border:1px solid var(--ui-line,#354c60);border-radius:5px;background:var(--ui-surface,#0a1522);color:var(--ui-text,#dbeaf6);font-size:11px;}
 .indicatorControls {display:flex;flex-wrap:wrap;gap:4px;}
+.indicatorSwitches {display:flex;flex-wrap:wrap;gap:12px;width:100%;}
+.zoomHint {display:flex;align-items:center;gap:8px;color:var(--ui-muted,#9db4c8);font-size:11px;}
+.maSettings {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.maSettings p,.maSettings button {grid-column:1/-1;}
+.maSettings label {display:flex;align-items:center;gap:6px;}
+.maSettings input {width:70px;padding:6px;background:var(--ui-surface,#0a1522);color:var(--ui-text,#dbeaf6);border:1px solid var(--ui-line,#354c60);border-radius:5px;}
+.maValues {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 8px;flex-shrink:0;}
 .indicatorLegend{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;margin:4px 0;color:var(--ui-muted,#9db4c8);}
 .indicatorControls button {cursor:pointer;}
 .indicatorControls button[aria-pressed=true] {background:var(--ui-selected,#24516a);border-color:var(--ui-muted,#79cfe9);}
@@ -63,6 +71,7 @@
 
 .priceDetailsHeader { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .priceTooltip {max-height:calc(100% - 32px);overflow:auto;}
+.priceTooltip[data-price-mode=hover] {pointer-events:none;max-height:none;font-size:11px;}
 .priceTooltip>span,.priceTooltip>strong,.priceDetailsHeader {flex-shrink:0;}
 .priceDetailsHeader button { display:grid; place-items:center; min-width:28px; min-height:28px; border:0; background:transparent; color:inherit; padding:2px; cursor:pointer; font-size:18px; }
 .chart svg:focus-visible { outline:2px solid var(--selection-outline,#79cfe9); outline-offset:2px; }

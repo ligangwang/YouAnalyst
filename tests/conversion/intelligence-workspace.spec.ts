@@ -174,10 +174,12 @@ test('chart sizes preserve selection and indicators read preceding history',asyn
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  const search=page.getByPlaceholder('Search company / ticker');await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');await expect(timeline.locator('[data-price-candle]')).not.toHaveCount(0);
- await expect(timeline.getByRole('button',{name:'MA60',exact:true})).toHaveAttribute('aria-pressed','false');
+ for(const period of [5,10,20,60])await expect(timeline.getByRole('button',{name:`MA${period}`,exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(timeline.locator('[data-macd-panel]')).toHaveCount(0);
  await timeline.getByRole('button',{name:'Half screen',exact:true}).click();await expect(timeline).toHaveAttribute('data-chart-size','half');
  await timeline.getByRole('button',{name:'Full screen',exact:true}).click();await expect(timeline).toHaveAttribute('role','dialog');
+ await timeline.getByRole('button',{name:'MA60',exact:true}).click();
+ await expect(timeline.locator('[data-moving-average="60"]')).toHaveCount(0);
  await timeline.getByRole('button',{name:'MA60',exact:true}).click();
  await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
  expect(requests.some(url=>url.includes('indicators=1'))).toBeTruthy();
@@ -197,6 +199,41 @@ test('chart sizes preserve selection and indicators read preceding history',asyn
  await expect(page.getByRole('button',{name:'Show timeline'})).toBeVisible();expect(await page.evaluate(()=>document.body.style.overflow)).not.toBe('hidden');
 });
 
+for(const zh of [false,true])test(`chart indicator switches, custom averages, hover details and zoom ${zh?'Chinese':'English'}`,async({page},info)=>{
+ await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async(value:string)=>{(window as unknown as {copiedLink:string}).copiedLink=value;}}}));
+ await open(page,zh,{...snapshot,events:[]});
+ const bars:import('../../src/lib/ui/company-timeline').TimelinePrice[]=[];
+ for(let date=Date.parse('2026-01-01'),index=0;date<=Date.parse('2026-10-09');date+=86_400_000){if([0,6].includes(new Date(date).getUTCDay()))continue;const close=100+index*.3+Math.sin(index++);bars.push({date:new Date(date).toISOString().slice(0,10),open:close+(index%2?-.5:.5),high:close+1,low:close-1,close,volume:1000+index});}
+ let amounts=false;const requests:string[]=[];
+ await page.route('**/api/company-timeline?*',route=>{const url=new URL(route.request().url());requests.push(url.href);const start=new Date(Date.parse('2026-10-11')-Number(url.searchParams.get('days')??30)*86_400_000).toISOString().slice(0,10);return route.fulfill({json:{companyId:'US:MU',start,end:'2026-10-11',currency:'USD',available:true,prices:bars.filter(bar=>bar.date>=start).map(bar=>({...bar,...(amounts?{amount:123456}: {})})),warmupPrices:bars.filter(bar=>bar.date<start)}});});
+ await page.goto(`http://workspace.test/?company=US%3AMU${zh?'&lang=zh-CN':''}`);
+ const timeline=page.locator('[data-company-timeline="US:MU"]'),svg=timeline.locator('svg');
+ await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
+ await timeline.getByRole('button',{name:zh?'成交额':'Turnover',exact:true}).click();await expect(svg).toContainText(zh?'成交额暂无数据':'Turnover unavailable');await expect(svg.locator('[data-volume-bar]')).toHaveCount(0);await expect(svg.locator('[data-turnover-bar]')).toHaveCount(0);
+ await timeline.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();await expect(svg.locator('[data-macd-panel]')).toHaveCount(1);
+ await timeline.getByRole('button',{name:'KDJ (9,3,3)',exact:true}).click();await expect(svg.locator('[data-macd-panel]')).toHaveCount(0);await expect(svg.locator('[data-kdj-line]')).toHaveCount(3);await expect(svg.locator('[data-kdj-line="j"]')).toHaveAttribute('d',/^M.+L/);
+ await timeline.getByRole('button',{name:'BOLL (20,2)',exact:true}).click();await expect(svg.locator('[data-kdj-panel]')).toHaveCount(0);await expect(svg.locator('[data-boll-band]')).toHaveCount(3);await expect(svg.locator('[data-boll-band="upper"]')).toHaveAttribute('d',/^M.+L/);
+ await timeline.getByRole('button',{name:zh?'均线设置':'MA settings',exact:true}).click();const settings=page.getByRole('dialog',{name:zh?'均线设置':'Moving average settings',exact:true});
+ await settings.locator('input').nth(4).fill('120');await settings.getByRole('button',{name:zh?'应用':'Apply',exact:true}).click();await expect(timeline.getByRole('button',{name:'MA120',exact:true})).toHaveAttribute('aria-pressed','true');await expect(timeline.locator('[data-moving-average="120"]')).toHaveAttribute('d',/^M.+L/);expect(requests.some(url=>url.includes('maPeriod=120'))).toBe(true);
+ await timeline.getByRole('button',{name:zh?'复制图表链接':'Copy chart link',exact:true}).click();const share=new URL(await page.evaluate(()=>(window as unknown as {copiedLink:string}).copiedLink));expect(share.searchParams.get('chartIndicator')).toBe('boll');expect(share.searchParams.get('chartActivity')).toBe('turnover');expect(share.searchParams.get('chartMA')).toBe('5,10,20,60,120');
+ await page.goto(`http://workspace.test/?${share.searchParams}${zh?'&lang=zh-CN':''}&company=US%3AMU`);await expect(timeline.getByRole('button',{name:'BOLL (20,2)',exact:true})).toHaveAttribute('aria-pressed','true');await expect(timeline.getByRole('button',{name:zh?'成交额':'Turnover',exact:true})).toHaveAttribute('aria-pressed','true');await expect(timeline.getByRole('button',{name:'MA120',exact:true})).toHaveAttribute('aria-pressed','true');
+ amounts=true;await timeline.getByRole('combobox',{name:zh?'股价时间范围':'Price history range'}).selectOption('90');await expect(svg.locator('[data-turnover-bar]')).not.toHaveCount(0);await expect(svg).not.toContainText(zh?'成交额暂无数据':'Turnover unavailable');
+ await timeline.getByRole('button',{name:zh?'成交量':'Volume',exact:true}).click();await expect(svg.locator('[data-volume-bar]')).not.toHaveCount(0);
+ const total=await svg.locator('[data-price-candle]').count();await svg.press('ArrowUp');await expect(svg.locator('[data-price-candle]')).not.toHaveCount(total);const first=await svg.locator('[data-price-candle]').first().getAttribute('data-price-candle');await svg.press('ArrowLeft');await expect(svg.locator('[data-price-candle]').first()).not.toHaveAttribute('data-price-candle',first!);await svg.press('ArrowDown');await expect(svg.locator('[data-price-candle]')).toHaveCount(total);
+ if(info.project.name==='desktop'){
+  const details=timeline.getByRole('group',{name:zh?'股价详情':'Price details'});await svg.locator('[data-price-candle]').first().hover();await expect(details).toHaveAttribute('data-price-mode','hover');const before=(await details.boundingBox())!;await svg.locator('[data-price-candle]').nth(1).hover();const after=(await details.boundingBox())!;expect(after.x+after.width).toBeCloseTo(before.x+before.width,1);expect(after.y).toBeCloseTo(before.y,1);
+  await page.evaluate(()=>{const original=window.matchMedia.bind(window);window.matchMedia=(query:string)=>query==='(pointer:coarse)'?{...original(query),matches:true} as MediaQueryList:original(query);});
+  await svg.locator('[data-price-candle]').nth(1).click();await svg.hover({position:{x:5,y:5}});await expect(details).toHaveCount(0);
+  const scroll=await page.evaluate(()=>scrollY);await page.mouse.wheel(0,-120);await expect(svg.locator('[data-price-candle]')).not.toHaveCount(total);expect(await page.evaluate(()=>scrollY)).toBe(scroll);await timeline.getByRole('button',{name:zh?'重置视图':'Reset view',exact:true}).click();await expect(svg.locator('[data-price-candle]')).toHaveCount(total);
+  await page.context().route('**/ticker/MU',route=>route.fulfill({contentType:'text/html',body:'<h1>Company research fixture</h1>'}));
+  const oldUrl=page.url(),popup=page.waitForEvent('popup');await svg.press('F10');const research=await popup;await expect(research).toHaveURL(new RegExp(`/${zh?'zh-cn':'en'}/ticker/MU`));await research.close();expect(page.url()).toBe(oldUrl);
+ }else{await svg.locator('[data-price-candle] rect').first().tap();const details=timeline.getByRole('group',{name:zh?'股价详情':'Price details'});await expect(details).toBeVisible();await details.getByRole('button',{name:zh?'关闭股价详情':'Close price details'}).click();await expect(details).toHaveCount(0);}
+ await expect(timeline.getByRole('link',{name:zh?'基本面（F10）':'Fundamentals (F10)',exact:true})).toHaveAttribute('target','_blank');
+ await timeline.getByRole('button',{name:zh?'全屏':'Full screen',exact:true}).click();await expect(timeline).toHaveAttribute('data-chart-size','full');
+ await timeline.screenshot({path:`output/chart-refinements-${zh?'zh':'en'}-${info.project.name}.png`});
+ await page.addStyleTag({content:':root{--ui-surface:#fff;--ui-text:#172d40;--ui-muted:#536e85;--ui-line:#cad7e3;--ui-selected:#dceff3;--price-up:#008763;--price-down:#e52650;--chart-line:#0087a8;}'});await timeline.screenshot({path:`output/chart-refinements-${zh?'zh':'en'}-${info.project.name}-light.png`});
+});
+
 test('a longer supplied price history remains illustrative and supplies indicator warmup',async({page})=>{
  const prices=Array.from({length:300},(_,index)=>({date:new Date(Date.parse('2025-12-15')+index*86_400_000).toISOString().slice(0,10),close:100+index*.2,volume:100}));
  const fixture=await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {CompanyTimeline} from './src/components/company-timeline';createRoot(document.getElementById('root')).render(<CompanyTimeline companyId="US:AMD" graph={{asOf:'2026-10-11',nodes:[],relationships:[],sources:[]}} initialPrices={${JSON.stringify({companyId:'US:AMD',start:'2021-10-09',end:'2026-10-11',currency:'USD',available:true,prices})}}/>);`,{jsx:'automatic',alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'timeline-preview',setup(build){
@@ -208,7 +245,7 @@ test('a longer supplied price history remains illustrative and supplies indicato
  await page.goto('http://timeline-preview.test/');
  const timeline=page.locator('[data-company-timeline="US:AMD"]');
  await expect(timeline.locator('[data-price-line]')).toBeVisible();
- await timeline.getByRole('button',{name:'MA60',exact:true}).click();await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
+ await expect(timeline.locator('[data-moving-average="60"]')).toHaveAttribute('d',/^M.+L/);
  await timeline.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();await expect(timeline.locator('[data-macd-histogram]')).not.toHaveCount(0);
  await timeline.getByRole('combobox',{name:'Price history range'}).selectOption('90');await expect(timeline).toContainText('90 stored daily bars');
  await expect(timeline.getByRole('status')).toHaveCount(0);expect(requests).toEqual([]);
@@ -228,13 +265,13 @@ test('all six history ranges include YTD and five-year weekly prices with exact 
  const timeline=page.locator('[data-company-timeline="US:MU"]'),range=timeline.getByRole('combobox',{name:'Price history range'});
  await expect(range).toHaveValue('30');await expect(range.locator('option')).toHaveText(['1M','3M','6M','YTD','1Y','5Y']);
  for(const value of ['90','180','ytd','365','1826']){await range.selectOption(value);await expect.poll(()=>requests.at(-1)).toBe(value);await expect(timeline.locator('[data-price-candle]')).not.toHaveCount(0);}
- await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);await expect(timeline).toContainText('Weekly bars');
- const svg=timeline.locator('svg');await svg.scrollIntoViewIfNeeded();const box=(await svg.boundingBox())!;await page.mouse.click(box.x+box.width*.75,box.y+90);
+ await expect(timeline.locator('[data-price-candle]')).toHaveCount(2);await expect(timeline).toContainText('weekly bars');
+ const svg=timeline.locator('svg');await svg.press('End');
  const prices=timeline.getByRole('group',{name:'Price details'});await expect(prices).toContainText('Weekly change');await expect(prices).toContainText('2026-10-05 – 2026-10-09');
  await prices.getByRole('button',{name:'Close price details'}).click();
  await timeline.locator('button[data-event-count="2"]').click();const chooser=page.getByRole('group',{name:'Choose an event'});
  await expect(chooser).toContainText('Sep 28');await expect(chooser).toContainText('Sep 30');await chooser.getByRole('button',{name:'Close event list'}).click();
- await range.selectOption('30');await expect(timeline.locator('[data-price-candle]')).toHaveCount(3);await expect(timeline).toContainText('Daily bars');
+ await range.selectOption('30');await expect(timeline.locator('[data-price-candle]')).toHaveCount(3);await expect(timeline).toContainText('stored daily bars');
 });
 
 test('a missing weekly candle shows its actual return baseline',async({page})=>{
@@ -282,6 +319,9 @@ for(const zh of [false,true])test(`publication returns hide zero days and update
  const fixture:IntelligenceSnapshot={...snapshot,events:[announcement],generatedAt:'2026-10-12T22:00:00Z',session:{...snapshot.session,date:'2026-10-12',startAt:'2026-10-12T04:00:00Z',endAt:'2026-10-13T04:00:00Z'},eventReturns:{[announcement.id]:[{companyId:'US:MU',baselineDate:'2026-10-09',latestDate:'2026-10-12',baselineClose:100,latestClose:97.72,change:-.0228,dateOnly:false}]}};
  await open(page,zh,fixture);
  await page.goto(`http://workspace.test/?company=US%3AMU&event=${announcement.id}${zh?'&lang=zh-CN':''}`);
+ const range=page.getByRole('combobox',{name:zh?'股价时间范围':'Price history range'});
+ await expect(range.locator('option')).toHaveText(zh?['1个月','3个月','6个月','今年以来','1年','5年']:['1M','3M','6M','YTD','1Y','5Y']);
+ await expect(page.getByRole('group',{name:zh?'时间范围':'Timeline range',exact:true})).toContainText(zh?'1个月':'1M');
  const details=page.getByRole('dialog',{name:zh?'事件详情':'Event details'});
  await expect(details).toContainText(zh?'发布以来:':'Since pub.:');
  await expect(details).toContainText('-2.28%');
@@ -326,10 +366,7 @@ test('clicked price details show daily changes independently of event markers',a
  const bounds=(await svg.boundingBox())!;
  const selectDay=async(index:number)=>{
    await svg.scrollIntoViewIfNeeded();
-   const currentBounds=(await svg.boundingBox())!;
-   const cx=Number(await svg.locator('circle').nth(index).getAttribute('cx'));
-   const viewWidth=await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width);
-   await page.mouse.click(currentBounds.x+cx/viewWidth*currentBounds.width,currentBounds.y+currentBounds.height-24);
+   await svg.press('Home');for(let day=0;day<index;day++)await svg.press('ArrowRight');
  };
  const tooltip=timeline.getByRole('group',{name:'Price details'});
  await svg.hover({position:{x:bounds.width/2,y:bounds.height-24}});await expect(tooltip).toHaveCount(0);
@@ -359,7 +396,7 @@ test('long price gaps connect recorded closes without synthetic bars',async({pag
  await expect(timeline.locator('svg rect')).toHaveCount(2);
  await timeline.locator('svg').scrollIntoViewIfNeeded();
  const bounds=(await timeline.locator('svg').boundingBox())!;
- await page.mouse.click(bounds.x+bounds.width*.82,bounds.y+bounds.height-24);
+ await timeline.locator('svg').press('End');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('2026-10-08');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Close · $102.00');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Change since 2026-09-28 · ▲ +2.00%');
@@ -1150,15 +1187,15 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  const priceTop=Number(await timeline.locator('svg').getAttribute('data-price-top')),priceBottom=Number(await timeline.locator('svg').getAttribute('data-price-bottom'));
  expect(markerBounds!.y-chartBounds!.y).toBeGreaterThanOrEqual(priceTop);
  expect(markerBounds!.y+markerBounds!.height-chartBounds!.y).toBeLessThanOrEqual(priceBottom);
- await page.mouse.click(chartBounds!.x+Number(await timeline.locator("svg circle").first().getAttribute("cx"))/Number(await timeline.locator("svg").evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width))*chartBounds!.width,chartBounds!.y+priceBottom+26);
+ await timeline.locator('svg').press('Home');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('2026-10-01');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Close · $100.00');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Volume · 0');
- await page.mouse.click(chartBounds!.x+chartBounds!.width-25,chartBounds!.y+priceBottom+26);
+ await timeline.locator('svg').press('End');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('2026-10-02');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Close · $102.00');
  await expect(timeline.getByRole('group',{name:'Price details'})).toContainText('Volume · Not recorded');
- await marker.click();
+ await timeline.locator('svg').press('Escape');await marker.click();
  await expect(timeline.getByRole('group',{name:'Price details'})).toHaveCount(0);
  if(await page.getByRole('group',{name:'Choose an event'}).count())await page.getByRole('button',{name:'Close event list',exact:true}).click();
  await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
@@ -1211,7 +1248,7 @@ test('timeline category symbols, count chooser and docked card retain all event 
  await page.getByRole('dialog',{name:'Event details',exact:true}).getByRole('button',{name:'Close event details',exact:true}).click();
  await expect(page).not.toHaveURL(/event=/);await expect(card).toBeVisible();
  if(info.project.name==='desktop'){
-  const cardBounds=await card.boundingBox(),timelineBounds=await timeline.boundingBox();
+  const cardBounds=await card.boundingBox(),timelineBounds=await timeline.evaluate(el=>el.closest('[data-timeline-dock]')!.getBoundingClientRect().toJSON());
   expect(Math.abs(cardBounds!.y+cardBounds!.height-timelineBounds!.y)).toBeLessThanOrEqual(14);
   await card.getByRole('button',{name:'Reset card position'}).click();
  }
@@ -1249,6 +1286,14 @@ test('candles are default, line is optional and missing OHLC never creates candl
  const svg=timeline.locator('svg');await expect(svg).toHaveAttribute('data-chart-type','candles');await expect(timeline.getByRole('button',{name:'Candles',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(svg.locator('[data-price-candle]')).toHaveCount(3);await expect(svg.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(85, 223, 187)');await expect(svg.locator('[data-candle-direction="down"] rect')).toHaveCSS('fill','rgb(255, 142, 161)');await expect(svg.locator('[data-candle-direction="flat"] rect')).toHaveAttribute('height','1');await expect(svg.locator('[data-price-candle="2026-10-08"]')).toHaveCount(0);await expect(svg.locator('[data-price-gap]')).toHaveCount(0);
  await expect(svg).toHaveAttribute('data-time-axis','trading-sessions');
+ for(const direction of ['up','down','flat']){
+  const candle=svg.locator(`[data-candle-direction="${direction}"] rect`),volume=svg.locator(`[data-volume-direction="${direction}"]`).first();
+  expect(await volume.evaluate(el=>getComputedStyle(el).fill)).toBe(await candle.evaluate(el=>getComputedStyle(el).fill));
+ }
+ await page.addStyleTag({content:':root{--price-up:#ff8ea1;--price-down:#55dfbb;}'});
+ await expect(svg.locator('[data-volume-direction="up"]')).toHaveCSS('fill','rgb(255, 142, 161)');
+ await expect(svg.locator('[data-volume-direction="down"]')).toHaveCSS('fill','rgb(85, 223, 187)');
+ await page.addStyleTag({content:':root{--price-up:#55dfbb;--price-down:#ff8ea1;}'});
  const positions=await svg.locator('circle').evaluateAll(elements=>elements.map(el=>Number(el.getAttribute('cx'))));
  expect(positions).toHaveLength(4);for(let i=2;i<positions.length;i++)expect(positions[i]-positions[i-1]).toBeCloseTo(positions[1]-positions[0],5);
  expect(await svg.locator('[data-session-tick]').evaluateAll(elements=>elements.map(el=>el.getAttribute('data-session-tick')))).toEqual(['2026-09-28','2026-09-29','2026-09-30','2026-10-08'].filter((_,i)=>info.project.name==='desktop'||i!==1));
@@ -1264,10 +1309,9 @@ test('candles are default, line is optional and missing OHLC never creates candl
   expect(Math.hypot(Math.max(left-centerX,0,centerX-right),Math.max(top-centerY,0,centerY-bottom))-eventBox.width/2).toBeGreaterThanOrEqual(8*viewScale-.1);
  }
  await expect(svg.locator('[data-event-connector="2026-09-29"]')).toHaveCount(1);
- const bounds=(await svg.boundingBox())!,viewWidth=await svg.evaluate(el=>(el as SVGSVGElement).viewBox.baseVal.width),cx=Number(await svg.locator('[data-price-candle="2026-09-29"] line').getAttribute('x1'));
- await svg.click({position:{x:cx/viewWidth*bounds.width,y:bounds.height-24}});
+ await svg.press('Home');await svg.press('ArrowRight');
  const tooltip=timeline.getByRole('group',{name:'Price details'});await expect(tooltip.locator('[data-hover-ohlc]')).toContainText('O 108.00 · H 112.00 · L 99.00');await expect(tooltip).toContainText('Daily change · ▼ -9.09%');await expect(tooltip.locator('[data-latest-return]')).toContainText('▲ +3.00%');
- const highX=Number(await svg.locator('[data-price-candle="2026-09-28"] line').getAttribute('x1'));await svg.click({position:{x:highX/viewWidth*bounds.width,y:bounds.height-24}});const cardBounds=(await tooltip.boundingBox())!,chartBounds=(await svg.boundingBox())!;expect(cardBounds.y).toBeGreaterThanOrEqual(chartBounds.y);expect(cardBounds.y+cardBounds.height).toBeLessThanOrEqual(chartBounds.y+chartBounds.height);await page.screenshot({path:`output/candlestick-${info.project.name}.png`});
+ await svg.press('Home');const cardBounds=(await tooltip.boundingBox())!,chartBounds=(await svg.boundingBox())!;expect(cardBounds.y).toBeGreaterThanOrEqual(chartBounds.y);expect(cardBounds.y+cardBounds.height).toBeLessThanOrEqual(chartBounds.y+chartBounds.height);await page.screenshot({path:`output/candlestick-${info.project.name}.png`});
  await timeline.getByRole('button',{name:'Line',exact:true}).click();await expect(svg).toHaveAttribute('data-chart-type','line');await expect(svg.locator('[data-price-candle]')).toHaveCount(0);await expect(svg.locator('[data-price-line]')).toHaveCount(1);await expect(svg.locator('[data-price-gap]')).toHaveCount(1);
  await timeline.getByRole('button',{name:'Candles',exact:true}).click();await expect(svg.locator('[data-price-candle]')).toHaveCount(3);
 });

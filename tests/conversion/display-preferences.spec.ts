@@ -44,7 +44,9 @@ test('localized profile restores account appearance and swaps only price directi
   await expect(page.locator('[data-candle-direction="down"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');
   await expect(page.locator('.price-up')).toHaveCSS('color','rgb(200, 49, 72)');
   await expect(page.getByRole('note')).toHaveCSS('color','rgb(186, 48, 71)');
-  await expect(page.getByRole('status')).toHaveCSS('color','rgb(133, 77, 14)');
+  await expect(page.getByRole('status').filter({hasText:'Stale data warning'})).toHaveCSS('color','rgb(133, 77, 14)');
+  await expect(page.getByRole('status').filter({hasText:'Indicator history unavailable'})).toBeVisible();
+  await expect(page.locator('[data-price-candle]')).toHaveCount(2);
   const themeSelect=page.getByLabel('UI theme');await themeSelect.focus();await expect(themeSelect).toHaveCSS('outline-color','rgb(22, 127, 155)');
   await page.getByLabel('Price color convention').selectOption('green-up');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');

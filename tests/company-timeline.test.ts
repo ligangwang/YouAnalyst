@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { adjacentTimelineBars, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
-import { simpleMovingAverage, movingAverageConvergence } from '../src/lib/ui/technical-indicators';
+import { movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands } from '../src/lib/ui/technical-indicators';
 import {cachedTimelinePrices} from '../src/lib/ui/timeline-cache';
 
 test('YTD and annual windows use calendar boundaries, including leap days',()=>{
@@ -40,6 +40,31 @@ test('timeline cache shares pending reads, expires, separates revisions and retr
  await cachedTimelinePrices('test-failure',load,1);assert.equal(calls,4);
 });
 
+test('BOLL uses complete closes and population deviation without future prices',()=>{
+ const rows=Array.from({length:30},(_,index)=>({date:new Date(Date.UTC(2026,5,1+index)).toISOString().slice(0,10),close:index+1,volume:0}));
+ assert.deepEqual(bollingerBands(rows.slice(0,19)),[]);
+ const bands=bollingerBands(rows),first=bands[0];assert.equal(first.middle,10.5);assert.equal(first.date,rows[19].date);
+ assert.ok(Math.abs(first.upper-(10.5+2*Math.sqrt(33.25)))<1e-10);assert.ok(Math.abs(first.lower-(10.5-2*Math.sqrt(33.25)))<1e-10);
+ assert.deepEqual(bollingerBands(rows.slice(0,24)),bands.slice(0,5));
+ assert.deepEqual(bollingerBands(rows.map(row=>({...row,close:100})))[0],{date:rows[19].date,middle:100,upper:100,lower:100});
+});
+test('KDJ seeds K/D at 50, preserves J outside 0–100 and resets after missing OHLC',()=>{
+ const rows=Array.from({length:30},(_,index)=>({date:new Date(Date.UTC(2026,5,1+index)).toISOString().slice(0,10),close:10,high:10,low:0,volume:0}));
+ assert.deepEqual(stochasticKdj(rows.slice(0,8)),[]);
+ const points=stochasticKdj(rows),first=points[0];assert.equal(first.date,rows[8].date);
+ assert.ok(Math.abs(first.k-200/3)<1e-10);assert.ok(Math.abs(first.d-500/9)<1e-10);assert.ok(Math.abs(first.j-800/9)<1e-10);assert.ok(points[1].j>100);
+ assert.deepEqual(stochasticKdj(rows.slice(0,15)),points.slice(0,7));
+ const missing=rows.map((row,index)=>index===15?{date:row.date,close:row.close,volume:0}:row),reset=stochasticKdj(missing);
+ assert.ok(reset.every(point=>point.date<rows[15].date||point.date>=rows[24].date));assert.equal(reset.find(point=>point.date===rows[24].date)!.k,first.k);
+ const flat=stochasticKdj(rows.map(row=>({...row,high:10,low:10})));assert.ok(flat.every(point=>point.k===50&&point.d===50&&point.j===50));
+});
+test('true turnover is preserved and weekly sums require every stored amount',()=>{
+ const row={ticker:'AMD',market:'US',tradingDate:'2026-10-05',close:100,volume:10,amount:1234};
+ assert.equal(mapTimelinePrice(row,'AMD','US')!.amount,1234);assert.equal(mapTimelinePrice({...row,amount:0},'AMD','US')!.amount,0);
+ assert.equal(mapTimelinePrice({...row,amount:undefined},'AMD','US')!.amount,undefined);
+ const prices=[{date:'2026-10-05',close:100,volume:10,amount:1234},{date:'2026-10-06',close:110,volume:20,amount:2345}];
+ assert.equal(weeklyTimelinePrices(prices)[0].amount,3579);assert.equal(weeklyTimelinePrices([prices[0],{...prices[1],amount:undefined}])[0].amount,undefined);
+});
 test('moving averages use full preceding sessions without future closes or fabricated warmup',()=>{
   const prices=Array.from({length:80},(_,index)=>({date:new Date(Date.UTC(2026,5,1+index)).toISOString().slice(0,10),close:index+1,volume:0}));
   const average=simpleMovingAverage(prices,60);
@@ -47,6 +72,13 @@ test('moving averages use full preceding sessions without future closes or fabri
   assert.equal(average.at(-1)!.value,50.5);
   assert.deepEqual(simpleMovingAverage(prices.slice(0,59),60),[]);
   assert.deepEqual(simpleMovingAverage(prices.slice(0,65),60),average.slice(0,6));
+});
+test('custom moving-average periods are bounded, unique and preserved in shares',()=>{
+ assert.deepEqual(movingAveragePeriods([500,260,120,60,20,10,5,0,-1,5.5,501,NaN,120]),[5,10,20,60,120,260,500]);
+ assert.equal(movingAveragePeriods(Array.from({length:20},(_,i)=>i+1)).length,8);
+ const custom={...chart,averages:[5,10,20,60,120,260]};assert.deepEqual(parseSharedChart(new URLSearchParams(sharedChartParams(custom))).averages,custom.averages);
+ const rows=Array.from({length:510},(_,index)=>({date:new Date(Date.UTC(2024,0,1+index)).toISOString().slice(0,10),close:index+1,volume:0}));
+ const values=simpleMovingAverage(rows,500);assert.equal(values[0].value,250.5);assert.equal(values[0].date,rows[499].date);assert.equal(values.at(-1)!.value,260.5);
 });
 test('MACD uses 12/26/9 EMA with complete signal warmup and no lookahead',()=>{
   const prices=Array.from({length:80},(_,index)=>({date:new Date(Date.UTC(2026,5,1+index)).toISOString().slice(0,10),close:index+1,volume:0}));
@@ -218,7 +250,7 @@ test('weekly change labels distinguish adjacent holiday-shortened weeks from mis
  assert.equal(adjacentTimelineBars('2026-09-25','2026-10-09',false),false);
 });
 
-const chart:SharedChart={range:1826,style:'line',averages:[5,20],macd:true,events:true};
+const chart:SharedChart={range:1826,style:'line',averages:[5,20],macd:true,indicator:'macd',activity:'volume',events:true};
 test('return ages count from publication, not the preceding Friday or holiday close',()=>{
   const monday=Date.parse('2026-10-12T22:00:00Z');
   assert.equal(eventReturnDays('2026-10-12','2026-10-12',null,monday),0);
@@ -239,8 +271,17 @@ test('return ages count from publication, not the preceding Friday or holiday cl
   assert.equal(eventReturnDays('2026-10-12','2026-10-12',null,Date.parse('2026-10-12T23:00:00Z'),'XSHG:600000'),1);
 });
 test('shared settings round trip and malformed settings use safe defaults',()=>{
+  assert.deepEqual(parseSharedChart(new URLSearchParams()).averages,[5,10,20,60]);
+  assert.deepEqual(parseSharedChart(new URLSearchParams('chartMA=')).averages,[5,10,20,60]);
+  assert.deepEqual(parseSharedChart(new URLSearchParams('chartMA=none')).averages,[]);
+  const disabled={...chart,averages:[]};
+  assert.deepEqual(parseSharedChart(new URL(chartShareUrl('US:AMD','en',disabled)).searchParams),disabled);
   assert.deepEqual(parseSharedChart(new URLSearchParams(sharedChartParams(chart))),chart);
-  assert.deepEqual(parseSharedChart(new URLSearchParams('chartRange=999&chartStyle=unknown&chartMA=20,20,999,5&chartMacd=true')), {...chart,range:30,style:'candles',macd:false});
+  assert.deepEqual(parseSharedChart(new URLSearchParams('chartRange=999&chartStyle=unknown&chartMA=20,20,999,5&chartMacd=true')), {...chart,range:30,style:'candles',macd:false,indicator:'none'});
+  for(const indicator of ['none','macd','kdj','boll'] as const){const settings={...chart,indicator,macd:indicator==='macd',activity:'turnover' as const};assert.deepEqual(parseSharedChart(new URLSearchParams(sharedChartParams(settings))),settings);}
+  assert.equal(parseSharedChart(new URLSearchParams('chartMacd=1')).indicator,'macd');
+  assert.equal(parseSharedChart(new URLSearchParams('chartIndicator=kdj&chartMacd=1')).macd,false);
+  assert.equal(parseSharedChart(new URLSearchParams('chartActivity=unknown')).activity,'volume');
 });
 test('company links resolve to the appropriate public profile and preserve language',()=>{
   assert.equal(new URL(chartShareUrl('US:AMD','en',chart)).pathname,'/en/ticker/AMD');
@@ -256,6 +297,6 @@ test('event shares preserve public selection without personal browsing state',()
   assert.equal(url.hash,'#company-timeline');
   assert.equal(url.searchParams.get('theme'),'ai');
   for(const theme of ['robotics','space'] as const) assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'event',true,theme)).searchParams.get('theme'),theme);
-  assert.deepEqual([...url.searchParams.keys()].sort(),['chartEvents','chartMA','chartMacd','chartRange','chartStyle','company','event','theme','view'].sort());
+  assert.deepEqual([...url.searchParams.keys()].sort(),['chartActivity','chartIndicator','chartEvents','chartMA','chartMacd','chartRange','chartStyle','company','event','theme','view'].sort());
   assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'business_1')).searchParams.get('chartEvent'),'business_1');
 });

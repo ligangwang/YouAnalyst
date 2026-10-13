@@ -7,7 +7,7 @@ export const TIMELINE_RANGES = [30, 90, 180, 'ytd', 365, 1826] as const;
 export const TIMELINE_RANGE_LABELS = {30:'1M',90:'3M',180:'6M',ytd:'YTD',365:'1Y',1826:'5Y'} as const;
 export const DEFAULT_TIMELINE_RANGE = 30;
 export type TimelineRange = (typeof TIMELINE_RANGES)[number];
-export type TimelinePrice = { date: string; close: number; volume: number | null; open?:number; high?:number; low?:number; periodStart?:string };
+export type TimelinePrice = { date: string; close: number; volume: number | null; amount?:number; open?:number; high?:number; low?:number; periodStart?:string };
 export type TimelineEvent = ClassifiedEvent & { id: string; date: string; publishedAt?: string | null; title: string; description: string; lane: "business" | "research"; category?: "business" | "filing" | "research"; sourceUrl: string; sourceTitle: string; planned: boolean };
 export type TimelinePrices = { companyId: string; start: string; end: string; currency: string | null; prices: TimelinePrice[]; warmupPrices?:TimelinePrice[]; interval?:'daily'|'weekly'; available: boolean };
 export function timelineWeek(date:string) {
@@ -26,6 +26,7 @@ export function weeklyTimelinePrices(prices:TimelinePrice[]):TimelinePrice[] {
   const first=rows[0],last=rows.at(-1)!;
   const complete=rows.every(row=>row.open!==undefined&&row.high!==undefined&&row.low!==undefined);
   return {date:last.date,periodStart:first.date,close:last.close,volume:rows.every(row=>row.volume!==null)?rows.reduce((sum,row)=>sum+row.volume!,0):null,
+   ...(rows.every(row=>row.amount!==undefined)?{amount:rows.reduce((sum,row)=>sum+row.amount!,0)}:{}),
    ...(complete?{open:first.open,high:Math.max(...rows.map(row=>row.high!)),low:Math.min(...rows.map(row=>row.low!))}:{})};
  });
 }
@@ -80,7 +81,7 @@ export function mapTimelinePrice(data: Record<string, unknown>, ticker: string, 
     && !((data.source==='eodhd-bulk-eod'||data.source==='eodhd-eod')&&!(typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0));
   // Preserve the existing close series; scale raw OHLC to its provider-adjusted basis.
   const scale=data.close/rawClose;
-  return { date, close: data.close, ...(valid&&values.every(value=>Number.isFinite(Number(value)*scale))?{open:Number(data.open)*scale,high:Number(data.high)*scale,low:Number(data.low)*scale}:{}), volume: typeof data.volume === "number" && Number.isFinite(data.volume) && data.volume >= 0 ? data.volume : null };
+  return { date, close: data.close, ...(valid&&values.every(value=>Number.isFinite(Number(value)*scale))?{open:Number(data.open)*scale,high:Number(data.high)*scale,low:Number(data.low)*scale}:{}), ...(typeof data.amount==='number'&&Number.isFinite(data.amount)&&data.amount>=0?{amount:data.amount}:{}), volume: typeof data.volume === "number" && Number.isFinite(data.volume) && data.volume >= 0 ? data.volume : null };
 }
 // Publication dates anchor the chart. Reviews and collection timestamps never become disclosure dates.
 export function companyTimelineEvents(companyId: string, graph: KnowledgeGraph | null, business: BusinessEvent[], chinese = false): TimelineEvent[] {
