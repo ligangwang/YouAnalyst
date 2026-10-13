@@ -25,7 +25,7 @@ test("global private neighbors render with their own identity and profile route"
   assert.equal(filterGraph(graph, ["CN_A"]).nodes.length, 0);
   assert.equal(filterGraph(graph, ["GLOBAL"]).nodes.filter(n => n.kind === "COMPANY").length, 1);
   assert.equal(companyPageUrl(lab.id, lab.market), "/company/ORG%3ALAB");
-  assert.equal(companyPageUrl("NVDA", "US"), "/ticker/NVDA");
+  assert.equal(companyPageUrl("NVDA", "US"), "/company/nvidia");
 });
 test("shared names and websites do not merge subsidiaries or unrelated issuers", () => {
   assert.equal(matchCompany({ id: "ORG:NEW", name: " NVIDIA " }, [nvidia]).status, "REVIEW");

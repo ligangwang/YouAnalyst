@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPageUrl } from "@/lib/market-companies/routes";
 import { SHOW_ANALYST_LEVELS } from "@/lib/community";
 import { UiText, useUiText } from "@/components/ui-text";
 
@@ -135,7 +136,7 @@ function PredictionRow({ prediction }: { prediction: WatchlistPrediction }) {
   return (
     <article className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
       <Link
-        href={`/ticker/${prediction.ticker}`}
+        href={companyPageUrl(prediction.ticker)}
         className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
         aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`)}
       >

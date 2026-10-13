@@ -42,7 +42,7 @@ test("NVIDIA's company card and map get FY2026 manufacturing evidence without lo
 
 test("canonical SK hynix and Samsung profiles exist and use consistent directory and map links", () => {
   const projected = projectNvidiaManufacturing(companies(), []), graph = graphFromMarket(projected.companies, projected.records);
-  const expected = { "US:SKHY": "/ticker/SKHY", "ORG:SAMSUNG-ELECTRONICS": "/company/ORG%3ASAMSUNG-ELECTRONICS" };
+  const expected = { "US:SKHY": "/company/ticker-skhy", "ORG:SAMSUNG-ELECTRONICS": "/company/ORG%3ASAMSUNG-ELECTRONICS" };
   for (const [id, page] of Object.entries(expected)) {
     const node = graph.nodes.find(node => node.id === id)!;
     assert(node);

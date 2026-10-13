@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { parseLocale } from "./lib/locale";
 import { parseMarket } from "./lib/preferences";
 import { isLocalizedPage, localizedPath, pathLocale, unlocalizedPath } from "./lib/i18n/urls";
+import { publicCompanyPath } from "./lib/market-companies/slugs";
 
 const REDIRECT_HOSTS = new Set([
   "www.youanalyst.com",
@@ -22,6 +23,14 @@ export function proxy(request: NextRequest) {
     const prefix = pathLocale(request.nextUrl.pathname);
     const locale = explicit ?? prefix ?? parseLocale(request.cookies.get("ya-language")?.value) ?? "en";
     const plain = unlocalizedPath(request.nextUrl.pathname);
+    const oldTicker = /^\/ticker\/([A-Za-z0-9][A-Za-z0-9.-]{0,15})$/.exec(plain);
+    // A-shares retain their exchange-qualified routes; migrate US company pages.
+    if (oldTicker && !/^[036]\d{5}$/.test(oldTicker[1])) {
+      const destination = new URL(request.url);
+      destination.pathname = localizedPath(publicCompanyPath(oldTicker[1]), locale);
+      destination.searchParams.delete("lang");
+      return NextResponse.redirect(destination, 308);
+    }
     if (/^(?:\/institutions(?:\/|$)|\/daily\/(?:insider|insiders|institutional)(?:\/|$)|\/api\/(?:institutions|institutional-holdings|insider-transactions)(?:\/|$)|\/api\/daily-scores\/institutional-share-image$)/.test(plain)) {
       return new NextResponse("Not found", { status: 404, headers: { "X-Robots-Tag": "noindex", "Cache-Control": "no-store" } });
     }

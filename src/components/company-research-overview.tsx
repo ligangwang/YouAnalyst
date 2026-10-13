@@ -1,3 +1,4 @@
+import { companyPageUrl } from "@/lib/market-companies/routes";
 import { CompanyHeading } from "./company-heading";
 import { CompanyQuote } from "./company-quote";
 import { CompanyResearchPanel } from "./company-research-panel";
@@ -19,7 +20,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType]].filter(([, value]) => value);
   return <>
-    <header className="border-b border-white/15 pb-6">
+    <header className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/60 p-6 sm:p-8">
       <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap gap-2 text-sm text-cyan-200">
         <Link href="/">YouAnalyst</Link><span aria-hidden="true">/</span><Link href="/companies"><UiText text={"Companies"} /></Link><span aria-hidden="true">/</span><span className="text-slate-300">{company.ticker}</span>
       </nav>
@@ -32,16 +33,16 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
         <Link href={`/map?company=${encodeURIComponent(company.ticker)}`} className="underline underline-offset-4"><UiText text={"Explore "} />{company.ticker}<UiText text={" on the company map"} /></Link>
       </div>}
 
-      <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm text-cyan-200">
-        {fundamentals && <a href="#company-fundamentals"><UiText text={"Business and financials"} /></a>}
+      <nav aria-label="Company research sections" className="mt-6 flex flex-wrap gap-x-6 gap-y-3 rounded-xl border border-white/10 bg-slate-950/40 p-3 text-sm text-cyan-200">
         {company.inMap && <a href="#company-relationships"><UiText text={"Company relationships"} /></a>}
+        {fundamentals && <a href="#company-fundamentals"><UiText text={"Business and financials"} /></a>}
         {company.listingStatus !== "PRIVATE" && <a href="#analyst-views"><UiText text={"Analyst views"} /></a>}
       </nav>
     </header>
+    {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
     <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />
     {fundamentals}
-    {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <section id="company-information" className="scroll-mt-24 py-6">      <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-4 text-sm">
         {facts.map(([label, value]) => <div key={label}><dt className="text-slate-400"><UiText text={label} /></dt><dd className="mt-1 font-medium text-slate-100">{value}</dd></div>)}
         {company.sector && <div><dt className="text-slate-400"><UiText text="Industry roles" /></dt><dd className="mt-1 font-medium text-slate-100"><UiText text={company.sector.en} /></dd></div>}
@@ -56,7 +57,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       <div className="mt-4 divide-y divide-white/10">
         {company.connections.slice(0, 12).map((connection) => <article key={connection.id} className="py-4">
           <h3 className="text-sm font-semibold text-slate-100">{<UiText text={connection.label} />}</h3>
-          {(connection.related.profileUrl || connection.related.ticker) && <Link href={connection.related.profileUrl ?? `/ticker/${encodeURIComponent(connection.related.ticker!)}`} className="mt-1 inline-block text-sm text-cyan-200 underline underline-offset-4"><UiText text={"Research "} />{connection.related.name}{connection.related.ticker ? ` (${connection.related.ticker})` : ""}</Link>}
+          {(connection.related.profileUrl || connection.related.ticker) && <Link href={connection.related.profileUrl ?? companyPageUrl(connection.related.ticker!)} className="mt-1 inline-block text-sm text-cyan-200 underline underline-offset-4"><UiText text={"Research "} />{connection.related.name}{connection.related.ticker ? ` (${connection.related.ticker})` : ""}</Link>}
           {connection.summary && <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{connection.summary}</p>}
           {connection.commercialStatus === "ANNOUNCED" && <p className="mt-2 text-xs text-amber-200"><UiText text="Announced" /></p>}
           <details className="mt-2 text-sm">

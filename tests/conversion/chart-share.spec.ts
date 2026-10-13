@@ -46,7 +46,7 @@ test('Chinese share offers a selectable link when clipboard is blocked',async({p
   await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async()=>{throw new Error('Blocked');}}}));
   await page.goto('http://chart.test/zh-cn/ticker/AMD');
   await page.getByRole('button',{name:'复制图表链接',exact:true}).click();
-  await expect(page.getByLabel('图表链接',{exact:true})).toHaveValue(/https:\/\/youanalyst.com\/zh-cn\/ticker\/AMD/);
+  await expect(page.getByLabel('图表链接',{exact:true})).toHaveValue(/https:\/\/youanalyst.com\/zh-cn\/company\/amd/);
   await page.getByRole('button',{name:'关闭分享提示'}).click();
   await expect(page.getByLabel('图表链接',{exact:true})).not.toBeVisible();
 });

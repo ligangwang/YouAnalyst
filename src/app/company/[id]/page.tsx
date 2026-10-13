@@ -4,7 +4,9 @@ import { CompanyOutlook } from "@/components/company-outlook";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { cache } from "react";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { CompanyTickerContent, companyTickerMetadata } from "@/components/company-ticker-route";
+import { publicCompanyPath, publicCompanyTicker } from "@/lib/market-companies/slugs";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { companyGeography, companyGeographyLabel } from "@/lib/market-companies/identity";
 import { localizedMetadata } from "@/lib/i18n/server";
@@ -31,11 +33,30 @@ const load = cache(async (id: string) => {
   return { ...data, id } as MarketCompany & { name: string };
 });
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const data = await load((await params).id);
+  const id = (await params).id;
+  const ticker = publicCompanyTicker(id);
+  if (ticker) return companyTickerMetadata({ params: Promise.resolve({ symbol: ticker }) });
+  const data = await load(id);
   return localizedMetadata({ title: `${data.name} | YouAnalyst`, description: String(data.description ?? "") });
 }
-export default async function CompanyPage({ params }: { params: Promise<{ id: string }> }) {
-  const id = routeId((await params).id);
+export default async function CompanyPage({ params, searchParams }: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const rawId = (await params).id;
+  const ticker = publicCompanyTicker(rawId);
+  if (ticker) {
+    if (`/company/${rawId}` !== publicCompanyPath(ticker)) {
+      const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(await searchParams)) {
+        for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
+      }
+      permanentRedirect(localizedPath(publicCompanyPath(ticker), locale) + (query.size ? `?${query}` : ""));
+    }
+    return <CompanyTickerContent params={Promise.resolve({ symbol: ticker })} />;
+  }
+  const id = routeId(rawId);
   const data = await load(id);
   const locale = (await headers()).get("x-ya-language") === "zh-CN" ? "zh-CN" : "en";
   const zh = locale === "zh-CN";

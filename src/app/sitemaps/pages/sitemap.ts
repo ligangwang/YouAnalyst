@@ -6,6 +6,7 @@ import { isMapTicker } from "@/lib/industry-graph/directory";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "@/lib/company-graph/types";
 import { infrastructureTopics, RESEARCH_REVIEWED } from "@/lib/research/infrastructure-topics";
 import { localizedPath } from "@/lib/i18n/urls";
+import { companyPageUrl } from "@/lib/market-companies/routes";
 
 function bilingual(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
   return entries.filter(entry => new URL(entry.url).pathname !== "/map").flatMap(entry => {
@@ -84,7 +85,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         return data.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION && data.result?.dryRun === false &&
           data.result?.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION ? [data.result.ticker] : [];
       }),
-    ]) if (isMapTicker(ticker)) companyRoutes.set(ticker, { url: absoluteUrl(`/ticker/${ticker}`), changeFrequency: "daily", priority: 0.7 });
+    ]) if (isMapTicker(ticker)) companyRoutes.set(ticker, { url: absoluteUrl(companyPageUrl(ticker, "US")), changeFrequency: "daily", priority: 0.7 });
     const [predictionSnapshot, userSnapshot, watchlistSnapshot] = await Promise.all([
       db.collection("predictions").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(500).get(),
       db.collection("users").orderBy("updatedAt", "desc").limit(500).get(),
@@ -115,7 +116,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const ticker = typeof data.ticker === "string" ? normalizeTicker(data.ticker) : "";
       if (ticker && !tickerRoutes.has(ticker)) {
         tickerRoutes.set(ticker, {
-          url: absoluteUrl(`/ticker/${ticker}`),
+          url: absoluteUrl(companyPageUrl(ticker, "US")),
           lastModified: toIsoDate(data.updatedAt ?? data.createdAt),
           changeFrequency: "hourly",
           priority: 0.7,

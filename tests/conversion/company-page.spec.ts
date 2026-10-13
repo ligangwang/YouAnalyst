@@ -68,7 +68,7 @@ for (const predictionsAvailable of [true, false]) {
     }
     await expect(page.getByRole("link", { name: "Bullish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DUP/);
     await expect(page.getByRole("link", { name: "Bearish", exact: true })).toHaveAttribute("href", /ticker%3DAMD.*direction%3DDOWN/);
-    await expect(page.getByRole("link", { name: "Research NVIDIA (NVDA)" })).toHaveAttribute("href", "/en/ticker/NVDA");
+    await expect(page.getByRole("link", { name: "Research NVIDIA (NVDA)" })).toHaveAttribute("href", "/en/company/nvidia");
     await expect(page.getByRole("heading", { name: "Example Packaging supplies AMD", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Institutional holdings", exact: true })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Insider transactions", exact: true })).toHaveCount(0);
@@ -94,7 +94,7 @@ test("Chinese company links retain the locale and supplied evidence", async ({ p
   await page.goto(`${origin}/zh-cn/ticker/AMD`);
   await expect(page.getByRole("heading", { name: "业务与财务", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "公司", exact: true })).toHaveAttribute("href", "/zh-cn/companies");
-  await expect(page.locator('a[href="/zh-cn/ticker/NVDA"]')).toBeVisible();
+  await expect(page.locator('a[href="/zh-cn/company/nvidia"]')).toBeVisible();
   await expect(page.locator('a[href="/zh-cn?company=AMD"]').first()).toBeVisible();
   await expect(page.getByRole('heading',{name:'最新业绩 · FY2026 Q2',exact:true})).toBeVisible();
   await expect(page.getByRole('heading',{name:'年度财务数据',exact:true})).toBeVisible();
