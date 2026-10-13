@@ -17,6 +17,63 @@ worker reserves a conservative maximum token charge before submitting each
 request, then settles recorded usage. Unknown charges retain their reservation.
 The cap covers this extraction purpose only, not other AI tasks or infrastructure.
 
+## Company identity matching
+
+Version 2 sends only the article title and full text to the model, with a
+names-only relationship schema. The covered-company catalog is never included
+in a provider request or its input budget reservation.
+
+The worker builds a local lookup once per run from the existing collection
+universe: company IDs, names, localized names, explicit aliases and tickers.
+Returned names must occur in the article or its headline and match exactly after Unicode,
+case and whitespace normalization. Only unique matches receive IDs; collisions,
+unknown names and two aliases resolving to the same company remain unresolved.
+There is no fuzzy matching, inferred subsidiary-to-parent mapping, or extra AI
+call for disambiguation. Provider-supplied IDs cannot override local matching.
+
+Names are identity suggestions for review, not proof of legal identity. Matched
+observations still require evidence validation and remain `NEEDS_REVIEW`.
+Unresolved relationships retain the returned names and evidence in the saved
+analysis. Article request size is independent of the number of covered companies.
+Existing version-one receipts remain cached; this change does not trigger a
+paid historical reanalysis or introduce any new collections.
+
+### Human confirmation and reusable aliases
+
+News event details offer a company-name review control for signed-in users.
+`/api/company-name-resolution` searches the existing company directory by
+indexed names, symbols and confirmed alias keys, displaying legal names,
+exchange, country and official website where available. The evidence-search
+link opens a search engine in a new tab; it does not invoke a paid external
+search API or another model request.
+
+Users propose a canonical match for a particular relationship endpoint in a
+saved article. Proposals are stored on that existing `events/news_analysis_*`
+receipt, visible to their proposer and administrators. A proposal does not
+change an article's linked company or teach a global alias.
+
+Administrators review unresolved names and proposals at
+`/admin/company-identities`. They can reject a proposal or confirm an article
+match. An optional, separate reusable-alias approval requires an evidence URL
+and confirmation that the name denotes the same legal entity, not a subsidiary
+or parent. Confirmed article relationships still enter `NEEDS_REVIEW`; identity
+confirmation does not publish a relationship to the graph.
+
+Reusable aliases update only the existing `companies` record's `aliases`,
+`aliasKeys`, search prefixes and `aliasReviews` provenance. Names and canonical
+IDs remain unchanged. Alias reviews retain the first approval and references to
+the latest 10 confirmations; article receipts retain each proposal, reviewer
+and evidence URL without duplicating long URLs throughout the company record.
+The existing `directory_syncs/company_names` revision invalidates company-name
+caches. Future news analysis uses approved aliases through its local lookup;
+an alias shared by multiple companies remains ambiguous.
+
+Review requests are authenticated, bounded and transactional. Stale article
+content/names, edited sources, hidden companies and self-relationships cannot
+be approved. A conflicting confirmation cannot overwrite an already resolved
+endpoint. Article proposals are capped at 50 and alias additions at 100 per
+company. No new Firestore collection or external provider credential is needed.
+
 ## Stored records and review
 
 No new Firestore collections are introduced:
