@@ -8,14 +8,15 @@ import type {GraphNode} from '../../knowledge-graph/model';
 import {buildOpenAiUsageEvent} from '../../openai/usage';
 import type {NewsSource} from './sources';
 import {approvedNewsUrl} from './news';
-import {NEWS_ANALYSIS_VERSION,NEWS_ANALYSIS_MODEL,articleHash,companyCatalog,analyzeNewsArticle,validateNewsAnalysis,type NewsAnalysisResponse} from './news-analysis';
+import {NEWS_ANALYSIS_VERSION,NEWS_ANALYSIS_MODEL,articleHash,newsArticleInput,createNewsCompanyResolver,resolveNewsAnalysis,analyzeNewsArticle,validateNewsAnalysis,type NewsAnalysisResponse} from './news-analysis';
 
-type Options={deadline:number;now?:()=>number;maxCalls?:number;monthlyBudgetUsd?:number;records?:DocumentSnapshot[];download?:(source:CalendarSource)=>Promise<string>;analyze?:(title:string,content:string,companies:readonly GraphNode[])=>Promise<NewsAnalysisResponse>};
+type Options={deadline:number;now?:()=>number;maxCalls?:number;monthlyBudgetUsd?:number;records?:DocumentSnapshot[];download?:(source:CalendarSource)=>Promise<string>;analyze?:(title:string,content:string)=>Promise<NewsAnalysisResponse>};
 /** Existing event receipts hold reusable article snapshots. New edges are review
  * candidates in the existing relationship collection, never auto-published. */
 export async function analyzeCollectedNews(db:Firestore,companies:readonly GraphNode[],sources:readonly NewsSource[],options:Options){
  const now=options.now??Date.now,result={scanned:0,paid:0,complete:0,candidates:0,cached:0,failed:0,deferred:0,budgetBlocked:0};
  if(!options.analyze&&!process.env.OPENAI_API_KEY)return {...result,disabled:true};
+ const resolveCompany=createNewsCompanyResolver(companies);
  const monthlyBudget=options.monthlyBudgetUsd??5;
  if(!Number.isFinite(monthlyBudget)||monthlyBudget<=0||monthlyBudget>100)throw new Error('Invalid news analysis budget');
  const events=db.collection(EVENTS_COLLECTION),meta=db.collection('collectors').doc('news-article-analysis');
@@ -48,7 +49,7 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
   }
   const attemptId=randomUUID(),at=new Date(now()).toISOString(),contentHash=articleHash(content),budget=db.collection('collectors').doc('news-analysis-budget-'+at.slice(0,7));
   // UTF-8 bytes conservatively bound input tokens; reserve maximum output too.
-  const reservation=Math.ceil((Buffer.byteLength(JSON.stringify({title:source.title,content,companies:companyCatalog(companies)}))+3000)*.1+8000*.5);
+  const reservation=Math.ceil((Buffer.byteLength(newsArticleInput(source.title,content))+3000)*.1+8000*.5);
   const claimed=await db.runTransaction(async tx=>{
    const old=(await tx.get(receipt)).data(),spend=(await tx.get(budget)).data();
    if(old&&old.status!=='fetch_failed')return 'cached';
@@ -59,7 +60,7 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
   if(claimed==='budget'){result.budgetBlocked++;result.deferred++;break;}
   if(claimed==='cached'){result.cached++;processed.add(doc.id);continue;}
   result.paid++;let response:NewsAnalysisResponse|null=null,error:string|null=null,analysis:ReturnType<typeof validateNewsAnalysis>|null=null;
-  try{response=await (options.analyze??((title,text,nodes)=>analyzeNewsArticle(title,text,nodes,{key:process.env.OPENAI_API_KEY??''})))(source.title,content,companies);analysis=validateNewsAnalysis(response.analysis,content,companies);}
+  try{response=await (options.analyze??((title,text)=>analyzeNewsArticle(title,text,{key:process.env.OPENAI_API_KEY??''})))(source.title,content);analysis=validateNewsAnalysis(resolveNewsAnalysis(response.analysis,resolveCompany,content),content,companies);}
   catch{error=response?'Analysis needs evidence or identity review':'Provider request failed; billing may be unknown. Operator review required before retry.';result.failed++;}
   const usage=buildOpenAiUsageEvent({purpose:'news_article_analysis',model:response?.model??NEWS_ANALYSIS_MODEL,responseId:response?.responseId??'news_analysis_'+attemptId,usage:response?.usage??null,metadata:{sourceEventId:source.id,contentHash,status:analysis?'complete':'review_required'}});
   // Candidate IDs are source-specific observations; they cannot replace reviewed edges.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
 import {analyzeCollectedNews} from '../../src/lib/intelligence/collectors/news-analysis-worker';
-import {validateNewsAnalysis,analyzeNewsArticle,type NewsRelationship} from '../../src/lib/intelligence/collectors/news-analysis';
+import {validateNewsAnalysis,analyzeNewsArticle,createNewsCompanyResolver,resolveNewsAnalysis,type NewsRelationship} from '../../src/lib/intelligence/collectors/news-analysis';
 import {graphFromMarket} from '../../src/lib/knowledge-graph/market-store';
 import type {GraphNode} from '../../src/lib/knowledge-graph/model';
 const now=Date.parse('2026-10-08T12:00:00Z');
@@ -21,7 +21,8 @@ function fake(){
  }} as unknown as Firestore;
  return {state,db,records:[doc(ref('events','news'))]};
 }
-const output=()=>({analysis:{relationships:[relationship]},model:'gpt-6-luna',responseId:'resp_test',usage:{input_tokens:3000,output_tokens:500,total_tokens:3500}});
+const extractedRelationship=Object.fromEntries(Object.entries(relationship).filter(([field])=>!['sourceId','targetId'].includes(field)));
+const output=()=>({analysis:{relationships:[extractedRelationship]},model:'gpt-6-luna',responseId:'resp_test',usage:{input_tokens:3000,output_tokens:500,total_tokens:3500}});
 const options={now:()=>now,deadline:now+150000,download:async()=>text};
 
 test('full article analysis persists bilingual review candidates once, never published map edges',async()=>{
@@ -76,18 +77,69 @@ test('invented evidence, IDs and lost language or planned status fail validation
 test('edited source cannot receive candidates for an old snapshot; unresolved names stay in analysis',async()=>{
  const f=fake();await analyzeCollectedNews(f.db,companies,sources,{...options,records:f.records,analyze:async()=>{f.state.get('events/news')!.title='Changed title';return output();}});
  assert(![...f.state.keys()].some(path=>path.startsWith('company_relationships/')));assert.equal(f.state.get('events/news')!.newsAnalysis,undefined);
- const g=fake();await analyzeCollectedNews(g.db,companies,sources,{...options,records:g.records,analyze:async()=>({...output(),analysis:{relationships:[{...relationship,targetId:''}]}})});
+ const g=fake();await analyzeCollectedNews(g.db,companies,sources,{...options,records:g.records,analyze:async()=>({...output(),analysis:{relationships:[{...extractedRelationship,targetName:'Unknown company'}]}})});
  assert(![...g.state.keys()].some(path=>path.startsWith('company_relationships/')));
  assert.equal(([...g.state.values()].find(row=>row.type==='news_analysis')!.analysis as {relationships:unknown[]}).relationships.length,1);
 });
 
-test('API uses full article text with structured bilingual output and no paid search',async()=>{
- const request:typeof fetch=async(_url,init)=>{const body=JSON.parse(String(init?.body));assert.equal(body.store,false);assert.equal(body.tools,undefined);assert.equal(JSON.parse(body.input).content,text);assert.equal(body.text.format.strict,true);return Response.json({status:'completed',id:'resp_test',output:[{content:[{type:'output_text',text:JSON.stringify(output().analysis)}]}]});};
- const result=await analyzeNewsArticle('Headline',text,companies,{key:'isolated-test-key',request});assert.equal(validateNewsAnalysis(result.analysis,text,companies).relationships.length,1);
+test('API uses only article and title, with names-only bilingual output and no paid search',async()=>{
+ const request:typeof fetch=async(_url,init)=>{const body=JSON.parse(String(init?.body));assert.equal(body.store,false);assert.equal(body.tools,undefined);assert.deepEqual(JSON.parse(body.input),{title:'Headline',content:text});assert.equal(body.text.format.strict,true);const item=body.text.format.schema.properties.relationships.items;assert.equal(item.properties.sourceId,undefined);assert.equal(item.properties.targetId,undefined);assert(!item.required.includes('sourceId'));assert(!body.instructions.includes('supplied catalog'));return Response.json({status:'completed',id:'resp_test',output:[{content:[{type:'output_text',text:JSON.stringify(output().analysis)}]}]});};
+ const result=await analyzeNewsArticle('Headline',text,{key:'isolated-test-key',request});assert.equal(validateNewsAnalysis(resolveNewsAnalysis(result.analysis,createNewsCompanyResolver(companies),text),text,companies).relationships.length,1);
 });
 
 test('duplicate observations in a response produce one review record',async()=>{
  const f=fake();const result=await analyzeCollectedNews(f.db,companies,sources,{...options,records:f.records,analyze:async()=>({...output(),analysis:{relationships:[relationship,{...relationship,product:'Another scope'}]}})});
  assert.equal(result.candidates,1);
  assert.equal([...f.state.keys()].filter(path=>path.startsWith('company_relationships/')).length,1);
+});
+
+test('local identity index handles localized names, explicit aliases and ticker collisions without fuzzy merging',()=>{
+ const nodes:GraphNode[]=[
+  ...companies,
+  {id:'US:NVDA',kind:'COMPANY',order:2,name:'NVIDIA',names:{'zh-CN':'英伟达'},aliases:['NVIDIA Corporation'],symbol:'NVDA'},
+  {id:'ORG:OTHER',kind:'COMPANY',order:3,name:'Other',aliases:['Arista'],symbol:'NVDA'},
+ ];
+ const resolve=createNewsCompanyResolver(nodes);
+ assert.equal(resolve('  NVIDIA   Corporation  '),'US:NVDA');
+ assert.equal(resolve('英伟达'),'US:NVDA');
+ assert.equal(resolve('ｎｖｉｄｉａ'),'US:NVDA');
+ assert.equal(resolve('US:NVDA'),'US:NVDA');
+ assert.equal(resolve('NVDA'),'');assert.equal(resolve('Arista'),'');
+ assert.equal(resolve('NVIDIA China subsidiary'),'');assert.equal(resolve('Unknown'),'');
+ const spoof=resolveNewsAnalysis({relationships:[{...relationship,sourceId:'US:NVDA',targetId:'US:NVDA'}]},createNewsCompanyResolver(companies),text);
+ assert.equal(spoof.relationships[0].sourceId,'US:ANET');assert.equal(spoof.relationships[0].targetId,'US:AMD');
+ const self=resolveNewsAnalysis({relationships:[{...extractedRelationship,sourceName:'NVIDIA',targetName:'英伟达'}]},resolve,'NVIDIA is also called 英伟达。');
+ assert.equal(self.relationships[0].sourceId,'');assert.equal(self.relationships[0].targetId,'');
+ const invented=resolveNewsAnalysis({relationships:[{...extractedRelationship,sourceName:'NVIDIA',targetName:'AMD'}]},resolve,text);
+ assert.equal(invented.relationships[0].sourceId,'');assert.equal(invented.relationships[0].targetId,'US:AMD');
+});
+
+test('10,000 companies do not change AI request or budget reservation; direction remains source to target',async()=>{
+ const large=[...companies,...Array.from({length:10000},(_,i)=>({id:`ORG:COMPANY${i}`,name:`Company ${i}`,kind:'COMPANY' as const,order:i+2}))];
+ const small=fake(),big=fake();let received:unknown[]=[];
+ const analyze=async(...args:unknown[])=>{received=args;return {...output(),analysis:{relationships:[{...extractedRelationship,type:'SUPPLIER_OF'}]}};};
+ await analyzeCollectedNews(small.db,companies,sources,{...options,records:small.records,analyze});
+ await analyzeCollectedNews(big.db,large,sources,{...options,records:big.records,analyze});
+ assert.deepEqual(received,['Arista and AMD announce partnership',text]);
+ const receipt=(state:typeof big.state)=>[...state.values()].find(row=>row.type==='news_analysis')!;
+ assert.equal(receipt(small.state).reservationMicros,receipt(big.state).reservationMicros);
+ const r=[...big.state.entries()].find(([path])=>path.startsWith('company_relationships/'))![1];
+ assert.equal(r.source,'US:ANET');assert.equal(r.target,'US:AMD');assert.equal(r.type,'SUPPLIER_OF');
+});
+
+test('ambiguous names are retained for review without producing linked candidates',async()=>{
+ const f=fake();const colliding=[...companies,{id:'ORG:ARISTA',name:'Arista',kind:'COMPANY' as const,order:2}];
+ await analyzeCollectedNews(f.db,colliding,sources,{...options,records:f.records,analyze:async()=>output()});
+ assert(![...f.state.keys()].some(path=>path.startsWith('company_relationships/')));
+ const receipt=[...f.state.values()].find(row=>row.type==='news_analysis')!;
+ const r=(receipt.analysis as {relationships:NewsRelationship[]}).relationships[0];
+ assert.equal(r.sourceName,'Arista');assert.equal(r.sourceId,'');assert.equal(r.targetId,'US:AMD');
+});
+
+test('existing version-one receipt is reused without another provider charge',async()=>{
+ const f=fake();let calls=0;
+ await analyzeCollectedNews(f.db,companies,sources,{...options,records:f.records,analyze:async()=>{calls++;return output();}});
+ const receipt=[...f.state.values()].find(row=>row.type==='news_analysis')!;receipt.extractorVersion=1;
+ const result=await analyzeCollectedNews(f.db,companies,sources,{...options,records:f.records,analyze:async()=>{calls++;return output();}});
+ assert.equal(calls,1);assert.equal(result.cached,1);
 });
