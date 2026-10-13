@@ -1,4 +1,4 @@
-import { publicCompanyPath } from "./slugs";
+import { organizationCompanyPath, publicCompanyPath } from "./slugs";
 
 export function chinaCompanyId(value: string): string | null {
   const id = value.trim().toUpperCase();
@@ -8,7 +8,7 @@ export function chinaCompanyId(value: string): string | null {
 }
 
 export function companyPageUrl(symbol: string, market?: string): string {
-  if (market === "GLOBAL" || symbol.startsWith("ORG:")) return `/company/${encodeURIComponent(symbol)}`;
+  if (market === "GLOBAL" || symbol.startsWith("ORG:")) return organizationCompanyPath(symbol);
   // Feed and watchlist callers may have an exchange-qualified ID without a market.
   const cn = chinaCompanyId(symbol);
   return cn ? `/ticker/${cn}` : publicCompanyPath(symbol);

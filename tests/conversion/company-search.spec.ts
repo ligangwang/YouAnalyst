@@ -116,7 +116,7 @@ test("private companies open their company page and the locale prefix is kept", 
   await open(page, "?lang=zh-CN");
   await input(page).fill("openai");
   await page.getByRole("option", { name: /OpenAI/ }).click();
-  await expect(page.getByText("Destination /zh-cn/company/ORG%3AOPENAI", { exact: true })).toBeVisible();
+  await expect(page.getByText("Destination /zh-cn/company/openai", { exact: true })).toBeVisible();
 });
 
 test("typed text without any match explains itself instead of doing nothing", async ({ page }) => {

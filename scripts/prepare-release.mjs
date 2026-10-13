@@ -42,8 +42,8 @@ const company = { market: 'CN_A', status: 'PUBLISHED', name: '海光信息',
   source: 'https://example.com/report', sourceLabel: 'Fixture report' };
 globalThis.__adminApp = { firestore: () => ({ collection: name => {
   if (name !== 'companies') throw new Error('Unexpected fixture collection');
-  return { doc: id => ({ get: async () => ({ id, exists: ['XSHG:688041', 'ORG:GLOBAL-LAB'].includes(id),
-    data: () => id === 'ORG:GLOBAL-LAB'
+  return { doc: id => ({ get: async () => ({ id, exists: ['XSHG:688041', 'ORG:GLOBAL-LAB', 'ORG:OPENAI'].includes(id),
+    data: () => id === 'ORG:OPENAI' ? { name: 'OpenAI', status: 'DIRECTORY', country: 'US', listingStatus: 'PRIVATE', description: 'OpenAI profile fixture' } : id === 'ORG:GLOBAL-LAB'
       ? { name: 'Global Lab', status: 'DIRECTORY', country: 'FR', listingStatus: 'PRIVATE', description: 'Global profile fixture' }
       : id === 'XSHG:688041' ? company : undefined }) }) };
 } }) };
@@ -89,6 +89,14 @@ try {
   const missing = await fetch(`${base}/ticker/XSHG:688042`);
   assert.equal(missing.status, 404, "Unknown company must remain a 404");
   for (const locale of ["en", "zh-cn"]) {
+    const clean = await fetch(`${base}/${locale}/company/openai`);
+    assert.equal(clean.status, 200);
+    assert.match(await clean.text(), new RegExp(`rel="canonical"[^>]+href="[^"]+/${locale}/company/openai"`));
+    for (const id of ["ORG:OPENAI", "ORG%3AOPENAI"]) {
+      const redirect = await fetch(`${base}/${locale}/company/${id}?source=legacy&tag=a&tag=b`, { redirect: "manual" });
+      assert.equal(redirect.status, 308);
+      assert.equal(redirect.headers.get("location"), `/${locale}/company/openai?source=legacy&tag=a&tag=b`);
+    }
     for (const id of ["ORG:GLOBAL-LAB", "ORG%3AGLOBAL-LAB"]) {
       const response = await fetch(`${base}/${locale}/company/${id}`);
       assert.equal(response.status, 200, `Global profile failed: ${locale}/${id}`);

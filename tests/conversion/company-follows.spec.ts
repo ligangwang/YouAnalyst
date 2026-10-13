@@ -228,7 +228,7 @@ test("company research exposes planned business, sources and localized continuat
   await page.getByText("查看来源",{exact:true}).click();
   await expect(page.getByText("已宣布／计划中，尚不代表已交付", { exact: true })).toBeVisible();
   await expect(page.getByText("超威半导体已宣布计划向OpenAI提供产品或服务。", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "OpenAI", exact: true })).toHaveAttribute("href", "/zh-cn/company/ORG%3AOPENAI");
+  await expect(page.getByRole("link", { name: "OpenAI", exact: true })).toHaveAttribute("href", "/zh-cn/company/openai");
   await expect(page.getByRole("link", { name: "历史产能公告 ↗" })).toHaveAttribute("href", "https://example.com/source");
   await expect(page.getByRole("link", { name: "Historic capacity announcement ↗" })).toHaveCount(0);
   await page.getByText("来源说明与适用范围", { exact: true }).click();
