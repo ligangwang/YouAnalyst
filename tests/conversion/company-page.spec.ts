@@ -7,6 +7,34 @@ import { readFile } from "node:fs/promises";
 
 const origin = "http://company.test";
 let html: string;
+for (const hasHistory of [true, false]) {
+  test(`company chart is ${hasHistory ? "below the quote" : "hidden without price history"}`, async ({ page }) => {
+    let priceRequests = 0;
+    await page.route("**/*", route => {
+      const url = new URL(route.request().url());
+      if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+      if (url.pathname === "/api/company-timeline") {
+        priceRequests++;
+        const end = new Date().toISOString().slice(0, 10);
+        return route.fulfill({ json: { companyId: "US:AMD", start: "2020-01-01", end, currency: "USD", available: true, prices: hasHistory ? [{ date: end, close: 150, volume: 1000 }] : [] } });
+      }
+      return route.fulfill({ json: { items: [], ticker: "AMD", nextCursor: null } });
+    });
+    await page.goto(origin);
+    await expect.poll(() => priceRequests).toBeGreaterThan(0);
+    const chart = page.locator("[data-company-timeline='US:AMD']");
+    const card = chart.locator("..");
+    if (hasHistory) {
+      await expect(chart).toBeVisible();
+      await expect(card).toBeVisible();
+      expect(await card.evaluate(el => el.previousElementSibling?.getAttribute("aria-label"))).toBe("Stock quote");
+      await expect(chart.locator("[data-volume-bar]")).toHaveCount(1);
+    } else {
+      await expect(card).toBeHidden();
+      await expect(page.getByRole("heading", { name: "Events, price & volume", exact: true })).toBeHidden();
+    }
+  });
+}
 test.beforeAll(async () => {
   const bundled = await build({
     stdin: { contents: `
@@ -20,6 +48,7 @@ test.beforeAll(async () => {
       import { buildCompanyResearch } from "./src/lib/company-research";
       import { fixtureGraph } from "./tests/industry/fixtures";
       const company = buildCompanyResearch("AMD", [], fixtureGraph);
+      company.exchange = "NASDAQ";
       const report = { cik: "0000002488", accession: "0000002488-26-000010", form: "10-K", filed: "2026-02-01", end: "2025-12-27", url: "https://www.sec.gov/Archives/example.htm" };
       const data = { report, metrics: annualMetrics({cik:2488, facts:{"us-gaap":{Revenues:{units:{USD:[{val:1000000000,start:"2024-12-29",end:report.end,filed:report.filed,accn:report.accession,form:"10-K"}]}}}}}, report), excerpt: "Synthetic business excerpt for company-page testing.", fetchedAt: "2026-09-09T00:00:00Z" };
       const announcements=[{id:'latest',title:'AMD quarterly results',url:'https://ir.amd.com/results',date:'2026-07-30',channel:'IR',earnings:true}];
