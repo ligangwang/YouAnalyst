@@ -48,10 +48,10 @@ test("a row's map relationship never contradicts the row's shipped or announced 
 });
 
 test("company links resolve to directory pages or stay unlinked", () => {
-  assert.deepEqual(companyLinks("US:NVDA", "/en", "US:TSM__SUPPLIER_OF__US:NVDA"), { page: "/en/ticker/NVDA", map: "/en?company=US%3ANVDA&relationship=US%3ATSM__SUPPLIER_OF__US%3ANVDA" });
+  assert.deepEqual(companyLinks("US:NVDA", "/en", "US:TSM__SUPPLIER_OF__US:NVDA"), { page: "/en/company/nvidia", map: "/en?company=US%3ANVDA&relationship=US%3ATSM__SUPPLIER_OF__US%3ANVDA" });
   assert.equal(companyLinks("ORG:ANTHROPIC", "/zh-cn")?.page, "/zh-cn/company/ORG%3AANTHROPIC");
   assert.equal(companyLinks("KR:SK-HYNIX", "/en"), null);
-  assert.equal(companyLinks("US:SKHY", "/en")?.page, "/en/ticker/SKHY");
+  assert.equal(companyLinks("US:SKHY", "/en")?.page, "/en/company/ticker-skhy");
   assert.equal(companyLinks("ORG:SAMSUNG-ELECTRONICS", "/en")?.page, "/en/company/ORG%3ASAMSUNG-ELECTRONICS");
   assert(researchCompanies.some(c => c.id === "ORG:SAMSUNG-ELECTRONICS" && c.symbol === null), "a global directory profile need not have a US ticker");
 });

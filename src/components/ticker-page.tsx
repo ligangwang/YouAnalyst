@@ -1,6 +1,7 @@
 "use client";
 
 
+import { companyPageUrl } from "@/lib/market-companies/routes";
 import { ViewEvidenceList } from "./view-evidence-list";
 import type { ViewEvidence } from "@/lib/posts/evidence";
 import { CompanyPosts } from "./company-posts";
@@ -176,7 +177,7 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
             >
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <Link
-                  href={`/ticker/${payload.ticker}`}
+                  href={companyPageUrl(payload.ticker)}
                   className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
                   aria-label={ui(`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${payload.ticker}`)}
                 >

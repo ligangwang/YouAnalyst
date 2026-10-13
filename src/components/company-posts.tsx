@@ -1,4 +1,5 @@
 "use client";
+import { companyPageUrl } from "@/lib/market-companies/routes";
 import Link from "next/link";
 import { RelativeTime } from "./relative-time";
 import { useEffect, useState } from "react";
@@ -53,7 +54,7 @@ function PostHistory({ ticker, predictionId, postId, userId }: Props) {
       <p className="my-2 text-sm text-slate-400"><RelativeTime value={post.createdAt} /> · {post.ticker} · <Link href={localizedPath(`/analysts/${post.userId}`, locale)}>{text("Author", "作者")}</Link></p>
       <p className="whitespace-pre-wrap break-words">{post.body}</p>
       <ViewEvidenceList evidence={post.evidence} compact />
-      <div className="mt-3 flex gap-4 text-cyan-300"><Link href={localizedPath(`/ticker/${encodeURIComponent(post.ticker)}`, locale)}>{text("Open company", "查看公司")}</Link>{post.predictionId && <Link href={localizedPath(`/predictions/${post.predictionId}`, locale)}>{text("View track record", "查看历史表现")}</Link>}</div>
+      <div className="mt-3 flex gap-4 text-cyan-300"><Link href={localizedPath(companyPageUrl(post.ticker), locale)}>{text("Open company", "查看公司")}</Link>{post.predictionId && <Link href={localizedPath(`/predictions/${post.predictionId}`, locale)}>{text("View track record", "查看历史表现")}</Link>}</div>
     </article>)}
     {nextCursor && <button disabled={pending} onClick={() => setCursor(nextCursor)} className="mt-4 rounded border border-cyan-400/40 px-3 py-2 text-cyan-200">{pending ? text("Loading…", "加载中…") : text("Load more", "加载更多")}</button>}
   </section>;

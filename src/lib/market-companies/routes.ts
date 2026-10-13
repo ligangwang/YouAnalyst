@@ -1,3 +1,5 @@
+import { publicCompanyPath } from "./slugs";
+
 export function chinaCompanyId(value: string): string | null {
   const id = value.trim().toUpperCase();
   if (/^(XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(id)) return id;
@@ -8,5 +10,5 @@ export function chinaCompanyId(value: string): string | null {
 export function companyPageUrl(symbol: string, market?: string): string {
   if (market === "GLOBAL" || symbol.startsWith("ORG:")) return `/company/${encodeURIComponent(symbol)}`;
   const cn = market === "CN_A" ? chinaCompanyId(symbol) : null;
-  return `/ticker/${cn ?? encodeURIComponent(symbol)}`;
+  return cn ? `/ticker/${cn}` : publicCompanyPath(symbol);
 }

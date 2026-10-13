@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPageUrl } from "@/lib/market-companies/routes";
 import { UiText, useUiText } from "@/components/ui-text";
 
 import Link from "next/link";
@@ -160,7 +161,7 @@ export function PredictionsFeed() {
             >
               <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <Link
-                  href={`/ticker/${item.ticker}`}
+                  href={companyPageUrl(item.ticker)}
                   className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
                   aria-label={ui(`${item.direction === "UP" ? "Up" : "Down"} prediction for ${item.ticker}`)}
                 >

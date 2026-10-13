@@ -86,7 +86,7 @@ export function CompanySearchCard() {
       return;
     }
 
-    open(`/ticker/${encodeURIComponent(normalizedTicker)}`);
+    open(companyPageUrl(normalizedTicker));
   }
 
   const busy = isPending || resolving;

@@ -2,6 +2,7 @@ import { isMapTicker } from "../industry-graph/directory";
 import { publicChinaCompany } from "../industry-research/china-directory";
 import { localizedPath } from "./urls";
 import { absoluteUrl } from "../seo";
+import { companyPageUrl } from "../market-companies/routes";
 
 // Disjoint ID ranges keep each response small without imposing a company limit.
 export const COMPANY_SITEMAP_BUCKETS = [
@@ -14,7 +15,7 @@ export function companyBucketPrefix(bucket: string): string | null {
 export function companySitemapPath(id: string, data: Record<string, unknown>): string | null {
   const symbol = id.startsWith("US:") ? id.slice(3) : id;
   if (id.startsWith("US:") ? !data.name || !isMapTicker(symbol) : !publicChinaCompany(id, data)) return null;
-  return `/ticker/${encodeURIComponent(symbol)}`;
+  return id.startsWith("US:") ? companyPageUrl(symbol, "US") : `/ticker/${encodeURIComponent(symbol)}`;
 }
 export function xml(value: string): string {
   return value.replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]!);

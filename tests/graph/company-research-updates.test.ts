@@ -61,7 +61,7 @@ const graph: KnowledgeGraph = { asOf: "2026-09-15", nodes: ["US:AMD", "US:NVDA",
 
 test("company follow intent preserves localized route, company, filters and anchor", () => {
   for (const id of ["US:AMD", "XSHG:600584", "ORG:OPENAI"]) {
-    const destination = `/zh-cn/ticker/AMD?tab=research#${relationAnchor("edge:one")}`;
+    const destination = `/zh-cn/company/amd?tab=research#${relationAnchor("edge:one")}`;
     const auth = new URL(companyFollowSignIn(id, destination), "https://test.invalid");
     assert.deepEqual(companyFollowIntent(auth.searchParams.get("next")), { companyId: id, destination });
   }
@@ -75,7 +75,7 @@ test("updates match either endpoint once and never turn collection date into eve
   assert.equal(updates[0].sourceDate, "2024-01-01");
   assert.equal(updates[0].collectedAt, undefined);
   assert.equal(updates[0].state, "ANNOUNCED");
-  assert.equal(updates[0].href, `/ticker/AMD#${relationAnchor("edge")}`);
+  assert.equal(updates[0].href, `/company/amd#${relationAnchor("edge")}`);
   const noSources = { ...graph, sources: [] };
   assert.deepEqual(companyUpdates(noSources, ["US:AMD"]), []);
 });
