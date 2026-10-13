@@ -276,8 +276,31 @@ test('event windows open beside list items and markers, including fullscreen, wi
  await row.click();await expect(window).toBeVisible();await page.mouse.click(2,2);await expect(window).toHaveCount(0);
 });
 
+for(const zh of [false,true])test(`publication returns hide zero days and update at 24 hours ${zh?'Chinese':'English'}`,async({page})=>{
+ await page.clock.install({time:new Date('2026-10-12T22:00:00Z')});
+ const announcement={...snapshot.events[0],publication_date:'2026-10-12',published_at:'2026-10-12T13:00:00Z'};
+ const fixture:IntelligenceSnapshot={...snapshot,events:[announcement],generatedAt:'2026-10-12T22:00:00Z',session:{...snapshot.session,date:'2026-10-12',startAt:'2026-10-12T04:00:00Z',endAt:'2026-10-13T04:00:00Z'},eventReturns:{[announcement.id]:[{companyId:'US:MU',baselineDate:'2026-10-09',latestDate:'2026-10-12',baselineClose:100,latestClose:97.72,change:-.0228,dateOnly:false}]}};
+ await open(page,zh,fixture);
+ await page.goto(`http://workspace.test/?company=US%3AMU&event=${announcement.id}${zh?'&lang=zh-CN':''}`);
+ const details=page.getByRole('dialog',{name:zh?'事件详情':'Event details'});
+ await expect(details).toContainText(zh?'发布以来:':'Since pub.:');
+ await expect(details).toContainText('-2.28%');
+ await expect(details).not.toContainText(zh?'发布以来 (3天)':'Since pub. (3d)');
+ await expect(details).not.toContainText(zh?'发布以来 (0天)':'Since pub. (0d)');
+ const returnLabel=details.locator('span[title*="2026-10-09"]');
+ await expect(returnLabel).toHaveAttribute('title',/2026-10-12T13:00:00Z/);
+ await expect(returnLabel).toHaveAttribute('title',/2026-10-09 → 2026-10-12/);
+ await page.clock.setSystemTime(new Date('2026-10-13T12:58:00Z'));await page.clock.fastForward(60_000);
+ await expect(details).toContainText(zh?'发布以来:':'Since pub.:');
+ await page.clock.fastForward(60_000);
+ await expect(details).toContainText(zh?'发布以来 (1天):':'Since pub. (1d):');
+ await page.clock.setSystemTime(new Date('2026-10-14T13:00:00Z'));await page.clock.fastForward(60_000);
+ await expect(details).toContainText(zh?'发布以来 (2天):':'Since pub. (2d):');
+});
+
 test('clicked price details show daily changes independently of event markers',async({page})=>{
- const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'closed',eventType:'financing',publication_date:'2026-10-04'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
+ await page.clock.install({time:new Date('2026-10-03T22:00:00Z')});
+ const fixture:IntelligenceSnapshot={...snapshot,events:[{...snapshot.events[0],id:'up',published_at:null,eventType:'earnings',publication_date:'2026-10-01'},{...snapshot.events[0],id:'down',published_at:null,eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'missing',published_at:null,eventType:'product_business',eventSubtype:'business_update',publication_date:'2026-10-02'},{...snapshot.events[0],id:'closed',published_at:null,eventType:'financing',publication_date:'2026-10-04'}],eventReturns:{up:[{companyId:'US:MU',baselineDate:'2026-09-30',latestDate:'2026-10-03',baselineClose:100,latestClose:103.2,change:.032,dateOnly:true}],down:[{companyId:'US:MU',baselineDate:'2026-10-01',latestDate:'2026-10-03',baselineClose:100,latestClose:98.2,change:-.018,dateOnly:true}]}};
  await open(page,false,fixture);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-09-30',close:100,volume:10},{date:'2026-10-01',close:104,volume:20},{date:'2026-10-02',close:103,volume:30},{date:'2026-10-05',close:106,volume:40},{date:'2026-10-06',close:106,volume:50}]}}));
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
@@ -296,7 +319,7 @@ test('clicked price details show daily changes independently of event markers',a
  await expect(business.locator('[data-return-direction]')).toHaveCount(0);
  await business.click();
  const chooser=page.getByRole('group',{name:'Choose an event'});
- await expect(chooser.locator('[data-return-direction="down"]')).toContainText('Since pub. (2d): ▼ -1.80%');
+ await expect(chooser.locator('[data-return-direction="down"]')).toContainText('Since pub. (1d): ▼ -1.80%');
  await expect(chooser.locator('[data-return-direction]')).toHaveCount(1);
  await chooser.getByRole('button',{name:'Close event list',exact:true}).click();
  const svg=timeline.locator('svg');await svg.scrollIntoViewIfNeeded();

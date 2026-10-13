@@ -1,4 +1,5 @@
 import { chartShareUrl, parseSharedChart, sharedChartParams, type SharedChart } from '../src/lib/ui/chart-share';
+import { eventReturnDays } from '../src/lib/ui/event-return-age';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { adjacentTimelineBars, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
@@ -218,6 +219,25 @@ test('weekly change labels distinguish adjacent holiday-shortened weeks from mis
 });
 
 const chart:SharedChart={range:1826,style:'line',averages:[5,20],macd:true,events:true};
+test('return ages count from publication, not the preceding Friday or holiday close',()=>{
+  const monday=Date.parse('2026-10-12T22:00:00Z');
+  assert.equal(eventReturnDays('2026-10-12','2026-10-12',null,monday),0);
+  assert.equal(eventReturnDays('2026-10-10','2026-10-12',null,monday),2);
+  assert.equal(eventReturnDays('2026-10-01','2026-10-08',null,Date.parse('2026-10-08T12:00:00Z')),7);
+  assert.equal(eventReturnDays('2025-12-31','2026-01-01',null,Date.parse('2026-01-01T12:00:00Z')),1);
+  assert.equal(eventReturnDays('2026-10-09','2026-10-09',null,monday),3);
+  assert.equal(eventReturnDays(undefined,'2026-10-12'),null);
+  assert.equal(eventReturnDays('2026-02-30','2026-10-12'),null);
+  assert.equal(eventReturnDays('2026-10-12','2026-10-09'),null);
+  const at='2026-10-12T13:00:00Z',start=Date.parse(at);
+  assert.equal(eventReturnDays('2026-10-12','2026-10-12',at,start+86_400_000-1),0);
+  assert.equal(eventReturnDays('2026-10-12','2026-10-12',at,start+86_400_000),1);
+  assert.equal(eventReturnDays('2026-10-12','2026-10-12',at,start+2*86_400_000),2);
+  assert.equal(eventReturnDays('2026-10-12','2026-10-12','invalid',start),null);
+  assert.equal(eventReturnDays('2026-10-12','2026-10-12',at,0),null);
+  assert.equal(eventReturnDays('2026-10-12','2026-10-12',null,Date.parse('2026-10-13T01:00:00Z'),'US:AMD'),0);
+  assert.equal(eventReturnDays('2026-10-12','2026-10-12',null,Date.parse('2026-10-12T23:00:00Z'),'XSHG:600000'),1);
+});
 test('shared settings round trip and malformed settings use safe defaults',()=>{
   assert.deepEqual(parseSharedChart(new URLSearchParams(sharedChartParams(chart))),chart);
   assert.deepEqual(parseSharedChart(new URLSearchParams('chartRange=999&chartStyle=unknown&chartMA=20,20,999,5&chartMacd=true')), {...chart,range:30,style:'candles',macd:false});

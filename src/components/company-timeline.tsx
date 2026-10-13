@@ -14,12 +14,15 @@ import styles from "./company-timeline.module.css";
 import {signedPercent,type EventPriceReturn} from '@/lib/intelligence/price-performance';
 import type { CompanyThemeId } from '@/lib/company-themes/model';
 import { chartShareUrl, parseSharedChart, sharedChartParams, type SharedChart } from '@/lib/ui/chart-share';
+import { eventReturnDays } from '@/lib/ui/event-return-age';
+import { useRelativeTimeClock } from './relative-time';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
 export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,onDismissEvent,selectedEventId,eventReturns,shareTheme = 'ai' }: { companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
   const categoryColor = (color: string) => `color-mix(in srgb, ${color} var(--event-color-weight,100%), var(--ui-text,${color}))`;
   const chartHelpId = useId();
+  const now = useRelativeTimeClock();
   const chartRange = useIndustryBrowseParam('chartRange');
   const chartStyle = useIndustryBrowseParam('chartStyle');
   const chartMA = useIndustryBrowseParam('chartMA');
@@ -162,10 +165,11 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const macdY=(value:number)=>macdTop+(macdBottom-macdTop)/2-value/macdExtent*(macdBottom-macdTop)/2;
   const toLatest=nearest&&latest&&nearest.close>0?latest.close/nearest.close-1:undefined;
   const tooltipHalfWidth=Math.min(140,Math.max(0,width/2-8));
-  const returnLabel=(value:EventPriceReturn)=>{
-    const days=Math.round((Date.parse(value.latestDate)-Date.parse(value.baselineDate))/86_400_000);
-    const label=`${text('Since pub.','发布以来')} (${days}${text('d','天')}):`;
-    const hint=`${label} ${signedPercent(value.change)} · ${value.baselineDate} → ${value.latestDate} · ${text('Last completed close before publication; excludes dividend and split adjustments.','使用发布前最后一个完整交易日的收盘价；不含股息与拆股调整。')}`;
+  const returnLabel=(value:EventPriceReturn,event:Pick<TimelineEvent,'date'|'publishedAt'>)=>{
+    const publicationDate=event.date;
+    const days=eventReturnDays(publicationDate,value.latestDate,event.publishedAt,now,value.companyId);
+    const label=`${text('Since pub.','发布以来')}${days===null||days<1?'':` (${days}${text('d','天')})`}:`;
+    const hint=`${label} ${signedPercent(value.change)} · ${text('Published','发布于')} ${publicationDate} · ${text('Price baseline','价格基准')}: ${value.baselineDate} → ${value.latestDate} · ${text('Last completed close before publication; excludes dividend and split adjustments.','使用发布前最后一个完整交易日的收盘价；不含股息与拆股调整。')}`;
     return <span className={styles.chooserReturn} data-return-direction={value.change>0?'up':value.change<0?'down':'flat'} title={hint} aria-label={hint}>{`${label} `}{value.change>0?'▲':value.change<0?'▼':'—'} {signedPercent(value.change)}</span>;
   };
   if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
@@ -240,7 +244,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
       {groups.map(group=>{const presentations=[...new Map(group.events.map(event=>{const p=eventPresentation(event,chinese);return [p.symbol+p.color,p] as const;})).values()],style=presentations[0],multiple=group.events.length>1;return <button key={group.events[0].id} className={styles.marker} data-event-type={presentations.length>1?'multiple':style.type} data-marker-size={group.size} data-event-count={group.events.length} type="button" style={{left:left+group.x,top:group.y,width:group.size,height:group.size,color:categoryColor(style.color),borderColor:categoryColor(style.color)}} title={group.events.map(e=>`${eventPresentation(e,chinese).label} · ${formatDate(e.date)}: ${e.title}`).join('; ')} aria-label={multiple?`${group.events.length} ${text('events','个事件')} · ${presentations.map(p=>p.label).join(' / ')} · ${formatDate(group.events[0].date)}`:`${formatDate(group.events[0].date)}: ${group.events[0].title}`} aria-pressed={group.events.some(e=>e.id===clusterId||e.id===selectedId)} onClick={e=>{if(multiple){setSelectedId('');onDismissEvent?.();setPriceSelection(null);chooserTrigger.current=e.currentTarget;setClusterAnchor(eventWindowAnchor(e));setClusterId(group.events[0].id);}else selectEvent(group.events[0].id,e);}} onPointerEnter={()=>{setHoverDate(group.events[0].date);}} onFocus={()=>{setPriceSelection(null);setHoverDate(group.events[0].date);}} onBlur={()=>{setHoverDate(null);}}><span className={styles.markerSymbols} data-mixed={presentations.length>1||undefined}>{presentations.slice(0,3).map(p=><span key={p.symbol+p.color} style={{color:categoryColor(p.color)}}>{p.symbol}</span>)}</span>{multiple&&<span className={styles.countBadge} aria-hidden="true">{group.events.length}</span>}</button>;})}
       {openCluster&&<FloatingEventWindow role="group" focusClose anchor={clusterAnchor} title={text('Choose an event','选择事件')} closeLabel={text('Close event list','关闭事件列表')} onClose={closeChooser}>
         <p>{openCluster.events.length} {text('events','个事件')} · {formatDate(openCluster.events[0].date)}</p>
-        <div className={styles.eventList}>{openCluster.events.map(event=>{const style=eventPresentation(event,chinese);return <button key={event.id} type="button" onClick={click=>selectEvent(event.id,click)}><span style={{color:categoryColor(style.color)}}>{style.symbol} {style.label}</span> · {formatDate(event.date)} · {event.title}{returnFor(event.id)&&returnLabel(returnFor(event.id)!)}</button>;})}</div>
+        <div className={styles.eventList}>{openCluster.events.map(event=>{const style=eventPresentation(event,chinese);return <button key={event.id} type="button" onClick={click=>selectEvent(event.id,click)}><span style={{color:categoryColor(style.color)}}>{style.symbol} {style.label}</span> · {formatDate(event.date)} · {event.title}{returnFor(event.id)&&returnLabel(returnFor(event.id)!,event)}</button>;})}</div>
       </FloatingEventWindow>}
     </div>
     <p className={styles.coverage}>{chartMode==='candles'&&prices.length>0&&!useCandles&&<span>{text("OHLC unavailable; showing closes","暂无完整开高低收数据，显示收盘价")} · </span>}{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${weekly?text('weekly bars','条周线'):text('stored daily bars','条已存储日线')} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>
@@ -248,7 +252,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
     {selected && !onSelectEvent && <FloatingEventWindow key={selected.id} anchor={eventAnchor} title={text('Event details','事件详情')} onClose={()=>{setSelectedId('');setHoverDate(null);}}>
       <strong>{eventPresentation(selected,chinese).symbol} {eventPresentation(selected,chinese).label}</strong><h2>{selected.title}</h2><p>{text('Published','发布于')} · {selected.date}</p>
       {selectedGroup && selectedGroup.events.length > 1 && <div className={styles.eventList}>{selectedGroup.events.map(event => <button key={event.id} type="button" aria-pressed={event.id === selected.id} onClick={click=>selectEvent(event.id,click)}>{formatDate(event.date)} · {event.title}</button>)}</div>}
-      <p>{selected.description}</p>{selected.planned && <p>{text('Announced / planned; completion is not established.','已宣布／计划中；尚不代表已完成。')}</p>}{returnFor(selected.id)&&returnLabel(returnFor(selected.id)!)}<nav><a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer">{selected.sourceTitle} ↗</a></nav>
+      <p>{selected.description}</p>{selected.planned && <p>{text('Announced / planned; completion is not established.','已宣布／计划中；尚不代表已完成。')}</p>}{returnFor(selected.id)&&returnLabel(returnFor(selected.id)!,selected)}<nav><a href={selected.sourceUrl} target="_blank" rel="noopener noreferrer">{selected.sourceTitle} ↗</a></nav>
     </FloatingEventWindow>}
   </section>;
 }
