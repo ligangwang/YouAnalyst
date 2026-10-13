@@ -8,7 +8,7 @@ import tailwind from "@tailwindcss/postcss";
 let html: string;
 test.beforeAll(async () => {
   const css = await postcss([tailwind()]).process(await readFile("src/app/globals.css", "utf8"), { from: path.resolve("src/app/globals.css") });
-  html = await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LocaleProvider} from './src/components/providers/locale-provider';import {CompanyUnavailable} from './src/components/company-unavailable';createRoot(document.getElementById('root')).render(<LocaleProvider locale={location.pathname.startsWith('/zh-cn')?'zh-CN':'en'}><CompanyUnavailable label="openabc"/></LocaleProvider>);`, { alias: { "next/link": path.resolve("tests/industry/link.tsx") } }, css.css);
+  html = await componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LocaleProvider} from './src/components/providers/locale-provider';import {CompanyUnavailable} from './src/components/company-unavailable';createRoot(document.getElementById('root')).render(<LocaleProvider locale={location.pathname.startsWith('/zh-cn')?'zh-CN':'en'}><CompanyUnavailable label="openabc" locale={location.pathname.startsWith('/zh-cn')?'zh-CN':'en'}/></LocaleProvider>);`, { alias: { "next/link": path.resolve("tests/industry/link.tsx") } }, css.css);
 });
 for (const locale of ["en", "zh-cn"]) test(`missing company recovery follows theme and ${locale} locale`, async ({ page }, info) => {
   await page.route("**/*", route => route.fulfill({ contentType: "text/html", body: html }));
