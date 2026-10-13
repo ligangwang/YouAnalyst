@@ -3,6 +3,7 @@ import { build } from "esbuild";
 import path from "node:path";
 import postcss from "postcss";
 import tailwind from "@tailwindcss/postcss";
+import { readFile } from "node:fs/promises";
 
 const origin = "http://company.test";
 let html: string;
@@ -29,8 +30,8 @@ test.beforeAll(async () => {
     bundle: true, write: false, outfile: "fixture.js", platform: "browser", define: { "process.env": "{}" },
     alias: { "next/link": path.resolve("tests/industry/link.tsx"), "@/components/providers/auth-provider": path.resolve("tests/conversion/fixtures/mocks.tsx") },
   });
-  const css = await postcss([tailwind()]).process('@import "tailwindcss";', { from: path.resolve("company-test.css") });
-  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${bundled.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}${css.css}body{background:#07111d;color:#f8fafc;font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  const css = await postcss([tailwind()]).process(await readFile("src/app/globals.css", "utf8"), { from: path.resolve("src/app/globals.css") });
+  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>${bundled.outputFiles.find(file => file.path.endsWith(".css"))?.text ?? ""}${css.css}body{font-family:Arial,sans-serif}</style></head><body><div id="root"></div><script>${bundled.outputFiles.find(file => file.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
 for (const predictionsAvailable of [true, false]) {
@@ -102,4 +103,45 @@ test("Chinese company links retain the locale and supplied evidence", async ({ p
   await page.locator('details').filter({has:page.getByText("Synthetic business excerpt for company-page testing.")}).locator('summary').click();
   await expect(page.getByText("Synthetic business excerpt for company-page testing.")).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("chinese-company-research.png"), fullPage: true });
+});
+
+test("company header remains readable when switching between light and dark mode", async ({ page }, testInfo) => {
+  await page.route("**/*", route => {
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    return route.fulfill({ json: { items: [], ticker: "AMD", nextCursor: null } });
+  });
+  await page.goto(`${origin}/en/company/amd`);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  for (const theme of ["light", "dark", "light"]) {
+    await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
+    const contrast = await page.evaluate(() => {
+      const header = document.querySelector("main > header")!;
+      const rgb = (value: string) => {
+        const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (match) return match.slice(1, 4).map(Number);
+        // Tailwind may emit OKLCH; sample the browser's sRGB rendering.
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext("2d")!;
+        context.fillStyle = value;
+        context.fillRect(0, 0, 1, 1);
+        return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3);
+      };
+      const luminance = (color: number[]) => color.map(channel => {
+        const value = channel / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+      const background = luminance(rgb(getComputedStyle(header).backgroundImage));
+      const ratio = (element: Element) => {
+        const text = luminance(rgb(getComputedStyle(element).color));
+        return (Math.max(text, background) + 0.05) / (Math.min(text, background) + 0.05);
+      };
+      return { heading: ratio(header.querySelector("h1")!), link: ratio(header.querySelector("a")!), background };
+    });
+    expect(contrast.heading).toBeGreaterThan(7);
+    expect(contrast.link).toBeGreaterThan(4.5);
+    if (theme === "light") expect(contrast.background).toBeGreaterThan(0.9);
+    else expect(contrast.background).toBeLessThan(0.1);
+    await page.locator("main > header").screenshot({ path: testInfo.outputPath(`company-header-${theme}.png`) });
+  }
 });

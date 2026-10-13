@@ -24,6 +24,11 @@ html[lang="zh-CN"] body {
   --font-sans: var(--font-ibm-plex-sans);
 }
 
+.company-profile-header {
+  background: linear-gradient(135deg, var(--color-shell), var(--color-shell) 60%, color-mix(in srgb, var(--color-shell) 92%, #0891b2));
+  border-color: var(--color-line);
+}
+
 * {
   box-sizing: border-box;
 }

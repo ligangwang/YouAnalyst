@@ -20,7 +20,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType]].filter(([, value]) => value);
   return <>
-    <header className="rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/60 p-6 sm:p-8">
+    <header className="company-profile-header rounded-2xl border p-6 sm:p-8">
       <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap gap-2 text-sm text-cyan-200">
         <Link href="/">YouAnalyst</Link><span aria-hidden="true">/</span><Link href="/companies"><UiText text={"Companies"} /></Link><span aria-hidden="true">/</span><span className="text-slate-300">{company.ticker}</span>
       </nav>
