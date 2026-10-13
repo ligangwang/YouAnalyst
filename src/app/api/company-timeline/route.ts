@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
   const requestedRange=request.nextUrl.searchParams.get('days');
   const days = requestedRange==='ytd'?'ytd':Number(requestedRange??DEFAULT_TIMELINE_RANGE);
   const indicators = request.nextUrl.searchParams.get('indicators') === '1';
+  const requestedPeriod=Number(request.nextUrl.searchParams.get('maPeriod')??60);
+  if(!Number.isInteger(requestedPeriod)||requestedPeriod<1||requestedPeriod>500)return Response.json({error:'Invalid moving-average period'},{status:400});
   if (!/^(US:[A-Z0-9][A-Z0-9.-]{0,11}|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(companyId) || !TIMELINE_RANGES.includes(days as TimelineRange)) {
     return Response.json({ error: "Invalid company or timeline range" }, { status: 400 });
   }
@@ -18,7 +20,7 @@ export async function GET(request: NextRequest) {
   const window = timelineWindow(days as TimelineRange, instrument ? marketDate(instrument.market) : undefined);
   const weekly=days===1826;
   const base = { companyId, ...window, currency: instrument?.currency ?? null,interval:weekly?'weekly' as const:'daily' as const };
-  const historyStart = indicators ? new Date(Date.parse(window.start)-(weekly?540:180)*86_400_000).toISOString().slice(0,10) : window.start;
+  const historyStart = indicators ? new Date(Date.parse(window.start)-(weekly?Math.max(540,requestedPeriod*10):Math.max(180,requestedPeriod*2))*86_400_000).toISOString().slice(0,10) : window.start;
   if (!instrument) return Response.json({ ...base, prices: [], available: true });
   try {
     // Existing document IDs are market_ticker_date. A document-ID range needs no new composite index.
@@ -26,12 +28,12 @@ export async function GET(request: NextRequest) {
     const collection=getAdminFirestore().collection('eod_prices');
     const latest=await collection.where(FieldPath.documentId(),'>=',prefix).where(FieldPath.documentId(),'<=',prefix+window.end).orderBy(FieldPath.documentId(),'desc').limit(1).get();
     const revision=latest.docs[0];
-    const cacheKey=JSON.stringify([companyId,days,indicators,window.end,base.interval,revision?.id,revision?.updateTime.toMillis()]);
+    const cacheKey=JSON.stringify([companyId,days,indicators,requestedPeriod,window.end,base.interval,revision?.id,revision?.updateTime.toMillis()]);
     const result=await cachedTimelinePrices(cacheKey,async()=>{
     const snapshot = await getAdminFirestore().collection("eod_prices")
       .where(FieldPath.documentId(), ">=", prefix + historyStart)
       .where(FieldPath.documentId(), "<=", prefix + window.end)
-      .orderBy(FieldPath.documentId()).limit(1900).get();
+      .orderBy(FieldPath.documentId()).limit(6000).get();
     const prices = snapshot.docs.flatMap(doc => {
       const price = mapTimelinePrice(doc.data(), instrument.ticker, instrument.market);
       return price && price.date >= historyStart && price.date <= window.end ? [price] : [];
