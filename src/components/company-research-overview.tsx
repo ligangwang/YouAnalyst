@@ -27,6 +27,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       <p className="text-sm font-semibold text-cyan-300"><UiText text={"Company research"} /></p>
       <CompanyHeading name={company.name} names={company.names} ticker={company.ticker} country={company.country} />
       {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.ticker} exchange={company.exchange} />}
+      <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}
       {!graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}
       {company.inMap && <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-cyan-200">
@@ -41,7 +42,6 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
     </header>
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
-    <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />
     {fundamentals}
     <section id="company-information" className="scroll-mt-24 py-6">      <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-4 text-sm">
         {facts.map(([label, value]) => <div key={label}><dt className="text-slate-400"><UiText text={label} /></dt><dd className="mt-1 font-medium text-slate-100">{value}</dd></div>)}
