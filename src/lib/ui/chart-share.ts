@@ -1,4 +1,4 @@
-import { DEFAULT_TIMELINE_RANGE, TIMELINE_RANGES, type TimelineRange } from './company-timeline';
+import { DEFAULT_TIMELINE_RANGE, TIMELINE_RANGES, TIMELINE_INTERVALS, type TimelineRange, type TimelineIntervalChoice } from './company-timeline';
 import { MA_PERIODS, movingAveragePeriods } from './technical-indicators';
 import { companyPageUrl } from '../market-companies/routes';
 import { localizedPath } from '../i18n/urls';
@@ -6,17 +6,19 @@ import type { Locale } from '../locale';
 import type { CompanyThemeId } from '../company-themes/model';
 
 export type ChartIndicator = 'none'|'macd'|'kdj'|'boll';
-export type SharedChart = { range: TimelineRange; style: 'candles' | 'line'; averages: number[]; macd: boolean; indicator:ChartIndicator; activity:'volume'|'turnover'; events: boolean };
+export type SharedChart = { range: TimelineRange; interval:TimelineIntervalChoice; style: 'candles' | 'line'; averages: number[]; macd: boolean; indicator:ChartIndicator; activity:'volume'|'turnover'; events: boolean };
 
 export function parseSharedChart(params: URLSearchParams): SharedChart {
   const raw = params.get('chartRange');
   const range = raw === 'ytd' ? 'ytd' : Number(raw);
+  const requestedInterval=params.get('chartInterval');
   const rawAverages = params.get('chartMA');
   const requested = movingAveragePeriods(rawAverages ? rawAverages.split(',').map(Number) : [...MA_PERIODS]);
   const rawIndicator=params.get('chartIndicator');
   const indicator:ChartIndicator=rawIndicator==='macd'||rawIndicator==='kdj'||rawIndicator==='boll'||rawIndicator==='none'?rawIndicator:params.get('chartMacd')==='1'?'macd':'none';
   return {
     range: TIMELINE_RANGES.includes(range as TimelineRange) ? range as TimelineRange : DEFAULT_TIMELINE_RANGE,
+    interval:TIMELINE_INTERVALS.includes(requestedInterval as typeof TIMELINE_INTERVALS[number])?requestedInterval as TimelineIntervalChoice:'auto',
     style: params.get('chartStyle') === 'line' ? 'line' : 'candles',
     averages: requested,
     macd: indicator==='macd',
@@ -27,7 +29,7 @@ export function parseSharedChart(params: URLSearchParams): SharedChart {
 }
 
 export function sharedChartParams(chart: SharedChart): Record<string, string> {
-  return { chartRange: String(chart.range), chartStyle: chart.style, chartMA: chart.averages.join(',') || 'none', chartMacd: chart.macd ? '1' : '0', chartIndicator:chart.indicator,chartActivity:chart.activity, chartEvents: chart.events ? '1' : '0' };
+  return { chartRange: String(chart.range), chartInterval:chart.interval, chartStyle: chart.style, chartMA: chart.averages.join(',') || 'none', chartMacd: chart.macd ? '1' : '0', chartIndicator:chart.indicator,chartActivity:chart.activity, chartEvents: chart.events ? '1' : '0' };
 }
 
 export function companyResearchPath(companyId:string,locale:Locale){

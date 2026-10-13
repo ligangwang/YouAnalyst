@@ -1,7 +1,7 @@
 import { FieldPath } from "firebase-admin/firestore";
 import type { NextRequest } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { DEFAULT_TIMELINE_RANGE, mapTimelinePrice, TIMELINE_RANGES, timelineWindow, timelinePriceBars, type TimelineRange } from "@/lib/ui/company-timeline";
+import { DEFAULT_TIMELINE_RANGE, mapTimelinePrice, TIMELINE_RANGES, TIMELINE_INTERVALS, resolvedTimelineInterval, timelineIndicatorHistoryStart, timelineWindow, timelinePriceBars, type TimelineRange, type TimelineIntervalChoice } from "@/lib/ui/company-timeline";
 import {cachedTimelinePrices} from '@/lib/ui/timeline-cache';
 import { marketDate, predictionInstrument } from "@/lib/predictions/instrument";
 
@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
   const requestedRange=request.nextUrl.searchParams.get('days');
   const days = requestedRange==='ytd'?'ytd':Number(requestedRange??DEFAULT_TIMELINE_RANGE);
   const indicators = request.nextUrl.searchParams.get('indicators') === '1';
+  const requestedInterval=request.nextUrl.searchParams.get('interval')??'auto';
+  if(requestedInterval!=='auto'&&!TIMELINE_INTERVALS.includes(requestedInterval as typeof TIMELINE_INTERVALS[number]))return Response.json({error:'Invalid chart interval'},{status:400});
   const requestedPeriod=Number(request.nextUrl.searchParams.get('maPeriod')??60);
   if(!Number.isInteger(requestedPeriod)||requestedPeriod<1||requestedPeriod>500)return Response.json({error:'Invalid moving-average period'},{status:400});
   if (!/^(US:[A-Z0-9][A-Z0-9.-]{0,11}|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(companyId) || !TIMELINE_RANGES.includes(days as TimelineRange)) {
@@ -18,9 +20,9 @@ export async function GET(request: NextRequest) {
   }
   const instrument = companyId.startsWith("ORG:") ? null : predictionInstrument(companyId.replace(/^US:/, ""));
   const window = timelineWindow(days as TimelineRange, instrument ? marketDate(instrument.market) : undefined);
-  const weekly=days===1826;
-  const base = { companyId, ...window, currency: instrument?.currency ?? null,interval:weekly?'weekly' as const:'daily' as const };
-  const historyStart = indicators ? new Date(Date.parse(window.start)-(weekly?Math.max(540,requestedPeriod*10):Math.max(180,requestedPeriod*2))*86_400_000).toISOString().slice(0,10) : window.start;
+  const interval=resolvedTimelineInterval(days as TimelineRange,requestedInterval as TimelineIntervalChoice);
+  const base = { companyId, ...window, currency: instrument?.currency ?? null,interval };
+  const historyStart = indicators ? timelineIndicatorHistoryStart(window.start,interval,requestedPeriod) : window.start;
   if (!instrument) return Response.json({ ...base, prices: [], available: true });
   try {
     // Existing document IDs are market_ticker_date. A document-ID range needs no new composite index.
@@ -33,12 +35,12 @@ export async function GET(request: NextRequest) {
     const snapshot = await getAdminFirestore().collection("eod_prices")
       .where(FieldPath.documentId(), ">=", prefix + historyStart)
       .where(FieldPath.documentId(), "<=", prefix + window.end)
-      .orderBy(FieldPath.documentId()).limit(6000).get();
+      .orderBy(FieldPath.documentId(),'desc').limit(6000).get();
     const prices = snapshot.docs.flatMap(doc => {
       const price = mapTimelinePrice(doc.data(), instrument.ticker, instrument.market);
       return price && price.date >= historyStart && price.date <= window.end ? [price] : [];
     }).sort((a, b) => a.date.localeCompare(b.date));
-    const bars=timelinePriceBars(prices,window.start,weekly);
+    const bars=timelinePriceBars(prices,window.start,interval);
     return {...base,prices:bars.prices,...(indicators?{warmupPrices:bars.warmupPrices}:{}),available:true};
     });
     return Response.json(result,{headers:{'Cache-Control':'public, max-age=60'}});
