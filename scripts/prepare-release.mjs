@@ -110,8 +110,16 @@ try {
     }
   }
   for (const id of ["ORG:UNKNOWN", "ORG%2FBAD"]) {
-    assert.equal((await fetch(`${base}/en/company/${id}`)).status, 404);
+    const response = await fetch(`${base}/en/company/${id}`);
+    assert.equal(response.status, 404);
+    assert.match(await response.text(), /Company profile not available/);
   }
+  const unavailable = await fetch(`${base}/en/company/openabc`);
+  assert.equal(unavailable.status, 404);
+  const unavailableHtml = await unavailable.text();
+  assert.match(unavailableHtml, /Company profile not available/);
+  assert.match(unavailableHtml, /openabc/);
+  assert.match(unavailableHtml, /noindex/);
 } finally {
   server.kill("SIGTERM");
 }
