@@ -379,5 +379,5 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
 export function CompanyResearchTimeline({ company, graph, initialPrices }: { company: GraphNode; graph?: KnowledgeGraph; initialPrices?: TimelinePrices }) {
   const [history, setHistory] = useState({ companyId: company.id, available: Boolean(initialPrices?.companyId === company.id && initialPrices.prices.length) });
   const onPriceHistoryChange = useCallback((available: boolean) => setHistory({ companyId: company.id, available }), [company.id]);
-  return <div className={styles.pageResearch} hidden={history.companyId !== company.id || !history.available}><CompanySnapshot company={company} profileLink={false} /><CompanyTimeline companyId={company.id} graph={graph} initialPrices={initialPrices} onPriceHistoryChange={onPriceHistoryChange} /></div>;
+  return <div className={styles.pageResearch} hidden={history.companyId !== company.id || !history.available}><CompanySnapshot company={company} profileLink={false} showHeading={false} /><CompanyTimeline companyId={company.id} graph={graph} initialPrices={initialPrices} onPriceHistoryChange={onPriceHistoryChange} /></div>;
 }
