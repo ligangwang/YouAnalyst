@@ -8,6 +8,26 @@ import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
 import { movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands } from '../src/lib/ui/technical-indicators';
 import {cachedTimelinePrices} from '../src/lib/ui/timeline-cache';
 
+test('NVDA raw OHLC uses cumulative splits without re-adjusting volume or adjusted closes',()=>{
+ const row={ticker:'NVDA',market:'US',tradingDate:'2024-06-07',open:1197.38,high:1216.92,low:1180.22,rawClose:1208.88,close:1208.88,source:'eodhd-eod',volume:412386000,amount:123456};
+ const before=mapTimelinePrice(row,'NVDA','US')!;
+ assert.equal(before.close,120.888);
+ for(const key of ['open','high','low'] as const)assert.ok(Math.abs(before[key]!-row[key]/10)<1e-10);
+ assert.equal(before.volume,row.volume);assert.equal(before.amount,row.amount);
+ assert.deepEqual(mapTimelinePrice({...row,close:120.5},'NVDA','US'),before);
+ for(const [date,factor] of [['2020-12-31',40],['2021-07-19',40],['2021-07-20',10],['2024-06-07',10],['2024-06-10',1]] as const){
+  assert.equal(mapTimelinePrice({...row,tradingDate:date},'NVDA','US')!.close,row.rawClose/factor);
+ }
+ assert.equal(mapTimelinePrice({...row,rawClose:undefined,close:120.5},'NVDA','US')!.close,120.5);
+ assert.equal(mapTimelinePrice({...row,ticker:'AMD'},'AMD','US')!.close,row.close);
+ assert.equal(mapTimelinePrice({...row,tradingDate:'2020-12-30'},'NVDA','US')!.close,row.close);
+ const after=mapTimelinePrice({...row,tradingDate:'2024-06-10',open:120.37,high:123.1,low:117.01,close:121.79,rawClose:121.79,volume:313434100},'NVDA','US')!;
+ const weekly=weeklyTimelinePrices([before,after]);
+ assert.equal(weekly[0].close,before.close);assert.equal(weekly[1].close,after.close);
+ const change=after.close/before.close-1;assert.ok(change>0&&change<.01);
+ assert.equal(simpleMovingAverage([before,after],2).at(-1)?.value,(before.close+after.close)/2);
+});
+
 test('YTD and annual windows use calendar boundaries, including leap days',()=>{
  assert.deepEqual(timelineWindow('ytd','2026-10-12'),{start:'2026-01-01',end:'2026-10-12'});
  assert.equal(timelineWindow('ytd','2026-01-01').start,'2026-01-01');

@@ -42,7 +42,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const sharedEventId = useIndustryBrowseParam('chartEvent');
   const settings = parseSharedChart(new URLSearchParams({chartRange,chartStyle,chartMA,chartMacd,chartIndicator,chartActivity,chartEvents}));
   const { range: days, averages, macd: showMacd, indicator, activity, events: showEvents, style: chartMode } = settings;
-  const showKdj=indicator==='kdj',showBoll=indicator==='boll',showOscillator=showMacd||showKdj;
+  const showKdj=indicator==='kdj',showBoll=indicator==='boll',showOscillator=showMacd||showKdj||showBoll;
   const [shareResult,setShareResult] = useState<{url:string;copied:boolean}|null>(null);
   const changeSettings = (patch: Partial<SharedChart>) => { updateIndustryBrowse(sharedChartParams({...settings,...patch})); setShareResult(null); };
   const setDays = (range: TimelineRange) => changeSettings({range});
@@ -152,10 +152,9 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const kdj=stochasticKdj(history).filter(point=>point.date>=start&&point.date<=end);
   const boll=bollingerBands(history).filter(point=>point.date>=start&&point.date<=end);
   const averageValues = movingAverages.flatMap((points,index)=>averages.includes(averagePeriods[index])?points.map(point=>point.value):[]);
-  const bandValues=showBoll?boll.flatMap(point=>[point.lower,point.upper]):[];
-  const min = prices.length ? Math.min(...prices.map(p => useCandles?p.low??p.close:p.close),...averageValues,...bandValues) : 0, max = prices.length ? Math.max(...prices.map(p => useCandles?p.high??p.close:p.close),...averageValues,...bandValues) : 1;
+  const min = prices.length ? Math.min(...prices.map(p => useCandles?p.low??p.close:p.close),...averageValues) : 0, max = prices.length ? Math.max(...prices.map(p => useCandles?p.high??p.close:p.close),...averageValues) : 1;
   const candleWidth=Math.max(2,Math.min(10,plotWidth/Math.max(1,prices.length)*.65));
-  const pad = Math.max((max - min) * .1, max * .01), low = showBoll?min-pad:Math.max(0, min - pad), high = max + pad;
+  const pad = Math.max((max - min) * .1, max * .01), low = Math.max(0, min - pad), high = max + pad;
   // Keep a compact escape row above the full wick range, within the existing chart height.
   const headroom=useCandles&&showEvents&&events.some(event=>event.date>=start&&event.date<=end)?Math.min(40,(priceBottom-priceTop)*.3):0;
   const y = (value: number) => priceBottom - (value - low) / Math.max(.001, high - low) * (priceBottom-priceTop-headroom);
@@ -195,6 +194,10 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const macdY=(value:number)=>macdTop+(macdBottom-macdTop)/2-value/macdExtent*(macdBottom-macdTop)/2;
   const kdjLow=Math.min(0,...kdj.flatMap(point=>[point.k,point.d,point.j]))-5,kdjHigh=Math.max(100,...kdj.flatMap(point=>[point.k,point.d,point.j]))+5;
   const kdjY=(value:number)=>macdBottom-(value-kdjLow)/(kdjHigh-kdjLow)*(macdBottom-macdTop);
+  const bollValues=[...boll.flatMap(point=>[point.lower,point.upper]),...prices.flatMap(price=>useCandles?[price.low??price.close,price.high??price.close]:[price.close])];
+  const bollMin=bollValues.length?Math.min(...bollValues):0,bollMax=bollValues.length?Math.max(...bollValues):1;
+  const bollPad=Math.max((bollMax-bollMin)*.1,Math.abs(bollMax)*.01,.001),bollLow=bollMin-bollPad,bollHigh=bollMax+bollPad;
+  const bollY=(value:number)=>macdBottom-(value-bollLow)/(bollHigh-bollLow)*(macdBottom-macdTop);
   const toLatest=nearest&&latest&&nearest.close>0?latest.close/nearest.close-1:undefined;
   const totalBars=allPrices.length;
   const zoomView=useCallback((direction:number,ratio=.5)=>{
@@ -292,7 +295,6 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
           {useCandles?candles.map(price=>{const color=price.close>price.open?'var(--price-up,#55dfbb)':price.close<price.open?'var(--price-down,#ff8ea1)':'var(--price-flat,#b8cfe1)';return <g key={price.date} data-price-candle={price.date} data-candle-direction={price.close>price.open?'up':price.close<price.open?'down':'flat'}><path data-candle-hit d={`M${x(price.date)},${Math.min(y(price.high),y(price.close)-3)}L${x(price.date)},${Math.max(y(price.low),y(price.close)+3)}`} stroke="transparent" strokeWidth={Math.max(candleWidth,Math.min(12,plotWidth/prices.length*.8))} fill="none"/><line x1={x(price.date)} x2={x(price.date)} y1={y(price.high)} y2={y(price.low)} stroke={color}/><rect x={x(price.date)-candleWidth/2} y={Math.min(y(price.open),y(price.close))} width={candleWidth} height={Math.max(1,Math.abs(y(price.open)-y(price.close)))} fill={color}/></g>}):<><path data-price-hit d={pricePath} fill="none" stroke="transparent" strokeWidth={12}/><path data-price-line d={pricePath} fill="none" stroke="var(--chart-line,#79cfe9)" strokeWidth={2} /></>}
           {!useCandles&&gapPath&&<path data-price-gap d={gapPath} fill="none" stroke="var(--chart-line,#79cfe9)" strokeWidth={2} strokeDasharray="4 4" />}
           {movingAverages.map((points,index)=>averages.includes(averagePeriods[index])&&<path key={averagePeriods[index]} data-moving-average={averagePeriods[index]} d={indicatorPath(points,y)} fill="none" stroke={MA_COLORS[index]} strokeWidth={1.5} pointerEvents="none"/>)}
-          {showBoll&&(['upper','middle','lower'] as const).map((band,index)=><path key={band} data-boll-band={band} d={indicatorPath(boll.map(point=>({date:point.date,value:point[band]})),y)} fill="none" stroke={MA_COLORS[index]} strokeWidth={1.5} pointerEvents="none"/>)}
           {prices.map(p => <circle key={p.date} cx={x(p.date)} cy={y(p.close)} r={useCandles?(p.open===undefined?2:0):prices.length < 3 ? 3 : 1} fill="var(--chart-line,#79cfe9)" pointerEvents="none"/>)}
         </> : <text x={left + 8} y={volumeBottom-8}>{!data ? text("Loading stored prices…", "正在读取历史股价…") : !data.available ? text("Stored prices unavailable", "历史股价暂时无法读取") : companyId.startsWith("ORG:") ? text("No supported price history", "暂无支持的股价记录") : text("No stored prices in this range", "此范围暂无已存储股价")}</text>}
         <text x={0} y={volumeBottom-12}>{activityLabel}{activity==='turnover'&&data?.currency?` (${data.currency})`:''}</text>
@@ -313,6 +315,13 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
           {[0,20,80,100].map(value=><g key={value}><line x1={left} x2={right} y1={kdjY(value)} y2={kdjY(value)} stroke="var(--ui-line,#30485a)" strokeDasharray="2 3"/><text x={left-7} y={kdjY(value)+4} textAnchor="end">{value}</text></g>)}
           {(['k','d','j'] as const).map((line,index)=><path key={line} data-kdj-line={line} d={indicatorPath(kdj.map(point=>({date:point.date,value:point[line]})),kdjY)} fill="none" stroke={MA_COLORS[index]} strokeWidth={1.5} pointerEvents="none"/>)}
           {!kdj.length&&<text x={left+8} y={kdjY(50)-8}>{text('Insufficient OHLC history','开高低收历史数据不足')}</text>}
+        </g>}
+        {showBoll&&<g data-boll-panel data-panel-top={macdTop} data-panel-bottom={macdBottom}>
+          <text x={0} y={macdTop-6}>{text('BOLL','BOLL')}</text>
+          {[bollLow,(bollLow+bollHigh)/2,bollHigh].map(value=><g key={value}><line x1={left} x2={right} y1={bollY(value)} y2={bollY(value)} stroke="var(--ui-line,#30485a)" strokeDasharray="2 3"/><text x={left-7} y={bollY(value)+4} textAnchor="end">{new Intl.NumberFormat(locale,{maximumFractionDigits:1}).format(value)}</text></g>)}
+          {useCandles?candles.map(price=>{const color=price.close>price.open?'var(--price-up,#55dfbb)':price.close<price.open?'var(--price-down,#ff8ea1)':'var(--price-flat,#b8cfe1)';return <g key={price.date} data-boll-candle={price.date} pointerEvents="none"><line x1={x(price.date)} x2={x(price.date)} y1={bollY(price.high)} y2={bollY(price.low)} stroke={color}/><rect x={x(price.date)-candleWidth/2} y={Math.min(bollY(price.open),bollY(price.close))} width={candleWidth} height={Math.max(.5,Math.abs(bollY(price.open)-bollY(price.close)))} fill={color}/></g>}):<path data-boll-close d={indicatorPath(prices.map(price=>({date:price.date,value:price.close})),bollY)} fill="none" stroke="var(--chart-line,#79cfe9)" strokeWidth={1} pointerEvents="none"/>}
+          {(['upper','middle','lower'] as const).map((band,index)=><path key={band} data-boll-band={band} d={indicatorPath(boll.map(point=>({date:point.date,value:point[band]})),bollY)} fill="none" stroke={MA_COLORS[index]} strokeWidth={1.5} pointerEvents="none"/>)}
+          {!boll.length&&<text x={left+8} y={macdTop+12}>{text('Insufficient history','历史数据不足')}</text>}
         </g>}
         {tickDates.map(date => <text key={date} data-session-tick={date} x={x(date)} y={chartHeight-6} textAnchor="middle">{formatDate(date)}</text>)}
         {useCandles&&groups.map(group=>{

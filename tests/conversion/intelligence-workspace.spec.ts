@@ -212,7 +212,20 @@ for(const zh of [false,true])test(`chart indicator switches, custom averages, ho
  await timeline.getByRole('button',{name:zh?'成交额':'Turnover',exact:true}).click();await expect(svg).toContainText(zh?'成交额暂无数据':'Turnover unavailable');await expect(svg.locator('[data-volume-bar]')).toHaveCount(0);await expect(svg.locator('[data-turnover-bar]')).toHaveCount(0);
  await timeline.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();await expect(svg.locator('[data-macd-panel]')).toHaveCount(1);
  await timeline.getByRole('button',{name:'KDJ (9,3,3)',exact:true}).click();await expect(svg.locator('[data-macd-panel]')).toHaveCount(0);await expect(svg.locator('[data-kdj-line]')).toHaveCount(3);await expect(svg.locator('[data-kdj-line="j"]')).toHaveAttribute('d',/^M.+L/);
+ const mainCandleY=await svg.locator('[data-price-candle] rect').evaluateAll(elements=>elements.map(element=>element.getAttribute('y')));
  await timeline.getByRole('button',{name:'BOLL (20,2)',exact:true}).click();await expect(svg.locator('[data-kdj-panel]')).toHaveCount(0);await expect(svg.locator('[data-boll-band]')).toHaveCount(3);await expect(svg.locator('[data-boll-band="upper"]')).toHaveAttribute('d',/^M.+L/);
+ await expect(svg.locator('[data-boll-panel]')).toHaveCount(1);
+ expect(await svg.locator('[data-price-candle] rect').evaluateAll(elements=>elements.map(element=>element.getAttribute('y')))).toEqual(mainCandleY);
+ expect(await svg.locator('[data-boll-candle]').count()).toBe(await svg.locator('[data-price-candle]').count());
+ const bollLayout=await svg.locator('[data-boll-panel]').evaluate(panel=>{
+  const top=Number(panel.getAttribute('data-panel-top')),bottom=Number(panel.getAttribute('data-panel-bottom'));
+  return {top,bottom,paths:Array.from(panel.querySelectorAll('[data-boll-band]')).map(path=>{const box=(path as SVGGraphicsElement).getBBox();return {top:box.y,bottom:box.y+box.height};})};
+ });
+ expect(bollLayout.top).toBeGreaterThan(Number(await svg.getAttribute('data-price-bottom')));
+ for(const path of bollLayout.paths){expect(path.top).toBeGreaterThanOrEqual(bollLayout.top);expect(path.bottom).toBeLessThanOrEqual(bollLayout.bottom);}
+ await timeline.getByRole('button',{name:zh?'全屏':'Full screen',exact:true}).click();await expect(timeline).toHaveAttribute('data-chart-size','full');
+ await timeline.screenshot({path:`output/boll-lower-panel-${info.project.name}-${zh?'zh':'en'}.png`});
+ await page.keyboard.press('Escape');await expect(timeline).toHaveAttribute('data-chart-size','compact');
  await timeline.getByRole('button',{name:zh?'均线设置':'MA settings',exact:true}).click();const settings=page.getByRole('dialog',{name:zh?'均线设置':'Moving average settings',exact:true});
  await settings.locator('input').nth(4).fill('120');await settings.getByRole('button',{name:zh?'应用':'Apply',exact:true}).click();await expect(timeline.getByRole('button',{name:'MA120',exact:true})).toHaveAttribute('aria-pressed','true');await expect(timeline.locator('[data-moving-average="120"]')).toHaveAttribute('d',/^M.+L/);expect(requests.some(url=>url.includes('maPeriod=120'))).toBe(true);
  await timeline.getByRole('button',{name:zh?'复制图表链接':'Copy chart link',exact:true}).click();const share=new URL(await page.evaluate(()=>(window as unknown as {copiedLink:string}).copiedLink));expect(share.searchParams.get('chartIndicator')).toBe('boll');expect(share.searchParams.get('chartActivity')).toBe('turnover');expect(share.searchParams.get('chartMA')).toBe('5,10,20,60,120');
