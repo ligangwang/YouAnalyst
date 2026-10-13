@@ -44,7 +44,7 @@ for(const chinese of [false,true])for(const admin of [false,true])test(`${chines
   await expect(page.getByRole('checkbox')).toHaveCount(0);
   await page.getByRole('button',{name:chinese?'提交匹配供审核':'Submit match for review'}).click();
   await expect.poll(()=>posts.length).toBe(1);expect(posts[0].action).toBe('propose');expect(posts[0].reusableAlias).toBeUndefined();
-  await expect(page.getByText(chinese?'等待管理员审核。':'Awaiting administrator review.')).toBeVisible();
+  await expect(page.getByText(chinese?'等待管理员审核。':'Awaiting administrator review.',{exact:true})).toBeVisible();
  }
  expect(posts[0]).toMatchObject({receiptId:receipt.id,contentHash:receipt.contentHash,relationshipIndex:0,side:'source',expectedName:'Arista Networks',companyId:'US:ANET'});
  await expect(page.getByRole('link',{name:/US:ANET/})).toHaveAttribute('href',`/${chinese?'zh-cn':'en'}/company/ticker-anet`);
