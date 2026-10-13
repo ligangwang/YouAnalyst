@@ -1,12 +1,8 @@
 import type { MetadataRoute } from "next";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { normalizeTicker } from "@/lib/predictions/types";
 import { absoluteUrl } from "@/lib/seo";
-import { isMapTicker } from "@/lib/industry-graph/directory";
-import { COMPANY_GRAPH_EXTRACTION_VERSION } from "@/lib/company-graph/types";
 import { infrastructureTopics, RESEARCH_REVIEWED } from "@/lib/research/infrastructure-topics";
 import { localizedPath } from "@/lib/i18n/urls";
-import { companyPageUrl } from "@/lib/market-companies/routes";
 
 function bilingual(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
   return entries.filter(entry => new URL(entry.url).pathname !== "/map").flatMap(entry => {
@@ -32,12 +28,12 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
     priority: 1,
   },
   {
-    url: absoluteUrl("/daily"),
+    url: absoluteUrl("/daily/calls"),
     changeFrequency: "daily",
     priority: 0.8,
   },
   {
-    url: absoluteUrl("/watchlists"),
+    url: absoluteUrl("/calendar"),
     changeFrequency: "daily",
     priority: 0.8,
   },
@@ -72,20 +68,9 @@ function toIsoDate(value: unknown): string | undefined {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const companyRoutes = new Map<string, MetadataRoute.Sitemap[number]>();
   try {
     const db = getAdminFirestore();
-    const metadata = await db.collection("industry_map_companies").limit(500).get();
-    const runs = await db.collection("company_research_runs").where("status", "==", "COMPLETED")
-      .select("extractionVersion", "result.ticker", "result.dryRun", "result.extractionVersion").limit(500).get();
-    for (const ticker of [
-      ...metadata.docs.map((doc) => doc.id),
-      ...runs.docs.flatMap((doc) => {
-        const data = doc.data();
-        return data.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION && data.result?.dryRun === false &&
-          data.result?.extractionVersion === COMPANY_GRAPH_EXTRACTION_VERSION ? [data.result.ticker] : [];
-      }),
-    ]) if (isMapTicker(ticker)) companyRoutes.set(ticker, { url: absoluteUrl(companyPageUrl(ticker, "US")), changeFrequency: "daily", priority: 0.7 });
+    // Company URLs belong exclusively to the uncapped company bucket sitemaps.
     const [predictionSnapshot, userSnapshot, watchlistSnapshot] = await Promise.all([
       db.collection("predictions").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(500).get(),
       db.collection("users").orderBy("updatedAt", "desc").limit(500).get(),
@@ -104,23 +89,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }));
 
-    const tickerRoutes = companyRoutes;
     const predictionRoutes: MetadataRoute.Sitemap = [];
 
     for (const doc of predictionSnapshot.docs) {
       const data = doc.data() as Record<string, unknown>;
       if (data.status === "CANCELED") {
         continue;
-      }
-
-      const ticker = typeof data.ticker === "string" ? normalizeTicker(data.ticker) : "";
-      if (ticker && !tickerRoutes.has(ticker)) {
-        tickerRoutes.set(ticker, {
-          url: absoluteUrl(companyPageUrl(ticker, "US")),
-          lastModified: toIsoDate(data.updatedAt ?? data.createdAt),
-          changeFrequency: "hourly",
-          priority: 0.7,
-        });
       }
 
       predictionRoutes.push({
@@ -144,8 +118,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.6,
       }));
 
-    return bilingual([...STATIC_ROUTES, ...analystRoutes, ...watchlistRoutes, ...tickerRoutes.values(), ...predictionRoutes]);
+    return bilingual([...STATIC_ROUTES, ...analystRoutes, ...watchlistRoutes, ...predictionRoutes]);
   } catch {
-    return bilingual([...STATIC_ROUTES, ...companyRoutes.values()]);
+    return bilingual(STATIC_ROUTES);
   }
 }
