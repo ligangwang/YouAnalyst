@@ -48,12 +48,12 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
   expect(body).toContain("<sitemapindex");
   expect(body).toContain("/sitemaps/companies/US-N.xml");
   expect(body).toContain("/sitemaps/companies/XSHG-6.xml");
-  for (const [bucket, company] of [["US-N", "NVDA"], ["XSHG-6", "XSHG%3A688041"]]) {
+  for (const [bucket, companyPath] of [["US-N", "company/nvidia"], ["XSHG-6", "ticker/XSHG%3A688041"]]) {
     const response = await request.get(`/sitemaps/companies/${bucket}.xml`);
     expect(response.status()).toBe(200);
     const xml = await response.text();
-    expect(xml).toContain(`/en/ticker/${company}`);
-    expect(xml).toContain(`/zh-cn/ticker/${company}`);
+    expect(xml).toContain(`/en/${companyPath}`);
+    expect(xml).toContain(`/zh-cn/${companyPath}`);
     expect(xml).toContain('hreflang="zh-CN"');
   }
 });
@@ -75,7 +75,7 @@ test("English and Chinese workspace URLs retain SEO and bookmarked company links
     const name=prefix==='en'?'Company list':'公司列表';
     await expect(page.getByRole('tab',{name,exact:true})).toHaveAttribute('aria-selected','true');
     const sources=page.getByRole('region',{name:'Company details',exact:true});
-    await expect(sources.locator(`a[href="/${prefix}/ticker/NVDA"]`)).toBeVisible();
+    await expect(sources.locator(`a[href="/${prefix}/company/nvidia"]`)).toBeVisible();
   }
   const legacy = await request.get("/map?lang=zh-CN&market=CN_A&company=XSHG%3A688041", { maxRedirects: 0 });
   expect([307, 308]).toContain(legacy.status());
@@ -315,4 +315,21 @@ test("staging banner is present only when expected", async ({ page }) => {
   } else {
     await expect(banner).toHaveCount(0);
   }
+});
+
+
+test("company name URLs preserve legacy links and advertise the canonical profile", async ({ request, page }) => {
+  const legacy = await request.get("/ticker/MSFT?source=url-migration", { maxRedirects: 0 });
+  expect(legacy.status()).toBe(308);
+  const destination = new URL(legacy.headers().location, legacy.url());
+  expect(destination.pathname).toBe("/en/company/microsoft");
+  expect(destination.searchParams.get("source")).toBe("url-migration");
+  await page.goto("/en/company/microsoft");
+  await expect(page.getByRole("heading", {level: 1})).toContainText(/Microsoft/i);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/en\/company\/microsoft$/);
+  const sitemap = await request.get("/sitemaps/companies/US-M.xml");
+  expect(sitemap.ok()).toBeTruthy();
+  const xml = await sitemap.text();
+  expect(xml).toContain("/en/company/microsoft");
+  expect(xml).not.toContain("/ticker/MSFT");
 });
