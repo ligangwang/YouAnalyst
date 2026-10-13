@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
-import { getGraphBudgetSummary, findGraphBudgetTicket, GRAPH_FLEX_PRICE_VERSION, GRAPH_FLEX_RESERVATION_MICROS, type GraphBudgetSummary } from "./budget";
+import { getGraphBudgetSummary, findGraphBudgetTicket, GRAPH_BUDGET_MODEL, GRAPH_FLEX_PRICE_VERSION, GRAPH_FLEX_RESERVATION_MICROS, type GraphBudgetSummary } from "./budget";
 import { companyGraphRequestId, parseCompanyGraphRequest, type CompanyGraphRequest } from "./pubsub";
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "./types";
 import { redactGraphFailure } from "./inspection";
@@ -238,7 +238,7 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
       || !Number.isSafeInteger(budget.reservedMicros) || budget.reservedMicros <= 0 || budget.spentMicros > budget.reservedMicros) {
       throw new Error("Completed NVDA request lacks matching durable provider and settled budget evidence");
     }
-    if (!resumeTree && (budget.priceVersion !== GRAPH_FLEX_PRICE_VERSION || budget.reservedMicros !== GRAPH_FLEX_RESERVATION_MICROS
+    if (!resumeTree && (budget.model !== GRAPH_BUDGET_MODEL || budget.priceVersion !== GRAPH_FLEX_PRICE_VERSION || budget.reservedMicros !== GRAPH_FLEX_RESERVATION_MICROS
       || budget.serviceTier !== "flex" || budget.cacheWriteTokens !== 0 || budget.cachedTokens !== 0
       || budget.reasoningMode !== "standard" || budget.promptCacheMode !== "explicit")) {
       throw new Error("Fresh NVDA activation lacks verified Flex pricing and cache-free settlement");

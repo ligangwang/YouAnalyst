@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
-import { findGraphBudgetTicket, GRAPH_BUDGET_MODEL, GRAPH_MAX_OUTPUT_TOKENS } from "../src/lib/company-graph/budget";
+import { findGraphBudgetTicket, GRAPH_LEGACY_MODEL, GRAPH_MAX_OUTPUT_TOKENS } from "../src/lib/company-graph/budget";
 import { inspectCompanyGraphRequest } from "../src/lib/company-graph/inspection";
 
 const integer = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -33,8 +33,10 @@ export async function inspectSavedGraphProviderResponse(db: Firestore, expectedR
   const usage = data?.usage as Record<string, unknown> | null;
   const inputTokens = integer(usage?.input_tokens), outputTokens = integer(usage?.output_tokens);
   const terminal = ["completed", "failed", "cancelled", "incomplete"].includes(String(data.status));
-  const modelMatches = data.model === GRAPH_BUDGET_MODEL;
-  const conservativeMicros = modelMatches && inputTokens !== null && outputTokens !== null ? inputTokens * 5 + outputTokens * 20 : null;
+  const modelMatches = data.model === ticket.model;
+  const conservativeMicros = modelMatches && inputTokens !== null && outputTokens !== null
+    ? ticket.model === GRAPH_LEGACY_MODEL ? inputTokens * 5 + outputTokens * 20
+      : Math.ceil((inputTokens * 125 + outputTokens * 375) / 1000) : null;
   // Never serialize the response body, its output, IDs, prompts, headers or error text.
   return { providerCalls: 1, method: "GET", httpStatus: response.status, metadataAvailable: true,
     model: label(data.model), status: label(data.status), serviceTier: label(data.service_tier),
@@ -45,7 +47,7 @@ export async function inspectSavedGraphProviderResponse(db: Firestore, expectedR
       usagePresent: Boolean(usage), inputWithinReservation: inputTokens !== null && inputTokens <= ticket.inputTokens,
       outputWithinLimit: outputTokens !== null && outputTokens <= GRAPH_MAX_OUTPUT_TOKENS,
       costWithinReservation: conservativeMicros !== null && conservativeMicros <= ticket.reservedMicros,
-      reservationModelMatches: reservation?.model === GRAPH_BUDGET_MODEL,
-      reservationPriceVersionMatches: reservation?.priceVersion === "gpt-5.6-sol-standard-2026-10-01" },
+      reservationModelMatches: reservation?.model === ticket.model,
+      reservationPriceVersionMatches: reservation?.priceVersion === ticket.priceVersion },
   };
 }

@@ -73,7 +73,7 @@ for service in company-graph-subscriber sec-fundamentals-subscriber; do
       '(.spec.template.spec.containers[0].env | map({key:.name,value:.value}) | from_entries) as $e |
        .status.latestReadyRevisionName as $ready | $e.GIT_SHA == $sha and $e.GCP_PROJECT_ID == $project and
        .spec.template.spec.containers[0].image == $image and
-       ($service != "company-graph-subscriber" or ($e.COMPANY_GRAPH_PROCESSING_ENABLED == "1" and $e.OPENAI_MODEL == "gpt-5.6-sol" and
+       ($service != "company-graph-subscriber" or ($e.COMPANY_GRAPH_PROCESSING_ENABLED == "1" and $e.OPENAI_COMPANY_GRAPH_MODEL == "gpt-6-luna" and
          ($mode != "--verify-live" or $e.COMPANY_GRAPH_PAID_ADMISSION_ENABLED == "1"))) and
        .status.latestCreatedRevisionName == $ready and any(.status.traffic[]; .revisionName == $ready and .percent == 100)' >/dev/null
 done

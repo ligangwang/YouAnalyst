@@ -3,20 +3,23 @@ import type { Firestore, Transaction } from "firebase-admin/firestore";
 import { getAdminFirestore } from "../firebase/admin";
 
 export const GRAPH_BUDGET_TIMEZONE = "America/New_York" as const;
-export const GRAPH_BUDGET_MODEL = "gpt-5.6-sol";
+export const GRAPH_BUDGET_MODEL = "gpt-6-luna";
+export const GRAPH_LEGACY_MODEL = "gpt-5.6-sol";
 // The count endpoint is an application quality guard, never a billing bound.
 export const GRAPH_MAX_INPUT_TOKENS = 100_000;
 export const GRAPH_MAX_OUTPUT_TOKENS = 16_384;
 export const GRAPH_MODEL_CONTEXT_TOKENS = 1_050_000;
 export const GRAPH_PRICING_VALID_UNTIL = "2026-11-22T00:00:00.000Z";
 export const GRAPH_LEGACY_PRICE_VERSION = "gpt-5.6-sol-standard-2026-10-01";
-export const GRAPH_FLEX_PRICE_VERSION = "gpt-5.6-sol-flex-full-context-2026-10-02";
+export const GRAPH_SOL_FLEX_PRICE_VERSION = "gpt-5.6-sol-flex-full-context-2026-10-02";
+export const GRAPH_FLEX_PRICE_VERSION = "gpt-6-luna-flex-full-context-2026-10-13";
+export const GRAPH_SOL_FLEX_RESERVATION_MICROS = 4_445_760;
 const FLEX_LONG_CONTEXT_THRESHOLD = 272_000;
-// Reviewed Flex rates: short input/output 2/10, long input/output 4/15
+// Reviewed Luna Flex rates: short input/output .05/.25, long .10/.375
 // micro-USD/token. Explicit caching without breakpoints prevents cache writes.
 // Reserve the entire model context at the highest input rate, plus all permitted
 // output, independently of the preflight count (deliberately double-counting output).
-export const GRAPH_FLEX_RESERVATION_MICROS = GRAPH_MODEL_CONTEXT_TOKENS * 4 + GRAPH_MAX_OUTPUT_TOKENS * 15;
+export const GRAPH_FLEX_RESERVATION_MICROS = Math.ceil((GRAPH_MODEL_CONTEXT_TOKENS * 100 + GRAPH_MAX_OUTPUT_TOKENS * 375) / 1000);
 const DEFAULT_LIMIT_MICROS = 5_000_000;
 const COLLECTION = "company_research_runs";
 const BUDGET_ID = "_graph_daily_budget";
@@ -44,7 +47,8 @@ export type GraphBudgetSummary = {
 type Budget = { day: string; limitMicros: number; spentMicros: number; reservedMicros: number };
 export type GraphBudgetTicket = {
   id: string; requestKey: string; fingerprint: string; inputTokens: number; reservedMicros: number; responseId: string | null;
-  ticketVersion: 1 | 2; priceVersion: typeof GRAPH_LEGACY_PRICE_VERSION | typeof GRAPH_FLEX_PRICE_VERSION;
+  model: typeof GRAPH_BUDGET_MODEL | typeof GRAPH_LEGACY_MODEL;
+  ticketVersion: 1 | 2 | 3; priceVersion: typeof GRAPH_LEGACY_PRICE_VERSION | typeof GRAPH_SOL_FLEX_PRICE_VERSION | typeof GRAPH_FLEX_PRICE_VERSION;
 };
 function dayKey(now: number) {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: GRAPH_BUDGET_TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
@@ -111,18 +115,21 @@ function ticketId(requestKey: string) {
 function readTicket(value: Record<string, unknown>, requestKey: string): GraphBudgetTicket {
   if (value.requestKey !== requestKey || typeof value.fingerprint !== "string" || !value.fingerprint
     || !integer(value.inputTokens) || value.inputTokens === 0 || value.inputTokens > GRAPH_MAX_INPUT_TOKENS
-    || !integer(value.reservedMicros) || value.model !== GRAPH_BUDGET_MODEL
+    || !integer(value.reservedMicros) || ![GRAPH_BUDGET_MODEL, GRAPH_LEGACY_MODEL].includes(String(value.model))
     || (value.responseId !== null && (typeof value.responseId !== "string" || !/^resp_[A-Za-z0-9_-]+$/.test(value.responseId)))) return fail("ticket metadata");
-  let ticketVersion: 1 | 2;
-  if (value.priceVersion === GRAPH_LEGACY_PRICE_VERSION && (value.ticketVersion === undefined || value.ticketVersion === 1)
+  let ticketVersion: 1 | 2 | 3;
+  if (value.model === GRAPH_LEGACY_MODEL && value.priceVersion === GRAPH_LEGACY_PRICE_VERSION && (value.ticketVersion === undefined || value.ticketVersion === 1)
     && value.reservedMicros === value.inputTokens * 5 + GRAPH_MAX_OUTPUT_TOKENS * 20) ticketVersion = 1;
-  else if (value.priceVersion === GRAPH_FLEX_PRICE_VERSION && value.ticketVersion === 2
-    && value.reservedMicros === GRAPH_FLEX_RESERVATION_MICROS
+  else if (value.model === GRAPH_LEGACY_MODEL && value.priceVersion === GRAPH_SOL_FLEX_PRICE_VERSION && value.ticketVersion === 2
+    && value.reservedMicros === GRAPH_SOL_FLEX_RESERVATION_MICROS
     && Object.entries(FLEX_POLICY).every(([key, expected]) => value[key] === expected)) ticketVersion = 2;
+  else if (value.model === GRAPH_BUDGET_MODEL && value.priceVersion === GRAPH_FLEX_PRICE_VERSION && value.ticketVersion === 3
+    && value.reservedMicros === GRAPH_FLEX_RESERVATION_MICROS
+    && Object.entries(FLEX_POLICY).every(([key, expected]) => value[key] === expected)) ticketVersion = 3;
   else return fail("unreviewed ticket pricing or policy");
   return { id: ticketId(requestKey), requestKey, fingerprint: value.fingerprint, inputTokens: value.inputTokens,
     reservedMicros: value.reservedMicros, responseId: value.responseId as string | null, ticketVersion,
-    priceVersion: value.priceVersion as GraphBudgetTicket["priceVersion"] };
+    model: value.model as GraphBudgetTicket["model"], priceVersion: value.priceVersion as GraphBudgetTicket["priceVersion"] };
 }
 export async function findGraphBudgetTicket(requestKey: string, db: Firestore): Promise<GraphBudgetTicket | null> {
   const value = (await db.collection(COLLECTION).doc(ticketId(requestKey)).get()).data();
@@ -145,7 +152,7 @@ export async function reserveGraphBudget(input: { requestKey: string; fingerprin
     if (reservedMicros > budget.limitMicros - budget.spentMicros - budget.reservedMicros) throw new GraphBudgetExceededError(now, budgetRetryAt(budget, now));
     budget.reservedMicros += reservedMicros;
     const ticket: GraphBudgetTicket = { id, requestKey: input.requestKey, fingerprint: input.fingerprint, inputTokens: input.inputTokens,
-      reservedMicros, responseId: null, ticketVersion: 2, priceVersion: GRAPH_FLEX_PRICE_VERSION };
+      reservedMicros, responseId: null, model: GRAPH_BUDGET_MODEL, ticketVersion: 3, priceVersion: GRAPH_FLEX_PRICE_VERSION };
     tx.set(budgetRef, { ...budget, timezone: GRAPH_BUDGET_TIMEZONE }, { merge: true });
     tx.set(requestRef, { ...ticket, ...FLEX_POLICY, model: input.model, status: "reserved", createdAt: new Date(now).toISOString() });
     return ticket;
@@ -156,7 +163,7 @@ async function checkTicket(tx: Transaction, ticket: GraphBudgetTicket, db: Fires
   if (!value) return fail("missing ticket");
   const stored = readTicket(value, ticket.requestKey);
   if (stored.id !== ticket.id || stored.fingerprint !== ticket.fingerprint || stored.reservedMicros !== ticket.reservedMicros
-    || stored.inputTokens !== ticket.inputTokens || stored.ticketVersion !== ticket.ticketVersion || stored.priceVersion !== ticket.priceVersion) return fail("ticket changed");
+    || stored.inputTokens !== ticket.inputTokens || stored.model !== ticket.model || stored.ticketVersion !== ticket.ticketVersion || stored.priceVersion !== ticket.priceVersion) return fail("ticket changed");
   return { ref, value };
 }
 export async function recordGraphResponse(ticket: GraphBudgetTicket, responseId: string, db: Firestore) {
@@ -169,9 +176,9 @@ export async function recordGraphResponse(ticket: GraphBudgetTicket, responseId:
 }
 /** Release unused reservation only after terminal usage and the pricing policy are verified. */
 export async function settleGraphBudget(ticket: GraphBudgetTicket, response: Record<string, unknown>, db: Firestore, now = Date.now()) {
-  const usage = record(response.usage), flex = ticket.ticketVersion === 2;
+  const usage = record(response.usage), flex = ticket.ticketVersion !== 1;
   if (!ticket.responseId || response.id !== ticket.responseId) return fail("response identity");
-  if (response.model !== GRAPH_BUDGET_MODEL || response.service_tier !== (flex ? "flex" : "default")) return fail("unreviewed model or pricing tier");
+  if (response.model !== ticket.model || response.service_tier !== (flex ? "flex" : "default")) return fail("unreviewed model or pricing tier");
   if (!["completed", "failed", "cancelled", "incomplete"].includes(String(response.status))) return fail("response is not terminal");
   if (!usage || !integer(usage.input_tokens) || usage.input_tokens > (flex ? GRAPH_MODEL_CONTEXT_TOKENS : GRAPH_MAX_INPUT_TOKENS)
     || !integer(usage.output_tokens) || usage.output_tokens > GRAPH_MAX_OUTPUT_TOKENS) return fail("unverified token usage");
@@ -190,8 +197,10 @@ export async function settleGraphBudget(ticket: GraphBudgetTicket, response: Rec
   // Preserve the reviewed legacy Standard settlement for existing saved responses,
   // including NVDA's 11,133 preflight / 11,138 actual input-token discrepancy.
   const longContext = inputTokens > FLEX_LONG_CONTEXT_THRESHOLD;
-  const spentMicros = flex ? inputTokens * (longContext ? 4 : 2) + outputTokens * (longContext ? 15 : 10)
-    : inputTokens * 5 + outputTokens * 20;
+  const spentMicros = ticket.ticketVersion === 3
+    ? Math.ceil((inputTokens * (longContext ? 100 : 50) + outputTokens * (longContext ? 375 : 250)) / 1000)
+    : flex ? inputTokens * (longContext ? 4 : 2) + outputTokens * (longContext ? 15 : 10)
+      : inputTokens * 5 + outputTokens * 20;
   if (!Number.isSafeInteger(spentMicros) || spentMicros > ticket.reservedMicros) return fail("actual cost exceeds reservation");
   const budgetRef = db.collection(COLLECTION).doc(BUDGET_ID);
   await db.runTransaction(async tx => {
