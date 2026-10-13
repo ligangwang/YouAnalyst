@@ -9,6 +9,7 @@ export function chinaCompanyId(value: string): string | null {
 
 export function companyPageUrl(symbol: string, market?: string): string {
   if (market === "GLOBAL" || symbol.startsWith("ORG:")) return `/company/${encodeURIComponent(symbol)}`;
-  const cn = market === "CN_A" ? chinaCompanyId(symbol) : null;
+  // Feed and watchlist callers may have an exchange-qualified ID without a market.
+  const cn = chinaCompanyId(symbol);
   return cn ? `/ticker/${cn}` : publicCompanyPath(symbol);
 }

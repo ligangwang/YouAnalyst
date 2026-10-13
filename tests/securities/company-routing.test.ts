@@ -9,6 +9,9 @@ test("company links separate Shanghai, Shenzhen and US symbols", () => {
   assert.equal(companyPageUrl("688041", "CN_A"), "/ticker/XSHG:688041");
   assert.equal(companyPageUrl("002837", "CN_A"), "/ticker/XSHE:002837");
   assert.equal(companyPageUrl("300308", "CN_A"), "/ticker/XSHE:300308");
+  assert.equal(companyPageUrl("XSHG:688041"), "/ticker/XSHG:688041");
+  assert.equal(companyPageUrl("XSHE:002837", "US"), "/ticker/XSHE:002837");
+  assert.equal(companyPageUrl("688041"), "/ticker/XSHG:688041");
   assert.equal(chinaCompanyId("xshg:688041"), "XSHG:688041");
   for (const invalid of ["NPKI", "XSHE:688041", "XSHG:002837", "../688041", "68804"]) assert.equal(chinaCompanyId(invalid), null);
 });
