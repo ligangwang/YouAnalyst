@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { companyDirectory } from "./src/lib/companies";
 
 const allowedDevOrigins = [
   "127.0.0.1",
@@ -15,6 +16,16 @@ const allowedDevOrigins = [
 const nextConfig: NextConfig = {
   allowedDevOrigins,
   output: "standalone",
+  async redirects() {
+    return [
+      ...companyDirectory.map((company) => ({
+        source: `/ticker/${company.symbol}`,
+        destination: `/company/${company.slug}`,
+        permanent: true,
+      })),
+      { source: "/ticker/:symbol", destination: "/company/ticker-:symbol", permanent: true },
+    ];
+  },
   turbopack: {
     root: process.cwd(),
   },

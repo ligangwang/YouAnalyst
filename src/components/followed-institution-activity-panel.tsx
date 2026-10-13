@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -252,7 +253,7 @@ export function FollowedInstitutionActivityPanel() {
                   </Link>
                   <p className="mt-2 text-sm text-slate-300">
                     {activity.ticker ? (
-                      <Link href={`/ticker/${activity.ticker}`} className="font-semibold text-cyan-100 hover:text-cyan-300">
+                      <Link href={companyPath(activity.ticker)} className="font-semibold text-cyan-100 hover:text-cyan-300">
                         {activity.ticker}
                       </Link>
                     ) : (

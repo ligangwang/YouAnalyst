@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -552,7 +553,7 @@ export function PredictionDetailPage({ predictionId }: { predictionId: string })
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="font-[var(--font-sora)] text-3xl font-semibold">
             <Link
-              href={`/ticker/${prediction.ticker}`}
+              href={companyPath(prediction.ticker)}
               className="flex w-fit items-center gap-1 text-cyan-200 hover:text-cyan-100"
               aria-label={`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`}
             >

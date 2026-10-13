@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -327,7 +328,7 @@ export function InstitutionDigestHistoryPanel() {
                                     </Link>
                                     <p className="mt-1 text-sm text-slate-300">
                                       {item.ticker ? (
-                                        <Link href={`/ticker/${item.ticker}`} className="font-semibold text-cyan-100 hover:text-cyan-300">
+                                        <Link href={companyPath(item.ticker)} className="font-semibold text-cyan-100 hover:text-cyan-300">
                                           {item.ticker}
                                         </Link>
                                       ) : (

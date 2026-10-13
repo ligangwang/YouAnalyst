@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { InstitutionalManagerSummary } from "@/lib/securities/institutional-data";
@@ -189,7 +190,7 @@ export function InstitutionDetailHoldings({ holdings }: { holdings: Holding[] })
               <tr key={holding.positionKey} className="text-slate-200">
                 <td className="py-3 pr-3 font-semibold text-cyan-100">
                   {holding.ticker ? (
-                    <Link href={`/ticker/${holding.ticker}`} className="hover:text-cyan-300">
+                    <Link href={companyPath(holding.ticker)} className="hover:text-cyan-300">
                       {holding.ticker}
                     </Link>
                   ) : (

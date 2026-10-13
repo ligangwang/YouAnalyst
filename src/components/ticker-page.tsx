@@ -6,6 +6,8 @@ import { InstitutionFollowButton } from "@/components/institution-follow-button"
 import { formatTickerSymbol, PredictionAuthorSummary, PredictionReturnSummary } from "@/components/prediction-ui";
 import { useAuth } from "@/components/providers/auth-provider";
 import { type PredictionStatus } from "@/lib/predictions/types";
+import { CompanyRelationships } from "@/components/company-relationships";
+import { companyPath } from "@/lib/companies";
 
 type Prediction = {
   id: string;
@@ -573,7 +575,12 @@ function formatPositionReturn(value: number): string {
   }).format(value)}`;
 }
 
-export function TickerPage({ ticker }: { ticker: string }) {
+export function TickerPage({ ticker, companyName = ticker, sector, description }: {
+  ticker: string;
+  companyName?: string;
+  sector?: string | null;
+  description?: string | null;
+}) {
   const { user, loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<TickerResponse | null>(null);
   const [holdings, setHoldings] = useState<InstitutionalTickerSummary | null>(null);
@@ -707,7 +714,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
 
   async function recordPosition(direction: "UP" | "DOWN") {
     if (!user) {
-      window.location.href = `/auth?next=${encodeURIComponent(`/ticker/${payload?.ticker ?? ticker}`)}`;
+      window.location.href = `/auth?next=${encodeURIComponent(companyPath(payload?.ticker ?? ticker))}`;
       return;
     }
 
@@ -745,23 +752,23 @@ export function TickerPage({ ticker }: { ticker: string }) {
     }
   }
 
-  if (!payload) {
-    return (
-      <main className="mx-auto w-full max-w-4xl px-4 py-8 text-sm text-slate-300">
-        {error ?? "Loading ticker..."}
-      </main>
-    );
-  }
-
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      <section className="rounded-2xl border border-cyan-500/25 bg-slate-900/70 p-5">
+      <div className="mb-5 flex items-center gap-2 text-sm text-slate-400">
+        <Link href="/companies" className="hover:text-cyan-200">Companies</Link>
+        <span aria-hidden="true">/</span><span className="text-slate-200">{companyName}</span>
+      </div>
+      <section className="relative overflow-hidden rounded-2xl border border-cyan-500/25 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950/60 p-6 sm:p-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Company</p>
-            <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300">Company intelligence</p>
+            <h1 className="mt-3 font-[var(--font-sora)] text-3xl font-semibold tracking-tight text-white sm:text-5xl">{companyName}</h1>
+            <div className="mt-4 flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 font-semibold text-cyan-100">{displayTicker}</span>
+              {sector ? <span className="rounded-full border border-white/15 px-3 py-1.5 text-slate-300">{sector}</span> : null}
+            </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-              Public calls, watchlists, and institutional 13F context for {displayTicker}.
+              {description ?? `Explore ${companyName}'s business relationships, ownership, and market activity.`}
             </p>
           </div>
           <div className="w-full lg:max-w-md">
@@ -797,7 +804,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
                   <button
                     type="button"
                     onClick={() => void recordPosition("UP")}
-                    disabled={authLoading || recordingDirection !== null}
+                    disabled={authLoading || !payload || recordingDirection !== null}
                     className="rounded-xl border border-emerald-400/40 bg-emerald-400/15 px-4 py-3 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/25 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {recordingDirection === "UP" ? "Recording..." : "Bullish · Long"}
@@ -805,7 +812,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
                   <button
                     type="button"
                     onClick={() => void recordPosition("DOWN")}
-                    disabled={authLoading || recordingDirection !== null}
+                    disabled={authLoading || !payload || recordingDirection !== null}
                     className="rounded-xl border border-rose-400/40 bg-rose-400/15 px-4 py-3 text-sm font-semibold text-rose-100 hover:bg-rose-400/25 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {recordingDirection === "DOWN" ? "Recording..." : "Bearish · Short"}
@@ -819,31 +826,44 @@ export function TickerPage({ ticker }: { ticker: string }) {
         </div>
       </section>
 
-      <InsiderTransactionsSection
-        displayTicker={displayTicker}
-        error={insiderError}
-        transactions={insiderTransactions}
-      />
+      <nav aria-label="Company sections" className="mt-5 flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-slate-900/60 p-2 text-sm">
+        {[ ["relationships", "Relationships"], ["ownership", "Institutional ownership"], ["insiders", "Insider activity"], ["community", "Community calls"] ].map(([id, label]) => (
+          <a key={id} href={`#${id}`} className="shrink-0 rounded-lg px-4 py-2 text-slate-200 transition hover:bg-cyan-400/10 hover:text-cyan-200">{label}</a>
+        ))}
+      </nav>
 
-      <InstitutionalHoldingsSection
-        key={payload.ticker}
-        displayTicker={displayTicker}
-        summary={holdings}
-        error={holdingsError}
-      />
+      <CompanyRelationships key={ticker} ticker={ticker} companyName={companyName} />
 
-      <section className="mt-4 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
+      <div id="ownership" className="scroll-mt-28">
+        <InstitutionalHoldingsSection
+          key={ticker}
+          displayTicker={displayTicker}
+          summary={holdings}
+          error={holdingsError}
+        />
+      </div>
+
+      <div id="insiders" className="scroll-mt-28">
+        <InsiderTransactionsSection
+          displayTicker={displayTicker}
+          error={insiderError}
+          transactions={insiderTransactions}
+        />
+      </div>
+
+      <section id="community" className="mt-4 scroll-mt-28 rounded-2xl border border-white/15 bg-slate-950/55 p-5">
         <h2 className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100">Community position history</h2>
         <p className="mb-3 mt-1 text-sm text-slate-400">See who turned bullish or bearish, when their position opened, and how it has performed.</p>
         <div className="grid gap-2">
-          {payload.items.map((prediction) => (
+          {!payload ? <p role={error ? "alert" : "status"} className="py-4 text-sm text-slate-300">{error ?? "Loading community calls…"}</p> : null}
+          {payload?.items.map((prediction) => (
             <article
               key={prediction.id}
               className="rounded-xl border border-white/10 p-4 hover:border-cyan-300/60"
             >
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <Link
-                  href={`/ticker/${payload.ticker}`}
+                  href={companyPath(payload.ticker)}
                   className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
                   aria-label={`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${payload.ticker}`}
                 >
@@ -862,14 +882,14 @@ export function TickerPage({ ticker }: { ticker: string }) {
             </article>
           ))}
 
-          {payload.items.length === 0 ? (
+          {payload?.items.length === 0 ? (
             <p className="rounded-xl border border-dashed border-white/20 p-5 text-sm text-slate-300">
               No community positions for {displayTicker} yet. Be the first to record your view.
             </p>
           ) : null}
         </div>
 
-        {payload.nextCursor ? (
+        {payload?.nextCursor ? (
           <div className="mt-4 flex justify-center">
             <button
               type="button"
@@ -882,7 +902,7 @@ export function TickerPage({ ticker }: { ticker: string }) {
           </div>
         ) : null}
 
-        {error && payload.items.length > 0 ? (
+        {error && payload ? (
           <p className="mt-3 text-center text-sm text-rose-200">{error}</p>
         ) : null}
       </section>

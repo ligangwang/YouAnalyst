@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -216,7 +217,7 @@ export function AdminCompanyGraphRequestsPage() {
 
               <div className="flex flex-col gap-2 sm:flex-row lg:items-center">
                 <Link
-                  href={`/ticker/${encodeURIComponent(item.ticker)}`}
+                  href={companyPath(item.ticker)}
                   className="rounded-lg border border-white/15 px-4 py-2 text-center text-sm font-semibold text-slate-100 hover:border-cyan-300/60"
                 >
                   View ticker

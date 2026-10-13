@@ -4,19 +4,22 @@ import CompaniesPage from "@/app/companies/page";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Company search | YouAnalyst",
-  description: "Search a company, ticker, or institution on YouAnalyst.",
+  title: "YouAnalyst | Stock Research, Predictions, Watchlists, and Ownership Signals",
+  description:
+    "Search public companies, publish stock predictions, compare analyst track records, and research institutional ownership, insider activity, and watchlists.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Company search | YouAnalyst",
-    description: "Search a company, ticker, or institution on YouAnalyst.",
+    title: "YouAnalyst | Stock Research, Predictions, Watchlists, and Ownership Signals",
+    description:
+      "Search public companies, publish stock predictions, compare analyst track records, and research institutional ownership, insider activity, and watchlists.",
     url: "/",
   },
   twitter: {
-    title: "Company search | YouAnalyst",
-    description: "Search a company, ticker, or institution on YouAnalyst.",
+    title: "YouAnalyst | Stock Research, Predictions, Watchlists, and Ownership Signals",
+    description:
+      "Search public companies, publish stock predictions, compare analyst track records, and research institutional ownership, insider activity, and watchlists.",
   },
 };
 

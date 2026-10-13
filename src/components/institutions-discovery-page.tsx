@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { FollowedInstitutionActivityPanel } from "@/components/followed-institution-activity-panel";
@@ -220,7 +221,7 @@ export function InstitutionsDiscoveryPage({ initialSummary }: { initialSummary: 
             <article key={`${activity.ticker}_${activity.reportDate}`} className="rounded-xl border border-white/10 bg-slate-900/60 p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <Link href={`/ticker/${activity.ticker}`} className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100 hover:text-cyan-300">
+                  <Link href={companyPath(activity.ticker)} className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100 hover:text-cyan-300">
                     {activity.ticker}
                   </Link>
                   <p className="mt-1 text-sm text-slate-400">{activity.nameOfIssuer}</p>

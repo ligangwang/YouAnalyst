@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatTickerSymbol, PredictionAuthorSummary, PredictionReturnSummary } from "@/components/prediction-ui";
@@ -150,7 +151,7 @@ export function PredictionsFeed() {
             >
               <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <Link
-                  href={`/ticker/${item.ticker}`}
+                  href={companyPath(item.ticker)}
                   className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
                   aria-label={`${item.direction === "UP" ? "Up" : "Down"} prediction for ${item.ticker}`}
                 >

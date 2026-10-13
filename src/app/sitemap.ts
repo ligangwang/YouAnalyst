@@ -1,12 +1,19 @@
+import { companyDirectory, companyPath } from "@/lib/companies";
 import type { MetadataRoute } from "next";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { normalizeTicker } from "@/lib/predictions/types";
 import { absoluteUrl } from "@/lib/seo";
+import { researchPages } from "@/lib/research-content";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 3600;
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
+  ...companyDirectory.map((company) => ({
+    url: absoluteUrl(companyPath(company.symbol)),
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+  })),
   {
     url: absoluteUrl("/"),
     changeFrequency: "hourly",
@@ -27,6 +34,16 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
     changeFrequency: "daily",
     priority: 0.8,
   },
+  {
+    url: absoluteUrl("/research"),
+    changeFrequency: "monthly",
+    priority: 0.7,
+  },
+  ...researchPages.map((page) => ({
+    url: absoluteUrl(`/research/${page.slug}`),
+    changeFrequency: "monthly" as const,
+    priority: 0.7,
+  })),
   {
     url: absoluteUrl("/institutions"),
     changeFrequency: "daily",
@@ -89,9 +106,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }
 
       const ticker = typeof data.ticker === "string" ? normalizeTicker(data.ticker) : "";
-      if (ticker && !tickerRoutes.has(ticker)) {
+      if (ticker && !tickerRoutes.has(ticker) && !companyDirectory.some((company) => company.symbol === ticker)) {
         tickerRoutes.set(ticker, {
-          url: absoluteUrl(`/ticker/${ticker}`),
+          url: absoluteUrl(companyPath(ticker)),
           lastModified: toIsoDate(data.updatedAt ?? data.createdAt),
           changeFrequency: "hourly",
           priority: 0.7,

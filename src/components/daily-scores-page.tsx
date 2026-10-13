@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatCashtag, formatTickerSymbol } from "@/components/prediction-ui";
@@ -313,7 +314,7 @@ function InstitutionalMoveCard({
   return (
     <article className="rounded-lg border border-white/10 p-3">
       <div>
-        <Link href={`/ticker/${encodeURIComponent(move.ticker)}`} className="min-w-0 hover:text-cyan-100">
+        <Link href={companyPath(move.ticker)} className="min-w-0 hover:text-cyan-100">
           <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">{formatTickerSymbol(move.ticker)}</p>
           <p className="mt-1 truncate text-xs text-slate-400">{move.nameOfIssuer}</p>
         </Link>
@@ -355,7 +356,7 @@ function InsiderMoveCard({
   return (
     <article className="rounded-lg border border-white/10 p-3">
       <div>
-        <Link href={`/ticker/${encodeURIComponent(move.ticker)}`} className="min-w-0 hover:text-cyan-100">
+        <Link href={companyPath(move.ticker)} className="min-w-0 hover:text-cyan-100">
           <p className="font-[var(--font-sora)] text-lg font-semibold text-cyan-100">{formatTickerSymbol(move.ticker)}</p>
           <p className="mt-1 truncate text-xs text-slate-400">{move.issuerName}</p>
         </Link>

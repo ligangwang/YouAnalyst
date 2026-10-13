@@ -100,6 +100,10 @@ export default function RootLayout({
                 <Link href="/feedback" className="font-medium text-cyan-200 underline-offset-2 hover:underline">
                   Share thoughts
                 </Link>
+                <span className="mx-2 text-slate-600">|</span>
+                <Link href="/research" className="font-medium text-cyan-200 underline-offset-2 hover:underline">
+                  Research guides
+                </Link>
               </div>
               <p className="mt-2 text-slate-500">Copyright {new Date().getFullYear()} YouAnalyst. All rights reserved.</p>
             </div>

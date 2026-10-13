@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import { FormEvent, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { SearchSuggestion, TickerSearchInput } from "@/components/ticker-search-input";
@@ -37,7 +38,7 @@ export function CompanySearchCard() {
     if (selectedTicker?.symbol) {
       setError(null);
       startTransition(() => {
-        router.push(`/ticker/${encodeURIComponent(selectedTicker.symbol)}`);
+        router.push(companyPath(selectedTicker.symbol));
       });
       return;
     }
@@ -62,7 +63,7 @@ export function CompanySearchCard() {
 
     setError(null);
     startTransition(() => {
-      router.push(`/ticker/${encodeURIComponent(normalizedTicker)}`);
+      router.push(companyPath(normalizedTicker));
     });
   }
 

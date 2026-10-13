@@ -1,36 +1,14 @@
-import type { Metadata } from "next";
-import { TickerPage } from "@/components/ticker-page";
-import { normalizeTicker } from "@/lib/predictions/types";
+import { permanentRedirect } from "next/navigation";
+import { companyPath } from "@/lib/companies";
 
-export async function generateMetadata({
-  params,
-}: {
+export default async function LegacyTickerPage({ params, searchParams }: {
   params: Promise<{ symbol: string }>;
-}): Promise<Metadata> {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { symbol } = await params;
-  const ticker = normalizeTicker(symbol);
-  const title = `${ticker} institutional holdings | YouAnalyst`;
-  const description = `Explore ${ticker} public calls, watchlists, and institutional 13F holding changes on YouAnalyst.`;
-
-  return {
-    title,
-    description,
-    alternates: {
-      canonical: `/ticker/${ticker}`,
-    },
-    openGraph: {
-      title,
-      description,
-      url: `/ticker/${ticker}`,
-    },
-    twitter: {
-      title,
-      description,
-    },
-  };
-}
-
-export default async function TickerRoutePage({ params }: { params: Promise<{ symbol: string }> }) {
-  const { symbol } = await params;
-  return <TickerPage ticker={symbol} />;
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams)) {
+    for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) query.append(key, item);
+  }
+  permanentRedirect(`${companyPath(symbol)}${query.size ? `?${query}` : ""}`);
 }

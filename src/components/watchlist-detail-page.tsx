@@ -1,5 +1,6 @@
 "use client";
 
+import { companyPath } from "@/lib/companies";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatTickerSymbol, PredictionReturnSummary } from "@/components/prediction-ui";
@@ -131,7 +132,7 @@ function PredictionRow({ prediction }: { prediction: WatchlistPrediction }) {
   return (
     <article className="rounded-xl border border-white/10 bg-slate-950/55 p-4">
       <Link
-        href={`/ticker/${prediction.ticker}`}
+        href={companyPath(prediction.ticker)}
         className="flex w-fit items-center gap-1 text-base font-semibold text-cyan-200 hover:text-cyan-100"
         aria-label={`${prediction.direction === "UP" ? "Up" : "Down"} prediction for ${prediction.ticker}`}
       >
