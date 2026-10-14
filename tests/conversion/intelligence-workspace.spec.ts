@@ -1404,7 +1404,7 @@ for(const chinese of [false,true])test(`Explore text-to-search is quiet, ignores
  await expect(dialog.getByRole('combobox')).toHaveValue('m');await expect(dialog.getByRole('combobox')).toBeFocused();
  await expect(dialog).not.toContainText('↑');await expect(dialog).not.toContainText('Chinese / pinyin');
  await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
- const button=page.getByRole('button',{name,exact:true});await expect(button).toHaveAttribute('title',chinese?'输入即可搜索':'Type to search');
+ const button=page.getByRole('button',{name,exact:true});await expect(button).toHaveAttribute('title',name);
  await button.click();await expect(dialog.getByRole('combobox')).toBeFocused();
  if(info.project.name==='mobile')expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
  await dialog.getByRole('combobox').fill('meiguang');await expect(dialog.getByRole('option')).toBeVisible();
