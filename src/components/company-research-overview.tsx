@@ -1,6 +1,5 @@
 import { companyPageUrl } from "@/lib/market-companies/routes";
 import { CompanyHeading } from "./company-heading";
-import { CompanyQuote } from "./company-quote";
 import { CompanyResearchPanel } from "./company-research-panel";
 import { CompanyFollowButton } from "./company-follow-button";
 import type { KnowledgeGraph } from "@/lib/knowledge-graph/model";
@@ -24,9 +23,15 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
       <nav aria-label="Breadcrumb" className="mb-4 flex flex-wrap gap-2 text-sm text-cyan-200">
         <Link href="/">YouAnalyst</Link><span aria-hidden="true">/</span><Link href="/companies"><UiText text={"Companies"} /></Link><span aria-hidden="true">/</span><span className="text-slate-300">{company.ticker}</span>
       </nav>
-      <p className="text-sm font-semibold text-cyan-300"><UiText text={"Company research"} /></p>
       <CompanyHeading name={company.name} names={company.names} ticker={company.ticker} country={company.country} />
-      {company.listingStatus !== "PRIVATE" && <CompanyQuote ticker={company.ticker} exchange={company.exchange} />}
+      <section id="company-information" className="scroll-mt-24 py-6">
+        <dl className="flex flex-wrap gap-x-8 gap-y-4 text-sm">
+          {facts.map(([label, value]) => <div key={label}><dt className="text-slate-400"><UiText text={label} /></dt><dd className="mt-1 font-medium text-slate-100">{value}</dd></div>)}
+          {company.sector && <div><dt className="text-slate-400"><UiText text="Industry roles" /></dt><dd className="mt-1 font-medium text-slate-100"><UiText text={company.sector.en} /></dd></div>}
+        </dl>
+        {company.listingUpdatedAt && <details className="mt-3 text-xs text-slate-400"><summary className="cursor-pointer"><UiText text="Listing source history" /></summary><p className="mt-2"><UiText text={"Listing data synced "} />{company.listingUpdatedAt.slice(0, 10)}. <UiText text="This is the listing record date, separate from quote updates." /></p></details>}
+        <CompanyProfileDetails profile={company.profile} />
+      </section>
       <CompanyResearchTimeline company={graph?.nodes.find(n => n.id === `US:${company.ticker}`) ?? { id: `US:${company.ticker}`, kind: "COMPANY", order: 0, name: company.name, names: company.names, symbol: company.ticker, country: company.country ?? undefined, market: "US", listingStatus: company.listingStatus === "PRIVATE" ? "PRIVATE" : "PUBLIC" }} graph={graph} />
       {!company.known && <p className="mt-3 text-sm text-slate-400"><UiText text={"Company listing details are not available for this symbol."} /></p>}
       {!graph && company.known && <div className="mt-4"><CompanyFollowButton companyId={`US:${company.ticker}`} /></div>}
@@ -43,13 +48,6 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
     {fundamentals}
-    <section id="company-information" className="scroll-mt-24 py-6">      <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-4 text-sm">
-        {facts.map(([label, value]) => <div key={label}><dt className="text-slate-400"><UiText text={label} /></dt><dd className="mt-1 font-medium text-slate-100">{value}</dd></div>)}
-        {company.sector && <div><dt className="text-slate-400"><UiText text="Industry roles" /></dt><dd className="mt-1 font-medium text-slate-100"><UiText text={company.sector.en} /></dd></div>}
-      </dl>
-      {company.listingUpdatedAt && <details className="mt-3 text-xs text-slate-400"><summary className="cursor-pointer"><UiText text="Listing source history" /></summary><p className="mt-2"><UiText text={"Listing data synced "} />{company.listingUpdatedAt.slice(0, 10)}. <UiText text="This is the listing record date, separate from quote updates." /></p></details>}
-<CompanyProfileDetails profile={company.profile} /></section>
-
     {!graph && company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker}<UiText text={" suppliers, customers and partners"} /></h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? <UiText text={`${company.connections.length} relationships in the loaded sources. `} /> : ""}<UiText text={"Published relationships from the AI Map, with links to their supporting sources. Source dates do not establish whether a relationship remains active."} /></p>

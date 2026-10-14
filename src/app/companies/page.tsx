@@ -5,7 +5,6 @@ import type { Metadata } from "next";
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { CompanySearchCard } from "@/components/company-search-card";
 import { MostConnectedCompanies } from "@/components/most-connected-companies";
-import { MarketTicker } from "@/components/market-ticker";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +37,6 @@ const suggestedCompanies = [
 
 export default function CompaniesPage() {
   return (
-    <>
-    <MarketTicker />
     <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4 pt-10 pb-8 sm:pt-16 lg:pt-20">
       <h1 className="sr-only"><UiText text="Company search" /></h1>
       <section className="w-full">
@@ -62,6 +59,5 @@ export default function CompaniesPage() {
 
       <MostConnectedCompanies />
     </main>
-    </>
   );
 }

@@ -8,7 +8,7 @@ import { readFile } from "node:fs/promises";
 const origin = "http://company.test";
 let html: string;
 for (const hasHistory of [true, false]) {
-  test(`company chart is ${hasHistory ? "below the quote" : "hidden without price history"}`, async ({ page }) => {
+  test(`company chart is ${hasHistory ? "below company basics without a quote widget" : "hidden without price history"}`, async ({ page }) => {
     let priceRequests = 0;
     await page.route("**/*", route => {
       const url = new URL(route.request().url());
@@ -27,12 +27,14 @@ for (const hasHistory of [true, false]) {
     if (hasHistory) {
       await expect(chart).toBeVisible();
       await expect(card).toBeVisible();
-      expect(await card.evaluate(el => el.previousElementSibling?.getAttribute("aria-label"))).toBe("Stock quote");
+      expect(await card.evaluate(el => el.previousElementSibling?.id)).toBe("company-information");
       await expect(chart.locator("[data-volume-bar]")).toHaveCount(1);
     } else {
       await expect(card).toBeHidden();
       await expect(page.getByRole("heading", { name: "Events, price & volume", exact: true })).toBeHidden();
     }
+    await expect(page.locator('[aria-label="Stock quote"]')).toHaveCount(0);
+    await expect(page.locator('script[src*="tradingview"], iframe[src*="tradingview"]')).toHaveCount(0);
   });
 }
 test.beforeAll(async () => {
