@@ -49,13 +49,19 @@
 
 .chartModes {display:flex;gap:2px;}
 .chartModes button {padding:3px 6px;font-size:11px;}
-.tools {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0;font-size:12px;}
+.tools {display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:8px 0;font-size:12px;}
 .tools label {display:flex;align-items:center;gap:4px;}
 .tools a {display:inline-flex;align-items:center;min-height:32px;padding:4px 7px;border:1px solid var(--ui-line,#354c60);border-radius:5px;color:var(--ui-text,#dbeaf6);font-size:11px;text-decoration:none;}
 .tools select,.indicatorControls button {min-height:32px;padding:4px 7px;border:1px solid var(--ui-line,#354c60);border-radius:5px;background:var(--ui-surface,#0a1522);color:var(--ui-text,#dbeaf6);font-size:11px;}
 .indicatorControls {display:flex;flex-wrap:wrap;gap:4px;}
-.indicatorSwitches {display:flex;flex-wrap:wrap;gap:12px;width:100%;}
-.zoomHint {display:flex;align-items:center;gap:8px;color:var(--ui-muted,#9db4c8);font-size:11px;}
+.indicatorSwitches {display:flex;flex-wrap:wrap;gap:4px;}
+/* Scope icon styles to chart controls, never the nested company search dialog. */
+.tools .iconButton {display:inline-grid;place-items:center;flex-shrink:0;width:36px;min-width:36px;height:36px;min-height:36px;padding:6px;border:1px solid var(--ui-line,#354c60);border-radius:5px;background:var(--ui-surface,#0a1522);color:var(--ui-text,#dbeaf6);cursor:pointer;box-sizing:border-box;}
+.tools .iconButton[aria-pressed=true] {background:var(--ui-selected,#24516a);border-color:var(--ui-muted,#79cfe9);}
+.tools .iconButton svg {display:block;width:18px;height:18px;}
+.tools select {height:36px;max-width:120px;}
+.tools .iconButton:focus-visible,.tools select:focus-visible {outline:2px solid var(--selection-outline,#a7e9fa);outline-offset:2px;}
+@media(pointer:coarse){.tools .iconButton{width:44px;min-width:44px;height:44px;min-height:44px;}}
 .maSettings {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 .maSettings p,.maSettings button {grid-column:1/-1;}
 .maSettings label {display:flex;align-items:center;gap:6px;}
