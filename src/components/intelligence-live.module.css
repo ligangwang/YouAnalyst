@@ -53,7 +53,11 @@
 .timelineDock{flex-shrink:0;max-height:min(340px,calc(100% - 330px));min-width:0;overflow:auto;scrollbar-width:thin;scrollbar-color:#314354 transparent}
 .timelineDock>p{display:flex;align-items:center;gap:8px;padding:12px}
 .graphViewport{display:contents;}
-.sizeToolbar{display:flex;justify-content:flex-end;padding:3px 10px;background:var(--ui-surface,#0a1522);flex-shrink:0;}
+.unifiedToolbar.unifiedToolbar{gap:6px 12px;}
+.unifiedToolbar>div:nth-child(2){margin-left:auto;}
+.unifiedToolbar.unifiedToolbar>.sizeToolbar{display:flex;align-items:center;justify-content:flex-end;gap:4px;padding:0;margin-left:0;background:transparent;flex-shrink:0;}
+.unifiedToolbar.unifiedToolbar>.sizeToolbar>[data-company-search-owner]{display:inline-flex;}
+.unifiedToolbar .sizeToolbar span:where(:not([data-company-search] *)){font-size:inherit;color:inherit;}
 .graphStage{display:contents;}
 .graphViewport[data-chart-size=half]{display:flex;flex-direction:column;min-height:320px;flex-shrink:0;}
 .graphViewport[data-chart-size=half]>.graphStage{display:flex;flex-direction:column;height:50dvh;min-height:320px;flex-shrink:0;}

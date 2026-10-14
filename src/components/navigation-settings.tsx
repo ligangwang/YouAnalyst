@@ -14,7 +14,7 @@ export function useNavigationSettings(){
 export function NavigationSettings({compact=false}:{compact?:boolean}={}){
  const {text}=useLocale(),settings=useNavigationSettings();
  return <div className={`${styles.controls} ${compact?styles.compact:''}`}>
-  <label>{compact?text('Speed','速度'):text('Tour speed','巡视速度')} <select aria-label={text('Tour speed','巡视速度')} value={settings.selectedSpeed} onChange={e=>{speed=Number(e.target.value);try{localStorage.setItem('ya-navigation-speed',String(speed));}catch{}window.dispatchEvent(new Event(event));}}>
+  <label>{!compact&&<>{text('Tour speed','巡视速度')} </>}<select aria-label={text('Tour speed','巡视速度')} title={text('Tour speed','巡视速度')} value={settings.selectedSpeed} onChange={e=>{speed=Number(e.target.value);try{localStorage.setItem('ya-navigation-speed',String(speed));}catch{}window.dispatchEvent(new Event(event));}}>
    {([[.5,'Slow','慢速'],[1,'Normal','正常'],[1.5,'Fast','快速'],[2,'Very fast','很快']] as const).map(([value,en,zh])=><option key={value} value={value}>{compact?`${value}×`:`${text(en,zh)} · ${value}×`}</option>)}
   </select></label>
  </div>;
