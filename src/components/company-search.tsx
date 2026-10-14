@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import type { SearchSuggestion } from './ticker-search-input';
 import { useLocale } from './providers/locale-provider';
@@ -16,10 +16,14 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const input = useRef<HTMLInputElement>(null), panel = useRef<HTMLDivElement>(null), previousFocus = useRef<HTMLElement | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId(), composing = useRef(false);
+  const queuedQuery = useRef<string | null>(null), destination = useRef({onSelect, locale});
+  useEffect(() => { destination.current = {onSelect, locale}; }, [onSelect, locale]);
   const searched = query.normalize('NFKC').trim().replace(/^\$/, '');
   const items = results?.query === searched ? results.items : [];
-  function close() { setOpen(false); if (previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }
+  const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, []);
+  const choose = useCallback((item: SearchSuggestion) => { close(); const current = destination.current; if (current.onSelect) current.onSelect(item); else location.assign(localizedPath(companyPageUrl(item.market === 'GLOBAL' ? item.id : item.symbol, item.market, item.slug), current.locale)); }, [close]);
   function show(initial = '') {
+    queuedQuery.current = null; composing.current = false;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     flushSync(() => { setQuery(initial); setResults(null); setActive(0); setError(false); setBusy(false); setOpen(true); });
     input.current?.focus({ preventScroll: true });
@@ -53,13 +57,12 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     const timer = setTimeout(() => {
       setBusy(true); setError(false);
       void fetch('/api/tickers/search?' + new URLSearchParams({ q: searched, limit: '8', scope: 'all' }), { signal: controller.signal })
-        .then(async response => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) { setResults({ query: searched, items: data.items ?? [] }); setActive(0); } })
+        .then(async response => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) { const matches: SearchSuggestion[] = data.items ?? []; setResults({ query: searched, items: matches }); setActive(0); if (queuedQuery.current === searched) { queuedQuery.current = null; if (matches[0]) choose(matches[0]); } } })
         .catch(() => { if (!controller.signal.aborted) { setError(true); setResults(null); } })
         .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     }, 180);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [open, searched]);
-  const choose = (item: SearchSuggestion) => { close(); if (onSelect) onSelect(item); else location.assign(localizedPath(companyPageUrl(item.market === 'GLOBAL' ? item.id : item.symbol, item.market, item.slug), locale)); };
+  }, [open, searched, choose]);
   if (!enabled) return null;
   const dialog = open && <div className={styles.backdrop} data-company-search data-stock-search onPointerDown={event => { if (event.target === event.currentTarget) close(); }}>
       <div ref={panel} className={styles.panel} role="dialog" aria-modal="true" aria-label={text('Search company', '搜索公司')} onKeyDown={event => {
@@ -74,11 +77,11 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
         <header><strong>{text('Search company', '搜索公司')}</strong><button type="button" aria-label={text('Close company search', '关闭公司搜索')} onClick={close}>×</button></header>
         <input ref={input} value={query} maxLength={120} role="combobox" aria-label={text('Search company', '搜索公司')} aria-autocomplete="list" aria-expanded={items.length > 0} aria-controls={listId} aria-activedescendant={items[active] ? `${listId}-${active}` : undefined}
           placeholder={text('Search company', '搜索公司')}
-          onChange={event => { setQuery(event.target.value); setActive(0); setError(false); }} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
+          onChange={event => { queuedQuery.current = null; setQuery(event.target.value); setActive(0); setError(false); }} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
           onKeyDown={event => {
             if (composing.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); event.stopPropagation(); if (items.length) setActive(index => (index + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length); }
-            if (event.key === 'Enter' && items[active]) { event.preventDefault(); event.stopPropagation(); choose(items[active]); }
+            if (event.key === 'Enter' && searched) { event.preventDefault(); event.stopPropagation(); if (items[active]) choose(items[active]); else queuedQuery.current = searched; }
           }} />
         <div id={listId} role="listbox" aria-label={text('Matching companies', '匹配公司')}>{items.map((item, index) => <button id={`${listId}-${index}`} key={item.id} type="button" role="option" aria-selected={active === index} onPointerMove={() => setActive(index)} onClick={() => choose(item)}><strong>{item.name}</strong><span>{item.symbol} · {item.market ?? ''} {item.exchange ?? ''}</span></button>)}</div>
         {error ? <p role="alert">{text('Search unavailable. Try again.', '搜索暂时不可用，请重试。')}</p> : busy && searched ? <p role="status">{text('Searching…', '搜索中…')}</p> : searched && results?.query === searched && !items.length ? <p role="status">{text('No matching companies.', '没有匹配的公司。')}</p> : null}

@@ -112,3 +112,15 @@ test("the AI map's most-connected companies link to their company pages", async 
   expect(counts.map(Number)).toEqual([...counts.map(Number)].sort((a, b) => b - a));
   await page.screenshot({ path: testInfo.outputPath("companies.png"), fullPage: true });
 });
+
+test('Enter before suggestions arrive opens the best match once the pending request completes',async({page})=>{
+ await open(page,'',600);await launch(page);await input(page).fill('nvidia');await input(page).press('Enter');
+ await expect(page.getByText('Destination /en/company/nvidia',{exact:true})).toBeVisible();
+});
+test('editing or dismissing a pending Enter never opens a stale company',async({page})=>{
+ const searches=await open(page,'',600);await launch(page);await input(page).fill('nvidia');
+ await expect.poll(()=>searches.length).toBe(1);await input(page).press('Enter');await input(page).fill('openai');
+ await expect(page.getByRole('option',{name:/OpenAI/})).toBeVisible();await expect(page).toHaveURL(`${origin}/`);
+ await input(page).fill('nvidia');await input(page).press('Enter');await input(page).press('Escape');
+ await page.waitForTimeout(800);await expect(page).toHaveURL(`${origin}/`);await expect(input(page)).toHaveCount(0);
+});

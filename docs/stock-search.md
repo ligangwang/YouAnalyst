@@ -2,7 +2,7 @@
 
 Explore, Companies and fullscreen charts share the same Search company / 搜索公司 dialog. Explore no longer renders a sidebar text field. A small magnifier button is available on desktop and mobile; Type to search / 输入即可搜索 is only its hover title. There is no permanent keyboard or language hint.
 
-On Explore and Companies, ordinary text starts lookup with its first character preserved. On a fullscreen chart, that chart owns lookup. Arrows, Enter, Escape, Tab, function keys, Ctrl/Alt/Cmd combinations and editable controls do not launch it. IME composition focuses a real input without consuming composition keys. Suggestions support Chinese names, full pinyin, initials, English names and codes. Enter selects; Escape closes lookup while retaining fullscreen.
+On Explore and Companies, ordinary text starts lookup with its first character preserved. On a fullscreen chart, that chart owns lookup. Arrows, Enter, Escape, Tab, function keys, Ctrl/Alt/Cmd combinations and editable controls do not launch it. IME composition focuses a real input without consuming composition keys. Suggestions support Chinese names, full pinyin, initials, English names and codes. Enter selects (or waits for the pending best match); editing or dismissing cancels that pending selection. Escape closes lookup while retaining fullscreen.
 
 ## Indexes
 
