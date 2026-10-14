@@ -313,17 +313,19 @@ test("industry graph is retired and identifies the shared replacement", async ({
 
 test("company search remains available", async ({ page }) => {
   await page.goto("/companies");
+  await page.waitForLoadState('networkidle');
 
-  const search = page.getByRole('main').getByRole('button', { name: 'Search company', exact: true });
-  await search.click();
-  const dialog = page.getByRole('dialog', { name: 'Search company', exact: true });
-  const input = dialog.getByRole('combobox', { name: 'Search company', exact: true });
+  const input = page.getByRole('main').getByRole('combobox', { name: 'Search company', exact: true });
+  await expect(input).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Search company', exact: true })).toHaveCount(0);
+  await input.click();
   await expect(input).toBeFocused();
   await input.fill('NVIDIA');
-  await expect(dialog.getByRole('option').filter({ hasText: 'NVDA' }).first()).toBeVisible();
+  await expect(page.getByRole('main').getByRole('option').filter({ hasText: 'NVDA' }).first()).toBeVisible();
   await input.press('Escape');
-  await expect(dialog).toHaveCount(0);
-  await expect(search).toBeFocused();
+  await expect(page.getByRole('option')).toHaveCount(0);
+  await expect(input).toBeVisible();
+  await expect(input).toBeFocused();
   await expect(page.getByTestId("company-graph-chip").first()).toBeVisible();
 });
 
