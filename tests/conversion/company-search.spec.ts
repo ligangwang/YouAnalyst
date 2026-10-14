@@ -152,3 +152,11 @@ test('embedded search accepts Chinese IME and pinyin without selecting during co
  await input(page).fill('ywd');await expect(page.getByRole('option')).toHaveCount(2);
  await input(page).press('Enter');await expect(page.getByText('Destination /zh-cn/company/nvidia',{exact:true})).toBeVisible();
 });
+
+test('typing from below the embedded field scrolls it into view',async({page})=>{
+ await open(page);await page.addStyleTag({content:'#root{padding-top:1200px}'});
+ await page.evaluate(()=>window.scrollTo(0,1400));
+ await page.keyboard.type('nvidia');await expect(input(page)).toHaveValue('nvidia');await expect(input(page)).toBeFocused();
+ const field=(await input(page).boundingBox())!;
+ expect(field.y).toBeGreaterThanOrEqual(0);expect(field.y+field.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+});

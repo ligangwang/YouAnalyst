@@ -26,7 +26,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     queuedQuery.current = null; composing.current = false;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     flushSync(() => { setQuery(initial); setResults(null); setActive(0); setError(false); setBusy(false); setOpen(true); });
-    input.current?.focus({ preventScroll: true });
+    input.current?.focus({ preventScroll: !inline });
   }
   function preferredTrigger() {
     const full = [...document.querySelectorAll<HTMLElement>('[data-chart-size="full"]')].filter(element => element.getClientRects().length && !element.closest('[inert]')).at(-1);
