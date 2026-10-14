@@ -60,6 +60,8 @@ test('icon toolbar fits wide screens, wraps on phones and exposes help and MA co
   const original=page.viewportSize()!;
   for(const width of [1600,390]){
     await page.setViewportSize({width,height:900});
+    // Marker coordinates follow ResizeObserver; wait for its React update before measuring overflow.
+    await expect.poll(()=>page.locator('svg[role="img"]').evaluate(svg=>Math.abs(Number(svg.getAttribute('viewBox')?.split(' ')[2])-svg.getBoundingClientRect().width))).toBeLessThan(1);
     const bounds=await toolbar.evaluate(element=>({rows:new Set(Array.from(element.querySelectorAll(':scope > *, :scope > div > button')).map(child=>Math.round(child.getBoundingClientRect().top))).size,overflow:document.documentElement.scrollWidth>innerWidth}));
     expect(bounds.overflow).toBe(false);
     if(width===1600)expect(bounds.rows).toBe(1);
