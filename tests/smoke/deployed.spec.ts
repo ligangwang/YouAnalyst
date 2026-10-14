@@ -314,9 +314,16 @@ test("industry graph is retired and identifies the shared replacement", async ({
 test("company search remains available", async ({ page }) => {
   await page.goto("/companies");
 
-  // General search remains separate from the industry map.
-  await expect(page.getByRole("combobox", { name: "Company or ticker" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Go" })).toBeVisible();
+  const search = page.getByRole('main').getByRole('button', { name: 'Search company', exact: true });
+  await search.click();
+  const dialog = page.getByRole('dialog', { name: 'Search company', exact: true });
+  const input = dialog.getByRole('combobox', { name: 'Search company', exact: true });
+  await expect(input).toBeFocused();
+  await input.fill('NVIDIA');
+  await expect(dialog.getByRole('option').filter({ hasText: 'NVDA' }).first()).toBeVisible();
+  await input.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(search).toBeFocused();
   await expect(page.getByTestId("company-graph-chip").first()).toBeVisible();
 });
 
