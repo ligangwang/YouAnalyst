@@ -227,7 +227,7 @@ export function SiteNav() {
               <MoreMenu admin={showAdminLink} />
             </div>
             <LanguageSwitch />
-            <CompanySearch typeToSearch={pathname==='/'||pathname==='/companies'} />
+            <CompanySearch iconOnly typeToSearch={pathname==='/'||pathname==='/companies'} />
             {loading ? (
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-700" />
             ) : user ? (
