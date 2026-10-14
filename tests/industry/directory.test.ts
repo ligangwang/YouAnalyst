@@ -43,7 +43,7 @@ const publishedGraph: KnowledgeGraph = {
   asOf: "2026-09-15", nodes: [
     { id: "US:AMD", kind: "COMPANY", name: "AMD", symbol: "AMD", market: "US", order: 0, stageIds: ["compute"] },
     { id: "XSHG:688041", kind: "COMPANY", name: "Hygon", symbol: "688041", market: "CN_A", order: 1 },
-    { id: "ORG:private", kind: "COMPANY", name: "Private Company", market: "GLOBAL", order: 2 },
+    { id: "ORG:private", kind: "COMPANY", name: "Private Company", slug: "private-company", market: "GLOBAL", order: 2 },
     { id: "stage:compute", kind: "STAGE", order: 3 },
   ],
   relationships: [
@@ -62,7 +62,7 @@ test("company profiles retain canonical relationship directions, sources and int
   assert.equal(company.connections[0].related.profileUrl, "/company/hygon-information");
   assert.equal(company.connections[0].evidence[0].filingUrl, publishedGraph.sources[0].url);
   assert.equal(company.connections[0].evidence[0].sourceKind, "web");
-  assert.equal(company.connections[1].related.profileUrl, "/companies?search=private");
+  assert.equal(company.connections[1].related.profileUrl, "/company/private-company");
   assert.equal(company.connections[1].commercialStatus, "ANNOUNCED");
   assert.equal(company.connections[1].summary, "Announced plans only.");
   assert.equal(buildCompanyResearch("688041", [], projection).inMap, false);
