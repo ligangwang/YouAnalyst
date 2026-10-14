@@ -87,6 +87,15 @@ test('missing company results stay in search rather than fabricating a destinati
  await expect(page).toHaveURL(`${origin}/`);
 });
 
+test('inactive page search never captures typing from an active fullscreen surface',async({page})=>{
+ await open(page);
+ await page.evaluate(()=>{document.getElementById('root')!.inert=true;});
+ await page.keyboard.press('n');
+ await expect(page.getByRole('dialog',{name:'Search company',exact:true})).toHaveCount(0);
+ await page.evaluate(()=>{document.getElementById('root')!.inert=false;});
+ await page.keyboard.press('n');await expect(input(page)).toHaveValue('n');
+});
+
 test("the AI map's most-connected companies link to their company pages", async ({ page }, testInfo) => {
   await open(page);
   const list = page.getByTestId("most-connected-companies");

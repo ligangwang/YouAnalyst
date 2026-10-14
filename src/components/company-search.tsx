@@ -33,6 +33,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     if (!enabled || !typeToSearch) return;
     const key = (event: KeyboardEvent) => {
       if (open || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.repeat || document.querySelector('[data-company-search]')) return;
+      if (trigger.current?.closest('[inert]')) return;
       const preferred = preferredTrigger();
       if (preferred && preferred !== trigger.current) return;
       if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable],[role="textbox"],[role="dialog"],[data-event-window]')) {
