@@ -1,7 +1,4 @@
 export const scheduledJobs = {
-  tickers: { name: "Ticker catalog", scheduler: null, worker: null, logJob: "sync-tickers", schedule: "Manual" },
-  privateValuations: { name: "Private company valuations", scheduler: "refresh-private-valuations-production", worker: "refresh-private-valuations-production", logJob: "refresh-private-valuations", schedule: "Monthly, day 1 at 9 AM New York" },
-  privateValuationChecks: { name: "Private valuation checks", scheduler: null, worker: null, logJob: "private-valuation-check", schedule: "Processes queued company checks; failures retry independently" },
   fundamentals: { name: "SEC fundamentals", scheduler: "refresh-sec-fundamentals-production", worker: "refresh-sec-fundamentals-production", logJob: "refresh-sec-fundamentals", schedule: "Daily, 9 PM New York" },
   fundamentalsBatches: { name: "SEC fundamentals batches", scheduler: null, worker: null, logJob: "sec-fundamentals-batch", schedule: "Processes published company batches; retries resume unfinished companies" },
   companyGraph: { name: "Company graph requests", scheduler: "refresh-company-graph-production", worker: "refresh-company-graph-production", logJob: "refresh-company-graph", schedule: "Every 5 minutes, 1–5 requests per run; initially paused" },

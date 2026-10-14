@@ -10,4 +10,4 @@ The downloader reads the latest file link from https://www.cnindex.com.cn/zh_inf
 
 Published profiles stay in `companies`. Imported identities are never exposed as researched profiles. Imports create directory-only records while preserving existing researched profiles and editorial content. The completed five-company deployment seed script has been removed. CNI classifications are never represented as GICS.
 
-Firestore default deny protects source/queue collections. APIs verify administrator role server-side; the admin layout hides tools until verification. Existing US ticker sync is unchanged.
+Firestore default deny protects source/queue collections. APIs verify administrator role server-side; the admin layout hides tools until verification. Existing US listing records are preserved.

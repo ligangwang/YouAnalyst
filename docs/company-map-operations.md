@@ -27,9 +27,7 @@ The map reads up to 120 published research relationships, plus up to 80 outgoing
 
 ### Ticker Directory Recovery
 
-If publishing reports that a ticker has no supported active listing, refresh the ticker directory before retrying the saved draft. The default ticker sync includes common stocks, ETFs, American Depositary Receipts and Depositary Receipts traded in the United States in USD. Older syncs excluded depositary receipts such as TSM.
-
-After deploying the updated sync, call `POST /api/internal/sync-tickers` using the configured internal authentication, first with `{"dryRun":true}` to review the result, then with `{"dryRun":false}` to import it. Omit `types` to use the updated defaults and omit `limit` for the full directory. Existing jobs that explicitly pass only `Common Stock` and `ETF` must also update or remove their `types` override. The sync merges listing records; it does not publish research. Retry **Publish reviewed connections** on the existing draft after the sync succeeds.
+If publishing reports that a ticker has no supported active listing, review and correct its listing metadata through an authorized maintenance process before retrying the saved draft. Automated ticker catalog sync and its internal API are retired; existing listing records are preserved.
 
 ### Spending And Recovery
 

@@ -18,7 +18,7 @@ function fakeGcloud() {
   writeFileSync(path.join(dir, "gcloud"), `#!/usr/bin/env bash
 echo "$*" >> "$GCLOUD_LOG"
 case "$*" in
-  "run services describe sec-fundamentals-subscriber"*|"run services describe private-valuations-subscriber"*|"run services describe ticker-catalog-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
+  "run services describe sec-fundamentals-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
   "projects describe"*) echo 123456789 ;;
   "run services describe"*) printf '%s\\n' "\${FAKE_WEB_SA-}" ;;
   "run jobs describe"*) printf '%s\\n' "\${FAKE_JOB_SA-}" ;;
@@ -84,7 +84,6 @@ test("dry run prints mutating commands without running them", () => {
 for (const [script, job, env] of [
   ["deploy-sec-fundamentals.sh", "refresh-sec-fundamentals-production", { FUNDAMENTALS_IMAGE: "image", SEC_USER_AGENT: "ua" }],
   ["deploy-cn-fundamentals.sh", "refresh-cn-fundamentals-production", { FUNDAMENTALS_IMAGE: "image" }],
-  ["deploy-private-valuations.sh", "refresh-private-valuations-production", { FUNDAMENTALS_IMAGE: "image" }],
   ["deploy-directory-sync.sh", "sync-cni-directory-production", { DIRECTORY_SYNC_IMAGE: "image" }],
 ] as const) {
   test(`${script} grants run.invoker on ${job} to the scheduler and web accounts`, () => {

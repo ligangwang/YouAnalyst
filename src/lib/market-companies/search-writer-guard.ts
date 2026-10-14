@@ -9,7 +9,8 @@ export async function verifyCompanySearchWriters({project,region='us-central1',e
   };
   const base=`projects/${project}/locations/${region}`;
   const images=await Promise.all(['ticker-catalog-subscriber','cni-directory-subscriber'].map(async name=>{
-    const service=await read(`https://run.googleapis.com/v2/${base}/services/${name}`);
+    const service=await read(`https://run.googleapis.com/v2/${base}/services/${name}`,name==='ticker-catalog-subscriber');
+    if(name==='ticker-catalog-subscriber'&&Object.keys(service).length===0)return null;
     if(service.reconciling||service.generation===undefined||String(service.generation)!==String(service.observedGeneration)
       ||service.terminalCondition?.state!=='CONDITION_SUCCEEDED'||!service.latestReadyRevision||service.latestReadyRevision!==service.latestCreatedRevision)
       throw new Error(`${name} has not completed rollout`);

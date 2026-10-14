@@ -32,7 +32,7 @@ function run(script: string, extra: Record<string, string> = {}) {
             fi ;;
           "pubsub topics describe"*) if [[ "\${NEW_PUBSUB:-0}" == 1 ]]; then return 1; fi ;;
           "scheduler jobs describe"*) if [[ "\${NEW_SCHEDULER:-0}" == 1 ]]; then return 1; fi ;;
-          "run services describe sec-fundamentals-subscriber"*|"run services describe company-graph-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe private-valuations-subscriber"*|"run services describe ticker-catalog-subscriber"*|"run services describe eod-maintenance-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
+          "run services describe sec-fundamentals-subscriber"*|"run services describe company-graph-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe eod-maintenance-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
           "run services describe"*) echo web@demo.iam.gserviceaccount.com ;;
           "projects describe"*) echo 123456789 ;;
           "run jobs describe"*) echo directory-sync-runtime@demo.iam.gserviceaccount.com ;;
@@ -224,7 +224,7 @@ test('enabled routine financial releases retain all EOD and SEC workers plus bot
   const r = run('scripts/deploy-background-jobs.sh', { TARGET: 'fundamentals', COMPANY_GRAPH_PROCESSING_ENABLED: '1', SEC_FILINGS_COLLECTOR_ENABLED: '1' });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.calls.match(/builds submit/g)?.length, 1);
-  for (const service of ['sec-fundamentals', 'cn-fundamentals', 'private-valuations', 'ticker-catalog', 'eod-maintenance', 'company-graph']) {
+  for (const service of ['sec-fundamentals', 'cn-fundamentals', 'eod-maintenance', 'company-graph']) {
     assert.match(r.calls, new RegExp(`run deploy ${service}-subscriber`));
   }
   assert.equal(r.calls.match(/run jobs deploy/g)?.length, 5);

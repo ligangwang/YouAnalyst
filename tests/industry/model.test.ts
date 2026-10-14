@@ -3,12 +3,12 @@ import { test } from "node:test";
 import { selectNeighborhood } from "../../src/lib/industry-graph/model";
 import { buildIndustryGraph } from "./fixtures";
 import { fixtureRuns, runFixture } from "./fixtures";
-import { INDUSTRY_STARTERS } from "../../src/lib/industry-graph/catalog";
+import { fixtureCompanies } from "./fixtures";
 import { layoutIndustryGraph } from "../../src/lib/industry-graph/layout";
 
 test("empty source creates coverage starting points with no fabricated connections", () => {
   const graph = buildIndustryGraph({});
-  assert.equal(graph.nodes.length, INDUSTRY_STARTERS.length);
+  assert.equal(graph.nodes.length, fixtureCompanies.length);
   assert.ok(graph.nodes.every((node) => node.kind === "coverage"));
   assert.equal(graph.edges.length, 0);
 });
@@ -116,7 +116,7 @@ test("uncovered starters retain incoming evidence through provisional names and 
 test("overview reduces clutter without discarding searchable filing mentions", () => {
   const graph = buildIndustryGraph(fixtureRuns);
   const overview = selectNeighborhood(graph, [], "all", false, true);
-  assert.equal(overview.nodes.length, INDUSTRY_STARTERS.length);
+  assert.equal(overview.nodes.length, fixtureCompanies.length);
   assert.ok(overview.nodes.every((node) => node.ticker));
   assert.equal(overview.edges.length, 2);
   const focus = selectNeighborhood(graph, ["sec:0001045810"], "all", false);
@@ -131,9 +131,9 @@ test("bounded preview includes later issuers even when an earlier issuer has man
     QCOM: runFixture("QCOM", "0000804328", "Qualcomm", targets),
   });
   assert.deepEqual(graph.coveredTickers, ["NVDA", "AAPL", "QCOM"]);
-  assert.deepEqual(graph.coveredTickers.map((ticker) => graph.edges.filter((edge) => edge.evidence[0].issuerTicker === ticker).length), [14, 13, 13]);
+  assert.deepEqual(graph.coveredTickers.map((ticker) => graph.edges.filter((edge) => edge.evidence[0].issuerTicker === ticker).length), [17, 17, 17]);
   assert.equal(graph.nodes.length, 60);
-  assert.equal(graph.omittedEdges, 110);
+  assert.equal(graph.omittedEdges, 99);
 });
 
 test("invalid filing accessions never inflate the omitted connection count", () => {

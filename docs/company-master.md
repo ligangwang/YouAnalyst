@@ -8,4 +8,4 @@ The AI map reads published relationships from `company_relationships` and compan
 
 Company initialization and the collection rename are complete. Deployment no longer runs company migration or bootstrap scripts. See the [migration record and recovery export](company-collection-rename.md).
 
-Subsequent ticker synchronization, CNI imports, company research publication and graph imports update the master. `tickers` and `company_directory` remain provider/research inputs, rather than public search sources. Broad company search accepts Chinese text and normalized stock codes. The AI canvas search filters its participating companies only.
+CNI imports, company research publication and graph imports update the master. `tickers` and `company_directory` remain provider/research inputs, rather than public search sources. Broad company search accepts Chinese text and normalized stock codes. The AI canvas search filters its participating companies only.

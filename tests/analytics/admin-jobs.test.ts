@@ -15,16 +15,6 @@ function fixture(responses: unknown[]) {
   return { request, calls };
 }
 
-test("private valuation check history reads subscriber logs separately from publisher executions", async () => {
-  const f = fixture([{ entries: [{ timestamp: "2026-09-29T00:00:00Z", jsonPayload: { runId: "check-attempt" } }] },
-    { entries: [{ jsonPayload: { runId: "check-attempt", message: "private-valuation-check: run_completed", completed: 1, company: "ORG:OPENAI" } }] }]);
-  const page = await loadJobHistory({ job: "privateValuationChecks", view: "runs" }, f.request, "test-project");
-  assert.equal(page.records[0].status, "Succeeded");
-  assert.equal(page.records[0].summary.completed, 1);
-  assert.match(JSON.stringify(f.calls[0].data), /private-valuation-check/);
-  assert.match(JSON.stringify(f.calls[0].data), /cloud_run_revision/);
-});
-
 test("A-share and directory processing histories use their own subscriber logs", async () => {
   for (const [job, label] of [["cnFundamentalsChecks", "cn-fundamentals-check"], ["directoryImports", "cni-directory-import"]] as const) {
     const f = fixture([{ entries: [{ timestamp: "2026-09-29T00:00:00Z", jsonPayload: { runId: "attempt" } }] },
@@ -111,7 +101,7 @@ test("admin API denies anonymous and regular users before cloud access and valid
   dependencies.getUser = async () => ({ uid: "regular-user" }) as Awaited<ReturnType<Dependencies["getUser"]>>;
   assert.equal((await jobHistoryResponse(request(), dependencies)).status, 403);
   dependencies.isAdmin = async () => true;
-  for (const query of ["?job=__proto__", "?view=delete", "?runId=bad%22%20OR%20true", `?pageToken=${"x".repeat(16001)}`]) {
+  for (const query of ["?job=__proto__", "?job=privateValuations", "?job=privateValuationChecks", "?job=tickers", "?view=delete", "?runId=bad%22%20OR%20true", `?pageToken=${"x".repeat(16001)}`]) {
     assert.equal((await jobHistoryResponse(request(query), dependencies)).status, 400);
   }
   dependencies.load = async input => { assert.equal(input.pageToken, "next"); return { records: [], nextPageToken: "more" }; };
