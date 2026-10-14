@@ -445,7 +445,7 @@ test('long price gaps connect recorded closes without synthetic bars',async({pag
  await expect(timeline).toContainText('2 stored daily bars');
  await expect(timeline.locator('[data-price-gap]')).toHaveAttribute('d',/^M[\d.,]+ L[\d.,]+$/);
  await expect(timeline.locator('[data-price-gap]')).toHaveAttribute('stroke-dasharray','4 4');
- await expect(timeline.locator('svg rect')).toHaveCount(2);
+ await expect(timeline.locator('svg[role=img] rect')).toHaveCount(2);
  await timeline.locator('svg[role=img]').scrollIntoViewIfNeeded();
  const bounds=(await timeline.locator('svg[role=img]').boundingBox())!;
  await timeline.locator('svg[role=img]').press('End');
