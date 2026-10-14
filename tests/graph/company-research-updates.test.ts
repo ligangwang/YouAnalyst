@@ -89,7 +89,7 @@ test("relationship categories follow supply direction and explain it in Chinese"
     assert.match(relationshipExplanation({ ...e, type }, graph, true), /计划/);
   }
   assert.equal(relationshipBusiness({ ...e, facts: [{ ...e.facts![0], scope: "Instinct MI450 with liquid cooling" }] }, true), "Instinct MI450 / 散热与温控");
-  assert.equal(researchCompanyUrl({ id: "XSHG:600584" }), "/ticker/XSHG:600584");
+  assert.equal(researchCompanyUrl({ id: "XSHG:600584" }), "/company/jcet");
   assert.equal(researchCompanyUrl({ id: "ORG:OPENAI" }), "/company/openai");
 });
 test("public graph exposes only sourced research facts, without arbitrary private fields", () => {

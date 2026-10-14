@@ -6,12 +6,12 @@ import { companyBucketPrefix, companySitemapPath, companySitemapXml } from "@/li
 const loadPaths = unstable_cache(async (prefix: string) => {
   const snapshot = await getAdminFirestore().collection("companies")
     .orderBy(FieldPath.documentId()).startAt(prefix).endBefore(prefix + "\uf8ff")
-    .select("name", "market", "status", "description", "classification", "stage", "source", "sourceLabel").get();
+    .select("name", "slug", "market", "status", "description", "classification", "stage", "source", "sourceLabel").get();
   return snapshot.docs.flatMap(doc => {
     const path = companySitemapPath(doc.id, doc.data());
     return path ? [path] : [];
   });
-}, ["company-sitemap-v2"], { revalidate: 3600 });
+}, ["company-sitemap-name-slugs-v3"], { revalidate: 3600 });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ bucket: string }> }) {
   const { bucket } = await params;

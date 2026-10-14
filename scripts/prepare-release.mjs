@@ -37,15 +37,18 @@ await cp(`${root}/app`, isolated, { recursive: true, verbatimSymlinks: true });
 // Exercise the compiled page: Next may encode page params differently from metadata.
 const fixture = `${isolated}/company-fixture.cjs`;
 await writeFile(fixture, `
-const company = { market: 'CN_A', status: 'PUBLISHED', name: '海光信息',
+const company = { market: 'CN_A', status: 'PUBLISHED', name: '海光信息', slug: 'hygon-information',
   stage: '算力芯片', description: 'Fixture company overview',
   source: 'https://example.com/report', sourceLabel: 'Fixture report' };
+const companies={
+ 'XSHG:688041':company,
+ 'ORG:OPENAI':{ name: 'OpenAI', slug:'openai', status: 'DIRECTORY', country: 'US', listingStatus: 'PRIVATE', description: 'OpenAI profile fixture' },
+ 'ORG:GLOBAL-LAB':{ name: 'Global Lab', slug:'global-lab', status: 'DIRECTORY', country: 'FR', listingStatus: 'PRIVATE', description: 'Global profile fixture' }
+};
+const doc=id=>({id,exists:Boolean(companies[id]),data:()=>companies[id]});
 globalThis.__adminApp = { firestore: () => ({ collection: name => {
   if (name !== 'companies') throw new Error('Unexpected fixture collection');
-  return { doc: id => ({ get: async () => ({ id, exists: ['XSHG:688041', 'ORG:GLOBAL-LAB', 'ORG:OPENAI'].includes(id),
-    data: () => id === 'ORG:OPENAI' ? { name: 'OpenAI', status: 'DIRECTORY', country: 'US', listingStatus: 'PRIVATE', description: 'OpenAI profile fixture' } : id === 'ORG:GLOBAL-LAB'
-      ? { name: 'Global Lab', status: 'DIRECTORY', country: 'FR', listingStatus: 'PRIVATE', description: 'Global profile fixture' }
-      : id === 'XSHG:688041' ? company : undefined }) }) };
+  return {doc:id=>({get:async()=>doc(id)}),where:(field,op,value)=>({limit:()=>({get:async()=>({docs:Object.keys(companies).filter(id=>op==='array-contains'?(companies[id][field]||[]).includes(value):companies[id][field]===value).map(doc)})})})};
 } }) };
 `);
 const server = spawn(process.execPath, ["--require", fixture, "server.js"], {

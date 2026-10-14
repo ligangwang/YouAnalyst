@@ -56,6 +56,7 @@ export function collectionUniverse(legacy: KnowledgeGraph, records: ThemedCompan
       ...companyGeography(company), order: 1000,
       stageIds: membership ? [membership.primarySector] : [],
       names: company.names as GraphNode['names'],
+      ...(typeof company.slug === 'string' ? {slug:company.slug}:{}),
       aliases: Array.isArray(company.aliases) ? company.aliases.filter((alias): alias is string => typeof alias === 'string') : [],
     };
     companies.set(node.id, node);

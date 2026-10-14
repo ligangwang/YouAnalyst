@@ -5,13 +5,13 @@ import { publicCompanyPath, publicCompanyTicker } from "../../src/lib/market-com
 import { publicChinaCompany } from "../../src/lib/industry-research/china-directory";
 
 test("company links separate Shanghai, Shenzhen and US symbols", () => {
-  assert.equal(companyPageUrl("NPKI", "US"), "/company/ticker-npki");
-  assert.equal(companyPageUrl("688041", "CN_A"), "/ticker/XSHG:688041");
-  assert.equal(companyPageUrl("002837", "CN_A"), "/ticker/XSHE:002837");
-  assert.equal(companyPageUrl("300308", "CN_A"), "/ticker/XSHE:300308");
-  assert.equal(companyPageUrl("XSHG:688041"), "/ticker/XSHG:688041");
-  assert.equal(companyPageUrl("XSHE:002837", "US"), "/ticker/XSHE:002837");
-  assert.equal(companyPageUrl("688041"), "/ticker/XSHG:688041");
+  assert.equal(companyPageUrl("NPKI", "US"), "/company/npk-international");
+  assert.equal(companyPageUrl("688041", "CN_A"), "/company/hygon-information");
+  assert.equal(companyPageUrl("002837", "CN_A"), "/company/envicool");
+  assert.equal(companyPageUrl("300308", "CN_A"), "/company/zhongji-innolight");
+  assert.equal(companyPageUrl("XSHG:688041"), "/company/hygon-information");
+  assert.equal(companyPageUrl("XSHE:002837", "US"), "/company/envicool");
+  assert.equal(companyPageUrl("688041"), "/company/hygon-information");
   assert.equal(chinaCompanyId("xshg:688041"), "XSHG:688041");
   for (const invalid of ["NPKI", "XSHE:688041", "XSHG:002837", "../688041", "68804"]) assert.equal(chinaCompanyId(invalid), null);
 });
@@ -29,8 +29,13 @@ test("company slugs are stable, reversible, and distinguish unknown symbols", ()
  assert.equal(publicCompanyPath("msft"), "/company/microsoft");
  assert.equal(publicCompanyTicker("microsoft"), "MSFT");
  assert.equal(publicCompanyTicker("MSFT"), "MSFT");
- assert.equal(publicCompanyPath("BRK.B"), "/company/ticker-brk.b");
+ assert.equal(publicCompanyPath("BRK.B"), "/company/berkshire-hathaway-inc-class-b");
  assert.equal(publicCompanyTicker("ticker-brk.b"), "BRK.B");
  assert.equal(publicCompanyTicker("nonexistent-company"), null);
  assert.equal(publicCompanyTicker("ORG:LAB"), null);
+ assert.equal(publicCompanyPath('MU'),'/company/micron');
+ assert.equal(publicCompanyTicker('micron'),'MU');
+ assert.equal(publicCompanyTicker('ticker-mu'),'MU');
+ assert.equal(publicCompanyPath('UNKNOWNXYZ'),'/ticker/UNKNOWNXYZ');
+ assert.equal(companyPageUrl('NEW','US','new-company'),'/company/new-company');
 });

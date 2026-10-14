@@ -47,7 +47,7 @@ for(const chinese of [false,true])for(const admin of [false,true])test(`${chines
   await expect(page.getByText(chinese?'等待管理员审核。':'Awaiting administrator review.',{exact:true})).toBeVisible();
  }
  expect(posts[0]).toMatchObject({receiptId:receipt.id,contentHash:receipt.contentHash,relationshipIndex:0,side:'source',expectedName:'Arista Networks',companyId:'US:ANET'});
- await expect(page.getByRole('link',{name:/US:ANET/})).toHaveAttribute('href',`/${chinese?'zh-cn':'en'}/company/ticker-anet`);
+ await expect(page.getByRole('link',{name:/US:ANET/})).toHaveAttribute('href',`/${chinese?'zh-cn':'en'}/company/arista-networks`);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();
 });
 test('signed-out visitors receive a login link without reading private proposals',async({page})=>{

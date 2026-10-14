@@ -35,7 +35,7 @@ export function MostConnectedCompanies({ limit = 10 }: { limit?: number }) {
       : <ol className="mt-4 grid gap-2 sm:grid-cols-2" data-testid="most-connected-companies">
         {ranked.map(({ company, connections, layer }, index) => <li key={company.id}>
           <Link
-            href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market)}
+            href={companyPageUrl(company.id.startsWith("US:") ? company.symbol ?? company.id.slice(3) : company.id, company.market,company.slug)}
             className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 transition hover:border-cyan-300/60 hover:bg-cyan-500/10"
           >
             <span className="w-5 shrink-0 text-right text-xs tabular-nums text-slate-500">{index + 1}</span>

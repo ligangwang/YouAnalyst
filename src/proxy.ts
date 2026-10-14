@@ -4,6 +4,7 @@ import { parseLocale } from "./lib/locale";
 import { parseMarket } from "./lib/preferences";
 import { isLocalizedPage, localizedPath, pathLocale, unlocalizedPath } from "./lib/i18n/urls";
 import { publicCompanyPath } from "./lib/market-companies/slugs";
+import { inventoryCompanyPath } from './lib/market-companies/slug-inventory';
 
 const REDIRECT_HOSTS = new Set([
   "www.youanalyst.com",
@@ -24,10 +25,11 @@ export function proxy(request: NextRequest) {
     const locale = explicit ?? prefix ?? parseLocale(request.cookies.get("ya-language")?.value) ?? "en";
     const plain = unlocalizedPath(request.nextUrl.pathname);
     const oldTicker = /^\/ticker\/([A-Za-z0-9][A-Za-z0-9.-]{0,15})$/.exec(plain);
+    const oldTickerPath=oldTicker ? inventoryCompanyPath(`US:${oldTicker[1].toUpperCase()}`) ?? publicCompanyPath(oldTicker[1]) : null;
     // A-shares retain their exchange-qualified routes; migrate US company pages.
-    if (oldTicker && !/^[036]\d{5}$/.test(oldTicker[1])) {
+    if (oldTicker && oldTickerPath?.startsWith('/company/') && !/^[036]\d{5}$/.test(oldTicker[1])) {
       const destination = new URL(request.url);
-      destination.pathname = localizedPath(publicCompanyPath(oldTicker[1]), locale);
+      destination.pathname = localizedPath(oldTickerPath, locale);
       destination.searchParams.delete("lang");
       return NextResponse.redirect(destination, 308);
     }
