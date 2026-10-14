@@ -5,7 +5,11 @@
 
 The public map is a read-only view of persisted filing extractions and explicitly published industry research. It does not invoke an AI provider or enqueue extraction when a visitor searches, opens a page, or saves a company.
 
-## Adding Industry Coverage
+## Retired Industry Research
+
+US and A-share AI industry research and the A-share profile queue are retired. Their old admin pages display a notice and their APIs return HTTP 410. Directory imports remain active and do not use an LLM. Published research, source evidence, drafts and usage history are preserved. The instructions below describe the historical workflow and must not be used to start, retry or publish new research.
+
+### Historical Industry Coverage
 
 Open `/admin/industry-research` (also linked from Company Graph Requests). Sign in as an admin, enter an industry and choose **Research industry**. This uses the production `OPENAI_MODEL` (currently `gpt-5.4`) with medium reasoning and web search. One background response researches up to 30 companies and 40 candidate relationships across the industry, targeting 15-25 concise connections per batch rather than requesting each company independently. The initial integration accepts US-listed stocks and ADRs supported by the ticker directory; private companies and foreign-only listings are excluded.
 

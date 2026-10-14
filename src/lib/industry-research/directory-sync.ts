@@ -2,7 +2,6 @@ import { loggedTransaction, type MaintenanceLog } from "../maintenance-log";
 import type { DocumentReference, Firestore } from "firebase-admin/firestore";
 import { record, text } from "./model";
 import { validChinaId, MARKET_COMPANIES } from "./china";
-import { CANDIDATES } from "./candidates";
 import { companyFields } from "../market-companies/model";
 
 export function validateCniDirectory(input: unknown) {
@@ -34,8 +33,6 @@ export async function importCniDirectory(db: Firestore, input: unknown, log?: Ma
         if (lease?.leaseOwner !== options.owner || Number(lease.leaseExpiresAtMs) <= Date.now()) throw Error("Directory lease expired");
       }
       if (options.checkpoint && Number((await tx.get(options.checkpoint)).get("offset") ?? 0) !== offset) throw Error("Directory progress changed");
-      const refs = group.map(r => db.collection(CANDIDATES).doc(text(r.id)));
-      const existing = await tx.getAll(...refs);
       const profiles = await tx.getAll(...group.map(r => db.collection(MARKET_COMPANIES).doc(text(r.id))));
       group.forEach((r, i) => {
         const classification = (r.classification as unknown[]).map(record);
@@ -46,10 +43,6 @@ export async function importCniDirectory(db: Firestore, input: unknown, log?: Ma
           status:profile.status ?? "DIRECTORY",
           ...(!profile.source ? {source:payload.source,sourceLabel:`国证行业分类 ${payload.snapshot}`} : {}), updatedAt:now,
         }, {merge:true});
-        tx.set(refs[i], {
-          ...(!existing[i].exists ? { id: r.id, name: r.name, industry: `国证行业：${classification.map(c => c.name).join(" / ")}`, status: profiles[i].data()?.status === "PUBLISHED" ? "PUBLISHED" : "PENDING", attempts: 0, createdAt: now } : {}),
-          classification, taxonomy: "CNI", snapshot: payload.snapshot, source: payload.source, sourceLabel: `国证行业分类 ${payload.snapshot}`, updatedAt: now,
-        }, { merge: true });
       });
       if (options.checkpoint) tx.set(options.checkpoint, { offset: offset + group.length }, { merge: true });
     };
