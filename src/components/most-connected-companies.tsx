@@ -42,7 +42,7 @@ export function MostConnectedCompanies({ limit = 10 }: { limit?: number }) {
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-cyan-50">{companyName(company, locale)}</span>
               <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
-                {company.symbol && <span className="font-medium text-slate-300">{company.symbol}</span>}
+                <span className="font-medium text-slate-300">{company.symbol?.trim() || companyName(company, locale)}</span>
                 {layer && <span className="inline-flex items-center gap-1"><i aria-hidden="true" className="inline-block h-2 w-2 rounded-full" style={{ background: layer.color }} />{text(layer.en, layer.zh)}</span>}
               </span>
             </span>
