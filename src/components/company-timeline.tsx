@@ -266,7 +266,6 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   };
   if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
   return <section id="company-timeline" ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴")} data-company-timeline={companyId}>
-    <header className={styles.header}><h2>{chosenStock ? `${chosenStock.name} · ${chosenStock.symbol}` : text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><span>{rangeLabel(days)}</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
     <div className={styles.tools} data-chart-toolbar>
       <a href={researchPath} target="_blank" rel="noopener noreferrer" className={styles.iconButton} aria-label={text('Fundamentals (F10)','基本面（F10）')} title={text('Fundamentals (F10): open company research in a new tab','基本面（F10）：在新标签页打开公司研究页')}><ChartToolbarIcon name="research"/></a>
       <button type="button" className={styles.iconButton} aria-label={text('Copy chart link','复制图表链接')} title={text('Copy chart link','复制图表链接')} onClick={()=>void copyChartLink()}><ChartToolbarIcon name="link"/></button>
@@ -289,6 +288,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
       </div>
       <button type="button" className={styles.iconButton} aria-label={text('Chart help','图表帮助')} title={text('Wheel / ↑↓ zoom · ←→ pan · F10 fundamentals · Esc close','滚轮／↑↓ 缩放 · ←→ 平移 · F10 基本面 · Esc 关闭')} aria-haspopup="dialog" aria-expanded={Boolean(helpAnchor)} onClick={click=>setHelpAnchor(eventWindowAnchor(click))}><ChartToolbarIcon name="help"/></button>
       {view.zoom>1&&<button type="button" className={styles.iconButton} aria-label={text('Reset view','重置视图')} title={text('Reset zoom and pan','重置缩放和平移')} onClick={()=>{setViewport({key:viewKey,zoom:1,offset:0});closePriceDetails();setClusterId('');}}><ChartToolbarIcon name="reset"/></button>}
+      <button ref={toggleButton} className={styles.iconButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} title={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button>
     </div>
     {helpAnchor&&<FloatingEventWindow role="dialog" anchor={helpAnchor} title={text('Chart help','图表帮助')} closeLabel={text('Close chart help','关闭图表帮助')} onClose={()=>setHelpAnchor(null)}>
       <p>{text('Hover over a candle or line to view details; moving away hides them. Touch screens: tap to view. Enter opens keyboard details; Escape closes.','鼠标移到K线或曲线上显示详情，移开消失。触屏点击查看；回车打开键盘详情，Esc 关闭。')}</p>

@@ -376,7 +376,7 @@ for(const zh of [false,true])test(`publication returns hide zero days and update
  await page.goto(`http://workspace.test/?company=US%3AMU&event=${announcement.id}${zh?'&lang=zh-CN':''}`);
  const range=page.getByRole('combobox',{name:zh?'股价时间范围':'Price history range'});
  await expect(range.locator('option')).toHaveText(zh?['近1个月','近3个月','近6个月','今年以来','近1年','近5年']:['1M','3M','6M','YTD','1Y','5Y']);
- await expect(page.getByRole('group',{name:zh?'时间范围':'Timeline range',exact:true})).toContainText(zh?'近1个月':'1M');
+ await expect(page.getByRole('group',{name:zh?'时间范围':'Timeline range',exact:true})).toHaveCount(0);
  const details=page.getByRole('dialog',{name:zh?'事件详情':'Event details'});
  await expect(details).toContainText(zh?'发布以来:':'Since pub.:');
  await expect(details).toContainText('-2.28%');
@@ -1216,7 +1216,7 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  const search=bookmarkedQuery(page);await search.fill('MU');await search.press('Enter');
  const timeline=page.locator('[data-company-timeline="US:MU"]');
  await expect(timeline).toBeVisible();await expect(timeline).toContainText('2 stored daily bars');
- await expect(timeline.getByRole('group',{name:'Timeline range'})).toContainText('1M');
+ await expect(timeline.getByRole('group',{name:'Timeline range'})).toHaveCount(0);
  await expect(timeline.getByRole('button',{name:/^(3M|6M|1Y|5Y)$/})).toHaveCount(0);
  await expect(timeline.locator('svg[role=img]')).not.toContainText('Sources');
  expect((await timeline.locator('svg[role=img]').boundingBox())?.height).toBeGreaterThanOrEqual(190);
@@ -1251,7 +1251,7 @@ for(const reduced of [true,false])test('clicking star halos switches company car
  await expect(page.getByRole('dialog',{name:'Event details',exact:true})).toContainText('Published company update 1');
  await page.getByRole('button',{name:'Close company details'}).click();await expect(timeline).toHaveCount(0);
  await search.fill('');await search.fill('MU');await search.press('Enter');
- await expect(timeline.getByRole('group',{name:'Timeline range'})).toContainText('1M');
+ await expect(timeline.getByRole('group',{name:'Timeline range'})).toHaveCount(0);
  const bounds=await timeline.boundingBox();expect(bounds?.width).toBeLessThanOrEqual(await page.evaluate(()=>innerWidth));
  });
 
