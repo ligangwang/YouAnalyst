@@ -16,7 +16,7 @@ test('migration preserves existing aliases and identity, is idempotent, and defe
  assert.deepEqual(first.patch.aliases,['Advanced Micro Devices','超微半导体']);
  for(const field of ['name','symbol','slug','names'])assert.equal(Object.hasOwn(first.patch,field),false);
  const prepared={...original,...first.patch};assert.equal(companySearchMigration('US:AMD',prepared).changed,false);
- const cleanup=companySearchMigration('US:AMD',prepared,true);assert.deepEqual(cleanup.removed,[...RETIRED_COMPANY_SEARCH_FIELDS]);
+ const cleanup=companySearchMigration('US:AMD',prepared,true);assert.deepEqual(cleanup.removed,[...RETIRED_COMPANY_SEARCH_FIELDS]);assert.deepEqual(cleanup.patch,{});
  const cleaned={...prepared} as Record<string,unknown>;for(const field of cleanup.removed)delete cleaned[field];
  assert.equal(companySearchMigration('US:AMD',cleaned,true).changed,false);
 });
