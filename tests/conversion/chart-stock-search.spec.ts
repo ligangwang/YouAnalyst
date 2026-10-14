@@ -46,6 +46,8 @@ for (const chinese of [false, true]) test(`fullscreen ${chinese ? 'Chinese' : 'E
   await page.screenshot({ path: `output/stock-search-${chinese ? 'zh-light' : 'en-dark'}-${test.info().project.name}.png` });
   await page.keyboard.press('Enter');
   await expect(chart).toHaveAttribute('data-company-timeline', 'US:NVDA'); await expect(chart).toHaveAttribute('data-chart-size', 'full');
+  await expect(chart.locator('[data-chart-company]')).toHaveText('NVIDIA · NVDA');
+  await expect(chart).toHaveAccessibleName(/NVIDIA · NVDA/);
   await expect(page.getByLabel(chinese ? '股价时间范围' : 'Price history range')).toHaveValue('90');
   await expect(page.getByRole('button', { name: 'MACD (12,26,9)', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => requests.includes('US:NVDA')).toBe(true);
