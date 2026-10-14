@@ -124,8 +124,7 @@ restoring the old synchronous web endpoint, then wait for active leases to clear
 
 ## Deployment, verification and recovery
 
-The financial image bundles the SEC collector and the SEC, company graph, private
-valuation, ticker, A-share and EOD subscribers, plus their publisher commands.
+The financial image bundles the SEC collector and the SEC, company graph, A-share and EOD subscribers, plus their publisher commands.
 The directory image bundles the CNI publisher and subscriber and includes its
 Python downloader. Changed worker detection includes every subscriber, deployment
 script and shared dependency. Delivery resources are provisioned before scheduled

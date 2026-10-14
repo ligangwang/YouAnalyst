@@ -227,7 +227,7 @@ test('enabled routine financial releases retain all EOD and SEC workers plus bot
   for (const service of ['sec-fundamentals', 'cn-fundamentals', 'eod-maintenance', 'company-graph']) {
     assert.match(r.calls, new RegExp(`run deploy ${service}-subscriber`));
   }
-  assert.equal(r.calls.match(/run jobs deploy/g)?.length, 5);
+  assert.equal(r.calls.match(/run jobs deploy/g)?.length, 4);
   assert.equal(r.workerEnv.COMPANY_GRAPH_PROCESSING_ENABLED, '1');
   assert.match(r.calls, /SEC_FILINGS_COLLECTOR_ENABLED=1/);
   assert.doesNotMatch(r.calls, /scheduler jobs (resume|pause|delete)|run jobs execute/);

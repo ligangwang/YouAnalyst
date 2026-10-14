@@ -8,7 +8,7 @@ case "${1:-}" in
   fundamentals) targets=(sec-fundamentals cn-fundamentals eod-maintenance) ;;
   sec-filings) targets=(sec-fundamentals company-graph sec-filings) ;;
   sec-fundamentals|cn-fundamentals|eod-maintenance|directory|company-graph|earnings|intelligence-news) targets=("$1") ;;
-  *) echo 'Select all, sec-fundamentals, cn-fundamentals,, eod-maintenance, company-graph, sec-filings, earnings, intelligence-news or directory' >&2; exit 1 ;;
+  *) echo 'Select all, sec-fundamentals, cn-fundamentals, eod-maintenance, company-graph, sec-filings, earnings, intelligence-news or directory' >&2; exit 1 ;;
 esac
 # The filing/graph pipeline is an explicit production rollout. Disabled releases
 # keep every existing worker path and schedule unchanged.
