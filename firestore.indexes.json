@@ -390,5 +390,36 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+  {
+    "collectionGroup": "companies",
+    "fieldPath": "symbolPrefixes",
+    "indexes": []
+  },
+  {
+    "collectionGroup": "companies",
+    "fieldPath": "pinyinSearchPrefixes",
+    "indexes": []
+  },
+  {
+    "collectionGroup": "companies",
+    "fieldPath": "pinyinSearchTerms",
+    "indexes": []
+  },
+  {
+    "collectionGroup": "companies",
+    "fieldPath": "pinyinSearchVersion",
+    "indexes": []
+  },
+  {
+    "collectionGroup": "companies",
+    "fieldPath": "searchTerms",
+    "indexes": []
+  },
+  {
+    "collectionGroup": "companies",
+    "fieldPath": "searchIndexVersion",
+    "indexes": []
+  }
+]
 }

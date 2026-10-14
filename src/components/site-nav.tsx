@@ -4,6 +4,7 @@ import { UiText, useUiText } from "@/components/ui-text";
 
 import { LanguageSwitch, useLocale } from "@/components/providers/locale-provider";
 import Image from "next/image";
+import { CompanySearch } from "./company-search";
 import { BrandLogo } from "./brand-logo";
 import { PreferenceError } from "./display-preferences";
 import { LocalizedLink as Link } from "./localized-link";
@@ -226,10 +227,7 @@ export function SiteNav() {
               <MoreMenu admin={showAdminLink} />
             </div>
             <LanguageSwitch />
-            <Link
-              href="/companies"
-              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-400/35 px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-cyan-100 hover:bg-cyan-500/15"
-            ><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>{t("Search")}</Link>
+            <CompanySearch typeToSearch={pathname==='/'||pathname==='/companies'} />
             {loading ? (
               <span className="h-9 w-9 animate-pulse rounded-full bg-slate-700" />
             ) : user ? (
