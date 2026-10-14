@@ -297,7 +297,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     </FloatingEventWindow>}
     {maSettings&&<FloatingEventWindow role="dialog" anchor={maSettings} title={text('Moving average settings','均线设置')} closeLabel={text('Close MA settings','关闭均线设置')} onClose={()=>setMaSettings(null)}>
       <div role="group" aria-label={text('Moving average lines','均线显示')} className={styles.indicatorControls}>
-        {averagePeriods.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):movingAveragePeriods([...values,period]))}>MA{period}</button>)}
+        {averagePeriods.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):movingAveragePeriods([...values,period]))}>{text('MA','MA')}{period}</button>)}
       </div>
       <form key={averages.join(',')} className={styles.maSettings} onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);setAverages(()=>movingAveragePeriods(Array.from({length:8},(_,index)=>Number(form.get(`ma-${index}`)))));setMaSettings(null);}}>
         <p>{text('MA periods count bars in the selected interval. Set 0 to disable a line.','均线周期按所选K线的根数计算。填 0 关闭该线。')}</p>
