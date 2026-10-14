@@ -8,7 +8,7 @@ import { companyPageUrl } from '@/lib/market-companies/routes';
 import { localizedPath } from '@/lib/i18n/urls';
 import { createPortal } from 'react-dom';
 
-export function CompanySearch({ enabled = true, onSelect, owner = 'global', typeToSearch = true }: { enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean }) {
+export function CompanySearch({ enabled = true, onSelect, owner = 'global', typeToSearch = true, iconOnly = false }: { enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean; iconOnly?: boolean }) {
   const { text, locale } = useLocale();
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
   const [results, setResults] = useState<{ query: string; items: SearchSuggestion[] } | null>(null);
@@ -88,7 +88,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
       </div>
     </div>;
   return <span data-company-search-owner={owner}>
-    <button ref={trigger} data-company-search-trigger type="button" className={styles.trigger} aria-label={text('Search company', '搜索公司')} title={typeToSearch ? text('Type to search', '输入即可搜索') : text('Search company', '搜索公司')} disabled={!enabled} onClick={() => {
+    <button ref={trigger} data-company-search-trigger type="button" className={`${styles.trigger} ${iconOnly ? styles.iconOnly : ''}`} aria-label={text('Search company', '搜索公司')} title={typeToSearch ? text('Type to search', '输入即可搜索') : text('Search company', '搜索公司')} disabled={!enabled} onClick={() => {
       const preferred = owner === 'global' ? preferredTrigger() : null;
       if (preferred && preferred !== trigger.current) preferred.click(); else show();
     }}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span>{text('Search company', '搜索公司')}</span></button>

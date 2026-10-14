@@ -48,11 +48,16 @@ export function useChartSize() {
   return {size,setSize,root,viewportHeight};
 }
 
-export function ChartSizeControls({size,onChange,label}: {size:'compact'|'half'|'full';onChange:(size:'compact'|'half'|'full')=>void;label?:string}) {
+function SizeIcon({size}:{size:'compact'|'half'|'full'}) {
+  return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    {size==='half'?<><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/><path d="M4 4h16v7H4z" fill="currentColor" fillOpacity=".2" stroke="none"/></>:<path d={size==='full'?'M8 3H3v5M16 3h5v5M21 16v5h-5M8 21H3v-5':'M3 8h5V3M21 8h-5V3M16 21v-5h5M3 16h5v5'}/>}
+  </svg>;
+}
+export function ChartSizeControls({size,onChange,label,iconOnly=false}: {size:'compact'|'half'|'full';onChange:(size:'compact'|'half'|'full')=>void;label?:string;iconOnly?:boolean}) {
   const {text} = useLocale();
-  return <div className={styles.controls} role="group" aria-label={label??text('Chart size','图表大小')}>
-    <button type="button" aria-pressed={size==='half'} onClick={()=>onChange('half')}>{text('Half screen','半屏')}</button>
-    <button type="button" aria-pressed={size==='full'} onClick={()=>onChange('full')}>{text('Full screen','全屏')}</button>
-    {size!=='compact'&&<button type="button" onClick={()=>onChange('compact')}>{text('Restore layout','恢复布局')}</button>}
+  return <div className={`${styles.controls} ${iconOnly?styles.iconControls:''}`} role="group" aria-label={label??text('Chart size','图表大小')}>
+    <button type="button" aria-label={text('Half screen','半屏')} title={text('Half screen','半屏')} aria-pressed={size==='half'} onClick={()=>onChange('half')}>{iconOnly?<SizeIcon size="half"/>:text('Half screen','半屏')}</button>
+    <button type="button" aria-label={text('Full screen','全屏')} title={text('Full screen','全屏')} aria-pressed={size==='full'} onClick={()=>onChange('full')}>{iconOnly?<SizeIcon size="full"/>:text('Full screen','全屏')}</button>
+    {size!=='compact'&&<button type="button" aria-label={text('Restore layout','恢复布局')} title={text('Restore layout','恢复布局')} onClick={()=>onChange('compact')}>{iconOnly?<SizeIcon size="compact"/>:text('Restore layout','恢复布局')}</button>}
   </div>;
 }

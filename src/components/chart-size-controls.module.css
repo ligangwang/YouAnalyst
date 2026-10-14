@@ -3,3 +3,4 @@
 .controls button[aria-pressed=true] {background:var(--ui-selected,#24516a);}
 .controls button:focus-visible {outline:2px solid var(--selection-outline,#79cfe9);outline-offset:2px;}
 @media(pointer:coarse){.controls button{min-height:44px;}}
+.iconControls.iconControls button{display:grid;place-items:center;min-width:36px;min-height:36px;padding:6px;}@media(pointer:coarse){.iconControls.iconControls button{min-width:44px;min-height:44px;}}
