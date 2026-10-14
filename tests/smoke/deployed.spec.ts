@@ -60,13 +60,15 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
     expect(pageUrls.some(url => url.endsWith(`/${locale}/daily`) || url.endsWith(`/${locale}/watchlists`))).toBeFalsy();
   }
   expect(pageUrls.some(url => /\/(company|ticker)\//.test(url))).toBeFalsy();
-  for (const [bucket, companyPath] of [["US-N", "company/nvidia"], ["XSHG-6", "ticker/XSHG:688041"]]) {
+  for (const [bucket, companyPath] of [["US-N", "company/nvidia"], ["US-M", "company/micron"], ["XSHG-6", "company/hygon-information"], ["ORG", "company/openai"]]) {
     const response = await request.get(`/sitemaps/companies/${bucket}.xml`);
     expect(response.status()).toBe(200);
     const xml = await response.text();
-    expect(xml).toContain(`/en/${companyPath}`);
-    expect(xml).toContain(`/zh-cn/${companyPath}`);
-    expect(xml).toContain('hreflang="zh-CN"');
+    const urls=[...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match=>match[1]);
+    expect(urls.some(url=>url.endsWith(`/en/${companyPath}`)),`${bucket} English canonical`).toBeTruthy();
+    expect(urls.some(url=>url.endsWith(`/zh-cn/${companyPath}`)),`${bucket} Chinese canonical`).toBeTruthy();
+    expect(urls.some(url=>/\/ticker\/|\/company\/ticker-|\/company\/ORG(?:%3A|:)/.test(url)),`${bucket} contains legacy URLs`).toBeFalsy();
+    expect(xml.includes('hreflang="zh-CN"')).toBeTruthy();
   }
 });
 
