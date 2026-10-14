@@ -313,7 +313,6 @@ test("industry graph is retired and identifies the shared replacement", async ({
 
 test("company search remains available", async ({ page }) => {
   await page.goto("/companies");
-  await page.waitForLoadState('networkidle');
 
   const input = page.getByRole('main').getByRole('combobox', { name: 'Search company', exact: true });
   await expect(input).toBeVisible();
