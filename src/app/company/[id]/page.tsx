@@ -62,6 +62,7 @@ export default async function CompanyPage({ params, searchParams }: {
     <h1 className="mt-8 text-4xl font-semibold"><CompanyCountryFlag country={identity.country} locale={locale} />{data.name}</h1>
     <p className="mt-4 text-slate-400">{companyGeographyLabel(companyGeography(data), locale)}</p>
     {typeof data.editorialReviewedAt === "string" && <p className="mt-3 text-xs text-slate-400">{zh ? "编辑公司资料 · 复核于" : "Editorial company profile · reviewed"} {data.editorialReviewedAt}</p>}
+    <CompanyProfileDetails profile={normalizeCompanyProfile(data.profile)} />
     {callTicker && <CompanyOutlook ticker={callTicker} />}
     <CompanyResearchTimeline company={{ id, kind: "COMPANY", order: 0, name: data.name, names: reviewedCompanyNames(id, data.name, data.names), country: identity.country, market: "GLOBAL", listingStatus: identity.listingStatus, summary: String(data.description ?? "") }} />
     <CompanyResearchPanel companyId={id} />
@@ -69,6 +70,5 @@ export default async function CompanyPage({ params, searchParams }: {
       <h2 className="mt-8 text-xl font-semibold">{zh ? "资料来源" : "Sources"}</h2><ul className="mt-4 space-y-3">{sources.map((s, i) => <li key={`${s.url}:${i}`}><a className="text-cyan-200" href={s.url} target="_blank" rel="noopener noreferrer">{s.title} ↗</a></li>)}</ul>
     </section>
 
-    <CompanyProfileDetails profile={normalizeCompanyProfile(data.profile)} />
   </main>;
 }
