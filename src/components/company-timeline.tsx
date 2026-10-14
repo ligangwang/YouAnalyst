@@ -16,10 +16,19 @@ import type { CompanyThemeId } from '@/lib/company-themes/model';
 import { chartShareUrl, companyResearchPath, parseSharedChart, sharedChartParams, type SharedChart } from '@/lib/ui/chart-share';
 import { eventReturnDays } from '@/lib/ui/event-return-age';
 import { useRelativeTimeClock } from './relative-time';
+import { ChartStockSearch } from "./chart-stock-search";
+import type { SearchSuggestion } from "./ticker-search-input";
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-export function CompanyTimeline({ companyId, graph, initialPrices, events: suppliedEvents, onSelectEvent,onDismissEvent,selectedEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange }: { onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
+export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange }: { onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
+  const [stockChoice, setStockChoice] = useState<{source: string; item: SearchSuggestion} | null>(null);
+  const chosenStock = stockChoice?.source === initialCompanyId ? stockChoice.item : null;
+  const companyId = chosenStock?.id ?? initialCompanyId;
+  const suppliedEvents = chosenStock ? undefined : originalEvents;
+  const onSelectEvent = chosenStock ? undefined : originalSelectEvent;
+  const selectedEventId = chosenStock ? undefined : originalEventId;
+
   const researchPath=companyResearchPath(companyId,locale);
   useEffect(()=>{
     const openResearch=(event:KeyboardEvent)=>{
@@ -55,6 +64,16 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const setAverages = (change: (values:number[])=>number[]) => changeSettings({averages:change(averages)});
   const setShowEvents = (change: (value:boolean)=>boolean) => changeSettings({events:change(showEvents)});
   const {size:chartSize,setSize:setChartSize,root:chartSizeRef,viewportHeight} = useChartSize();
+  const previousSize = useRef(chartSize);
+  useEffect(() => {
+    if (previousSize.current === 'full' && chartSize !== 'full' && chosenStock) {
+      const destination = new URL(researchPath, location.origin);
+      for (const [key, value] of Object.entries(sharedChartParams(settings))) destination.searchParams.set(key, value);
+      destination.hash = 'company-timeline';
+      location.assign(destination.pathname + destination.search + destination.hash);
+    }
+    previousSize.current = chartSize;
+  }, [chartSize, chosenStock, researchPath, settings]);
   const needsHistory = averages.length>0 || indicator!=='none';
   const averagePeriods=[...new Set([...MA_PERIODS,...averages])].sort((a,b)=>a-b);
   const maxAverage=Math.max(60,...averages);
@@ -133,7 +152,7 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   const left = width < 440 ? 60 : 72, right = Math.max(left + 1, width - 24), plotWidth = right - left;
   const rawHistory=[...new Map([...(data?.warmupPrices??[]),...(data?.prices??[])].map(price=>[price.date,price])).values()].sort((a,b)=>a.date.localeCompare(b.date));
   const hasPriceHistory = rawHistory.length > 0;
-  useEffect(() => { onPriceHistoryChange?.(hasPriceHistory); }, [onPriceHistoryChange, hasPriceHistory]);
+  useEffect(() => { if (!chosenStock) onPriceHistoryChange?.(hasPriceHistory); }, [onPriceHistoryChange, hasPriceHistory, chosenStock]);
   const periodHistory=timelinePriceBars(rawHistory,rangeStart,interval);
   const history=aggregated&&data?.interval!==interval?[...periodHistory.warmupPrices,...periodHistory.prices]:rawHistory;
   const allPrices = history.filter(p => p.date >= rangeStart && p.date <= rangeEnd).sort((a,b)=>a.date.localeCompare(b.date));
@@ -245,10 +264,11 @@ export function CompanyTimeline({ companyId, graph, initialPrices, events: suppl
   };
   if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
   return <section id="company-timeline" ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴")} data-company-timeline={companyId}>
-    <header className={styles.header}><h2>{text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><div role="group" aria-label={text('Chart type','图表类型')} className={styles.chartModes}><button type="button" aria-pressed={chartMode==='candles'} onClick={()=>setChartMode('candles')}>{text('Candles','蜡烛图')}</button><button type="button" aria-pressed={chartMode==='line'} onClick={()=>setChartMode('line')}>{text('Line','曲线')}</button></div><span>{rangeLabel(days)}</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
+    <header className={styles.header}><h2>{chosenStock ? `${chosenStock.name} · ${chosenStock.symbol}` : text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><div role="group" aria-label={text('Chart type','图表类型')} className={styles.chartModes}><button type="button" aria-pressed={chartMode==='candles'} onClick={()=>setChartMode('candles')}>{text('Candles','蜡烛图')}</button><button type="button" aria-pressed={chartMode==='line'} onClick={()=>setChartMode('line')}>{text('Line','曲线')}</button></div><span>{rangeLabel(days)}</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
     <div className={styles.tools}>
       <a href={researchPath} target="_blank" rel="noopener noreferrer" title={text('Open company research in a new tab','在新标签页打开公司研究页')}>{text('Fundamentals (F10)','基本面（F10）')}</a>
       <button type="button" onClick={()=>void copyChartLink()}>{text('Copy chart link','复制图表链接')}</button>
+      <ChartStockSearch enabled={chartSize==='full'} onSelect={item=>{setStockChoice(item.id===initialCompanyId?null:{source:initialCompanyId,item});setPriceSelection(null);setHoverPrice(null);setClusterId('');setHoverDate(null);setEventAnchor(null);setSelectedId('');onDismissEvent?.();setShareResult(null);}}/>
       <ChartSizeControls size={chartSize} onChange={setChartSize}/>
       <label>{text('Range','时间范围')} <select aria-label={text('Price history range','股价时间范围')} value={days} onChange={event=>{setDays(event.target.value==='ytd'?'ytd':Number(event.target.value) as TimelineRange);setPriceSelection(null);setClusterId('');setHoverDate(null);}}>{TIMELINE_RANGES.map(range=><option key={range} value={range}>{rangeLabel(range)}</option>)}</select></label>
       <label>{text('Interval','K线周期')} <select aria-label={text('Candlestick interval','K线周期')} value={settings.interval} onChange={event=>{changeSettings({interval:event.target.value as TimelineIntervalChoice});closePriceDetails();setClusterId('');setHoverDate(null);}}>{(['auto',...TIMELINE_INTERVALS] as const).map(value=><option key={value} value={value}>{intervalLabel(value)}</option>)}</select></label>

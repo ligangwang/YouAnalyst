@@ -1392,3 +1392,17 @@ test('selected graph keeps its relationships while hovering partners and clickin
  await expect(canvas).toHaveAttribute('data-rotation','focused');await expect(canvas).toHaveAttribute('data-visible-relationships','selected-partner');await expect(page.getByRole('region',{name:'Company details',exact:true})).toContainText('Micron');
  await page.getByRole('region',{name:'Company details',exact:true}).getByRole('button',{name:/LITE.*MU/}).click();await expect(page).toHaveURL(/company=US%3AMU/);await expect(canvas).toHaveAttribute('data-rotation','focused');await page.screenshot({path:'output/selected-relationship-hit.png'});
 });
+
+
+test('fullscreen lookup switches a stock inside the live workspace without remounting the chart', async ({ page }) => {
+ await open(page);
+ await page.route('**/api/company-timeline?*', route => { const companyId=new URL(route.request().url()).searchParams.get('company');return route.fulfill({json:{companyId,start:'2026-01-01',end:'2026-10-13',currency:'USD',interval:'daily',prices:[{date:'2026-10-12',open:100,high:110,low:99,close:105,volume:1000}],available:true}}); });
+ await page.route('**/api/tickers/search?*', route => route.fulfill({json:{items:[{id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US',exchange:'NASDAQ'}]}}));
+ await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none');
+ const chart=page.locator('[data-company-timeline="US:MU"]');
+ await chart.getByRole('button',{name:'Full screen',exact:true}).click();
+ await chart.focus();await page.keyboard.type('lite');
+ await expect(page.getByRole('option',{name:/Lumentum/})).toBeVisible();await page.keyboard.press('Enter');
+ await expect(page.locator('[data-company-timeline="US:LITE"]')).toHaveAttribute('data-chart-size','full');
+ await expect(page.getByRole('dialog',{name:'Company event and price timeline',exact:true})).toContainText('Lumentum');
+});

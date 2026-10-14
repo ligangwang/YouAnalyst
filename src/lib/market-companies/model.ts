@@ -1,3 +1,4 @@
+import { pinyinSearchFields } from "./pinyin-search";
 export const COMPANY_COLLECTION = "companies";
 export function companyFields(id: string, data: Record<string, unknown>) {
   const symbol = String(data.symbol ?? (id.startsWith("ORG:") ? "" : id.split(":").at(-1)) ?? "");
@@ -7,12 +8,18 @@ export function companyFields(id: string, data: Record<string, unknown>) {
   const prefixes = new Set<string>();
   const names = Object.values(data.names && typeof data.names === "object" ? data.names : {}).filter((v): v is string => typeof v === "string");
   const aliases = Array.isArray(data.aliases) ? data.aliases.filter((v): v is string => typeof v === "string") : [];
-  for (const word of [id, symbol, name, ...names, ...aliases, ...[name,...names,...aliases].flatMap(n => n.split(/[\s.,&-]+/))]) {
+  for (const word of [id, symbol, name, String(data.legalName ?? ""), ...names, ...aliases, ...[name,...names,...aliases].flatMap(n => n.split(/[\s.,&-]+/))]) {
     const value = normalized(word);
     for (let start = 0; start < value.length; start++) {
       for (let size = 1; size <= Math.min(32, value.length - start); size++) prefixes.add(value.slice(start, start + size));
     }
   }
-  return { id, market, symbol, name, symbolLower: normalized(symbol), nameLower: normalized(name), searchPrefixes: [...prefixes].slice(0, 4000),
+  return { ...pinyinSearchFields(data), id, market, symbol, name, symbolLower: normalized(symbol), nameLower: normalized(name), searchPrefixes: [...prefixes].slice(0, 4000),
     symbolPrefixes: Array.from({length:symbol.length}, (_, i) => normalized(symbol.slice(0,i+1))) };
+}
+
+/** Name edits update search metadata without rewriting identity/listing fields. */
+export function companyNameSearchFields(id: string, data: Record<string, unknown>) {
+  const { searchPrefixes, pinyinSearchTerms, pinyinSearchPrefixes, pinyinSearchVersion } = companyFields(id, data);
+  return { searchPrefixes, pinyinSearchTerms, pinyinSearchPrefixes, pinyinSearchVersion };
 }

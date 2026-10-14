@@ -148,6 +148,7 @@ export function TickerSearchInput({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp") && suggestions.length > 0) {
       setOpen(true);
       setActiveIndex(0);

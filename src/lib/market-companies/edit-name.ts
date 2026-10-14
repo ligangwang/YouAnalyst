@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
-import { companyFields } from "./model";
+import { companyNameSearchFields } from "./model";
 
 export class CompanyNameError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -31,7 +31,7 @@ export async function editCompanyName(db: Firestore, input: unknown, uid: string
     const aliases = [...new Set([...(Array.isArray(old.aliases) ? old.aliases.filter((v: unknown) => typeof v === "string") : []), ...(previous && previous !== edit.name ? [previous] : [])])];
     if (previous !== edit.name) {
       tx.update(ref, {
-        names, aliases, searchPrefixes: companyFields(edit.companyId, { ...old, names, aliases }).searchPrefixes,
+        names, aliases, ...companyNameSearchFields(edit.companyId, { ...old, names, aliases }),
         [`nameEdits.${edit.locale}`]: { previousName: previous, name: edit.name, editedBy: uid, editedAt: new Date().toISOString() },
       });
       // Existing metadata collection: invalidate graph caches across Cloud Run instances.

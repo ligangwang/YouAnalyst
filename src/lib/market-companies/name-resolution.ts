@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { FieldPath, type Firestore } from 'firebase-admin/firestore';
-import { companyFields } from './model';
+import { companyNameSearchFields } from './model';
 import { validateNewsAnalysis, articleHash, newsNameMentioned, type NewsRelationship } from '../intelligence/collectors/news-analysis';
 import { canonicalEvidenceUrl } from '../intelligence/model';
 
@@ -114,7 +114,7 @@ export async function reviewCompanyIdentity(db:Firestore,raw:unknown,actor:{uid:
     // Later evidence stays on article receipts; keep bounded references here
     // rather than duplicating long URLs throughout the company master record.
     const references=(Array.isArray(priorReview.confirmations)?priorReview.confirmations:[]).map(p=>({receiptId:p.receiptId,approvedBy:p.approvedBy,approvedAt:p.approvedAt}));
-    tx.update(companyRef,{aliases,aliasKeys:[...new Set(aliases.map(normalize))],searchPrefixes:companyFields(input.companyId,{...company,aliases}).searchPrefixes,[`aliasReviews.${aliasKey}`]:{alias:input.expectedName,...(Object.keys(priorReview).length?priorReview:confirmation),confirmations:[...references,{receiptId:confirmation.receiptId,approvedBy:confirmation.approvedBy,approvedAt:confirmation.approvedAt}].slice(-10)}});
+    tx.update(companyRef,{aliases,aliasKeys:[...new Set(aliases.map(normalize))],...companyNameSearchFields(input.companyId,{...company,aliases}),[`aliasReviews.${aliasKey}`]:{alias:input.expectedName,...(Object.keys(priorReview).length?priorReview:confirmation),confirmations:[...references,{receiptId:confirmation.receiptId,approvedBy:confirmation.approvedBy,approvedAt:confirmation.approvedAt}].slice(-10)}});
     tx.set(db.collection('directory_syncs').doc('company_names'),{revision:randomUUID()},{merge:true});
    }
   }
