@@ -17,14 +17,14 @@ test("reuses issuer across proposal IDs and blocks conflicting identities", () =
 });
 test("global private neighbors render with their own identity and profile route", () => {
   const seed = { id: "US:NVDA", name: "NVIDIA", status: "DIRECTORY", aiGraph: { status: "PUBLISHED", stageIds: [], stages: [], sources: [], memberships: [], order: 1, asOf: "2026-09-13" } } as MarketCompany;
-  const graph = graphFromMarket([seed, { id: "ORG:LAB", name: "Independent lab", status: "PUBLISHED", country: "FR", listingStatus: "PRIVATE" }], [{ id: "r", source: "US:NVDA", target: "ORG:LAB", type: "PARTNER_OF", status: "PUBLISHED", evidence: [{ id: "s", url: "https://example.com/announcement", title: "Announcement", sourceDate: null }] }]);
+  const graph = graphFromMarket([seed, { id: "ORG:LAB", name: "Independent lab", slug: "independent-lab", status: "PUBLISHED", country: "FR", listingStatus: "PRIVATE" }], [{ id: "r", source: "US:NVDA", target: "ORG:LAB", type: "PARTNER_OF", status: "PUBLISHED", evidence: [{ id: "s", url: "https://example.com/announcement", title: "Announcement", sourceDate: null }] }]);
   const lab = graph.nodes.find(n => n.id === "ORG:LAB")!;
   assert.equal(lab.market, "GLOBAL");
   assert.equal(lab.country, "FR");
   assert.equal(lab.listingStatus, "PRIVATE");
   assert.equal(filterGraph(graph, ["CN_A"]).nodes.length, 0);
   assert.equal(filterGraph(graph, ["GLOBAL"]).nodes.filter(n => n.kind === "COMPANY").length, 1);
-  assert.equal(companyPageUrl(lab.id, lab.market), "/company/ORG%3ALAB");
+  assert.equal(companyPageUrl(lab.id, lab.market, lab.slug), "/company/independent-lab");
   assert.equal(companyPageUrl("NVDA", "US"), "/company/nvidia");
 });
 test("shared names and websites do not merge subsidiaries or unrelated issuers", () => {

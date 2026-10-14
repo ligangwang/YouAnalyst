@@ -6,7 +6,7 @@ import { canonicalEvidenceUrl } from '../intelligence/model';
 
 export class NameResolutionError extends Error { constructor(public status:number,message:string){super(message);} }
 export type IdentityProposal={id:string;relationshipIndex:number;side:'source'|'target';name:string;companyId:string;proposedBy:string;proposedAt:string;status:'PENDING'|'APPROVED'|'REJECTED';reviewedBy?:string;reviewedAt?:string;reusableAlias?:boolean;evidenceUrl?:string};
-export type NameResolutionReceipt={id:string;sourceEventId:string;title:string;sourceUrl:string;contentHash:string;relationships:NewsRelationship[];proposals:IdentityProposal[]};
+export type NameResolutionReceipt={id:string;sourceEventId:string;title:string;sourceUrl:string;contentHash:string;relationships:NewsRelationship[];proposals:IdentityProposal[];companySlugs?:Record<string,string>};
 export type IdentityCandidate={id:string;name:string;legalName:string;country:string;website:string;symbol:string;exchange:string;aliases:string[]};
 const record=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
 const normalize=(value:string)=>value.normalize('NFKC').trim().replace(/\s+/g,' ').toLowerCase();
@@ -22,6 +22,15 @@ function validReceipt(id:string,data:Record<string,unknown>){
 function dto(id:string,data:Record<string,unknown>,uid:string,admin:boolean):NameResolutionReceipt{
  return {id,sourceEventId:String(data.sourceEventId),title:String(data.title??''),sourceUrl:https(data.sourceUrl),contentHash:String(data.contentHash),relationships:validReceipt(id,data),proposals:(Array.isArray(data.identityProposals)?data.identityProposals:[]).filter((p:IdentityProposal)=>admin||p.proposedBy===uid)};
 }
+async function attachCompanySlugs(db:Firestore,receipts:NameResolutionReceipt[]){
+ const ids=[...new Set(receipts.flatMap(r=>[...r.relationships.flatMap(edge=>[edge.sourceId,edge.targetId]),...r.proposals.map(p=>p.companyId)]))].filter((id):id is string=>typeof id==='string'&&idPattern.test(id));
+ const slugs:Record<string,string>={};
+ for(let offset=0;offset<ids.length;offset+=100) await Promise.all(ids.slice(offset,offset+100).map(async id=>{
+  const data=(await db.collection('companies').doc(id).get()).data();
+  if(data&&['DIRECTORY','PUBLISHED'].includes(String(data.status))&&typeof data.slug==='string') slugs[id]=data.slug;
+ }));
+ return receipts.map(receipt=>({...receipt,companySlugs:slugs}));
+}
 export async function getNameResolution(db:Firestore,eventId:string,uid:string,admin:boolean){
  const id=eventId.replace(/^news-/,'');
  if(!/^company_news_[a-f0-9]{64}$/.test(id))fail(400,'Invalid news event');
@@ -31,7 +40,7 @@ export async function getNameResolution(db:Firestore,eventId:string,uid:string,a
  if(typeof receiptId!=='string')return {receipt:null};
  const data=(await db.collection('events').doc(receiptId).get()).data();
  if(!data||data.sourceEventId!==id||data.sourceUrl!==canonicalEvidenceUrl(String(source.url??''))||data.title!==source.title||data.status!=='complete')return {receipt:null};
- return {receipt:dto(receiptId,data,uid,admin)};
+ return {receipt:(await attachCompanySlugs(db,[dto(receiptId,data,uid,admin)]))[0]};
 }
 export async function listNameResolutions(db:Firestore,uid:string,after=''){
  if(after&&!/^news_analysis_[a-f0-9]{64}$/.test(after))fail(400,'Invalid cursor');
@@ -39,7 +48,7 @@ export async function listNameResolutions(db:Firestore,uid:string,after=''){
  const page=await (after?query.startAfter(after):query.startAt('news_analysis_')).limit(30).get();
  const receipts:NameResolutionReceipt[]=[];
  for(const doc of page.docs){const data=doc.data();if(data.status!=='complete')continue;const item=dto(doc.id,data,uid,true);if(item.relationships.some(r=>!r.sourceId||!r.targetId)||item.proposals.some(p=>p.status==='PENDING'))receipts.push(item);}
- return {receipts,nextCursor:page.size===30?page.docs.at(-1)!.id:null};
+ return {receipts:await attachCompanySlugs(db,receipts),nextCursor:page.size===30?page.docs.at(-1)!.id:null};
 }
 export async function searchIdentityCandidates(db:Firestore,raw:string){
  const q=normalize(raw);if(!q||q.length>120)return {items:[]};

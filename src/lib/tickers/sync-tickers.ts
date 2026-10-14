@@ -99,14 +99,14 @@ export type TickerCatalogSyncResult = {
 // The provider's country filters the trading market, not the issuer's business location.
 export function companyListingFields<T extends Pick<TickerCatalogDocument, "symbol" | "name" | "country">>(ticker: T, existing: Record<string, unknown> = {}) {
   const { country, ...listing } = ticker;
-  return { ...listing, listingCountry: country, ...companyFields(`US:${ticker.symbol}`, {names:existing.names,aliases:existing.aliases,...ticker}) };
+  return { ...listing, listingCountry: country, ...companyFields(`US:${ticker.symbol}`, {slug:existing.slug,names:existing.names,aliases:existing.aliases,...ticker}) };
 }
 
 export async function syncCompanyListings(db: Firestore, group: TickerCatalogDocument[]) {
   // Read and write together so a concurrent translation publication cannot be lost.
   await db.runTransaction(async tx => {
     const refs=group.map(ticker=>db.collection(COMPANY_COLLECTION).doc(`US:${ticker.symbol}`));
-    const existing=await tx.getAll(...refs,{fieldMask:["names","aliases"]});
+    const existing=await tx.getAll(...refs,{fieldMask:["names","aliases","slug"]});
     group.forEach((ticker,i)=>tx.set(refs[i],companyListingFields(ticker,existing[i].data()),{merge:true}));
   });
 }

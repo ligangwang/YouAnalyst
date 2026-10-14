@@ -22,6 +22,7 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
     }) : [];
   return {
     ticker,
+    slug: text(listing?.slug),
     listingStatus: listing?.listingStatus,
     profile: normalizeCompanyProfile(listing?.profile),
     name: text(listing?.name) ?? text(node?.aliases?.[0]) ?? node?.name ?? ticker,

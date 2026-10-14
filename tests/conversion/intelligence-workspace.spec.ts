@@ -238,8 +238,8 @@ for(const zh of [false,true])test(`chart indicator switches, custom averages, ho
   await page.evaluate(()=>{const original=window.matchMedia.bind(window);window.matchMedia=(query:string)=>query==='(pointer:coarse)'?{...original(query),matches:true} as MediaQueryList:original(query);});
   await svg.locator('[data-price-candle]').nth(1).click();await svg.hover({position:{x:5,y:5}});await expect(details).toHaveCount(0);
   const scroll=await page.evaluate(()=>scrollY);await page.mouse.wheel(0,-120);await expect(svg.locator('[data-price-candle]')).not.toHaveCount(total);expect(await page.evaluate(()=>scrollY)).toBe(scroll);await timeline.getByRole('button',{name:zh?'重置视图':'Reset view',exact:true}).click();await expect(svg.locator('[data-price-candle]')).toHaveCount(total);
-  await page.context().route('**/company/ticker-mu',route=>route.fulfill({contentType:'text/html',body:'<h1>Company research fixture</h1>'}));
-  const oldUrl=page.url(),popup=page.waitForEvent('popup');await svg.press('F10');const research=await popup;await expect(research).toHaveURL(new RegExp(`/${zh?'zh-cn':'en'}/company/ticker-mu`));await research.close();expect(page.url()).toBe(oldUrl);
+  await page.context().route('**/company/micron',route=>route.fulfill({contentType:'text/html',body:'<h1>Company research fixture</h1>'}));
+  const oldUrl=page.url(),popup=page.waitForEvent('popup');await svg.press('F10');const research=await popup;await expect(research).toHaveURL(new RegExp(`/${zh?'zh-cn':'en'}/company/micron`));await research.close();expect(page.url()).toBe(oldUrl);
  }else{await svg.locator('[data-price-candle] rect').first().tap();const details=timeline.getByRole('group',{name:zh?'股价详情':'Price details'});await expect(details).toBeVisible();await details.getByRole('button',{name:zh?'关闭股价详情':'Close price details'}).click();await expect(details).toHaveCount(0);}
  await expect(timeline.getByRole('link',{name:zh?'基本面（F10）':'Fundamentals (F10)',exact:true})).toHaveAttribute('target','_blank');
  await timeline.getByRole('button',{name:zh?'全屏':'Full screen',exact:true}).click();await expect(timeline).toHaveAttribute('data-chart-size','full');
@@ -903,7 +903,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(page.locator('[data-list-company]')).toHaveCount(1);
   await page.locator('[data-list-company="US:MU"] button').click();
   const companyCard=page.getByRole('region',{name:'Company details',exact:true});
-  await expect(companyCard.getByRole('link',{name:'Relationship sources ↗'})).toHaveAttribute('href','/en/company/ticker-mu');
+  await expect(companyCard.getByRole('link',{name:'Relationship sources ↗'})).toHaveAttribute('href','/en/company/micron');
   await expect(companyCard.getByRole('link',{name:'Bullish',exact:true})).toHaveAttribute('href',/ticker%3DMU/);
   await page.reload();await expect(companyCard.getByRole('link',{name:'Relationship sources ↗'})).toBeVisible();
   await input.fill('');

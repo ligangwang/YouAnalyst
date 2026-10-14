@@ -14,7 +14,7 @@ export function companyResearchGraph(graph: KnowledgeGraph, locale="en"): Indust
   return {
     nodes:companies.map(n=>({id:n.id,name:companyName(n,locale),names:n.names,ticker:n.symbol||null,
       segment:segments[companySector(n).id]??"other",stageIds:n.stageIds,kind:"published",market:n.market,
-      profileUrl:companyPageUrl(n.market==="GLOBAL"?n.id:n.symbol||n.id,n.market),
+      profileUrl:companyPageUrl(n.market==="GLOBAL"?n.id:n.symbol||n.id,n.market,n.slug),
       aliases:[n.name??"",...Object.values(n.names??{}),...(n.aliases??[])]})),
     edges:graph.relationships.filter(e=>e.type!=="PARTICIPATES_IN"&&ids.has(e.source)&&ids.has(e.target)).map(e=>({
       id:e.id,source:e.source,target:e.target,type:e.type,summary:e.summary,commercialStatus:e.commercialStatus,

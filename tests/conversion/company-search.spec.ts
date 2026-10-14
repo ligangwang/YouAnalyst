@@ -99,7 +99,7 @@ test("keyboard navigation chooses among the suggestions", async ({ page }) => {
   await expect(page.getByRole("option", { name: /NVDA NVIDIA/ })).toHaveAttribute("aria-selected", "true");
   await input(page).press("ArrowDown");
   await input(page).press("Enter");
-  await expect(page.getByText("Destination /en/company/ticker-nvdl", { exact: true })).toBeVisible();
+  await expect(page.getByText("Destination /en/ticker/NVDL", { exact: true })).toBeVisible();
 });
 
 test("Escape closes the suggestions and Enter still opens the best match", async ({ page }) => {

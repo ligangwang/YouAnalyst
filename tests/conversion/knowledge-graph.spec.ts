@@ -919,7 +919,7 @@ test("failed graph loads can retry", async ({page}) => {
 });
 
 test("global company details remain available with legacy market filters", async ({ page }) => {
-  const globalGraph: KnowledgeGraph = { ...graph, nodes: [...graph.nodes, { id: "ORG:LAB", kind: "COMPANY", name: "Independent Lab", symbol: "", market: "GLOBAL", country: "FR", listingStatus: "PRIVATE", listings: [], stageIds: ["cloud"], order: 150, sourceIds: [] }] };
+  const globalGraph: KnowledgeGraph = { ...graph, nodes: [...graph.nodes, { id: "ORG:LAB", kind: "COMPANY", name: "Independent Lab", slug: "independent-lab", symbol: "", market: "GLOBAL", country: "FR", listingStatus: "PRIVATE", listings: [], stageIds: ["cloud"], order: 150, sourceIds: [] }] };
   await page.route("**/*", route => route.request().url().includes("/api/knowledge-graph") ? route.fulfill({ json: globalGraph }) : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("http://graph.test/map?lang=en&graphMarkets=GLOBAL");
   await expect(page.locator('span[role="status"]')).toContainText("130 companies");
@@ -927,7 +927,7 @@ test("global company details remain available with legacy market filters", async
   await page.getByRole("textbox", { name: "Search companies" }).fill("Independent Lab");
   await page.getByRole("region", {name:"Search results"}).getByRole("button", { name: /Independent Lab/ }).click();
   await expect(page.getByRole("complementary")).toContainText("France · Private");
-  await expect(page.getByRole("link", { name: "Company profile →" })).toHaveAttribute("href", "/company/ORG%3ALAB");
+  await expect(page.getByRole("link", { name: "Company profile →" })).toHaveAttribute("href", "/company/independent-lab");
   await page.reload();
   await expect(page.getByRole("textbox", {name:"Search companies"})).toHaveValue("Independent Lab");
   await expect(page.locator('span[role="status"]')).toContainText("1 companies");

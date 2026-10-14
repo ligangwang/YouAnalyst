@@ -35,3 +35,12 @@ test('public indexed search resolves Chinese, full pinyin, initials, English and
     assert(queries.length <= 4);
   }
 });
+
+test('long legal names preserve localized names and alias search prefixes', () => {
+  const legalName = Array.from({length: 140}, (_, i) => String.fromCharCode(0x4e00 + i)).join('');
+  const localizedName = String.fromCharCode(0x793a, 0x4f8b, 0x516c, 0x53f8);
+  const fields = companyFields('US:TEST', {name: 'Example', legalName, names: {'zh-CN': localizedName}, aliases: ['SpecialAlias']});
+  assert(fields.searchPrefixes.includes('specialalias'));
+  assert(fields.searchPrefixes.includes(localizedName));
+  assert.equal(fields.searchPrefixes.length, 4000);
+});

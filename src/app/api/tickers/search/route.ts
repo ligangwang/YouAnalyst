@@ -5,6 +5,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { NextRequest, NextResponse } from "next/server";
 
 type TickerSearchItem = {
+  slug?: string;
   id: string;
   kind: "ticker";
   symbol: string;
@@ -23,6 +24,7 @@ type ScoredSearchItem = {
 };
 
 type TickerDocument = {
+  slug?: unknown;
   symbol?: unknown;
   symbolLower?: unknown;
   name?: unknown;
@@ -82,6 +84,7 @@ function toSearchItem(id: string, data: TickerDocument) {
   return {
     id,
     kind: "ticker" as const,
+    ...(readString(data.slug)?{slug:readString(data.slug)!}:{}),
     symbol,
     symbolLower,
     name,
@@ -153,6 +156,7 @@ export async function GET(request: NextRequest) {
           kind: item.kind,
           symbol: item.symbol,
           name: item.name,
+          ...(item.slug?{slug:item.slug}:{}),
           exchange: item.exchange,
           micCode: item.micCode,
           type: item.type,

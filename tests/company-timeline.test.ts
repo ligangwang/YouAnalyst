@@ -373,7 +373,7 @@ test('shared settings round trip and malformed settings use safe defaults',()=>{
 });
 test('company links resolve to the appropriate public profile and preserve language',()=>{
   assert.equal(new URL(chartShareUrl('US:AMD','en',chart)).pathname,'/en/company/amd');
-  assert.equal(new URL(chartShareUrl('XSHG:600519','zh-CN',chart)).pathname,'/zh-cn/ticker/XSHG:600519');
+  assert.equal(decodeURIComponent(new URL(chartShareUrl('XSHG:600519','zh-CN',chart)).pathname),'/zh-cn/company/贵州茅台');
   assert.equal(decodeURIComponent(new URL(chartShareUrl('ORG:OPENAI','en',chart)).pathname),'/en/company/openai');
 });
 test('event shares preserve public selection without personal browsing state',()=>{
