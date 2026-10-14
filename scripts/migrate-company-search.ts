@@ -1,3 +1,4 @@
+import { verifyCompanySearchWriters } from '../src/lib/market-companies/search-writer-guard';
 import { GoogleAuth } from 'google-auth-library';
 import { companySearchMigration } from '../src/lib/market-companies/search-migration';
 import { COMPANY_SEARCH_VERSION, RETIRED_COMPANY_SEARCH_FIELDS } from '../src/lib/market-companies/search';
@@ -16,6 +17,8 @@ function encode(value: unknown): Value {
 async function main() {
   const project = process.env.GCP_PROJECT_ID, apply = process.argv.includes('--apply'), cleanup = process.argv.includes('--cleanup');
   if (!project || !/^[a-z][a-z0-9-]+$/.test(project) || !process.argv.some(arg => arg === '--preview' || arg === '--apply')) throw new Error('Set GCP_PROJECT_ID and use --preview or --apply');
+  const token = process.env.GOOGLE_OAUTH_ACCESS_TOKEN ?? await new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/datastore','https://www.googleapis.com/auth/cloud-platform'] }).getAccessToken();
+  if (!token) throw new Error('Existing Google credentials required');
   if (apply && cleanup) {
     const expected = process.argv[process.argv.indexOf('--expected-sha') + 1];
     if (!/^[a-f0-9]{40}$/.test(expected ?? '')) throw new Error('Cleanup requires --expected-sha of the deployed release');
@@ -26,9 +29,8 @@ async function main() {
       const result = await response.json();
       if (response.headers.get('x-company-search-version') !== String(COMPANY_SEARCH_VERSION) || !response.ok || !result.items?.some((item:{id:string}) => item.id===id)) throw new Error('Live unified search probe failed');
     }
+    await verifyCompanySearchWriters({project,region:process.env.GCP_REGION??'us-central1',expectedSha:expected,token});
   }
-  const token = process.env.GOOGLE_OAUTH_ACCESS_TOKEN ?? await new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/datastore'] }).getAccessToken();
-  if (!token) throw new Error('Existing Google credentials required');
   const database = `projects/${project}/databases/(default)`;
   const request = async (operation: string, body: unknown) => {
     const response = await fetch(`https://firestore.googleapis.com/v1/${database}/documents:${operation}`, { method:'POST', headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'}, body:JSON.stringify(body), signal:AbortSignal.timeout(60000) });
