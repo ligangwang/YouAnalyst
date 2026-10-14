@@ -25,6 +25,7 @@ import { ChinaCompanyPage } from "@/components/china-company-page";
 import { loadCnFundamentals } from "@/lib/fundamentals/cn-service";
 import { headers } from "next/headers";
 import { companyOrganizationSchema } from "@/lib/company-schema";
+import { canonicalCompanyPath } from "@/lib/market-companies/slug-resolver";
 
 const loadChinaCompany = cache(async (id: string) => {
   const doc = await getAdminFirestore().collection(COMPANY_COLLECTION).doc(id).get();
@@ -62,6 +63,7 @@ async function buildPageMetadata({
   }
   const ticker = resolveTicker(symbol);
   const company = await loadCompanyResearch(ticker);
+  const canonical = await canonicalCompanyPath(`US:${ticker}`) ?? companyPageUrl(ticker,'US',company.slug);
   const zh = locale === "zh-CN";
   const focus = company.connections.length ? (zh ? "AI 生态与产业链关系" : "AI ecosystem & supply-chain relationships") : (zh ? "公司研究" : "company research");
   const title = `${companyName({id:ticker, name:company.name, names:company.names},locale)} (${ticker}) ${focus} | YouAnalyst`;
@@ -71,13 +73,13 @@ async function buildPageMetadata({
     title,
     description,
     alternates: {
-      canonical: companyPageUrl(ticker, "US"),
+      canonical,
     },
     openGraph: {
       images: [{url:`/api/research-preview-image?company=US%3A${ticker}`,width:1200,height:630}],
       title,
       description,
-      url: companyPageUrl(ticker, "US"),
+      url: canonical,
     },
     twitter: {
       card: "summary_large_image",
@@ -103,15 +105,16 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(localizedPath(companyPageUrl(ticker, "US"), locale));
   const company = await loadCompanyResearch(ticker);
+  const canonical = await canonicalCompanyPath(`US:${ticker}`) ?? companyPageUrl(ticker,'US',company.slug);
   const schema = {
     "@context": "https://schema.org",
     "@graph": [
-      ...(company.known ? [companyOrganizationSchema({ ...company, id: `US:${ticker}` }, locale, absoluteUrl(localizedPath(companyPageUrl(ticker, "US"), locale)), ticker, company.exchange)] : []),
-      { "@type": "WebPage", name: `${companyName({id:ticker, name:company.name, names:company.names},locale)} (${ticker}) ${locale === "zh-CN" ? "公司研究" : "company research"}`, url: absoluteUrl(localizedPath(companyPageUrl(ticker, "US"), locale)), description: companyResearchDescription(company, locale) },
+      ...(company.known ? [companyOrganizationSchema({ ...company, id: `US:${ticker}` }, locale, absoluteUrl(localizedPath(canonical, locale)), ticker, company.exchange)] : []),
+      { "@type": "WebPage", name: `${companyName({id:ticker, name:company.name, names:company.names},locale)} (${ticker}) ${locale === "zh-CN" ? "公司研究" : "company research"}`, url: absoluteUrl(localizedPath(canonical, locale)), description: companyResearchDescription(company, locale) },
       { "@type": "BreadcrumbList", itemListElement: [
         { "@type": "ListItem", position: 1, name: "YouAnalyst", item: absoluteUrl(localizedPath("/", locale)) },
         { "@type": "ListItem", position: 2, name: locale === "zh-CN" ? "公司" : "Companies", item: absoluteUrl(localizedPath("/companies", locale)) },
-        { "@type": "ListItem", position: 3, name: ticker, item: absoluteUrl(localizedPath(companyPageUrl(ticker, "US"), locale)) },
+        { "@type": "ListItem", position: 3, name: ticker, item: absoluteUrl(localizedPath(canonical, locale)) },
       ] },
     ],
   };

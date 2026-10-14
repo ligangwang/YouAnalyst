@@ -1,3 +1,5 @@
+import { COMPANY_URL_SLUGS } from './slugs';
+import { nameSlug, validCompanySlug } from './slug-plan';
 export const COMPANY_COLLECTION = "companies";
 export function companyFields(id: string, data: Record<string, unknown>) {
   const symbol = String(data.symbol ?? (id.startsWith("ORG:") ? "" : id.split(":").at(-1)) ?? "");
@@ -13,6 +15,10 @@ export function companyFields(id: string, data: Record<string, unknown>) {
       for (let size = 1; size <= Math.min(32, value.length - start); size++) prefixes.add(value.slice(start, start + size));
     }
   }
-  return { id, market, symbol, name, symbolLower: normalized(symbol), nameLower: normalized(name), searchPrefixes: [...prefixes].slice(0, 4000),
+  // Preserve URL identity when translations, display names, or listing data change.
+  const english = data.names && typeof data.names === 'object' ? (data.names as Record<string,unknown>).en : undefined;
+  const base = nameSlug(typeof english === 'string' ? english : name);
+  const slug = validCompanySlug(data.slug) ? data.slug : COMPANY_URL_SLUGS[id] ?? `${base}-${nameSlug(id.replace(':','-'))}`;
+  return { id, market, symbol, name, ...(validCompanySlug(slug)?{slug}:{}), symbolLower: normalized(symbol), nameLower: normalized(name), searchPrefixes: [...prefixes].slice(0, 4000),
     symbolPrefixes: Array.from({length:symbol.length}, (_, i) => normalized(symbol.slice(0,i+1))) };
 }

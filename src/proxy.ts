@@ -25,7 +25,7 @@ export function proxy(request: NextRequest) {
     const plain = unlocalizedPath(request.nextUrl.pathname);
     const oldTicker = /^\/ticker\/([A-Za-z0-9][A-Za-z0-9.-]{0,15})$/.exec(plain);
     // A-shares retain their exchange-qualified routes; migrate US company pages.
-    if (oldTicker && !/^[036]\d{5}$/.test(oldTicker[1])) {
+    if (oldTicker && !/^[036]\d{5}$/.test(oldTicker[1]) && publicCompanyPath(oldTicker[1]).startsWith('/company/')) {
       const destination = new URL(request.url);
       destination.pathname = localizedPath(publicCompanyPath(oldTicker[1]), locale);
       destination.searchParams.delete("lang");

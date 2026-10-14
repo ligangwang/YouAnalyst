@@ -2,9 +2,9 @@ import { companyName, type GraphEdge, type GraphNode, type KnowledgeGraph } from
 import { companyPageUrl } from "../market-companies/routes";
 import { companySector } from "./sectors";
 
-export function researchCompanyUrl(node: Pick<GraphNode, "id"> & Partial<Pick<GraphNode, "market">>) {
+export function researchCompanyUrl(node: Pick<GraphNode, "id"> & Partial<Pick<GraphNode, "market" | "slug">>) {
   const market = node.market ?? (/^(XSHG|XSHE):/.test(node.id) ? "CN_A" : node.id.startsWith("ORG:") ? "GLOBAL" : "US");
-  return companyPageUrl(node.id.startsWith("US:") ? node.id.slice(3) : node.id, market);
+  return companyPageUrl(node.id.startsWith("US:") ? node.id.slice(3) : node.id, market, node.slug);
 }
 export const relationAnchor = (id: string) => `relationship-${Array.from(id).map(c => c.charCodeAt(0).toString(16)).join("-")}`;
 const roles: Record<string, [string, string]> = {

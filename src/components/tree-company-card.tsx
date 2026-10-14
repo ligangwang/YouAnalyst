@@ -65,7 +65,7 @@ export function TreeCompanyCard({company,color,onClose,reveal=false,closing=fals
       {!china&&data&&<small>{text('Source: SEC annual filings; annual figures, not TTM.','来源：SEC 年报；年度数据，非滚动十二个月。')}</small>}
       {company.summary&&<p className={styles.cardSummary}>{companySummary(company,locale)}</p>}
       </details>
-      <div className={styles.cardActions}><CompanyFollowButton companyId={company.id}/><a href={companyPageUrl(company.id.startsWith('US:')?company.id.slice(3):company.id,company.market)}>{text('Company profile','公司详情')} ↗</a></div>
+      <div className={styles.cardActions}><CompanyFollowButton companyId={company.id}/><a href={companyPageUrl(company.id.startsWith('US:')?company.id.slice(3):company.id,company.market,company.slug)}>{text('Company profile','公司详情')} ↗</a></div>
     </div>
   </aside>;
 }

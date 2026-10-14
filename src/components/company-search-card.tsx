@@ -18,7 +18,7 @@ function isValidTicker(value: string): boolean {
 }
 
 function suggestionUrl(item: SearchSuggestion): string {
-  return companyPageUrl(item.market === "GLOBAL" ? item.id : item.symbol, item.market);
+  return companyPageUrl(item.market === "GLOBAL" ? item.id : item.symbol, item.market,item.slug);
 }
 
 // Resolve typed text to the search's best match; the API ranks exact tickers and names first.

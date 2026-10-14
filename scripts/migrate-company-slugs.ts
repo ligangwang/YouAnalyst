@@ -12,6 +12,9 @@ async function main() {
   const db = getFirestore();
   const snapshot = await db.collection('companies').select('name','names','en','slug','slugAliases').get();
   const rows = snapshot.docs.map(doc=>({id:doc.id,...doc.data()}));
+  const sourceFields = (data:Record<string,unknown>) => ({name:data.name,en:data.en,
+    englishName:data.names && typeof data.names==='object'?(data.names as Record<string,unknown>).en:undefined});
+  const sources = new Map(rows.map(row=>[row.id,sourceFields(row)]));
   const plan = buildCompanySlugPlan(rows);
   await mkdir('.company-slugs',{recursive:true});
   await writeFile('.company-slugs/preview.json',JSON.stringify(plan,null,2)+'\n');
@@ -26,6 +29,7 @@ async function main() {
       batch.forEach((row,i)=>{
         const current = docs[i].data();
         assert(current && current.name===row.name,'Company changed during migration');
+        assert.deepEqual(sourceFields(current),sources.get(row.id),'Slug source names changed during migration');
         assert(current.slug===undefined && row.previousSlug===null || current.slug===row.previousSlug || current.slug===row.slug,'Slug changed during migration');
         const aliases = current.slugAliases ?? [];
         assert.deepEqual(aliases,current.slug===row.slug?row.slugAliases:row.previousAliases,'Slug aliases changed during migration');

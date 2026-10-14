@@ -9,7 +9,8 @@ test("old company links permanently redirect with locale and query values preser
     ["/ticker/MSFT", "/en/company/microsoft"],
     ["/en/ticker/msft", "/en/company/microsoft"],
     ["/zh-cn/ticker/MSFT", "/zh-cn/company/microsoft"],
-    ["/ticker/BRK.B", "/en/company/ticker-brk.b"],
+    ["/ticker/BRK.B", "/en/company/berkshire-hathaway-inc-class-b"],
+    ["/ticker/mu", "/en/company/micron"],
   ]) {
     const response = proxy(new NextRequest(`https://youanalyst.com${path}?source=watchlist&tag=a&tag=b`));
     assert.equal(response.status, 308);
@@ -18,6 +19,11 @@ test("old company links permanently redirect with locale and query values preser
     assert.equal(url.searchParams.get("source"), "watchlist");
     assert.deepEqual(url.searchParams.getAll("tag"), ["a", "b"]);
   }
+});
+test('unknown ticker links never redirect to themselves or a ticker-prefixed company path',()=>{
+  const response=proxy(new NextRequest('https://youanalyst.com/en/ticker/UNKNOWNXYZ'));
+  assert.notEqual(response.headers.get('location'),'https://youanalyst.com/en/ticker/UNKNOWNXYZ');
+  assert(!response.headers.get('location')?.includes('/company/ticker-'));
 });
 
 test("company metadata uses the same canonical path for both language alternatives", () => {
