@@ -22,12 +22,12 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const items = results?.query === searched ? results.items : [];
   const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (!inline && previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, [inline]);
   const choose = useCallback((item: SearchSuggestion) => { close(); const current = destination.current; if (current.onSelect) current.onSelect(item); else location.assign(localizedPath(companyPageUrl(item.market === 'GLOBAL' ? item.id : item.symbol, item.market, item.slug), current.locale)); }, [close]);
-  function show(initial = '') {
+  const show = useCallback((initial = '') => {
     queuedQuery.current = null; composing.current = false;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     flushSync(() => { setQuery(initial); setResults(null); setActive(0); setError(false); setBusy(false); setOpen(true); });
     input.current?.focus({ preventScroll: !inline });
-  }
+  }, [inline]);
   function preferredTrigger() {
     const full = [...document.querySelectorAll<HTMLElement>('[data-chart-size="full"]')].filter(element => element.getClientRects().length && !element.closest('[inert]')).at(-1);
     return full?.querySelector<HTMLButtonElement | HTMLInputElement>('[data-company-search-trigger]')
@@ -50,7 +50,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     };
     document.addEventListener('keydown', key, true);
     return () => document.removeEventListener('keydown', key, true);
-  }, [enabled, open, typeToSearch, inline]);
+  }, [enabled, open, typeToSearch, inline, show]);
   useEffect(() => {
     if (!open || !searched) return;
     const controller = new AbortController();
