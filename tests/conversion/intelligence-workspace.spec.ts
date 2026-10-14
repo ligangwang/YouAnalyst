@@ -1405,6 +1405,9 @@ for(const chinese of [false,true])test(`Explore text-to-search is quiet, ignores
  await button.click();await expect(dialog.getByRole('combobox')).toBeFocused();
  if(info.project.name==='mobile')expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
  await dialog.getByRole('combobox').fill('meiguang');await expect(dialog.getByRole('option')).toBeVisible();
+ // Inline popups retain readable result metadata rather than inheriting toolbar typography.
+ const popupType=await dialog.evaluate(el=>{const option=el.querySelector('[role="option"]')!,metadata=option.querySelector('span')!;return {panelColor:getComputedStyle(el).color,optionColor:getComputedStyle(option).color,metadataColor:getComputedStyle(metadata).color,metadataSize:parseFloat(getComputedStyle(metadata).fontSize),metadataWrap:getComputedStyle(metadata).whiteSpace};});
+ expect(popupType.optionColor).toBe(popupType.panelColor);expect(popupType.metadataColor).not.toBe(popupType.optionColor);expect(popupType.metadataSize).toBeGreaterThanOrEqual(12);expect(popupType.metadataWrap).not.toBe('nowrap');
  await page.screenshot({path:`output/unified-search-${chinese?'zh':'en'}-${info.project.name}.png`});
  await page.keyboard.press('Enter');await expect(dialog).toHaveCount(0);await expect(page).toHaveURL(/company=US%3AMU/);
 });
