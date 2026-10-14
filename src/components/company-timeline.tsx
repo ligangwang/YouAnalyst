@@ -16,6 +16,7 @@ import type { CompanyThemeId } from '@/lib/company-themes/model';
 import { chartShareUrl, companyResearchPath, parseSharedChart, sharedChartParams, type SharedChart } from '@/lib/ui/chart-share';
 import { eventReturnDays } from '@/lib/ui/event-return-age';
 import { useRelativeTimeClock } from './relative-time';
+import { ChartToolbarIcon } from "./chart-toolbar-icon";
 import { CompanySearch } from "./company-search";
 import type { SearchSuggestion } from "./ticker-search-input";
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
@@ -78,6 +79,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const averagePeriods=[...new Set([...MA_PERIODS,...averages])].sort((a,b)=>a-b);
   const maxAverage=Math.max(60,...averages);
   const [maSettings,setMaSettings]=useState<EventWindowAnchor|null>(null);
+  const [helpAnchor,setHelpAnchor]=useState<EventWindowAnchor|null>(null);
   const [viewport,setViewport]=useState({key:'',zoom:1,offset:0});
   const [closed, setClosed] = useState(false);
   const [loaded, setLoaded] = useState<{ key: string; data: TimelinePrices; indicatorError?:boolean } | null>(null);
@@ -264,32 +266,40 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   };
   if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
   return <section id="company-timeline" ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴")} data-company-timeline={companyId}>
-    <header className={styles.header}><h2>{chosenStock ? `${chosenStock.name} · ${chosenStock.symbol}` : text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><div role="group" aria-label={text('Chart type','图表类型')} className={styles.chartModes}><button type="button" aria-pressed={chartMode==='candles'} onClick={()=>setChartMode('candles')}>{text('Candles','蜡烛图')}</button><button type="button" aria-pressed={chartMode==='line'} onClick={()=>setChartMode('line')}>{text('Line','曲线')}</button></div><span>{rangeLabel(days)}</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
-    <div className={styles.tools}>
-      <a href={researchPath} target="_blank" rel="noopener noreferrer" title={text('Open company research in a new tab','在新标签页打开公司研究页')}>{text('Fundamentals (F10)','基本面（F10）')}</a>
-      <button type="button" onClick={()=>void copyChartLink()}>{text('Copy chart link','复制图表链接')}</button>
+    <header className={styles.header}><h2>{chosenStock ? `${chosenStock.name} · ${chosenStock.symbol}` : text("Events, price & volume", "事件、股价与成交量")}</h2><div className={styles.ranges} role="group" aria-label={text("Timeline range", "时间范围")}><span>{rangeLabel(days)}</span><button ref={toggleButton} type="button" aria-label={text("Close timeline", "关闭时间轴")} onClick={() => toggleTimeline(true)}>×</button></div></header>
+    <div className={styles.tools} data-chart-toolbar>
+      <a href={researchPath} target="_blank" rel="noopener noreferrer" className={styles.iconButton} aria-label={text('Fundamentals (F10)','基本面（F10）')} title={text('Fundamentals (F10): open company research in a new tab','基本面（F10）：在新标签页打开公司研究页')}><ChartToolbarIcon name="research"/></a>
+      <button type="button" className={styles.iconButton} aria-label={text('Copy chart link','复制图表链接')} title={text('Copy chart link','复制图表链接')} onClick={()=>void copyChartLink()}><ChartToolbarIcon name="link"/></button>
       <CompanySearch iconOnly owner="chart" enabled={chartSize==='full'} onSelect={item=>{setStockChoice(item.id===initialCompanyId?null:{source:initialCompanyId,item});setPriceSelection(null);setHoverPrice(null);setClusterId('');setHoverDate(null);setEventAnchor(null);setSelectedId('');onDismissEvent?.();setShareResult(null);}}/>
-      <ChartSizeControls iconOnly size={chartSize} onChange={setChartSize}/>
-      <label>{text('Range','时间范围')} <select aria-label={text('Price history range','股价时间范围')} value={days} onChange={event=>{setDays(event.target.value==='ytd'?'ytd':Number(event.target.value) as TimelineRange);setPriceSelection(null);setClusterId('');setHoverDate(null);}}>{TIMELINE_RANGES.map(range=><option key={range} value={range}>{rangeLabel(range)}</option>)}</select></label>
-      <label>{text('Interval','K线周期')} <select aria-label={text('Candlestick interval','K线周期')} value={settings.interval} onChange={event=>{changeSettings({interval:event.target.value as TimelineIntervalChoice});closePriceDetails();setClusterId('');setHoverDate(null);}}>{(['auto',...TIMELINE_INTERVALS] as const).map(value=><option key={value} value={value}>{intervalLabel(value)}</option>)}</select></label>
+      <ChartSizeControls iconOnly size={chartSize} onChange={setChartSize}/><div role="group" aria-label={text('Chart type','图表类型')} className={styles.chartModes}><button type="button" aria-pressed={chartMode==='candles'} className={styles.iconButton} aria-label={text('Candles','蜡烛图')} title={text('Candles','蜡烛图')} onClick={()=>setChartMode('candles')}><ChartToolbarIcon name="candles"/></button><button type="button" aria-pressed={chartMode==='line'} className={styles.iconButton} aria-label={text('Line','曲线')} title={text('Line','曲线')} onClick={()=>setChartMode('line')}><ChartToolbarIcon name="line"/></button></div>
+      <label><select title={text('Price history range','股价时间范围')} aria-label={text('Price history range','股价时间范围')} value={days} onChange={event=>{setDays(event.target.value==='ytd'?'ytd':Number(event.target.value) as TimelineRange);setPriceSelection(null);setClusterId('');setHoverDate(null);}}>{TIMELINE_RANGES.map(range=><option key={range} value={range}>{rangeLabel(range)}</option>)}</select></label>
+      <label><select title={text('Candlestick interval','K线周期')} aria-label={text('Candlestick interval','K线周期')} value={settings.interval} onChange={event=>{changeSettings({interval:event.target.value as TimelineIntervalChoice});closePriceDetails();setClusterId('');setHoverDate(null);}}>{(['auto',...TIMELINE_INTERVALS] as const).map(value=><option key={value} value={value}>{intervalLabel(value)}</option>)}</select></label>
       <div role="group" aria-label={text('Technical indicators','技术指标')} className={styles.indicatorControls}>
-        {averagePeriods.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):movingAveragePeriods([...values,period]))}>{text('MA','MA')}{period}</button>)}
-        <button type="button" onClick={click=>setMaSettings(eventWindowAnchor(click))}>{text('MA settings','均线设置')}</button>
-        <button type="button" aria-pressed={showEvents} onClick={()=>{setShowEvents(value=>!value);setClusterId('');setHoverDate(null);}}>{text('Events','事件')}</button>
+        <button type="button" className={styles.iconButton} aria-label={text('MA settings','均线设置')} title={text('Moving averages: toggle lines and set periods','均线：切换显示并设置周期')} aria-haspopup="dialog" aria-expanded={Boolean(maSettings)} onClick={click=>setMaSettings(eventWindowAnchor(click))}><ChartToolbarIcon name="averages"/></button>
+        <button type="button" className={styles.iconButton} aria-label={text('Events','事件')} title={text('Show or hide events','显示或隐藏事件')} aria-pressed={showEvents} onClick={()=>{setShowEvents(value=>!value);setClusterId('');setHoverDate(null);}}><ChartToolbarIcon name="events"/></button>
       </div>
       <div className={styles.indicatorSwitches}>
         <div role="group" aria-label={text('Trading activity','交易活跃度')} className={styles.indicatorControls}>
-          <button type="button" aria-pressed={activity==='volume'} onClick={()=>changeSettings({activity:'volume'})}>{text('Volume','成交量')}</button>
-          <button type="button" aria-pressed={activity==='turnover'} onClick={()=>changeSettings({activity:'turnover'})}>{text('Turnover','成交额')}</button>
+          <button type="button" className={styles.iconButton} aria-label={text('Volume','成交量')} title={text('Volume','成交量')} aria-pressed={activity==='volume'} onClick={()=>changeSettings({activity:'volume'})}><ChartToolbarIcon name="volume"/></button>
+          <button type="button" className={styles.iconButton} aria-label={text('Turnover','成交额')} title={text('Turnover','成交额')} aria-pressed={activity==='turnover'} onClick={()=>changeSettings({activity:'turnover'})}><ChartToolbarIcon name="turnover"/></button>
         </div>
         <div role="group" aria-label={text('Chart indicator','图表指标')} className={styles.indicatorControls}>
-          {(['macd','kdj','boll'] as const).map(value=><button key={value} type="button" aria-pressed={indicator===value} title={value==='macd'?text('DIF = EMA12 − EMA26; DEA = EMA9(DIF); histogram = DIF − DEA','DIF = EMA12 − EMA26；DEA = DIF 的 EMA9；柱值 = DIF − DEA'):value==='kdj'?text('RSV 9; K/D smoothing 3; J = 3K − 2D','RSV 9周期；K/D 平滑3周期；J = 3K − 2D'):text('SMA20 ± 2 population standard deviations','20周期均价 ± 2倍总体标准差')} onClick={()=>{const next=indicator===value?'none':value;changeSettings({indicator:next,macd:next==='macd'});}}>{value==='macd'?'MACD (12,26,9)':value==='kdj'?'KDJ (9,3,3)':'BOLL (20,2)'}</button>)}
+          {(['macd','kdj','boll'] as const).map(value=><button key={value} type="button" className={styles.iconButton} aria-label={value==='macd'?'MACD (12,26,9)':value==='kdj'?'KDJ (9,3,3)':'BOLL (20,2)'} aria-pressed={indicator===value} title={(value==='macd'?'MACD (12,26,9)':value==='kdj'?'KDJ (9,3,3)':'BOLL (20,2)')+' · '+(value==='macd'?text('DIF = EMA12 − EMA26; DEA = EMA9(DIF); histogram = DIF − DEA','DIF = EMA12 − EMA26；DEA = DIF 的 EMA9；柱值 = DIF − DEA'):value==='kdj'?text('RSV 9; K/D smoothing 3; J = 3K − 2D','RSV 9周期；K/D 平滑3周期；J = 3K − 2D'):text('SMA20 ± 2 population standard deviations','20周期均价 ± 2倍总体标准差'))} onClick={()=>{const next=indicator===value?'none':value;changeSettings({indicator:next,macd:next==='macd'});}}><ChartToolbarIcon name={value}/></button>)}
         </div>
       </div>
-      <span className={styles.zoomHint}>{text('Wheel / ↑↓ zoom · ←→ pan','滚轮／↑↓ 缩放 · ←→ 平移')}{view.zoom>1&&<button type="button" onClick={()=>{setViewport({key:viewKey,zoom:1,offset:0});closePriceDetails();setClusterId('');}}>{text('Reset view','重置视图')}</button>}</span>
+      <button type="button" className={styles.iconButton} aria-label={text('Chart help','图表帮助')} title={text('Wheel / ↑↓ zoom · ←→ pan · F10 fundamentals · Esc close','滚轮／↑↓ 缩放 · ←→ 平移 · F10 基本面 · Esc 关闭')} aria-haspopup="dialog" aria-expanded={Boolean(helpAnchor)} onClick={click=>setHelpAnchor(eventWindowAnchor(click))}><ChartToolbarIcon name="help"/></button>
+      {view.zoom>1&&<button type="button" className={styles.iconButton} aria-label={text('Reset view','重置视图')} title={text('Reset zoom and pan','重置缩放和平移')} onClick={()=>{setViewport({key:viewKey,zoom:1,offset:0});closePriceDetails();setClusterId('');}}><ChartToolbarIcon name="reset"/></button>}
     </div>
+    {helpAnchor&&<FloatingEventWindow role="dialog" anchor={helpAnchor} title={text('Chart help','图表帮助')} closeLabel={text('Close chart help','关闭图表帮助')} onClose={()=>setHelpAnchor(null)}>
+      <p>{text('Hover over a candle or line to view details; moving away hides them. Touch screens: tap to view. Enter opens keyboard details; Escape closes.','鼠标移到K线或曲线上显示详情，移开消失。触屏点击查看；回车打开键盘详情，Esc 关闭。')}</p>
+      <p>{text('Wheel / ↑↓ zoom · ←→ pan when zoomed · F10 opens company fundamentals in a new tab.','滚轮／↑↓ 缩放 · 放大后 ←→ 平移 · F10 在新标签页打开公司基本面。')}</p>
+      <p>{text('Hover or focus controls for their names. The layers icon opens MA settings; the star toggles events. The bars and coins select Volume and Turnover. The last three indicator icons select MACD, KDJ and BOLL.','悬停或聚焦控件查看名称。图层图标打开均线设置；星形切换事件。柱形和硬币图标选择成交量与成交额；最后三个指标图标选择 MACD、KDJ 和 BOLL。')}</p>
+    </FloatingEventWindow>}
     {maSettings&&<FloatingEventWindow role="dialog" anchor={maSettings} title={text('Moving average settings','均线设置')} closeLabel={text('Close MA settings','关闭均线设置')} onClose={()=>setMaSettings(null)}>
-      <form className={styles.maSettings} onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);setAverages(()=>movingAveragePeriods(Array.from({length:8},(_,index)=>Number(form.get(`ma-${index}`)))));setMaSettings(null);}}>
+      <div role="group" aria-label={text('Moving average lines','均线显示')} className={styles.indicatorControls}>
+        {averagePeriods.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):movingAveragePeriods([...values,period]))}>MA{period}</button>)}
+      </div>
+      <form key={averages.join(',')} className={styles.maSettings} onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);setAverages(()=>movingAveragePeriods(Array.from({length:8},(_,index)=>Number(form.get(`ma-${index}`)))));setMaSettings(null);}}>
         <p>{text('MA periods count bars in the selected interval. Set 0 to disable a line.','均线周期按所选K线的根数计算。填 0 关闭该线。')}</p>
         {Array.from({length:8},(_,index)=><label key={index}>{text('Line','第')}{index+1}{chinese?'条':''}<input name={`ma-${index}`} type="number" min={0} max={500} step={1} defaultValue={averages[index]??0}/></label>)}
         <button type="submit">{text('Apply','应用')}</button>
