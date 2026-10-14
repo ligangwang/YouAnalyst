@@ -59,7 +59,7 @@ async function buildPageMetadata({
   if (chinaId) {
     const company = await loadChinaCompany(chinaId);
     return { title: `${companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)} (${chinaId.split(":")[1]}) ${locale === "zh-CN" ? "公司研究" : "company research"} | YouAnalyst`, description: locale === "en" ? company.descriptionEn || company.description : company.description,
-      alternates: { canonical: companyPageUrl(chinaId, "CN_A") } };
+      alternates: { canonical: companyPageUrl(chinaId, "CN_A",company.slug) } };
   }
   const ticker = resolveTicker(symbol);
   const company = await loadCompanyResearch(ticker);
@@ -98,7 +98,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   if (chinaId) {
     if (symbol !== chinaId) permanentRedirect(companyPageUrl(chinaId, "CN_A"));
     const [company, fundamentals] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId)]);
-    const url = absoluteUrl(localizedPath(companyPageUrl(chinaId, "CN_A"), locale));
+    const url = absoluteUrl(localizedPath(companyPageUrl(chinaId, "CN_A",company.slug), locale));
     const schema = { "@context": "https://schema.org", ...companyOrganizationSchema(company, locale, url, chinaId.split(":")[1], chinaId.startsWith("XSHG:") ? "SSE" : "SZSE") };
     return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} /></>;
   }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCompanySlugPlan } from '../../src/lib/market-companies/slug-plan';
-import { COMPANY_URL_SLUGS } from '../../src/lib/market-companies/slugs';
+import { COMPANY_SLUG_INVENTORY } from '../../src/lib/market-companies/slug-inventory';
 import { companyFields } from '../../src/lib/market-companies/model';
 test('names cover public, private and Chinese companies while preserving established URLs',()=>{
   const rows = buildCompanySlugPlan([{id:'US:MU',name:'Micron Technology, Inc.'},{id:'ORG:MISTRAL-AI',name:'Mistral AI'},{id:'US:NEW',name:'New Systems Corporation'},{id:'XSHG:600001',name:'中国公司'}]);
@@ -23,7 +23,7 @@ test('missing names block migration instead of exposing an ID as a slug',()=>{
   assert.throws(()=>buildCompanySlugPlan([{id:'US:BAD'}]),/Missing company name/);
 });
 test('the reviewed URL inventory is unique and never emits ticker-prefixed company names',()=>{
-  const slugs=Object.values(COMPANY_URL_SLUGS);
+  const slugs=Object.values(COMPANY_SLUG_INVENTORY);
   assert.equal(new Set(slugs).size,slugs.length);
   assert(slugs.length>24_000);
   assert(slugs.every(slug=>!slug.startsWith('ticker-')));

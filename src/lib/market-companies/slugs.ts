@@ -1,10 +1,11 @@
-import migratedSlugs from '../../../data/company-url-slugs.json';
-// Generated from reviewed company records. Existing IDs remain internal identities.
-export const COMPANY_URL_SLUGS: Record<string,string> = migratedSlugs;
-const SLUG_IDS = new Map(Object.entries(COMPANY_URL_SLUGS).map(([id,slug])=>[slug,id]));
+import migratedSlugs from '../../../data/company-link-slugs.json';
+// Small compatibility map only. Full inventory stays on the server; clients
+// receive the relevant stored slug with their company data.
+export const COMPANY_LINK_SLUGS: Record<string,string> = migratedSlugs;
+const SLUG_IDS = new Map(Object.entries(COMPANY_LINK_SLUGS).map(([id,slug])=>[slug,id]));
 export function companyIdFromSlug(slug:string):string|null { return SLUG_IDS.get(slug.toLowerCase()) ?? null; }
 export function companySlugPath(id:string, slug?:unknown):string|null {
-  const value = typeof slug === 'string' && slug.length<=120 && slug===slug.toLowerCase() && /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(slug) && !slug.startsWith('ticker-') ? slug : COMPANY_URL_SLUGS[id]
+  const value = typeof slug === 'string' && slug.length<=120 && slug===slug.toLowerCase() && /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(slug) && !slug.startsWith('ticker-') ? slug : COMPANY_LINK_SLUGS[id]
     ?? (id.startsWith('US:')?PUBLIC_COMPANY_SLUGS[id.slice(3)]:ORGANIZATION_COMPANY_SLUGS[id]);
   return value ? `/company/${encodeURIComponent(value)}` : null;
 }
@@ -38,7 +39,7 @@ export function publicCompanyPath(symbol: string): string {
 
 export function publicCompanyTicker(slug: string): string | null {
   const key = slug.toLowerCase();
-  if (COMPANY_URL_SLUGS[`US:${key.toUpperCase()}`]) return key.toUpperCase();
+  if (COMPANY_LINK_SLUGS[`US:${key.toUpperCase()}`]) return key.toUpperCase();
   const id = companyIdFromSlug(key);
   if (id?.startsWith('US:')) return id.slice(3);
   const known = Object.entries(PUBLIC_COMPANY_SLUGS).find(([ticker, name]) => name === key || ticker.toLowerCase() === key);

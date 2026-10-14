@@ -23,3 +23,10 @@ test('ambiguous slug ownership, malformed paths, and missing companies do not re
   const db=fixture({'US:AAA':{slug:'duplicate'},'US:BBB':{slug:'duplicate'}});
   for(const path of ['duplicate','openabc','../micron','%ZZ']) assert.equal(await lookupCompanyRoute(path,db),null);
 });
+test('uppercase legacy tickers remain distinct from lowercase company-name slugs',async()=>{
+  const db=fixture({'US:TEAM':{name:'Atlassian'},'US:TISI':{name:'Team'},'US:NOW':{name:'ServiceNow'},'US:NWPN':{name:'NOW'}});
+  assert.equal((await lookupCompanyRoute('TEAM',db))?.id,'US:TEAM');
+  assert.equal((await lookupCompanyRoute('team',db))?.id,'US:TISI');
+  assert.equal((await lookupCompanyRoute('NOW',db))?.id,'US:NOW');
+  assert.equal((await lookupCompanyRoute('now',db))?.id,'US:NWPN');
+});

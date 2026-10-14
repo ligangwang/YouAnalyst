@@ -104,7 +104,7 @@ export async function processTickerSync(input: unknown, db: Firestore, log: Main
         const progress = (await tx.get(ref)).data() as Ledger;
         if (progress.nextPage !== i) throw Error("Ticker progress changed");
         const refs = companies.map(item => db.collection("companies").doc(`US:${item.ticker.symbol}`));
-        const existing = refs.length ? await tx.getAll(...refs, { fieldMask: ["names", "aliases"] }) : [];
+        const existing = refs.length ? await tx.getAll(...refs, { fieldMask: ["names", "aliases", "slug"] }) : [];
         companies.forEach((item, j) => tx.set(refs[j], companyListingFields(item.ticker, existing[j].data()), { merge: true }));
         for (const { ticker } of items) tx.set(db.collection("tickers").doc(ticker.id), ticker, { merge: true });
         tx.update(ref, { nextPage: i + 1, result: { ...progress.result!,

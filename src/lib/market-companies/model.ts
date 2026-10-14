@@ -1,4 +1,4 @@
-import { COMPANY_URL_SLUGS } from './slugs';
+import { COMPANY_LINK_SLUGS } from './slugs';
 import { nameSlug, validCompanySlug } from './slug-plan';
 export const COMPANY_COLLECTION = "companies";
 export function companyFields(id: string, data: Record<string, unknown>) {
@@ -18,7 +18,7 @@ export function companyFields(id: string, data: Record<string, unknown>) {
   // Preserve URL identity when translations, display names, or listing data change.
   const english = data.names && typeof data.names === 'object' ? (data.names as Record<string,unknown>).en : undefined;
   const base = nameSlug(typeof english === 'string' ? english : name);
-  const slug = validCompanySlug(data.slug) ? data.slug : COMPANY_URL_SLUGS[id] ?? `${base}-${nameSlug(id.replace(':','-'))}`;
+  const slug = validCompanySlug(data.slug) ? data.slug : COMPANY_LINK_SLUGS[id] ?? `${base}-${nameSlug(id.replace(':','-'))}`;
   return { id, market, symbol, name, ...(validCompanySlug(slug)?{slug}:{}), symbolLower: normalized(symbol), nameLower: normalized(name), searchPrefixes: [...prefixes].slice(0, 4000),
     symbolPrefixes: Array.from({length:symbol.length}, (_, i) => normalized(symbol.slice(0,i+1))) };
 }
