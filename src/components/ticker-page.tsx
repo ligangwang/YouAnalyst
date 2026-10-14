@@ -57,6 +57,15 @@ function formatPositionPrice(value: number): string {
 }
 
 export function TickerPage({ ticker, overview }: { ticker: string; overview?: ReactNode }) {
+  // The company overview already includes the expandable analyst views and call controls.
+  if (overview) return <main className="mx-auto w-full max-w-6xl px-4 py-8">
+    {overview}
+    <CompanyPosts ticker={ticker} />
+  </main>;
+  return <TickerViewHistory ticker={ticker} />;
+}
+
+function TickerViewHistory({ ticker }: { ticker: string }) {
   const ui = useUiText();
   const { loading: authLoading, getIdToken } = useAuth();
   const [payload, setPayload] = useState<TickerResponse | null>(null);
@@ -141,7 +150,6 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
   if (!payload) {
     return (
       <main className="mx-auto w-full max-w-6xl px-4 py-8 text-sm text-slate-300">
-        {overview}
       <CompanyPosts ticker={ticker} />
         <p role="status" className="py-6">{error ?? <UiText text={"Loading company activity..."} />}</p>
 
@@ -152,13 +160,12 @@ export function TickerPage({ ticker, overview }: { ticker: string; overview?: Re
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8">
-      {overview}
       <CompanyPosts ticker={ticker} />
       <section className="border-b border-white/15 py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300"><UiText text={"Analyst views"} /></p>
-            {overview ? <h2 className="mt-2 text-xl font-semibold text-cyan-100"><UiText text={"View history for "} />{displayTicker}</h2> : <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>}
+            <h1 className="mt-2 font-[var(--font-sora)] text-4xl font-semibold text-cyan-100">{displayTicker}</h1>
           </div>
         </div>
       </section>

@@ -103,7 +103,9 @@ for (const predictionsAvailable of [true, false]) {
     await expect(page.getByRole("heading", { name: "Institutional holdings", exact: true })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Insider transactions", exact: true })).toHaveCount(0);
     expect(filingRequests).toEqual([]);
-    if (!predictionsAvailable) await expect(page.getByRole("status").filter({ hasText: "Unable to load ticker predictions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Analyst views", exact: true })).toHaveCount(1);
+    await expect(page.locator("#view-history")).toHaveCount(0);
+    if (!predictionsAvailable) await expect(page.getByRole("status").filter({ hasText: "Views could not be loaded" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("company-research.png"), fullPage: true });
     await page.getByText("Filing sources", { exact: false }).first().click();
