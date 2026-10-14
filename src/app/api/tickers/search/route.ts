@@ -1,3 +1,4 @@
+import { normalizeStockQuery, stockNameTerms } from "@/lib/market-companies/pinyin-search";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing";
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -35,17 +36,20 @@ type TickerDocument = {
   market?: unknown;
   active?: unknown;
   predictionSupported?: unknown;
+  names?: unknown;
+  aliases?: unknown;
+  pinyinSearchTerms?: unknown;
 };
 
 function normalizeQuery(raw: string | null): string {
-  return (raw ?? "").normalize("NFKC").trim().replace(/^\$/, "").toLowerCase();
+  return normalizeStockQuery(raw ?? "");
 }
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function scoreTicker(item: TickerSearchItem & { symbolLower: string; nameLower: string; exchangePriority: number }, query: string): number {
+function scoreTicker(item: TickerSearchItem & { symbolLower: string; nameLower: string; exchangePriority: number; searchNames: string[] }, query: string): number {
   let score = item.exchangePriority;
 
   if (item.symbolLower === query) {
@@ -54,11 +58,11 @@ function scoreTicker(item: TickerSearchItem & { symbolLower: string; nameLower: 
     score += 700;
   }
 
-  if (item.nameLower === query) {
+  if (item.searchNames.includes(query) || item.searchNames.includes(query.replace(/\s+/g, ""))) {
     score += 500;
-  } else if (item.nameLower.startsWith(query)) {
+  } else if (item.searchNames.some(name => name.startsWith(query) || name.startsWith(query.replace(/\s+/g, "")))) {
     score += 350;
-  } else if (item.nameLower.split(/\s+/).some((token) => token.startsWith(query))) {
+  } else if (item.searchNames.some(name => name.split(/\s+/).some(token => token.startsWith(query)))) {
     score += 250;
   }
 
@@ -85,6 +89,7 @@ function toSearchItem(id: string, data: TickerDocument) {
     symbolLower,
     name,
     nameLower,
+    searchNames: [...stockNameTerms(data as Record<string, unknown>), ...(Array.isArray(data.pinyinSearchTerms) ? data.pinyinSearchTerms.filter((value): value is string => typeof value === "string") : [])],
     exchange: readString(data.exchange),
     micCode: readString(data.micCode),
     type: readString(data.type),
@@ -102,21 +107,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ items: [] });
   }
 
-  if (query.length > 32 || !/^[\p{L}\p{N}.:\-\s]+$/u.test(query)) {
+  if (query.length > 120 || !/^[\p{L}\p{N}.:\-\s&'’()*]+$/u.test(query)) {
     return NextResponse.json({ items: [] });
   }
 
   try {
     const db = getAdminFirestore();
     const prefixField = query.length === 1 && request.nextUrl.searchParams.get("scope") !== "all" ? "symbolPrefixes" : "searchPrefixes";
-    const primarySearch = db.collection("companies").where(prefixField, "array-contains", query).limit(50).get();
+    const primarySearch = db.collection("companies").where(prefixField, "array-contains", query.slice(0,32)).limit(50).get();
     // Name matches must not exhaust the candidate cap before ticker ranking.
-    const [tickerSnapshot, symbolSnapshot, exactSnapshot] = await Promise.all([
+    const [tickerSnapshot, symbolSnapshot, exactSnapshot, pinyinSnapshot] = await Promise.all([
       primarySearch,
       prefixField === "symbolPrefixes" ? primarySearch : db.collection("companies").where("symbolPrefixes", "array-contains", query).limit(50).get(),
       db.collection("companies").where("symbolLower", "==", query).limit(20).get(),
+      db.collection("companies").where("pinyinSearchPrefixes", "array-contains", query.replace(/\s+/g, "").slice(0,32)).limit(50).get(),
     ]);
-    const candidateDocs = [...new Map([...tickerSnapshot.docs, ...symbolSnapshot.docs, ...exactSnapshot.docs].map(doc => [doc.id, doc])).values()];
+    const candidateDocs = [...new Map([...tickerSnapshot.docs, ...symbolSnapshot.docs, ...exactSnapshot.docs, ...pinyinSnapshot.docs].map(doc => [doc.id, doc])).values()];
 
     const editorialDocs: { id: string; data: () => Record<string, unknown> }[] = [];
     // Research discovery only. Do not fabricate tradeable/prediction-enabled instruments.
@@ -135,6 +141,7 @@ export async function GET(request: NextRequest) {
       .filter(doc => request.nextUrl.searchParams.get("scope") === "all" || (doc.data().listingStatus !== "PRIVATE" && ((doc.data().market === "US" && doc.data().active === true && doc.data().predictionSupported === true) || (request.nextUrl.searchParams.get("scope") === "calls" && predictionInstrument(doc.id)?.market === "CN_A"))))
       .map((doc) => toSearchItem(doc.id, doc.data()))
       .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
+      .filter(item => query.length <= 32 || item.searchNames.some(name => name.includes(query) || name.replace(/\s+/g, "").includes(query.replace(/\s+/g, ""))))
       .sort((left, right) => {
         const scoreDelta = scoreTicker(right, query) - scoreTicker(left, query);
         if (scoreDelta !== 0) {

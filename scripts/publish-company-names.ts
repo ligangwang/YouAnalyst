@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
-import { companyFields } from "../src/lib/market-companies/model";
+import { companyNameSearchFields } from "../src/lib/market-companies/model";
 
 export type NameBatch = { asOf: string; companies: { id: string; expectedName: string; names: {en:string; "zh-CN":string}; sourceUrl: string }[] };
 export function validateNames(batch: NameBatch) {
@@ -29,7 +29,7 @@ export async function publishNames(db: Firestore, batch: NameBatch, write=false)
       assert(previous && typeof previous === "object" && !Array.isArray(previous), "Invalid existing names");
       for(const locale of ["en","zh-CN"] as const) assert(!previous[locale] || previous[locale]===c.names[locale], `${c.id}: existing translation conflict`);
       const names={...previous,...c.names};
-      return {names, nameEvidence:{...(old.nameEvidence ?? {}),sourceUrl:c.sourceUrl,checkedAt:batch.asOf},searchPrefixes:companyFields(c.id,{...old,names}).searchPrefixes};
+      return {names, nameEvidence:{...(old.nameEvidence ?? {}),sourceUrl:c.sourceUrl,checkedAt:batch.asOf},...companyNameSearchFields(c.id,{...old,names})};
     });
     if(write) updates.forEach((update,i)=>tx.update(refs[i],update));
     return {write,companies:updates.length,collection:"companies"};
