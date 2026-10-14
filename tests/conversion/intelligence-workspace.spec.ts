@@ -1389,7 +1389,7 @@ test('fullscreen lookup switches a stock inside the live workspace without remou
  await chart.focus();await page.keyboard.type('lite');
  await expect(page.getByRole('option',{name:/Lumentum/})).toBeVisible();await page.keyboard.press('Enter');
  await expect(page.locator('[data-company-timeline="US:LITE"]')).toHaveAttribute('data-chart-size','full');
- await expect(page.getByRole('dialog',{name:'Company event and price timeline',exact:true})).toContainText('Lumentum');
+ await expect(page.getByRole('dialog',{name:'Company event and price timeline · Lumentum · LITE',exact:true})).toContainText('Lumentum');
 });
 
 for(const chinese of [false,true])test(`Explore text-to-search is quiet, ignores control keys and works on mobile ${chinese?'Chinese':'English'}`,async({page},info)=>{
