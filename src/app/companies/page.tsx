@@ -1,6 +1,5 @@
 import { localizedMetadata } from "@/lib/i18n/server";
 
-import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
 import { LocalizedLink as Link } from "@/components/localized-link";
 import { CompanySearchCard } from "@/components/company-search-card";
@@ -42,11 +41,6 @@ export default function CompaniesPage() {
     <MarketTicker />
     <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4 pt-10 pb-8 sm:pt-16 lg:pt-20">
       <section className="w-full">
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-2xl font-semibold text-slate-50 sm:text-3xl"><UiText text={"Company search"} /></h1>
-          <p className="mt-2 text-sm text-slate-400"><UiText text={"Search companies by name or ticker."} /></p>
-        </div>
-
         <CompanySearchCard />
 
         <div className="mt-5 flex flex-wrap justify-center gap-2">
