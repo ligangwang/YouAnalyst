@@ -1,7 +1,6 @@
 # Background Pub/Sub jobs
 
-This rollout extends the existing SEC pattern to private valuation checks, ticker
-catalog sync, A-share fundamentals, China directory imports, and US/China EOD
+This rollout extends the existing SEC pattern to A-share fundamentals, China directory imports, and US/China EOD
 maintenance. Existing recurring maintenance now runs behind Pub/Sub subscribers.
 
 | Work | Request topic | Subscriber service | Durable state |
@@ -9,8 +8,6 @@ maintenance. Existing recurring maintenance now runs behind Pub/Sub subscribers.
 | SEC fundamentals | `sec-fundamentals-requests` | `sec-fundamentals-subscriber` | `company_fundamentals/_batch_<id>` |
 | Company graph requests | `company-graph-requests` | `company-graph-subscriber` | Existing `company_research_requests` and `company_research_runs` documents |
 | SEC filing discovery | `sec-filings-discovered` (events) | SEC and company graph subscribers | `sec_filings/<accession>` outbox and existing `company_fundamentals` cursors |
-| Private valuations | `private-valuations-requests` | `private-valuations-subscriber` | `company_fundamentals/_private_check_<id>` |
-| Ticker catalog | `ticker-catalog-requests` | `ticker-catalog-subscriber` | `directory_syncs/_ticker_<id>` and snapshot pages |
 | A-share fundamentals | `cn-fundamentals-requests` | `cn-fundamentals-subscriber` | `company_fundamentals/_cn_request_<id>` |
 | US/China EOD | `eod-maintenance-requests` | `eod-maintenance-subscriber` | `eod_runs/_request_<id>`, `_dispatch_<input hash>`, `_queue_<market>` |
 | China directory | `cni-directory-requests` | `cni-directory-subscriber` | `directory_syncs/_cni_<id>` and snapshot pages |
@@ -36,9 +33,7 @@ for 300–600 seconds and persistent failures are forwarded after approximately
 SEC continues emitting `fundamentals.updated`. The filing collector adds the
 `sec.filing.discovered` event on `sec-filings-discovered`, with independent
 fundamentals and company graph subscriptions. Other jobs store results in their
-existing documents and logs. See [SEC details](sec-fundamentals-pubsub.md),
-[private valuations](private-valuations-pubsub.md), and
-[ticker sync](ticker-sync-pubsub.md) for their specific guarantees.
+existing documents and logs. See [SEC details](sec-fundamentals-pubsub.md) for its specific guarantees.
 
 ## A-share fundamentals
 
@@ -129,8 +124,7 @@ restoring the old synchronous web endpoint, then wait for active leases to clear
 
 ## Deployment, verification and recovery
 
-The financial image bundles the SEC collector and the SEC, company graph, private
-valuation, ticker, A-share and EOD subscribers, plus their publisher commands.
+The financial image bundles the SEC collector and the SEC, company graph, A-share and EOD subscribers, plus their publisher commands.
 The directory image bundles the CNI publisher and subscriber and includes its
 Python downloader. Changed worker detection includes every subscriber, deployment
 script and shared dependency. Delivery resources are provisioned before scheduled
@@ -143,10 +137,9 @@ tests do not establish that production IAM, provider access or delivery works.
 After deployment:
 
 1. Confirm the existing SEC cached-company delivery probe passes.
-2. Start the private and A-share publisher jobs through Tasks. Follow their separate
+2. Start the A-share publisher job through Tasks. Follow its separate
    subscriber entries and correlate batchId, including retries during provider cooldowns.
-3. Preview and queue a limited ticker sync; confirm its subscriber completion count.
-4. Start the directory publisher and confirm snapshot validation, batch checkpoints
+3. Start the directory publisher and confirm snapshot validation, batch checkpoints
    and final completion under China directory imports.
 5. Queue a bounded EOD price-only request for a known cached trading date. Confirm
    its market, request ID, page checkpoint and final completion; verify unauthenticated

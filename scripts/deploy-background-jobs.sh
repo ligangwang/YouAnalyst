@@ -4,11 +4,11 @@ set -euo pipefail
 : "${GIT_SHA:?Set GIT_SHA}"
 export GCP_REGION="${GCP_REGION:-us-central1}"
 case "${1:-}" in
-  all) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance directory) ;;
-  fundamentals) targets=(sec-fundamentals cn-fundamentals private-valuations ticker-sync eod-maintenance) ;;
+  all) targets=(sec-fundamentals cn-fundamentals eod-maintenance directory) ;;
+  fundamentals) targets=(sec-fundamentals cn-fundamentals eod-maintenance) ;;
   sec-filings) targets=(sec-fundamentals company-graph sec-filings) ;;
-  sec-fundamentals|cn-fundamentals|private-valuations|ticker-sync|eod-maintenance|directory|company-graph|earnings|intelligence-news) targets=("$1") ;;
-  *) echo 'Select all, sec-fundamentals, cn-fundamentals, private-valuations, ticker-sync, eod-maintenance, company-graph, sec-filings, earnings, intelligence-news or directory' >&2; exit 1 ;;
+  sec-fundamentals|cn-fundamentals|eod-maintenance|directory|company-graph|earnings|intelligence-news) targets=("$1") ;;
+  *) echo 'Select all, sec-fundamentals, cn-fundamentals, eod-maintenance, company-graph, sec-filings, earnings, intelligence-news or directory' >&2; exit 1 ;;
 esac
 # The filing/graph pipeline is an explicit production rollout. Disabled releases
 # keep every existing worker path and schedule unchanged.

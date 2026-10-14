@@ -28,3 +28,10 @@ test('cleanup blocks incomplete rollout, old publisher executions, active leases
  ] as const){await assert.rejects(verifyCompanySearchWriters(options,fixture(change).fetcher),pattern);}
  await assert.rejects(verifyCompanySearchWriters(options,async()=>new Response('',{status:403})),/HTTP 403/);
 });
+
+test('cleanup permits the retired ticker subscriber to be absent while verifying directory writers', async()=>{
+ const f=fixture();
+ const fetcher:typeof fetch=async(input,init)=>String(input).endsWith('/services/ticker-catalog-subscriber')?new Response(null,{status:404}):f.fetcher(input,init);
+ await verifyCompanySearchWriters(options,fetcher);
+ assert.ok(f.urls.some(url=>url.includes('/services/cni-directory-subscriber/revisions/')));
+});

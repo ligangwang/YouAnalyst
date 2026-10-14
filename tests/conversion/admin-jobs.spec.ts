@@ -7,7 +7,7 @@ import tailwind from "@tailwindcss/postcss";
 const origin = "http://admin-jobs.test";
 let html: string;
 
-test("directory and ticker controls share task history and preview does not request writes", async ({page}) => {
+test("directory controls remain available and retired jobs are absent", async ({page}) => {
   await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
   const requests: {path:string;body:Record<string,unknown>|null}[]=[];
   await page.route('**/*',route=>{
@@ -17,7 +17,7 @@ test("directory and ticker controls share task history and preview does not requ
     if(url.pathname==='/api/admin/jobs')return route.fulfill({json:{records:[],nextPageToken:null}});
     if(request.method()==='POST') {
       const body=request.postData()?request.postDataJSON():null;requests.push({path:url.pathname,body});
-      return route.fulfill({status:body?.dryRun?200:202,json:{ok:true,operation:'op',dryRun:body?.dryRun,...(body?.dryRun?{written:0}:{queued:true,runId:'queued-ticker-request'})}});
+      return route.fulfill({status:202,json:{ok:true,operation:'operations/directory'}});
     }
     return route.abort();
   });
@@ -26,17 +26,9 @@ test("directory and ticker controls share task history and preview does not requ
   await page.getByRole('button',{name:'Run directory sync now'}).click();
   await expect.poll(()=>requests.length).toBe(1);
   expect(requests[0].path).toBe('/api/admin/jobs/directory');
-  await page.getByRole('combobox',{name:'Job',exact:true}).selectOption('tickers');
-  await expect(page.getByRole('button',{name:'Scheduler deliveries'})).toHaveCount(0);
-  await page.getByLabel('Limit (blank for all)',{exact:true}).fill('12');
-  await page.getByRole('button',{name:'Preview ticker sync'}).click();
-  await expect(page.getByText('Preview complete. No catalog changes written.',{exact:true})).toBeVisible();
-  expect(requests[1].body).toMatchObject({dryRun:true,limit:12,country:'United States',currency:'USD'});
-  await page.getByRole('button',{name:'Sync ticker catalog now'}).click();
-  await expect(page.getByText('Ticker sync queued. Processing continues in the background. Refresh run history for results.',{exact:true})).toBeVisible();
-  await expect(page.getByText('Ticker sync completed.',{exact:true})).toHaveCount(0);
-  await expect(page.getByRole('combobox',{name:'Job',exact:true})).toBeEnabled();
-  expect(requests[2].body?.dryRun).toBe(false);
+  for (const name of ['Private company valuations','Private valuation checks','Ticker catalog']) {
+    await expect(page.getByRole('option', { name, exact: true })).toHaveCount(0);
+  }
 });
 test.beforeAll(async () => {
   const bundled = await build({
@@ -183,26 +175,6 @@ test("admin starts the A-share fundamentals job from its own Run now button",asy
  await expect(page.getByRole("status").filter({hasText:"Run requested."})).toBeVisible();
  expect(posts).toEqual(["/api/admin/jobs/cn-fundamentals"]);
  expect(history).toContain("cnFundamentals");
-});
-
-test("admin starts the private valuation job from its own Run now button",async({page})=>{
- await page.addInitScript(()=>{window.authScenario={signedIn:true};});
- const posts:string[]=[];const history:string[]=[];
- await page.route("**/*",route=>{
-  const url=new URL(route.request().url());
-  if(url.pathname==="/api/admin/me")return route.fulfill({json:{isAdmin:true}});
-  if(url.pathname.startsWith("/api/admin/jobs/")){expect(route.request().method()).toBe("POST");posts.push(url.pathname);return route.fulfill({status:202,json:{ok:true,operation:"operations/private"}});}
-  if(url.pathname==="/api/admin/jobs"){history.push(url.searchParams.get("job")!);return route.fulfill({json:{records:[],nextPageToken:null}});}
-  return route.fulfill({contentType:"text/html",body:html});
- });
- await page.goto(origin);
- await page.getByLabel("Job",{exact:true}).selectOption("privateValuations");
- await expect(page.getByText("Monthly, day 1 at 9 AM New York")).toBeVisible();
- await expect(page.getByRole("button",{name:"Run SEC fundamentals now",exact:true})).toHaveCount(0);
- await page.getByRole("button",{name:"Run private valuation check now",exact:true}).click();
- await expect(page.getByRole("status").filter({hasText:"Run requested."})).toBeVisible();
- expect(posts).toEqual(["/api/admin/jobs/private-valuations"]);
- expect(history).toContain("privateValuations");
 });
 
 test("SEC filing discovery separates published events from downstream processing", async ({ page }) => {

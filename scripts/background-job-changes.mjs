@@ -20,11 +20,11 @@ export function backgroundJobTarget(paths) {
     if (retiredUiPaths.has(path) && !existsSync(path)) continue;
     if (['scripts/collect-intelligence-news.ts', 'scripts/deploy-intelligence-news.sh', 'scripts/collect-earnings.ts', 'scripts/serve-earnings.ts', 'scripts/deploy-earnings.sh'].includes(path)) { financial = true; continue; }
     if (['scripts/serve-cni-directory.ts','scripts/deploy-directory-pubsub.sh'].includes(path)) { directory = true; continue; }
-    if (['scripts/serve-eod-maintenance.ts', 'scripts/deploy-eod-maintenance.sh', 'scripts/serve-sec-fundamentals.ts', 'scripts/deploy-sec-pubsub.sh', 'scripts/serve-private-valuations.ts', 'scripts/deploy-private-valuations-pubsub.sh', 'scripts/serve-ticker-sync.ts', 'scripts/deploy-ticker-sync.sh', 'scripts/serve-cn-fundamentals.ts', 'scripts/deploy-cn-pubsub.sh', 'scripts/collect-sec-filings.ts', 'scripts/deploy-sec-filings.sh', 'scripts/deploy-sec-filings-pubsub.sh', 'scripts/refresh-company-graph.ts', 'scripts/serve-company-graph.ts', 'scripts/deploy-company-graph.sh', 'scripts/deploy-company-graph-pubsub.sh'].includes(path)) { financial = true; continue; }
+    if (['scripts/serve-eod-maintenance.ts', 'scripts/deploy-eod-maintenance.sh', 'scripts/serve-sec-fundamentals.ts', 'scripts/deploy-sec-pubsub.sh', 'scripts/serve-cn-fundamentals.ts', 'scripts/deploy-cn-pubsub.sh', 'scripts/collect-sec-filings.ts', 'scripts/deploy-sec-filings.sh', 'scripts/deploy-sec-filings-pubsub.sh', 'scripts/refresh-company-graph.ts', 'scripts/serve-company-graph.ts', 'scripts/deploy-company-graph.sh', 'scripts/deploy-company-graph-pubsub.sh'].includes(path)) { financial = true; continue; }
     if (/^(src\/lib\/|scripts\/lib\/)/.test(path) || /^(package(-lock)?\.json|tsconfig\.json|\.gcloudignore|\.dockerignore)$/.test(path)
       || ['.github/workflows/deploy.yml','scripts/deploy-background-jobs.sh','scripts/build-fundamentals.sh'].includes(path)) {
       financial = directory = true;
-    } else if (/^(Dockerfile\.fundamentals|cloudbuild\.fundamentals\.yaml|scripts\/(refresh-(sec-fundamentals|cn-fundamentals|private-valuations)\.ts|deploy-(sec-fundamentals|cn-fundamentals|private-valuations)\.sh|fetch-cn-annual\.py|akshare-requirements\.txt))$/.test(path)) {
+    } else if (/^(Dockerfile\.fundamentals|cloudbuild\.fundamentals\.yaml|scripts\/(refresh-(sec-fundamentals|cn-fundamentals)\.ts|deploy-(sec-fundamentals|cn-fundamentals)\.sh|fetch-cn-annual\.py|akshare-requirements\.txt))$/.test(path)) {
       financial = true;
     } else if (/^(Dockerfile\.directory-sync|cloudbuild\.directory-sync\.yaml|scripts\/(sync-cni-directory\.ts|download-cni-directory\.py|deploy-directory-sync\.sh))$/.test(path)) {
       directory = true;

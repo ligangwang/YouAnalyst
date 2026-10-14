@@ -1,7 +1,19 @@
 import { COMPANY_GRAPH_EXTRACTION_VERSION } from "../../src/lib/company-graph/types";
 import { buildIndustryGraph as buildGraph } from "../../src/lib/industry-graph/model";
-import { INDUSTRY_STARTERS } from "../../src/lib/industry-graph/catalog";
-export const buildIndustryGraph = (runs: Record<string, unknown>) => buildGraph(runs, INDUSTRY_STARTERS);
+import type { IndustryCompany } from "../../src/lib/industry-graph/catalog";
+// Test-only directory records for identity, alias, and bounded-preview cases.
+export const fixtureCompanies: IndustryCompany[] = [
+  { ticker: "TSM", name: "TSMC", segment: "manufacturing", filingForm: "20-F", aliases: ["Taiwan Semiconductor Manufacturing", "Taiwan Semiconductor Manufacturing Company Limited"] },
+  { ticker: "NVDA", name: "NVIDIA", segment: "compute" },
+  { ticker: "INTC", name: "Intel", segment: "compute" },
+  { ticker: "AMD", name: "AMD", segment: "compute", aliases: ["Advanced Micro Devices"] },
+  { ticker: "MU", name: "Micron", segment: "memory", aliases: ["Micron Technology"] },
+  { ticker: "SNDK", name: "Sandisk", segment: "memory", aliases: ["Sandisk Corporation"], expectedCik: "0002023554" },
+  { ticker: "WDC", name: "Western Digital", segment: "memory" },
+  { ticker: "AAPL", name: "Apple", segment: "devices" },
+  { ticker: "QCOM", name: "Qualcomm", segment: "devices" },
+];
+export const buildIndustryGraph = (runs: Record<string, unknown>) => buildGraph(runs, fixtureCompanies);
 
 // Synthetic quotations for local tests only. Never imported into production code.
 export function runFixture(ticker: string, cik: string, name: string, targets: Array<Record<string, unknown>> = []) {

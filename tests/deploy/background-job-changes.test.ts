@@ -28,13 +28,9 @@ test('website-only changes skip workers and worker inputs select their images',(
   assert.equal(backgroundJobTarget(['src/lib/company-timeline.ts','src/lib/knowledge-graph/tree-tour.ts','src/lib/ui/company-timeline.ts','scripts/background-job-changes.mjs']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/events/classification.ts']),'all');
   assert.equal(backgroundJobTarget(['scripts/fetch-cn-annual.py']),'fundamentals');
-  assert.equal(backgroundJobTarget(['scripts/serve-private-valuations.ts']),'fundamentals');
-  assert.equal(backgroundJobTarget(['scripts/deploy-private-valuations-pubsub.sh']),'fundamentals');
-  assert.equal(backgroundJobTarget(['scripts/serve-ticker-sync.ts']),'fundamentals');
   for (const path of ['scripts/collect-sec-filings.ts', 'scripts/deploy-sec-filings.sh', 'scripts/deploy-sec-filings-pubsub.sh', 'scripts/refresh-company-graph.ts', 'scripts/serve-company-graph.ts', 'scripts/deploy-company-graph.sh', 'scripts/deploy-company-graph-pubsub.sh', 'scripts/serve-eod-maintenance.ts', 'scripts/deploy-eod-maintenance.sh']) {
     assert.equal(backgroundJobTarget([path]), 'fundamentals');
   }
-  assert.equal(backgroundJobTarget(['scripts/deploy-ticker-sync.sh']),'fundamentals');
   assert.equal(backgroundJobTarget(['scripts/serve-cn-fundamentals.ts','scripts/deploy-cn-pubsub.sh']),'fundamentals');
   assert.equal(backgroundJobTarget(['scripts/serve-cni-directory.ts','scripts/deploy-directory-pubsub.sh']),'directory');
   assert.equal(backgroundJobTarget(['scripts/download-cni-directory.py']),'directory');

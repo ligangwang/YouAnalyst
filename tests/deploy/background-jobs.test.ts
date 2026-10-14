@@ -13,7 +13,7 @@ function run(target:string,extra:Record<string,string>={}) {
         echo "$*" >> "$CALLS"
         case "$*" in
           "pubsub topics describe"*|"pubsub subscriptions describe"*) if [[ "\${NEW_PUBSUB:-0}" == 1 ]]; then return 1; fi ;;
-          "run services describe eod-maintenance-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe private-valuations-subscriber"*|"run services describe ticker-catalog-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
+          "run services describe eod-maintenance-subscriber"*|"run services describe sec-fundamentals-subscriber"*|"run services describe cn-fundamentals-subscriber"*|"run services describe cni-directory-subscriber"*) echo https://subscriber.example.run.app ;;
           "run services describe"*) echo "$WEB_SA" ;;
           "projects describe"*) echo 123456789 ;;
           "run jobs describe"*) echo directory-sync-runtime@demo.iam.gserviceaccount.com ;;
@@ -37,8 +37,9 @@ function run(target:string,extra:Record<string,string>={}) {
 test('all workers build one shared image and one directory image without executing jobs',()=>{
   const r=run('all');assert.equal(r.status,0,r.stderr);
   assert.equal(r.calls.match(/builds submit/g)?.length,2);
-  assert.equal(r.calls.match(/run jobs deploy/g)?.length,3);
+  assert.equal(r.calls.match(/run jobs deploy/g)?.length,2);
   assert.equal(r.calls.match(/run jobs update/g)?.length,1);
+  assert.doesNotMatch(r.calls,/private-valuations|ticker-catalog/);
   assert.doesNotMatch(r.calls,/run jobs execute/);assert.match(r.calls,/--image example\/image@sha256:abcdef/);
   assert.match(r.calls,/pubsub topics add-iam-policy-binding sec-fundamentals-requests .*--member serviceAccount:web@demo.iam.gserviceaccount.com --role roles\/pubsub.publisher/);
   assert.doesNotMatch(r.calls,/pubsub topics add-iam-policy-binding sec-fundamentals-(updates|dead-letter) .*--member serviceAccount:web@demo.iam.gserviceaccount.com/);
@@ -80,10 +81,10 @@ test('A-share subscriber is provisioned before publication and preserves schedul
   assert.ok(r.calls.indexOf('subscriptions update cn-fundamentals-worker') < r.calls.indexOf('run jobs deploy refresh-cn-fundamentals-production'));
   assert.doesNotMatch(r.calls,/scheduler jobs (pause|resume)|iam service-accounts add-iam-policy-binding/);
 });
-test('financial changes build once for all three workers and skip directory',()=>{
+test('financial changes build once for remaining workers and skip directory',()=>{
   const r=run('fundamentals');assert.equal(r.status,0,r.stderr);
   assert.equal(r.calls.match(/builds submit/g)?.length,1);
-  assert.equal(r.calls.match(/run jobs deploy/g)?.length,3);
+  assert.equal(r.calls.match(/run jobs deploy/g)?.length,2);
   assert.doesNotMatch(r.calls,/run jobs update|cloudbuild.directory-sync.yaml/);
 });
 test('SEC deployment creates private bounded subscriber before switching the publisher',()=>{
@@ -97,40 +98,12 @@ test('SEC deployment creates private bounded subscriber before switching the pub
   assert.doesNotMatch(r.calls,/iam service-accounts add-iam-policy-binding/);
 });
 
-test('private valuation deployment isolates its subscriber and provisions delivery before publication',()=>{
-  const r=run('private-valuations');assert.equal(r.status,0,r.stderr);
-  assert.match(r.calls,/run deploy private-valuations-subscriber.*--no-allow-unauthenticated.*--max-instances 1.*--concurrency 1/);
-  assert.match(r.calls,/--args dist\/serve-private-valuations.cjs/);
-  assert.match(r.calls,/PRIVATE_VALUATIONS_SUBSCRIPTION=private-valuations-worker/);
-  assert.match(r.calls,/--dead-letter-topic private-valuations-dead-letter.*--message-retention-duration 7d/);
-  assert.match(r.calls,/PRIVATE_VALUATIONS_REQUEST_TOPIC=private-valuations-requests/);
-  assert.ok(r.calls.indexOf('subscriptions update private-valuations-worker') < r.calls.indexOf('run jobs deploy refresh-private-valuations-production'));
-  assert.doesNotMatch(r.calls,/pubsub topics add-iam-policy-binding .*--member serviceAccount:web@/);
-  assert.doesNotMatch(r.calls,/iam service-accounts add-iam-policy-binding|scheduler jobs (pause|resume)/);
-});
-
-test('first private valuation deployment creates request and dead-letter subscriptions',()=>{
-  const r=run('private-valuations',{NEW_PUBSUB:'1'});assert.equal(r.status,0,r.stderr);
-  assert.match(r.calls,/topics create private-valuations-requests/);
-  assert.match(r.calls,/subscriptions create private-valuations-dead-letter-audit --topic private-valuations-dead-letter.*--message-retention-duration 7d/);
-  assert.match(r.calls,/subscriptions create private-valuations-worker --topic private-valuations-requests.*--push-endpoint https:\/\/subscriber.example.run.app\/pubsub/);
-});
-
-test('ticker sync deploy grants only request publication to the web app and keeps provider values out of arguments',()=>{
-  const r=run('ticker-sync',{NEW_PUBSUB:'1',TWELVE_DATA_API_KEY:'test-provider-key'});assert.equal(r.status,0,r.stderr);
-  assert.match(r.calls,/run deploy ticker-catalog-subscriber.*--no-allow-unauthenticated.*--args dist\/serve-ticker-sync.cjs.*--concurrency 1.*--env-vars-file/);
-  assert.match(r.calls,/topics add-iam-policy-binding ticker-catalog-requests .*--member serviceAccount:web@demo.iam.gserviceaccount.com --role roles\/pubsub.publisher/);
-  assert.match(r.calls,/subscriptions create ticker-catalog-worker --topic ticker-catalog-requests.*--push-auth-service-account directory-sync-scheduler@demo.iam.gserviceaccount.com/);
-  assert.doesNotMatch(r.calls,/test-provider-key|run jobs deploy|scheduler jobs/);
-  assert.doesNotMatch(r.calls,/topics add-iam-policy-binding ticker-catalog-dead-letter .*--member serviceAccount:web@/);
-});
-
 test('only explicit bootstrap configures Pub/Sub token creation on the push identity',()=>{
   const r=run('sec-fundamentals',{PUBSUB_BOOTSTRAP_IAM:'1'});assert.equal(r.status,0,r.stderr);
   assert.match(r.calls,/iam service-accounts add-iam-policy-binding directory-sync-scheduler@demo.iam.gserviceaccount.com.*--member serviceAccount:service-123456789@gcp-sa-pubsub.iam.gserviceaccount.com --role roles\/iam.serviceAccountTokenCreator/);
 });
 test('invalid selection or missing IAM/SEC configuration fails before mutations',()=>{
-  for(const [target,extra] of [['bad',{}],['all',{SEC_USER_AGENT:''}],['directory',{WEB_SA:''}]] as [string,Record<string,string>][]) {
+  for(const [target,extra] of [['private-valuations',{}],['ticker-sync',{}],['bad',{}],['all',{SEC_USER_AGENT:''}],['directory',{WEB_SA:''}]] as [string,Record<string,string>][]) {
     const r=run(target,extra);assert.notEqual(r.status,0);
     assert.doesNotMatch(r.calls,/builds submit|run jobs (deploy|update|add-iam)/);
   }

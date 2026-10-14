@@ -11,9 +11,6 @@ COPY data/company-link-slugs.json ./data/company-link-slugs.json
 RUN node_modules/.bin/esbuild scripts/refresh-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-sec-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-sec-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-sec-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/refresh-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/refresh-cn-fundamentals.cjs \
-  && node_modules/.bin/esbuild scripts/refresh-private-valuations.ts --bundle --platform=node --packages=external --outfile=dist/refresh-private-valuations.cjs \
-  && node_modules/.bin/esbuild scripts/serve-private-valuations.ts --bundle --platform=node --packages=external --outfile=dist/serve-private-valuations.cjs \
-  && node_modules/.bin/esbuild scripts/serve-ticker-sync.ts --bundle --platform=node --packages=external --outfile=dist/serve-ticker-sync.cjs \
   && node_modules/.bin/esbuild scripts/serve-cn-fundamentals.ts --bundle --platform=node --packages=external --outfile=dist/serve-cn-fundamentals.cjs \
   && node_modules/.bin/esbuild scripts/serve-eod-maintenance.ts --bundle --platform=node --packages=external --outfile=dist/serve-eod-maintenance.cjs \
   && node_modules/.bin/esbuild scripts/collect-sec-filings.ts --bundle --platform=node --packages=external --outfile=dist/collect-sec-filings.cjs \
