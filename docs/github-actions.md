@@ -33,4 +33,4 @@ Ticker preview does not write catalog records. Ticker sync queues work through P
 
 ## Retired operations
 
-Separate worker deployment Actions, ticker-sync and EOD launchers, fixed-batch publication/review Actions and the source-probe Action are retired. Publication scripts, historical data and tests remain for reviewed maintenance. AI analyst generation and draft-review APIs/UI are retired; historical call labels and usage records remain. Company/industry research review continues through existing admin tools. Historical GitHub runs are retained.
+Separate worker deployment Actions, ticker-sync and EOD launchers, fixed-batch publication/review Actions and the source-probe Action are retired. Publication scripts, historical data and tests remain for reviewed maintenance. AI analyst generation and draft-review APIs/UI are retired; historical call labels and usage records remain. US/A-share industry research and A-share AI company-profile jobs are retired; their admin APIs return 410. Company directory imports and company-name identity review remain available. Historical GitHub runs are retained.
