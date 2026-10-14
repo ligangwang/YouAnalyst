@@ -99,6 +99,8 @@ export type TickerCatalogSyncResult = {
 // The provider's country filters the trading market, not the issuer's business location.
 export function companyListingFields<T extends Pick<TickerCatalogDocument, "symbol" | "name" | "country">>(ticker: T, existing: Record<string, unknown> = {}) {
   const { country, ...listing } = ticker;
+  delete (listing as Record<string,unknown>).symbolPrefixes;
+  delete (listing as Record<string,unknown>).searchPrefixes;
   return { ...listing, listingCountry: country, ...companyFields(`US:${ticker.symbol}`, {slug:existing.slug,names:existing.names,aliases:existing.aliases,...ticker}) };
 }
 

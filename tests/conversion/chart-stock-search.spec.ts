@@ -37,7 +37,7 @@ for (const chinese of [false, true]) test(`fullscreen ${chinese ? 'Chinese' : 'E
   await page.getByLabel(chinese ? '股价时间范围' : 'Price history range').selectOption('90');
   await page.getByRole('button', { name: 'MACD (12,26,9)', exact: true }).click();
   await chart.focus(); await page.keyboard.press('n');
-  const search = page.getByRole('dialog', { name: chinese ? '查找股票' : 'Find stock', exact: true });
+  const search = page.getByRole('dialog', { name: chinese ? '搜索公司' : 'Search company', exact: true });
   const input = search.getByRole('combobox');
   await expect(input).toHaveValue('n'); await expect(input).toBeFocused();
   await page.keyboard.press('Escape'); await expect(search).toHaveCount(0); await expect(chart).toHaveAttribute('data-chart-size', 'full');
@@ -63,7 +63,7 @@ test('IME opens a real input and composition Enter never selects a stock; editab
   await settings.locator('input').first().fill('120'); await expect(page.locator('[data-stock-search]')).toHaveCount(0);
   await settings.locator('header button').click(); await chart.focus();
   await chart.dispatchEvent('keydown', { key: 'Process', keyCode: 229, bubbles: true });
-  const input = page.getByRole('combobox', { name: 'Stock name, pinyin or code' }); await expect(input).toBeFocused();
+  const input = page.getByRole('combobox', { name: 'Search company' }); await expect(input).toBeFocused();
   await input.dispatchEvent('compositionstart'); await input.fill('微软');
   await expect(page.getByRole('option', { name: /Microsoft/ })).toBeVisible();
   await input.dispatchEvent('keydown', { key: 'Enter', isComposing: true, keyCode: 229 }); await expect(chart).toHaveAttribute('data-company-timeline', 'US:AMD');

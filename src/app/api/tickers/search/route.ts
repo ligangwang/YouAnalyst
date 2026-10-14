@@ -1,3 +1,4 @@
+import { COMPANY_SEARCH_VERSION } from '@/lib/market-companies/search';
 import { normalizeStockQuery, stockNameTerms } from "@/lib/market-companies/pinyin-search";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing";
@@ -38,7 +39,7 @@ type TickerDocument = {
   predictionSupported?: unknown;
   names?: unknown;
   aliases?: unknown;
-  pinyinSearchTerms?: unknown;
+  searchTerms?: unknown;
 };
 
 function normalizeQuery(raw: string | null): string {
@@ -89,7 +90,7 @@ function toSearchItem(id: string, data: TickerDocument) {
     symbolLower,
     name,
     nameLower,
-    searchNames: [...stockNameTerms(data as Record<string, unknown>), ...(Array.isArray(data.pinyinSearchTerms) ? data.pinyinSearchTerms.filter((value): value is string => typeof value === "string") : [])],
+    searchNames: [...stockNameTerms(data as Record<string, unknown>), ...(Array.isArray(data.searchTerms) ? data.searchTerms.filter((value): value is string => typeof value === "string") : [])],
     exchange: readString(data.exchange),
     micCode: readString(data.micCode),
     type: readString(data.type),
@@ -113,16 +114,18 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getAdminFirestore();
-    const prefixField = query.length === 1 && request.nextUrl.searchParams.get("scope") !== "all" ? "symbolPrefixes" : "searchPrefixes";
-    const primarySearch = db.collection("companies").where(prefixField, "array-contains", query.slice(0,32)).limit(50).get();
-    // Name matches must not exhaust the candidate cap before ticker ranking.
-    const [tickerSnapshot, symbolSnapshot, exactSnapshot, pinyinSnapshot] = await Promise.all([
-      primarySearch,
-      prefixField === "symbolPrefixes" ? primarySearch : db.collection("companies").where("symbolPrefixes", "array-contains", query).limit(50).get(),
-      db.collection("companies").where("symbolLower", "==", query).limit(20).get(),
-      db.collection("companies").where("pinyinSearchPrefixes", "array-contains", query.replace(/\s+/g, "").slice(0,32)).limit(50).get(),
+    const collection = db.collection("companies");
+    const indexed = collection.select('slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus');
+    // Return ranking/display metadata, not the potentially large prefix array.
+    // Scalar symbol range keeps partial codes ahead of a full page of name matches.
+    const symbolSearch = indexed.where('symbolLower', '>=', query).where('symbolLower', '<=', query + '\uf8ff').limit(50).get();
+    const nameSearch = query.length === 1 && request.nextUrl.searchParams.get('scope') !== 'all'
+      ? symbolSearch
+      : indexed.where('searchPrefixes', 'array-contains', query.replace(/\s+/g, '').slice(0,32)).limit(50).get();
+    const [nameSnapshot, symbolSnapshot, exactSnapshot] = await Promise.all([
+      nameSearch, symbolSearch, indexed.where('symbolLower', '==', query).limit(20).get(),
     ]);
-    const candidateDocs = [...new Map([...tickerSnapshot.docs, ...symbolSnapshot.docs, ...exactSnapshot.docs, ...pinyinSnapshot.docs].map(doc => [doc.id, doc])).values()];
+    const candidateDocs = [...new Map([...nameSnapshot.docs, ...symbolSnapshot.docs, ...exactSnapshot.docs].map(doc => [doc.id, doc])).values()];
 
     const editorialDocs: { id: string; data: () => Record<string, unknown> }[] = [];
     // Research discovery only. Do not fabricate tradeable/prediction-enabled instruments.
@@ -166,7 +169,7 @@ export async function GET(request: NextRequest) {
       }));
     const items = tickerItems.slice(0, limit).map(({ item }) => item);
 
-    return NextResponse.json({ items });
+    return NextResponse.json({ items }, { headers: { 'X-Company-Search-Version': String(COMPANY_SEARCH_VERSION) } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to search tickers";
     return NextResponse.json({ error: message }, { status: 500 });

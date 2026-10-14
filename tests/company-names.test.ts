@@ -25,11 +25,11 @@ test("publication only updates existing names, evidence and search index and pre
  const f=fake({name:"NVIDIA",status:"PUBLISHED",names:{fr:"NVIDIA"},description:"Keep",aiGraph:{status:"PUBLISHED"}});
  await publishNames(f.db,batch,false);assert.equal(f.writes.length,0);
  await publishNames(f.db,batch,true);assert.equal(f.writes.length,1);
- assert.deepEqual(Object.keys(f.writes[0]).sort(),["nameEvidence","names","pinyinSearchPrefixes","pinyinSearchTerms","pinyinSearchVersion","searchPrefixes"]);
+ assert.deepEqual(Object.keys(f.writes[0]).sort(),["nameEvidence","names","searchIndexVersion","searchPrefixes","searchTerms"]);
  assert.deepEqual(f.writes[0].names,{fr:"NVIDIA",en:"NVIDIA","zh-CN":"英伟达"});
  assert((f.writes[0].searchPrefixes as string[]).includes("英伟达"));
- assert((f.writes[0].pinyinSearchPrefixes as string[]).includes("ywd"));
- assert.equal(f.writes[0].pinyinSearchVersion,1);
+ assert((f.writes[0].searchPrefixes as string[]).includes("ywd"));
+ assert.equal(f.writes[0].searchIndexVersion,2);
 });
 test("missing identities and conflicting translations abort without writes",async()=>{
  for(const old of [undefined,{name:"Other",status:"PUBLISHED"},{name:"NVIDIA",status:"PUBLISHED",names:{"zh-CN":"Different"}}]){

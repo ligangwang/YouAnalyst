@@ -60,72 +60,40 @@ async function open(page: Page, query = "", delayMs = 0) {
   await page.goto(`${origin}/${query}`);
   return searches;
 }
-const input = (page: Page) => page.locator("#ticker-search");
-
-test("choosing a suggestion opens its company page straight away", async ({ page }) => {
-  const searches = await open(page);
-  await input(page).fill("nvidia");
-  await page.getByRole("option", { name: /NVDA NVIDIA Corporation/ }).click();
-  await expect(page.getByText("Destination /en/company/nvidia", { exact: true })).toBeVisible();
-  expect(searches).toEqual(["?q=NVIDIA&limit=8&scope=all"]);
+const input = (page: Page) => page.getByRole('combobox', {name:/^(Search company|搜索公司)$/});
+async function launch(page:Page) { await page.getByRole('button',{name:/^(Search company|搜索公司)$/}).click(); }
+for (const chinese of [false,true]) test(`shared company dialog selects and navigates in ${chinese?'Chinese':'English'}`,async({page})=>{
+  await open(page,chinese?'?lang=zh-CN':'');await launch(page);
+  await expect(input(page)).toBeFocused();await input(page).fill('nvidia');
+  await expect(page.getByRole('option')).toHaveCount(2);
+  await input(page).press('Enter');
+  await expect(page.getByText(`Destination /${chinese?'zh-cn':'en'}/company/nvidia`,{exact:true})).toBeVisible();
+});
+test('typing starts search, control keys do not, and Escape restores the entry point',async({page})=>{
+ await open(page);await page.locator('body').click({position:{x:1,y:1}});
+ for(const key of ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','Escape','Tab','F2','Control+a','Alt+a','Meta+a']){
+  await page.keyboard.press(key);await expect(page.getByRole('dialog',{name:'Search company',exact:true})).toHaveCount(0);
+ }
+ await page.keyboard.type('nvidia');await expect(input(page)).toHaveValue('nvidia');
+ await expect(page.getByRole('option')).toHaveCount(2);await input(page).press('ArrowDown');
+ await expect(page.getByRole('option').filter({hasText:'NVDL'})).toHaveAttribute('aria-selected','true');
+ await input(page).press('Escape');await expect(input(page)).toHaveCount(0);
+ await launch(page);await input(page).fill('openai');await page.getByRole('option',{name:/OpenAI/}).click();
+ await expect(page.getByText('Destination /en/company/openai',{exact:true})).toBeVisible();
+});
+test('missing company results stay in search rather than fabricating a destination',async({page})=>{
+ await open(page);await launch(page);await input(page).fill('no such co');
+ await expect(page.getByRole('status')).toHaveText('No matching companies.');await input(page).press('Enter');
+ await expect(page).toHaveURL(`${origin}/`);
 });
 
-for (const submit of ["Enter", "Go"] as const) test(`${submit} with typed text opens the best match`, async ({ page }) => {
-  await open(page);
-  await input(page).fill("nvidia");
-  await expect(page.getByRole("option")).toHaveCount(2);
-  if (submit === "Enter") await input(page).press("Enter");
-  else await page.getByRole("button", { name: "Go", exact: true }).click();
-  await expect(page.getByText("Destination /en/company/nvidia", { exact: true })).toBeVisible();
-});
-
-test("Enter before suggestions load still resolves the best match", async ({ page }) => {
-  const searches = await open(page, "", 600);
-  await input(page).fill("nvidia");
-  await input(page).press("Enter");
-  await expect(page.getByRole("button", { name: "Opening...", exact: true })).toBeDisabled();
-  await expect(page.getByText("Destination /en/company/nvidia", { exact: true })).toBeVisible();
-  expect(searches).toContain("?q=NVIDIA&limit=1&scope=all");
-});
-
-test("keyboard navigation chooses among the suggestions", async ({ page }) => {
-  await open(page);
-  await input(page).fill("nvidia");
-  await expect(page.getByRole("option")).toHaveCount(2);
-  await input(page).press("ArrowDown");
-  await input(page).press("ArrowDown");
-  await expect(page.getByRole("option", { name: /NVDL/ })).toHaveAttribute("aria-selected", "true");
-  await input(page).press("ArrowUp");
-  await expect(page.getByRole("option", { name: /NVDA NVIDIA/ })).toHaveAttribute("aria-selected", "true");
-  await input(page).press("ArrowDown");
-  await input(page).press("Enter");
-  await expect(page.getByText("Destination /en/ticker/NVDL", { exact: true })).toBeVisible();
-});
-
-test("Escape closes the suggestions and Enter still opens the best match", async ({ page }) => {
-  await open(page);
-  await input(page).fill("nvidia");
-  await expect(page.getByRole("option")).toHaveCount(2);
-  await input(page).press("Escape");
-  await expect(page.getByRole("listbox")).toHaveCount(0);
-  await input(page).press("Enter");
-  await expect(page.getByText("Destination /en/company/nvidia", { exact: true })).toBeVisible();
-});
-
-test("private companies open their company page and the locale prefix is kept", async ({ page }) => {
-  await open(page, "?lang=zh-CN");
-  await input(page).fill("openai");
-  await page.getByRole("option", { name: /OpenAI/ }).click();
-  await expect(page.getByText("Destination /zh-cn/company/openai", { exact: true })).toBeVisible();
-});
-
-test("typed text without any match explains itself instead of doing nothing", async ({ page }) => {
-  await open(page);
-  await input(page).fill("no such co");
-  await expect(page.getByText("No matching company found.").first()).toBeVisible();
-  await page.getByRole("button", { name: "Go", exact: true }).click();
-  await expect(page.getByText("No matching company found.")).toHaveCount(2);
-  await expect(page).toHaveURL(`${origin}/`);
+test('inactive page search never captures typing from an active fullscreen surface',async({page})=>{
+ await open(page);
+ await page.evaluate(()=>{document.getElementById('root')!.inert=true;});
+ await page.keyboard.press('n');
+ await expect(page.getByRole('dialog',{name:'Search company',exact:true})).toHaveCount(0);
+ await page.evaluate(()=>{document.getElementById('root')!.inert=false;});
+ await page.keyboard.press('n');await expect(input(page)).toHaveValue('n');
 });
 
 test("the AI map's most-connected companies link to their company pages", async ({ page }, testInfo) => {
@@ -143,4 +111,16 @@ test("the AI map's most-connected companies link to their company pages", async 
   const counts = await list.locator("li a > span:last-child > span").allTextContents();
   expect(counts.map(Number)).toEqual([...counts.map(Number)].sort((a, b) => b - a));
   await page.screenshot({ path: testInfo.outputPath("companies.png"), fullPage: true });
+});
+
+test('Enter before suggestions arrive opens the best match once the pending request completes',async({page})=>{
+ await open(page,'',600);await launch(page);await input(page).fill('nvidia');await input(page).press('Enter');
+ await expect(page.getByText('Destination /en/company/nvidia',{exact:true})).toBeVisible();
+});
+test('editing or dismissing a pending Enter never opens a stale company',async({page})=>{
+ const searches=await open(page,'',600);await launch(page);await input(page).fill('nvidia');
+ await expect.poll(()=>searches.length).toBe(1);await input(page).press('Enter');await input(page).fill('openai');
+ await expect(page.getByRole('option',{name:/OpenAI/})).toBeVisible();await expect(page).toHaveURL(`${origin}/`);
+ await input(page).fill('nvidia');await input(page).press('Enter');await input(page).press('Escape');
+ await page.waitForTimeout(800);await expect(page).toHaveURL(`${origin}/`);await expect(input(page)).toHaveCount(0);
 });

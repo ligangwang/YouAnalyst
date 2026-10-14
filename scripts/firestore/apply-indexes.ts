@@ -16,6 +16,7 @@ type CompositeIndex = {
 
 type FirestoreIndexesFile = {
   indexes: CompositeIndex[];
+  fieldOverrides?: {collectionGroup:string;fieldPath:string;indexes:IndexField[]}[];
 };
 
 function runCommand(command: string, args: string[]): { code: number; output: string } {
@@ -100,16 +101,17 @@ function main() {
 
   const groups = process.env.FIRESTORE_COLLECTION_GROUPS?.split(",").map(value => value.trim()).filter(Boolean);
   const indexes = (parsed.indexes ?? []).filter(index => !groups?.length || groups.includes(index.collectionGroup));
-  if (indexes.length === 0) {
-    console.log("No composite indexes defined. Skipping.");
-    return;
-  }
-
   console.log(`Applying ${indexes.length} Firestore composite index(es) to ${projectId}...`);
-  for (const index of indexes) {
-    applyIndex(projectId, index);
+  for (const index of indexes) applyIndex(projectId, index);
+  const overrides = (parsed.fieldOverrides ?? []).filter(field => !groups?.length || groups.includes(field.collectionGroup));
+  // Retired search indexes must remain available until the web and workers switch readers.
+  if (overrides.length && process.env.FIRESTORE_APPLY_FIELD_OVERRIDES !== '1') console.log('Deferred field exemptions: apply explicitly after company search rollout and cleanup.');
+  if (process.env.FIRESTORE_APPLY_FIELD_OVERRIDES === '1') for (const field of overrides) {
+    if (field.indexes.length) throw new Error('Only explicit field-index exemptions are supported');
+    const result = runCommand('gcloud', ['firestore','indexes','fields','update',field.fieldPath,`--project=${projectId}`,`--collection-group=${field.collectionGroup}`,'--disable-indexes','--quiet']);
+    if (result.code !== 0) throw new Error(result.output.trim() || 'Field index exemption failed');
+    console.log(`Disabled single-field indexes: ${field.collectionGroup}.${field.fieldPath}`);
   }
-
   console.log("Firestore index apply complete.");
 }
 

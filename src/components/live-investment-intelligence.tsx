@@ -4,7 +4,9 @@ import { LoadingSpinner } from './loading-spinner';
 import { CompanyTimeline } from './company-timeline';
 import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { intelligenceTimelineEvents } from '@/lib/ui/company-timeline';
-import { DebouncedCompanySearch } from './debounced-company-search';
+import { CompanySearch } from './company-search';
+import { companyPageUrl } from '@/lib/market-companies/routes';
+import { localizedPath } from '@/lib/i18n/urls';
 import { IntelligenceLoadingShell } from './intelligence-loading-shell';
 import { useNodeCardPosition } from './use-node-card-position';
 import {EventDetailsWindow, eventWindowAnchor, type EventWindowAnchor} from './event-details-window';
@@ -85,7 +87,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const setRightOpen=(right:boolean)=>setPanels(current=>({...current,right}));
   const leftOpen=leftChoice??wide;
   const [sector,setSector]=useState(''),[tab,setTab]=useState('all');
-  const [searchReset,setSearchReset]=useState(0);
   const query=useIndustryBrowseParam('q','',initialQuery);
   const phone=useSyncExternalStore(subscribePhone,phoneWidth,()=>true);
   const defaultView=initialEdge||initialEvent?'graph':phone?'table':'graph';
@@ -112,7 +113,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const selected=requestedId||snapshot.events.find(item=>intelligenceEventMatchesId(item,eventId))?.origin||linkedEvent?.companyIds[0]||snapshot.graph.relationships.find(item=>item.id===edgeId)?.source||'';
   const [camera,setCamera]=useState(0),[reset,setReset]=useState(0),[pulse,setPulse]=useState(0);
   const [propagating,setPropagating]=useState(false);
-  const onSearchTyping=useCallback(()=>{updateIndustryBrowse({company:'',feedCompany:'',event:'',relationship:''});setPropagating(false);},[]);
   const start=Date.parse(snapshot.session.startAt),until=Date.parse(snapshot.generatedAt);
   const graph=useMemo(()=>{
     if(!region)return snapshot.graph;
@@ -177,12 +177,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
     setPropagating(false);
     setCamera(value=>value+1);
   },[]);
-  const setQuery=useCallback((value:string)=>{
-    const search=value.normalize('NFKC').trim().replace(/^\$/,'');
-    const exact=search?allCompanies.filter(node=>companySearchRank(node,search)===0):[];
-    if(exact.length===1)selectCompany(exact[0].id,null,value);
-    else {updateIndustryBrowse({q:value,company:'',feedCompany:'',event:'',relationship:''},true);setPropagating(false);}
-  },[allCompanies,selectCompany]);
   const floatingCompany=Boolean(company);
   const companyCard=useNodeCardPosition(selected,'workspace',floatingCompany,companyAnchor,'top-right',selected);
   const connections=graph.relationships.filter(edge=>edge.type!=='PARTICIPATES_IN'&&relationshipVerification(edge)!=='TERMINATED'&&selected&&(edge.source===selected||edge.target===selected));
@@ -193,7 +187,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const label=(id:string)=>{const node=companiesById.get(id);return node?.symbol||node?.name||id;};
 
   function clearSelection(preserveCompany=false){const company=preserveCompany?activityCompany?.id??'':'';updateIndustryBrowse({company,feedCompany:company,event:'',relationship:''});setPropagating(false);}
-  function focusSector(id:string){setSector(id);setSearchReset(value=>value+1);updateIndustryBrowse({q:'',company:'',feedCompany:'',event:'',relationship:''});setPropagating(false);setCamera(value=>value+1);}
+  function focusSector(id:string){setSector(id);updateIndustryBrowse({q:'',company:'',feedCompany:'',event:'',relationship:''});setPropagating(false);setCamera(value=>value+1);}
   function showEvents(){setRightOpen(true);clearSelection(true);}
   function focusCompany(id:string){if(!id||id===selected&&!eventId&&!edgeId){clearSelection();return;}selectCompany(id,clickAnchor.current);}
   function activate(id:string,anchor?:EventWindowAnchor){const next=snapshot.events.find(item=>intelligenceEventMatchesId(item,id));if(!next)return;const trigger=eventTrigger.current;setEventAnchor(anchor??{...(clickAnchor.current??{x:innerWidth/2,y:64}),trigger,host:trigger?.closest<HTMLElement>('[data-chart-size="full"]')??null});const company=activityCompany&&next.companyIds.includes(activityCompany.id)?activityCompany.id:companiesById.has(next.origin)?next.origin:next.companyIds.find(id=>companiesById.has(id))??'';updateIndustryBrowse({event:id,company,relationship:'',feedCompany:activityCompany?.id??''});setCamera(value=>value+1);setPropagating(true);setPulse(value=>value+1);}
@@ -233,7 +227,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
     <h1 className={styles.srOnly}><UiText text="Investment Intelligence"/></h1>
     <aside className={styles.left} aria-label="Universe navigation" data-filtered={Boolean(region)||Boolean(query)||tab==='watchlist'||activeOnly||Boolean(sourceFilter)}>
       <div className={styles.panelTitle}><strong><UiText text={"Explore universe"}/></strong><button aria-label="Collapse left panel" onClick={()=>setLeftOpen(false)}>‹</button></div>
-      <label className={styles.search}><span className={styles.srOnly}><UiText text={"Search companies"}/></span><DebouncedCompanySearch resetKey={`${theme}:${searchReset}`} disabled={switching} value={query} onSearch={setQuery} onTyping={onSearchTyping} placeholder={ui('Search company / ticker')}/></label>
       <div className={liveStyles.browseSelectors}><div><div className={liveStyles.selectorLabel}><UiText text="INVESTMENT THEME"/></div><IntelligenceThemeSelector theme={requestedTheme} onChange={changeTheme} count={switching?undefined:allCompanies.length}/></div><label className={liveStyles.regionFilter}><span className={liveStyles.selectorLabel}>{chinese?'地区':'REGION'}</span><select aria-label={chinese?'地区':'Region'} disabled={switching} data-filtered={Boolean(region)} value={region} onChange={change=>{updateIndustryBrowse({region:change.target.value},true);clearSelection();setReset(value=>value+1);}}><option value="">{chinese?'全部':'All'}</option><option value="US">{chinese?'美股':'US stocks'}</option><option value="CN_A">{chinese?'中国 A 股':'China A-shares'}</option></select></label></div>
       <div className={liveStyles.themeFilters} inert={switching}>
       <div className={styles.sectionLabel}><UiText text={"SECTORS"}/>{' '}<button aria-label="Clear sector focus" onClick={()=>{focusSector('');}}><UiText text={"All"}/></button></div>
@@ -248,7 +241,10 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
       <section ref={graphSizeRef} className={liveStyles.graphViewport} data-chart-size={graphSize} role={graphSize==='full'?'dialog':undefined} aria-modal={graphSize==='full'||undefined} aria-label={chinese?'公司关系图':'Company relationship chart'} tabIndex={-1}>
       <div className={liveStyles.graphStage}>
       <div className={styles.graphToolbar}><div>{!leftOpen&&<button aria-label="Expand left panel" onClick={()=>setLeftOpen(true)}><UiText text={"☰ Explore"}/></button>}{!leftOpen&&<IntelligenceThemeSelector compact theme={requestedTheme} onChange={changeTheme}/>}<IntelligenceViewTabs view={view} onChange={changeView} id={viewId}/></div><div><div className={controls.liveControls}><IntelligencePriceAsOf nodes={allCompanies}/><span className={controls.liveStatus}>{error&&<UiText text="Disconnected"/>}<small>{clock(until)}{' '}<UiText text="ET"/></small></span></div>{(view==='graph'||view==='tree')&&<NavigationSettings compact/>}<button disabled={switching} aria-label="Reset universe view" onClick={()=>{clearSelection();setSector('');setSourceFilter('');setActiveOnly(false);setReset(value=>value+1);}}><UiText text={"Reset ⤢"}/></button>{!rightOpen&&<button onClick={()=>setRightOpen(true)}><UiText text={"Events ›"}/></button>}</div></div>
-      <div className={liveStyles.sizeToolbar}><ChartSizeControls size={graphSize} onChange={setGraphSize} label={chinese?'公司视图大小':'Company view size'}/></div>
+      <div className={liveStyles.sizeToolbar}><CompanySearch owner="workspace" enabled={!switching} onSelect={item=>{
+        if (snapshot.graph.nodes.some(node=>node.id===item.id)) { setSector('');setTab('all');setSourceFilter('');setActiveOnly(false);updateIndustryBrowse({region:''});selectCompany(item.id,null,''); }
+        else location.assign(localizedPath(companyPageUrl(item.market==='GLOBAL'?item.id:item.symbol,item.market,item.slug),locale));
+      }}/><ChartSizeControls size={graphSize} onChange={setGraphSize} label={chinese?'公司视图大小':'Company view size'}/></div>
       {error&&!switching&&<div className={liveStyles.notice} role="alert"><UiText text={"Connection interrupted. Showing the last received data."}/>{' '}<button onClick={reconnect}><UiText text={"Retry"}/></button></div>}
       <div className={viewStyles.panel} role="tabpanel" id={`${viewId}-panel`} aria-labelledby={`${viewId}-${view}`} tabIndex={0}>
         {/* Keep the old scene while loading; initialize camera, growth and branch state for the committed theme. */}

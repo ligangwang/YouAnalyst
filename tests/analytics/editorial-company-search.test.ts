@@ -8,10 +8,12 @@ test("exact tickers and ticker prefixes survive a full page of name matches", as
   const names = Array.from({length: 50}, (_, index) => company(`A${index}`, `Systems ${index}`));
   const exact = company("TEM", "Tempus AI"), prefix = company("TEMX", "Ticker prefix company"), hidden = company("TEMH", "Hidden company", "WITHDRAWN");
   const reads: string[] = [];
-  const fixture = { db: { collection: () => ({ where: (field: string) => ({ limit: (limit: number) => ({ get: async () => {
-    reads.push(field);
-    return { docs: (field === "symbolLower" ? [exact] : field === "symbolPrefixes" ? [exact, prefix, hidden] : names).slice(0, limit) };
-  } }) }) }) } };
+  const fixture = { db: { collection: () => ({ select(...fields:string[]){ assert(fields.includes('searchTerms'));assert(!fields.includes('searchPrefixes'));return this; }, where: (field: string, op:string) => {
+    const query={where:()=>query,limit:(limit:number)=>({get:async()=>{
+      reads.push(field+':'+op);
+      return {docs:(field==='symbolLower'?(op==='=='?[exact]:[exact,prefix,hidden]):names).slice(0,limit)};
+    }})};return query;
+  } }) } };
   const bundle = await build({ entryPoints: ["src/app/api/tickers/search/route.ts"], bundle: true, write: false, platform: "node", format: "cjs", packages: "external", plugins: [{ name: "no-live-services", setup(builder) {
     builder.onLoad({ filter: /[\\/]firebase[\\/]admin\.ts$/ }, () => ({ contents: "export const getAdminFirestore = () => fixture.db;", loader: "js" }));
   } }] });
@@ -28,7 +30,7 @@ test("exact tickers and ticker prefixes survive a full page of name matches", as
   for (const scope of ["calls", ""]) {
     reads.length = 0;
     await testModule.exports.GET({nextUrl: new URL(`https://example.com/api/tickers/search?q=T&scope=${scope}`)});
-    assert.equal(reads.filter(field => field === "symbolPrefixes").length, 1);
+    assert.equal(reads.filter(field => field === "symbolLower:>=").length, 1);
   }
 });
 
@@ -36,8 +38,8 @@ test("research directory finds missing editorial identities without exposing hid
   const records = new Map<string, Record<string, unknown>>();
   let failed = false;
   const reads: string[] = [];
-  const fixture = { db: { collection: () => ({
-    where: () => ({ limit: () => ({ get: async () => ({ docs: [] }) }) }),
+  const fixture = { db: { collection: () => ({ select(...fields:string[]){ assert(fields.includes('searchTerms'));assert(!fields.includes('searchPrefixes'));return this; },
+    where: () => { const query={where:()=>query,limit:()=>({get:async()=>({docs:[]})})};return query; },
     doc: (id: string) => ({ get: async () => {
       reads.push(id);
       if (failed) throw new Error("Unavailable");

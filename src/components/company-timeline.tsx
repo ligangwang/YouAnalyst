@@ -16,7 +16,7 @@ import type { CompanyThemeId } from '@/lib/company-themes/model';
 import { chartShareUrl, companyResearchPath, parseSharedChart, sharedChartParams, type SharedChart } from '@/lib/ui/chart-share';
 import { eventReturnDays } from '@/lib/ui/event-return-age';
 import { useRelativeTimeClock } from './relative-time';
-import { ChartStockSearch } from "./chart-stock-search";
+import { CompanySearch } from "./company-search";
 import type { SearchSuggestion } from "./ticker-search-input";
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
@@ -268,7 +268,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     <div className={styles.tools}>
       <a href={researchPath} target="_blank" rel="noopener noreferrer" title={text('Open company research in a new tab','在新标签页打开公司研究页')}>{text('Fundamentals (F10)','基本面（F10）')}</a>
       <button type="button" onClick={()=>void copyChartLink()}>{text('Copy chart link','复制图表链接')}</button>
-      <ChartStockSearch enabled={chartSize==='full'} onSelect={item=>{setStockChoice(item.id===initialCompanyId?null:{source:initialCompanyId,item});setPriceSelection(null);setHoverPrice(null);setClusterId('');setHoverDate(null);setEventAnchor(null);setSelectedId('');onDismissEvent?.();setShareResult(null);}}/>
+      <CompanySearch owner="chart" enabled={chartSize==='full'} onSelect={item=>{setStockChoice(item.id===initialCompanyId?null:{source:initialCompanyId,item});setPriceSelection(null);setHoverPrice(null);setClusterId('');setHoverDate(null);setEventAnchor(null);setSelectedId('');onDismissEvent?.();setShareResult(null);}}/>
       <ChartSizeControls size={chartSize} onChange={setChartSize}/>
       <label>{text('Range','时间范围')} <select aria-label={text('Price history range','股价时间范围')} value={days} onChange={event=>{setDays(event.target.value==='ytd'?'ytd':Number(event.target.value) as TimelineRange);setPriceSelection(null);setClusterId('');setHoverDate(null);}}>{TIMELINE_RANGES.map(range=><option key={range} value={range}>{rangeLabel(range)}</option>)}</select></label>
       <label>{text('Interval','K线周期')} <select aria-label={text('Candlestick interval','K线周期')} value={settings.interval} onChange={event=>{changeSettings({interval:event.target.value as TimelineIntervalChoice});closePriceDetails();setClusterId('');setHoverDate(null);}}>{(['auto',...TIMELINE_INTERVALS] as const).map(value=><option key={value} value={value}>{intervalLabel(value)}</option>)}</select></label>
