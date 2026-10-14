@@ -20,3 +20,10 @@ test('migration preserves existing aliases and identity, is idempotent, and defe
  const cleaned={...prepared} as Record<string,unknown>;for(const field of cleanup.removed)delete cleaned[field];
  assert.equal(companySearchMigration('US:AMD',cleaned,true).changed,false);
 });
+
+test('generic index rebuilds do not rewrite existing alias metadata',()=>{
+ for(const aliases of [['辉达','辉达'],['辉达',null],'辉达']) {
+  const result=companySearchMigration('US:NVDA',{name:'NVIDIA',aliases});
+  assert.equal(Object.hasOwn(result.patch,'aliases'),false);
+ }
+});
