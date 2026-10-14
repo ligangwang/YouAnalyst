@@ -4,7 +4,7 @@ export const COMPANY_URL_SLUGS: Record<string,string> = migratedSlugs;
 const SLUG_IDS = new Map(Object.entries(COMPANY_URL_SLUGS).map(([id,slug])=>[slug,id]));
 export function companyIdFromSlug(slug:string):string|null { return SLUG_IDS.get(slug.toLowerCase()) ?? null; }
 export function companySlugPath(id:string, slug?:unknown):string|null {
-  const value = typeof slug === 'string' && /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(slug) && !slug.startsWith('ticker-') ? slug : COMPANY_URL_SLUGS[id]
+  const value = typeof slug === 'string' && slug.length<=120 && slug===slug.toLowerCase() && /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(slug) && !slug.startsWith('ticker-') ? slug : COMPANY_URL_SLUGS[id]
     ?? (id.startsWith('US:')?PUBLIC_COMPANY_SLUGS[id.slice(3)]:ORGANIZATION_COMPANY_SLUGS[id]);
   return value ? `/company/${encodeURIComponent(value)}` : null;
 }
