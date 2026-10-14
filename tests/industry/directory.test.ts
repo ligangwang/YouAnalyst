@@ -59,10 +59,10 @@ test("company profiles retain canonical relationship directions, sources and int
   assert.deepEqual(projection.edges.map(e => e.id), ["incoming", "planned"]);
   const company = buildCompanyResearch("AMD", [], projection);
   assert.equal(company.connections[0].label, "Hygon supplies AMD");
-  assert.equal(company.connections[0].related.profileUrl, "/ticker/XSHG:688041");
+  assert.equal(company.connections[0].related.profileUrl, "/company/hygon-information");
   assert.equal(company.connections[0].evidence[0].filingUrl, publishedGraph.sources[0].url);
   assert.equal(company.connections[0].evidence[0].sourceKind, "web");
-  assert.equal(company.connections[1].related.profileUrl, "/company/ORG%3Aprivate");
+  assert.equal(company.connections[1].related.profileUrl, "/companies?search=private");
   assert.equal(company.connections[1].commercialStatus, "ANNOUNCED");
   assert.equal(company.connections[1].summary, "Announced plans only.");
   assert.equal(buildCompanyResearch("688041", [], projection).inMap, false);
