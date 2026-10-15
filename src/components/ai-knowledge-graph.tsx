@@ -238,7 +238,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
       {matches.length ? matches.map(n => <button key={n.id} onClick={() => selectCompany(n.id)}>{companyName(n,locale)} · {n.symbol}</button>) : <p>{text("No matching companies.", "没有匹配的公司。")}</p>}
     </section>}
 
-      <div hidden={view!=='table'}><IndustryCompanyTable companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
+      <div hidden={view!=='table'}><IndustryCompanyTable active={view==='table'} companies={companies} selected={selected} onSelect={selectCompany} followedIds={follows.ids}/></div>
       {/* Load the tree on first use, then preserve its expanded branches across tabs. */}
       <Suspense fallback={<p role="status" className={styles.empty}>{text("Loading industry view…", "正在加载产业视图…")}</p>}>
       {(view==='tree' || treeVisited) && <div hidden={view!=='tree'} className={styles.structureStack}>

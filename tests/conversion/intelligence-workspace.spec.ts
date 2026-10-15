@@ -17,6 +17,25 @@ events[198].summary='交易所上市公司原始公告。';
 events[198].evidence[0].title=events[198].title;
 events[199]={...events[199],origin:'US:LITE',companyIds:['US:LITE'],title:'Lumentum communication update',titleZh:'Lumentum 通信业务最新进展'};
 const snapshot={graph:{asOf:'2026-10-04',nodes:companies,relationships:[],sources:[]},graphVersion:'fixture',events,generatedAt:'2026-10-04T16:00:00Z',session:{date:'2026-10-04',timeZone:'America/New_York',startAt:'2026-10-04T04:00:00Z',endAt:'2026-10-05T04:00:00Z'},coverage:[{channel:'IR',status:'connected'}],sourceDocuments:Array.from({length:350},(_,i)=>({id:`https://investors.example.com/${i}`,channel:'IR',companyIds:['US:MU'],published_at:null,publication_date:'2026-10-02'})),statisticsComplete:true,warnings:[],truncated:true,limit:200} as IntelligenceSnapshot;
+test('workspace locates AMD across tree hierarchy and paginated list without losing selection',async({page})=>{
+ test.setTimeout(90000);await page.emulateMedia({reducedMotion:'reduce'});
+ const amd={...snapshot.graph.nodes[1],id:'US:AMD',symbol:'AMD',name:'Advanced Micro Devices'};
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,nodes:[...Array.from({length:65},(_,i)=>({...amd,id:`US:AAA${i}`,symbol:`AAA${i}`,name:`AAA company ${i}`})),amd]}};
+ const body=await workspaceFixture(true,fixture);
+ await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.fulfill({status:404,body:''}));
+ await page.goto('http://workspace.test/?view=graph&company=US%3AAMD');
+ const visibleCompany=async(selector:string)=>{
+  const company=page.locator(selector.includes('data-list-company')?`${selector} button[aria-pressed=true]`:selector).first();await expect(company).toBeVisible({timeout:15000});
+  await page.screenshot({path:test.info().outputPath(`before-${selector.includes('list')?'list':'tree'}.png`)});
+  await expect.poll(()=>company.evaluate(el=>{const r=el.getBoundingClientRect(),p=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!p&&(p===el||el.contains(p))?'reachable':JSON.stringify({rect:r.toJSON(),hit:p?.outerHTML.slice(0,200),container:el.closest('[role=region]')?.getBoundingClientRect().toJSON()});})).toBe('reachable');
+ };
+ for(const [tab,selector] of [['Industry tree','[data-tree-company="US:AMD"]'],['Company hierarchy','[data-tree-company="US:AMD"]'],['Company list','[data-list-company="US:AMD"]'],['Industry tree','[data-tree-company="US:AMD"]']] as const){
+  await page.getByRole('tab',{name:tab,exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);await visibleCompany(selector);
+  await page.screenshot({path:test.info().outputPath(`selected-amd-${tab.replaceAll(' ','-')}.png`)});
+  if(tab==='Company list'){await expect(page).toHaveURL(/page=2/);await page.getByRole('button',{name:'Previous',exact:true}).click();await expect(page).toHaveURL(/page=1/);}
+ }
+ await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);
+});
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
@@ -94,6 +113,56 @@ for(const view of ['graph','tree','hierarchy','table'])test(`sector selection re
  await expect(page).not.toHaveURL(/company=|q=/);
  const list=info.project.name==='mobile'?page.getByRole('region',{name:'Company list',exact:true}):page.getByRole('complementary',{name:'Universe navigation'});
  await expect(list.getByRole('button',{name:info.project.name==='mobile'?'Micron':'MU Micron',exact:true})).toBeVisible();
+});
+
+for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup opens and switches visible candles`,async({page})=>{
+ await open(page);await page.goto(`http://workspace.test/?view=${view}`);
+ await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'},{id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),currency:'USD',available:true,prices:[{date:'2026-10-01',open:100,high:110,low:99,close:105,volume:1000},{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ for(const [id,name] of [['US:MU','Micron'],['US:LITE','Lumentum']]){
+  await workspace.getByRole('button',{name:'Search company',exact:true}).click();
+  await page.getByRole('combobox',{name:'Search company',exact:true}).fill(name);
+  await page.getByRole('option',{name:new RegExp(name)}).click();
+  const timeline=workspace.locator(`[data-company-timeline="${id}"]`);
+  await expect(workspace).toHaveAttribute('data-chart-size','full');
+  await expect(timeline.locator('[data-price-candle]').first()).toBeVisible();
+  expect(await timeline.evaluate(el=>!!el.closest('[inert]'))).toBe(false);
+  const bounds=(await timeline.locator('[data-price-candle]').first().boundingBox())!,dock=(await workspace.locator('[data-timeline-dock]').boundingBox())!;
+  expect(bounds.y).toBeGreaterThanOrEqual(dock.y);expect(bounds.y+bounds.height).toBeLessThanOrEqual(Math.min(dock.y+dock.height,page.viewportSize()!.height)+1);
+ }
+ const timeline=workspace.locator('[data-company-timeline="US:LITE"]');
+ await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
+ await workspace.getByRole('button',{name:'Search company',exact:true}).click();
+ await page.getByRole('combobox',{name:'Search company',exact:true}).fill('Lumentum');
+ await page.getByRole('option',{name:/Lumentum/}).click();
+ await expect(timeline.locator('[data-price-candle]').first()).toBeVisible();
+ await expect(workspace).toHaveAttribute('data-chart-size','full');
+});
+
+test('fullscreen lookup shows candles while company event sources are still loading',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false);
+ let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/intelligence')){
+   if(new URL(route.request().url()).searchParams.get('section')==='universe')return route.fulfill({json:{...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true}});
+   await pending;return route.fulfill({json:snapshot});
+  }
+  return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
+ });
+ await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',currency:'USD',available:true,prices:[{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
+ await page.goto('http://workspace.test/?view=graph');
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ try{
+  await workspace.getByRole('button',{name:'Search company',exact:true}).click();await page.getByRole('combobox',{name:'Search company',exact:true}).fill('MU');await page.getByRole('option',{name:/Micron/}).click();
+  await expect(page.locator('aside[aria-label="Events and sources"]').getByText('Loading events and sources…')).toBeAttached();
+  await expect(workspace.locator('[data-company-timeline="US:MU"] [data-price-candle]').first()).toBeVisible();
+  await expect(workspace).toHaveAttribute('data-chart-size','full');
+ }finally{release();}
+ await expect(page.locator('aside[aria-label="Events and sources"]').getByText('Loading events and sources…')).toHaveCount(0);
 });
 
 for(const view of ['graph','tree','hierarchy','table'])test(`selected company price chart remains usable inside fullscreen ${view}`,async({page})=>{

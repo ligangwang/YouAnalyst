@@ -1405,6 +1405,20 @@ async function navigationFixture(page:Page,view='graph'){
  await page.goto('http://graph.test/map?lang=en&view='+view);
 }
 
+test('map locates AMD when switching representations and restores a hidden tree selection',async({page})=>{
+ test.setTimeout(90000);await navigationFixture(page);
+ await page.goto('http://graph.test/map?lang=en&view=graph&company=US%3AAMD');
+ for(const [tab,selector] of [['Industry tree','[data-industry-section="vertical"] [data-tree-company="US:AMD"]'],['Company hierarchy','[data-industry-section="hierarchy"] [data-tree-company="US:AMD"]'],['Company list','[data-list-company="US:AMD"]'],['Industry tree','[data-industry-section="vertical"] [data-tree-company="US:AMD"]']] as const){
+  await page.getByRole('tab',{name:tab,exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);
+  const node=page.locator(selector.includes('data-list-company')?`${selector} button[aria-pressed=true]`:selector).first();await node.scrollIntoViewIfNeeded();await expect(node).toBeVisible();
+  await page.screenshot({path:test.info().outputPath(`selected-amd-${tab.replaceAll(' ','-')}.png`)});
+  await expect.poll(()=>node.evaluate(el=>{const r=el.getBoundingClientRect(),p=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!p&&(p===el||el.contains(p))?'reachable':JSON.stringify({rect:r.toJSON(),hit:p?.outerHTML.slice(0,200)});})).toBe('reachable');
+ }
+ await page.getByRole('button',{name:'Close company details',exact:true}).click();
+ await page.getByRole('button',{name:'Reset view',exact:true}).click();
+ await page.locator('[data-industry-section="vertical"]').screenshot({path:test.info().outputPath('tree-meadow-overview.png')});
+});
+
 test('company card starts at the top when switching from Micron to NVIDIA',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture=structuredClone(graph);
@@ -1721,7 +1735,9 @@ test('navigation: manual hierarchy stays put and cannot pause other charts',asyn
 
 test('tree continuously surrounds the trunk and resumes after company details',async({page})=>{
  await accelerateTours(page,0);
- test.setTimeout(120000);
+ // Two complete growth replays and software-WebGL screenshots share this
+ // budget. Keep the individual motion and resume assertions bounded below.
+ test.setTimeout(180000);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
  const fixture=graph;
@@ -1827,27 +1843,32 @@ test('manual hierarchy centers each parent vertically over its children after ex
 });
 
 test('navigation: collapsing a tree branch disables its fading companies',async({page})=>{
- await page.clock.install();
+ test.setTimeout(60000);
  await accelerateTours(page,0);
- await page.emulateMedia({reducedMotion:'no-preference'});
+ // Finish entry without animation, then observe the animated exit commit.
+ await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]');
+ await expect(tree.locator('[data-tree-node="chips"]')).toBeAttached({timeout:20000});
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(tree.locator('[data-tree-node="chips/compute/US:NVDA"]')).toBeAttached();
  const company=tree.locator('[data-tree-node="chips/compute/US:NVDA"]');
  await expect(company).toBeEnabled();
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true');
- // Step the animation clock so slower CI rendering cannot skip the exit
- // commit between two real-time assertions.
- await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now()+60000)));
- await tree.locator('[data-tree-node="chips"]').evaluate((el:HTMLButtonElement)=>el.click());
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ // Observe the exit commit directly so a busy renderer cannot skip its short
+ // disabled state between two assertions.
+ const disabledDuringExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
+  const observer=new MutationObserver(()=>{
+   if(el.getAttribute('data-exiting')==='true'){observer.disconnect();resolve((el as HTMLButtonElement).disabled);}
+  });
+  observer.observe(el,{attributes:true,attributeFilter:['data-exiting','disabled']});
+  (el.closest('[data-industry-tree]')!.querySelector('[data-tree-node="chips"]') as HTMLButtonElement).click();
+ }));
+ expect(disabledDuringExit).toBe(true);
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','false');
- await page.clock.runFor(80);
- await expect(company).toHaveAttribute('data-exiting','true');
- await expect(company).toBeDisabled();
- await page.clock.runFor(1000);
  await expect(company).toHaveCount(0);
 });
 
@@ -1942,7 +1963,7 @@ test('hierarchy drags from node content without expanding and resets to a center
 });
 
 test('tree reveals leaves after a manual zoom and manual expansion completes the remaining canopy',async({page})=>{
- test.setTimeout(45000);await accelerateTours(page,8);await page.emulateMedia({reducedMotion:'no-preference'});
+ test.setTimeout(75000);await accelerateTours(page,8);await page.emulateMedia({reducedMotion:'no-preference'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');await canvas.scrollIntoViewIfNeeded();
@@ -1955,7 +1976,7 @@ test('tree reveals leaves after a manual zoom and manual expansion completes the
  expect(await canvas.getAttribute('data-camera-target')).toBe(pose);await expect(canvas).toHaveAttribute('data-tour','stopped');
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
- const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toBeAttached();
+ const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toHaveAttribute('aria-expanded','false');
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(tree.locator('[data-tree-company="US:NVDA"]').first()).toBeEnabled({timeout:15000});
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');

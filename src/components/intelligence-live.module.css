@@ -34,6 +34,9 @@
 .evidenceLinks small { display:block; color:var(--ui-muted,#849bae); font-size:9px; }
 .themeFilters{display:contents}
 .themeContents{position:relative;height:100%;min-height:0;display:flex;flex-direction:column;isolation:isolate}
+.themeContents[data-focused-company]>:global([data-industry-section]),.themeContents[data-focused-company]>:global([data-company-table]){width:calc(100% - 364px);min-width:0}
+@media(max-width:800px){.themeContents[data-focused-company]>:global([data-industry-section]),.themeContents[data-focused-company]>:global([data-company-table]){width:100%;height:calc(100% - 220px);margin-top:220px;flex:none}}
+@media(max-width:800px){.themeContents[data-focused-company][data-company-view=table]>:global([data-company-table]){height:calc(100% - 140px);margin-top:140px}.themeContents[data-focused-company][data-company-view=table]>.companyCard{max-height:120px!important}}
 .themeProgress{position:absolute;z-index:5;top:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:calc(100% - 24px);width:max-content;padding:10px 14px;border:1px solid var(--ui-line,#43616b);border-radius:10px;background:var(--ui-surface,#10212def);color:var(--ui-text,#ccece7);box-shadow:0 8px 28px #0005;font-size:12px;line-height:1.5;animation:themeAppear .15s ease-out}
 .themeProgress button{padding:3px 7px!important;color:var(--ui-text,#98e7d6)!important;border:1px solid var(--ui-line,#43616b)!important;flex-shrink:0}
 .themeSpinner{width:14px;height:14px;flex-shrink:0;border:2px solid var(--ui-line,#98e7d640);border-top-color:#98e7d6;border-radius:50%;animation:themeSpin .8s linear infinite}
@@ -63,6 +66,7 @@
 .graphViewport[data-chart-size=half]>.graphStage{display:flex;flex-direction:column;height:50dvh;min-height:320px;flex-shrink:0;}
 .graphViewport[data-chart-size=full]>.graphStage{display:flex;flex-direction:column;flex:1;min-height:0;}
 .graphViewport[data-chart-size=full]{display:flex;flex-direction:column;position:fixed;inset:0;width:100vw;height:100dvh;z-index:5000;background:var(--ui-surface,#0a1522);}
+.graphViewport[data-chart-size=full]>.timelineDock{max-height:55dvh;}
 .timelineDock:has([data-chart-size=half]){max-height:55dvh;}
 .regionWorkspace section[aria-label="Graph universe"]:has([data-chart-size=half]){overflow:auto;}
 .timelineDock:has([data-chart-size=full]){overflow:visible;}

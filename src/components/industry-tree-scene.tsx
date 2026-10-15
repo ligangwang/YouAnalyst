@@ -7,13 +7,12 @@ import {useNavigationSettings} from "./navigation-settings";
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { CameraControls, CameraControlsImpl, Html } from '@react-three/drei';
 import { AdditiveBlending, BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Vector3, type Group, type Mesh } from 'three';
-import { layoutIndustryTree, type TreeLayer, type TreePoint } from '@/lib/ui/knowledge-graph/industry-tree';
+import { layoutIndustryTree, companyTreePath, type TreeLayer, type TreePoint } from '@/lib/ui/knowledge-graph/industry-tree';
 import { marketCapDescription, marketCapLabel, marketCapScale } from '@/lib/knowledge-graph/market-cap';
 import { useLocale } from './providers/locale-provider';
 import { layoutVerticalTree } from '@/lib/ui/knowledge-graph/vertical-tree';
 import { VerticalTreeBranches } from './vertical-tree-branches';
-import { TreeStarField } from './tree-star-field';
-import { TreeGalaxies } from './tree-galaxies';
+import { TreeMeadowEnvironment } from './tree-meadow-environment';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/ui/knowledge-graph/vertical-tree-geometry';
 import styles from './industry-tree.module.css';
 import {WebGLContextRecovery} from './webgl-context-recovery';
@@ -22,7 +21,7 @@ import { tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/ui/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/ui/knowledge-graph/label-fade';
 
-export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string,finishGrowth?:boolean)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
+export type TreeSceneProps={tour:{current:boolean};active?:boolean;paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string,finishGrowth?:boolean)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
   state={failed:false};
@@ -138,7 +137,11 @@ function Scene(props:TreeSceneProps){
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
   const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
   // Mount the trunk and layer anchors before company leaves, even as lower layers grow.
-  const presenceNodes=useMemo(()=>props.vertical?[...nodes.filter(n=>n.kind==='root'||n.kind==='layer'),...nodes.filter(n=>n.kind!=='root'&&n.kind!=='layer')]:nodes,[nodes,props.vertical]);
+  const selectedPath=useMemo(()=>companyTreePath(props.layers,props.selected),[props.layers,props.selected]);
+  const presenceNodes=useMemo(()=>{
+    const ordered=props.vertical?[...nodes.filter(n=>n.kind==='root'||n.kind==='layer'),...nodes.filter(n=>n.kind!=='root'&&n.kind!=='layer')]:nodes;
+    return selectedPath?[...ordered].sort((a,b)=>Number(b.id===selectedPath.nodeId)-Number(a.id===selectedPath.nodeId)):ordered;
+  },[nodes,props.vertical,selectedPath]);
   const presence=useNodePresence(presenceNodes,navigation.speed,props.vertical?.04:.24);
   const renderedNodes=useMemo(()=>presence.map(entry=>entry.node),[presence]);
   const present=useMemo(()=>new Map(presence.map(entry=>[entry.node.id,entry])),[presence]);
@@ -224,6 +227,31 @@ function Scene(props:TreeSceneProps){
     flight.current=createTreeTour({position,target},plan);
     invalidate();
   },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,growing,fullPlan,tourRef]);
+  const selectionFocus=useRef('');
+  const internalSelection=useRef('');
+  const selectCompany=(id:string)=>{internalSelection.current=id;props.onSelect(id);};
+  useEffect(()=>{
+    if(props.active===false||!props.selected){selectionFocus.current='';internalSelection.current='';return;}
+    if(props.paused)return;
+    // A leaf clicked inside this tree is already under the user's camera. Only
+    // entering the view or selecting elsewhere should request a new camera shot.
+    if(internalSelection.current===props.selected)return;
+    internalSelection.current='';
+    const c=controls.current,node=nodes.find(node=>node.id===selectedPath?.nodeId);
+    if(!c||!node)return;
+    const key=`${node.id}:${size.width}:${size.height}`;
+    if(selectionFocus.current===key)return;
+    selectionFocus.current=key;tourRef.current=false;resumePending.current=false;
+    // Complete growth when locating an existing selection; it must not wait for the intro.
+    queueMicrotask(()=>setGrowth({request:props.request,active:false}));
+    woodGrowth.current.roots=1;woodGrowth.current.trunk=1;
+    const target=new Vector3(...node.position);
+    const distance=Math.max(480,280/(size.width/Math.max(1,size.height)));
+    const outward=props.vertical?new Vector3(target.x,0,target.z).normalize():new Vector3(0,0,1);
+    if(outward.lengthSq()===0)outward.set(0,0,1);
+    const position=target.clone().addScaledVector(outward,distance);position.y+=distance*.18;
+    void c.setLookAt(...position.toArray(),...target.toArray(),false);invalidate();
+  },[props.active,props.paused,props.selected,props.request,props.vertical,nodes,selectedPath,size.width,size.height,invalidate,tourRef]);
   const previousPlan=useRef(plan);
   useEffect(()=>{
     const previous=previousPlan.current;previousPlan.current=plan;
@@ -428,9 +456,8 @@ function Scene(props:TreeSceneProps){
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
     {props.vertical&&<>
-      <TreeStarField height={trunkTop} paused={props.paused}/>
-      <TreeGalaxies height={trunkTop}/>
-      <hemisphereLight args={['#d8edff','#14202e',1.4]}/>
+      <TreeMeadowEnvironment nodes={renderedNodes}/>
+      <hemisphereLight args={['#e5f5ff','#596937',1.8]}/>
       <directionalLight position={[1800,2800,1600]} color="#fff0d9" intensity={2.2}/>
       <directionalLight position={[-1600,1700,-1400]} color={props.vertical?'#b8c9b0':'#6cbaff'} intensity={props.vertical?1.3:2.8}/>
       <directionalLight position={[600,400,-1800]} color="#76e4c5" intensity={.8}/>
@@ -452,7 +479,7 @@ function Scene(props:TreeSceneProps){
       const leaf=props.vertical&&(node.company||node.kind==='foliage')&&node.layer!=='energy'?verticalLeafPose(node,node.parent?allById.get(node.parent):undefined,capScale,trunkTop):undefined;
       // The whole leaf or nodule selects its company; the small label button stays as the keyboard and screen-reader target.
       const pick=props.vertical&&node.company&&visible?{
-        onClick:(event:ThreeEvent<MouseEvent>)=>{event.stopPropagation();props.onSelect(node.company!.id);},
+        onClick:(event:ThreeEvent<MouseEvent>)=>{event.stopPropagation();selectCompany(node.company!.id);},
         onPointerOver:(event:ThreeEvent<PointerEvent>)=>{event.stopPropagation();gl.domElement.style.cursor='pointer';},
         onPointerOut:()=>{gl.domElement.style.cursor='';},
       }:{};
@@ -478,7 +505,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else {if(props.vertical){userPositioned.current=true;tourRef.current=false;resumeReady.current=false;}setGrowth({request:props.request,active:false});props.onToggle(node.id,growing);}}}>
+          onClick={event=>{event.stopPropagation();if(node.company)selectCompany(node.company.id);else {if(props.vertical){userPositioned.current=true;tourRef.current=false;resumeReady.current=false;}setGrowth({request:props.request,active:false});props.onToggle(node.id,growing);}}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')} <CompanyPriceChange price={node.company.dailyPrice} locale={locale}/></small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}

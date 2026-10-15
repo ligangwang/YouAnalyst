@@ -112,6 +112,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const linkedEvent=theme==='ai'?curatedEvents.find(item=>item.id===eventId):undefined;
   const selected=requestedId||snapshot.events.find(item=>intelligenceEventMatchesId(item,eventId))?.origin||linkedEvent?.companyIds[0]||snapshot.graph.relationships.find(item=>item.id===edgeId)?.source||'';
   const [camera,setCamera]=useState(0),[reset,setReset]=useState(0),[pulse,setPulse]=useState(0);
+  const [timelineReveal,setTimelineReveal]=useState(0);
   const [propagating,setPropagating]=useState(false);
   const start=Date.parse(snapshot.session.startAt),until=Date.parse(snapshot.generatedAt);
   const graph=useMemo(()=>{
@@ -173,6 +174,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const [companyAnchor,setCompanyAnchor]=useState<{x:number;y:number}|null>(null);
   const selectCompany=useCallback((id:string,anchor:{x:number;y:number}|null=null,search?:string)=>{
     setCompanyAnchor(anchor);
+    if(search!==undefined)setTimelineReveal(value=>value+1);
     updateIndustryBrowse({company:id,feedCompany:id,event:'',relationship:'',...(search!==undefined?{q:search}:{})},search!==undefined);
     setPropagating(false);
     setCamera(value=>value+1);
@@ -222,7 +224,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
     <GraphCompanyOutlook company={company}/><p className={styles.evidenceNote}><UiText text="Source activity and research relevance do not indicate price direction or verify that an announced plan has been delivered."/></p>
   </section>:null;
 
-  const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock aria-busy={eventsPending}>{eventsPending?<p role="status"><LoadingSpinner/>{chinese?'正在加载事件…':'Loading events…'}</p>:<CompanyTimeline key={company.id} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/>}</div>:null;
+  const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock><CompanyTimeline key={company.id} revealRequest={timelineReveal} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/></div>:null;
   return <main onClickCapture={event=>{if((event.target as Element).closest('[data-node-card],[data-event-window]'))return;eventTrigger.current=(event.target as Element).closest<HTMLElement>('button');const r=(event.target as Element).getBoundingClientRect();clickAnchor.current=event.detail?{x:event.clientX,y:event.clientY}:{x:r.right,y:r.bottom};}} className={`${styles.shell} ${liveStyles.regionWorkspace} ${leftOpen?'':styles.leftClosed} ${rightOpen?'':styles.rightClosed}`}>
     <h1 className={styles.srOnly}><UiText text="Investment Intelligence"/></h1>
     <aside className={styles.left} aria-label="Universe navigation" data-filtered={Boolean(region)||Boolean(query)||tab==='watchlist'||activeOnly||Boolean(sourceFilter)}>
@@ -248,9 +250,9 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
       {error&&!switching&&<div className={liveStyles.notice} role="alert"><UiText text={"Connection interrupted. Showing the last received data."}/>{' '}<button onClick={reconnect}><UiText text={"Retry"}/></button></div>}
       <div className={viewStyles.panel} role="tabpanel" id={`${viewId}-panel`} aria-labelledby={`${viewId}-${view}`} tabIndex={0}>
         {/* Keep the old scene while loading; initialize camera, growth and branch state for the committed theme. */}
-        <div className={liveStyles.themeContents} data-company-workspace inert={switching} aria-busy={switching&&!error}>
+        <div className={liveStyles.themeContents} data-company-workspace data-focused-company={floatingCompany&&company?selected:undefined} data-company-view={view} inert={switching} aria-busy={switching&&!error}>
         {view==='graph'?<div className={styles.graph} data-view="graph" style={{height:"100%"}}><Suspense fallback={<p className={styles.loading} role="status"><LoadingSpinner/><UiText text={"Loading universe…"}/></p>}><Universe key={theme} graph={graph} selected={selected} onSelect={focusCompany} sectorFocus={theme!=='ai'?'':sector} cameraRequest={camera} reset={reset} onReset={()=>setReset(value=>value+1)} intelligence={intelligence} companyFocus={filteredCompanyIds} activeEdge={edgeId} onSelectEdge={setEdgeId} hideReset/></Suspense><IntelligenceSectorLegend theme={theme}/></div>:<Suspense fallback={<p className={styles.loading} role="status"><LoadingSpinner/><UiText text={"Loading universe…"}/></p>}>
-          {view==='tree'?<Tree key={`${theme}:${reset}`} embedded vertical companies={chartCompanies} selected={selected} onSelect={focusCompany} followedIds={saved} active showCard={false}/>:view==='hierarchy'?<Hierarchy key={`${theme}:${reset}`} embedded companies={chartCompanies} selected={selected} onSelect={focusCompany} closing={false}/>:<div className={viewStyles.table}><CompanyTable companies={chartCompanies} selected={selected} onSelect={focusCompany} followedIds={saved}/></div>}
+          {view==='tree'?<Tree key={`${theme}:${reset}`} embedded vertical companies={chartCompanies} selected={selected} onSelect={focusCompany} followedIds={saved} active showCard={false}/>:view==='hierarchy'?<Hierarchy key={`${theme}:${reset}`} embedded companies={chartCompanies} selected={selected} onSelect={focusCompany} closing={false}/>:<div className={viewStyles.table} data-company-table><CompanyTable companies={chartCompanies} selected={selected} onSelect={focusCompany} followedIds={saved}/></div>}
         </Suspense>}
         {floatingCompany&&selectedDetails}
         </div>

@@ -25,6 +25,16 @@ const stageNames: Record<string,[string,string]> = {
 const modelDevelopers = new Set(['ORG:OPENAI','ORG:ANTHROPIC','ORG:MISTRAL-AI','US:GOOGL','US:META','US:AMZN','US:BABA','US:BIDU']);
 export type TreeBranch = {id:string; en:string; zh:string; companies:GraphNode[]};
 export type TreeLayer = typeof INDUSTRY_LAYERS[number] & {branches:TreeBranch[]; companies:GraphNode[]; directCompanies?:boolean};
+// A company may have several industry roles. Use the first recorded path consistently
+// across tree views so switching representations never selects a different company.
+export function companyTreePath(layers:TreeLayer[],companyId:string){
+  for(const layer of layers){
+    if(layer.directCompanies&&layer.companies.some(company=>company.id===companyId))return {open:['root',layer.id],nodeId:`${layer.id}/${companyId}`};
+    const branch=layer.branches.find(branch=>branch.companies.some(company=>company.id===companyId));
+    if(branch)return {open:['root',layer.id,branch.id],nodeId:`${branch.id}/${companyId}`};
+  }
+  return null;
+}
 export function industryTree(companies:GraphNode[]):TreeLayer[] {
   const unique=[...new Map(companies.map(c=>[c.id,c])).values()];
   const theme=graphTheme(unique);
