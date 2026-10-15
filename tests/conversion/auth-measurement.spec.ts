@@ -129,7 +129,7 @@ test("failed follow then retry records one signup and only confirmed follow comp
   await page.route(origin + "/api/map-follows", route => route.fulfill(++attempts === 1 ? { status: 503, json: {} } : { json: { companyIds: ["US:AMD"] } }));
   await page.goto(`${origin}/auth?${new URLSearchParams({ next: "/en/ticker/AMD?followCompany=US%3AAMD", mode: "register" })}`);
   await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("follow was not saved");
+  await expect(page.getByRole("alert")).toContainText("company was not added to your watchlist");
   expect((await events(page)).filter(event => event[1] === "company_follow")).toHaveLength(0);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page).toHaveURL(origin + "/en/ticker/AMD");

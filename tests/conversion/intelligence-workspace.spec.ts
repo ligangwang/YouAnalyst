@@ -72,6 +72,10 @@ test('workspace session watchlist appears below indicators and restores company 
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
  await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
  await workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();
+ await expect(workspace.locator('[data-chart-watchlist]')).toHaveCount(0);
+ await workspace.getByRole('button',{name:'Stock tools',exact:true}).click();
+ await page.getByRole('checkbox',{name:'Watchlist',exact:true}).check();
+ await page.getByRole('button',{name:'Close stock tools',exact:true}).click();
  const review=workspace.getByRole('region',{name:'Watchlist review',exact:true});
  await review.getByRole('button',{name:'Add current stock',exact:true}).click();
  await expect(review.getByRole('button',{name:'Micron',exact:true})).toBeVisible();
@@ -1069,8 +1073,8 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await expect(page.getByRole('button',{name:'Replay',exact:true})).toHaveCount(0);
   await expect(page.getByRole('slider')).toHaveCount(0);
   const workspace=await page.locator('main').elementHandle();
-  await page.getByRole('button',{name:'Follow MU',exact:true}).click();
-  await expect(page.getByRole('status').filter({hasText:'MU followed'})).toBeVisible();
+  await page.getByRole('button',{name:'Add MU to watchlist',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'MU added to watchlist'})).toBeVisible();
   await page.getByRole('tab',{name:'Company list',exact:true}).click();
   await bookmarkedQuery(page).fill('MU');
   await expect(page).toHaveURL(/feedCompany=US%3AMU/);
@@ -1116,7 +1120,7 @@ test('one theme selector switches companies and sources, clears stale filters, r
   await page.getByRole('button',{name:'Components & subsystems 1',exact:true}).click();
   await expect(page.locator('[data-list-company="US:RKLB"]')).toBeVisible();
   await page.getByRole('combobox',{name:'Investment theme',exact:true}).selectOption('ai');
-  await expect(page.locator('[data-list-company]')).toHaveCount(4);await expect(page.getByRole('button',{name:'Unfollow MU',exact:true})).toBeVisible();
+  await expect(page.locator('[data-list-company]')).toHaveCount(4);await expect(page.getByRole('button',{name:'Remove MU from watchlist',exact:true})).toBeVisible();
 });
 
 test('detail follow confirms beside the click and shows Followed',async({page},info)=>{
@@ -1126,18 +1130,18 @@ test('detail follow confirms beside the click and shows Followed',async({page},i
   await bookmarkedQuery(page).fill('Lument');
   await expect(page).toHaveURL(/q=Lument/);
   await page.getByRole('button',{name:'LITE Lumentum',exact:true}).click();
-  const save=page.getByRole('button',{name:/☆ Follow/});
+  const save=page.getByRole('button',{name:/☆ Add to watchlist/});
   const bounds=(await save.boundingBox())!;
   const x=bounds.x+bounds.width/2,y=bounds.y+bounds.height/2;
   await save.click();
-  await expect(page.getByRole('button',{name:'★ Followed',exact:true})).toHaveAttribute('aria-pressed','true');
-  const notice=page.getByRole('status').filter({hasText:'LITE followed'});
+  await expect(page.getByRole('button',{name:'★ In watchlist',exact:true})).toHaveAttribute('aria-pressed','true');
+  const notice=page.getByRole('status').filter({hasText:'LITE added to watchlist'});
   await expect(notice).toBeVisible();
   const confirmation=(await notice.boundingBox())!;
   expect(Math.abs(confirmation.y-y-14)).toBeLessThanOrEqual(1);
   expect(Math.min(Math.abs(confirmation.x-x-14),Math.abs(confirmation.x+confirmation.width-x+14))).toBeLessThanOrEqual(1);
-  await page.getByRole('button',{name:'★ Followed',exact:true}).click();
-  await expect(page.getByRole('button',{name:'☆ Follow',exact:true})).toHaveAttribute('aria-pressed','false');
+  await page.getByRole('button',{name:'★ In watchlist',exact:true}).click();
+  await expect(page.getByRole('button',{name:'☆ Add to watchlist',exact:true})).toHaveAttribute('aria-pressed','false');
 });
 
 

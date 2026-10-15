@@ -31,7 +31,7 @@ export default async function AmdEcosystem({ searchParams }: { searchParams: Par
     <p className={styles.muted}>{zh ? "来源复核" : "Sources reviewed"}: <time dateTime={REVIEWED}>{REVIEWED}</time> · {zh ? "精选研究，并非全部关系。来源日期与复核日期分别列示。" : "A selected research view, not a complete relationship inventory. Source dates are separate from review dates."}</p>
     <p>{zh ? "AMD 设计 EPYC CPU 与 Instinct GPU，并开发 Helios 机架架构。把这些关系都视为“AI 客户”会掩盖差异：AWS 的 CPU 实例、戴尔的 GPU 服务器配置和慧与的机架计划，处于不同产品层次，也提供不同强度的商业证据。" : "AMD designs EPYC CPUs and Instinct GPUs and develops the Helios rack architecture. Counting every connection as an “AI customer” hides important differences: AWS CPU instances, Dell GPU server configurations and HPE rack plans concern different products and provide different kinds of commercial evidence."}</p>
     <div className={styles.actions}><CompanyFollowButton companyId="US:AMD"/><a href={`${prefix}/ticker/AMD`}>{zh ? "继续研究 AMD" : "Continue researching AMD"}</a><ShareResearchView/></div>
-    <p>{zh ? "关注 AMD，回到“我的关注”查看有来源的公司及产业链变化。" : "Follow AMD to revisit sourced company and supply-chain changes in Following."}</p>
+    <p>{zh ? "将 AMD 加入自选股，随时查看有来源的公司及产业链变化。" : "Add AMD to your watchlist to revisit sourced company and supply-chain changes."}</p>
     <h2>{zh ? "沿产品线阅读来源" : "Read the sources by product"}</h2>
     <p>{zh ? "EPYC：验证 CPU 云端采用。Instinct：区分上游内存与下游系统集成。Helios：跟踪机架路线图，等待交付或客户部署证据。晶圆制造则是这些产品背后的上游依赖。" : "EPYC: verify CPU cloud adoption. Instinct: separate upstream memory from downstream system integration. Helios: track the rack roadmap and look for delivery or deployment evidence. Wafer manufacturing is an upstream dependency behind the products."}</p>
     <form className={styles.actions} action={`${prefix}${RESEARCH_PATH}`}>

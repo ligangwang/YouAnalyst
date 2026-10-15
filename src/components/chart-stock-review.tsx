@@ -14,7 +14,7 @@ import {FloatingEventWindow,type EventWindowAnchor} from './event-details-window
 import styles from './chart-stock-review.module.css';
 
 export type ChartWatchlist={ids:string[];loading:boolean;error:boolean;session:boolean;change:(id:string,follow:boolean)=>Promise<void>;refresh:()=>void};
-type Props={companyId:string;company?:GraphNode;graph?:KnowledgeGraph|null;anchor:EventWindowAnchor|null;closeTools:()=>void;settings:SharedChart;changeSettings:(patch:Partial<SharedChart>)=>void;openAverages:(anchor:EventWindowAnchor)=>void;selectCompany:(company:GraphNode)=>void;watchlist?:ChartWatchlist};
+type Props={companyId:string;company?:GraphNode;graph?:KnowledgeGraph|null;anchor:EventWindowAnchor|null;closeTools:()=>void;settings:SharedChart;changeSettings:(patch:Partial<SharedChart>)=>void;openAverages:(anchor:EventWindowAnchor)=>void;selectCompany:(company:GraphNode)=>void;watchlist?:ChartWatchlist;showWatchlist:boolean;onShowWatchlistChange:(show:boolean)=>void};
 
 export function ChartStockReview(props:Props){
  const {text,locale,chinese}=useLocale();
@@ -65,6 +65,7 @@ export function ChartStockReview(props:Props){
      <button type="button" disabled={pending||watchlist.loading} aria-pressed={followed} onClick={()=>void toggleFollow()}>{pending?text('Saving…','保存中…'):followed?text('Remove from watchlist','移出自选股'):text('Add to watchlist','加入自选股')}</button>
      <details><summary>{text('Sectors','所属板块')}</summary>{sectors.length?sectors.map(item=><button type="button" key={item.id} onClick={()=>setSector(item.id)}>{chinese?item.zh:item.en} →</button>):<p>{text('Sector classification is not available in the current graph.','当前图谱暂无此公司的板块分类。')}</p>}</details>
      <a href={companyResearchPath(props.companyId,locale)} onClick={close}>{text('Company research','公司研究')} ↗</a>
+     <label className={styles.panelToggle}><input type="checkbox" checked={props.showWatchlist} onChange={event=>props.onShowWatchlistChange(event.target.checked)}/>{text('Watchlist','自选股')}</label>
      <hr/><strong>{text('Technical indicators','技术指标')}</strong>
      <button type="button" onClick={()=>{const anchor=props.anchor!;close();props.openAverages(anchor);}}>{text('Moving average settings','均线设置')}…</button>
      {(['volume','turnover'] as const).map(activity=><button key={activity} type="button" aria-pressed={props.settings.activity===activity} onClick={()=>props.changeSettings({activity})}>{activity==='volume'?text('Volume','成交量'):text('Turnover','成交额')}</button>)}
@@ -73,12 +74,12 @@ export function ChartStockReview(props:Props){
     {failed&&<p role="alert">{text('Could not update watchlist. Please retry.','自选股更新失败，请重试。')}</p>}
    </div>
   </FloatingEventWindow>}
-  <section className={styles.review} aria-label={text('Watchlist review','自选股复盘')} data-chart-watchlist>
+  {props.showWatchlist&&<section className={styles.review} aria-label={text('Watchlist review','自选股复盘')} data-chart-watchlist>
    <header><h3>{text('Watchlist review','自选股复盘')} <small>{saved.length}</small></h3><button type="button" disabled={pending||watchlist.loading} aria-pressed={followed} onClick={()=>void toggleFollow()}>{pending?text('Saving…','保存中…'):followed?text('Remove current stock','移出当前股票'):text('Add current stock','加入当前股票')}</button></header>
    {watchlist.session&&<p>{text('Session watchlist · sign in to save across visits.','本次会话自选股 · 登录后可跨访问保存。')}</p>}
    {watchlist.error&&<button type="button" onClick={watchlist.refresh}>{text('Could not refresh watchlist. Retry','自选股刷新失败，重试')}</button>}
    {watchlist.loading&&!saved.length?<p role="status">{text('Loading watchlist…','正在加载自选股…')}</p>:saved.length?rows(saved):!watchlist.error&&<p>{text('Add stocks to review them below the chart. Select a row to switch charts.','加入自选股后将在图表下方显示，点击股票即可切换图表。')}</p>}
    {failed&&!props.anchor&&<p role="alert">{text('Could not update watchlist. Please retry.','自选股更新失败，请重试。')}</p>}
-  </section>
+  </section>}
  </>;
 }

@@ -18,7 +18,7 @@ export function ResearchUpdateFeed({ graph, items }: { graph: KnowledgeGraph | n
     <h1 className="text-3xl font-semibold text-cyan-100">{text("Curated research updates", "精选研究动态")}</h1>
     <p className="mt-3 text-sm text-slate-400">{text("Reviewed supply-chain research, ordered by source publication date. Collected news and filings are available in the command center.", "已复核的产业链研究，按来源发布日期排列。采集的新闻和公告可在投资情报中查看。")}</p>
     <div className="my-6 flex flex-wrap items-center justify-between gap-4">
-      <nav aria-label={text("Update feeds", "动态类型")} className="flex flex-wrap gap-5 text-cyan-200"><Link href="/">{text("News & filings", "新闻与公告")}</Link><Link href="/feed" aria-current="page">{text("Curated research", "精选研究")}</Link><Link href="/feed?scope=following">{text("Following", "我关注的")}</Link></nav>
+      <nav aria-label={text("Update feeds", "动态类型")} className="flex flex-wrap gap-5 text-cyan-200"><Link href="/">{text("News & filings", "新闻与公告")}</Link><Link href="/feed" aria-current="page">{text("Curated research", "精选研究")}</Link><Link href="/feed?scope=following">{text("Watchlist", "自选股")}</Link></nav>
     </div>
     {graph && <ResearchChangeSummary graph={graph} items={items} />}
     <label className="mb-5 flex items-center gap-3 text-sm text-slate-300">{text("Update type", "动态类型")}<select aria-label={text("Update type", "动态类型")} value={category} onChange={event => { setCategory(event.target.value); setLimit(20); }} className="rounded-lg border border-white/20 bg-slate-950 px-3 py-2">
