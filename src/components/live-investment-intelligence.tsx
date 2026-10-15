@@ -113,7 +113,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const linkedEvent=theme==='ai'?curatedEvents.find(item=>item.id===eventId):undefined;
   const selected=requestedId||snapshot.events.find(item=>intelligenceEventMatchesId(item,eventId))?.origin||linkedEvent?.companyIds[0]||snapshot.graph.relationships.find(item=>item.id===edgeId)?.source||'';
   const [camera,setCamera]=useState(0),[reset,setReset]=useState(0),[pulse,setPulse]=useState(0);
-  const [timelineReveal,setTimelineReveal]=useState(0);
+  const [timelineClosed,setTimelineClosed]=useState(false);
   const [propagating,setPropagating]=useState(false);
   const start=Date.parse(snapshot.session.startAt),until=Date.parse(snapshot.generatedAt);
   const graph=useMemo(()=>{
@@ -175,11 +175,11 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const [companyAnchor,setCompanyAnchor]=useState<{x:number;y:number}|null>(null);
   const selectCompany=useCallback((id:string,anchor:{x:number;y:number}|null=null,search?:string)=>{
     setCompanyAnchor(anchor);
-    if(search!==undefined)setTimelineReveal(value=>value+1);
+    if(search!==undefined)setTimelineClosed(current=>graphSize==='full'?(company?current:true):false);
     updateIndustryBrowse({company:id,feedCompany:id,event:'',relationship:'',...(search!==undefined?{q:search}:{})},search!==undefined);
     setPropagating(false);
     setCamera(value=>value+1);
-  },[]);
+  },[graphSize,company]);
   const floatingCompany=Boolean(company);
   const companyCard=useNodeCardPosition(selected,'workspace',floatingCompany,companyAnchor,'top-right',selected);
   const connections=graph.relationships.filter(edge=>edge.type!=='PARTICIPATES_IN'&&relationshipVerification(edge)!=='TERMINATED'&&selected&&(edge.source===selected||edge.target===selected));
@@ -225,7 +225,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
     <GraphCompanyOutlook company={company}/><p className={styles.evidenceNote}><UiText text="Source activity and research relevance do not indicate price direction or verify that an announced plan has been delivered."/></p>
   </section>:null;
 
-  const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock><CompanyTimeline onSelectCompany={id=>selectCompany(id)} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} key={company.id} revealRequest={timelineReveal} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/></div>:null;
+  const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock><CompanyTimeline onSelectCompany={id=>selectCompany(id)} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} key={company.id} closed={timelineClosed} onClosedChange={setTimelineClosed} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/></div>:null;
   return <main onClickCapture={event=>{if((event.target as Element).closest('[data-node-card],[data-event-window]'))return;eventTrigger.current=(event.target as Element).closest<HTMLElement>('button');const r=(event.target as Element).getBoundingClientRect();clickAnchor.current=event.detail?{x:event.clientX,y:event.clientY}:{x:r.right,y:r.bottom};}} className={`${styles.shell} ${liveStyles.regionWorkspace} ${leftOpen?'':styles.leftClosed} ${rightOpen?'':styles.rightClosed}`}>
     <h1 className={styles.srOnly}><UiText text="Investment Intelligence"/></h1>
     <aside className={styles.left} aria-label="Universe navigation" data-filtered={Boolean(region)||Boolean(query)||tab==='watchlist'||activeOnly||Boolean(sourceFilter)}>

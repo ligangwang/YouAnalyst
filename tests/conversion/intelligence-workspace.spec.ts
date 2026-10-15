@@ -142,18 +142,29 @@ for(const view of ['graph','tree','hierarchy','table'])test(`sector selection re
  await expect(list.getByRole('button',{name:info.project.name==='mobile'?'Micron':'MU Micron',exact:true})).toBeVisible();
 });
 
-for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup opens and switches visible candles`,async({page})=>{
+for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup preserves closed and open price charts`,async({page})=>{
  await open(page);await page.goto(`http://workspace.test/?view=${view}`);
  await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'},{id:'US:LITE',symbol:'LITE',name:'Lumentum',market:'US'}]}}));
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),currency:'USD',available:true,prices:[{date:'2026-10-01',open:100,high:110,low:99,close:105,volume:1000},{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
  await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
- for(const [id,name] of [['US:MU','Micron'],['US:LITE','Lumentum']]){
-  await workspace.getByRole('button',{name:'Search company',exact:true}).click();
+ const lookup=async(id:string,name:string)=>{
+  await workspace.getByRole('button',{name:'Search company',exact:true}).focus();
+  await page.keyboard.type(name[0]);
   await page.getByRole('combobox',{name:'Search company',exact:true}).fill(name);
   await page.getByRole('option',{name:new RegExp(name)}).click();
-  const timeline=workspace.locator(`[data-company-timeline="${id}"]`);
+  await expect(workspace.locator('[data-company-workspace]')).toHaveAttribute('data-focused-company',id);
   await expect(workspace).toHaveAttribute('data-chart-size','full');
+  return workspace.locator(`[data-company-timeline="${id}"]`);
+ };
+ for(const [id,name] of [['US:MU','Micron'],['US:MU','Micron'],['US:LITE','Lumentum']]){
+  const timeline=await lookup(id,name);
+  await expect(timeline.getByRole('button',{name:'Show timeline',exact:true})).toBeVisible();
+  await expect(timeline.locator('svg[role="img"]')).toHaveCount(0);
+ }
+ await workspace.getByRole('button',{name:'Show timeline',exact:true}).click();
+ for(const [id,name] of [['US:MU','Micron'],['US:LITE','Lumentum']]){
+  const timeline=await lookup(id,name);
   await expect(timeline.locator('[data-price-candle]').first()).toBeVisible();
   expect(await timeline.evaluate(el=>!!el.closest('[inert]'))).toBe(false);
   const bounds=(await timeline.locator('[data-price-candle]').first().boundingBox())!,dock=(await workspace.locator('[data-timeline-dock]').boundingBox())!;
@@ -161,14 +172,13 @@ for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} 
  }
  const timeline=workspace.locator('[data-company-timeline="US:LITE"]');
  await timeline.getByRole('button',{name:'Close timeline',exact:true}).click();
- await workspace.getByRole('button',{name:'Search company',exact:true}).click();
- await page.getByRole('combobox',{name:'Search company',exact:true}).fill('Lumentum');
- await page.getByRole('option',{name:/Lumentum/}).click();
- await expect(timeline.locator('[data-price-candle]').first()).toBeVisible();
+ const closedTimeline=await lookup('US:MU','Micron');
+ await expect(closedTimeline.getByRole('button',{name:'Show timeline',exact:true})).toBeVisible();
+ await expect(closedTimeline.locator('svg[role="img"]')).toHaveCount(0);
  await expect(workspace).toHaveAttribute('data-chart-size','full');
 });
 
-test('fullscreen lookup shows candles while company event sources are still loading',async({page})=>{
+test('fullscreen lookup keeps chart closed until requested while event sources load',async({page})=>{
  const body=await workspaceFixture(false,snapshot,false);
  let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve;});
  await page.route('**/*',async route=>{
@@ -186,6 +196,9 @@ test('fullscreen lookup shows candles while company event sources are still load
  try{
   await workspace.getByRole('button',{name:'Search company',exact:true}).click();await page.getByRole('combobox',{name:'Search company',exact:true}).fill('MU');await page.getByRole('option',{name:/Micron/}).click();
   await expect(page.locator('aside[aria-label="Events and sources"]').getByText('Loading events and sources…')).toBeAttached();
+  const timeline=workspace.locator('[data-company-timeline="US:MU"]');
+  await expect(timeline.locator('svg[role="img"]')).toHaveCount(0);
+  await timeline.getByRole('button',{name:'Show timeline',exact:true}).click();
   await expect(workspace.locator('[data-company-timeline="US:MU"] [data-price-candle]').first()).toBeVisible();
   await expect(workspace).toHaveAttribute('data-chart-size','full');
  }finally{release();}
