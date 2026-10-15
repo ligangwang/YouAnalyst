@@ -22,7 +22,7 @@ import { tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/ui/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/ui/knowledge-graph/label-fade';
 
-export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
+export type TreeSceneProps={tour:{current:boolean};paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string,finishGrowth?:boolean)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
   state={failed:false};
@@ -61,7 +61,7 @@ function Scene(props:TreeSceneProps){
     const pause=()=>{tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
     const schedule=()=>{
       clear();
-      if(pointers.size||keys.size||document.hidden)return;
+      if(pointers.size||keys.size||document.hidden||userPositioned.current)return;
       idleTimer.current=setTimeout(()=>{idleTimer.current=null;resumeReady.current=true;invalidate();},2000);
       invalidate();
     };
@@ -69,7 +69,7 @@ function Scene(props:TreeSceneProps){
     const down=(event:Event)=>{const e=event as PointerEvent;pointers.add(e.pointerId);if(e.target===gl.domElement)starts.set(e.pointerId,{x:e.clientX,y:e.clientY});pause();};
     const move=(event:PointerEvent)=>{const start=starts.get(event.pointerId);if(start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>4)userPositioned.current=true;};
     const up=(event:PointerEvent)=>{starts.delete(event.pointerId);if(pointers.delete(event.pointerId))schedule();};
-    const wheel=(event:Event)=>{if(!(event.target instanceof Element&&event.target.closest('[data-node-card]')))userPositioned.current=true;pause();schedule();};
+    const wheel=(event:Event)=>{if(event.target===gl.domElement)userPositioned.current=true;pause();schedule();};
     const keydown=(event:Event)=>{keys.add((event as KeyboardEvent).code);pause();};
     const keyup=(event:KeyboardEvent)=>{if(keys.delete(event.code))schedule();};
     const focus=()=>{pause();schedule();};
@@ -254,7 +254,7 @@ function Scene(props:TreeSceneProps){
     const checkCollisions=props.vertical&&now-lastCollision.current>=200;
     const touring=props.tour.current&&plan.length>0&&(!props.vertical||props.open.includes('root'))&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
     let resumed=false;
-    if(props.vertical&&props.open.includes('root')&&plan.length&&resumePending.current&&resumeReady.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
+    if(props.vertical&&props.open.includes('root')&&plan.length&&resumePending.current&&resumeReady.current&&!userPositioned.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden&&controls.current){
       const start={position:controls.current.getPosition(new Vector3(),false).toArray(),target:controls.current.getTarget(new Vector3(),false).toArray()};
       const previousLayer=flight.current?.destination()?.layer;
       const continuation=skipLayer.current?-1:plan.findIndex(stop=>stop.layer===previousLayer);
@@ -268,11 +268,12 @@ function Scene(props:TreeSceneProps){
     }
     gl.domElement.setAttribute('data-tour',touring||resumed?'playing':props.tour.current?'paused':'stopped');
     let presentationFrame=props.vertical?presentation.current?.sample():undefined;
-    if(touring&&controls.current){
+    // Growth finishes even while a user's camera is parked; revealing leaves must not depend on auto-orbit.
+    if((touring||props.vertical&&growing&&presentationFrame&&!['ascent','descent'].includes(presentationFrame.phase)&&!props.paused&&!reduced.current&&!document.hidden)&&controls.current){
       if(presentationFrame&&presentation.current){
         presentationFrame=presentation.current(delta,navigation.speed);
         if(growing)for(const layer of presentationFrame.revealLayers)if(!props.open.includes(layer))props.onRevealLayer(layer);
-        void controls.current.setLookAt(...presentationFrame.shot.position,...presentationFrame.shot.target,presentationFrame.phase==='overview');
+        if(touring)void controls.current.setLookAt(...presentationFrame.shot.position,...presentationFrame.shot.target,presentationFrame.phase==='overview');
       }else if(flight.current){
         const shot=flight.current(delta,navigation.speed);
         if(!props.vertical)void controls.current.setLookAt(...shot.position,...shot.target,false);
@@ -477,7 +478,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else {setGrowth({request:props.request,active:false});props.onToggle(node.id);}}}>
+          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else {if(props.vertical){userPositioned.current=true;tourRef.current=false;resumeReady.current=false;}setGrowth({request:props.request,active:false});props.onToggle(node.id,growing);}}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')} <CompanyPriceChange price={node.company.dailyPrice} locale={locale}/></small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}

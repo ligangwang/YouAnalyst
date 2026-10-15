@@ -18,7 +18,8 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
  const [open,setOpen]=useState<string[]>(['root']);
  const [view,setView]=useState({x:440,y:260,zoom:.8});
  const viewport=useRef<HTMLDivElement>(null),shot=useRef({x:440,y:260,zoom:.8}),drag=useRef<{x:number;y:number;vx:number;vy:number}|null>(null);
- const initialized=useRef(false),manualFocus=useRef<string|null>(null);
+ const initialized=useRef(false),manualFocus=useRef<{id:string;x:number;y:number}|null>(null),fitRequested=useRef(false);
+ const suppressClick=useRef(false);
  const pointers=useRef(new Map<number,{x:number;y:number}>()),pinch=useRef<{distance:number;zoom:number}|null>(null);
  const [size,setSize]=useState({width:1000,height:600});
  useEffect(()=>{const el=viewport.current;if(!el)return;const observer=new ResizeObserver(([e])=>{setSize({width:e.contentRect.width,height:e.contentRect.height});if(!initialized.current){initialized.current=true;shot.current={x:300,y:300,zoom:Math.min(.8,e.contentRect.width/650,e.contentRect.height/650)};}});observer.observe(el);return()=>observer.disconnect();},[]);
@@ -44,11 +45,19 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
  },[layers,open,locale]);
  const presence=useNodePresence(nodes,speed);
  const renderedNodes=presence.map(entry=>entry.node);
- useEffect(()=>{
-  const id=manualFocus.current;if(!id)return;const node=nodes.find(n=>n.id===id);if(!node)return;
-  const children=nodes.filter(n=>n.parent===id),ys=[node.y,...children.map(n=>n.y)],min=Math.min(...ys),max=Math.max(...ys);
-  shot.current={x:node.x+(children.length?270:110),y:(min+max)/2+32,zoom:Math.min(1,size.width/(children.length?620:300),size.height/(max-min+150))};manualFocus.current=null;
- },[nodes,size.width,size.height]);
+ const chartWidth=Math.max(120,size.width-(!embedded&&selected&&size.width>800?364:0)),chartHeight=Math.max(120,size.height-(!embedded&&selected&&size.width<=800?220:0));
+ useLayoutEffect(()=>{
+  if(fitRequested.current){
+   const left=Math.min(...nodes.map(n=>n.x)),right=Math.max(...nodes.map(n=>n.x+240)),top=Math.min(...nodes.map(n=>n.y)),bottom=Math.max(...nodes.map(n=>n.y+76));
+   shot.current={x:(left+right)/2,y:(top+bottom)/2,zoom:Math.min(1,chartWidth/(right-left+80),chartHeight/(bottom-top+80))};fitRequested.current=false;manualFocus.current=null;return;
+  }
+  const anchor=manualFocus.current;if(!anchor)return;const node=nodes.find(n=>n.id===anchor.id);if(!node)return;
+  // Preserve the clicked position where possible, moving only enough to reveal its children.
+  const family=[node,...nodes.filter(n=>n.parent===node.id)],left=Math.min(...family.map(n=>n.x)),right=Math.max(...family.map(n=>n.x+240)),top=Math.min(...family.map(n=>n.y)),bottom=Math.max(...family.map(n=>n.y+76));
+  const current=shot.current,zoom=Math.min(current.zoom,chartWidth/(right-left+80),chartHeight/(bottom-top+80)),halfW=chartWidth/zoom/2,halfH=chartHeight/zoom/2;
+  const next={zoom,x:Math.max(right+40-halfW,Math.min(left-40+halfW,node.x-(anchor.x-current.x)*current.zoom/zoom)),y:Math.max(bottom+40-halfH,Math.min(top-40+halfH,node.y-(anchor.y-current.y)*current.zoom/zoom))};
+  shot.current=next;setView(next);manualFocus.current=null;
+ },[nodes,chartWidth,chartHeight]);
  const latest=useRef({view});useLayoutEffect(()=>{latest.current={view};});
  const stopMotion=useCallback(()=>{shot.current={...latest.current.view};},[]);
  const releasePointer=useCallback((id:number)=>{
@@ -81,20 +90,20 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
   if(!selected&&previousSelection.current&&savedSelectionView.current){shot.current=savedSelectionView.current;savedSelectionView.current=null;}
   previousSelection.current=selected;
  },[selected]);
- const chartWidth=Math.max(120,size.width-(!embedded&&selected&&size.width>800?364:0)),chartHeight=Math.max(120,size.height-(!embedded&&selected&&size.width<=800?220:0));
  const toggle=(n:Node)=>{
   if(n.company){onSelect(n.company.id);return;}
   const expanded=!open.includes(n.id);
-  manualFocus.current=n.id;
+  manualFocus.current={id:n.id,x:n.x,y:n.y};
   shot.current={...latest.current.view};
   setOpen(v=>expanded?[...v,n.id]:v.filter(id=>id!==n.id&&!id.startsWith(n.id+'/')));
   if(selected)onSelect('');
  };
  return <section className={embedded?styles.embedded:undefined} aria-label={text('Company hierarchy','公司层级图')} data-industry-section="hierarchy">
-  <div className={styles.tools}><button onClick={()=>{stopMotion();setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);}}>{text('Expand all','全部展开')}</button><button onClick={()=>{stopMotion();setOpen(['root']);shot.current={x:440,y:260,zoom:.7};}}>{text('Collapse all','全部折叠')}</button><button onClick={()=>{stopMotion();setOpen(['root']);shot.current={x:440,y:260,zoom:.8};}}>{text('Reset view','复位视角')}</button></div>
+  <div className={styles.tools}><button onClick={()=>{stopMotion();fitRequested.current=true;setOpen(['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]);}}>{text('Expand all','全部展开')}</button><button onClick={()=>{stopMotion();fitRequested.current=true;setOpen(['root']);}}>{text('Collapse all','全部折叠')}</button><button onClick={()=>{stopMotion();fitRequested.current=true;setOpen(['root']);}}>{text('Reset view','复位视角')}</button></div>
   <div ref={viewport} className={styles.scene} data-industry-tree="hierarchy" data-tour="manual"
-   onPointerDown={e=>{if((e.target as Element).closest('button,aside'))return;stopMotion();pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.current.size===2){const [a,b]=[...pointers.current.values()];pinch.current={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:view.zoom};drag.current=null;}else drag.current={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};e.currentTarget.setPointerCapture(e.pointerId);}}
-   onPointerMove={e=>{if(pointers.current.has(e.pointerId))pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.current.size===2&&pinch.current){const [a,b]=[...pointers.current.values()];const next={...view,zoom:Math.max(.12,Math.min(2.5,pinch.current.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.current.distance)))};shot.current=next;setView(next);return;}const d=drag.current;if(d){const next={...view,x:d.vx-(e.clientX-d.x)/view.zoom,y:d.vy-(e.clientY-d.y)/view.zoom};shot.current=next;setView(next);}}} onPointerUp={e=>releasePointer(e.pointerId)} onPointerCancel={e=>releasePointer(e.pointerId)} onLostPointerCapture={e=>releasePointer(e.pointerId)}>
+   onClickCapture={e=>{if(suppressClick.current&&e.detail>0){e.preventDefault();e.stopPropagation();}}}
+   onPointerDown={e=>{if(e.button!==0||(e.target as Element).closest('aside,[data-node-card]'))return;stopMotion();suppressClick.current=false;pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.current.size===2){const [a,b]=[...pointers.current.values()];pinch.current={distance:Math.hypot(a.x-b.x,a.y-b.y),zoom:view.zoom};drag.current=null;suppressClick.current=true;}else drag.current={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};}}
+   onPointerMove={e=>{if(pointers.current.has(e.pointerId))pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.current.size===2&&pinch.current){const [a,b]=[...pointers.current.values()];const next={...view,zoom:Math.max(.12,Math.min(2.5,pinch.current.zoom*Math.hypot(a.x-b.x,a.y-b.y)/Math.max(1,pinch.current.distance)))};shot.current=next;setView(next);return;}const d=drag.current;if(d&&(suppressClick.current||Math.hypot(e.clientX-d.x,e.clientY-d.y)>5)){suppressClick.current=true;e.currentTarget.setPointerCapture(e.pointerId);const next={...view,x:d.vx-(e.clientX-d.x)/view.zoom,y:d.vy-(e.clientY-d.y)/view.zoom};shot.current=next;setView(next);}}} onPointerUp={e=>releasePointer(e.pointerId)} onPointerCancel={e=>releasePointer(e.pointerId)} onLostPointerCapture={e=>releasePointer(e.pointerId)}>
    <svg width="100%" height="100%" viewBox={`${view.x-chartWidth/view.zoom/2} ${view.y-chartHeight/view.zoom/2} ${chartWidth/view.zoom} ${chartHeight/view.zoom}`} aria-label={text('Expandable company hierarchy','可展开公司层级图')}>
     {presence.filter(e=>e.node.parent).map(({node:n,exiting})=>{const p=renderedNodes.find(v=>v.id===n.parent);if(!p)return null;return <path className={exiting?styles.exiting:styles.entering} style={{animationDuration:`${.8/speed}s`}} key={n.id} d={`M${p.x+220},${p.y+32} C${p.x+260},${p.y+32} ${n.x-40},${n.y+32} ${n.x},${n.y+32}`} fill="none" stroke={n.color} opacity=".4"/>;})}
     {presence.map(({node:n,exiting})=><foreignObject className={exiting?styles.exiting:styles.entering} style={{x:n.x,y:n.y,transitionDuration:`${.8/speed}s`,animationDuration:`${.8/speed}s`,pointerEvents:exiting?'none':undefined}} key={n.id} x={n.x} y={n.y} width="240" height="76"><button className={styles.node} style={{borderColor:n.color,animationDuration:`${1.6/speed}s`}} aria-expanded={n.company?undefined:open.includes(n.id)} aria-pressed={n.company?selected===n.company.id:undefined} disabled={exiting} data-exiting={exiting} data-hierarchy-node={n.id} data-tree-company={n.company?.id} title={n.label} onClick={()=>toggle(n)}>{n.company&&<CompanyCountryFlag country={n.company.country} locale={locale}/>} {n.label}<small>{n.company?[n.company.symbol,marketCapLabel(n.company.marketCap)].filter(Boolean).join(" · "):open.includes(n.id)?'−':'+'} {n.company&&<CompanyPriceChange price={n.company.dailyPrice} locale={locale}/>}</small></button></foreignObject>)}
