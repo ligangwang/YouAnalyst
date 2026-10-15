@@ -45,7 +45,8 @@ test("Chinese landscape searches tickers, filters stages and links to primary ev
 test("language changes retain directory content without a market query", async ({ page }) => {
   await page.route("**/*", route => route.request().url().includes("/api/market-companies") ? route.fulfill({ json: { items: chinaSupplyChain, nextCursor: null } }) : route.fulfill({ contentType: "text/html", body: html }));
   await page.goto("http://china.test/map?market=CN_A&lang=zh-CN");
-  await page.getByRole("button", { name: "Switch to English" }).click();
+  await page.getByRole("button", { name: "切换语言", exact: true }).click();
+  await page.getByRole("button", { name: "English", exact: true }).click();
   await expect(page).toHaveURL(/\/en\/map$/);
   await expect(page.getByRole("heading", { name: "Explore A-share industries" })).toBeVisible();
   await expect(page.getByRole("article")).toHaveCount(5);
