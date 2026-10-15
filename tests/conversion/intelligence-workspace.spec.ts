@@ -850,10 +850,10 @@ test('news calendar icon links only confirmed schedules and does not select the 
   await expect(page.getByRole('button',{name:/Published company update 1 /})).toHaveAttribute('aria-pressed','false');
 });
 
-test('committed theme changes restart real chart tours and tree growth without replacing the workspace',async({page},info)=>{
+test('committed theme changes restart real chart and tree tours without replacing the workspace',async({page},info)=>{
   test.skip(info.project.name!=='desktop','One shared chart lifecycle regression');test.setTimeout(90000);
   await page.setViewportSize({width:1500,height:800});await accelerateTours(page);
-  // Keep real tree meshes, labels, growth and camera controls. Meadow scenery
+  // Keep real tree meshes, labels and camera controls. Meadow scenery
   // is covered by the normal visual fixtures and only adds GPU work here.
   const realHtml=await workspaceFixture(true,snapshot,true,false,{scenery:false});
   const robotics:IntelligenceSnapshot={...snapshot,theme:'robotics',graphVersion:'robotics-lifecycle',graph:{...snapshot.graph,nodes:[
