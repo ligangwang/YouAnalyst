@@ -21,7 +21,7 @@ import { CompanySearch } from "./company-search";
 import type { SearchSuggestion } from "./ticker-search-input";
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange }: { onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
+export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, revealRequest=0 }: { revealRequest?:number; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
   const [stockChoice, setStockChoice] = useState<{source: string; item: SearchSuggestion} | null>(null);
   const chosenStock = stockChoice?.source === initialCompanyId ? stockChoice.item : null;
@@ -82,6 +82,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const [helpAnchor,setHelpAnchor]=useState<EventWindowAnchor|null>(null);
   const [viewport,setViewport]=useState({key:'',zoom:1,offset:0});
   const [closed, setClosed] = useState(false);
+  useEffect(()=>{if(!revealRequest)return;let live=true;queueMicrotask(()=>{if(live)setClosed(false);});return()=>{live=false;};},[revealRequest]);
   const [loaded, setLoaded] = useState<{ key: string; data: TimelinePrices; indicatorError?:boolean } | null>(null);
   const [loadedGraph, setLoadedGraph] = useState<KnowledgeGraph | null>(null);
   const [retry, setRetry] = useState(0);

@@ -17,7 +17,7 @@ test('pinyin indexes Chinese names, aliases, polyphonic names and initials with 
 
 test('public indexed search resolves Chinese, full pinyin, initials, English and codes without scanning the directory', async () => {
   const row = (id: string, name: string, names = {}) => ({ id, data: () => ({ ...companyFields(id, { name, names }), names, status: 'PUBLISHED', active: true, predictionSupported: true }) });
-  const docs = [row('US:NVDA', 'NVIDIA Corporation', { 'zh-CN': '英伟达' }), row('US:MSFT', 'Microsoft', { 'zh-CN': '微软' }), row('XSHG:600519', '贵州茅台', { en: 'Kweichow Moutai' }), row('US:TSM', 'Taiwan Semiconductor Manufacturing Company Limited'), row('US:T', 'AT&T Inc.')];
+  const docs = [row('US:NVDA', 'NVIDIA Corporation', { 'zh-CN': '英伟达' }), row('US:MSFT', 'Microsoft', { 'zh-CN': '微软' }), row('XSHG:600519', '贵州茅台', { en: 'Kweichow Moutai' }), row('US:TSM', 'Taiwan Semiconductor Manufacturing Company Limited'), row('US:T', 'AT&T Inc.'), row('US:AMD','Advanced Micro Devices, Inc.',{en:'Advanced Micro Devices','zh-CN':'超威半导体'}), row('US:SMCI','Super Micro Computer Inc',{'zh-CN':'超微电脑'})];
   const queries: string[] = [];
   const fixture = { db: { collection: () => ({ select(...fields:string[]){ assert(fields.includes('searchTerms'));assert(!fields.includes('searchPrefixes'));return this; },
     where: (field:string, op:string, value:string) => {
@@ -38,11 +38,13 @@ test('public indexed search resolves Chinese, full pinyin, initials, English and
   } }] });
   const testModule = { exports: {} as { GET: (request: { nextUrl: URL }) => Promise<Response> } };
   new Function('fixture', 'require', 'module', bundle.outputFiles[0].text)(fixture, createRequire(import.meta.url), testModule);
-  for (const [q, expected] of [['英伟达', 'US:NVDA'], ['yingweida', 'US:NVDA'], ['ying wei da', 'US:NVDA'], ['YWD', 'US:NVDA'], ['nvidia', 'US:NVDA'], ['$nvda', 'US:NVDA'], ['微软', 'US:MSFT'], ['weiruan', 'US:MSFT'], ['wr', 'US:MSFT'], ['Microsoft', 'US:MSFT'], ['600519', 'XSHG:600519'], ['gzmt', 'XSHG:600519'], ['Kweichow Moutai', 'XSHG:600519'], ['Taiwan Semiconductor Manufacturing Company Limited', 'US:TSM'], ['AT&T Inc.', 'US:T']]) {
+  for (const [q, expected, expectedName] of [['英伟达', 'US:NVDA','英伟达'], ['yingweida', 'US:NVDA'], ['ying wei da', 'US:NVDA'], ['YWD', 'US:NVDA'], ['nvidia', 'US:NVDA'], ['$nvda', 'US:NVDA'], ['微软', 'US:MSFT','微软'], ['weiruan', 'US:MSFT'], ['wr', 'US:MSFT'], ['Microsoft', 'US:MSFT'], ['600519', 'XSHG:600519','贵州茅台'], ['gzmt', 'XSHG:600519'], ['Kweichow Moutai', 'XSHG:600519','Kweichow Moutai'], ['Taiwan Semiconductor Manufacturing Company Limited', 'US:TSM'], ['AT&T Inc.', 'US:T'], ['超','US:AMD','超威半导体'], ['超微','US:SMCI','超微电脑'], ['Advanced','US:AMD','Advanced Micro Devices'], ['SMCI','US:SMCI','Supermicro']]) {
     queries.length = 0;
     const response = await testModule.exports.GET({ nextUrl: new URL('https://example.test/api/tickers/search?' + new URLSearchParams({ q, scope: 'all' })) });
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).items[0]?.id, expected, q);
+    const item=(await response.json()).items[0];
+    assert.equal(item?.id, expected, q);
+    if(expectedName)assert.equal(item.name,expectedName,q);
     assert(queries.length <= 3);
   }
 });

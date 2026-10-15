@@ -1,4 +1,5 @@
 import { COMPANY_SEARCH_VERSION } from '@/lib/market-companies/search';
+import { reviewedCompanyNames } from '@/lib/market-companies/reviewed-names';
 import { normalizeStockQuery, stockNameTerms } from "@/lib/market-companies/pinyin-search";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing";
@@ -89,6 +90,7 @@ function toSearchItem(id: string, data: TickerDocument) {
     symbol,
     symbolLower,
     name,
+    names: reviewedCompanyNames(id, name, data.names),
     nameLower,
     searchNames: [...stockNameTerms(data as Record<string, unknown>), ...(Array.isArray(data.searchTerms) ? data.searchTerms.filter((value): value is string => typeof value === "string") : [])],
     exchange: readString(data.exchange),
@@ -101,6 +103,7 @@ function toSearchItem(id: string, data: TickerDocument) {
 
 export async function GET(request: NextRequest) {
   const query = normalizeQuery(request.nextUrl.searchParams.get("q"));
+  const nameLocale = /\p{Script=Han}/u.test(query) ? 'zh-CN' : /[a-z]/i.test(query) ? 'en' : null;
   const limitParam = Number(request.nextUrl.searchParams.get("limit") ?? "10");
   const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(Math.trunc(limitParam), 20)) : 10;
 
@@ -158,7 +161,7 @@ export async function GET(request: NextRequest) {
           id: item.id,
           kind: item.kind,
           symbol: item.symbol,
-          name: item.name,
+          name: nameLocale ? item.names[nameLocale] || item.name : item.name,
           ...(item.slug?{slug:item.slug}:{}),
           exchange: item.exchange,
           micCode: item.micCode,

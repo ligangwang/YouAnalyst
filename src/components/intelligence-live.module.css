@@ -66,6 +66,7 @@
 .graphViewport[data-chart-size=half]>.graphStage{display:flex;flex-direction:column;height:50dvh;min-height:320px;flex-shrink:0;}
 .graphViewport[data-chart-size=full]>.graphStage{display:flex;flex-direction:column;flex:1;min-height:0;}
 .graphViewport[data-chart-size=full]{display:flex;flex-direction:column;position:fixed;inset:0;width:100vw;height:100dvh;z-index:5000;background:var(--ui-surface,#0a1522);}
+.graphViewport[data-chart-size=full]>.timelineDock{max-height:55dvh;}
 .timelineDock:has([data-chart-size=half]){max-height:55dvh;}
 .regionWorkspace section[aria-label="Graph universe"]:has([data-chart-size=half]){overflow:auto;}
 .timelineDock:has([data-chart-size=full]){overflow:visible;}
