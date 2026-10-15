@@ -73,11 +73,12 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     if (previousSize.current === 'full' && chartSize !== 'full' && chosenStock) {
       const destination = new URL(researchPath, location.origin);
       for (const [key, value] of Object.entries(sharedChartParams(settings))) destination.searchParams.set(key, value);
+      if(showWatchlist)destination.searchParams.set('chartWatchlist','1');
       destination.hash = 'company-timeline';
       location.assign(destination.pathname + destination.search + destination.hash);
     }
     previousSize.current = chartSize;
-  }, [chartSize, chosenStock, researchPath, settings]);
+  }, [chartSize, chosenStock, researchPath, settings, showWatchlist]);
   const needsHistory = averages.length>0 || indicator!=='none';
   const averagePeriods=[...new Set([...MA_PERIODS,...averages])].sort((a,b)=>a-b);
   const maxAverage=Math.max(60,...averages);
