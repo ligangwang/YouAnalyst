@@ -1368,6 +1368,8 @@ for(const [id,part] of [['US:NVDA','leaf body'],['US:CEG','root nodule']]) test(
 });
 
 test('three views vertical defaults to expanded and preserves zoom and pan when company cards open and close',async({page})=>{
+ // Real scenery, camera settling and the card lifecycle share this software-WebGL budget.
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
@@ -1455,18 +1457,26 @@ test('navigation: blank clicks recover automatically without pause controls',asy
  await page.mouse.click(b.x+8,b.y+8);
  await expect(graphCanvas).toHaveAttribute('data-rotation',/^(waiting|paused)$/);
  await expect(graphCanvas).toHaveAttribute('data-rotation','resumed',{timeout:10000});
+ // Keep the whole-tree view still while choosing blank space. In the close
+ // orbit a fully expanded company leaf can pass through the canvas corner.
+ await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
  await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
  await page.getByLabel('Tour speed',{exact:true}).selectOption('2');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
  await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
  await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tour-phase','overview');
  const t=(await canvas.boundingBox())!;
+ await page.mouse.move(t.x+8,t.y+8);
+ await expect(canvas).not.toHaveCSS('cursor','pointer');
  await page.mouse.click(t.x+8,t.y+8);
+ await expect(page.getByRole('dialog',{name:'Company details'})).toHaveCount(0);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
  await tree.locator('..').locator('footer').dispatchEvent('wheel',{deltaY:100,bubbles:true});
  await expect(canvas).toHaveAttribute('data-user-positioned','false');
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:8}));
  await expect(canvas).toHaveAttribute('data-tour-phase',/^(ascent|descent)$/,{timeout:20000});
  await expect(page.getByRole('button',{name:/^(Pause tour|Resume tour)$/})).toHaveCount(0);
 });
