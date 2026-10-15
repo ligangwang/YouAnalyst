@@ -40,3 +40,11 @@ test('unsupported or empty data produces no misleading metric panels',()=>{
  assert.equal(buildPeerComparison('ORG:PRIVATE',[node('ORG:PRIVATE')],new Map(),new Map(),today),null);
  const result=buildPeerComparison('US:A',[node('US:A')],new Map([['US:A',{marketCap:cap(100,'2026-10-15')}]]),new Map(),today)!;assert.equal(result.panels.length,0);
 });
+test('non-NVIDIA historical splits use provider-adjusted closes and invalid adjusted values stay unavailable',()=>{
+ const dates=['2026-10-07','2026-10-08','2026-10-09','2026-10-12','2026-10-13','2026-10-14'];
+ const rows=(ticker:string)=>dates.map((tradingDate,i)=>({ticker,market:'US',tradingDate,close:i<3?200+i*2:100+i,rawClose:i<3?200+i*2:100+i,adjustedClose:100+i,source:'eodhd-eod'}));
+ const a=rows('A'),b=rows('B');b[2].adjustedClose=0;
+ const panel=buildPeerComparison('US:A',[node('US:A'),node('US:B')],new Map(),new Map([['US:A',a],['US:B',b]]),today)!.panels.find(p=>p.key==='fiveDayReturn')!;
+ assert.equal(panel.count,1);assert(Math.abs(panel.rows[0].observation!.value-5)<1e-9);assert.equal(panel.rows[1].observation,null);
+ const missing=a.map(row=>({...row,adjustedClose:undefined}));assert.equal(buildPeerComparison('US:A',[node('US:A')],new Map(),new Map([['US:A',missing]]),today)!.panels.length,0);
+});

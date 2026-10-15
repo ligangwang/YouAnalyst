@@ -28,7 +28,13 @@ export function buildPeerComparison(companyId:string,nodes:GraphNode[],financial
  const observations=new Map<string,Partial<Record<ComparisonMetric,Observation>>>();
  const priceRows=new Map(group.companies.map(company=>{
   const ticker=group.market==='US'?company.id.slice(3):company.id;
-  const bars=(prices.get(company.id)??[]).flatMap(row=>{const p=mapTimelinePrice(row,ticker,group.market);return p&&p.date<=today&&days(p.date,today)<=45?[p]:[];});
+  const bars=(prices.get(company.id)??[]).flatMap(row=>{
+   const p=mapTimelinePrice(row,ticker,group.market);if(!p||p.date>today||days(p.date,today)>45)return [];
+   // Historical backfills retain raw close separately from the provider-adjusted close.
+   // Never interpret an unverified historical split as a five-session loss.
+   if(row.adjustedClose!==undefined||row.source==='eodhd-eod')return finite(row.adjustedClose)&&row.adjustedClose>0?[{...p,close:row.adjustedClose}]:[];
+   return [p];
+  });
   return [company.id,new Map(bars.map(p=>[p.date,p.close]))] as const;
  }));
  const sessions=[...new Set([...priceRows.values()].flatMap(rows=>[...rows.keys()]))].sort().slice(-6);
