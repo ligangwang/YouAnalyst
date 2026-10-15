@@ -228,9 +228,15 @@ function Scene(props:TreeSceneProps){
     invalidate();
   },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,growing,fullPlan,tourRef]);
   const selectionFocus=useRef('');
+  const internalSelection=useRef('');
+  const selectCompany=(id:string)=>{internalSelection.current=id;props.onSelect(id);};
   useEffect(()=>{
-    if(props.active===false||!props.selected){selectionFocus.current='';return;}
+    if(props.active===false||!props.selected){selectionFocus.current='';internalSelection.current='';return;}
     if(props.paused)return;
+    // A leaf clicked inside this tree is already under the user's camera. Only
+    // entering the view or selecting elsewhere should request a new camera shot.
+    if(internalSelection.current===props.selected)return;
+    internalSelection.current='';
     const c=controls.current,node=nodes.find(node=>node.id===selectedPath?.nodeId);
     if(!c||!node)return;
     const key=`${node.id}:${size.width}:${size.height}`;
@@ -473,7 +479,7 @@ function Scene(props:TreeSceneProps){
       const leaf=props.vertical&&(node.company||node.kind==='foliage')&&node.layer!=='energy'?verticalLeafPose(node,node.parent?allById.get(node.parent):undefined,capScale,trunkTop):undefined;
       // The whole leaf or nodule selects its company; the small label button stays as the keyboard and screen-reader target.
       const pick=props.vertical&&node.company&&visible?{
-        onClick:(event:ThreeEvent<MouseEvent>)=>{event.stopPropagation();props.onSelect(node.company!.id);},
+        onClick:(event:ThreeEvent<MouseEvent>)=>{event.stopPropagation();selectCompany(node.company!.id);},
         onPointerOver:(event:ThreeEvent<PointerEvent>)=>{event.stopPropagation();gl.domElement.style.cursor='pointer';},
         onPointerOut:()=>{gl.domElement.style.cursor='';},
       }:{};
@@ -499,7 +505,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={event=>{event.stopPropagation();if(node.company)props.onSelect(node.company.id);else {if(props.vertical){userPositioned.current=true;tourRef.current=false;resumeReady.current=false;}setGrowth({request:props.request,active:false});props.onToggle(node.id,growing);}}}>
+          onClick={event=>{event.stopPropagation();if(node.company)selectCompany(node.company.id);else {if(props.vertical){userPositioned.current=true;tourRef.current=false;resumeReady.current=false;}setGrowth({request:props.request,active:false});props.onToggle(node.id,growing);}}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('Following','已关注')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')} <CompanyPriceChange price={node.company.dailyPrice} locale={locale}/></small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}
