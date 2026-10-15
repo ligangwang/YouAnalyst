@@ -15,7 +15,7 @@ type Props = { companies: GraphNode[]; selected: string; onSelect: (id: string) 
 const flags = new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 function Name({company, followed}: {company: GraphNode; followed: boolean}) {
  const {locale, text} = useLocale();
- return <>{company.country && flags.has(company.country) && <Image src={`/flags/${company.country.toLowerCase()}.svg`} width={16} height={12} unoptimized alt="" className={styles.listFlag}/>}<span>{companyName(company,locale)}</span>{followed && <span aria-label={text('Following','已关注')} className={styles.followStar}>★</span>}</>;
+ return <>{company.country && flags.has(company.country) && <Image src={`/flags/${company.country.toLowerCase()}.svg`} width={16} height={12} unoptimized alt="" className={styles.listFlag}/>}<span>{companyName(company,locale)}</span>{followed && <span aria-label={text('In watchlist','已加入自选股')} className={styles.followStar}>★</span>}</>;
 }
 export function IndustryCompanyTable({companies, selected, onSelect, followedIds,active=true}: Props) {
  const {text, locale}=useLocale();

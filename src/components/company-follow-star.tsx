@@ -22,7 +22,7 @@ export function CompanyFollowStar({ label, followed, disabled, onChange, confirm
   const mounted = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const active = pending ?? followed;
-  const action = active ? text(`Unfollow ${label}`, `取消关注 ${label}`) : text(`Follow ${label}`, `关注 ${label}`);
+  const action = active ? text(`Remove ${label} from watchlist`, `将 ${label} 移出自选股`) : text(`Add ${label} to watchlist`, `将 ${label} 加入自选股`);
 
   useEffect(() => {
     mounted.current = true;
@@ -58,8 +58,8 @@ export function CompanyFollowStar({ label, followed, disabled, onChange, confirm
     <span aria-hidden="true">{active ? "★" : "☆"}</span>
     {notice && (confirmation || notice === "error") && <span key={notice} className={`${styles.notice} ${notice === "error" ? styles.error : styles.success}`}
       role={notice === "error" ? "alert" : "status"}>
-      {notice === "error" ? text(`Could not update follow status for ${label}. Retry.`, `${label} 关注状态更新失败，请重试。`)
-        : notice === "followed" ? text(`${label} followed`, `已关注 ${label}`) : text(`${label} unfollowed`, `已取消关注 ${label}`)}
+      {notice === "error" ? text(`Could not update watchlist for ${label}. Retry.`, `${label} 自选股更新失败，请重试。`)
+        : notice === "followed" ? text(`${label} added to watchlist`, `已将 ${label} 加入自选股`) : text(`${label} removed from watchlist`, `已将 ${label} 移出自选股`)}
     </span>}
   </button>;
 }
@@ -79,6 +79,6 @@ export function CompanyFollowConfirmation({ label, followed, anchor }: { label: 
     element.style.top=String(Math.max(margin,Math.min(y,window.innerHeight-height-margin)))+"px";
   },[anchor]);
   return createPortal(<span ref={notice} data-anchored={Boolean(anchor)} className={`${styles.notice} ${styles.toast} ${styles.success}`} role="status">
-    {followed ? text(`${label} followed`, `已关注 ${label}`) : text(`${label} unfollowed`, `已取消关注 ${label}`)}
+    {followed ? text(`${label} added to watchlist`, `已将 ${label} 加入自选股`) : text(`${label} removed from watchlist`, `已将 ${label} 移出自选股`)}
   </span>, document.body);
 }

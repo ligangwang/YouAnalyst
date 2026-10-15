@@ -13,7 +13,7 @@ test.beforeAll(async()=>{
   build.onLoad({filter:/.*/,namespace:'review-mock'},args=>({loader:'tsx',contents:args.path.endsWith('auth-provider')?`const user={uid:'viewer'};const token=async()=>'fixture-token';export function useAuth(){return {user:new URLSearchParams(location.search).has('guest')?null:user,loading:false,getIdToken:token}}`:`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}}`}));
  }}]},'body{margin:0;font-family:Arial}*{box-sizing:border-box}');
 });
-async function open(page:Page,query='',fail=false){
+async function open(page:Page,query='',fail=false,showReview=true){
  let ids:string[]=[];const writes:unknown[]=[];
  await page.route('**/*',route=>{
   const url=new URL(route.request().url());
@@ -30,8 +30,34 @@ async function open(page:Page,query='',fail=false){
  });
  await page.goto('http://review.test/en?chartMA=none'+query);
  await expect(page.locator('[data-price-candle]')).toHaveCount(2);
+ if(showReview){
+  await page.getByRole('button',{name:query.includes('zh-CN')?'股票工具':'Stock tools',exact:true}).click();
+  await page.getByRole('checkbox',{name:query.includes('zh-CN')?'自选股':'Watchlist',exact:true}).check();
+  await page.getByRole('button',{name:query.includes('zh-CN')?'关闭股票工具':'Close stock tools',exact:true}).click();
+ }
  return writes;
 }
+
+test('watchlist panel is hidden by default and only the chart-menu checkbox enables it',async({page})=>{
+ const writes=await open(page,'',false,false);
+ const review=page.getByRole('region',{name:'Watchlist review',exact:true});
+ await expect(review).toHaveCount(0);
+ await page.locator('[data-company-timeline] svg[role=img]').click({button:'right'});
+ const tools=page.getByRole('dialog',{name:'Stock tools · AMD',exact:true});
+ const toggle=tools.getByRole('checkbox',{name:'Watchlist',exact:true});
+ await expect(toggle).not.toBeChecked();
+ await tools.getByRole('button',{name:'Add to watchlist',exact:true}).click();
+ await expect(tools.getByRole('button',{name:'Remove from watchlist',exact:true})).toBeVisible();
+ await expect(review).toHaveCount(0);
+ await toggle.check();
+ await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
+ await toggle.uncheck();await expect(review).toHaveCount(0);
+ expect(writes).toEqual([{companyId:'US:AMD',follow:true}]);
+ await toggle.check();await page.reload();
+ await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Stock tools',exact:true}).click();
+ await expect(page.getByRole('checkbox',{name:'Watchlist',exact:true})).toBeChecked();
+});
 test('right click opens indicators and all covered peers; selected peer switches the fullscreen chart',async({page})=>{
  await open(page);
  await page.getByRole('button',{name:'Full screen',exact:true}).click();
@@ -103,6 +129,10 @@ test('guest watchlist survives chart close, reopen and navigation in the same ta
  await page.getByRole('button',{name:'Show timeline',exact:true}).click();
  await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
  await page.goto('http://review.test/en?chartMA=none&guest=1&view=tree');
+ await expect(review).toHaveCount(0);
+ await page.getByRole('button',{name:'Stock tools',exact:true}).click();
+ await page.getByRole('checkbox',{name:'Watchlist',exact:true}).check();
+ await page.getByRole('button',{name:'Close stock tools',exact:true}).click();
  await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
  expect(writes).toHaveLength(0);
 });

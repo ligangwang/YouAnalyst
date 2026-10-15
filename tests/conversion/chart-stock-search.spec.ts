@@ -72,12 +72,18 @@ test('IME opens a real input and composition Enter never selects a stock; editab
 });
 
 
-test('restoring layout after lookup opens the selected company with the same chart settings', async ({ page }) => {
+for(const watchlist of [false,true])test(`restoring layout after lookup preserves chart settings and watchlist ${watchlist?'enabled':'disabled'}`, async ({ page }) => {
   await open(page);
+  await page.getByRole('button',{name:'Stock tools',exact:true}).click();
+  const toggle=page.getByRole('checkbox',{name:'Watchlist',exact:true});
+  await expect(toggle).not.toBeChecked();
+  if(watchlist)await toggle.check();
+  await page.getByRole('button',{name:'Close stock tools',exact:true}).click();
   await page.getByLabel('Price history range').selectOption('90');
   await page.locator('[data-company-timeline]').focus(); await page.keyboard.type('nvda');
   await expect(page.getByRole('option', { name: /NVIDIA/ })).toBeVisible(); await page.keyboard.press('Enter');
   await page.getByRole('button', { name: 'Restore layout', exact: true }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(companyResearchPath('US:NVDA', 'en'));
   expect(new URL(page.url()).searchParams.get('chartRange')).toBe('90');
+  expect(new URL(page.url()).searchParams.get('chartWatchlist')).toBe(watchlist?'1':null);
 });

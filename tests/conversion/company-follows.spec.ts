@@ -93,7 +93,7 @@ test("company star confirms saved changes, blocks repeat writes, and restores fa
     return route.fulfill({ json: {} });
   });
   await page.goto(origin + "/en?star");
-  const star = page.getByRole("button", { name: /^(Unfollow|Follow) AMD$/ });
+  const star = page.getByRole("button", { name: /^(Remove AMD from watchlist|Add AMD to watchlist)$/ });
   await expect(star).toBeEnabled();
   if (info.project.name === "desktop") await star.hover();
   await expect(page.getByRole("tooltip")).toHaveCount(0);
@@ -110,7 +110,7 @@ test("company star confirms saved changes, blocks repeat writes, and restores fa
   await expect.poll(() => writes).toBe(1);
   release();
   await expect(star).toBeEnabled();
-  await expect(page.getByRole("status")).toHaveText("AMD followed");
+  await expect(page.getByRole("status")).toHaveText("AMD added to watchlist");
   await expect(page.getByRole("status")).toBeVisible();
   const notice = await page.getByRole("status").boundingBox();
   expect(notice!.x).toBeGreaterThanOrEqual(24);
@@ -119,14 +119,14 @@ test("company star confirms saved changes, blocks repeat writes, and restores fa
   await expect(page.getByRole("status")).toHaveCount(0, { timeout: 4000 });
   fail = true;
   await star.click();
-  await expect(page.getByRole("alert")).toHaveText("Could not update follow status for AMD. Retry.");
+  await expect(page.getByRole("alert")).toHaveText("Could not update watchlist for AMD. Retry.");
   await expect(star).toHaveAttribute("aria-pressed", "true");
   expect(await star.evaluate(el => getComputedStyle(el).cursor)).toBe("pointer");
   expect(await star.locator("span").first().evaluate(el => getComputedStyle(el).opacity)).toBe("1");
   await expect(star).toBeEnabled();
   fail = false;
   await star.click();
-  await expect(page.getByRole("status")).toHaveText("AMD unfollowed");
+  await expect(page.getByRole("status")).toHaveText("AMD removed from watchlist");
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(star).toHaveAttribute("aria-pressed", "false");
   expect(writes).toBe(3);
@@ -141,12 +141,12 @@ test("company star explains its action and confirms changes in Chinese", async (
     return route.fulfill({ json: { companyIds: ids } });
   });
   await page.goto(origin + "/zh-cn?star");
-  await page.getByRole("button", { name: "关注 AMD", exact: true }).focus();
+  await page.getByRole("button", { name: "将 AMD 加入自选股", exact: true }).focus();
   await expect(page.getByRole("tooltip")).toHaveCount(0);
-  await page.getByRole("button", { name: "关注 AMD", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("已关注 AMD");
-  await page.getByRole("button", { name: "取消关注 AMD", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("已取消关注 AMD");
+  await page.getByRole("button", { name: "将 AMD 加入自选股", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("已将 AMD 加入自选股");
+  await page.getByRole("button", { name: "将 AMD 移出自选股", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("已将 AMD 移出自选股");
 });
 
 test("follow registration preserves original research location and synchronizes buttons", async ({ page }) => {
@@ -168,18 +168,18 @@ test("follow registration preserves original research location and synchronizes 
   });
   const destination = `/en/ticker/AMD?tab=research#${relationAnchor("amd-openai")}`;
   await page.goto(origin + destination);
-  await page.getByRole("button", { name: "＋ Follow", exact: true }).first().click();
+  await page.getByRole("button", { name: "＋ Add to watchlist", exact: true }).first().click();
   expect(new URL(page.url()).searchParams.get("next")).toContain("followCompany=US%3AAMD");
-  await expect(page.getByRole("heading",{name:"Follow AMD",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Add AMD to watchlist",exact:true})).toBeVisible();
   await expect(page.locator("body")).not.toContainText("US:AMD");
   await page.getByRole("button", { name: "Continue with Google" }).click();
-  await expect(page.getByRole("alert")).toContainText("follow was not saved");
+  await expect(page.getByRole("alert")).toContainText("company was not added to your watchlist");
   expect(new URL(page.url()).pathname).toBe("/auth");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page).toHaveURL(origin + destination);
-  await expect(page.getByRole("button", { name: "Followed", exact: true })).toHaveCount(2);
-  await page.getByRole("button", { name: "Followed", exact: true }).first().click();
-  await expect(page.getByRole("button", { name: "＋ Follow", exact: true })).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "In watchlist", exact: true })).toHaveCount(2);
+  await page.getByRole("button", { name: "In watchlist", exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "＋ Add to watchlist", exact: true })).toHaveCount(3);
   expect(ids).toEqual([]);
 });
 
@@ -196,7 +196,7 @@ test("private list separates historic source dates and clears when the account c
     return route.fulfill({ json: {} });
   });
   await page.goto(origin + "/zh-cn/watchlists/following");
-  await expect(page.getByRole("heading", { name: "我的关注", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "自选股", exact: true })).toBeVisible();
   await page.getByRole("button",{name:"更新",exact:true}).click();
   await page.getByRole("button", {name:"来源更新",exact:true}).click();
   await page.getByText("查看来源", {exact:true}).click();
@@ -208,7 +208,7 @@ test("private list separates historic source dates and clears when the account c
   await page.screenshot({ path: info.outputPath("following.png"), fullPage: true });
   ids = [];
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: "different-user" })));
-  await expect(page.getByText("你还没有关注公司。", { exact: true })).toBeVisible();
+  await expect(page.getByText("你的自选股还是空的。", { exact: true })).toBeVisible();
   await expect(page.getByText("2024-01-02", { exact: true })).toHaveCount(0);
 });
 
@@ -233,9 +233,9 @@ test("company research exposes planned business, sources and localized continuat
   await expect(page.getByRole("link", { name: "Historic capacity announcement ↗" })).toHaveCount(0);
   await page.getByText("来源说明与适用范围", { exact: true }).click();
   await expect(page.getByText("Planned Instinct MI450 capacity", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "已关注", exact: true })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "已加入自选股", exact: true })).toHaveCount(2);
   await page.reload();
-  await expect(page.getByRole("button", { name: "已关注", exact: true })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "已加入自选股", exact: true })).toHaveCount(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("research-panel.png"), fullPage: true });
 });
@@ -266,9 +266,9 @@ test("signed-out following shows public examples without requesting private upda
    return route.fulfill({json:graph});
  });
  await page.goto(origin + "/en/watchlists/following");
- const preview = page.getByRole("region",{name:"Following preview"});
+ const preview = page.getByRole("region",{name:"Watchlist preview"});
  await expect(preview.getByRole("heading",{name:"AMD",exact:true})).toBeVisible();
- await expect(preview).toContainText("not a saved list");
+ await expect(preview).toContainText("not your watchlist");
  await page.getByRole("button",{name:"Updates",exact:true}).click();
  await expect(preview).toContainText("2024-01-02");
  expect(privateRequests).toBe(0);
@@ -283,15 +283,17 @@ test("unfollow confirmation survives a removed watchlist row", async ({page}) =>
     return route.fulfill({json:{companyIds:ids}});
   });
   await page.goto(origin+"/en?star&watchlist");
-  const star=page.getByRole("button",{name:"Unfollow AMD",exact:true});
+  const star=page.getByRole("button",{name:"Remove AMD from watchlist",exact:true});
   const bounds=(await star.boundingBox())!;
   const anchor={x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2};
   await star.click();
-  await expect(page.getByRole("button",{name:/^(Unfollow|Follow) AMD$/})).toHaveCount(0);
-  await expect(page.getByRole("status")).toHaveText("AMD unfollowed");
+  await expect(page.getByRole("button",{name:/^(Remove AMD from watchlist|Add AMD to watchlist)$/})).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveText("AMD removed from watchlist");
   await expect(page.getByRole("status")).toBeVisible();
   await expect.poll(()=>page.getByRole("status").evaluate(el=>Number(getComputedStyle(el).opacity))).toBeGreaterThan(.9);
   const notice=(await page.getByRole("status").boundingBox())!;
-  expect(Math.abs(notice.x-anchor.x-14)).toBeLessThanOrEqual(1);
+  expect(Math.min(Math.abs(notice.x-anchor.x-14),Math.abs(notice.x+notice.width-anchor.x+14))).toBeLessThanOrEqual(1);
+  expect(notice.x).toBeGreaterThanOrEqual(8);
+  expect(notice.x+notice.width).toBeLessThanOrEqual(page.viewportSize()!.width-8);
   expect(Math.abs(notice.y-anchor.y-14)).toBeLessThanOrEqual(1);
 });
