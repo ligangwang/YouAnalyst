@@ -75,7 +75,7 @@ test('phone navigation keeps Search and Following fully visible at 320px in both
   for (const language of ['en','zh-cn']) {
     await page.goto(origin + '/' + language + '/feed');
     const search = page.getByRole('button', {name:language === 'en' ? 'Search company' : '搜索公司',exact:true});
-    const following = page.getByRole('navigation',{name:language === 'en' ? 'Mobile navigation' : '移动端导航'}).getByRole('link',{name:language === 'en' ? 'Following' : '我的关注',exact:true});
+    const following = page.getByRole('navigation',{name:language === 'en' ? 'Mobile navigation' : '移动端导航'}).getByRole('link',{name:language === 'en' ? 'Watchlist' : '自选股',exact:true});
     await expect(search).toBeVisible();
     await expect(following).toBeVisible();
     const bounds = await following.boundingBox();

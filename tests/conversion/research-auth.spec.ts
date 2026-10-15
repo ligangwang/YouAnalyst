@@ -76,7 +76,7 @@ for (const view of ["Companies", "Updates"] as const) {
       await link.click();
       await expect(page.getByRole("heading", { name: "Keep your research in one place", exact: true })).toBeVisible();
       await expect(page.getByText("No bullish or bearish call required.", { exact: true })).toBeVisible();
-      await expect(page.getByText("Sign in or create an account to save and follow companies in your private list and track sourced updates.", { exact: true })).toBeVisible();
+      await expect(page.getByText("Sign in or create an account to add companies to your private watchlist and track sourced updates.", { exact: true })).toBeVisible();
       await expect(page.locator("main")).not.toContainText("Choose a company, pick Bullish or Bearish");
       await expect(page.locator("main")).not.toContainText("Your first watchlist is ready automatically");
       await expect(page.locator("main")).not.toContainText("confirm your call");
@@ -98,7 +98,7 @@ for (const view of ["Companies", "Updates"] as const) {
       expect(events.find(event => event[1] === "auth_view")?.[2]).toMatchObject({ entry_point: "following" });
       expect(JSON.stringify(events)).not.toMatch(/research@example|test-user|scope=following/);
       await expect(page.getByRole("button", { name: view, exact: true })).toHaveAttribute("aria-pressed", "true");
-      await expect(page.getByText("You haven’t followed any companies yet.", { exact: true })).toBeVisible();
+      await expect(page.getByText("Your watchlist is empty.", { exact: true })).toBeVisible();
     });
   }
 }
@@ -106,7 +106,7 @@ for (const view of ["Companies", "Updates"] as const) {
 for (const destination of ["/zh-cn/watchlists/following", "/zh-cn/feed?scope=following&filter=BUSINESS#updates"]) {
   test(`Chinese research signup and sign-in preserve ${destination}`, async ({ page }, info) => {
     await page.goto(`${origin}/auth?${new URLSearchParams({ next: destination, mode: "register", lang: "zh-CN" })}`);
-    await expect(page.getByRole("heading", { name: "保存关注，继续研究", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "保存自选股，继续研究", exact: true })).toBeVisible();
     await expect(page.getByText("无需发表看多或看空判断。", { exact: true })).toBeVisible();
     await expect(page.getByText("登录后将返回刚才的研究页面。", { exact: true })).toBeVisible();
     await expect(page.locator("main")).not.toContainText("再确认观点");
@@ -131,7 +131,7 @@ test("canceling Google auth and Back/Forward keep the research continuation avai
   await expect(page).toHaveURL(authUrl);
   await expect(page.locator("main")).not.toContainText("Popup dismissed");
   await page.goBack();
-  await expect(page.getByRole("heading", { name: "Following", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Watchlist", exact: true })).toBeVisible();
   await page.goForward();
   await expect(page.getByText("No bullish or bearish call required.", { exact: true })).toBeVisible();
   await expect(page).toHaveURL(authUrl);

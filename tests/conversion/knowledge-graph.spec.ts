@@ -1624,15 +1624,15 @@ test('navigation: views support multi-role membership, sorting with unknown caps
  await expect(page.locator('[data-list-company]').first()).toHaveAttribute('data-list-company','US:AMD');
  await expect(page.locator('[data-list-company]').last()).toHaveAttribute('data-list-company','US:AAPL');
  await revealListFilters(page);
- await page.getByLabel('Following only',{exact:true}).check();
+ await page.getByLabel('Watchlist only',{exact:true}).check();
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
  await page.getByRole('tab',{name:'Company hierarchy',exact:true}).click();await tree.scrollIntoViewIfNeeded();
  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(tree.locator('[data-tree-company="US:AMD"]').first()).toHaveCount(1);
- await expect(page.getByLabel('Following only',{exact:true})).toBeHidden();
+ await expect(page.getByLabel('Watchlist only',{exact:true})).toBeHidden();
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
  await revealListFilters(page);
- await expect(page.getByLabel('Following only',{exact:true})).toBeChecked();
+ await expect(page.getByLabel('Watchlist only',{exact:true})).toBeChecked();
  await expect(page.locator('[data-list-company]')).toHaveCount(1);
  await revealMapSearch(page);
  await page.getByRole('textbox',{name:'Search companies',exact:true}).fill('no-such-company');

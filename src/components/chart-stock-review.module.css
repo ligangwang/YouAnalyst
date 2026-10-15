@@ -6,6 +6,7 @@
 .review button:disabled,.tools button:disabled{opacity:.5;cursor:wait}
 .tools{display:grid;gap:6px;font-size:12px}.tools button{font-size:12px!important}.tools button[aria-pressed=true]{background:var(--ui-selected,#24516a)}
 .tools summary{cursor:pointer;padding:8px 0}.tools details button{display:block;width:100%;margin:4px 0}.tools hr{width:100%;border:0;border-top:1px solid var(--ui-line,#30485a)}
+.panelToggle{display:flex;align-items:center;gap:8px;min-height:44px;cursor:pointer}.panelToggle input{width:16px;height:16px;accent-color:var(--selection-outline,#a7e9fa)}.panelToggle input:focus-visible{outline:2px solid var(--selection-outline,#a7e9fa);outline-offset:2px}
 .scroll{min-width:0;max-width:100%;max-height:260px;overflow:auto;overscroll-behavior:contain;margin-top:8px}
 .scroll table{border-collapse:collapse;width:100%;font-size:12px;white-space:nowrap}
 .scroll th{position:sticky;top:0;z-index:1;text-align:left;background:var(--ui-surface,#102638);font-weight:500;color:var(--ui-muted,#9db4c8)}

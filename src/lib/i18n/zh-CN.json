@@ -261,7 +261,7 @@
   "Track your outlook": "记录你的投资观点",
   "Choose a company and a direction. Your watchlist keeps the record so you can come back and see how your call develops.": "选择公司与方向，自选股会保留记录，方便你回顾观点后续表现。",
   "Direction": "方向",
-  "Watchlist": "自选股列表",
+  "Watchlist": "自选股",
   "Retry watchlists": "重新加载自选股",
   "Preparing your watchlist…": "正在准备自选股列表…",
   "Create another watchlist": "新建其他自选股列表",
@@ -1390,5 +1390,11 @@
   "Energy & infrastructure": "能源与基础设施",
   "Other / unclassified": "其他／待分类",
   "Explore companies and their connections": "探索公司及其关系",
-  "Compare technology companies, inspect suppliers and partners, and follow developments backed by original sources.": "比较科技公司，查看供应商与合作伙伴，并关注有原始来源支持的动态。"
+  "Compare technology companies, inspect suppliers and partners, and follow developments backed by original sources.": "比较科技公司，查看供应商与合作伙伴，并关注有原始来源支持的动态。",
+  "Watchlist companies": "自选股公司",
+  "★ In watchlist": "★ 已加入自选股",
+  "☆ Add to watchlist": "☆ 加入自选股",
+  "Could not update watchlist. Retry.": "更新自选股失败，请重试。",
+  "Sign in or create an account to add companies to your private watchlist and track sourced updates.": "登录或注册后，将公司加入私密自选股并跟踪有来源的更新。",
+  "Watchlist | YouAnalyst": "自选股 | YouAnalyst"
 }
