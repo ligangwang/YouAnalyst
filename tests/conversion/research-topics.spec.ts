@@ -40,7 +40,7 @@ for(const prefix of ["en","zh-cn"])for(const slug of ["hbm-supply","ai-infrastru
     await expect(page.getByRole("heading",{level:1})).toBeVisible();
     await expect(page.getByRole("article")).toHaveCount(4);
     await expect(page.getByText(prefix === "en" ? "Source limitations:" : "来源边界：",{exact:true})).toHaveCount(4);
-    await expect(page.getByRole("link",{name:prefix === "en" ? "Follow companies and track sourced updates" : "关注公司，追踪有来源的更新",exact:true})).toHaveAttribute("href",`/${prefix}/feed?scope=following`);
+    await expect(page.getByRole("link",{name:prefix === "en" ? "Track sourced updates in your watchlist" : "通过自选股追踪有来源的更新",exact:true})).toHaveAttribute("href",`/${prefix}/feed?scope=following`);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({path:info.outputPath(`${slug}-${prefix}.png`),fullPage:true});
   });
@@ -51,7 +51,7 @@ test("HBM evidence keeps samples separate and a follow preserves the exact artic
   const card=page.locator("#samsung-hbm4e");
   await expect(card).toContainText("Sample shipments; production planned");
   await expect(card.getByRole("link",{name:"Samsung · HBM4E sample shipments ↗",exact:true})).toHaveAttribute("href","https://news.samsung.com/uk/samsung-begins-shipment-of-industry-first-hbm4e-samples");
-  await card.getByRole("button",{name:"＋ Follow",exact:true}).click();
+  await card.getByRole("button",{name:"＋ Add to watchlist",exact:true}).click();
   const url=new URL(page.url());
   expect(url.pathname).toBe("/auth");
   expect(url.searchParams.get("next")).toBe("/en/research/hbm-supply?followCompany=ORG%3ASAMSUNG-ELECTRONICS#samsung-hbm4e");
@@ -67,7 +67,7 @@ for (const [slug, english, chinese] of [
     await page.getByRole("button", { name: "Switch fixture language", exact: true }).click();
     await expect(page.getByRole("heading", { name: chinese, exact: true })).toBeVisible();
     await expect(page.getByText("来源边界：", { exact: true })).toHaveCount(4);
-    await expect(page.getByRole("link", { name: "关注公司，追踪有来源的更新", exact: true })).toHaveAttribute("href", "/zh-cn/feed?scope=following");
+    await expect(page.getByRole("link", { name: "通过自选股追踪有来源的更新", exact: true })).toHaveAttribute("href", "/zh-cn/feed?scope=following");
     await page.getByRole("button", { name: "Switch fixture language", exact: true }).click();
     await expect(page.getByRole("heading", { name: english, exact: true })).toBeVisible();
     await expect(page.getByText("Source limitations:", { exact: true })).toHaveCount(4);
