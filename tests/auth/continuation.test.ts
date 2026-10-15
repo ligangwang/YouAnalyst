@@ -61,14 +61,14 @@ for (const create of [true, false]) {
     for (const destination of ["/watchlists/following", "/en/watchlists/following", "/en/feed?scope=following&filter=BUSINESS#updates"]) {
       const html = await authHtml(destination, create);
       assert.match(html, /Keep your research in one place/);
-      assert.match(html, /save and follow companies in your private list and track sourced updates/);
+      assert.match(html, /add companies to your private watchlist and track sourced updates/);
       assert.match(html, /No bullish or bearish call required/);
       assert.match(html, /You’ll return to your research after signing in/);
       assert.doesNotMatch(html, /confirm your call|first watchlist is ready automatically|Keep bullish and bearish calls/);
       assert.match(html, create ? /Create account/ : />Sign in</);
     }
     const chinese = await authHtml("/zh-cn/feed?scope=following", create, "zh-CN");
-    assert.match(chinese, /保存关注，继续研究/);
+    assert.match(chinese, /保存自选股，继续研究/);
     assert.match(chinese, /有来源支持的更新/);
     assert.match(chinese, /无需发表看多或看空判断/);
     assert.doesNotMatch(chinese, /再确认观点|首个自选股列表将自动创建/);
@@ -86,7 +86,7 @@ test("intentional calls, map saves and specific company follows keep their own c
   assert.match(map, /Keep AMD on your map/);
   assert.doesNotMatch(map, /confirm your call/);
   const follow = await authHtml("/en/feed?scope=following&followCompany=US%3AAMD", true);
-  assert.match(follow, /Follow AMD/);
-  assert.match(follow, /save this company to your private list/);
+  assert.match(follow, /Add AMD to watchlist/);
+  assert.match(follow, /add this company to your private watchlist/);
   assert.doesNotMatch(follow, /confirm your call/);
 });
