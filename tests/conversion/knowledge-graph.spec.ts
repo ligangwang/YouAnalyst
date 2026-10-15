@@ -1857,7 +1857,13 @@ test('navigation: collapsing a tree branch disables its fading companies',async(
  const company=tree.locator('[data-tree-node="chips/compute/US:NVDA"]');
  await expect(company).toBeEnabled();
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true');
+ const motionReady=await page.evaluateHandle(()=>({ready:new Promise<void>(resolve=>{
+  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{
+   requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()));
+  },{once:true});
+ })}));
  await page.emulateMedia({reducedMotion:'no-preference'});
+ await motionReady.evaluate(({ready})=>ready);await motionReady.dispose();
  // Observe the exit commit directly so a busy renderer cannot skip its short
  // disabled state between two assertions.
  const disabledDuringExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
