@@ -1735,7 +1735,9 @@ test('navigation: manual hierarchy stays put and cannot pause other charts',asyn
 
 test('tree continuously surrounds the trunk and resumes after company details',async({page})=>{
  await accelerateTours(page,0);
- test.setTimeout(120000);
+ // Two complete growth replays and software-WebGL screenshots share this
+ // budget. Keep the individual motion and resume assertions bounded below.
+ test.setTimeout(180000);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
  const fixture=graph;
