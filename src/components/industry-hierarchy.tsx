@@ -1,7 +1,7 @@
 "use client";
 import {CompanyPriceChange} from './company-price-change';
 import {useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {industryTree,industryRootLabel} from '@/lib/ui/knowledge-graph/industry-tree';
+import {industryTree,industryRootLabel,companyTreePath} from '@/lib/ui/knowledge-graph/industry-tree';
 import {companyName,type GraphNode} from '@/lib/knowledge-graph/model';
 import {useLocale} from './providers/locale-provider';
 import {CompanyCountryFlag} from './company-country-flag';
@@ -15,6 +15,8 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
  const {text,locale}=useLocale();
  const speed=2; // Short manual transitions are independent of automatic tour settings.
  const layers=useMemo(()=>industryTree(companies),[companies]);
+ const selectedPath=useMemo(()=>companyTreePath(layers,selected),[layers,selected]);
+ const pendingSelection=useRef(''),revealedSelection=useRef('');
  const [open,setOpen]=useState<string[]>(['root']);
  const [view,setView]=useState({x:440,y:260,zoom:.8});
  const viewport=useRef<HTMLDivElement>(null),shot=useRef({x:440,y:260,zoom:.8}),drag=useRef<{x:number;y:number;vx:number;vy:number}|null>(null);
@@ -43,10 +45,15 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
   for(let i=result.length-1;i>=0;i--){const group=children.get(result[i].id);if(group?.length)result[i].y=(group[0].y+group[group.length-1].y)/2;}
   return result;
  },[layers,open,locale]);
- const presence=useNodePresence(nodes,speed);
+ const orderedNodes=useMemo(()=>selectedPath?[...nodes].sort((a,b)=>Number(b.id===selectedPath.nodeId)-Number(a.id===selectedPath.nodeId)):nodes,[nodes,selectedPath]);
+ const presence=useNodePresence(orderedNodes,speed);
  const renderedNodes=presence.map(entry=>entry.node);
  const chartWidth=Math.max(120,size.width-(!embedded&&selected&&size.width>800?364:0)),chartHeight=Math.max(120,size.height-(!embedded&&selected&&size.width<=800?220:0));
  useLayoutEffect(()=>{
+  if(pendingSelection.current){
+   const node=nodes.find(node=>node.id===pendingSelection.current);
+   if(node){const next={x:node.x+120,y:node.y+38,zoom:Math.min(1,chartWidth/320,chartHeight/160)};shot.current=next;setView(next);pendingSelection.current='';manualFocus.current=null;fitRequested.current=false;return;}
+  }
   if(fitRequested.current){
    const left=Math.min(...nodes.map(n=>n.x)),right=Math.max(...nodes.map(n=>n.x+240)),top=Math.min(...nodes.map(n=>n.y)),bottom=Math.max(...nodes.map(n=>n.y+76));
    shot.current={x:(left+right)/2,y:(top+bottom)/2,zoom:Math.min(1,chartWidth/(right-left+80),chartHeight/(bottom-top+80))};fitRequested.current=false;manualFocus.current=null;return;
@@ -90,6 +97,14 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
   if(!selected&&previousSelection.current&&savedSelectionView.current){shot.current=savedSelectionView.current;savedSelectionView.current=null;}
   previousSelection.current=selected;
  },[selected]);
+ useEffect(()=>{
+  if(!selectedPath){revealedSelection.current='';pendingSelection.current='';return;}
+  const focusKey=`${selectedPath.nodeId}:${chartWidth}:${chartHeight}`;
+  if(revealedSelection.current===focusKey)return;
+  let live=true;
+  queueMicrotask(()=>{if(!live)return;revealedSelection.current=focusKey;pendingSelection.current=selectedPath.nodeId;setOpen(current=>[...new Set([...current,...selectedPath.open])]);});
+  return()=>{live=false;};
+ },[selectedPath,chartWidth,chartHeight]);
  const toggle=(n:Node)=>{
   if(n.company){onSelect(n.company.id);return;}
   const expanded=!open.includes(n.id);

@@ -186,7 +186,7 @@
 .companyTable th button { width:100%; text-align:left; border:0; background:none; color:var(--ui-text,#c8dce9); padding:14px; }
 .companyTable td { padding:12px 14px; border-bottom:1px solid var(--ui-line,#1d3040); color:var(--ui-text,#b9cddd); vertical-align:middle; }
 .companyTable td:first-child { min-width:210px; }
-.companyTable tr[data-selected="true"] td { background:var(--ui-surface,#153544); }
+.companyTable tr[data-selected="true"] td { background:var(--ui-selected,#153544); }
 .companyTable td small { display:block; margin-top:5px; white-space:nowrap; font-size:10px; color:var(--ui-muted,#829db3); }
 .companySelect { display:flex; align-items:center; gap:7px; text-align:left; border:0; background:transparent; color:var(--ui-text,#e1f3fc); padding:5px 0; min-height:36px; }
 .listFlag { flex-shrink:0; border-radius:1px; }

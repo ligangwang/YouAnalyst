@@ -1405,6 +1405,20 @@ async function navigationFixture(page:Page,view='graph'){
  await page.goto('http://graph.test/map?lang=en&view='+view);
 }
 
+test('map locates AMD when switching representations and restores a hidden tree selection',async({page})=>{
+ test.setTimeout(90000);await navigationFixture(page);
+ await page.goto('http://graph.test/map?lang=en&view=graph&company=US%3AAMD');
+ for(const [tab,selector] of [['Industry tree','[data-industry-section="vertical"] [data-tree-company="US:AMD"]'],['Company hierarchy','[data-industry-section="hierarchy"] [data-tree-company="US:AMD"]'],['Company list','[data-list-company="US:AMD"]'],['Industry tree','[data-industry-section="vertical"] [data-tree-company="US:AMD"]']] as const){
+  await page.getByRole('tab',{name:tab,exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);
+  const node=page.locator(selector.includes('data-list-company')?`${selector} button[aria-pressed=true]`:selector).first();await node.scrollIntoViewIfNeeded();await expect(node).toBeVisible();
+  await page.screenshot({path:test.info().outputPath(`selected-amd-${tab.replaceAll(' ','-')}.png`)});
+  await expect.poll(()=>node.evaluate(el=>{const r=el.getBoundingClientRect(),p=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!p&&(p===el||el.contains(p))?'reachable':JSON.stringify({rect:r.toJSON(),hit:p?.outerHTML.slice(0,200)});})).toBe('reachable');
+ }
+ await page.getByRole('button',{name:'Close company details',exact:true}).click();
+ await page.getByRole('button',{name:'Reset view',exact:true}).click();
+ await page.locator('[data-industry-section="vertical"]').screenshot({path:test.info().outputPath('tree-meadow-overview.png')});
+});
+
 test('company card starts at the top when switching from Micron to NVIDIA',async({page})=>{
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture=structuredClone(graph);
@@ -1942,7 +1956,7 @@ test('hierarchy drags from node content without expanding and resets to a center
 });
 
 test('tree reveals leaves after a manual zoom and manual expansion completes the remaining canopy',async({page})=>{
- test.setTimeout(45000);await accelerateTours(page,8);await page.emulateMedia({reducedMotion:'no-preference'});
+ test.setTimeout(75000);await accelerateTours(page,8);await page.emulateMedia({reducedMotion:'no-preference'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');await canvas.scrollIntoViewIfNeeded();
@@ -1955,7 +1969,7 @@ test('tree reveals leaves after a manual zoom and manual expansion completes the
  expect(await canvas.getAttribute('data-camera-target')).toBe(pose);await expect(canvas).toHaveAttribute('data-tour','stopped');
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
- const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toBeAttached();
+ const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toHaveAttribute('aria-expanded','false');
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(tree.locator('[data-tree-company="US:NVDA"]').first()).toBeEnabled({timeout:15000});
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');

@@ -3,7 +3,7 @@
 import {CompanyPriceChange} from './company-price-change';
 import { PrivateValuationDisplay } from './private-valuation';
 import Image from 'next/image';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 import { companyName, type GraphNode } from '@/lib/knowledge-graph/model';
 import { companySectors } from '@/lib/knowledge-graph/views';
@@ -11,13 +11,13 @@ import { marketCapLabel, marketCapDescription } from '@/lib/knowledge-graph/mark
 import { useLocale } from './providers/locale-provider';
 import styles from './ai-knowledge-graph.module.css';
 
-type Props = { companies: GraphNode[]; selected: string; onSelect: (id: string) => void; followedIds: string[] };
+type Props = { companies: GraphNode[]; selected: string; onSelect: (id: string) => void; followedIds: string[];active?:boolean };
 const flags = new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 function Name({company, followed}: {company: GraphNode; followed: boolean}) {
  const {locale, text} = useLocale();
  return <>{company.country && flags.has(company.country) && <Image src={`/flags/${company.country.toLowerCase()}.svg`} width={16} height={12} unoptimized alt="" className={styles.listFlag}/>}<span>{companyName(company,locale)}</span>{followed && <span aria-label={text('Following','已关注')} className={styles.followStar}>★</span>}</>;
 }
-export function IndustryCompanyTable({companies, selected, onSelect, followedIds}: Props) {
+export function IndustryCompanyTable({companies, selected, onSelect, followedIds,active=true}: Props) {
  const {text, locale}=useLocale();
  const requestedSort=useIndustryBrowseParam('sort','name');
  const sortKey=['name','symbol','market','sector','cap'].includes(requestedSort)?requestedSort:'name';
@@ -37,6 +37,21 @@ export function IndustryCompanyTable({companies, selected, onSelect, followedIds
    const value=(c:GraphNode)=>sortKey==='name'?companyName(c,locale):sortKey==='sector'?companySectors(c).map(s=>locale==='zh-CN'?s.zh:s.en).join(', '):sortKey==='market'?c.market??'':c.symbol??'';
    return value(a).localeCompare(value(b),locale,{numeric:true})*(sortDesc?-1:1)||a.id.localeCompare(b.id);
  }),[companies,sortKey,sortDesc,locale]);
+ const revealed=useRef('');
+ useEffect(()=>{
+   if(!active||!selected){revealed.current='';return;}
+   if(revealed.current===selected)return;
+   const index=rows.findIndex(company=>company.id===selected);if(index<0)return;
+   const targetPage=Math.floor(index/pageSize)+1;
+   if(page!==targetPage){updateIndustryBrowse({page:String(targetPage)});return;}
+   const container=scrollRef.current;
+   const row=container?.querySelector<HTMLElement>(`[data-list-company="${CSS.escape(selected)}"]`);
+   if(!container||!row)return;
+   revealed.current=selected;
+   // Scroll only the list. scrollIntoView would also move the workspace and price chart.
+   const headerHeight=container.querySelector('thead')?.getBoundingClientRect().height??0;
+   container.scrollTo({left:0,top:container.scrollTop+row.getBoundingClientRect().top-container.getBoundingClientRect().top-(container.clientHeight+headerHeight)/2+row.offsetHeight/2});
+ },[active,selected,rows,page,pageSize]);
  const columns=[['name',text('Company','公司')],['symbol',text('Ticker','股票代码')],['market',text('Listing market','上市市场')],['sector',text('Industry roles','产业环节')],['cap',text('Market value','公司价值')]] as const;
  return <><nav className={styles.tablePagination} aria-label={text('Company list pagination','公司列表分页')}>
  <p role="status">{text('Showing','显示')} {rows.length?(page-1)*pageSize+1:0}–{Math.min(page*pageSize,rows.length)} {text('of','／')} {rows.length} {text('companies','家公司')}</p>
