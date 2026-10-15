@@ -56,7 +56,8 @@ test('localized profile restores account appearance and swaps only price directi
   expect(writes.at(-1)).toEqual({language:'en',market:'ALL',theme:'dark',priceColors:'green-up'});
   await page.getByLabel('Price color convention').selectOption('red-up');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(255, 142, 161)');
-  await page.getByRole('button',{name:'切换为简体中文'}).click();
+  await page.getByRole('button',{name:'Change language',exact:true}).click();
+  await page.getByRole('button',{name:'简体中文',exact:true}).click();
   await expect(page).toHaveURL(/\/zh-cn/);
   expect(writes.at(-1)).toEqual({language:'zh-CN',market:'ALL',theme:'dark',priceColors:'red-up'});
 });

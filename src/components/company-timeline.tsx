@@ -7,7 +7,7 @@ import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { FloatingEventWindow, eventWindowAnchor, type EventWindowAnchor } from './event-details-window';
 import {EVENT_TYPES,eventPresentation} from '@/lib/events/classification';
 import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
-import type { GraphNode, KnowledgeGraph } from "@/lib/knowledge-graph/model";
+import { companyName, type GraphNode, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { useLocale } from "./providers/locale-provider";
 import { CompanySnapshot } from "./company-snapshot";
 import styles from "./company-timeline.module.css";
@@ -19,9 +19,10 @@ import { useRelativeTimeClock } from './relative-time';
 import { ChartToolbarIcon } from "./chart-toolbar-icon";
 import { CompanySearch } from "./company-search";
 import type { SearchSuggestion } from "./ticker-search-input";
+import { ChartStockReview, type ChartWatchlist } from './chart-stock-review';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, revealRequest=0 }: { revealRequest?:number; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
+export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, revealRequest=0, watchlist, onSelectCompany }: { watchlist?:ChartWatchlist; onSelectCompany?:(id:string)=>void; revealRequest?:number; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
   const [stockChoice, setStockChoice] = useState<{source: string; item: SearchSuggestion} | null>(null);
   const chosenStock = stockChoice?.source === initialCompanyId ? stockChoice.item : null;
@@ -30,6 +31,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const onSelectEvent = chosenStock ? undefined : originalSelectEvent;
   const selectedEventId = chosenStock ? undefined : originalEventId;
 
+  const [stockTools,setStockTools]=useState<{companyId:string;anchor:EventWindowAnchor}|null>(null);
   const researchPath=companyResearchPath(companyId,locale);
   useEffect(()=>{
     const openResearch=(event:KeyboardEvent)=>{
@@ -265,13 +267,22 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     const hint=`${label} ${signedPercent(value.change)} · ${text('Published','发布于')} ${publicationDate} · ${text('Price baseline','价格基准')}: ${value.baselineDate} → ${value.latestDate} · ${text('Last completed close before publication; excludes dividend and split adjustments.','使用发布前最后一个完整交易日的收盘价；不含股息与拆股调整。')}`;
     return <span className={styles.chooserReturn} data-return-direction={value.change>0?'up':value.change<0?'down':'flat'} title={hint} aria-label={hint}>{`${label} `}{value.change>0?'▲':value.change<0?'▼':'—'} {signedPercent(value.change)}</span>;
   };
+  function chooseStock(item:SearchSuggestion){
+    setStockTools(null);setStockChoice(item.id===initialCompanyId?null:{source:initialCompanyId,item});setPriceSelection(null);setHoverPrice(null);setClusterId('');setHoverDate(null);setEventAnchor(null);setSelectedId('');onDismissEvent?.();setShareResult(null);
+  }
+  function reviewCompany(node:GraphNode){
+    if(node.id===companyId)return;
+    if(onSelectCompany&&chartSize!=='full'&&(graph??loadedGraph)?.nodes.some(item=>item.id===node.id)){onSelectCompany(node.id);return;}
+    chooseStock({id:node.id,symbol:node.symbol??node.id.split(':').at(-1)??node.id,name:companyName(node,locale),market:node.market,slug:node.slug,exchange:null,micCode:null,type:null});
+  }
   if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
   return <section id="company-timeline" ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴") + (chosenStock ? ` · ${chosenStock.name} · ${chosenStock.symbol}` : "")} data-company-timeline={companyId}>
     <div className={styles.tools} data-chart-toolbar>
       {chosenStock && <span data-chart-company>{chosenStock.name} · {chosenStock.symbol}</span>}
       <a href={researchPath} target="_blank" rel="noopener noreferrer" className={styles.iconButton} aria-label={text('Fundamentals (F10)','基本面（F10）')} title={text('Fundamentals (F10): open company research in a new tab','基本面（F10）：在新标签页打开公司研究页')}><ChartToolbarIcon name="research"/></a>
       <button type="button" className={styles.iconButton} aria-label={text('Copy chart link','复制图表链接')} title={text('Copy chart link','复制图表链接')} onClick={()=>void copyChartLink()}><ChartToolbarIcon name="link"/></button>
-      <CompanySearch iconOnly owner="chart" enabled={chartSize==='full'} onSelect={item=>{setStockChoice(item.id===initialCompanyId?null:{source:initialCompanyId,item});setPriceSelection(null);setHoverPrice(null);setClusterId('');setHoverDate(null);setEventAnchor(null);setSelectedId('');onDismissEvent?.();setShareResult(null);}}/>
+      <CompanySearch iconOnly owner="chart" enabled={chartSize==='full'} onSelect={chooseStock}/>
+      <button type="button" className={styles.iconButton} aria-label={text('Stock tools','股票工具')} title={text('Stock tools · also available with right click','股票工具 · 也可右键打开')} aria-haspopup="dialog" aria-expanded={stockTools?.companyId===companyId} onClick={event=>setStockTools({companyId,anchor:eventWindowAnchor(event)})}>⋯</button>
       <ChartSizeControls iconOnly size={chartSize} onChange={setChartSize}/><div role="group" aria-label={text('Chart type','图表类型')} className={styles.chartModes}><button type="button" aria-pressed={chartMode==='candles'} className={styles.iconButton} aria-label={text('Candles','蜡烛图')} title={text('Candles','蜡烛图')} onClick={()=>setChartMode('candles')}><ChartToolbarIcon name="candles"/></button><button type="button" aria-pressed={chartMode==='line'} className={styles.iconButton} aria-label={text('Line','曲线')} title={text('Line','曲线')} onClick={()=>setChartMode('line')}><ChartToolbarIcon name="line"/></button></div>
       <label><select title={text('Price history range','股价时间范围')} aria-label={text('Price history range','股价时间范围')} value={days} onChange={event=>{setDays(event.target.value==='ytd'?'ytd':Number(event.target.value) as TimelineRange);setPriceSelection(null);setClusterId('');setHoverDate(null);}}>{TIMELINE_RANGES.map(range=><option key={range} value={range}>{rangeLabel(range)}</option>)}</select></label>
       <label><select title={text('Candlestick interval','K线周期')} aria-label={text('Candlestick interval','K线周期')} value={settings.interval} onChange={event=>{changeSettings({interval:event.target.value as TimelineIntervalChoice});closePriceDetails();setClusterId('');setHoverDate(null);}}>{(['auto',...TIMELINE_INTERVALS] as const).map(value=><option key={value} value={value}>{intervalLabel(value)}</option>)}</select></label>
@@ -315,7 +326,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     {showKdj&&<div className={styles.indicatorLegend}>{['K','D','J'].map((label,index)=><span key={label} style={{color:MA_COLORS[index]}}>{label}</span>)}</div>}
     {showBoll&&<div className={styles.indicatorLegend}>{[text('Upper','上轨'),text('Middle','中轨'),text('Lower','下轨')].map((label,index)=><span key={label} style={{color:MA_COLORS[index]}}>{label}</span>)}{!boll.length&&<span>{text('Insufficient history','历史数据不足')}</span>}</div>}
     {showEvents&&<div className={styles.legend}>{EVENT_TYPES.map(eventType=>{const style=eventPresentation({eventType},chinese);return <span key={eventType} style={{color:categoryColor(style.color)}}>{style.symbol} {style.typeLabel}</span>;})}</div>}
-    <div ref={chart} className={styles.chart} style={{height:chartHeight}} data-chart-zoom={view.zoom} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();if(clusterId)closeChooser();else closePriceDetails(true);}}} onClick={e => { if (('pointerType' in e.nativeEvent ? e.nativeEvent.pointerType==='touch' : window.matchMedia('(pointer:coarse)').matches) && !(e.target as Element).closest("button,[data-price-details],[data-event-chooser]")) selectPriceAt(e.clientX); }} onPointerLeave={() => {setHoverDate(null);setHoverPrice(null);}} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
+    <div ref={chart} tabIndex={-1} onContextMenu={event=>{event.preventDefault();event.stopPropagation();setHoverPrice(null);setPriceSelection(null);setStockTools({companyId,anchor:eventWindowAnchor(event)});}} className={styles.chart} style={{height:chartHeight}} data-chart-zoom={view.zoom} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();if(clusterId)closeChooser();else closePriceDetails(true);}}} onClick={e => { if (('pointerType' in e.nativeEvent ? e.nativeEvent.pointerType==='touch' : window.matchMedia('(pointer:coarse)').matches) && !(e.target as Element).closest("button,[data-price-details],[data-event-chooser]")) selectPriceAt(e.clientX); }} onPointerLeave={() => {setHoverDate(null);setHoverPrice(null);}} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
       <svg tabIndex={0} aria-describedby={chartHelpId} onPointerEnter={e=>{if(e.pointerType==='mouse')e.currentTarget.focus({preventScroll:true});}} onPointerLeave={()=>setHoverPrice(null)} onPointerMove={e=>{
         if(e.pointerType!=='mouse'||!(e.target instanceof Element))return;
         const candle=e.target.closest('[data-price-candle]');
@@ -400,6 +411,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     </div>
     <p className={styles.coverage}>{chartMode==='candles'&&prices.length>0&&!useCandles&&<span>{text("OHLC unavailable; showing closes","暂无完整开高低收数据，显示收盘价")} · </span>}{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${barsLabel} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>
     {data && !data.available && <button type="button" className={styles.retry} onClick={() => setRetry(value => value + 1)}>{text("Retry prices", "重试读取股价")}</button>}
+    <ChartStockReview companyId={companyId} company={chosenStock?{id:chosenStock.id,kind:'COMPANY',order:0,name:chosenStock.name,symbol:chosenStock.symbol}:undefined} graph={graph??loadedGraph} anchor={stockTools?.companyId===companyId?stockTools.anchor:null} closeTools={()=>setStockTools(null)} settings={settings} changeSettings={changeSettings} openAverages={setMaSettings} selectCompany={reviewCompany} watchlist={watchlist}/>
     {selected && !onSelectEvent && <FloatingEventWindow key={selected.id} anchor={eventAnchor} title={text('Event details','事件详情')} onClose={()=>{setSelectedId('');setHoverDate(null);}}>
       <strong>{eventPresentation(selected,chinese).symbol} {eventPresentation(selected,chinese).label}</strong><h2>{selected.title}</h2><p>{text('Published','发布于')} · {selected.date}</p>
       {selectedGroup && selectedGroup.events.length > 1 && <div className={styles.eventList}>{selectedGroup.events.map(event => <button key={event.id} type="button" aria-pressed={event.id === selected.id} onClick={click=>selectEvent(event.id,click)}>{formatDate(event.date)} · {event.title}</button>)}</div>}

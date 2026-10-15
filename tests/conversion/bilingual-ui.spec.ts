@@ -37,7 +37,8 @@ test("legacy market selection does not hide calls or reappear after language cha
   await expect(page.getByRole("combobox", { name: "市场", exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "最新分析师观点" })).toBeVisible();
   await expect(page.getByText("Original author text")).toBeVisible();
-  await page.getByRole("button", { name: "Switch to English" }).click();
+  await page.getByRole("button", { name: "切换语言", exact: true }).click();
+  await page.getByRole("button", { name: "English", exact: true }).click();
   await expect(page).toHaveURL("http://bilingual.test/en/predictions");
   await expect(page.getByRole("heading", { name: "Latest analyst views" })).toBeVisible();
 });
@@ -47,12 +48,14 @@ test("signed-in language preference saves and failed saves stay on the current p
   const writes: unknown[] = [];
   await page.route("**/api/preferences", route => { if(route.request().method()==="GET") return route.fulfill({json:{preferences:null}}); writes.push(route.request().postDataJSON()); return route.fulfill({ status: 503, json: { error: "unavailable" } }); });
   await page.goto("http://bilingual.test/predictions?lang=zh-CN&market=US");
-  await page.getByRole("button", { name: "Switch to English" }).click();
+  await page.getByRole("button", { name: "切换语言", exact: true }).click();
+  await page.getByRole("button", { name: "English", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("偏好保存失败");
   expect(writes).toEqual([{ language: "en", market: "ALL", theme: "dark", priceColors: "green-up" }]);
   await expect(page).toHaveURL(/market=US/);
   await page.route("**/api/preferences", route => route.fulfill({ json: { preferences: route.request().postDataJSON() } }));
-  await page.getByRole("button", { name: "Switch to English" }).click();
+  await page.getByRole("button", { name: "切换语言", exact: true }).click();
+  await page.getByRole("button", { name: "English", exact: true }).click();
   await expect(page).toHaveURL("http://bilingual.test/en/predictions");
   await expect(page.getByRole("heading", { name: "Latest analyst views" })).toBeVisible();
 });
@@ -61,6 +64,34 @@ test("English labels remain available", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Latest analyst views" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Bullish", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Up prediction for AMD" })).toBeVisible();
+});
+
+test("globe language picker is icon-only, keyboard accessible and preserves company view", async ({ page }) => {
+  await page.goto('http://bilingual.test/en?company=US%3AAMD&view=tree&theme=ai');
+  const trigger=page.getByRole('button',{name:'Change language',exact:true});
+  await expect(trigger).toHaveText('');
+  await expect(trigger.locator('svg')).toHaveCount(1);
+  await trigger.press('Enter');
+  const options=page.getByRole('group',{name:'Language options',exact:true});
+  await expect(options.getByRole('button',{name:'English',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(options.getByRole('button',{name:'简体中文',exact:true})).toHaveAttribute('aria-pressed','false');
+  await trigger.press('Tab');
+  await expect(options.getByRole('button',{name:'English',exact:true})).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(options).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.getByRole('heading',{name:'Latest analyst views'}).click();
+  await expect(options).toHaveCount(0);
+  await trigger.click();
+  await options.getByRole('button',{name:'简体中文',exact:true}).click();
+  await expect(page).toHaveURL(/\/zh-cn\?/);
+  const url=new URL(page.url());
+  expect(url.searchParams.get('company')).toBe('US:AMD');
+  expect(url.searchParams.get('view')).toBe('tree');
+  expect(url.searchParams.get('theme')).toBe('ai');
+  await page.getByRole('button',{name:'切换语言',exact:true}).click();
+  await expect(page.getByRole('button',{name:'简体中文',exact:true})).toHaveAttribute('aria-pressed','true');
 });
 
 test("signing in restores account language without restoring market filters when the URL has no explicit preference", async ({ page }) => {

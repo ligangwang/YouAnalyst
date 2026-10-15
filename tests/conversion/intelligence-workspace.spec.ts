@@ -39,8 +39,12 @@ test('workspace locates AMD across tree hierarchy and paginated list without los
 let html:string;
 snapshot.sourceDocuments![199].companyIds=['US:LITE'];
 snapshot.events[0]={...snapshot.events[0],calendarEvents:[{id:'scheduled_event_micron_call',companyId:'US:MU',day:'2026-10-28'},{id:'scheduled_event_micron_release',companyId:'US:MU',day:'2026-10-28'}]};
-async function workspaceFixture(realCharts=false,fixture=snapshot,initial=true,headerSearch=false){
+async function workspaceFixture(realCharts=false,fixture=snapshot,initial=true,headerSearch=false,options:{scenery?:boolean}={}){
   return componentFixtureHtml(`import React from 'react';import {createRoot} from 'react-dom/client';import {LiveInvestmentIntelligence} from './src/components/live-investment-intelligence';import {CompanySearch} from './src/components/company-search';createRoot(document.getElementById('root')).render(<>${headerSearch?'<CompanySearch/>':''}<LiveInvestmentIntelligence ${initial?`initialSnapshot={${JSON.stringify(fixture)}}`:''}/></>);`,{jsx:'automatic',define:{'process.env':'{}'},alias:{'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx'),'@/components/providers/auth-provider':path.resolve('tests/conversion/fixtures/mocks.tsx')},plugins:[{name:'workspace-services',setup(build){
+    if(options.scenery===false){
+      build.onResolve({filter:/tree-meadow-environment$/},()=>({path:'meadow',namespace:'lifecycle-scenery'}));
+      build.onLoad({filter:/.*/,namespace:'lifecycle-scenery'},()=>({loader:'tsx',contents:'export function TreeMeadowEnvironment(){return null}'}));
+    }
     build.onResolve({filter:realCharts?/(?:locale-provider|auth-provider|company-follow-button|site-nav|next\/image)$/:/(?:company-graph-3d|industry-tree-scene|locale-provider|auth-provider|company-follow-button|site-nav|next\/image)$/},args=>({path:args.path.split('/').at(-1)!,namespace:'workspace-mock'}));
     build.onLoad({filter:/.*/,namespace:'workspace-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='company-graph-3d'?`export default function Graph(){return <div style={{height:'100%',background:'radial-gradient(ellipse at center,#123b45,#07111b 70%)'}}>Local interaction fixture</div>}`:args.path==='industry-tree-scene'?`export default function Scene(){return <div>Tree interaction fixture</div>}`:args.path==='locale-provider'?`export function useLocale(){const chinese=new URLSearchParams(location.search).get('lang')==='zh-CN';return {locale:chinese?'zh-CN':'en',chinese,text:(en,zh)=>chinese?zh:en}};export function LanguageSwitch(){return <button>中文</button>}`:args.path==='auth-provider'?`export function useAuth(){return {user:null,getIdToken:async()=>null}}`:args.path==='company-follow-button'?`export function CompanyFollowButton(){return null}export function useCompanyFollows(){return {user:null,ids:[],change:async()=>{}}}`:args.path==='site-nav'?`export function AvatarButton(){return <span>Profile</span>}`:`export default function Image({priority,...props}){return <img {...props}/>} `}));
   }},...(realCharts?[tourClockPlugin]:[])]},'body{margin:0;font-family:Arial}*{box-sizing:border-box}a{color:inherit;text-decoration:none}');
@@ -60,6 +64,29 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.route('**/*',route=>route.request().url().includes('/api/intelligence')?route.fulfill({json:fixture}):route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''}));
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
+
+test('workspace session watchlist appears below indicators and restores company selection during review',async({page})=>{
+ await open(page);
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),start:'2026-01-01',end:'2026-10-04',available:true,currency:'USD',prices:[{date:'2026-10-02',open:100,high:115,low:98,close:110,volume:1000}]}}));
+ await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none');
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ await workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();
+ const review=workspace.getByRole('region',{name:'Watchlist review',exact:true});
+ await review.getByRole('button',{name:'Add current stock',exact:true}).click();
+ await expect(review.getByRole('button',{name:'Micron',exact:true})).toBeVisible();
+ await workspace.getByRole('button',{name:'Stock tools',exact:true}).click();
+ const tools=page.getByRole('dialog',{name:'Stock tools · MU',exact:true});
+ await tools.locator('summary').click();await tools.getByRole('button',{name:'Memory & storage →',exact:true}).click();
+ await tools.getByRole('button',{name:'Memory Supplier',exact:true}).click();
+ await expect(page).toHaveURL(/company=US%3AMEM/);
+ await expect(workspace.locator('[data-company-timeline="US:MEM"]')).toBeVisible();
+ await review.getByRole('button',{name:'Micron',exact:true}).click();
+ await expect(page).toHaveURL(/company=US%3AMU/);
+ await expect(workspace).toHaveAttribute('data-chart-size','full');
+ await expect(workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.screenshot({path:test.info().outputPath('workspace-watchlist-review.png')});
+});
 
 for(const theme of ['ai','robotics','space'] as const)test(`Explore ${theme} chart share retains the selected event and restores chart controls`,async({page})=>{
  await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async(value:string)=>{(window as unknown as {copiedLink:string}).copiedLink=value;}}}));
@@ -824,9 +851,11 @@ test('news calendar icon links only confirmed schedules and does not select the 
 });
 
 test('committed theme changes restart real chart tours and tree growth without replacing the workspace',async({page},info)=>{
-  test.skip(info.project.name!=='desktop','One shared chart lifecycle regression');test.setTimeout(60000);
+  test.skip(info.project.name!=='desktop','One shared chart lifecycle regression');test.setTimeout(90000);
   await page.setViewportSize({width:1500,height:800});await accelerateTours(page);
-  const realHtml=await workspaceFixture(true);
+  // Keep real tree meshes, labels, growth and camera controls. Meadow scenery
+  // is covered by the normal visual fixtures and only adds GPU work here.
+  const realHtml=await workspaceFixture(true,snapshot,true,false,{scenery:false});
   const robotics:IntelligenceSnapshot={...snapshot,theme:'robotics',graphVersion:'robotics-lifecycle',graph:{...snapshot.graph,nodes:[
     {id:'US:NVDA',symbol:'NVDA',name:'NVIDIA',kind:'COMPANY',order:0,stageIds:['robotics:compute-control']},
     {id:'US:ROK',symbol:'ROK',name:'Rockwell',kind:'COMPANY',order:1,stageIds:['robotics:systems-integration']}]},events:[],sourceDocuments:[]};
@@ -856,20 +885,26 @@ test('committed theme changes restart real chart tours and tree growth without r
   await expect(speed).toHaveValue('2');expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);
   await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
   const tree=page.locator('[data-industry-section="vertical"]');
-  await expect(tree.locator('canvas')).toHaveAttribute('data-tour','playing');
-  await expect(tree.locator('[data-tree-node="root"]')).toContainText('Robotics industry');
+  const treeReady=async(rootLabel:string)=>{
+    // Canvas frames and Html labels commit through separate React roots.
+    await expect(tree.locator('canvas')).toHaveAttribute('data-camera-position',/.+/,{timeout:15000});
+    await expect(tree.locator('[data-tree-node="root"]')).toContainText(rootLabel,{timeout:15000});
+    await expect(tree.locator('canvas')).toHaveAttribute('data-tour','playing',{timeout:15000});
+  };
+  const expandTree=async(companyId:string)=>{
+    await tree.getByRole('button',{name:'Expand all',exact:true}).click();
+    await expect(tree.locator(`[data-tree-company="${companyId}"]`)).toBeAttached({timeout:15000});
+  };
+  await treeReady('Robotics industry');
   const oldTree=await tree.locator('canvas').elementHandle();
   await theme.selectOption('ai');
   await expect.poll(()=>oldTree!.evaluate(element=>element.isConnected)).toBe(false);
-  await expect(tree.locator('canvas')).toHaveAttribute('data-tour','playing');
-  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
-  await expect(tree.locator('[data-tree-company="US:MU"]')).toBeAttached();
+  await treeReady('AI industry');
+  await expandTree('US:MU');
   await expect(tree.locator('[data-tree-node^="robotics:"]')).toHaveCount(0);
   await theme.selectOption('robotics');
-  await expect(tree.locator('[data-tree-node="root"]')).toContainText('Robotics industry');
-  await expect(tree.locator('canvas')).toHaveAttribute('data-tour','playing');
-  await tree.getByRole('button',{name:'Expand all',exact:true}).click();
-  await expect(tree.locator('[data-tree-company="US:ROK"]')).toBeAttached();
+  await treeReady('Robotics industry');
+  await expandTree('US:ROK');
   await expect(tree.locator('[data-tree-company="US:MU"]')).toHaveCount(0);
   const treePosition=await tree.locator('canvas').getAttribute('data-camera-position');
   await expect.poll(()=>tree.locator('canvas').getAttribute('data-camera-position')).not.toBe(treePosition);

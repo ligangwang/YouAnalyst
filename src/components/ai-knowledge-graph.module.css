@@ -304,6 +304,7 @@
 
 /* Selection research spans every view; its date axis is never confined to the card. */
 .timelineDock { grid-column:1 / -1; width:100%; min-width:0; max-height:340px; overflow:auto; overscroll-behavior:contain; position:relative; z-index:61; }
+.timelineDock:has([data-chart-watchlist] tbody tr){max-height:min(620px,75dvh);}
 .workspace[data-view="graph"][data-has-timeline="true"] .canvas3d { height:max(280px,calc(min(72vh,800px) - 340px)); min-height:280px; }
 .workspace[data-has-timeline="true"] [data-industry-tree] { height:max(300px,calc(min(78vh,850px) - 340px)); min-height:300px; }
 .workspace[data-view="table"][data-has-timeline="true"] .viewContent { max-height:400px; overflow:auto; }
