@@ -928,6 +928,23 @@ test('committed theme changes restart real chart and tree tours without replacin
   await expect(page.getByRole('tab',{name:'Industry tree',exact:true})).toHaveAttribute('aria-selected','true');
   expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);
 });
+for(const chinese of [false,true])test(`workspace view icons keep localized hints and keyboard navigation (${chinese?'Chinese':'English'})`,async({page})=>{
+ await open(page,chinese);
+ const tabs=page.getByRole('tablist',{name:chinese?'公司宇宙视图':'Universe views'});
+ const names=chinese?['关系图谱','产业树','公司层级图','公司列表']:['Relationship graph','Industry tree','Company hierarchy','Company list'];
+ const hints=chinese?['关系图','树状图','层级图','列表']:['Graph','Tree','Hierarchy','List'];
+ for(let i=0;i<names.length;i++){
+  const tab=tabs.getByRole('tab',{name:names[i],exact:true});
+  await expect(tab).toHaveAttribute('title',hints[i]);await expect(tab).toHaveText('');
+  await expect(tab.locator('svg')).toHaveAttribute('aria-hidden','true');
+ }
+ const graph=tabs.getByRole('tab',{name:names[0],exact:true}),tree=tabs.getByRole('tab',{name:names[1],exact:true});
+ await graph.focus();await graph.press('ArrowRight');await expect(tree).toBeFocused();await expect(tree).toHaveAttribute('aria-selected','true');
+ await tree.press('End');await expect(tabs.getByRole('tab',{name:names[3],exact:true})).toBeFocused();
+ await tabs.getByRole('tab',{name:names[2],exact:true}).click();await expect(page).toHaveURL(/view=hierarchy/);
+ await tabs.screenshot({path:test.info().outputPath('view-icons.png')});
+});
+
 test('shared periods, exact ticker search and selected sources remain visible above a capped feed',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Desktop workspace checks');await page.clock.install({time:new Date('2026-10-04T16:00:00Z')});await page.setViewportSize({width:1500,height:800});await open(page);
   const panel=page.getByRole('complementary',{name:'Events and sources'});
