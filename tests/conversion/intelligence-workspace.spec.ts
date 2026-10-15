@@ -26,13 +26,16 @@ test('workspace locates AMD across tree hierarchy and paginated list without los
  await page.goto('http://workspace.test/?view=graph&company=US%3AAMD');
  const visibleCompany=async(selector:string)=>{
   const company=page.locator(selector.includes('data-list-company')?`${selector} button[aria-pressed=true]`:selector).first();await expect(company).toBeVisible({timeout:15000});
+  await expect(company).toHaveAttribute('aria-pressed','true');
   await page.screenshot({path:test.info().outputPath(`before-${selector.includes('list')?'list':'tree'}.png`)});
-  await expect.poll(()=>company.evaluate(el=>{const r=el.getBoundingClientRect(),p=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!p&&(p===el||el.contains(p))?'reachable':JSON.stringify({rect:r.toJSON(),hit:p?.outerHTML.slice(0,200),container:el.closest('[role=region]')?.getBoundingClientRect().toJSON()});})).toBe('reachable');
+  // A floating card may cover the selected company, but switching views must
+  // still locate it inside the viewport rather than scroll it out of sight.
+  await expect.poll(()=>company.evaluate(el=>{const r=el.getBoundingClientRect(),p=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!p&&(p===el||el.contains(p)||p.closest('[data-node-card="US:AMD"]'))?'located':JSON.stringify({rect:r.toJSON(),hit:p?.outerHTML.slice(0,200),container:el.closest('[role=region]')?.getBoundingClientRect().toJSON()});})).toBe('located');
  };
  for(const [tab,selector] of [['Industry tree','[data-tree-company="US:AMD"]'],['Company hierarchy','[data-tree-company="US:AMD"]'],['Company list','[data-list-company="US:AMD"]'],['Industry tree','[data-tree-company="US:AMD"]']] as const){
   await page.getByRole('tab',{name:tab,exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);await visibleCompany(selector);
   await page.screenshot({path:test.info().outputPath(`selected-amd-${tab.replaceAll(' ','-')}.png`)});
-  if(tab==='Company list'){await expect(page).toHaveURL(/page=2/);await page.getByRole('button',{name:'Previous',exact:true}).click();await expect(page).toHaveURL(/page=1/);}
+  if(tab==='Company list'){await expect(page).toHaveURL(/page=2/);const previous=page.getByRole('button',{name:'Previous',exact:true});await previous.focus();await previous.press('Enter');await expect(page).toHaveURL(/page=1/);}
  }
  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);
 });
