@@ -54,9 +54,9 @@ export function IndustryStructure({musicControls=false,companies,selected,onSele
   const [wheelGateRef,wheelHint]=useWheelZoomGate();
   const attachScene=useCallback((element:HTMLDivElement|null)=>{sceneRef.current=element;wheelGateRef(element);},[sceneRef,wheelGateRef]);
   const headingId=useId();
-  function toggle(id:string){
+  function toggle(id:string,finishGrowth=false){
     const closing=open.includes(id);
-    setOpen(current=>closing?current.filter(key=>key!==id):[...current,id]);
+    setOpen(current=>{const expanded=finishGrowth?['root',...layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]:current;return closing?expanded.filter(key=>key!==id):[...new Set([...expanded,id])];});
     if(!vertical){setFocus(closing||id==='root'?'':id);setRequest(n=>n+1);}
   }
   return <section className={`${styles.tree} ${vertical?styles.vertical:''} ${embedded?styles.embedded:''}`} aria-labelledby={headingId} data-industry-section={vertical?'vertical':'horizontal'}>
@@ -73,7 +73,7 @@ export function IndustryStructure({musicControls=false,companies,selected,onSele
       {unavailable&&<div className={styles.fallback}><p role="alert">{text('The 3D tree could not start. Browse the same tree below or try reloading.','三维树暂时无法启动，可使用下方层级树或尝试重新加载。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></p>{layers.map(l=><details key={l.id} open={open.includes(l.id)}><summary onClick={e=>{e.preventDefault();toggle(l.id);}}>{text(l.en,l.zh)} · {l.companies.length}</summary>{l.directCompanies?l.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)} <CompanyPriceChange price={c.dailyPrice} locale={locale}/></button>):l.branches.map(b=><details key={b.id} open={open.includes(b.id)}><summary onClick={e=>{e.preventDefault();toggle(b.id);}}>{text(b.en,b.zh)} · {b.companies.length}</summary>{b.companies.map(c=><button key={c.id} onClick={()=>onSelect(c.id)}>{companyName(c,locale)} <CompanyPriceChange price={c.dailyPrice} locale={locale}/></button>)}</details>)}</details>)}</div>}
       {active&&showCard&&company&&<TreeCompanyCard closing={closing} key={company.id} reveal={revealCard} company={company} color={layers.find(l=>l.companies.some(c=>c.id===company.id))?.color??'#7dd3fc'} onClose={()=>onSelect('')}/>}
     </div>
-    <footer className={styles.hint}>{vertical&&<span>{text('Spiral around the tree · Select companies to explore · Reset to replay','沿树干平滑环绕 · 点击公司查看详情 · 重置重新播放')}</span>}{text('Click nodes to expand / collapse · Drag to pan · Scroll or pinch to zoom · Scroll or swipe up and down to move the page','点击节点展开／收起 · 拖动平移 · 滚轮或双指缩放 · 滚动或上下滑动可移动页面')}<span>{layers.some(layer=>layer.id.startsWith('robotics:')||layer.id.startsWith('space:'))?text('Companies can span sectors · Branches show industry roles','公司可跨行业 · 分支表示产业角色'):text('Energy → Chips → Infrastructure → Models → Applications · Companies can span layers','自底向上：能源 → 芯片 → 基础设施 → 模型 → 应用 · 公司可跨层')}</span></footer>
+    <footer className={styles.hint}>{vertical&&<span>{text('Spiral around the tree · Drag or zoom to keep your view · Reset to replay','沿树干平滑环绕 · 拖动或缩放后保持视角 · 重置重新播放')}</span>}{text('Click nodes to expand / collapse · Drag to pan · Scroll or pinch to zoom · Scroll or swipe up and down to move the page','点击节点展开／收起 · 拖动平移 · 滚轮或双指缩放 · 滚动或上下滑动可移动页面')}<span>{layers.some(layer=>layer.id.startsWith('robotics:')||layer.id.startsWith('space:'))?text('Companies can span sectors · Branches show industry roles','公司可跨行业 · 分支表示产业角色'):text('Energy → Chips → Infrastructure → Models → Applications · Companies can span layers','自底向上：能源 → 芯片 → 基础设施 → 模型 → 应用 · 公司可跨层')}</span></footer>
   </section>;
 }
 
