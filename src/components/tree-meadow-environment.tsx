@@ -8,11 +8,12 @@ import {leafClusterTexture,meadowTexture} from '@/lib/ui/knowledge-graph/leaf-te
 
 const noHit=()=>{};
 type Plant={position:[number,number,number];scale:[number,number,number];rotation:[number,number,number];color:string};
-// The tree stands on a broad, level hilltop at soil height, so its roots and
-// the Energy roots run underground; past the crest the hill falls to the meadow.
+// The tree stands on a low, level rise at soil height, wide enough that its
+// roots and the Energy roots run underground, then eases down to the meadow.
+const MEADOW_Y=-420;
 const groundHeight=(x:number,z:number)=>{
- const crest=Math.exp(-(((x*x+z*z)/(1800*1800))**3));
- return -980+(980+VERTICAL_SOIL_Y)*crest+35*Math.sin(x/1100)*Math.cos(z/900)*(1-crest*.9);
+ const crest=Math.exp(-(((x*x+z*z)/(1500*1500))**3));
+ return MEADOW_Y+(VERTICAL_SOIL_Y-MEADOW_Y)*crest+35*Math.sin(x/1100)*Math.cos(z/900)*(1-crest*.9);
 };
 
 // Decorative instances have no hit targets: company leaves and canvas gestures stay usable.
@@ -52,7 +53,7 @@ const Canopy=memo(function Canopy({node,crown,map}:{node:TreePoint;crown:[number
   const [nx,y,nz]=node.position,direction=new Vector3(),facing=new Vector3(),color=new Color(),turn=new Quaternion(),twist=new Quaternion(),euler=new Euler();
   const height=Math.min(1,Math.max(0,(y-crown[0])/(crown[1]-crown[0]||1))),swell=.72+.48*Math.sin(Math.PI*(.12+.88*height));
   const out=Math.hypot(nx,nz)||1,x=nx+nx/out*(swell-1)*260,z=nz+nz/out*(swell-1)*260;
-  return Array.from({length:map?260:650},(_,i):Plant=>{
+  return Array.from({length:map?190:650},(_,i):Plant=>{
    const id=`${node.id}:canopy:${i}`,lift=jitter(id,1)*2-1,a=jitter(id,2)*Math.PI*2,ring=Math.sqrt(1-lift*lift);
    direction.set(Math.cos(a)*ring,lift,Math.sin(a)*ring);
    const depth=.4+.6*Math.sqrt(jitter(id,3)),light=Math.max(0,direction.dot(SUN))*depth;
@@ -63,7 +64,7 @@ const Canopy=memo(function Canopy({node,crown,map}:{node:TreePoint;crown:[number
    facing.copy(direction).multiplyScalar(.75).addScaledVector(UP,.45).add(new Vector3(jitter(id,5)-.5,jitter(id,6)-.5,jitter(id,7)-.5).multiplyScalar(.5)).normalize();
    turn.setFromUnitVectors(UP,facing).multiply(twist.setFromAxisAngle(UP,jitter(id,10)*Math.PI*2));
    euler.setFromQuaternion(turn);
-   const s=95+jitter(id,4)*60;
+   const s=70+jitter(id,4)*40;
    return {position,scale:[s,s,s],rotation:[euler.x,euler.y,euler.z],color:'#'+color.getHexString()};
   });
  },[node,crown,map]);
@@ -80,7 +81,7 @@ function Cloud({seed}:{seed:number}){
    return {position:[along*1500+(jitter(id,j+20)-.5)*300,size*220+(jitter(id,j+30)-.3)*160*peak,(jitter(id,j+40)-.5)*600] as [number,number,number],scale:[size*820,size*480,size*620] as [number,number,number]};
   });
  },[seed]);
- return <>{puffs.map((puff,j)=><mesh key={j} position={puff.position} scale={puff.scale} raycast={noHit}><sphereGeometry args={[1,20,14]}/><meshStandardMaterial color="#ffffff" emissive="#d9e6f2" emissiveIntensity={.62} roughness={1} transparent opacity={.94} depthWrite={false}/></mesh>)}</>;
+ return <>{puffs.map((puff,j)=><mesh key={j} position={puff.position} scale={puff.scale} raycast={noHit}><sphereGeometry args={[1,12,8]}/><meshStandardMaterial color="#ffffff" emissive="#d9e6f2" emissiveIntensity={.62} roughness={1} transparent opacity={.94} depthWrite={false}/></mesh>)}</>;
 }
 const MOUNTAIN_TONES=[['#7f9db6','#c3d4e3'],['#6b8f9c','#a3bfc6'],['#58806a','#8eae96']];
 
@@ -113,8 +114,10 @@ export function TreeMeadowEnvironment({nodes}:{nodes:TreePoint[]}){
  }),[]);
  // Three ranges recede into haze: the farthest is tallest, bluest and snow-capped.
  // Ridges fold several octaves (with sharpened crests) so the skyline is not a smooth wave.
+ // Each range is drawn four times around the meadow, so keep its mesh modest:
+ // a much denser one made software-rendered and low-end GPUs visibly slower.
  const mountains=useMemo(()=>Array.from({length:3},(_,layer)=>{
-  const geometry=new PlaneGeometry(120000,12000,640,24);const positions=geometry.attributes.position;
+  const geometry=new PlaneGeometry(120000,12000,240,4);const positions=geometry.attributes.position;
   const [base,peak]=MOUNTAIN_TONES[layer].map(hex=>new Color(hex)),snow=new Color('#f4f8fb'),colors=[];
   const near=layer/2,color=new Color();
   for(let i=0;i<positions.count;i++){
@@ -122,7 +125,7 @@ export function TreeMeadowEnvironment({nodes}:{nodes:TreePoint[]}){
    const crest=(f:number,o:number)=>1-Math.abs(Math.sin(x/f+o));
    const ridge=(2900-near*1300)+(1300-near*500)*Math.sin(x/2900+layer*3)+(900-near*350)*crest(2100,layer*1.7)+380*crest(820,layer)+120*Math.sin(x/230+layer);
    const height=v*ridge;
-   positions.setY(i,-1200+height);positions.setZ(i,Math.sin(x/1800)*600);
+   positions.setY(i,MEADOW_Y-220+height);positions.setZ(i,Math.sin(x/1800)*600);
    color.copy(base).lerp(peak,Math.pow(v,1.6)*.9);
    if(layer===0)color.lerp(snow,Math.min(1,Math.max(0,(height-2600)/500))*Math.min(1,Math.max(0,(v-.72)/.12)));
    colors.push(...color.toArray());
@@ -139,7 +142,7 @@ export function TreeMeadowEnvironment({nodes}:{nodes:TreePoint[]}){
   <mesh raycast={noHit}><sphereGeometry args={[65000,32,20]}/><shaderMaterial side={BackSide} depthWrite={false} toneMapped={false}
    vertexShader="varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}"
    fragmentShader="varying vec3 direction;void main(){vec3 d=normalize(direction);float h=max(0.,d.y);vec3 horizon=vec3(.9,.94,.93);vec3 sky=mix(horizon,vec3(.58,.8,.94),smoothstep(0.,.16,h));sky=mix(sky,vec3(.2,.5,.84),smoothstep(.12,.9,h));float sun=max(0.,dot(d,normalize(vec3(.5,.7,-.6))));sky+=vec3(1.,.86,.62)*pow(sun,6.)*.2+vec3(1.,.96,.84)*pow(sun,260.)*.8;gl_FragColor=vec4(sky,1.);}"/></mesh>
-  <mesh rotation={[-Math.PI/2,0,0]} position={[0,-1100,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#769d53" roughness={1}/></mesh>
+  <mesh rotation={[-Math.PI/2,0,0]} position={[0,MEADOW_Y-20,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#769d53" roughness={1}/></mesh>
   <mesh geometry={terrain} raycast={noHit}><meshStandardMaterial vertexColors map={turf} roughness={1}/></mesh>
   {[0,Math.PI/2,Math.PI,Math.PI*1.5].map(angle=><group key={angle} rotation={[0,angle,0]}>{mountains.map((geometry,i)=><mesh key={i} position={[0,0,-23000+i*4500]} geometry={geometry} raycast={noHit}><meshStandardMaterial vertexColors roughness={1} side={DoubleSide}/></mesh>)}</group>)}
   {Array.from({length:11},(_,i)=>{const a=(i+jitter(`cloud${i}`,2)*.6)/11*Math.PI*2,r=16000+jitter(`cloud${i}`,3)*7000,s=.8+jitter(`cloud${i}`,4)*.6;return <group key={i} position={[Math.cos(a)*r,5200+jitter(`cloud${i}`)*2600,Math.sin(a)*r]} rotation={[0,-a+Math.PI/2,0]} scale={s}><Cloud seed={i}/></group>;})}

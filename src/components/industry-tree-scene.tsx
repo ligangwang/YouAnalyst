@@ -246,10 +246,12 @@ function Scene(props:TreeSceneProps){
     const position=target.clone().addScaledVector(outward,distance);position.y+=distance*.18;
     void c.setLookAt(...position.toArray(),...target.toArray(),false);invalidate();
   },[props.active,props.paused,props.selected,props.vertical,nodes,selectedPath,size.width,size.height,invalidate,tourRef]);
-  const previousPlan=useRef(plan);
+  const previousPlan=useRef({plan,request:props.request});
   useEffect(()=>{
-    const previous=previousPlan.current;previousPlan.current=plan;
-    if(!props.vertical||previous===plan)return;
+    const previous=previousPlan.current;previousPlan.current={plan,request:props.request};
+    // Reset restarts the presentation with its new plan; only a manual expand or
+    // collapse adjusts the stops of a tour that is already running.
+    if(!props.vertical||previous.plan===plan||previous.request!==props.request)return;
     if(controls.current)presentation.current?.updateStops(plan,{
       position:controls.current.getPosition(new Vector3(),false).toArray(),
       target:controls.current.getTarget(new Vector3(),false).toArray(),
@@ -260,7 +262,7 @@ function Scene(props:TreeSceneProps){
     if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
     if(plan.length)scheduleResume.current();else flight.current=null;
     invalidate();
-  },[plan,props.vertical,invalidate,tourRef]);
+  },[plan,props.request,props.vertical,invalidate,tourRef]);
   useEffect(()=>{invalidate();},[navigation.speed,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
