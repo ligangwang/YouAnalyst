@@ -142,11 +142,18 @@ for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} 
 });
 
 test('fullscreen lookup shows candles while company event sources are still loading',async({page})=>{
- await open(page);await page.goto('http://workspace.test/?view=graph');
+ const body=await workspaceFixture(false,snapshot,false);
  let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve;});
- await page.route('**/api/intelligence*',async route=>{await pending;await route.fulfill({json:snapshot});});
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/intelligence')){
+   if(new URL(route.request().url()).searchParams.get('section')==='universe')return route.fulfill({json:{...snapshot,events:[],sourceDocuments:[],coverage:[],eventsPending:true}});
+   await pending;return route.fulfill({json:snapshot});
+  }
+  return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
+ });
  await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',currency:'USD',available:true,prices:[{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
+ await page.goto('http://workspace.test/?view=graph');
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
  await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
  try{
