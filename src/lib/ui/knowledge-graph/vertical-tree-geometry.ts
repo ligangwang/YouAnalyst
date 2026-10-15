@@ -1,4 +1,4 @@
-import { AdditiveBlending, BufferGeometry, Color, DataTexture, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, NormalBlending, Points, PointsMaterial, Shape, ShapeGeometry, SphereGeometry, Vector3, type Object3D } from 'three';
+import { AdditiveBlending, BufferGeometry, Color, DataTexture, DoubleSide, Float32BufferAttribute, Mesh, MeshBasicMaterial, MeshStandardMaterial, NormalBlending, Points, PointsMaterial, SphereGeometry, Vector3, type Object3D } from 'three';
 import type { TreePoint } from './industry-tree';
 import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalLimbControls, verticalTrunkX } from './vertical-tree';
 
@@ -352,40 +352,24 @@ export function verticalTreeNodeStyle(node:TreePoint,dim:boolean,capScale=1){
   return {radius,core:dim?.12:knot?.5:.95,glow:dim?.01:knot?.03:node.kind==='company'?.16:.12,glowRadius:radius*(node.kind==='company'?3.4:knot?1.8:2.8)};
 }
 
-// Company leaves. One shared blade and vein, drawn along +x from a base at the
-// origin to a tip at x=1, so each leaf is just a rotation and scale. Vertex
-// colours shade the blade (deeper at the stem, brighter across the middle) and
-// multiply with each company's layer colour.
+// Company leaves. One shared blade, drawn along +x from a base at the origin to
+// a tip at x=1, so each leaf is just a rotation and scale. Vertex colours shade
+// the blade (deeper at the stem, brighter across the middle) and multiply with
+// each company's layer colour; UVs run along and across it for painted veins.
 function leafBlade(){
-  const positions:number[]=[],colors:number[]=[],indices:number[]=[];
+  const positions:number[]=[],colors:number[]=[],uvs:number[]=[],indices:number[]=[];
   const lengthSteps=18,widthSteps=6;
   for(let i=0;i<=lengthSteps;i++)for(let j=0;j<=widthSteps;j++){
     const x=i/lengthSteps,v=j/widthSteps*2-1;
     const width=.27*Math.sin(Math.PI*x)**.85*(1+.035*Math.sin(x*Math.PI*24));
     positions.push(x,v*width,.09*Math.sin(Math.PI*x)*(1-v*v)+.045*x*x+.015*v*Math.sin(x*Math.PI*2));
     const shade=.7+.25*Math.sin(Math.PI*x)-.12*Math.abs(v);
-    colors.push(shade,shade,shade);
+    colors.push(shade,shade,shade);uvs.push(x,(v+1)/2);
     if(i<lengthSteps&&j<widthSteps){const a=i*(widthSteps+1)+j,b=a+widthSteps+1;indices.push(a,b,a+1,a+1,b,b+1);}
   }
-  const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(positions,3));geometry.setAttribute('color',new Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
-}
-function leafVein(){
-  const shape=new Shape();
-  shape.moveTo(0,.006);shape.quadraticCurveTo(.5,.009,.9,0);shape.quadraticCurveTo(.5,-.009,0,-.006);shape.lineTo(0,.006);
-  const veins=[shape];
-  for(let i=1;i<=7;i++)for(const side of [-1,1]){
-    const x=.08+i*.095,end=x+.13,y=side*.23*Math.sin(Math.PI*end)**.85;
-    const vein=new Shape();vein.moveTo(x,-.002);vein.quadraticCurveTo(x+.075,y*.35,end,y);vein.quadraticCurveTo(x+.075,y*.35+.003,x,.002);vein.closePath();veins.push(vein);
-  }
-  const geometry=new ShapeGeometry(veins,18),p=geometry.getAttribute('position');
-  for(let i=0;i<p.count;i++){
-    const x=p.getX(i),w=.27*Math.sin(Math.PI*x)**.85,v=w>0?p.getY(i)/w:0;
-    p.setZ(i,.09*Math.sin(Math.PI*x)*(1-v*v)+.045*x*x+.015*v*Math.sin(x*Math.PI*2)+.002);
-  }
-  return geometry;
+  const geometry=new BufferGeometry();geometry.setAttribute('position',new Float32BufferAttribute(positions,3));geometry.setAttribute('color',new Float32BufferAttribute(colors,3));geometry.setAttribute('uv',new Float32BufferAttribute(uvs,2));geometry.setIndex(indices);geometry.computeVertexNormals();return geometry;
 }
 export const VERTICAL_LEAF_BLADE=leafBlade();
-export const VERTICAL_LEAF_VEIN=leafVein();
 
 // Each leaf leans away from its limb towards the limb's tip, tilted a little
 // by a stable per-company jitter so a canopy looks grown rather than stamped.

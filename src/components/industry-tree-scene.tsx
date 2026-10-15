@@ -13,7 +13,8 @@ import { useLocale } from './providers/locale-provider';
 import { layoutVerticalTree } from '@/lib/ui/knowledge-graph/vertical-tree';
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import { TreeMeadowEnvironment } from './tree-meadow-environment';
-import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/ui/knowledge-graph/vertical-tree-geometry';
+import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE } from '@/lib/ui/knowledge-graph/vertical-tree-geometry';
+import { leafBladeTexture } from '@/lib/ui/knowledge-graph/leaf-texture';
 import styles from './industry-tree.module.css';
 import {WebGLContextRecovery} from './webgl-context-recovery';
 import {useNodePresence} from './use-node-presence';
@@ -21,7 +22,7 @@ import { tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/ui/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/ui/knowledge-graph/label-fade';
 
-export type TreeSceneProps={tour:{current:boolean};active?:boolean;paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onRevealLayer:(id:string)=>void;onToggle:(id:string,finishGrowth?:boolean)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
+export type TreeSceneProps={tour:{current:boolean};active?:boolean;paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
   state={failed:false};
@@ -38,10 +39,6 @@ function Scene(props:TreeSceneProps){
   useEffect(()=>()=>{gl.domElement.style.cursor='';},[gl]);
   // Redraw on resume so changes made while scrolled away (e.g. a selection in the other tree) appear.
   useEffect(()=>{if(!props.paused)invalidate();},[props.paused,invalidate]);
-  const [growth,setGrowth]=useState({request:props.request,active:Boolean(props.vertical)});
-  if(growth.request!==props.request)setGrowth({request:props.request,active:Boolean(props.vertical)});
-  const growing=growth.request!==props.request?Boolean(props.vertical):growth.active;
-  const woodGrowth=useRef({roots:0,trunk:0,top:1});
   const presentation=useRef<ReturnType<typeof createTreePresentation>|null>(null);
   const controls=useRef<CameraControls>(null);
   const userPositioned=useRef(false);
@@ -133,6 +130,8 @@ function Scene(props:TreeSceneProps){
   const labelsSettled=useRef<number|undefined>(undefined);
   useEffect(()=>()=>window.clearTimeout(labelsSettled.current),[]);
   const particles=useRef(new Map<string,Mesh>());
+  const bladeTexture=useMemo(()=>props.vertical?leafBladeTexture():null,[props.vertical]);
+  useEffect(()=>()=>bladeTexture?.dispose(),[bladeTexture]);
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
   const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
@@ -148,9 +147,7 @@ function Scene(props:TreeSceneProps){
   useEffect(()=>{invalidate();},[presence,invalidate]);
   useEffect(()=>{collisionLabels.current.clear();lastCollision.current=-Infinity;invalidate();},[nodes,props.selected,props.focus,invalidate]);
   const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
-  const fullPlan=useMemo(()=>treeOverviewPlan(all),[all]);
-  const visiblePlan=useMemo(()=>treeOverviewPlan(nodes,new Set(props.open)),[nodes,props.open]);
-  const plan=growing?fullPlan:visiblePlan;
+  const plan=useMemo(()=>treeOverviewPlan(nodes,new Set(props.open)),[nodes,props.open]);
   const targets=useMemo(()=>{
     const visible=new Map(presence.filter(entry=>!entry.exiting).map(entry=>[entry.node.id,entry.node]));
     const catalog=new Map(all.map(n=>[n.id,n]));
@@ -191,7 +188,7 @@ function Scene(props:TreeSceneProps){
         if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
       }
       const shot=treeOverviewShot(all,size.width,size.height);
-      if(restarting||!presentation.current)presentation.current=createTreePresentation(shot,fullPlan,all,size.width/size.height);
+      if(restarting||!presentation.current)presentation.current=createTreePresentation(shot,plan,all,size.width/size.height);
       else presentation.current.reframe(shot,size.width/size.height);
       const current=presentation.current.sample().shot;
       void c.setLookAt(...current.position,...current.target,Boolean(previous)&&!reduced.current);
@@ -226,7 +223,7 @@ function Scene(props:TreeSceneProps){
     void c.setLookAt(...position,...target,!reduced.current&&!props.tour.current);
     flight.current=createTreeTour({position,target},plan);
     invalidate();
-  },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,growing,fullPlan,tourRef]);
+  },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,tourRef]);
   const selectionFocus=useRef('');
   const internalSelection=useRef('');
   const selectCompany=(id:string)=>{internalSelection.current=id;props.onSelect(id);};
@@ -242,20 +239,19 @@ function Scene(props:TreeSceneProps){
     const key=`${node.id}:${size.width}:${size.height}`;
     if(selectionFocus.current===key)return;
     selectionFocus.current=key;tourRef.current=false;resumePending.current=false;
-    // Complete growth when locating an existing selection; it must not wait for the intro.
-    queueMicrotask(()=>setGrowth({request:props.request,active:false}));
-    woodGrowth.current.roots=1;woodGrowth.current.trunk=1;
     const target=new Vector3(...node.position);
     const distance=Math.max(480,280/(size.width/Math.max(1,size.height)));
     const outward=props.vertical?new Vector3(target.x,0,target.z).normalize():new Vector3(0,0,1);
     if(outward.lengthSq()===0)outward.set(0,0,1);
     const position=target.clone().addScaledVector(outward,distance);position.y+=distance*.18;
     void c.setLookAt(...position.toArray(),...target.toArray(),false);invalidate();
-  },[props.active,props.paused,props.selected,props.request,props.vertical,nodes,selectedPath,size.width,size.height,invalidate,tourRef]);
-  const previousPlan=useRef(plan);
+  },[props.active,props.paused,props.selected,props.vertical,nodes,selectedPath,size.width,size.height,invalidate,tourRef]);
+  const previousPlan=useRef({plan,request:props.request});
   useEffect(()=>{
-    const previous=previousPlan.current;previousPlan.current=plan;
-    if(!props.vertical||previous===plan||growing)return;
+    const previous=previousPlan.current;previousPlan.current={plan,request:props.request};
+    // Reset restarts the presentation with its new plan; only a manual expand or
+    // collapse adjusts the stops of a tour that is already running.
+    if(!props.vertical||previous.plan===plan||previous.request!==props.request)return;
     if(controls.current)presentation.current?.updateStops(plan,{
       position:controls.current.getPosition(new Vector3(),false).toArray(),
       target:controls.current.getTarget(new Vector3(),false).toArray(),
@@ -266,7 +262,7 @@ function Scene(props:TreeSceneProps){
     if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
     if(plan.length)scheduleResume.current();else flight.current=null;
     invalidate();
-  },[plan,props.vertical,invalidate,tourRef,growing]);
+  },[plan,props.request,props.vertical,invalidate,tourRef]);
   useEffect(()=>{invalidate();},[navigation.speed,invalidate]);
   const vector=useMemo(()=>new Vector3(),[]);
   useFrame((state,delta)=>{
@@ -296,22 +292,16 @@ function Scene(props:TreeSceneProps){
     }
     gl.domElement.setAttribute('data-tour',touring||resumed?'playing':props.tour.current?'paused':'stopped');
     let presentationFrame=props.vertical?presentation.current?.sample():undefined;
-    // Growth finishes even while a user's camera is parked; revealing leaves must not depend on auto-orbit.
-    if((touring||props.vertical&&growing&&presentationFrame&&!['ascent','descent'].includes(presentationFrame.phase)&&!props.paused&&!reduced.current&&!document.hidden)&&controls.current){
+    if(touring&&controls.current){
       if(presentationFrame&&presentation.current){
         presentationFrame=presentation.current(delta,navigation.speed);
-        if(growing)for(const layer of presentationFrame.revealLayers)if(!props.open.includes(layer))props.onRevealLayer(layer);
-        if(touring)void controls.current.setLookAt(...presentationFrame.shot.position,...presentationFrame.shot.target,presentationFrame.phase==='overview');
+        void controls.current.setLookAt(...presentationFrame.shot.position,...presentationFrame.shot.target,presentationFrame.phase==='overview');
       }else if(flight.current){
         const shot=flight.current(delta,navigation.speed);
         if(!props.vertical)void controls.current.setLookAt(...shot.position,...shot.target,false);
       }
       moving=true;
     }
-    const growthFrame=props.vertical&&growing&&!reduced.current?presentationFrame:undefined;
-    woodGrowth.current={roots:growthFrame?.rootGrowth??1,trunk:growthFrame?.trunkGrowth??1,top:trunkTop};
-    gl.domElement.setAttribute('data-trunk-growth',String(woodGrowth.current.trunk));
-    gl.domElement.setAttribute('data-root-growth',String(woodGrowth.current.roots));
     const visitingLayer=presentationFrame&&['ascent','descent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
     gl.domElement.setAttribute('data-tour-phase',presentationFrame?.phase??'manual');
     gl.domElement.setAttribute('data-user-positioned',String(userPositioned.current));
@@ -324,8 +314,7 @@ function Scene(props:TreeSceneProps){
     for(const target of targets){
       const group=groups.current.get(target.node.id);if(!group)continue;
       vector.set(...target.position);
-      const grown=target.node.kind!=='layer'||!growthFrame||target.node.position[1]<=trunkTop*growthFrame.trunkGrowth&&growthFrame.rootGrowth>0;
-      const scale=target.visible&&grown?1:0;
+      const scale=target.visible?1:0;
       const amount=reduced.current?1:1-Math.exp(-tourDelta(delta,navigation.speed)*1.8);
       group.position.lerp(vector,amount);
       group.scale.lerp(vector.setScalar(scale),amount);
@@ -462,7 +451,7 @@ function Scene(props:TreeSceneProps){
       <directionalLight position={[-1600,1700,-1400]} color={props.vertical?'#b8c9b0':'#6cbaff'} intensity={props.vertical?1.3:2.8}/>
       <directionalLight position={[600,400,-1800]} color="#76e4c5" intensity={.8}/>
     </>}
-    {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus} growth={woodGrowth}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
+    {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
       const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
@@ -486,8 +475,7 @@ function Scene(props:TreeSceneProps){
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         {leaf?<group rotation={[0,node.azimuth??0,0]}><group rotation={[0,0,leaf.angle]}>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.12,leaf.width*1.18,leaf.length*.5]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.035} depthWrite={false} blending={AdditiveBlending}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors color={leaf.tint} roughness={.82} metalness={0} side={DoubleSide} transparent opacity={dim?.12:.98}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.width,leaf.length*.5]} position={[0,0,.4]}><meshBasicMaterial color="#d8db8e" side={DoubleSide} transparent opacity={dim?.05:.36}/></mesh>
+          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors map={bladeTexture} color={leaf.tint} roughness={.78} metalness={0} side={DoubleSide} transparent opacity={dim?.12:.98}/></mesh>
         </group></group>:node.decorative?null:<>
         <mesh {...pick}><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
         <mesh {...pick}><sphereGeometry args={[look.glowRadius||radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.glow} depthWrite={false} blending={AdditiveBlending}/></mesh>
@@ -505,7 +493,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={event=>{event.stopPropagation();if(node.company)selectCompany(node.company.id);else {if(props.vertical){userPositioned.current=true;tourRef.current=false;resumeReady.current=false;}setGrowth({request:props.request,active:false});props.onToggle(node.id,growing);}}}>
+          onClick={event=>{event.stopPropagation();if(node.company)selectCompany(node.company.id);else {if(props.vertical){userPositioned.current=true;tourRef.current=false;resumeReady.current=false;}props.onToggle(node.id);}}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('In watchlist','已加入自选股')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')} <CompanyPriceChange price={node.company.dailyPrice} locale={locale}/></small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}

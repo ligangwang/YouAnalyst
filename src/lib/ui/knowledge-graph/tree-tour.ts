@@ -64,14 +64,14 @@ export function createTreeOverviewTour(start:TreeShot,stops:TreeTourStop[]) {
   },{destination:()=>stops[index]});
 }
 
-export const TREE_PRESENTATION = { overview: 0, roots: 3, trunk: 12, foliage: 4, settle: 4, approach: 8, traverse: 180 } as const;
-export type TreePresentationFrame = {shot:TreeShot;phase:'overview'|'roots'|'trunk'|'foliage'|'approach'|'ascent'|'descent';layer:string;companyId:string;revealLayers:string[];rootGrowth:number;trunkGrowth:number;angle:number;elevation:number};
+export const TREE_PRESENTATION = { overview: 3, approach: 8, traverse: 180 } as const;
+export type TreePresentationFrame = {shot:TreeShot;phase:'overview'|'approach'|'ascent'|'descent';layer:string;companyId:string;angle:number;elevation:number};
 
-// Orbit the trunk, never individual leaves. A cosine height path reverses gently
-// at each end while the azimuth keeps moving at a constant, unbroken speed.
+// The tree stands fully grown: hold the whole-tree view briefly, then orbit the
+// trunk, never individual leaves. A cosine height path reverses gently at each
+// end while the azimuth keeps moving at a constant, unbroken speed.
 export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],nodes:TreePoint[]=[],aspect=1) {
   let elapsed=0;
-  const growthDuration=TREE_PRESENTATION.roots+TREE_PRESENTATION.trunk+stops.length*TREE_PRESENTATION.foliage+Math.max(TREE_PRESENTATION.settle,nodes.filter(n=>n.layer===stops.at(-1)?.layer&&n.kind==='company').length*.04+.8);
   // Read a band of companies at a time instead of fitting the entire height.
   const reach=Math.max(700,...nodes.map(n=>Math.hypot(n.position[0],n.position[2])));
   const closeDistance=()=>reach+900/Math.sqrt(Math.max(.6,aspect));
@@ -80,17 +80,9 @@ export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],no
   // The tree scene's shared multiplier is 2x; this matches the graph's pace.
   const angularSpeed=TOUR_MOTION.degreesPerSecond*Math.PI/360;
   const sample=():TreePresentationFrame=>{
-    const base:TreePresentationFrame={shot:overview,phase:'overview',layer:'',companyId:'',revealLayers:[],rootGrowth:0,trunkGrowth:0,angle:0,elevation:overview.target[1]};
+    const base:TreePresentationFrame={shot:overview,phase:'overview',layer:'',companyId:'',angle:0,elevation:overview.target[1]};
     if(!stops.length||elapsed<=TREE_PRESENTATION.overview)return base;
-    const grow=elapsed-TREE_PRESENTATION.overview;
-    if(grow<growthDuration){
-      const trunkGrowth=Math.max(0,Math.min(1,(grow-TREE_PRESENTATION.roots)/TREE_PRESENTATION.trunk));
-      const foliageTime=grow-TREE_PRESENTATION.roots-TREE_PRESENTATION.trunk;
-      return {...base,phase:grow<TREE_PRESENTATION.roots?'roots':foliageTime<0?'trunk':'foliage',
-        rootGrowth:Math.min(1,grow/TREE_PRESENTATION.roots),trunkGrowth,
-        revealLayers:stops.filter((_,i)=>foliageTime>=i*TREE_PRESENTATION.foliage).map(stop=>stop.layer)};
-    }
-    const t=grow-growthDuration,k=Math.min(1,t/TREE_PRESENTATION.approach);
+    const t=elapsed-TREE_PRESENTATION.overview,k=Math.min(1,t/TREE_PRESENTATION.approach);
     const travel=Math.max(0,t-TREE_PRESENTATION.approach),cycle=travel/TREE_PRESENTATION.traverse;
     const bottom=stops[0]?.target[1]??overview.target[1],top=stops.at(-1)?.target[1]??bottom;
     const progress=(1-Math.cos(Math.PI*cycle))/2;
@@ -104,24 +96,23 @@ export function createTreePresentation(overview:TreeShot,stops:TreeTourStop[],no
     const visitHeight=bottom+(top-bottom)*progress;
     const layer=stops.reduce((best,stop)=>Math.abs(stop.target[1]-visitHeight)<Math.abs(best.target[1]-visitHeight)?stop:best,stops[0]).layer;
 
-    return {...base,shot,phase:k<1?'approach':Math.floor(cycle)%2?'descent':'ascent',layer,
-      rootGrowth:1,trunkGrowth:1,revealLayers:stops.map(stop=>stop.layer),angle,elevation:target[1]};
+    return {...base,shot,phase:k<1?'approach':Math.floor(cycle)%2?'descent':'ascent',layer,angle,elevation:target[1]};
   };
   const resume=(shot:TreeShot)=>{
       const frame=sample();
-      // Zooming during the reveal must not snap back to the original overview.
-      if(elapsed<TREE_PRESENTATION.overview+growthDuration)overview=shot;
+      // Zooming during the opening view must not snap back to the original overview.
+      if(elapsed<TREE_PRESENTATION.overview)overview=shot;
       angleOffset+=Math.atan2(shot.position[0]-shot.target[0],shot.position[2]-shot.target[2])-frame.angle;
       // The orbit adds a small vertical offset; retain the full dolly distance
       // even when a manual rotation places the camera directly above the target.
       distance=desiredDistance=Math.max(180,Math.hypot(...shot.position.map((v,i)=>v-shot.target[i])))/Math.hypot(1,.025);
       resumed=shot;resumeElapsed=0;
     };
-  return Object.assign((delta:number,speed=1)=>{const dt=tourDelta(delta,speed);elapsed+=dt;if(elapsed>TREE_PRESENTATION.overview+growthDuration)resumeElapsed+=dt;distance+=(desiredDistance-distance)*(1-Math.exp(-dt*2));return sample();},{sample,resume,duration:()=>TREE_PRESENTATION.overview+growthDuration+TREE_PRESENTATION.approach+TREE_PRESENTATION.traverse,loopDuration:()=>TREE_PRESENTATION.traverse*2,
+  return Object.assign((delta:number,speed=1)=>{const dt=tourDelta(delta,speed);elapsed+=dt;if(elapsed>TREE_PRESENTATION.overview)resumeElapsed+=dt;distance+=(desiredDistance-distance)*(1-Math.exp(-dt*2));return sample();},{sample,resume,duration:()=>TREE_PRESENTATION.overview+TREE_PRESENTATION.approach+TREE_PRESENTATION.traverse,loopDuration:()=>TREE_PRESENTATION.traverse*2,
     updateStops:(next:TreeTourStop[],shot:TreeShot)=>{
       stops=next;
-      // Manual expansion ends the introduction; never replay growth on re-entry.
-      elapsed=Math.max(elapsed,TREE_PRESENTATION.overview+growthDuration+TREE_PRESENTATION.approach);
+      // Manual expansion ends the introduction; never replay it on re-entry.
+      elapsed=Math.max(elapsed,TREE_PRESENTATION.overview+TREE_PRESENTATION.approach);
       resume(shot);
     },
     reframe:(shot:TreeShot,ratio=aspect)=>{overview=shot;aspect=ratio;desiredDistance=closeDistance();}});

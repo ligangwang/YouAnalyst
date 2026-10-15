@@ -7,8 +7,8 @@ import type { TreePoint } from '@/lib/ui/knowledge-graph/industry-tree';
 import { createStrandWriter, verticalTreeDust, verticalTreeObjects, verticalTreeStrandGeometries, verticalTreeStrands } from '@/lib/ui/knowledge-graph/vertical-tree-geometry';
 
 // Tapered, shaded tubes give the wood depth while sharing geometry on phones.
-// Their endpoints follow animated node groups, so branches grow with the tree.
-export function VerticalTreeBranches({nodes,groups,focus,growth}:{nodes:TreePoint[];groups:RefObject<Map<string,Group>>;focus:string;growth:RefObject<{roots:number;trunk:number;top:number}>}){
+// Their endpoints follow animated node groups, so branches move with the tree.
+export function VerticalTreeBranches({nodes,groups,focus}:{nodes:TreePoint[];groups:RefObject<Map<string,Group>>;focus:string}){
   const strands=useMemo(()=>verticalTreeStrands(nodes),[nodes]);
   const geometries=useMemo(()=>verticalTreeStrandGeometries(strands,focus),[strands,focus]);
   const dust=useMemo(()=>verticalTreeDust(nodes),[nodes]);
@@ -35,14 +35,8 @@ export function VerticalTreeBranches({nodes,groups,focus,growth}:{nodes:TreePoin
         // Energy is present from the first growth stage and fades when the
         // whole tree collapses; the persistent title/root group does not.
         const opacity=Number(map.get(wood||strand.kind==='root'?(layerIds.includes('energy')?'energy':layerIds[0]):strand.to)?.userData.presenceAlpha??0);
-        const progress=wood?growth.current.trunk:strand.kind==='root'?growth.current.roots:1;
-        const key=String(j),value=opacity+progress*2;if(alpha.get(key)===value)return;alpha.set(key,value);changed=true;
-        const positions=geometry.getAttribute('position');
-        for(let k=j*count;k<(j+1)*count;k++){
-          const extent=wood?positions.getY(k)/growth.current.top:Math.abs(positions.getX(k))/1000;
-          const reveal=progress>=1?1:progress<=0?0:Math.max(0,Math.min(1,(progress-extent)*20));
-          color.setW(k,base[k*4+3]*opacity*reveal);
-        }
+        const key=String(j);if(alpha.get(key)===opacity)return;alpha.set(key,opacity);changed=true;
+        for(let k=j*count;k<(j+1)*count;k++)color.setW(k,base[k*4+3]*opacity);
       });
       if(changed)color.needsUpdate=true;
     });
