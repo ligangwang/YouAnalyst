@@ -279,7 +279,7 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
         </details>
         <GraphCompanyOutlook company={company}/>
       </aside>}
-      {company && <div className={styles.timelineDock} data-timeline-dock><CompanyTimeline companyId={company.id} graph={graph} initialPrices={previewPrices?.companyId === company.id ? previewPrices : undefined} /></div>}
+      {company && <div className={styles.timelineDock} data-timeline-dock><CompanyTimeline onSelectCompany={selectCompany} watchlist={follows.user?{ids:follows.ids,session:false,loading:follows.loading||!follows.ready&&!follows.error,error:follows.error,change:follows.change,refresh:()=>{void follows.refresh();}}:undefined} companyId={company.id} graph={graph} initialPrices={previewPrices?.companyId === company.id ? previewPrices : undefined} /></div>}
     </div>}
     <div className={styles.legend}><span role="status">{status === "ready" ? <>{visible.nodes.filter(n => n.kind === "COMPANY").length} {text("companies", "家公司")} · {visible.relationships.filter(e => e.type !== "PARTICIPATES_IN").length} {text("documented connections", "项已收录关系")}</> : text(status === "loading" ? "Loading company and connection totals…" : "Company and connection totals unavailable", status === "loading" ? "正在加载公司与关系数量…" : "暂时无法获取公司与关系数量")}</span></div>
     {startingPoints}

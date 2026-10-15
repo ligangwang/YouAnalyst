@@ -61,6 +61,29 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+test('workspace session watchlist appears below indicators and restores company selection during review',async({page})=>{
+ await open(page);
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),start:'2026-01-01',end:'2026-10-04',available:true,currency:'USD',prices:[{date:'2026-10-02',open:100,high:115,low:98,close:110,volume:1000}]}}));
+ await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none');
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ await workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true}).click();
+ const review=workspace.getByRole('region',{name:'Watchlist review',exact:true});
+ await review.getByRole('button',{name:'Add current stock',exact:true}).click();
+ await expect(review.getByRole('button',{name:'Micron',exact:true})).toBeVisible();
+ await workspace.getByRole('button',{name:'Stock tools',exact:true}).click();
+ const tools=page.getByRole('dialog',{name:'Stock tools · MU',exact:true});
+ await tools.locator('summary').click();await tools.getByRole('button',{name:'Memory & storage →',exact:true}).click();
+ await tools.getByRole('button',{name:'Memory Supplier',exact:true}).click();
+ await expect(page).toHaveURL(/company=US%3AMEM/);
+ await expect(workspace.locator('[data-company-timeline="US:MEM"]')).toBeVisible();
+ await review.getByRole('button',{name:'Micron',exact:true}).click();
+ await expect(page).toHaveURL(/company=US%3AMU/);
+ await expect(workspace).toHaveAttribute('data-chart-size','full');
+ await expect(workspace.getByRole('button',{name:'MACD (12,26,9)',exact:true})).toHaveAttribute('aria-pressed','true');
+ await page.screenshot({path:test.info().outputPath('workspace-watchlist-review.png')});
+});
+
 for(const theme of ['ai','robotics','space'] as const)test(`Explore ${theme} chart share retains the selected event and restores chart controls`,async({page})=>{
  await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{value:{writeText:async(value:string)=>{(window as unknown as {copiedLink:string}).copiedLink=value;}}}));
  await open(page,false,{...snapshot,theme});
