@@ -45,18 +45,19 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
  },[layers,open,locale]);
  const presence=useNodePresence(nodes,speed);
  const renderedNodes=presence.map(entry=>entry.node);
+ const chartWidth=Math.max(120,size.width-(!embedded&&selected&&size.width>800?364:0)),chartHeight=Math.max(120,size.height-(!embedded&&selected&&size.width<=800?220:0));
  useLayoutEffect(()=>{
   if(fitRequested.current){
    const left=Math.min(...nodes.map(n=>n.x)),right=Math.max(...nodes.map(n=>n.x+240)),top=Math.min(...nodes.map(n=>n.y)),bottom=Math.max(...nodes.map(n=>n.y+76));
-   shot.current={x:(left+right)/2,y:(top+bottom)/2,zoom:Math.min(1,size.width/(right-left+80),size.height/(bottom-top+80))};fitRequested.current=false;manualFocus.current=null;return;
+   shot.current={x:(left+right)/2,y:(top+bottom)/2,zoom:Math.min(1,chartWidth/(right-left+80),chartHeight/(bottom-top+80))};fitRequested.current=false;manualFocus.current=null;return;
   }
   const anchor=manualFocus.current;if(!anchor)return;const node=nodes.find(n=>n.id===anchor.id);if(!node)return;
   // Preserve the clicked position where possible, moving only enough to reveal its children.
   const family=[node,...nodes.filter(n=>n.parent===node.id)],left=Math.min(...family.map(n=>n.x)),right=Math.max(...family.map(n=>n.x+240)),top=Math.min(...family.map(n=>n.y)),bottom=Math.max(...family.map(n=>n.y+76));
-  const current=shot.current,zoom=Math.min(current.zoom,size.width/(right-left+80),size.height/(bottom-top+80)),halfW=size.width/zoom/2,halfH=size.height/zoom/2;
+  const current=shot.current,zoom=Math.min(current.zoom,chartWidth/(right-left+80),chartHeight/(bottom-top+80)),halfW=chartWidth/zoom/2,halfH=chartHeight/zoom/2;
   const next={zoom,x:Math.max(right+40-halfW,Math.min(left-40+halfW,node.x-(anchor.x-current.x)*current.zoom/zoom)),y:Math.max(bottom+40-halfH,Math.min(top-40+halfH,node.y-(anchor.y-current.y)*current.zoom/zoom))};
   shot.current=next;setView(next);manualFocus.current=null;
- },[nodes,size.width,size.height]);
+ },[nodes,chartWidth,chartHeight]);
  const latest=useRef({view});useLayoutEffect(()=>{latest.current={view};});
  const stopMotion=useCallback(()=>{shot.current={...latest.current.view};},[]);
  const releasePointer=useCallback((id:number)=>{
@@ -89,7 +90,6 @@ export function IndustryHierarchy({companies,selected,onSelect,closing,embedded=
   if(!selected&&previousSelection.current&&savedSelectionView.current){shot.current=savedSelectionView.current;savedSelectionView.current=null;}
   previousSelection.current=selected;
  },[selected]);
- const chartWidth=Math.max(120,size.width-(!embedded&&selected&&size.width>800?364:0)),chartHeight=Math.max(120,size.height-(!embedded&&selected&&size.width<=800?220:0));
  const toggle=(n:Node)=>{
   if(n.company){onSelect(n.company.id);return;}
   const expanded=!open.includes(n.id);

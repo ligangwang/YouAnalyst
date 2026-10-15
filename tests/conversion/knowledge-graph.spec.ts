@@ -1450,6 +1450,9 @@ test('navigation: blank clicks recover automatically without pause controls',asy
  await page.mouse.click(t.x+8,t.y+8);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
+ await tree.locator('..').locator('footer').dispatchEvent('wheel',{deltaY:100,bubbles:true});
+ await expect(canvas).toHaveAttribute('data-user-positioned','false');
+ await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:5000});
  await expect(canvas).toHaveAttribute('data-tour-phase',/^(ascent|descent)$/,{timeout:20000});
  await expect(page.getByRole('button',{name:/^(Pause tour|Resume tour)$/})).toHaveCount(0);
 });
@@ -1956,4 +1959,17 @@ test('tree reveals leaves after a manual zoom and manual expansion completes the
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(tree.locator('[data-tree-company="US:NVDA"]').first()).toBeEnabled({timeout:15000});
  await expect(tree.locator('[data-tree-node="applications"]')).toHaveAttribute('aria-expanded','true');
+});
+
+test('hierarchy reset fits the available SVG while company details remain open',async({page,isMobile})=>{
+ if(!isMobile)await page.setViewportSize({width:920,height:900});
+ await navigationFixture(page,'hierarchy');
+ const section=page.locator('[data-industry-section="hierarchy"]'),scene=section.locator('[data-industry-tree="hierarchy"]');
+ await section.getByRole('button',{name:'Expand all',exact:true}).click();
+ const selected=scene.locator('[data-tree-company="US:NVDA"]').first();await expect(selected).toBeAttached();await selected.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(page.getByRole('dialog',{name:'Company details'})).toBeVisible();
+ await section.getByRole('button',{name:'Reset view',exact:true}).click();
+ await expect(scene.locator('[data-hierarchy-node="root"]')).toBeAttached();
+ await expect.poll(()=>scene.locator('svg').evaluate(el=>{const box=(el as SVGSVGElement).viewBox.baseVal;return [...el.querySelectorAll('foreignObject')].filter(n=>n.querySelector('button')?.getAttribute('data-exiting')!=='true').every(n=>n.x.baseVal.value>=box.x&&n.y.baseVal.value>=box.y&&n.x.baseVal.value+220<=box.x+box.width&&n.y.baseVal.value+64<=box.y+box.height);})).toBe(true);
+ await expect(page.getByRole('dialog',{name:'Company details'})).toBeVisible();
 });

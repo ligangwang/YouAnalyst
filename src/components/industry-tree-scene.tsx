@@ -69,7 +69,7 @@ function Scene(props:TreeSceneProps){
     const down=(event:Event)=>{const e=event as PointerEvent;pointers.add(e.pointerId);if(e.target===gl.domElement)starts.set(e.pointerId,{x:e.clientX,y:e.clientY});pause();};
     const move=(event:PointerEvent)=>{const start=starts.get(event.pointerId);if(start&&Math.hypot(event.clientX-start.x,event.clientY-start.y)>4)userPositioned.current=true;};
     const up=(event:PointerEvent)=>{starts.delete(event.pointerId);if(pointers.delete(event.pointerId))schedule();};
-    const wheel=(event:Event)=>{if(!(event.target instanceof Element&&event.target.closest('[data-node-card]')))userPositioned.current=true;pause();schedule();};
+    const wheel=(event:Event)=>{if(event.target===gl.domElement)userPositioned.current=true;pause();schedule();};
     const keydown=(event:Event)=>{keys.add((event as KeyboardEvent).code);pause();};
     const keyup=(event:KeyboardEvent)=>{if(keys.delete(event.code))schedule();};
     const focus=()=>{pause();schedule();};
