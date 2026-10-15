@@ -13,7 +13,8 @@ import { useLocale } from './providers/locale-provider';
 import { layoutVerticalTree } from '@/lib/ui/knowledge-graph/vertical-tree';
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import { TreeMeadowEnvironment } from './tree-meadow-environment';
-import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE, VERTICAL_LEAF_VEIN } from '@/lib/ui/knowledge-graph/vertical-tree-geometry';
+import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE } from '@/lib/ui/knowledge-graph/vertical-tree-geometry';
+import { leafBladeTexture } from '@/lib/ui/knowledge-graph/leaf-texture';
 import styles from './industry-tree.module.css';
 import {WebGLContextRecovery} from './webgl-context-recovery';
 import {useNodePresence} from './use-node-presence';
@@ -129,6 +130,8 @@ function Scene(props:TreeSceneProps){
   const labelsSettled=useRef<number|undefined>(undefined);
   useEffect(()=>()=>window.clearTimeout(labelsSettled.current),[]);
   const particles=useRef(new Map<string,Mesh>());
+  const bladeTexture=useMemo(()=>props.vertical?leafBladeTexture():null,[props.vertical]);
+  useEffect(()=>()=>bladeTexture?.dispose(),[bladeTexture]);
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
   const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
@@ -470,8 +473,7 @@ function Scene(props:TreeSceneProps){
       return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         {leaf?<group rotation={[0,node.azimuth??0,0]}><group rotation={[0,0,leaf.angle]}>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.12,leaf.width*1.18,leaf.length*.5]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.035} depthWrite={false} blending={AdditiveBlending}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors color={leaf.tint} roughness={.82} metalness={0} side={DoubleSide} transparent opacity={dim?.12:.98}/></mesh>
-          <mesh geometry={VERTICAL_LEAF_VEIN} scale={[leaf.length,leaf.width,leaf.length*.5]} position={[0,0,.4]}><meshBasicMaterial color="#d8db8e" side={DoubleSide} transparent opacity={dim?.05:.36}/></mesh>
+          <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors map={bladeTexture} color={leaf.tint} roughness={.78} metalness={0} side={DoubleSide} transparent opacity={dim?.12:.98}/></mesh>
         </group></group>:node.decorative?null:<>
         <mesh {...pick}><sphereGeometry args={[radius,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.core}/></mesh>
         <mesh {...pick}><sphereGeometry args={[look.glowRadius||radius*2.6,16,12]}/><meshBasicMaterial color={node.color} transparent opacity={look.glow} depthWrite={false} blending={AdditiveBlending}/></mesh>

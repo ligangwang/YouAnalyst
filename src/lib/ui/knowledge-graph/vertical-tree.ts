@@ -4,6 +4,8 @@ import type { TreeLayer, TreePoint } from './industry-tree';
 
 export const VERTICAL_ROOT_REACH=1000;
 export const VERTICAL_ROOT_DEPTH=600;
+// Ground level around the trunk. Roots run below it; Energy companies sit on it.
+export const VERTICAL_SOIL_Y=-30;
 // Energy is underground: it feeds the whole trunk, so it grows as roots.
 const ROOT_LAYERS=new Set(['energy']);
 const CROWN_LAYER='applications';
@@ -200,7 +202,8 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   const energyCompanies=nodes.filter(n=>n.kind==='company'&&ROOT_LAYERS.has(n.layer??'')).sort((a,b)=>a.id.localeCompare(b.id));
   energyCompanies.forEach((node,i)=>{
     const azimuth=Math.PI/6+i*2*Math.PI/energyCompanies.length;
-    const reach=480+100*verticalJitter(node.id,11),depth=-240-100*verticalJitter(node.id,12);
+    // Each company is a knot where its root breaks the surface, so it stays visible and clickable.
+    const reach=480+100*verticalJitter(node.id,11),depth=VERTICAL_SOIL_Y+4+6*verticalJitter(node.id,12);
     node.planar=[reach,depth,0];node.azimuth=azimuth;node.pivotX=0;
     node.position=[reach*Math.cos(azimuth),depth,-reach*Math.sin(azimuth)];
   });
