@@ -7,6 +7,7 @@ import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CompanyFundamentalsLoader } from "@/components/company-fundamentals-loader";
+import { CompanyPeerComparisonLoader } from '@/components/company-peer-comparison-loader';
 import { TickerPage } from "@/components/ticker-page";
 import { normalizeTicker } from "@/lib/predictions/types";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -100,7 +101,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
     const [company, fundamentals] = await Promise.all([loadChinaCompany(chinaId), loadCnFundamentals(chinaId)]);
     const url = absoluteUrl(localizedPath(companyPageUrl(chinaId, "CN_A",company.slug), locale));
     const schema = { "@context": "https://schema.org", ...companyOrganizationSchema(company, locale, url, chinaId.split(":")[1], chinaId.startsWith("XSHG:") ? "SSE" : "SZSE") };
-    return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} /></>;
+    return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} /><ChinaCompanyPage company={company} marketCap={fundamentals?.marketCap} annual={fundamentals?.annual} stale={fundamentals?.stale} announcements={await loadCompanyAnnouncements(chinaId)} earningsSummary={await loadLatestCompanyEarnings(chinaId)} comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={chinaId}/></Suspense>} /></>;
   }
   const ticker = resolveTicker(symbol);
   if (symbol !== ticker) permanentRedirect(localizedPath(companyPageUrl(ticker, "US"), locale));
@@ -124,7 +125,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} />
       </Suspense>
-    } />} />
+    } comparison={<Suspense fallback={null}><CompanyPeerComparisonLoader companyId={`US:${ticker}`}/></Suspense>} />} />
   </>;
 }
 
