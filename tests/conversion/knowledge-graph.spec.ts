@@ -749,9 +749,20 @@ test.beforeEach(async ({page}, info) => {
   if (!info.title.startsWith('three views')&&!info.title.startsWith('navigation:')) await page.addInitScript(() => localStorage.setItem('ya-industry-view','graph'));
 });
 
+// Meadow scenery (terrain, grass, mountains, clouds, canopy) is decorative and
+// costs most of each software-WebGL frame. Interaction tests keep the real tree,
+// leaves, labels and camera without it; the meadow overview test renders it all.
+const noScenery={name:'no-meadow-scenery',setup(build:import('esbuild').PluginBuild){
+  build.onResolve({filter:/tree-meadow-environment$/},()=>({path:'meadow',namespace:'no-meadow-scenery'}));
+  build.onLoad({filter:/.*/,namespace:'no-meadow-scenery'},()=>({loader:'tsx',contents:'export function TreeMeadowEnvironment(){return null}'}));
+}};
+async function mapHtml(scenery:boolean){
+  const bundle = await build({ stdin: { contents: `import {BufferGeometry} from "three";const originalDispose=BufferGeometry.prototype.dispose;BufferGeometry.prototype.dispose=function(){if(this.getAttribute("capScale"))window.dispatchEvent(new Event("graph-star-disposed"));return originalDispose.call(this);};import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";import {ResearchQuickLinks,ResearchStartingPoints} from "./src/components/research-starting-points";import {researchStartingPoints} from "./src/lib/research/starting-points";const homepage=new URLSearchParams(location.search).has("homepage");createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph startingPoints={homepage?<ResearchQuickLinks entries={researchStartingPoints}/>:undefined} introduction={homepage?<ResearchStartingPoints entries={researchStartingPoints}/>:undefined} initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [tourClockPlugin, ...(scenery?[]:[noScenery]), { name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#08131d;font-family:Arial}*{box-sizing:border-box}button,input{font:inherit} ${bundle.outputFiles.find(f => f.path.endsWith(".css"))?.text}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+}
+let sceneryHtml:string;
 test.beforeAll(async () => {
-  const bundle = await build({ stdin: { contents: `import {BufferGeometry} from "three";const originalDispose=BufferGeometry.prototype.dispose;BufferGeometry.prototype.dispose=function(){if(this.getAttribute("capScale"))window.dispatchEvent(new Event("graph-star-disposed"));return originalDispose.call(this);};import React from "react";import {createRoot} from "react-dom/client";import {AiKnowledgeGraph} from "./src/components/ai-knowledge-graph";import {LocaleProvider} from "./src/components/providers/locale-provider";import {ResearchQuickLinks,ResearchStartingPoints} from "./src/components/research-starting-points";import {researchStartingPoints} from "./src/lib/research/starting-points";const homepage=new URLSearchParams(location.search).has("homepage");createRoot(document.getElementById("root")).render(<LocaleProvider locale={new URLSearchParams(location.search).get("lang")==="en"?"en":"zh-CN"}><AiKnowledgeGraph startingPoints={homepage?<ResearchQuickLinks entries={researchStartingPoints}/>:undefined} introduction={homepage?<ResearchStartingPoints entries={researchStartingPoints}/>:undefined} initialCompany={new URLSearchParams(location.search).get("company") ?? ""} initialEvent={new URLSearchParams(location.search).get("event") ?? ""} initialEdge={new URLSearchParams(location.search).get("relationship") ?? ""}/></LocaleProvider>);`, loader: "tsx", resolveDir: process.cwd() }, bundle: true, write: false, outfile: "graph.js", platform: "browser", define: {"process.env":"{}"}, plugins: [tourClockPlugin, { name: "map-account-fixture", setup(build) { build.onLoad({ filter: /auth-provider\.tsx$/ }, () => ({ loader: "tsx", contents: `const getIdToken = async () => "fixture"; const account = {user:{uid:"map-user"},getIdToken}; export function useOptionalAuth(){return new URLSearchParams(location.search).has("account") ? account : undefined;} export function useAuth(){return {...(useOptionalAuth() ?? {user:null,getIdToken}),loading:false};}` })); } }] });
-  html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#08131d;font-family:Arial}*{box-sizing:border-box}button,input{font:inherit} ${bundle.outputFiles.find(f => f.path.endsWith(".css"))?.text}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
+  [html,sceneryHtml]=await Promise.all([mapHtml(false),mapHtml(true)]);
 });
 
 
@@ -1404,14 +1415,15 @@ test('three views vertical defaults to expanded and preserves zoom and pan when 
 
 // Both trees are taller than most screens: a plain mouse wheel must scroll past them, not zoom.
 
-async function navigationFixture(page:Page,view='graph'){
+async function navigationFixture(page:Page,view='graph',body=html){
  await page.emulateMedia({reducedMotion:'reduce'});
- await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body}));
  await page.goto('http://graph.test/map?lang=en&view='+view);
 }
 
 test('map locates AMD when switching representations and restores a hidden tree selection',async({page})=>{
- test.setTimeout(90000);await navigationFixture(page);
+ // Also renders the full meadow scenery and keeps its overview screenshot.
+ test.setTimeout(90000);await navigationFixture(page,'graph',sceneryHtml);
  await page.goto('http://graph.test/map?lang=en&view=graph&company=US%3AAMD');
  for(const [tab,selector] of [['Industry tree','[data-industry-section="vertical"] [data-tree-company="US:AMD"]'],['Company hierarchy','[data-industry-section="hierarchy"] [data-tree-company="US:AMD"]'],['Company list','[data-list-company="US:AMD"]'],['Industry tree','[data-industry-section="vertical"] [data-tree-company="US:AMD"]']] as const){
   await page.getByRole('tab',{name:tab,exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);
