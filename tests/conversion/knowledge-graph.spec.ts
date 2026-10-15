@@ -1843,27 +1843,32 @@ test('manual hierarchy centers each parent vertically over its children after ex
 });
 
 test('navigation: collapsing a tree branch disables its fading companies',async({page})=>{
- await page.clock.install();
+ test.setTimeout(60000);
  await accelerateTours(page,0);
- await page.emulateMedia({reducedMotion:'no-preference'});
+ // Finish entry without animation, then observe the animated exit commit.
+ await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]');
+ await expect(tree.locator('[data-tree-node="chips"]')).toBeAttached({timeout:20000});
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Expand all',exact:true}).click();
  await expect(tree.locator('[data-tree-node="chips/compute/US:NVDA"]')).toBeAttached();
  const company=tree.locator('[data-tree-node="chips/compute/US:NVDA"]');
  await expect(company).toBeEnabled();
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true');
- // Step the animation clock so slower CI rendering cannot skip the exit
- // commit between two real-time assertions.
- await page.clock.pauseAt(new Date(await page.evaluate(()=>Date.now()+60000)));
- await tree.locator('[data-tree-node="chips"]').evaluate((el:HTMLButtonElement)=>el.click());
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ // Observe the exit commit directly so a busy renderer cannot skip its short
+ // disabled state between two assertions.
+ const disabledDuringExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
+  const observer=new MutationObserver(()=>{
+   if(el.getAttribute('data-exiting')==='true'){observer.disconnect();resolve((el as HTMLButtonElement).disabled);}
+  });
+  observer.observe(el,{attributes:true,attributeFilter:['data-exiting','disabled']});
+  (el.closest('[data-industry-tree]')!.querySelector('[data-tree-node="chips"]') as HTMLButtonElement).click();
+ }));
+ expect(disabledDuringExit).toBe(true);
  await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','false');
- await page.clock.runFor(80);
- await expect(company).toHaveAttribute('data-exiting','true');
- await expect(company).toBeDisabled();
- await page.clock.runFor(1000);
  await expect(company).toHaveCount(0);
 });
 
