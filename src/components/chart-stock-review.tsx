@@ -8,6 +8,7 @@ import {signedPercent} from '@/lib/intelligence/price-performance';
 import type {SharedChart} from '@/lib/ui/chart-share';
 import {companyResearchPath} from '@/lib/ui/chart-share';
 import {useCompanyFollows} from './company-follow-button';
+import {useSessionCompanyWatchlist} from './use-session-company-watchlist';
 import {useLocale} from './providers/locale-provider';
 import {FloatingEventWindow,type EventWindowAnchor} from './event-details-window';
 import styles from './chart-stock-review.module.css';
@@ -18,13 +19,13 @@ type Props={companyId:string;company?:GraphNode;graph?:KnowledgeGraph|null;ancho
 export function ChartStockReview(props:Props){
  const {text,locale,chinese}=useLocale();
  const follows=useCompanyFollows();
- const [guestIds,setGuestIds]=useState<string[]>([]);
+ const guest=useSessionCompanyWatchlist();
  const [pending,setPending]=useState(false),[failed,setFailed]=useState(false);
  const locked=useRef(false);
  const [sector,setSector]=useState('');
  const watchlist:ChartWatchlist=props.watchlist??{
-  ids:follows.user?follows.ids:guestIds,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,session:!follows.user,
-  change:async(id,follow)=>{if(follows.user)await follows.change(id,follow);else setGuestIds(current=>follow?[...new Set([...current,id])]:current.filter(value=>value!==id));},refresh:()=>{void follows.refresh();},
+  ids:follows.user?follows.ids:guest.ids,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,session:!follows.user,
+  change:async(id,follow)=>{if(follows.user)await follows.change(id,follow);else guest.change(id,follow);},refresh:()=>{void follows.refresh();},
  };
  const companies=[...new Map((props.graph?.nodes??[]).filter(node=>node.kind==='COMPANY').map(node=>[node.id,node])).values()];
  const byId=new Map(companies.map(node=>[node.id,node]));
@@ -75,7 +76,8 @@ export function ChartStockReview(props:Props){
   <section className={styles.review} aria-label={text('Watchlist review','自选股复盘')} data-chart-watchlist>
    <header><h3>{text('Watchlist review','自选股复盘')} <small>{saved.length}</small></h3><button type="button" disabled={pending||watchlist.loading} aria-pressed={followed} onClick={()=>void toggleFollow()}>{pending?text('Saving…','保存中…'):followed?text('Remove current stock','移出当前股票'):text('Add current stock','加入当前股票')}</button></header>
    {watchlist.session&&<p>{text('Session watchlist · sign in to save across visits.','本次会话自选股 · 登录后可跨访问保存。')}</p>}
-   {watchlist.loading?<p role="status">{text('Loading watchlist…','正在加载自选股…')}</p>:watchlist.error?<button type="button" onClick={watchlist.refresh}>{text('Could not load watchlist. Retry','自选股加载失败，重试')}</button>:saved.length?rows(saved):<p>{text('Add stocks to review them below the chart. Select a row to switch charts.','加入自选股后将在图表下方显示，点击股票即可切换图表。')}</p>}
+   {watchlist.error&&<button type="button" onClick={watchlist.refresh}>{text('Could not refresh watchlist. Retry','自选股刷新失败，重试')}</button>}
+   {watchlist.loading&&!saved.length?<p role="status">{text('Loading watchlist…','正在加载自选股…')}</p>:saved.length?rows(saved):!watchlist.error&&<p>{text('Add stocks to review them below the chart. Select a row to switch charts.','加入自选股后将在图表下方显示，点击股票即可切换图表。')}</p>}
    {failed&&!props.anchor&&<p role="alert">{text('Could not update watchlist. Please retry.','自选股更新失败，请重试。')}</p>}
   </section>
  </>;

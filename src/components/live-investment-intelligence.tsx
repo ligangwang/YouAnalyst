@@ -33,6 +33,7 @@ import { parseIndustryView, type IndustryView } from '@/lib/knowledge-graph/view
 import { curatedEvents } from '@/lib/knowledge-graph/curated-events';
 import {ActiveCompanyMeter,PublicationActivity,SourceVolume} from './intelligence-summary-visuals';
 import { useCompanyFollows } from './company-follow-button';
+import { useSessionCompanyWatchlist } from './use-session-company-watchlist';
 import { CompanyFollowStar, CompanyFollowConfirmation, type FollowFeedbackAnchor } from './company-follow-star';
 import { relationshipSourceTitle, relationshipSummary, companySummary, companyName, companySearchRank, companySearchText, matchesCompanySearch } from '@/lib/knowledge-graph/model';
 import { matchesCompanySector, graphSectors } from '@/lib/knowledge-graph/sectors';
@@ -61,13 +62,13 @@ type Panels={left:boolean|null;right:boolean};
 /** Failure never falls back to demo data. Polls pause in hidden tabs. */
 export function LiveInvestmentIntelligence({initialSnapshot,...initialState}:{initialSnapshot?:IntelligenceSnapshot}&WorkspaceInitialState={}){
   const {snapshot,theme,error,changeTheme,reconnect}=useIntelligenceSnapshot(initialSnapshot,initialState.initialTheme);
-  const [guestSaved,setGuestSaved]=useState<string[]>([]);
+  const {ids:guestSaved,change:changeGuestSaved}=useSessionCompanyWatchlist();
   const [panels,setPanels]=useState<Panels>({left:null,right:true});
   if(!snapshot)return <IntelligenceLoadingShell theme={theme} onThemeChange={changeTheme} error={error} onRetry={reconnect}/>;
-  return <IntelligenceWorkspace panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} setGuestSaved={setGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={reconnect}/>;
+  return <IntelligenceWorkspace panels={panels} setPanels={setPanels} {...initialState} guestSaved={guestSaved} changeGuestSaved={changeGuestSaved} snapshot={snapshot} theme={parseCompanyTheme(snapshot.theme)} requestedTheme={theme} changeTheme={changeTheme} error={error} reconnect={reconnect}/>;
 }
 
-function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,changeTheme,guestSaved,setGuestSaved,error,reconnect,initialView='',initialCompany='',initialQuery='',initialEdge='',initialEvent=''}:{snapshot:IntelligenceSnapshot;panels:Panels;setPanels:React.Dispatch<React.SetStateAction<Panels>>;theme:CompanyThemeId;requestedTheme:CompanyThemeId;changeTheme:(theme:CompanyThemeId)=>void;guestSaved:string[];setGuestSaved:React.Dispatch<React.SetStateAction<string[]>>;error:string;reconnect:()=>void}&WorkspaceInitialState){
+function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,changeTheme,guestSaved,changeGuestSaved,error,reconnect,initialView='',initialCompany='',initialQuery='',initialEdge='',initialEvent=''}:{snapshot:IntelligenceSnapshot;panels:Panels;setPanels:React.Dispatch<React.SetStateAction<Panels>>;theme:CompanyThemeId;requestedTheme:CompanyThemeId;changeTheme:(theme:CompanyThemeId)=>void;guestSaved:string[];changeGuestSaved:(id:string,follow:boolean)=>void;error:string;reconnect:()=>void}&WorkspaceInitialState){
   const {locale,chinese}=useLocale();
   const ui=useUiText();
   const {size:graphSize,setSize:setGraphSize,root:graphSizeRef} = useChartSize();
@@ -195,7 +196,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   function activate(id:string,anchor?:EventWindowAnchor){const next=snapshot.events.find(item=>intelligenceEventMatchesId(item,id));if(!next)return;const trigger=eventTrigger.current;setEventAnchor(anchor??{...(clickAnchor.current??{x:innerWidth/2,y:64}),trigger,host:trigger?.closest<HTMLElement>('[data-chart-size="full"]')??null});const company=activityCompany&&next.companyIds.includes(activityCompany.id)?activityCompany.id:companiesById.has(next.origin)?next.origin:next.companyIds.find(id=>companiesById.has(id))??'';updateIndustryBrowse({event:id,company,relationship:'',feedCompany:activityCompany?.id??''});setCamera(value=>value+1);setPropagating(true);setPulse(value=>value+1);}
   async function changeSaved(id:string,follow:boolean,anchor?:FollowFeedbackAnchor){
     setSaveError('');
-    if(!follows.user)setGuestSaved(ids=>follow?(ids.includes(id)?ids:[...ids,id]):ids.filter(item=>item!==id));
+    if(!follows.user)changeGuestSaved(id,follow);
     else await follows.change(id,follow);
     setFollowConfirmation(current=>({label:label(id),followed:follow,anchor,id:(current?.id??0)+1}));
   }

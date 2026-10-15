@@ -92,3 +92,32 @@ test('Chinese touch toolbar offers sectors and a session watchlist without accou
  await expect(tools.getByRole('button',{name:'英伟达',exact:true})).toBeVisible();
  const box=(await tools.boundingBox())!;expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
 });
+
+test('guest watchlist survives chart close, reopen and navigation in the same tab',async({page})=>{
+ const writes=await open(page,'&guest=1');
+ const review=page.getByRole('region',{name:'Watchlist review',exact:true});
+ await review.getByRole('button',{name:'Add current stock',exact:true}).click();
+ await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Close timeline',exact:true}).click();
+ await expect(review).toHaveCount(0);
+ await page.getByRole('button',{name:'Show timeline',exact:true}).click();
+ await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
+ await page.goto('http://review.test/en?chartMA=none&guest=1&view=tree');
+ await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
+ expect(writes).toHaveLength(0);
+});
+
+test('refresh failure keeps previously loaded watchlist rows visible and retry recovers',async({page})=>{
+ await open(page);
+ const review=page.getByRole('region',{name:'Watchlist review',exact:true});
+ await review.getByRole('button',{name:'Add current stock',exact:true}).click();
+ await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
+ await page.route('**/api/map-follows',route=>route.fulfill({status:503,json:{error:'offline'}}));
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await expect(review.getByRole('button',{name:'Could not refresh watchlist. Retry',exact:true})).toBeVisible();
+ await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
+ await page.route('**/api/map-follows',route=>route.fulfill({json:{companyIds:['US:AMD']}}));
+ await review.getByRole('button',{name:'Could not refresh watchlist. Retry',exact:true}).click();
+ await expect(review.getByRole('button',{name:'Could not refresh watchlist. Retry',exact:true})).toHaveCount(0);
+ await expect(review.getByRole('button',{name:'AMD',exact:true})).toBeVisible();
+});
