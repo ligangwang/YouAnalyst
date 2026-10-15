@@ -235,7 +235,7 @@ function Scene(props:TreeSceneProps){
     if(!c||!node)return;
     const key=`${node.id}:${size.width}:${size.height}`;
     if(selectionFocus.current===key)return;
-    selectionFocus.current=key;userPositioned.current=true;tourRef.current=false;resumePending.current=false;
+    selectionFocus.current=key;tourRef.current=false;resumePending.current=false;
     // Complete growth when locating an existing selection; it must not wait for the intro.
     queueMicrotask(()=>setGrowth({request:props.request,active:false}));
     woodGrowth.current.roots=1;woodGrowth.current.trunk=1;
