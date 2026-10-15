@@ -1937,8 +1937,8 @@ test('hierarchy drags from node content without expanding and resets to a center
  await root.click();await expect(root).toHaveAttribute('aria-expanded','false');
  await page.locator('[data-industry-section="hierarchy"]').getByRole('button',{name:'Reset view',exact:true}).click();
  await expect(root).toHaveAttribute('aria-expanded','true');
- const fit=await svg.evaluate(el=>{const box=(el as SVGSVGElement).viewBox.baseVal;const nodes=[...el.querySelectorAll('foreignObject')];return {x:box.x,y:box.y,w:box.width,h:box.height,left:Math.min(...nodes.map(n=>n.x.baseVal.value)),right:Math.max(...nodes.map(n=>n.x.baseVal.value+240)),top:Math.min(...nodes.map(n=>n.y.baseVal.value)),bottom:Math.max(...nodes.map(n=>n.y.baseVal.value+76))};});
- expect(fit.x+fit.w/2).toBeCloseTo((fit.left+fit.right)/2,0);expect(fit.y+fit.h/2).toBeCloseTo((fit.top+fit.bottom)/2,0);
+ await expect(scene.locator('[data-hierarchy-node][data-exiting=false]')).toHaveCount(6);
+ await expect.poll(()=>svg.evaluate(el=>{const box=(el as SVGSVGElement).viewBox.baseVal,nodes=[...el.querySelectorAll('foreignObject')].filter(n=>n.querySelector('button')?.getAttribute('data-exiting')!=='true');const left=Math.min(...nodes.map(n=>n.x.baseVal.value)),right=Math.max(...nodes.map(n=>n.x.baseVal.value+240)),top=Math.min(...nodes.map(n=>n.y.baseVal.value)),bottom=Math.max(...nodes.map(n=>n.y.baseVal.value+76));return Math.max(Math.abs(box.x+box.width/2-(left+right)/2),Math.abs(box.y+box.height/2-(top+bottom)/2));})).toBeLessThan(.5);
 });
 
 test('tree reveals leaves after a manual zoom and manual expansion completes the remaining canopy',async({page})=>{
