@@ -1266,6 +1266,22 @@ for(const view of ['tree','hierarchy','table'])test(view+' company selection ope
  await expect(card).toBeVisible();await expect(card).toBeFocused();
  await expect(page.getByRole('complementary',{name:'Events and sources'}).getByRole('region',{name:'Company details'})).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Collapse right panel',exact:true})).not.toBeVisible();
+ const content=page.locator('[data-company-workspace] > [data-industry-section], [data-company-workspace] > [data-company-table]');
+ const fillsView=async()=>{
+  await expect.poll(()=>content.evaluate(el=>{
+   const view=el.getBoundingClientRect(),host=el.parentElement!.getBoundingClientRect();
+   return Math.max(Math.abs(view.x-host.x),Math.abs(view.y-host.y),Math.abs(view.width-host.width),Math.abs(view.height-host.height));
+  })).toBeLessThan(1);
+ };
+ await fillsView();
+ const size=page.getByRole('group',{name:'Company view size',exact:true});
+ const original=await page.locator('[data-company-workspace]').evaluate(el=>el.closest('[data-chart-size]')!.getAttribute('data-chart-size'));
+ await size.getByRole('button',{name:'Full screen',exact:true}).click();await fillsView();
+ await expect(card).toBeVisible();
+ await page.screenshot({path:test.info().outputPath(`${view}-company-card-overlay.png`)});
+ if(original==='half')await size.getByRole('button',{name:'Half screen',exact:true}).click();
+ else if(original==='compact')await size.getByRole('button',{name:'Restore layout',exact:true}).click();
+ await fillsView();
  const host=(await page.locator('[data-company-workspace]').boundingBox())!;
  const box=(await card.boundingBox())!;
  expect(box.x).toBeGreaterThanOrEqual(host.x);
