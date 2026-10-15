@@ -11,6 +11,9 @@ import { layout3D } from "../../src/lib/knowledge-graph/layout-3d";
 import { marketCapScale } from "../../src/lib/knowledge-graph/market-cap";
 
 for (const view of ['graph','vertical'] as const) test(`clicking the selected ${view} node toggles its detail card`,async({page})=>{
+ // The vertical case renders meadow scenery while exercising several complete
+ // open/close cycles and rapid reopening; retain bounded assertions within a full minute.
+ if(view==='vertical')test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
