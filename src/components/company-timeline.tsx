@@ -22,7 +22,7 @@ import type { SearchSuggestion } from "./ticker-search-input";
 import { ChartStockReview, type ChartWatchlist } from './chart-stock-review';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, revealRequest=0, watchlist, onSelectCompany }: { watchlist?:ChartWatchlist; onSelectCompany?:(id:string)=>void; revealRequest?:number; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
+export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, closed:controlledClosed, onClosedChange, watchlist, onSelectCompany }: { watchlist?:ChartWatchlist; onSelectCompany?:(id:string)=>void; closed?:boolean; onClosedChange?:(closed:boolean)=>void; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
   const [stockChoice, setStockChoice] = useState<{source: string; item: SearchSuggestion} | null>(null);
   const chosenStock = stockChoice?.source === initialCompanyId ? stockChoice.item : null;
@@ -83,8 +83,8 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const [maSettings,setMaSettings]=useState<EventWindowAnchor|null>(null);
   const [helpAnchor,setHelpAnchor]=useState<EventWindowAnchor|null>(null);
   const [viewport,setViewport]=useState({key:'',zoom:1,offset:0});
-  const [closed, setClosed] = useState(false);
-  useEffect(()=>{if(!revealRequest)return;let live=true;queueMicrotask(()=>{if(live)setClosed(false);});return()=>{live=false;};},[revealRequest]);
+  const [localClosed, setLocalClosed] = useState(false);
+  const closed=controlledClosed??localClosed;
   const [loaded, setLoaded] = useState<{ key: string; data: TimelinePrices; indicatorError?:boolean } | null>(null);
   const [loadedGraph, setLoadedGraph] = useState<KnowledgeGraph | null>(null);
   const [retry, setRetry] = useState(0);
@@ -126,7 +126,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   useEffect(() => {
     if (restoreToggleFocus.current) { toggleButton.current?.focus(); restoreToggleFocus.current = false; }
   }, [closed]);
-  const toggleTimeline = (value: boolean) => { restoreToggleFocus.current = true; setClosed(value); if(value)setChartSize("compact"); setPriceSelection(null); setClusterId(''); setHoverDate(null); };
+  const toggleTimeline = (value: boolean) => { restoreToggleFocus.current = true; setLocalClosed(value); onClosedChange?.(value); if(value)setChartSize("compact"); setPriceSelection(null); setClusterId(''); setHoverDate(null); };
   const key = `${companyId}:${days}:${interval}:${needsHistory}:${maxAverage}:${retry}`;
   const compatibleInterval=(value:TimelinePrices)=>value.interval===interval||(value.interval??'daily')==='daily';
   const matchingInitial = initialPrices?.companyId===companyId && compatibleInterval(initialPrices) && initialPrices.start<=timelineWindow(days,initialPrices.end).start ? initialPrices : null;
