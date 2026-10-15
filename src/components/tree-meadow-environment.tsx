@@ -8,12 +8,13 @@ import {leafClusterTexture,meadowTexture} from '@/lib/ui/knowledge-graph/leaf-te
 
 const noHit=()=>{};
 type Plant={position:[number,number,number];scale:[number,number,number];rotation:[number,number,number];color:string};
-// The tree stands on a low, level rise at soil height, wide enough that its
-// roots and the Energy roots run underground, then eases down to the meadow.
-const MEADOW_Y=-420;
+// The meadow is level with the soil, so the tree stands on flat ground and its
+// roots and the Energy roots run underground. Only far from the trunk does the
+// ground roll gently.
+const MEADOW_Y=VERTICAL_SOIL_Y;
 const groundHeight=(x:number,z:number)=>{
- const crest=Math.exp(-(((x*x+z*z)/(1500*1500))**3));
- return MEADOW_Y+(VERTICAL_SOIL_Y-MEADOW_Y)*crest+35*Math.sin(x/1100)*Math.cos(z/900)*(1-crest*.9);
+ const near=Math.exp(-(((x*x+z*z)/(1500*1500))**3));
+ return MEADOW_Y+35*Math.sin(x/1100)*Math.cos(z/900)*(1-near);
 };
 
 // Decorative instances have no hit targets: company leaves and canvas gestures stay usable.
@@ -142,7 +143,7 @@ export function TreeMeadowEnvironment({nodes}:{nodes:TreePoint[]}){
   <mesh raycast={noHit}><sphereGeometry args={[65000,32,20]}/><shaderMaterial side={BackSide} depthWrite={false} toneMapped={false}
    vertexShader="varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}"
    fragmentShader="varying vec3 direction;void main(){vec3 d=normalize(direction);float h=max(0.,d.y);vec3 horizon=vec3(.9,.94,.93);vec3 sky=mix(horizon,vec3(.58,.8,.94),smoothstep(0.,.16,h));sky=mix(sky,vec3(.2,.5,.84),smoothstep(.12,.9,h));float sun=max(0.,dot(d,normalize(vec3(.5,.7,-.6))));sky+=vec3(1.,.86,.62)*pow(sun,6.)*.2+vec3(1.,.96,.84)*pow(sun,260.)*.8;gl_FragColor=vec4(sky,1.);}"/></mesh>
-  <mesh rotation={[-Math.PI/2,0,0]} position={[0,MEADOW_Y-20,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#769d53" roughness={1}/></mesh>
+  <mesh rotation={[-Math.PI/2,0,0]} position={[0,MEADOW_Y-60,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#769d53" roughness={1}/></mesh>
   <mesh geometry={terrain} raycast={noHit}><meshStandardMaterial vertexColors map={turf} roughness={1}/></mesh>
   {[0,Math.PI/2,Math.PI,Math.PI*1.5].map(angle=><group key={angle} rotation={[0,angle,0]}>{mountains.map((geometry,i)=><mesh key={i} position={[0,0,-23000+i*4500]} geometry={geometry} raycast={noHit}><meshStandardMaterial vertexColors roughness={1} side={DoubleSide}/></mesh>)}</group>)}
   {Array.from({length:11},(_,i)=>{const a=(i+jitter(`cloud${i}`,2)*.6)/11*Math.PI*2,r=16000+jitter(`cloud${i}`,3)*7000,s=.8+jitter(`cloud${i}`,4)*.6;return <group key={i} position={[Math.cos(a)*r,5200+jitter(`cloud${i}`)*2600,Math.sin(a)*r]} rotation={[0,-a+Math.PI/2,0]} scale={s}><Cloud seed={i}/></group>;})}
