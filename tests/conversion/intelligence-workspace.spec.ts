@@ -141,6 +141,23 @@ for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} 
  await expect(workspace).toHaveAttribute('data-chart-size','full');
 });
 
+test('fullscreen lookup shows candles while company event sources are still loading',async({page})=>{
+ await open(page);await page.goto('http://workspace.test/?view=graph');
+ let release!:()=>void;const pending=new Promise<void>(resolve=>{release=resolve;});
+ await page.route('**/api/intelligence*',async route=>{await pending;await route.fulfill({json:snapshot});});
+ await page.route('**/api/tickers/search*',route=>route.fulfill({json:{items:[{id:'US:MU',symbol:'MU',name:'Micron',market:'US'}]}}));
+ await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:'US:MU',currency:'USD',available:true,prices:[{date:'2026-10-02',open:105,high:115,low:100,close:110,volume:2000}]}}));
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ try{
+  await workspace.getByRole('button',{name:'Search company',exact:true}).click();await page.getByRole('combobox',{name:'Search company',exact:true}).fill('MU');await page.getByRole('option',{name:/Micron/}).click();
+  await expect(page.locator('aside[aria-label="Events and sources"]').getByText('Loading events and sources…')).toBeAttached();
+  await expect(workspace.locator('[data-company-timeline="US:MU"] [data-price-candle]').first()).toBeVisible();
+  await expect(workspace).toHaveAttribute('data-chart-size','full');
+ }finally{release();}
+ await expect(page.locator('aside[aria-label="Events and sources"]').getByText('Loading events and sources…')).toHaveCount(0);
+});
+
 for(const view of ['graph','tree','hierarchy','table'])test(`selected company price chart remains usable inside fullscreen ${view}`,async({page})=>{
  await open(page);
  await page.goto(`http://workspace.test/?view=${view}&company=US%3AMU`);
