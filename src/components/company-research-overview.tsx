@@ -15,7 +15,7 @@ import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
-export function CompanyResearchOverview({ company, fundamentals, graph, announcements=[], earningsSummary=null }: { company: CompanyResearch; fundamentals?: ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
+export function CompanyResearchOverview({ company, fundamentals, comparison, graph, announcements=[], earningsSummary=null }: { company: CompanyResearch; fundamentals?: ReactNode; comparison?:ReactNode; graph?: KnowledgeGraph;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
   const facts = [["Ticker", company.ticker], ["Exchange", company.exchange], ["Currency", company.currency],
     ["Country", company.country], ["Security", company.securityType]].filter(([, value]) => value);
   return <>
@@ -48,6 +48,7 @@ export function CompanyResearchOverview({ company, fundamentals, graph, announce
     {graph && <CompanyResearchPanel companyId={`US:${company.ticker}`} initialGraph={graph} />}
     <CompanyAnnouncements items={announcements} earningsSummary={earningsSummary}/>
     {fundamentals}
+    {comparison}
     {!graph && company.inMap && <section aria-labelledby="company-relationships" className="border-b border-white/15 py-6">
       <h2 id="company-relationships" className="scroll-mt-24 text-xl font-semibold text-cyan-100">{company.ticker}<UiText text={" suppliers, customers and partners"} /></h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">{company.connections.length ? <UiText text={`${company.connections.length} relationships in the loaded sources. `} /> : ""}<UiText text={"Published relationships from the AI Map, with links to their supporting sources. Source dates do not establish whether a relationship remains active."} /></p>

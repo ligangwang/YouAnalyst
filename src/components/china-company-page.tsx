@@ -1,5 +1,6 @@
 "use client";
 import { CompanyCountryFlag } from "./company-country-flag";
+import type { ReactNode } from 'react';
 import { companyName } from "@/lib/knowledge-graph/model";
 
 
@@ -19,7 +20,7 @@ import {CompanyAnnouncements} from './company-announcements';
 import type {CompanyAnnouncement} from '@/lib/events/company-announcements';
 import type {PublicEarningsSummary} from '@/lib/earnings/public-summary';
 
-export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale=false,announcements=[],earningsSummary=null }: { company: ChinaCompany; marketCap?: PublicCnMarketCap | null; annual?:CnAnnual|null;stale?:boolean;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null }) {
+export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale=false,announcements=[],earningsSummary=null,comparison }: { company: ChinaCompany; marketCap?: PublicCnMarketCap | null; annual?:CnAnnual|null;stale?:boolean;announcements?:CompanyAnnouncement[];earningsSummary?:PublicEarningsSummary|null;comparison?:ReactNode }) {
   const { text, locale } = useLocale();
   return <main className="mx-auto max-w-5xl px-4 py-10 sm:py-16">
     <Link href="/companies" className="text-sm text-cyan-200 hover:underline">{text("Search companies", "搜索公司")} →</Link>
@@ -34,6 +35,7 @@ export function ChinaCompanyPage({ company, marketCap = null, annual=null, stale
     <CompanyResearchTimeline company={{ id: company.id, kind: "COMPANY", order: 0, name: company.name, names: company.names, country: company.country, symbol: company.id.split(":")[1], market: "CN_A", listingStatus: company.listingStatus, summary: company.descriptionEn || company.description }} />
     {company.listingStatus !== "PRIVATE" && <ChinaMarketCap data={marketCap} />}
     {company.listingStatus !== "PRIVATE" && <ChinaAnnualFinancials annual={annual} stale={stale}/>}
+    {comparison}
     <CompanyResearchPanel companyId={company.id} />
     {/* Analyst views follow the research they build on. */}
     {company.listingStatus !== "PRIVATE" && <CompanyOutlook ticker={company.id} />}
