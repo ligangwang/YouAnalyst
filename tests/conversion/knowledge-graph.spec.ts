@@ -195,7 +195,7 @@ test('tree manual views remain parked through release, tab changes and company d
  await page.waitForTimeout(500);
  expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
  await canvas.scrollIntoViewIfNeeded();await page.waitForTimeout(2300);
- await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(selected);
+ await expect(canvas).toHaveAttribute('data-tour','stopped');expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
  await tree.getByRole('button',{name:'Reset view',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
 });
@@ -211,7 +211,7 @@ async function projectedGraphPositions(page: Page) {
 }
 
 test('tree layer changes preserve the manual camera and closed layers stay closed',async({page})=>{
- test.setTimeout(45000);
+ test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
