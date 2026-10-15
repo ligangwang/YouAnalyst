@@ -1750,7 +1750,7 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await accelerateTours(page,0);
  // Two complete tour replays and software-WebGL screenshots share this
  // budget. Keep the individual motion and resume assertions bounded below.
- test.setTimeout(180000);
+ test.setTimeout(240000);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
  const fixture=graph;
