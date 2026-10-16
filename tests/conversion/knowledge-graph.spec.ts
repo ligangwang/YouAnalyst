@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Page, type Locator } from "@playwright/test";
 import { build } from "esbuild";
-import { accelerateTours, tourClockPlugin } from "./fixtures/tour-clock";
+import { accelerateTours, pastIdleResume, shortenIdleResume, tourClockPlugin } from "./fixtures/tour-clock";
 import { PerspectiveCamera, Vector3 } from "three";
 import us from "../../data/ai-supply-chain/ai-us.json";
 import cn from "../../data/ai-supply-chain/ai-cn-a.json";
@@ -113,7 +113,7 @@ async function revealListFilters(page:Page) {
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
 test('tree manual views remain parked through release, tab changes and company details',async({page,isMobile})=>{
- await accelerateTours(page);
+ await accelerateTours(page);await shortenIdleResume(page);
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  // This checks input and idle-resume timing, not full-universe rendering. Keep
@@ -151,34 +151,34 @@ test('tree manual views remain parked through release, tab changes and company d
  const held=await pose();
  expect(held).toHaveLength(6);
  expect(held.every(Number.isFinite)).toBe(true);
- await page.waitForTimeout(2300);
+ await pastIdleResume(page);
  expect(await pose()).toEqual(held);
  await page.mouse.up({button:'right'});
  await page.waitForTimeout(600);
  expect(await pose()).toEqual(held);
- await page.waitForTimeout(2300);await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(held);
+ await pastIdleResume(page);await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(held);
  // Pan and zoom without losing the deliberately chosen view after release.
  await page.mouse.move(bounds.x+8,bounds.y+8);await zoomWheel(page,-120);
  await page.mouse.down();await page.mouse.move(bounds.x+38,bounds.y+28,{steps:6});
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
  const manual=await pose();expect(manual).not.toEqual(held);await page.mouse.up();
- await page.waitForTimeout(2300);await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(manual);
+ await pastIdleResume(page);await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(manual);
  // Blank clicks and tab changes must retain the parked camera.
  if(isMobile)await page.touchscreen.tap(bounds.x+8,bounds.y+8);
  else await page.mouse.click(bounds.x+8,bounds.y+8);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  await page.getByRole('tab',{name:'Company list',exact:true}).click();
- await page.waitForTimeout(2300);
+ await pastIdleResume(page);
  await page.getByRole('tab',{name:'Industry tree',exact:true}).click();
  await canvas.scrollIntoViewIfNeeded();
- await page.waitForTimeout(2300);await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(manual);
+ await pastIdleResume(page);await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(manual);
  await page.emulateMedia({reducedMotion:'reduce'});
  const returnedBounds=(await canvas.boundingBox())!;
  if(isMobile)await page.touchscreen.tap(returnedBounds.x+8,returnedBounds.y+8);
  else await page.mouse.click(returnedBounds.x+8,returnedBounds.y+8);
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
  const reduced=await pose();
- await page.waitForTimeout(2300);
+ await pastIdleResume(page);
  expect(await pose()).toEqual(reduced);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  await tree.evaluate(el=>(el as HTMLElement & {releaseControlTest:()=>void}).releaseControlTest());
@@ -190,14 +190,14 @@ test('tree manual views remain parked through release, tab changes and company d
  await page.emulateMedia({reducedMotion:'no-preference'});
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
  const selected=await pose();
- await page.waitForTimeout(2300);
+ await pastIdleResume(page);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
  await tree.getByRole('button',{name:'Close company details',exact:true}).click();
  await expect(tree.getByRole('dialog',{name:'Company details'})).toHaveCount(0);
  await page.waitForTimeout(500);
  expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
- await canvas.scrollIntoViewIfNeeded();await page.waitForTimeout(2300);
+ await canvas.scrollIntoViewIfNeeded();await pastIdleResume(page);
  await expect(canvas).toHaveAttribute('data-tour','stopped');expect(Math.max(...(await pose()).map((v,i)=>Math.abs(v-selected[i])))).toBeLessThan(.001);
  await tree.getByRole('button',{name:'Reset view',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
@@ -214,7 +214,7 @@ async function projectedGraphPositions(page: Page) {
 }
 
 test('tree layer changes preserve the manual camera and closed layers stay closed',async({page})=>{
- test.setTimeout(90000);
+ test.setTimeout(90000);await shortenIdleResume(page);
  await page.emulateMedia({reducedMotion:'reduce'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
@@ -226,16 +226,16 @@ test('tree layer changes preserve the manual camera and closed layers stay close
  await tree.locator('[data-tree-kind="layer"][data-tree-node="energy"]').evaluate((el:HTMLButtonElement)=>el.click());
  await expect(canvas).not.toHaveAttribute('data-tour-open-layers',/energy/);
  expect(await pose()).toEqual(initial);
- await page.emulateMedia({reducedMotion:'no-preference'});await page.waitForTimeout(2300);
+ await page.emulateMedia({reducedMotion:'no-preference'});await pastIdleResume(page);
  await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(initial);
  await tree.getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour-open-layers','');
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  const collapsed=await pose();
- await page.waitForTimeout(2300);
+ await pastIdleResume(page);
  expect(await pose()).toEqual(collapsed);
  await tree.getByRole('button',{name:'Expand all',exact:true}).click();await canvas.scrollIntoViewIfNeeded();
- await page.waitForTimeout(2300);await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(collapsed);
+ await pastIdleResume(page);await expect(canvas).toHaveAttribute('data-tour','stopped');expect(await pose()).toEqual(collapsed);
  // The card must win hit testing over projected Html node labels.
  await page.emulateMedia({reducedMotion:'reduce'});
  await tree.locator('[data-tree-company="US:GEV"]').first().evaluate((el:HTMLButtonElement)=>el.click());
@@ -1000,7 +1000,7 @@ for (const language of ["en", "zh-CN"]) test(`company browser focuses graph and 
 });
 
 test("selected relationships stay readable and evidence remains actionable", async ({page},testInfo)=>{
-  await page.emulateMedia({reducedMotion:"reduce"});
+  await shortenIdleResume(page);await page.emulateMedia({reducedMotion:"reduce"});
   await page.route("**/*",route=>route.request().url().includes("/api/knowledge-graph")?route.fulfill({json:graph}):route.fulfill({contentType:"text/html",body:html}));
   await page.goto("http://graph.test/map?lang=en");
   await expect(page.locator("canvas")).toBeVisible();
@@ -1025,7 +1025,7 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
   await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
   const focused=await projectedGraphPositions(page);
-  await page.waitForTimeout(2300);
+  await pastIdleResume(page);
   await expect(canvas).toHaveAttribute('data-rotation','focused');
   // Drei may finish a sub-pixel label update after the camera settles.
   expect(Math.max(...(await projectedGraphPositions(page)).map((v,i)=>Math.abs(v-focused[i])))).toBeLessThan(.1);
@@ -1038,7 +1038,7 @@ test("selected relationships stay readable and evidence remains actionable", asy
   await labels.first().click();
   await expect(page.getByRole("region",{name:"Selected connection"})).toBeVisible();
   const connection=await projectedGraphPositions(page);
-  await page.waitForTimeout(2300);
+  await pastIdleResume(page);
   await expect(canvas).toHaveAttribute('data-rotation','focused');
   expect(Math.max(...(await projectedGraphPositions(page)).map((v,i)=>Math.abs(v-connection[i])))).toBeLessThan(.1);
 });
@@ -1747,7 +1747,7 @@ test('navigation: manual hierarchy stays put and cannot pause other charts',asyn
 
 
 test('tree continuously surrounds the trunk and resumes after company details',async({page})=>{
- await accelerateTours(page,0);
+ await accelerateTours(page,0);await shortenIdleResume(page);
  // Two complete tour replays and software-WebGL screenshots share this
  // budget. Keep the individual motion and resume assertions bounded below.
  test.setTimeout(240000);
@@ -1812,18 +1812,18 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  await expect(canvas).toHaveAttribute('data-tour','playing',{timeout:10000});
  const resumed=await canvas.getAttribute('data-camera-position');
  await expect.poll(()=>canvas.getAttribute('data-camera-position')).not.toBe(resumed);
- // A manual zoom parks the camera until Reset; it must not climb away after two seconds.
+ // A manual zoom parks the camera until Reset; it must not climb away after the idle deadline.
  await canvas.dispatchEvent('wheel',{deltaY:-150,bubbles:true,cancelable:true});
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
- await page.waitForTimeout(2500);
+ await pastIdleResume(page,500);
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  const afterZoom=await canvas.getAttribute('data-camera-position');
  await page.waitForTimeout(600);
  expect(await canvas.getAttribute('data-camera-position')).toBe(afterZoom);
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
- await page.waitForTimeout(2200);
+ await pastIdleResume(page,200);
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
 });
 
@@ -1980,7 +1980,7 @@ test('hierarchy drags from node content without expanding and resets to a center
 });
 
 test('tree reset reopens every layer after a manual zoom and collapse',async({page})=>{
- test.setTimeout(75000);await accelerateTours(page,8);await page.emulateMedia({reducedMotion:'no-preference'});
+ test.setTimeout(75000);await accelerateTours(page,8);await shortenIdleResume(page);await page.emulateMedia({reducedMotion:'no-preference'});
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');await canvas.scrollIntoViewIfNeeded();
@@ -1989,7 +1989,7 @@ test('tree reset reopens every layer after a manual zoom and collapse',async({pa
  await expect(canvas).toHaveAttribute('data-tour','stopped');
  await expect(tree.locator('[data-tree-kind="company"]').first()).toBeAttached({timeout:15000});
  await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:15000});
- const pose=await canvas.getAttribute('data-camera-target');await page.waitForTimeout(2300);
+ const pose=await canvas.getAttribute('data-camera-target');await pastIdleResume(page);
  expect(await canvas.getAttribute('data-camera-target')).toBe(pose);await expect(canvas).toHaveAttribute('data-tour','stopped');
  const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toHaveAttribute('aria-expanded','true');
  await chips.evaluate((el:HTMLButtonElement)=>el.click());

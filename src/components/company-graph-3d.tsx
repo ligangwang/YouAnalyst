@@ -1,7 +1,7 @@
 "use client";
 
 import { LoadingSpinner } from './loading-spinner';
-import { tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
+import { TOUR_IDLE_RESUME_MS, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { IntelligencePropagation } from './intelligence-propagation';
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -91,13 +91,13 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     const schedule=()=>{
       clearTimer();
       if(pointers.size || keys.size)return;
-      resumeAt.current=performance.now()+2000;
+      resumeAt.current=performance.now()+TOUR_IDLE_RESUME_MS;
       idleTimer.current=setTimeout(()=>{
         idleTimer.current=null;
         // The demand renderer needs a frame that can actually start the orbit.
         resumeAt.current=performance.now();
         invalidate();
-      },2000);
+      },TOUR_IDLE_RESUME_MS);
       invalidate();
     };
     const down=(event:Event)=>{pointers.add((event as PointerEvent).pointerId);pause();};

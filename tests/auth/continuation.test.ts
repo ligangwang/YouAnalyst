@@ -25,15 +25,17 @@ test("following copy does not replace intentional calls or unrelated account ent
 
 test("following copy never accepts external or ambiguous continuations", () => {
   for (const destination of [
+    undefined, "",
     "https://evil.example/en/feed?scope=following", "//evil.example/watchlists/following",
     "/\\evil.example/en/watchlists/following", "/\n/evil.example/watchlists/following",
     "/.//evil.example/watchlists/following", "/%2f%2fevil.example/watchlists/following",
     "/%5cevil.example/feed?scope=following", "/%00/feed?scope=following", "/%zz",
     "javascript:alert(1)",
   ]) {
-    assert.equal(safeAuthDestination(destination), null, destination);
-    assert.equal(isFollowingAuthDestination(destination), false, destination);
+    assert.equal(safeAuthDestination(destination), null, String(destination));
+    assert.equal(isFollowingAuthDestination(destination), false, String(destination));
   }
+  for (const destination of ["/ticker/AMD", "/predictions/new?ticker=AMD"]) assert.equal(safeAuthDestination(destination), destination);
 });
 
 // Render the actual component/providers without a browser or authentication.

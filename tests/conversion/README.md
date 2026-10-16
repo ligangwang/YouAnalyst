@@ -29,12 +29,28 @@ Playwright test list per runner, including both device projects and new tests.
 Use `--list` to inspect an assignment. Weights are estimates, not timeouts or
 selection filters; the required browser gate still requires all four runners.
 
+Weights come from measured seconds in `timings.json`: tests that took at least
+five seconds are listed by ID, and every other test uses its file's median, so
+new tests are balanced before they have history. When shard durations drift
+apart, download the four `browser-timings-*` artifacts from a passing run and
+refresh the file:
+
+    node scripts/conversion-shards.mjs --record-timings shard-*/report.json
+
 The map fixture's `tour-clock` esbuild plugin accelerates only the tour entry
 points in explicitly opted-in tests (8x by default). A rate of zero lets a test
 inspect the initial frame before advancing. Production source and user speed
-settings are unchanged. CSS fades, camera damping and idle-resume timers keep
-real timing. Pure tour tests cover real pacing, frame rates and full cycles
-without wall-clock waits; browser tests cover integration and interactions.
+settings are unchanged. CSS fades and camera damping keep real timing.
+
+The same plugin scales the shared idle-resume deadline (`TOUR_IDLE_RESUME_MS`)
+only in tests that call `shortenIdleResume` (1/8 by default). Opt in only when a
+test checks what happens after the deadline, such as a parked camera staying
+put; tests that assert states within the deadline keep real timing. Wait with
+`pastIdleResume(page, margin)` rather than a fixed sleep, so the wait follows
+the page's real or shortened deadline.
+
+Pure tour tests cover real pacing, frame rates and full cycles without
+wall-clock waits; browser tests cover integration and interactions.
 The overlapping tree approach check is covered by the full presentation journey.
 Its unique disabled-during-exit assertion now uses a small, manually expanded
 fixture without waiting through another introduction. Pure graph data/layout

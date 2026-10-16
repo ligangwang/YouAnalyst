@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { build } from "esbuild";
 import path from "node:path";
-import { safeAuthDestination } from "../../src/lib/auth-continuation";
 import type { AuthScenario } from "./fixtures/mocks";
 
 const origin = "http://conversion.test";
@@ -290,14 +289,6 @@ test("publication analytics fires only after a successful response, without send
   expect(events.filter((event) => event[1] === "prediction_publish")).toHaveLength(1);
   expect(JSON.stringify(events)).toContain('"graph_origin":"yes"');
   expect(JSON.stringify(events)).not.toMatch(/Private research|test-user|test-prediction/);
-});
-
-test("destination validation rejects external and ambiguous paths", () => {
-  for (const destination of [undefined, "", "https://evil.example", "javascript:alert(1)", "//evil.example", "/\\evil.example", "/\n/evil.example", "/.//evil.example", "/%2f%2fevil.example", "/%5cevil.example", "/%00", "/%zz"]) {
-    expect(safeAuthDestination(destination), String(destination)).toBeNull();
-  }
-  expect(safeAuthDestination("/ticker/AMD")).toBe("/ticker/AMD");
-  expect(safeAuthDestination(composer)).toBe(composer);
 });
 
 for (const code of ["auth/popup-closed-by-user", "auth/cancelled-popup-request"]) {
