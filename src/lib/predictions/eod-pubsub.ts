@@ -94,11 +94,11 @@ export async function processEodMaintenance(value: unknown, db: Firestore, log: 
       const result = await (dependencies.run ?? runDailyEodMaintenance)({ ...request.input,
         ...(request.input.rollForward ? {skipHistoryBackfill:true} : {}),
         runDate: ledger.dates![ledger.dateIndex!], rollForward: false, afterPredictionId: ledger.cursor ?? undefined });
-      if (result.priceLoad.failed || result.fx?.failed || result.marking.missingPrice) {
+      if (result.priceLoad.failed || result.fx?.failed || result.marking.missingPrice || result.corporateActions?.failures.length || result.corporateActions?.deferred) {
         log.emit("WARNING", "page_incomplete", { batchId: request.batchId, market: request.input.market,
           runDate: result.runDate, priceLoad: { failed: result.priceLoad.failed, failures: result.priceLoad.failures },
-          fx: result.fx ?? null, marking: result.marking });
-        throw Error("EOD has incomplete prices or scores; retry this page before advancing");
+          fx: result.fx ?? null, marking: result.marking, corporateActions:result.corporateActions??null });
+        throw Error("EOD has incomplete prices, scores or corporate actions; retry this page before advancing");
       }
       if (result.hasMoreCandidatePredictions && (!result.nextPredictionId || result.nextPredictionId === ledger.cursor)) throw Error("EOD cursor did not advance");
       const next: Ledger = { ...ledger, dateIndex: ledger.dateIndex! + (result.hasMoreCandidatePredictions ? 0 : 1),

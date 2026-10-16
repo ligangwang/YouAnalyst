@@ -1366,7 +1366,7 @@ export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {
   log.emit("INFO", "run_started");
   try {
     const result = await runDailyEodMaintenanceImpl(input, log);
-    log.emit(result.fx?.failed ? "WARNING" : "INFO", "run_completed", { fx: result.fx ?? null, runDate: result.runDate, priceLoad: {requestedTickers: result.priceLoad.requestedTickers, cacheHits: result.priceLoad.cacheHits, loaded: result.priceLoad.loaded, failed: result.priceLoad.failed, failures: result.priceLoad.failures, mapCoverage: result.priceLoad.mapCoverage}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
+    log.emit(result.fx?.failed||result.corporateActions?.failures.length||result.corporateActions?.deferred ? "WARNING" : "INFO", "run_completed", { corporateActions:result.corporateActions??null, fx: result.fx ?? null, runDate: result.runDate, priceLoad: {requestedTickers: result.priceLoad.requestedTickers, cacheHits: result.priceLoad.cacheHits, loaded: result.priceLoad.loaded, failed: result.priceLoad.failed, failures: result.priceLoad.failures, mapCoverage: result.priceLoad.mapCoverage}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
     return { ...result, runId: log.runId };
   } catch (error) {
     log.emit("ERROR", "run_failed", { error: maintenanceError(error) });
@@ -1474,7 +1474,8 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       corporateActions=await syncCorporateActions({db,tickers,through:runDate,token:process.env.EODHD_API_TOKEN??'',apiUrl:process.env.EODHD_API_URL});
       log.emit(corporateActions.failures.length||corporateActions.deferred?'ERROR':'INFO','corporate_actions_synced',corporateActions);
       await runRef.set({corporateActions},{merge:true});
-      if(corporateActions.failures.length||corporateActions.deferred)throw Error('Corporate actions incomplete; retry before price processing');
+      // Keep daily prices/scores flowing during a partial action-provider outage.
+      // The subscriber retries this page without advancing its completion ledger.
     }
 
 
@@ -1990,7 +1991,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
         runDate,
         logRunId: log.runId,
         fx: fx ?? null,
-        status: fx?.failed ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
+        status: fx?.failed||corporateActions?.failures.length||corporateActions?.deferred ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
         completedAt: new Date().toISOString(),
         error: null,
         recompute,
