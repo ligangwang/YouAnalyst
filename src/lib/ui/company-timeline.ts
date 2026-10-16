@@ -105,7 +105,26 @@ export function timelineWindow(days: TimelineRange, end = new Date().toISOString
   if(days===365||days===1826){const date=new Date(`${end}T00:00:00Z`),month=date.getUTCMonth();date.setUTCFullYear(date.getUTCFullYear()-(days===365?1:5));if(date.getUTCMonth()!==month)date.setUTCDate(0);return {start:date.toISOString().slice(0,10),end};}
   return { start: new Date(Date.parse(`${end}T00:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10), end };
 }
-export function mapTimelinePrice(data: Record<string, unknown>, ticker: string, market: string): TimelinePrice | null {
+export type TimelineSplit = { effectiveDate: string; numerator: number; denominator: number };
+/** Use only completed splits for this listing, through the chart's adjustment date. */
+export function timelineSplits(records:Record<string,unknown>[],ticker:string,market:string,asOf:string):TimelineSplit[] {
+  const byDate=new Map<string,TimelineSplit>();
+  for(const record of records){
+    if(record.ticker!==ticker||record.market!==market||record.type!=='split'||record.status!=='completed')continue;
+    const effectiveDate=timelineDate(record.effectiveDate);
+    if(effectiveDate&&record.effectiveDate===effectiveDate&&effectiveDate>asOf)continue;
+    const numerator=record.splitNumerator,denominator=record.splitDenominator;
+    if(!effectiveDate||record.effectiveDate!==effectiveDate||typeof numerator!=='number'||!Number.isFinite(numerator)||numerator<=0
+      ||typeof denominator!=='number'||!Number.isFinite(denominator)||denominator<=0||!Number.isFinite(numerator/denominator)||numerator/denominator<=0){
+      throw new Error('Invalid completed split');
+    }
+    const previous=byDate.get(effectiveDate);
+    if(previous&&previous.numerator/previous.denominator!==numerator/denominator)throw new Error('Conflicting completed splits');
+    byDate.set(effectiveDate,{effectiveDate,numerator,denominator});
+  }
+  return [...byDate.values()].sort((a,b)=>a.effectiveDate.localeCompare(b.effectiveDate));
+}
+export function mapTimelinePrice(data: Record<string, unknown>, ticker: string, market: string, splits:readonly TimelineSplit[]=[]): TimelinePrice | null {
   const date = timelineDate(data.tradingDate);
   if (data.ticker !== ticker || data.market !== market || !date || typeof data.close !== "number" || !Number.isFinite(data.close) || data.close <= 0) return null;
   const rawClose=typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0?data.rawClose:data.close;
@@ -114,15 +133,14 @@ export function mapTimelinePrice(data: Record<string, unknown>, ticker: string, 
     && Number(data.high)>=Math.max(Number(data.open),Number(data.low),rawClose)
     && Number(data.low)<=Math.min(Number(data.open),rawClose)
     && !((data.source==='eodhd-bulk-eod'||data.source==='eodhd-eod')&&!(typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0));
-  // Mapped history starts 2020-12-31. NVIDIA's subsequent splits began trading
-  // on 2021-07-20 (4:1) and 2024-06-10 (10:1). Use explicit raw prices so an
-  // already adjusted stored close is never divided a second time. Earlier
-  // history needs its additional corporate actions before it can use this rule.
-  const nvdaSplitBasis=ticker==='NVDA'&&market==='US'&&date>='2020-12-31'
-    && typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0;
-  const factor=date<'2021-07-20'?40:date<'2024-06-10'?10:1;
-  const close=nvdaSplitBasis?rawClose/factor:data.close;
-  // Other instruments retain their existing provider-adjusted close basis.
+  // Explicit rawClose prevents dividing an already adjusted legacy close twice.
+  // A split applies only to sessions before its first split-adjusted session.
+  const splitBasis=splits.length>0&&typeof data.rawClose==='number'&&Number.isFinite(data.rawClose)&&data.rawClose>0;
+  const factor=splits.filter(split=>date<split.effectiveDate).reduce((product,split)=>product*(split.numerator/split.denominator),1);
+  if(!Number.isFinite(factor)||factor<=0)throw new Error('Invalid cumulative split factor');
+  const close=splitBasis?rawClose/factor:data.close;
+  if(!Number.isFinite(close)||close<=0)throw new Error('Invalid split-adjusted close');
+  // Listings without stored splits retain their existing close basis.
   const scale=close/rawClose;
   // EODHD volume is already split-adjusted; amount is monetary and unchanged.
   return { date, close, ...(valid&&values.every(value=>Number.isFinite(Number(value)*scale))?{open:Number(data.open)*scale,high:Number(data.high)*scale,low:Number(data.low)*scale}:{}), ...(typeof data.amount==='number'&&Number.isFinite(data.amount)&&data.amount>=0?{amount:data.amount}:{}), volume: typeof data.volume === "number" && Number.isFinite(data.volume) && data.volume >= 0 ? data.volume : null };

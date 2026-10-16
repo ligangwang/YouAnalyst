@@ -1,5 +1,6 @@
 import { saveLatestEodPrice } from "./latest-eod";
 import { backfillPriceHistory, historyThrough, historyProviderSymbol } from "./history-backfill";
+import { corporateActionTickers, syncCorporateActions } from './corporate-actions';
 import { loadUsdCnyEod } from "./fx-eod";
 import { createMaintenanceLog, loggedTransaction, maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { predictionInstrument, marketDate, type PredictionMarket } from "./instrument";
@@ -78,6 +79,7 @@ export type EodPrice = {
 };
 
 export type DailyEodMaintenanceResult = {
+  corporateActions?: Awaited<ReturnType<typeof syncCorporateActions>>;
   runId?: string;
   fx?: { processed: number; failed: number; tradingDate?: string; close?: number; error?: string };
   dryRun: boolean;
@@ -1364,7 +1366,7 @@ export async function runDailyEodMaintenance(input: DailyEodMaintenanceInput = {
   log.emit("INFO", "run_started");
   try {
     const result = await runDailyEodMaintenanceImpl(input, log);
-    log.emit(result.fx?.failed ? "WARNING" : "INFO", "run_completed", { fx: result.fx ?? null, runDate: result.runDate, priceLoad: {requestedTickers: result.priceLoad.requestedTickers, cacheHits: result.priceLoad.cacheHits, loaded: result.priceLoad.loaded, failed: result.priceLoad.failed, failures: result.priceLoad.failures, mapCoverage: result.priceLoad.mapCoverage}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
+    log.emit(result.fx?.failed||result.corporateActions?.failures.length||result.corporateActions?.deferred ? "WARNING" : "INFO", "run_completed", { corporateActions:result.corporateActions??null, fx: result.fx ?? null, runDate: result.runDate, priceLoad: {requestedTickers: result.priceLoad.requestedTickers, cacheHits: result.priceLoad.cacheHits, loaded: result.priceLoad.loaded, failed: result.priceLoad.failed, failures: result.priceLoad.failures, mapCoverage: result.priceLoad.mapCoverage}, marking: result.marking, dailySnapshots: result.dailySnapshots, hasMoreCandidatePredictions: result.hasMoreCandidatePredictions });
     return { ...result, runId: log.runId };
   } catch (error) {
     log.emit("ERROR", "run_failed", { error: maintenanceError(error) });
@@ -1462,6 +1464,19 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     const { requestedTickers, mapTickers, benchmarkTickers } = await loadEodPriceUniverse({ market, loadPrices, manualTickers,
       predictionTickers: predictionsToProcess.map((item) => item.ticker) });
     log.emit("INFO", "price_universe_selected", { runDate, requestedTickers: requestedTickers.length, mapTickers: mapTickers.length });
+
+    let corporateActions:DailyEodMaintenanceResult['corporateActions'];
+    // Historical repair/replay and mark-only requests retain their original scope.
+    // The current daily run discovers all map/watchlist listings before loading prices.
+    if(loadPrices&&!dryRun&&!input.skipHistoryBackfill&&!manualTickers.length&&runDate===marketDate(market)){
+      log.stage('sync_corporate_actions');
+      const tickers=await corporateActionTickers(db,market,mapTickers);
+      corporateActions=await syncCorporateActions({db,tickers,through:runDate,token:process.env.EODHD_API_TOKEN??'',apiUrl:process.env.EODHD_API_URL});
+      log.emit(corporateActions.failures.length||corporateActions.deferred?'ERROR':'INFO','corporate_actions_synced',corporateActions);
+      await runRef.set({corporateActions},{merge:true});
+      // Keep daily prices/scores flowing during a partial action-provider outage.
+      // The subscriber retries this page without advancing its completion ledger.
+    }
 
 
     console.info("[daily-eod-maintenance] Prediction scan completed", {
@@ -1954,6 +1969,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     }
 
     const result: DailyEodMaintenanceResult = {
+      ...(corporateActions?{corporateActions}:{}),
       dryRun,
       recompute,
       runDate,
@@ -1975,7 +1991,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
         runDate,
         logRunId: log.runId,
         fx: fx ?? null,
-        status: fx?.failed ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
+        status: fx?.failed||corporateActions?.failures.length||corporateActions?.deferred ? "COMPLETED_WITH_ERRORS" : "COMPLETED",
         completedAt: new Date().toISOString(),
         error: null,
         recompute,

@@ -7,6 +7,10 @@ import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
 import { movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands } from '../src/lib/ui/technical-indicators';
 import {cachedTimelinePrices} from '../src/lib/ui/timeline-cache';
+import {timelineSplits} from '../src/lib/ui/company-timeline';
+import {loadTimelineSplits} from '../src/lib/ui/corporate-actions';
+import {build} from 'esbuild';
+import {createRequire} from 'node:module';
 
 test('automatic intervals follow range defaults while manual choices override every range',()=>{
  for(const range of TIMELINE_RANGES){
@@ -77,23 +81,92 @@ test('timeline API validates explicit intervals and retains automatic defaults w
 });
 
 test('NVDA raw OHLC uses cumulative splits without re-adjusting volume or adjusted closes',()=>{
+ const splits=timelineSplits([
+  {ticker:'NVDA',market:'US',type:'split',status:'completed',effectiveDate:'2021-07-20',splitNumerator:4,splitDenominator:1},
+  {ticker:'NVDA',market:'US',type:'split',status:'completed',effectiveDate:'2024-06-10',splitNumerator:10,splitDenominator:1},
+ ],'NVDA','US','2026-10-16');
  const row={ticker:'NVDA',market:'US',tradingDate:'2024-06-07',open:1197.38,high:1216.92,low:1180.22,rawClose:1208.88,close:1208.88,source:'eodhd-eod',volume:412386000,amount:123456};
- const before=mapTimelinePrice(row,'NVDA','US')!;
+ const before=mapTimelinePrice(row,'NVDA','US',splits)!;
  assert.equal(before.close,120.888);
  for(const key of ['open','high','low'] as const)assert.ok(Math.abs(before[key]!-row[key]/10)<1e-10);
  assert.equal(before.volume,row.volume);assert.equal(before.amount,row.amount);
- assert.deepEqual(mapTimelinePrice({...row,close:120.5},'NVDA','US'),before);
+ assert.deepEqual(mapTimelinePrice({...row,close:120.5},'NVDA','US',splits),before);
  for(const [date,factor] of [['2020-12-31',40],['2021-07-19',40],['2021-07-20',10],['2024-06-07',10],['2024-06-10',1]] as const){
-  assert.equal(mapTimelinePrice({...row,tradingDate:date},'NVDA','US')!.close,row.rawClose/factor);
+  assert.equal(mapTimelinePrice({...row,tradingDate:date},'NVDA','US',splits)!.close,row.rawClose/factor);
  }
- assert.equal(mapTimelinePrice({...row,rawClose:undefined,close:120.5},'NVDA','US')!.close,120.5);
+ assert.equal(mapTimelinePrice({...row,rawClose:undefined,close:120.5},'NVDA','US',splits)!.close,120.5);
  assert.equal(mapTimelinePrice({...row,ticker:'AMD'},'AMD','US')!.close,row.close);
- assert.equal(mapTimelinePrice({...row,tradingDate:'2020-12-30'},'NVDA','US')!.close,row.close);
- const after=mapTimelinePrice({...row,tradingDate:'2024-06-10',open:120.37,high:123.1,low:117.01,close:121.79,rawClose:121.79,volume:313434100},'NVDA','US')!;
+ assert.equal(mapTimelinePrice({...row,tradingDate:'2020-12-30'},'NVDA','US',splits)!.close,row.rawClose/40);
+ assert.equal(mapTimelinePrice(row,'NVDA','US')!.close,row.close);
+ const after=mapTimelinePrice({...row,tradingDate:'2024-06-10',open:120.37,high:123.1,low:117.01,close:121.79,rawClose:121.79,volume:313434100},'NVDA','US',splits)!;
  const weekly=weeklyTimelinePrices([before,after]);
  assert.equal(weekly[0].close,before.close);assert.equal(weekly[1].close,after.close);
  const change=after.close/before.close-1;assert.ok(change>0&&change<.01);
  assert.equal(simpleMovingAverage([before,after],2).at(-1)?.value,(before.close+after.close)/2);
+});
+
+test('stored splits support other listings and reverse splits, exclude future actions and reject invalid data',()=>{
+ const split={ticker:'UNIT',market:'US',type:'split',status:'completed',effectiveDate:'2026-01-05',splitNumerator:1,splitDenominator:5};
+ const records=[split,{...split}, {...split,market:'CN_A',splitNumerator:100}, {...split,status:'announced'}, {...split,type:'dividend'}, {...split,effectiveDate:'2027-01-01',splitNumerator:10}, {...split,effectiveDate:'2027-01-02',splitNumerator:null}];
+ const splits=timelineSplits(records,'UNIT','US','2026-10-16');
+ assert.equal(splits.length,1);
+ const row={ticker:'UNIT',market:'US',tradingDate:'2026-01-02',rawClose:10,close:9,open:9,high:12,low:8,volume:100};
+ const price=mapTimelinePrice(row,'UNIT','US',splits)!;
+ assert.equal(price.close,50);assert.equal(price.open,45);assert.equal(price.volume,100);
+ assert.equal(mapTimelinePrice({...row,tradingDate:'2026-01-05'},'UNIT','US',splits)!.close,10);
+ for(const invalid of [{splitNumerator:0},{splitDenominator:0},{splitNumerator:Infinity},{effectiveDate:'2026-02-30'},{splitNumerator:'4'}]){
+  assert.throws(()=>timelineSplits([{...split,...invalid}],'UNIT','US','2026-10-16'));
+ }
+ assert.throws(()=>timelineSplits([split,{...split,splitNumerator:2}],'UNIT','US','2026-10-16'));
+});
+
+test('Firestore split reads change the chart cache revision when actions change and propagate failures',async()=>{
+ let ratio=4;
+ const db={collection:(name:string)=>{
+  assert.equal(name,'corporate_actions');
+  return {where:(field:string,op:string,value:string)=>{
+   assert.deepEqual([field,op,value],['ticker','==','UNIT']);
+   return {get:async()=>({docs:[{data:()=>({ticker:'UNIT',market:'US',type:'split',status:'completed',effectiveDate:'2021-07-20',splitNumerator:ratio,splitDenominator:1})}]})};
+  }};
+ }};
+ const first=await loadTimelineSplits(db as never,'UNIT','US','2026-10-16');
+ ratio=5;
+ const second=await loadTimelineSplits(db as never,'UNIT','US','2026-10-16');
+ assert.notEqual(first.revision,second.revision);
+ const row={ticker:'UNIT',market:'US',tradingDate:'2020-12-31',rawClose:100,close:100};
+ assert.equal(mapTimelinePrice(row,'UNIT','US',first.splits)!.close,25);
+ assert.equal(mapTimelinePrice(row,'UNIT','US',second.splits)!.close,20);
+ await assert.rejects(loadTimelineSplits({collection:()=>{throw Error('unavailable');}} as never,'UNIT','US','2026-10-16'),/unavailable/);
+});
+
+test('timeline API adjusts Firestore OHLC before aggregation, refreshes changed splits and fails on unreadable actions',async()=>{
+ const compiled=await build({entryPoints:['src/app/api/company-timeline/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{
+  name:'test-firestore',setup(builder){builder.onResolve({filter:/firebase\/admin$/},()=>({path:'test-firestore',external:true}));},
+ }]});
+ let ratio=10,fail=false,actionReads=0;
+ const row={ticker:'NVDA',market:'US',tradingDate:'2024-06-07',rawClose:1208.88,close:120.5,open:1197.7,high:1216.917,low:1180.22,volume:412385776};
+ const db={collection:(name:string)=>{
+  if(name==='corporate_actions')return {where:(field:string,op:string,value:string)=>{
+   assert.deepEqual([field,op,value],['ticker','==','NVDA']);
+   return {get:async()=>{actionReads++;if(fail)throw Error('read failed');return {docs:[{data:()=>({ticker:'NVDA',market:'US',type:'split',status:'completed',effectiveDate:'2024-06-10',splitNumerator:ratio,splitDenominator:1})}]};}};
+  }};
+  assert.equal(name,'eod_prices');
+  let limit=0;
+  const query={where:()=>query,orderBy:()=>query,limit:(n:number)=>{limit=n;return query;},get:async()=>({docs:limit===1?[{id:'US_NVDA_2024-06-07',updateTime:{toMillis:()=>1}}]:[{data:()=>row}]})};
+  return query;
+ }};
+ const evaluated={exports:{}};const nativeRequire=createRequire(import.meta.url);
+ new Function('require','module','exports',compiled.outputFiles[0].text)((name:string)=>name==='test-firestore'?{getAdminFirestore:()=>db}:nativeRequire(name),evaluated,evaluated.exports);
+ const {GET}=evaluated.exports as typeof import('../src/app/api/company-timeline/route');
+ const {NextRequest}=await import('next/server');
+ const load=()=>GET(new NextRequest('https://example.test/api/company-timeline?company=US:NVDA&days=1826&interval=weekly&indicators=1'));
+ const first=await load();assert.equal(first.status,200);
+ const data=await first.json();assert.equal(data.prices.length,1);assert.equal(data.prices[0].close,120.888);
+ assert.ok(Math.abs(data.prices[0].open-119.77)<1e-10);assert.equal(data.prices[0].volume,row.volume);
+ ratio=20;
+ assert.equal((await (await load()).json()).prices[0].close,60.444);
+ fail=true;
+ const failed=await load();assert.equal(failed.status,503);assert.equal((await failed.json()).available,false);assert.equal(actionReads,3);
 });
 
 test('YTD and annual windows use calendar boundaries, including leap days',()=>{

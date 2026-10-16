@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { DEFAULT_TIMELINE_RANGE, mapTimelinePrice, TIMELINE_RANGES, TIMELINE_INTERVALS, resolvedTimelineInterval, timelineIndicatorHistoryStart, timelineWindow, timelinePriceBars, type TimelineRange, type TimelineIntervalChoice } from "@/lib/ui/company-timeline";
 import {cachedTimelinePrices} from '@/lib/ui/timeline-cache';
+import {loadTimelineSplits} from '@/lib/ui/corporate-actions';
 import { marketDate, predictionInstrument } from "@/lib/predictions/instrument";
 
 export const runtime = "nodejs";
@@ -27,17 +28,21 @@ export async function GET(request: NextRequest) {
   try {
     // Existing document IDs are market_ticker_date. A document-ID range needs no new composite index.
     const prefix = `${instrument.market}_${instrument.ticker}_`;
-    const collection=getAdminFirestore().collection('eod_prices');
-    const latest=await collection.where(FieldPath.documentId(),'>=',prefix).where(FieldPath.documentId(),'<=',prefix+window.end).orderBy(FieldPath.documentId(),'desc').limit(1).get();
+    const db=getAdminFirestore();
+    const collection=db.collection('eod_prices');
+    const [latest,actions]=await Promise.all([
+      collection.where(FieldPath.documentId(),'>=',prefix).where(FieldPath.documentId(),'<=',prefix+window.end).orderBy(FieldPath.documentId(),'desc').limit(1).get(),
+      loadTimelineSplits(db,instrument.ticker,instrument.market,window.end),
+    ]);
     const revision=latest.docs[0];
-    const cacheKey=JSON.stringify([companyId,days,indicators,requestedPeriod,window.end,base.interval,revision?.id,revision?.updateTime.toMillis()]);
+    const cacheKey=JSON.stringify([companyId,days,indicators,requestedPeriod,window.end,base.interval,revision?.id,revision?.updateTime.toMillis(),actions.revision]);
     const result=await cachedTimelinePrices(cacheKey,async()=>{
     const snapshot = await getAdminFirestore().collection("eod_prices")
       .where(FieldPath.documentId(), ">=", prefix + historyStart)
       .where(FieldPath.documentId(), "<=", prefix + window.end)
       .orderBy(FieldPath.documentId(),'desc').limit(6000).get();
     const prices = snapshot.docs.flatMap(doc => {
-      const price = mapTimelinePrice(doc.data(), instrument.ticker, instrument.market);
+      const price = mapTimelinePrice(doc.data(), instrument.ticker, instrument.market,actions.splits);
       return price && price.date >= historyStart && price.date <= window.end ? [price] : [];
     }).sort((a, b) => a.date.localeCompare(b.date));
     const bars=timelinePriceBars(prices,window.start,interval);

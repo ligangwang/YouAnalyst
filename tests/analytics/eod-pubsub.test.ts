@@ -72,6 +72,17 @@ test("partial provider/score results do not advance progress or acknowledge comp
     assert.notEqual(f.rows.get(f.ref)?.completed, true);
   }
 });
+
+test('partial corporate actions retain the EOD page for retry after normal price processing',async()=>{
+  for(const actions of [{requested:1,backfilled:0,updated:0,skipped:0,deferred:0,events:0,failures:[{ticker:'NVDA',reason:'Unavailable'}]},
+    {requested:1,backfilled:0,updated:0,skipped:0,deferred:1,events:0,failures:[]}]){
+    const f=await fixture();
+    await assert.rejects(processEodMaintenance(f.message,f.db,f.log,{run:async()=>({...result(),corporateActions:actions})}),/incomplete/);
+    assert.equal(f.rows.get(f.ref)?.pages,0);assert.notEqual(f.rows.get(f.ref)?.completed,true);
+    await processEodMaintenance(f.message,f.db,f.log,{run:async()=>result()});
+    assert.equal(f.rows.get(f.ref)?.completed,true);
+  }
+});
 test("failed checkpoint replays a page; expired delivery budgets and active leases do not execute", async () => {
   const f = await fixture();
   f.reject((path, data) => path === f.ref && data.pages === 1);
