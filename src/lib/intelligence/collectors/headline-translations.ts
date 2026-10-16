@@ -1,3 +1,4 @@
+import {markFeedChanged} from '../feed-cache-changes';
 import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
 import {randomUUID} from 'node:crypto';
 import {EVENTS_COLLECTION} from '../../events/model';
@@ -59,6 +60,7 @@ export async function translateCollectedHeadlines(db:Firestore,mapped:ReadonlySe
         const record=latest[i].data();if(record?.title!==item.title||record.titleTranslationState?.attemptId!==attemptId){result.skipped++;return;}
         const translation=response?.translations.find(value=>value.id===item.id);
         tx.update(refs[i],{titleTranslationState:{source:item.title,status:translation?'complete':'review_required',attemptId,createdAt:new Date(now()).toISOString(),usageEventId:usage.id,error:translationError},...(translation?{['titleTranslations.'+headlineTargetLocale(item.title)]:{source:item.title,text:translation.text.trim(),translatedAt:new Date(now()).toISOString(),model:response!.model}}:{})});
+        markFeedChanged(db,tx,refs[i]);
         if(translation)result.translated++;
       });
     });

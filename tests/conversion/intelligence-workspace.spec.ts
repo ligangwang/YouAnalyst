@@ -710,7 +710,7 @@ test('company changes retain the pending unscoped universe instead of the previo
  await page.goto('http://workspace.test/?view=table&company=US%3AMU');
  const panel=page.getByRole('complementary',{name:'Events and sources'}),card=page.getByRole('region',{name:'Company details',exact:true});
  await expect(panel.getByText('Loading events and sources…')).toBeVisible();
- releaseFirst();await panel.getByRole('button',{name:'30d',exact:true}).click();
+ releaseFirst();await panel.getByRole('button',{name:'Last 7 days',exact:true}).click();
  await expect(panel.getByRole('button',{name:/Published company update 1 /})).toBeVisible();
  // Selection clears immediately, while the next unscoped feed is held back.
  await card.getByRole('button',{name:'Close company details',exact:true}).click();
@@ -832,10 +832,10 @@ for(const zh of [false,true])test('region filter keeps companies, feed and compl
  const mixedCard=page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true});await expect(page.getByRole('region',{name:'Company details',exact:true}).locator('[data-card-drag]')).toContainText('Piotech');await expect(mixedCard).toContainText('+20.00%');await expect(mixedCard).not.toContainText('+10.00%');await mixedCard.press('Escape');
  await page.getByRole('tab',{name:zh?'公司列表':'Company list',exact:true}).click();
  await expect(page.locator('[data-list-company]')).toHaveCount(2);
- await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(filter).toHaveValue('CN_A');await expect(documents).toContainText('4');
+ await panel.getByRole('button',{name:zh?'近 7 天':'Last 7 days',exact:true}).click();await expect(filter).toHaveValue('CN_A');await expect(documents).toContainText('4');
  await page.reload();if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await expect(filter).toHaveValue('CN_A');await expect(page.locator('[data-list-company]')).toHaveCount(2);
  await filter.selectOption('US');await expect(documents).toContainText('2');
- await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(documents).toContainText('3');await expect(panel.getByRole('button',{name:/Prior US event/})).toBeVisible();
+ await panel.getByRole('button',{name:zh?'近 7 天':'Last 7 days',exact:true}).click();await expect(documents).toContainText('3');await expect(panel.getByRole('button',{name:/Prior US event/})).toBeVisible();
  await filter.selectOption('');await expect(page).not.toHaveURL(/region=/);await expect(documents).toContainText('7');await expect(panel.getByRole('button',{name:/Market event private/})).toBeVisible();await expect(page.locator('[data-list-company]')).toHaveCount(marketNodes.length);
  await expect(panel.getByText(fixture.warnings[1],{exact:true})).toHaveCount(1);
 });
@@ -864,7 +864,7 @@ for(const zh of [false,true])test('company selection scopes events and activity 
  await expect(count).toHaveText('3');await expect(panel.getByText(zh?'活跃公司':'Active companies',{exact:true}).locator('..').locator('strong')).toHaveText('1');
  await expect(panel.getByRole('button',{name:/Company event /})).toHaveCount(2);await expect(panel.getByRole('button',{name:/Company event micron|Company event china/})).toHaveCount(0);
  await expect(panel.locator('a[href*="event=micron-calendar"]')).toHaveCount(0);await expect(panel.locator('a[href*="event=apple-calendar"]')).toHaveCount(1);
- await panel.getByRole('button',{name:zh?'近 30 天':'30d',exact:true}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event prior/})).toBeVisible();
+ await panel.getByRole('button',{name:zh?'近 7 天':'Last 7 days',exact:true}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event prior/})).toBeVisible();
  await panel.getByRole('button',{name:/Company event mixed/}).click();const card=page.getByRole('region',{name:'Company details',exact:true});await expect(card.locator('[data-card-drag]')).toContainText('Apple');await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).toContainText('+20.00%');await expect(page.getByRole('dialog',{name:zh?'事件详情':'Event details',exact:true})).not.toContainText('+10.00%');await expect(count).toHaveText('4');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
  await card.getByRole('button',{name:'Close company details',exact:true}).click();await expect(count).toHaveText('5');await expect(panel.getByRole('button',{name:/Company event micron/})).toBeVisible();await expect(apple).toHaveAttribute('aria-pressed','false');
  await apple.click();await page.reload();if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();await expect(apple).toHaveAttribute('aria-pressed','true');await expect(panel.getByRole('button',{name:/Company event micron/})).toHaveCount(0);
@@ -1012,7 +1012,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   expect(controlsBounds.x+controlsBounds.width).toBeLessThanOrEqual(toolbarBounds.x+toolbarBounds.width);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.setViewportSize({width:1500,height:800});
-  await expect(panel.getByRole('button',{name:'30d',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(panel.getByRole('button',{name:'Last 7 days',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('350');
   await expect(panel.getByText('200 loaded source documents')).toBeVisible();
   const firstEvent=panel.getByRole('button',{name:/Published company update 1 /});
@@ -1628,4 +1628,35 @@ test('header and Explore entry points share one dialog and fullscreen gives the 
  await chart.focus();await page.keyboard.type('lite');await expect(page.getByRole('dialog',{name:'Search company',exact:true})).toHaveCount(1);
  await expect(chart.locator('[data-company-search]')).toBeVisible();await expect(page.getByRole('option',{name:/Lumentum/})).toBeVisible();
  await page.keyboard.press('Enter');await expect(page.locator('[data-company-timeline="US:LITE"]')).toHaveAttribute('data-chart-size','full');
+});
+
+
+test('weekly feed loads ten items and requests one previous day without changing scope',async({page})=>{
+  const today='2026-10-04';
+  const fixture:IntelligenceSnapshot={...snapshot,truncated:false,limit:10,sourceDocuments:[],feedWindow:{loadedFrom:today,through:today,maxDays:7 as const,hasMore:true,version:'initial'},events:snapshot.events.slice(0,25).map(event=>({...event,published_at:null,publication_date:today}))};
+  fixture.sourceDocuments=sourceDocumentsForEvents(fixture.events);
+  const body=await workspaceFixture(false,fixture);
+  let olderRequests=0;
+  await page.route('**/*',route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname==='/api/intelligence'){
+      if(url.searchParams.has('before')){
+        expect(url.searchParams.get('before')).toBe(today);olderRequests++;
+        return route.fulfill({json:{...fixture,feedWindow:{...fixture.feedWindow,loadedFrom:'2026-10-03',version:'older'}}});
+      }
+      return route.fulfill({json:fixture});
+    }
+    return route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body}):route.fulfill({status:404,body:''});
+  });
+  await page.goto('http://workspace.test/');
+  const panel=page.getByRole('complementary',{name:'Events and sources'});
+  await expect(panel.locator('[data-event-trigger]')).toHaveCount(10);
+  await panel.getByRole('button',{name:'Show 10 more',exact:true}).click();
+  await expect(panel.locator('[data-event-trigger]')).toHaveCount(20);
+  await panel.getByRole('button',{name:'Last 7 days',exact:true}).click();
+  await expect(panel.locator('[data-event-trigger]')).toHaveCount(10);
+  await expect(panel.getByText('Totals cover loaded days only.',{exact:false})).toBeVisible();
+  await panel.getByRole('button',{name:'Load previous day',exact:true}).click();
+  await expect(panel.getByText('Loaded 2026-10-03 – 2026-10-04',{exact:true})).toBeVisible();
+  expect(olderRequests).toBe(1);
 });

@@ -31,6 +31,9 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   const scope = feedScope(company,query,region);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const responses=useRef(new Map<string,{etag:string;data:IntelligenceSnapshot}>());
+  const previousDay = useRef<string | undefined>(undefined);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   useEffect(() => {
     let disposed = false, inFlight = false;
@@ -62,9 +65,16 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
       controller = new AbortController();
       const timeout = setTimeout(() => controller?.abort(), 15_000);
       try {
-        const response = await fetch(`/api/intelligence?theme=${theme}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}`, { cache: 'no-store', signal: controller.signal });
-        if (!response.ok) throw new Error();
-        const data: IntelligenceSnapshot = await response.json();
+        const url=`/api/intelligence?theme=${theme}${company ? `&company=${encodeURIComponent(company)}` : ''}${query ? `&q=${encodeURIComponent(query)}` : ''}${region?`&region=${encodeURIComponent(region)}`:''}${previousDay.current?`&before=${previousDay.current}`:''}`;
+        const saved=responses.current.get(url);
+        const response=await fetch(url,{cache:'no-store',signal:controller.signal,headers:saved?{'If-None-Match':saved.etag}:{}});
+        if (!response.ok&&response.status!==304) throw new Error();
+        const data:IntelligenceSnapshot=response.status===304&&saved?saved.data:await response.json();
+        const etag=response.headers.get('etag');
+        if(etag&&response.status!==304){
+          if(responses.current.size>=30)responses.current.clear();
+          responses.current.set(url,{etag,data});
+        }
         if ((data.theme ?? 'ai') !== theme || !data.graphVersion || !Array.isArray(data.graph?.nodes) || !Array.isArray(data.events) || !data.session?.startAt) throw new Error();
         if (isCurrentTheme()) {
           const old = themeSnapshots.current.get(theme);
@@ -78,12 +88,14 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
           snapshotScope.current = scope;
           bootstrapRequired.current = false;
           setSnapshot(next);
+          previousDay.current=undefined;
           setError('');
         }
       } catch {
         if (isCurrentTheme()) setError('Unable to refresh investment intelligence.');
       } finally {
         clearTimeout(timeout);
+        if(!disposed)setLoadingOlder(false);
         inFlight = false;
       }
     };
@@ -102,7 +114,13 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
     };
   }, [retry, theme, company, query, region, scope]);
 
+  const loadPreviousDay = () => {
+    if(loadingOlder||!snapshot?.feedWindow?.hasMore)return;
+    previousDay.current=snapshot.feedWindow.loadedFrom;
+    setLoadingOlder(true);setRetry(value=>value+1);
+  };
   const changeTheme = (next: CompanyThemeId) => {
+    previousDay.current=undefined;setLoadingOlder(false);
     setError('');
     const cached = themeSnapshots.current.get(next), changed = next !== parseCompanyTheme(snapshot?.theme);
     themeIntent.current = changed && !cached ? next : null;
@@ -119,5 +137,5 @@ export function useIntelligenceSnapshot(initialSnapshot?: IntelligenceSnapshot, 
   // its fresh company request is pending; stale scoped responses cannot win.
   const displayed = snapshotScope.current === scope ? snapshot : themeSnapshots.current.get(parseCompanyTheme(snapshot?.theme)) ?? snapshot;
   const searching = Boolean((query||region)&&snapshotScope.current!==scope);
-  return { snapshot: searching&&displayed?{...displayed,eventsPending:true}:displayed, theme, error, changeTheme, reconnect };
+  return { snapshot: searching&&displayed?{...displayed,eventsPending:true}:displayed, theme, error, changeTheme, reconnect, loadPreviousDay, loadingOlder };
 }

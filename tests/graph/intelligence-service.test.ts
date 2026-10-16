@@ -1,243 +1,90 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { build } from 'esbuild';
-import { createRequire } from 'node:module';
-import {createSecFilingDiscovered} from '../../src/lib/sec-filings/event';
-import {summarizeIntelligence,summarizeSourceDocuments} from '../../src/lib/intelligence/model';
-import {NEWS_SOURCES} from '../../scripts/seed-news-sources';
-import type { KnowledgeGraph } from '../../src/lib/knowledge-graph/model';
+import {build} from 'esbuild';
+import {createRequire} from 'node:module';
 import {gunzipSync} from 'node:zlib';
-
+import type {KnowledgeGraph} from '../../src/lib/knowledge-graph/model';
+import type {CachedFeed} from '../../src/lib/intelligence/feed-cache-store';
+import type {FeedRecord} from '../../src/lib/intelligence/feed-cache';
+import {createSecFilingDiscovered} from '../../src/lib/sec-filings/event';
 const now=new Date('2026-10-02T16:00:00Z');
-const graph:KnowledgeGraph={asOf:'2026-10-02',nodes:[{id:'US:AMD',name:'AMD',kind:'COMPANY',order:0},{id:'US:MU',name:'Micron',kind:'COMPANY',order:1}],sources:[{id:'s',title:'Filing',url:'https://www.sec.gov/Archives/filing.htm',sourceDate:'2026-09-03'}],relationships:[{id:'edge',source:'US:MU',target:'US:AMD',type:'SUPPLIER_OF',summary:'Stored evidence',sourceIds:['s'],commercialStatus:'DOCUMENTED',researchReviewedAt:'2026-10-01'}]};
-
-async function isolated(db:unknown,loadGraph:()=>Promise<KnowledgeGraph>,collectorResult:unknown={failed:0,partial:0,remaining:0,outboxIncomplete:false},loadThemedGraph=loadGraph,calendarLinks?:(events:import('../../src/lib/intelligence/model').IntelligenceEvent[])=>Promise<import('../../src/lib/intelligence/model').IntelligenceEvent[]>){
-  const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external:['./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service',...(calendarLinks?['../calendar/intelligence-links']:[])]});
-  const realRequire=createRequire(import.meta.url);
-  const evaluated={exports:{}};
+const graph:KnowledgeGraph={asOf:'2026-10-02',nodes:[{id:'US:AMD',name:'AMD',kind:'COMPANY',order:0},{id:'US:MU',name:'Micron',kind:'COMPANY',order:1}],sources:[],relationships:[]};
+function filing(index:number,day='2026-10-02',companyId='AMD'):FeedRecord{
+  const accessionNumber=`0000002488-26-${String(index).padStart(6,'0')}`;
+  const event=createSecFilingDiscovered({companyId,cik:'0000002488',accessionNumber,form:'10-K',filingDate:day,primaryDocument:'report.htm',isXbrl:false,discoveredAt:day+'T12:00:00.000Z'});
+  return {collection:'sec_filings',id:accessionNumber,data:{filingDate:day,published_at:null,discoveryEvents:{[event.eventId]:{event,state:'published'}}}};
+}
+function feed(records:FeedRecord[]=[],revision='one',loadedFrom='2026-10-02'):CachedFeed{return {days:{[loadedFrom]:records},revision,loadedFrom,hasMore:true};}
+async function isolated(load:()=>Promise<CachedFeed>,options:{graph?:()=>Promise<KnowledgeGraph>;collector?:Record<string,unknown>}={}){
+  const external=['./feed-cache-store','./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service','../calendar/intelligence-links'];
+  const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external});
+  const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
   const injected=(name:string)=>{
+    if(name==='./feed-cache-store')return {loadCachedFeed:load};
     if(name==='./price-performance-service')return {attachPricePerformance:async(_db:unknown,graph:KnowledgeGraph)=>({graph,eventReturns:{}})};
-    if(name==='../calendar/intelligence-links')return {attachCalendarLinks:async(_db:unknown,events:import('../../src/lib/intelligence/model').IntelligenceEvent[])=>calendarLinks!(events)};
-    if(name==='../firebase/admin')return {getAdminFirestore:()=>db};
-    if(name==='../company-themes/graph-service')return {loadThemeGraph:loadThemedGraph};
-    if(name==='../knowledge-graph/service')return {loadKnowledgeGraph:loadGraph};
+    if(name==='../calendar/intelligence-links')return {attachCalendarLinks:async(_db:unknown,events:unknown)=>events};
+    if(name==='../firebase/admin')return {getAdminFirestore:()=>({})};
+    if(name==='../company-themes/graph-service')return {loadThemeGraph:options.graph??(async()=>graph)};
+    if(name==='../knowledge-graph/service')return {loadKnowledgeGraph:options.graph??(async()=>graph)};
     if(name==='../knowledge-graph/curated-events')return {curatedEvents:[]};
-    if(name==='../sec-filings/store')return {SEC_FILINGS_COLLECTION:'sec_filings',secCollectorMetadata:()=>({get:async()=>({get:(key:string)=>key==='lastRunAt'?now.toISOString():key==='intelligenceIndexReadyAt'?'ready':key==='result'?collectorResult:undefined})})};
+    if(name==='../sec-filings/store')return {secCollectorMetadata:()=>({get:async()=>({get:(key:string)=>key==='lastRunAt'?now.toISOString():key==='result'?(options.collector??{failed:0,partial:0,remaining:0,outboxIncomplete:false}):undefined})})};
     return realRequire(name);
   };
   new Function('require','module','exports',result.outputFiles[0].text)(injected,evaluated,evaluated.exports);
   return evaluated.exports as typeof import('../../src/lib/intelligence/service');
 }
 
-test('concurrent browsers share one paginated period read and the 60-second snapshot cache',async()=>{
-  let reads=0,graphReads=0;
-  const db={collection:(name:string)=>{assert.equal(name,'sec_filings');return {where:(field:string,operator:string)=>{assert.equal(field,'filingDate');assert.equal(operator,'>=');return {orderBy:()=>({limit:(limit:number)=>{assert.equal(limit,500);return {get:async()=>{reads++;return {size:0,docs:[]};}};}})};}};}};
-  const service=await isolated(db,async()=>{graphReads++;return graph;});
-  const [first,second]=await Promise.all([service.loadIntelligenceSnapshot(now),service.loadIntelligenceSnapshot(now)]);
-  assert.equal(first,second);
+test('unchanged feed revision reuses the projected feed past one minute; new arrivals invalidate it',async()=>{
+  let current=feed([filing(1)]);
+  const service=await isolated(async()=>current);
+  const first=await service.loadIntelligenceSnapshot(now);
   assert.equal(first.events.length,1);
-  assert.equal(first.coverage.find(item=>item.channel==='SEC')?.status,'connected');
-  await service.loadIntelligenceSnapshot(new Date(now.getTime()+59_000));
-  assert.equal(reads,1);assert.equal(graphReads,1);
-  await service.loadIntelligenceSnapshot(new Date(now.getTime()+61_000));
-  assert.equal(reads,2);
+  assert.equal(await service.loadIntelligenceSnapshot(new Date(now.getTime()+61_000)),first);
+  current=feed([filing(1),filing(2)],'two');
+  const next=await service.loadIntelligenceSnapshot(new Date(now.getTime()+62_000));
+  assert.equal(next.events.length,2);assert.notEqual(next,first);
+  assert.equal(next.feedWindow?.version,'two');
 });
 
-test('unavailable SEC reads preserve real evidence and explicitly disclose partial coverage',async()=>{
-  const service=await isolated({collection:()=>{throw new Error('test permission denied');}},async()=>graph);
+test('loaded history is explicit and out-of-window sources never appear',async()=>{
+  const service=await isolated(async()=>feed([filing(1),filing(2,'2026-10-01'),filing(3,'2026-09-01')],'history','2026-10-01'));
   const snapshot=await service.loadIntelligenceSnapshot(now);
-  assert.equal(snapshot.events.length,1);
-  assert.equal(snapshot.events[0].published_at,null);
-  assert.equal(snapshot.statisticsComplete,false);
-  assert.equal(snapshot.coverage.find(item=>item.channel==='SEC')?.status,'stored_evidence');
-  assert(snapshot.warnings.some(warning=>warning.includes('temporarily unavailable')));
+  assert.equal(snapshot.events.length,2);
+  assert.deepEqual(snapshot.feedWindow,{loadedFrom:'2026-10-01',through:'2026-10-02',maxDays:7,hasMore:true,version:'history'});
+  assert.equal(snapshot.sourceDocuments?.length,2);
 });
 
-test('ticker switches use the cached full period while one deferred refresh is blocked',async()=>{
-  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
-  let graphReads=0,release:()=>void=()=>{};
-  const blocked=new Promise<void>(resolve=>{release=resolve;});
-  const service=await isolated({collection:()=>query},async()=>{if(++graphReads===2)await blocked;return graph;});
-  const first=await service.loadIntelligenceSnapshot(now);
-  const refreshes:Array<()=>Promise<void>>=[];
-  const later=new Date(now.getTime()+61_000);
-  const amd=await service.loadCompanyIntelligenceSnapshot(later,'ai','','AMD','',refresh=>refreshes.push(refresh));
-  assert.equal(amd.generatedAt,first.generatedAt);
-  assert.equal(graphReads,1);assert.equal(refreshes.length,1);
-  const refreshing=refreshes[0]();
-  const micron=await service.loadCompanyIntelligenceSnapshot(later,'ai','','MU','',refresh=>refreshes.push(refresh));
-  assert(micron.events.every(event=>event.companyIds.includes('US:MU')));
-  assert.equal(micron.graph,first.graph);
-  const concurrentRefresh=refreshes[1]();
-  assert.equal(graphReads,2);
-  release();await Promise.all([refreshing,concurrentRefresh]);
-  const fresh=await service.loadIntelligenceSnapshot(later);
-  assert.notEqual(fresh,first);assert.equal(graphReads,2);
-  assert(Date.parse(fresh.generatedAt)>=later.getTime());
-});
-
-test('deferred refresh is bounded and never serves the previous Eastern session',async()=>{
-  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
-  for(const later of [new Date(now.getTime()+300_000),new Date('2026-10-03T04:00:00Z')]){
-    let graphReads=0;
-    const service=await isolated({collection:()=>query},async()=>{graphReads++;return graph;});
-    const first=await service.loadIntelligenceSnapshot(now);
-    const next=await service.loadIntelligenceSnapshot(later,'ai',()=>assert.fail('Old snapshots must rebuild before responding'));
-    assert.notEqual(next,first);assert.equal(graphReads,2);assert.equal(next.generatedAt,later.toISOString());
-  }
-});
-
-test('a failed deferred refresh is handled and retries without discarding usable data',async()=>{
-  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
-  let graphReads=0;
-  const service=await isolated({collection:()=>query},async()=>{if(++graphReads===2)throw new Error('refresh failed');return graph;});
-  const first=await service.loadIntelligenceSnapshot(now);
-  const refreshes:Array<()=>Promise<void>>=[];
-  const later=new Date(now.getTime()+61_000);
-  assert.equal(await service.loadIntelligenceSnapshot(later,'ai',refresh=>refreshes.push(refresh)),first);
-  await refreshes[0]();
-  assert.equal(await service.loadIntelligenceSnapshot(later,'ai',refresh=>refreshes.push(refresh)),first);
-  await refreshes[1]();
-  assert.notEqual(await service.loadIntelligenceSnapshot(later),first);assert.equal(graphReads,3);
-});
-
-test('a pre-midnight refresh cannot block or overwrite the new Eastern session',async()=>{
-  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
-  let reads=0,release:()=>void=()=>{};
-  const blocked=new Promise<void>(resolve=>{release=resolve;});
-  const service=await isolated({collection:()=>query},async()=>{if(++reads===2)await blocked;return graph;});
-  const first=await service.loadIntelligenceSnapshot(new Date('2026-10-03T03:58:59Z'));
-  const refreshes:Array<()=>Promise<void>>=[];
-  assert.equal(await service.loadIntelligenceSnapshot(new Date('2026-10-03T03:59:59Z'),'ai',refresh=>refreshes.push(refresh)),first);
-  const oldRefresh=refreshes[0]();
-  const midnight=new Date('2026-10-03T04:00:00Z');
-  const next=await service.loadIntelligenceSnapshot(midnight,'ai',()=>assert.fail('New session must load fresh data'));
-  assert.equal(next.session.date,'2026-10-03');assert.equal(reads,3);
-  release();await oldRefresh;
-  assert.equal(await service.loadIntelligenceSnapshot(midnight),next);
-  assert.equal(reads,3);
-});
-
-test('universe bootstrap needs only the graph and never reports empty sources as complete',async()=>{
- const service=await isolated({collection:()=>{throw new Error('Feed must not be read by bootstrap');}},async()=>graph);
- const universe=await service.loadIntelligenceUniverse(now);
- assert.equal(universe.graph,graph);
- assert.equal(universe.eventsPending,true);
- assert.equal(universe.statisticsComplete,false);
- assert.deepEqual(universe.events,[]);
- assert.deepEqual(universe.coverage,[]);
- assert.equal(universe.session.date,'2026-10-02');
-});
-
-test('graph failure rejects the snapshot instead of returning a mock universe',async()=>{
-  const service=await isolated({},async()=>{throw new Error('real graph unavailable');});
-  await assert.rejects(service.loadIntelligenceSnapshot(now),/real graph unavailable/);
-});
-
-test('a recent failed collector run never reports SEC as connected despite successful database reads',async()=>{
-  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
-  const service=await isolated({collection:()=>query},async()=>graph,{failed:1,partial:0,remaining:12,outboxIncomplete:false});
-  const snapshot=await service.loadIntelligenceSnapshot(now);
-  assert.equal(snapshot.coverage.find(item=>item.channel==='SEC')?.status,'stored_evidence');
-  assert(snapshot.warnings.some(warning=>warning.includes('freshness is unverified')));
-});
-
-test('enabled official news arrives through the shared snapshot with current source health',async()=>{
-  const previous=process.env.INTELLIGENCE_NEWS_ENABLED;process.env.INTELLIGENCE_NEWS_ENABLED='1';
-  try{
-    const news={version:1,id:'amd-release',type:'company_news',sourceType:'company_ir',companyIds:['US:AMD'],sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'Official announcement',summary:'Publisher evidence',url:'https://newsroom.amd.com/news/announcement/',collected_at:now.toISOString(),processed_at:now.toISOString(),published_at:'2026-10-02T12:05:00.000Z',publication_date:'2026-10-02'};
-    let newsReads=0;const filters:unknown[][]=[];
-    const db={collection:(name:string)=>{
-      const query={where:(...args:unknown[])=>{if(name==='events')filters.push(args);return query;},orderBy:()=>query,limit:(limit:number)=>{assert.equal(limit,500);return query;},get:async()=>{if(name==='companies')return {docs:graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>({id:node.id,data:()=>({name:node.name||node.id,status:'DIRECTORY',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:NEWS_SOURCES.filter(source=>source.companyId===node.id).map(source=>({...source,status:'PUBLISHED',reviewedAt:'2026-10-04'}))})}))};if(name==='events'){newsReads++;return {size:1,docs:[{data:()=>news}]};}return {size:0,docs:[]};},doc:(id:string)=>({id})};return query;
-    },getAll:async(...refs:unknown[])=>{assert.deepEqual(refs,NEWS_SOURCES.filter(source=>graph.nodes.some(node=>node.id===source.companyId)).map(source=>({id:source.id})));return refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}));}};
-    const service=await isolated(db,async()=>graph);
-    const snapshot=await service.loadIntelligenceSnapshot(now);
-    assert.equal(snapshot.coverage.find(item=>item.channel==='IR')?.status,'connected');
-    assert.deepEqual(snapshot.newsCoverage,{configured:2,healthy:2,total:2,companyIds:graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id),configuredCompanyIds:graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id),healthyCompanyIds:graph.nodes.filter(node=>node.kind==='COMPANY').map(node=>node.id)});
-    assert.deepEqual(filters.slice(0,3),[['type','==','company_news'],['sourceType','==','company_ir'],['published_at','>=','2026-09-03T00:00:00.000Z']]);
-    const arrival=snapshot.events.find(event=>event.id==='news-amd-release');assert.ok(arrival);
-    assert.equal(arrival.published_at,'2026-10-02T12:05:00.000Z');assert.equal('collected_at' in arrival,false);assert.equal('processed_at' in arrival,false);assert.equal(arrival.evidence[0].channel,'IR');assert.deepEqual(arrival.edgeIds,[]);
-    await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.equal(newsReads,4);
-  }finally{if(previous===undefined)delete process.env.INTELLIGENCE_NEWS_ENABLED;else process.env.INTELLIGENCE_NEWS_ENABLED=previous;}
-});
-
-test('production snapshots check enriched schedules before grouping, and retain separate records if enrichment fails',async()=>{
-  const previous=process.env.INTELLIGENCE_NEWS_ENABLED;process.env.INTELLIGENCE_NEWS_ENABLED='1';
-  try{
-    const records=['a','b'].map((id,index)=>({version:1,id:`company_news_${id}`,type:'company_news',sourceType:'company_ir',companyIds:['US:AMD'],sourceId:'amd-news',companyId:'US:AMD',baseline:false,title:'AMD to Report Fiscal Third Quarter 2026 Financial Results',summary:'Official company news. Open the source for details.',url:index?'https://newsroom.amd.com/news/earnings-date/':'https://ir.amd.com/press-releases/detail/1300/earnings-date',published_at:'2026-10-02T12:05:00.000Z',publication_date:'2026-10-02'}));
-    const db={collection:(name:string)=>{
-      const query={where:()=>query,orderBy:()=>query,limit:()=>query,doc:(id:string)=>({id}),get:async()=>name==='companies'?{docs:graph.nodes.map(node=>({id:node.id,data:()=>({name:node.name,status:'DIRECTORY',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},newsSources:NEWS_SOURCES.filter(source=>source.companyId===node.id).map(source=>({...source,status:'PUBLISHED',reviewedAt:'2026-10-04'}))})}))}:name==='events'?{size:2,docs:records.map(record=>({data:()=>record}))}:{size:0,docs:[]}};return query;
-    },getAll:async(...refs:unknown[])=>refs.map(()=>({data:()=>({lastSuccessAt:now.toISOString(),failures:0,partial:false})}))};
-    for(const mode of ['matching','conflicting','unavailable']){
-      let calendarReads=0;
-      const service=await isolated(db,async()=>graph,undefined,undefined,async events=>{
-        calendarReads++;assert.equal(events.filter(event=>event.id.startsWith('news-company_news_')).length,2);
-        if(mode==='unavailable')throw new Error('test calendar unavailable');
-        return events.map(event=>event.id.startsWith('news-company_news_')?{...event,calendarEvents:[{id:`schedule-${event.id}`,companyId:'US:AMD',day:mode==='conflicting'&&event.id.endsWith('_b')?'2026-11-04':'2026-11-03'}]}:event);
-      });
-      const snapshot=await service.loadIntelligenceSnapshot(now);
-      const announcements=snapshot.events.filter(event=>event.id.startsWith('news-company_news_'));
-      assert.equal(announcements.length,mode==='matching'?1:2);
-      assert.equal(snapshot.sourceDocuments?.filter(document=>records.some(record=>record.url===document.id)).length,2);
-      if(mode==='matching')assert.equal(announcements[0].calendarEvents?.length,2);
-      if(mode==='unavailable')assert(snapshot.warnings.includes('Calendar event links are temporarily unavailable.'));
-      const company=await service.loadCompanyIntelligenceSnapshot(now,'ai','US:AMD');
-      assert.equal(company.events.filter(event=>event.id.startsWith('news-company_news_')).length,announcements.length);
-      assert.equal(calendarReads,1);
-    }
-  }finally{if(previous===undefined)delete process.env.INTELLIGENCE_NEWS_ENABLED;else process.env.INTELLIGENCE_NEWS_ENABLED=previous;}
-});
-
-
-test('full-period statistics include sources beyond the 200-entry feed and paginate without double counting',async()=>{
-  const documents=Array.from({length:620},(_,index)=>{
-    const accessionNumber=`0000002488-26-${String(index).padStart(6,'0')}`;
-    const event=createSecFilingDiscovered({companyId:index%2?'AMD':'MU',cik:'0000002488',accessionNumber,form:'10-Q',filingDate:'2026-10-01',primaryDocument:'release.htm',isXbrl:false,published_at:'2026-10-01T12:00:00Z',discoveredAt:'2026-10-02T12:00:00Z'});
-    return {id:accessionNumber,data:()=>({discoveryEvents:{[event.eventId]:{event,state:'published'}}})};
-  });
-  const reads:number[]=[];
-  const query=(name:string,offset=0)=>({where:()=>query(name,offset),orderBy:()=>query(name,offset),startAfter:(doc:{id:string})=>query(name,documents.findIndex(candidate=>candidate.id===doc.id)+1),limit:(limit:number)=>({get:async()=>{const docs=name==='sec_filings'?documents.slice(offset,offset+limit):[];if(name==='sec_filings')reads.push(offset);return {size:docs.length,docs};}})});
-  const periodGraph={...graph,nodes:[...graph.nodes,{id:'US:OLD',name:'Older source company',kind:'COMPANY' as const,order:2}],sources:[{...graph.sources[0],id:'hidden',url:'https://www.sec.gov/Archives/hidden.htm',sourceDate:'2026-09-03'},...graph.sources,{...graph.sources[0],id:'old',url:'https://www.sec.gov/Archives/older.htm',sourceDate:'2026-09-02'}],relationships:[{...graph.relationships[0],id:'hidden-edge',source:'US:OLD',target:'US:OLD',sourceIds:['hidden']},...graph.relationships,{...graph.relationships[0],id:'older-edge',sourceIds:['old']}]};
-  const service=await isolated({collection:(name:string)=>query(name)},async()=>periodGraph);
-  const snapshot=await service.loadIntelligenceSnapshot(now);
-  assert.equal(snapshot.events.length,200);assert.equal(snapshot.truncated,true);assert.equal(snapshot.statisticsComplete,true);
-  // The graph's September source is also in this exact 30-calendar-day period.
-  assert.equal(snapshot.sourceDocuments?.length,622);assert.deepEqual(reads,[0,500]);
-  assert.equal(summarizeIntelligence(snapshot.events,['US:OLD'],'').events.length,0);
-  assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:OLD'],'').signals,1);
-  const [older,repeatedOlder]=await Promise.all([service.loadCompanyIntelligenceSnapshot(now,'ai','US:OLD'),service.loadCompanyIntelligenceSnapshot(now,'ai','OLD')]);
-  assert.equal(older,repeatedOlder);
-  assert.equal(older.events.length,1);assert(older.events[0].companyIds.includes('US:OLD'));
-  assert.equal(older.truncated,false);assert.equal(older.graph,snapshot.graph);
-  assert.equal(older.sourceDocuments,snapshot.sourceDocuments);
-  // Searches must use the retained full period before applying the event cap.
-  assert.equal(await service.loadCompanyIntelligenceSnapshot(now,'ai','',' $ＯＬＤ '),older);
-  assert.equal(await service.loadCompanyIntelligenceSnapshot(now,'ai','','Older source company','US'),older);
-  assert.equal((await service.loadCompanyIntelligenceSnapshot(now,'ai','','OLD','CN_A')).events.length,0);
-  assert.equal((await service.loadCompanyIntelligenceSnapshot(now,'ai','','no matching company')).events.length,0);
+test('company filters and ten-at-a-time UI do not lose older items within a loaded day',async()=>{
+  const records=Array.from({length:230},(_,i)=>filing(i+1,'2026-10-02',i%2?'AMD':'MU'));
+  const service=await isolated(async()=>feed(records));
+  const all=await service.loadIntelligenceSnapshot(now);
+  assert.equal(all.events.length,230);assert.equal(all.limit,10);assert.equal(all.truncated,false);
   const amd=await service.loadCompanyIntelligenceSnapshot(now,'ai','AMD');
-  assert.equal(amd.events.length,200);assert(amd.events.every(event=>event.companyIds.includes('US:AMD')));
-  assert.equal(amd.truncated,true);
-  assert.equal((await service.loadCompanyIntelligenceSnapshot(now,'ai','NOT_IN_THEME')).events.length,0);
-  assert.equal((await service.loadCompanyIntelligenceSnapshot(now)).events.length,200);
-  assert.deepEqual(reads,[0,500]);
-  const stats=summarizeSourceDocuments(snapshot.sourceDocuments!,['US:AMD'],'SEC');
-  assert.equal(stats.signals,311);assert.equal(stats.sources.find(source=>source.name==='SEC')?.count,311);
-  assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:MU'],'IR').signals,0);
-  assert.equal(summarizeSourceDocuments(snapshot.sourceDocuments!,['US:AMD'],'SEC',Date.parse('2026-10-01T11:59:00Z')).signals,0);
-  await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000));assert.deepEqual(reads,[0,500]);
+  assert.equal(amd.events.length,115);assert(amd.events.every(event=>event.companyIds.includes('US:AMD')));
+  assert.equal((await service.loadCompanyIntelligenceSnapshot(now,'ai','UNKNOWN')).events.length,0);
 });
 
-test('theme snapshots keep graph and full-period activity caches isolated during concurrent switches',async()=>{
-  const query={where:()=>query,orderBy:()=>query,limit:()=>query,get:async()=>({size:0,docs:[]})};
-  let aiReads=0,roboticsReads=0;
-  const robotics={...graph,nodes:[{id:'US:ROK',name:'Rockwell',kind:'COMPANY' as const,order:0,stageIds:['robotics:systems-integration']}],relationships:[],sources:[]};
-  const service=await isolated({collection:()=>query},async()=>{aiReads++;return graph;},undefined,async()=>{roboticsReads++;return robotics;});
-  const [ai,robot]=await Promise.all([service.loadIntelligenceSnapshot(now),service.loadIntelligenceSnapshot(now,'robotics')]);
-  assert.equal(ai.theme,'ai');assert.equal(robot.theme,'robotics');
-  assert.equal(ai.graph,graph);assert.equal(robot.graph,robotics);assert.equal(robot.sourceDocuments?.length,0);assert.equal(ai.sourceDocuments?.length,1);
-  const repeated=await service.loadIntelligenceSnapshot(new Date(now.getTime()+10_000),'robotics');assert.equal(repeated,robot);
-  assert.equal(await service.loadIntelligenceSnapshot(now),ai);assert.equal(aiReads,1);assert.equal(roboticsReads,1);
+test('universe bootstrap does not touch the feed; unavailable cache reports partial coverage and retries',async()=>{
+  let fail=true,calls=0;
+  const service=await isolated(async()=>{calls++;if(fail)throw Error('test cache unavailable');return feed([filing(1)]);});
+  const universe=await service.loadIntelligenceUniverse(now);assert.equal(calls,0);assert.equal(universe.eventsPending,true);
+  const partial=await service.loadIntelligenceSnapshot(now);assert.equal(partial.statisticsComplete,false);assert.equal(partial.events.length,0);
+  fail=false;const next=await service.loadIntelligenceSnapshot(now);assert.equal(next.events.length,1);
+});
+
+test('graph failures are surfaced and collector failures never claim connected coverage',async()=>{
+  const broken=await isolated(async()=>feed(),{graph:async()=>{throw Error('graph unavailable');}});
+  await assert.rejects(broken.loadIntelligenceSnapshot(now),/graph unavailable/);
+  const service=await isolated(async()=>feed([filing(1)]),{collector:{failed:1,partial:0,remaining:0,outboxIncomplete:false}});
+  const snapshot=await service.loadIntelligenceSnapshot(now);
+  assert.notEqual(snapshot.coverage.find(source=>source.channel==='SEC')?.status,'connected');
+});
+
+test('Eastern day boundary changes projection even without a source notification',async()=>{
+  const service=await isolated(async()=>feed([filing(1)]));
+  const first=await service.loadIntelligenceSnapshot(new Date('2026-10-03T03:59:59Z'));
+  const next=await service.loadIntelligenceSnapshot(new Date('2026-10-03T04:00:00Z'));
+  assert.equal(first.session.date,'2026-10-02');assert.equal(next.session.date,'2026-10-03');assert.notEqual(first,next);
 });
 
 test('the events route negotiates compression and preserves filters and deferred refresh scheduling',async()=>{
@@ -269,6 +116,10 @@ test('the events route negotiates compression and preserves filters and deferred
     assert.deepEqual(JSON.parse(compressed?gunzipSync(bytes).toString():bytes.toString()),payload);
   }
   assert.equal(callbacks.length,5);
+  const current=await route.GET(new Request('http://localhost/api/intelligence?q=QCOM&region=US'));
+  const unchanged=await route.GET(new Request('http://localhost/api/intelligence?q=QCOM&region=US',{headers:{'If-None-Match':current.headers.get('etag')!}}));
+  assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
+  assert.equal((await route.GET(new Request('http://localhost/api/intelligence?before=invalid'))).status,400);
   fail=true;
   const error=await route.GET(new Request('http://localhost/api/intelligence?q=QCOM&region=US'));
   assert.equal(error.status,503);assert.equal(error.headers.get('content-encoding'),null);

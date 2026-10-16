@@ -1,24 +1,24 @@
-import {readPeriodDocuments} from './period-query';
+import {loadCachedFeed,type CachedFeed} from './feed-cache-store';
 import { createHash } from 'node:crypto';
 import { getAdminFirestore } from '../firebase/admin';
 import { loadKnowledgeGraph } from '../knowledge-graph/service';
 import { loadThemeGraph } from '../company-themes/graph-service';
 import { themeName, type CompanyThemeId } from '../company-themes/model';
 import { curatedEvents } from '../knowledge-graph/curated-events';
-import { SEC_FILINGS_COLLECTION, secCollectorMetadata } from '../sec-filings/store';
+import { secCollectorMetadata } from '../sec-filings/store';
 import { INTELLIGENCE_SOURCES, sourceDocumentsForEvents, intelligenceSession, secCollectorIsFresh, sourceChannel, type IntelligenceSnapshot } from './model';
 import { mergeIntelligenceEvents, projectResearchIntelligence } from './project';
 import { projectSecIntelligence } from './sec-events';
 import { loadCollectedNews } from './collectors/projection';
-import {loadMapDisclosures} from '../events/disclosure-projection';
+import {projectDisclosures} from '../events/disclosure-projection';
 import {attachPricePerformance} from './price-performance-service';
 import {attachCalendarLinks} from '../calendar/intelligence-links';
 import {groupCompanyAnnouncements} from './announcement-grouping';
 import {companySearchRank,companySearchText,matchesCompanySearch} from '../knowledge-graph/model';
 
-const LIMIT=200,CACHE_MS=60_000,STALE_MS=5*60_000;
+const LIMIT=10;
 type ScheduleRefresh=(refresh:()=>Promise<void>)=>void;
-const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;expires:number}>();
+const caches=new Map<CompanyThemeId,{value:IntelligenceSnapshot;key:string}>();
 const requests=new Map<string,Promise<IntelligenceSnapshot>>();
 // Retain the full period privately; company feeds reuse the same database read.
 const periods=new WeakMap<IntelligenceSnapshot,IntelligenceSnapshot['events']>();
@@ -27,7 +27,7 @@ const companyRequests=new WeakMap<IntelligenceSnapshot,Map<string,Promise<Intell
 /** The directory can render without waiting for source reads or price enrichment. */
 export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyThemeId='ai'):Promise<IntelligenceSnapshot>{
   const cached=caches.get(theme);
-  if(cached&&cached.expires>now.getTime()&&cached.value.session.date===intelligenceSession(now).date)return cached.value;
+  if(cached&&cached.value.session.date===intelligenceSession(now).date)return cached.value;
   const graph=await loadUniverseGraph(theme);
   return {theme,graph,graphVersion:createHash('sha256').update(JSON.stringify(graph)).digest('hex'),events:[],sourceDocuments:[],eventsPending:true,statisticsComplete:false,generatedAt:now.toISOString(),session:intelligenceSession(now),coverage:[],warnings:[],truncated:false,limit:LIMIT};
 }
@@ -38,8 +38,8 @@ async function loadUniverseGraph(theme:CompanyThemeId){
     :await (theme==='ai'?loadKnowledgeGraph():loadThemeGraph(theme));
 }
 
-export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region='',scheduleRefresh?:ScheduleRefresh):Promise<IntelligenceSnapshot>{
-  const base=await loadIntelligenceSnapshot(now,theme,scheduleRefresh);
+export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',company='',query='',region='',scheduleRefresh?:ScheduleRefresh,before?:string):Promise<IntelligenceSnapshot>{
+  const base=await loadIntelligenceSnapshot(now,theme,scheduleRefresh,before);
   const search=query.normalize('NFKC').trim().replace(/^\$/,'');
   if(!company&&!search&&region!=='US'&&region!=='CN_A')return base;
   const id=company.includes(':')?company.toUpperCase():`US:${company.toUpperCase()}`;
@@ -53,46 +53,47 @@ export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:Compa
   const pending=requests.get(scopeKey);if(pending)return pending;
   const request=(async()=>{
     const matching=(periods.get(base)??base.events).filter(event=>event.companyIds.some(id=>ids.has(id)));
-    const events=matching.slice(0,LIMIT);
+    const events=matching;
     let eventReturns:IntelligenceSnapshot['eventReturns']={};
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
       // Enrich only companies in the selected/search scope; retain the shared graph.
       const graph={...base.graph,nodes:base.graph.nodes.filter(node=>ids.has(node.id))};
       eventReturns=(await attachPricePerformance(getAdminFirestore(),graph,events,now)).eventReturns;
     }
-    return {...base,events,eventReturns,truncated:matching.length>LIMIT};
+    return {...base,events,eventReturns,truncated:false};
   })();
   requests.set(scopeKey,request);
   try{return await request;}catch(error){requests.delete(scopeKey);throw error;}
 }
 
-/** One cached, paginated period read shared by browsers; only the event list is capped. */
-export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',scheduleRefresh?:ScheduleRefresh):Promise<IntelligenceSnapshot>{
+/** Persistent day partitions are shared across users, processes and themes.
+ * Only projection/price metadata is refreshed periodically; source days never expire.
+ */
+export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',_scheduleRefresh?:ScheduleRefresh,before?:string):Promise<IntelligenceSnapshot>{
   const session=intelligenceSession(now);
-  const requestKey=`${theme}:${session.date}`;
+  const preview=process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1';
+  let feed:CachedFeed|undefined,feedError:unknown;
+  if(!preview)try{feed=await loadCachedFeed(getAdminFirestore(),now,before);}catch(error){feedError=error;}
+  const graph=await loadUniverseGraph(theme);
+  // Prices may change without a news arrival. Re-project from cached source days,
+  // never re-query the historical source collections on this five-minute boundary.
+  const key=[session.date,feed?.revision??'unavailable',createHash('sha256').update(JSON.stringify(graph)).digest('hex'),Math.floor(now.getTime()/300_000)].join(':');
+  const requestKey=`${theme}:${key}`;
   const cached=caches.get(theme),pending=requests.get(requestKey);
-  if(cached&&cached.expires>now.getTime()&&cached.value.session.date===session.date)return cached.value;
-  // Keep ticker switches independent of the shared period rebuild. The route
-  // owns the refresh lifetime; never serve yesterday's session or old failures.
-  if(scheduleRefresh&&cached&&cached.value.session.date===session.date&&now.getTime()-Date.parse(cached.value.generatedAt)<STALE_MS){
-    const scheduledAt=Date.now();
-    scheduleRefresh(async()=>{
-      try{await loadIntelligenceSnapshot(new Date(now.getTime()+Math.max(0,Date.now()-scheduledAt)),theme);}
-      catch(error){console.error('Intelligence snapshot refresh unavailable',error);}
-    });
-    return cached.value;
-  }
+  if(feedError&&cached?.value.session.date===session.date)return {...cached.value,statisticsComplete:false,warnings:[...cached.value.warnings,'Feed updates are temporarily unavailable. Showing the previously loaded days.']};
+  if(!feedError&&cached?.key===key)return cached.value;
   if(pending)return pending;
   const request=(async()=>{
-    const graph=await loadUniverseGraph(theme);
     const warnings:string[]=[];
     let statisticsComplete=true;
     let filings:ReturnType<typeof projectSecIntelligence>=[],secAvailable=false,secFresh=false,truncated=false;
-    const earliestDay=new Date(Date.parse(`${session.date}T12:00:00Z`)-29*86_400_000).toISOString().slice(0,10);
+    const earliestDay=feed?.loadedFrom??session.date;
+    const records=Object.values(feed?.days??{}).flat();
     if(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'){
       statisticsComplete=false;
       warnings.push('Local preview reads the published production graph. The SEC arrival feed is available only on the connected server.');
     }else try{
+      if(feedError)throw feedError;
       const db=getAdminFirestore();
       const metadata=await secCollectorMetadata(db).get();
       const lastRun=metadata.get('lastRunAt');
@@ -100,8 +101,7 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
       if(!secFresh){
         warnings.push('SEC collector freshness is unverified. Filing records reflect stored discoveries, not guaranteed current coverage.');
       }
-      const page=await readPeriodDocuments(db.collection(SEC_FILINGS_COLLECTION).where('filingDate','>=',earliestDay).orderBy('filingDate','desc'));
-      const docs=page.map(doc=>({id:doc.id,data:doc.data()}));
+      const docs=records.filter(row=>row.collection==='sec_filings');
       filings=projectSecIntelligence(docs,graph,now).sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date));
 
       secAvailable=true;
@@ -113,7 +113,8 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     let news:Awaited<ReturnType<typeof loadCollectedNews>>|undefined;
     let newsCoverage:IntelligenceSnapshot['newsCoverage'];
     if(process.env.INTELLIGENCE_NEWS_ENABLED==='1'&&!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
-      news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay);
+      if(feedError)throw feedError;
+      news=await loadCollectedNews(getAdminFirestore(),graph,now,earliestDay,undefined,records.filter(row=>row.collection==='events').map(row=>row.data));
       const companyIds=graph.nodes.filter(node=>node.kind==='COMPANY'&&(theme!=='ai'||node.id.startsWith('US:'))).map(node=>node.id);
       const configured=new Set(news.configuredCompanyIds);
       const covered=companyIds.filter(id=>configured.has(id)).length;
@@ -124,10 +125,11 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
       if(!news.fresh)warnings.push(`Company news collector freshness is unverified: ${news.unhealthy.join(', ')}.`);
     }catch(error){statisticsComplete=false;console.error('Intelligence company news unavailable',error);warnings.push('Company news arrivals are temporarily unavailable.');}
     const projected=projectResearchIntelligence(graph,theme==='ai'?curatedEvents:[],now);
-    let disclosures:Awaited<ReturnType<typeof loadMapDisclosures>>|undefined;
+    let disclosures:{events:ReturnType<typeof projectDisclosures>;truncated:boolean}|undefined;
     let calendarAvailable=true;
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1'))try{
-      disclosures=await loadMapDisclosures(getAdminFirestore(),graph,now,earliestDay);
+      if(feedError)throw feedError;
+      disclosures={events:projectDisclosures(records.filter(row=>row.collection==='events').map(row=>row.data),graph,now),truncated:false};
       truncated=truncated||disclosures.truncated;
     }catch(error){statisticsComplete=false;console.error('Map disclosure feed unavailable',error);warnings.push('Company disclosure arrivals are temporarily unavailable.');}
     // A discovery and a research citation of the same filing are one document.
@@ -138,7 +140,7 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     }catch(error){calendarAvailable=false;console.error('Intelligence calendar links unavailable',error);warnings.push('Calendar event links are temporarily unavailable.');}
     ordered=calendarAvailable?groupCompanyAnnouncements(ordered):[...groupCompanyAnnouncements(ordered.filter(event=>event.eventType==='insider_trade')),...ordered.filter(event=>event.eventType!=='insider_trade')];
     ordered.sort((a,b)=>(b.published_at??b.publication_date).localeCompare(a.published_at??a.publication_date)||a.id.localeCompare(b.id));
-    const events=ordered.slice(0,LIMIT);truncated=truncated||ordered.length>LIMIT;
+    const events=ordered;
     let priced={graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
       priced=await attachPricePerformance(getAdminFirestore(),graph,events,now);
@@ -147,11 +149,11 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     const graphVersion=createHash('sha256').update(JSON.stringify(priced.graph)).digest('hex');
     const evidenceChannels=new Set(graph.sources.map(source=>sourceChannel(source.url)));
     for(const event of ordered)for(const source of event.evidence)evidenceChannels.add(source.channel);
-    const value:IntelligenceSnapshot={theme,graph:priced.graph,eventReturns:priced.eventReturns,graphVersion,events,sourceDocuments:sourceDocumentsForEvents(ordered),statisticsComplete,generatedAt:now.toISOString(),session,newsCoverage,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
+    const value:IntelligenceSnapshot={...(feed?{feedWindow:{loadedFrom:feed.loadedFrom,through:session.date,maxDays:7 as const,hasMore:feed.hasMore,version:feed.revision}}:{}),theme,graph:priced.graph,eventReturns:priced.eventReturns,graphVersion,events,sourceDocuments:sourceDocumentsForEvents(ordered),statisticsComplete,generatedAt:now.toISOString(),session,newsCoverage,coverage:INTELLIGENCE_SOURCES.map(channel=>({channel,status:(channel==='SEC'&&secAvailable&&secFresh)||(channel==='IR'&&news?.fresh)?'connected':evidenceChannels.has(channel)?'stored_evidence':'unavailable'})),warnings,truncated,limit:LIMIT};
     periods.set(value,ordered);
     // An older in-flight session must not overwrite a newer day's cache.
     const current=caches.get(theme);
-    if(!current||Date.parse(current.value.generatedAt)<=now.getTime())caches.set(theme,{value,expires:now.getTime()+CACHE_MS});
+    if(!current||Date.parse(current.value.generatedAt)<=now.getTime())caches.set(theme,{value,key});
     return value;
   })();
   requests.set(requestKey,request);

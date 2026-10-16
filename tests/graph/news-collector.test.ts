@@ -127,7 +127,7 @@ function memoryDb(){
   const snapshot=(ref:{path:string})=>({exists:records.has(ref.path),data:()=>records.get(ref.path)});
   const db={collection:(name:string)=>({doc:(id:string)=>({path:`${name}/${id}`})}),runTransaction:async<T>(run:(tx:unknown)=>Promise<T>)=>{
     const writes:(()=>void)[]=[];
-    const value=await run({get:async(ref:{path:string})=>snapshot(ref),getAll:async(...refs:{path:string}[])=>refs.map(snapshot),set:(ref:{path:string},data:Record<string,unknown>)=>writes.push(()=>records.set(ref.path,data)),create:(ref:{path:string},data:Record<string,unknown>)=>{assert.equal(records.has(ref.path),false);writes.push(()=>records.set(ref.path,data));}});
+    const value=await run({get:async(ref:{path:string})=>snapshot(ref),getAll:async(...refs:{path:string}[])=>refs.map(snapshot),set:(ref:{path:string},data:Record<string,unknown>,options?:{merge?:boolean})=>writes.push(()=>records.set(ref.path,options?.merge?{...records.get(ref.path),...data}:data)),create:(ref:{path:string},data:Record<string,unknown>)=>{assert.equal(records.has(ref.path),false);writes.push(()=>records.set(ref.path,data));}});
     writes.forEach(write=>write());return value;
   }};
   return {db:db as unknown as Firestore,records};
@@ -175,7 +175,7 @@ test('initial history remains baseline; later arrivals are immutable and retries
   const values=[...records.entries()].filter(([key])=>key.startsWith(NEWS_EVENTS_COLLECTION+'/')).map(([,value])=>value);
   assert.equal(values.length,2);assert.equal(values[0].baseline,true);assert.equal(values[1].baseline,false);assert.equal(values[1].collected_at,nextAt.toISOString());
   const retryAt=new Date(nextAt.getTime()+source.pollMs),retry=await store.acquire(source,retryAt,'retry');assert.ok(retry);await store.commit(source,retry,page('new'),retryAt);
-  assert.equal(values[1].collected_at,nextAt.toISOString());assert.equal(records.size,3);
+  assert.equal(values[1].collected_at,nextAt.toISOString());assert.equal(records.size,4);
   const graph:KnowledgeGraph={nodes:[{id:source.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-02'};
   const projected=projectCollectedNews(values,graph,retryAt);assert.equal(projected.length,2);assert.equal(projected[0].published_at,'2026-10-02T12:00:00.000Z');assert.equal('collected_at' in projected[0],false);assert.equal('processed_at' in projected[0],false);assert.deepEqual(projected[0].edgeIds,[]);
 });
@@ -185,7 +185,7 @@ test('failed scans keep their previous validators and first-seen state; stale le
   const nextAt=new Date(at.getTime()+source.pollMs),next=await store.acquire(source,nextAt,'next');assert.ok(next);
   await assert.rejects(store.commit(source,next,page('bad'),new Date(nextAt.getTime()+121_000)),/lease expired/);
   await store.fail(source,next,'HTTP 429',new Date(nextAt.getTime()+1_200_000));
-  const state=records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)!;assert.deepEqual(state.validators,{etag:'history'});assert.equal(state.lastSuccessAt,at.toISOString());assert.equal(state.failures,1);assert.equal(records.size,2);
+  const state=records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)!;assert.deepEqual(state.validators,{etag:'history'});assert.equal(state.lastSuccessAt,at.toISOString());assert.equal(state.failures,1);assert.equal(records.size,3);
 });
 test('runner respects provider backoff without losing prior collector health',async()=>{
   const {db,records}=memoryDb();await collectNewsSources([source],firestoreNewsStore(db),async()=>{throw new NewsFetchError('HTTP 429',7_200_000);},()=>at);
