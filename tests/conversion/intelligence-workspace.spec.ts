@@ -1269,14 +1269,14 @@ for(const chinese of [false,true])test('active workspace company summary follows
 });
 
 test('Chinese event feed uses saved headlines and retains the original title',async({page})=>{
-  await open(page,true,{...snapshot,events:[events[199]]});
+  await open(page,true,{...snapshot,events:[snapshot.events[199]]});
   const headline=page.getByText('Lumentum 通信业务最新进展',{exact:true});
   await expect(headline).toBeVisible();
   await expect(headline).toHaveAttribute('title','Lumentum communication update');
 });
 
 test('English event feed displays saved English translations of Chinese headlines',async({page})=>{
- await open(page,false,{...snapshot,events:[events[198]]});
+ await open(page,false,{...snapshot,events:[snapshot.events[198]]});
  const headline=page.getByText('Announcement of a shareholders meeting',{exact:true});
  await expect(headline).toBeVisible();await expect(headline).toHaveAttribute('title','关于召开股东大会的公告');
  await expect(page.getByText('关于召开股东大会的公告',{exact:true})).toHaveCount(0);
