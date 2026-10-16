@@ -12,6 +12,10 @@ The current Explore workspace (`/en?view=graph`) also shows the timeline below e
 
 The endpoint currently supports the existing US and China A-share price-storage conventions. Its broader range support remains available to callers, while the timeline UI requests only 30 days.
 
+Chart split adjustments read `corporate_actions` with a single-field `ticker` query, then filter by `market`, `type: "split"`, and `status: "completed"`. Each split supplies `effectiveDate` (the first trading session on the new share basis), `splitNumerator` (new shares), and `splitDenominator` (old shares). Completed actions after the chart's market date are excluded. Duplicate dates with equivalent ratios count once; malformed or conflicting completed splits make the endpoint return unavailable instead of serving a misleading chart.
+
+For listings with split records and an explicit valid `rawClose`, chart OHLC uses the cumulative ratio of splits after each price date, through the chart's market date. This happens before aggregation and indicator calculation, and never rewrites `eod_prices`. EODHD volume is already split-adjusted and remains unchanged. Listings without split records, and rows without explicit raw closes, retain their stored close basis. This is a split-only chart basis, not a dividend total-return series. The normalized split list is included in the chart cache key, so adding, correcting, or removing an action invalidates the server's cached bars on the next request; HTTP responses have a 60-second cache lifetime.
+
 ## Local preview
 
 Run `npm run dev -- --webpack --hostname 127.0.0.1 --port 3000` and open `/dev/company-timeline?view=graph`. The preview uses repository source evidence and explicitly labeled illustrative price/volume bars; it needs no local cloud credentials. Its server page returns not found outside development. Production components continue to use the read-only stored-history endpoint.
