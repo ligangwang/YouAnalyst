@@ -1,5 +1,6 @@
 import { saveLatestEodPrice } from "./latest-eod";
 import { backfillPriceHistory, historyThrough, historyProviderSymbol } from "./history-backfill";
+import { corporateActionTickers, syncCorporateActions } from './corporate-actions';
 import { loadUsdCnyEod } from "./fx-eod";
 import { createMaintenanceLog, loggedTransaction, maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { predictionInstrument, marketDate, type PredictionMarket } from "./instrument";
@@ -78,6 +79,7 @@ export type EodPrice = {
 };
 
 export type DailyEodMaintenanceResult = {
+  corporateActions?: Awaited<ReturnType<typeof syncCorporateActions>>;
   runId?: string;
   fx?: { processed: number; failed: number; tradingDate?: string; close?: number; error?: string };
   dryRun: boolean;
@@ -1463,6 +1465,18 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       predictionTickers: predictionsToProcess.map((item) => item.ticker) });
     log.emit("INFO", "price_universe_selected", { runDate, requestedTickers: requestedTickers.length, mapTickers: mapTickers.length });
 
+    let corporateActions:DailyEodMaintenanceResult['corporateActions'];
+    // Historical repair/replay and mark-only requests retain their original scope.
+    // The current daily run discovers all map/watchlist listings before loading prices.
+    if(loadPrices&&!dryRun&&!input.skipHistoryBackfill&&!manualTickers.length&&runDate===marketDate(market)){
+      log.stage('sync_corporate_actions');
+      const tickers=await corporateActionTickers(db,market,mapTickers);
+      corporateActions=await syncCorporateActions({db,tickers,through:runDate,token:process.env.EODHD_API_TOKEN??'',apiUrl:process.env.EODHD_API_URL});
+      log.emit(corporateActions.failures.length||corporateActions.deferred?'ERROR':'INFO','corporate_actions_synced',corporateActions);
+      await runRef.set({corporateActions},{merge:true});
+      if(corporateActions.failures.length||corporateActions.deferred)throw Error('Corporate actions incomplete; retry before price processing');
+    }
+
 
     console.info("[daily-eod-maintenance] Prediction scan completed", {
       runDate,
@@ -1954,6 +1968,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     }
 
     const result: DailyEodMaintenanceResult = {
+      ...(corporateActions?{corporateActions}:{}),
       dryRun,
       recompute,
       runDate,

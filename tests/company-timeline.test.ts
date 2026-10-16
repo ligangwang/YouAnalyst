@@ -107,7 +107,7 @@ test('NVDA raw OHLC uses cumulative splits without re-adjusting volume or adjust
 
 test('stored splits support other listings and reverse splits, exclude future actions and reject invalid data',()=>{
  const split={ticker:'UNIT',market:'US',type:'split',status:'completed',effectiveDate:'2026-01-05',splitNumerator:1,splitDenominator:5};
- const records=[split,{...split}, {...split,market:'CN_A',splitNumerator:100}, {...split,status:'announced'}, {...split,type:'dividend'}, {...split,effectiveDate:'2027-01-01',splitNumerator:10}];
+ const records=[split,{...split}, {...split,market:'CN_A',splitNumerator:100}, {...split,status:'announced'}, {...split,type:'dividend'}, {...split,effectiveDate:'2027-01-01',splitNumerator:10}, {...split,effectiveDate:'2027-01-02',splitNumerator:null}];
  const splits=timelineSplits(records,'UNIT','US','2026-10-16');
  assert.equal(splits.length,1);
  const row={ticker:'UNIT',market:'US',tradingDate:'2026-01-02',rawClose:10,close:9,open:9,high:12,low:8,volume:100};

@@ -112,12 +112,12 @@ export function timelineSplits(records:Record<string,unknown>[],ticker:string,ma
   for(const record of records){
     if(record.ticker!==ticker||record.market!==market||record.type!=='split'||record.status!=='completed')continue;
     const effectiveDate=timelineDate(record.effectiveDate);
+    if(effectiveDate&&record.effectiveDate===effectiveDate&&effectiveDate>asOf)continue;
     const numerator=record.splitNumerator,denominator=record.splitDenominator;
     if(!effectiveDate||record.effectiveDate!==effectiveDate||typeof numerator!=='number'||!Number.isFinite(numerator)||numerator<=0
       ||typeof denominator!=='number'||!Number.isFinite(denominator)||denominator<=0||!Number.isFinite(numerator/denominator)||numerator/denominator<=0){
       throw new Error('Invalid completed split');
     }
-    if(effectiveDate>asOf)continue;
     const previous=byDate.get(effectiveDate);
     if(previous&&previous.numerator/previous.denominator!==numerator/denominator)throw new Error('Conflicting completed splits');
     byDate.set(effectiveDate,{effectiveDate,numerator,denominator});
