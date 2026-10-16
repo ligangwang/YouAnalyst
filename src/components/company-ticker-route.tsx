@@ -59,14 +59,16 @@ async function buildPageMetadata({
   const chinaId = chinaCompanyId(symbol);
   if (chinaId) {
     const company = await loadChinaCompany(chinaId);
-    return { title: `${companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)} (${chinaId.split(":")[1]}) ${locale === "zh-CN" ? "股票：财务、公告与分析师观点" : "Stock: Financials, Announcements & Analyst Views"} | YouAnalyst`, description: locale === "en" ? company.descriptionEn || company.description : company.description,
+    return { title: `${companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)} (${chinaId.split(":")[1]}) ${locale === "zh-CN" ? "股票：财务与分析师观点" : "Stock: Financials & Analyst Views"} | YouAnalyst`, description: locale === "en" ? company.descriptionEn || company.description : company.description,
       alternates: { canonical: companyPageUrl(chinaId, "CN_A",company.slug) } };
   }
   const ticker = resolveTicker(symbol);
   const company = await loadCompanyResearch(ticker);
   const canonical = await canonicalCompanyPath(`US:${ticker}`) ?? companyPageUrl(ticker,'US',company.slug);
-  const title = `${companyPageHeadline(company, locale)} | YouAnalyst`;
-  const description = companyResearchDescription(company, locale);
+  // Cached per company, so the page render reuses this read.
+  const content = { earnings: company.inMap && Boolean(await loadLatestCompanyEarnings(`US:${ticker}`)) };
+  const title = `${companyPageHeadline(company, locale, content)} | YouAnalyst`;
+  const description = companyResearchDescription(company, locale, content);
 
   return {
     title,
@@ -105,11 +107,13 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   if (symbol !== ticker) permanentRedirect(localizedPath(companyPageUrl(ticker, "US"), locale));
   const company = await loadCompanyResearch(ticker);
   const canonical = await canonicalCompanyPath(`US:${ticker}`) ?? companyPageUrl(ticker,'US',company.slug);
+  const earningsSummary = company.inMap ? await loadLatestCompanyEarnings(`US:${ticker}`) : null;
+  const content = { earnings: Boolean(earningsSummary) };
   const schema = {
     "@context": "https://schema.org",
     "@graph": [
       ...(company.known ? [companyOrganizationSchema({ ...company, id: `US:${ticker}` }, locale, absoluteUrl(localizedPath(canonical, locale)), ticker, company.exchange)] : []),
-      { "@type": "WebPage", name: companyPageHeadline(company, locale), url: absoluteUrl(localizedPath(canonical, locale)), description: companyResearchDescription(company, locale) },
+      { "@type": "WebPage", name: companyPageHeadline(company, locale, content), url: absoluteUrl(localizedPath(canonical, locale)), description: companyResearchDescription(company, locale, content) },
       { "@type": "BreadcrumbList", itemListElement: [
         { "@type": "ListItem", position: 1, name: "YouAnalyst", item: absoluteUrl(localizedPath("/", locale)) },
         { "@type": "ListItem", position: 2, name: locale === "zh-CN" ? "公司" : "Companies", item: absoluteUrl(localizedPath("/companies", locale)) },
@@ -119,7 +123,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
   };
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema).replace(/</g, "\\u003c") }} />
-    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} earningsSummary={company.inMap?await loadLatestCompanyEarnings(`US:${ticker}`):null} graph={await loadKnowledgeGraph().catch(() => undefined)} fundamentals={
+    <TickerPage ticker={ticker} overview={<CompanyResearchOverview company={company} announcements={company.inMap?await loadCompanyAnnouncements(`US:${ticker}`):[]} earningsSummary={earningsSummary} graph={await loadKnowledgeGraph().catch(() => undefined)} fundamentals={
       <Suspense fallback={<p role="status" className="py-6 text-sm text-slate-400"><UiText text={"Loading SEC business and financials…"} /></p>}>
         <CompanyFundamentalsLoader ticker={ticker} />
       </Suspense>

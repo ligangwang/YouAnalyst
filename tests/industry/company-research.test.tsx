@@ -77,6 +77,11 @@ test("company identity, evidence and crawlable links are present without browser
   // Titles lead with the "<ticker> stock" phrasing searchers use.
   assert.match(companyPageHeadline(company,"en"), /^AMD \(AMD\) Stock: .*Analyst Views$/);
   assert.match(companyPageHeadline(company,"zh-CN"), /^超威半导体（AMD）股票：.*分析师观点$/);
+  // Earnings appear in search snippets only when the page has an earnings record.
+  assert.doesNotMatch(companyPageHeadline(company,"en"), /Earnings/);
+  assert.doesNotMatch(companyResearchDescription(company,"en"), /earnings/);
+  assert.match(companyPageHeadline(company,"en",{earnings:true}), /Earnings/);
+  assert.match(companyResearchDescription(company,"en",{earnings:true}), /latest earnings/);
  });
  test("Chinese company normalization retains localized identity and descriptions", async () => {
   const { normalizeChinaCompany } = await import("../../src/lib/industry-research/china");
