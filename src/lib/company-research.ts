@@ -46,8 +46,24 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
 
 export type CompanyResearch = ReturnType<typeof buildCompanyResearch>;
 
-export function companyResearchDescription(company: CompanyResearch, locale = "en") {
+// What the rendered page has beyond the always-present sections.
+export type CompanyPageContent = { earnings?: boolean };
+
+// Searchers look for "<ticker> stock", so the headline leads with that and names
+// only what the page actually shows: earnings only when a record loaded.
+export function companyPageHeadline(company: CompanyResearch, locale = "en", { earnings = false }: CompanyPageContent = {}) {
   const name = companyName({id: company.ticker, name: company.name, names: company.names}, locale);
-  if (locale === "zh-CN") return `研究${name}（${company.ticker}）：公司业务与财务${company.inMap ? "、有来源支持的产业链关系" : ""}，以及公开投资观点。`;
-  return `Research ${name} (${company.ticker}): business and financials${company.inMap ? ", sourced company relationships" : ""}, and public investment views.`;
+  const zh = locale === "zh-CN";
+  const middle = earnings ? (zh ? "财报" : "Earnings") : (zh ? "财务" : "Financials");
+  const topics = company.connections.length ? (zh ? `AI 产业链、${middle}与分析师观点` : `AI Supply Chain, ${middle} & Analyst Views`)
+    : earnings ? (zh ? "财务、财报与分析师观点" : "Financials, Earnings & Analyst Views")
+    : (zh ? "财务与分析师观点" : "Financials & Analyst Views");
+  return zh ? `${name}（${company.ticker}）股票：${topics}` : `${name} (${company.ticker}) Stock: ${topics}`;
+}
+
+export function companyResearchDescription(company: CompanyResearch, locale = "en", { earnings = false }: CompanyPageContent = {}) {
+  const name = companyName({id: company.ticker, name: company.name, names: company.names}, locale);
+  const sector = company.sector && company.sector.id !== "other" ? company.sector : null;
+  if (locale === "zh-CN") return `${name}（${company.ticker}）股票${company.exchange ? `，${company.exchange} 上市` : ""}${sector ? ` · ${sector.zh}` : ""}。研究其公司业务与财务${earnings ? "、最新财报" : ""}${company.connections.length ? "、有来源支持的产业链关系" : ""}，以及公开分析师观点。`;
+  return `${name} (${company.ticker}) stock${company.exchange ? ` on ${company.exchange}` : ""}${sector ? ` · ${sector.en}` : ""}. Research its business and financials${earnings ? ", latest earnings" : ""}${company.connections.length ? ", sourced company relationships" : ""}, and public analyst views.`;
 }

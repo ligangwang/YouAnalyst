@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRequire } from "node:module";
-import { buildCompanyResearch, companyResearchDescription } from "../../src/lib/company-research";
+import { buildCompanyResearch, companyPageHeadline, companyResearchDescription } from "../../src/lib/company-research";
 import { fixtureGraph } from "./fixtures";
 
 test("company identity selects a supported active listing on the primary exchange", () => {
@@ -72,8 +72,16 @@ test("company identity, evidence and crawlable links are present without browser
   const zh = renderToStaticMarkup(<LocaleProvider locale="zh-CN"><CompanyHeading {...company} /></LocaleProvider>);
   assert.match(en, />AMD<\/h1>/);
   assert.match(zh, /超威半导体/);
-  assert.match(companyResearchDescription(company,"zh-CN"), /研究超威半导体/);
-  assert.match(companyResearchDescription(company,"en"), /Research AMD/);
+  assert.match(companyResearchDescription(company,"zh-CN"), /^超威半导体（AMD）股票/);
+  assert.match(companyResearchDescription(company,"en"), /^AMD \(AMD\) stock\b/);
+  // Titles lead with the "<ticker> stock" phrasing searchers use.
+  assert.match(companyPageHeadline(company,"en"), /^AMD \(AMD\) Stock: .*Analyst Views$/);
+  assert.match(companyPageHeadline(company,"zh-CN"), /^超威半导体（AMD）股票：.*分析师观点$/);
+  // Earnings appear in search snippets only when the page has an earnings record.
+  assert.doesNotMatch(companyPageHeadline(company,"en"), /Earnings/);
+  assert.doesNotMatch(companyResearchDescription(company,"en"), /earnings/);
+  assert.match(companyPageHeadline(company,"en",{earnings:true}), /Earnings/);
+  assert.match(companyResearchDescription(company,"en",{earnings:true}), /latest earnings/);
  });
  test("Chinese company normalization retains localized identity and descriptions", async () => {
   const { normalizeChinaCompany } = await import("../../src/lib/industry-research/china");
