@@ -11,9 +11,11 @@ import styles from './event-details-window.module.css';
 import { EventCompanyNameResolution } from './company-name-resolution';
 
 export type EventWindowAnchor = {x:number;y:number;trigger:HTMLElement|null;host:HTMLElement|null};
-export function eventWindowAnchor(event:MouseEvent<HTMLElement>):EventWindowAnchor {
-  const rect=event.currentTarget.getBoundingClientRect();
-  return {x:event.detail?event.clientX:rect.right,y:event.detail?event.clientY:rect.bottom,trigger:event.currentTarget,host:event.currentTarget.closest<HTMLElement>('[data-chart-size="full"]')};
+export function eventWindowAnchor(event:MouseEvent<HTMLElement>,trigger=event.currentTarget):EventWindowAnchor {
+  const rect=trigger.getBoundingClientRect();
+  const pointer=event.detail>0||event.type==='contextmenu'&&(event.clientX!==0||event.clientY!==0);
+  const target=event.target instanceof Element?event.target:trigger;
+  return {x:pointer?event.clientX:rect.right,y:pointer?event.clientY:rect.bottom,trigger,host:target.closest<HTMLElement>('[data-chart-size="full"]')??trigger.closest<HTMLElement>('[data-chart-size="full"]')};
 }
 const subscribe=()=>()=>{};
 export function FloatingEventWindow({anchor,title,children,onClose,closeLabel,role='dialog',focusClose=false}:{anchor?:EventWindowAnchor|null;title:string;children:ReactNode;onClose:()=>void;closeLabel?:string;role?:'dialog'|'group';focusClose?:boolean}) {

@@ -22,7 +22,7 @@ import type { SearchSuggestion } from "./ticker-search-input";
 import { ChartStockReview, type ChartWatchlist } from './chart-stock-review';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
-export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, closed:controlledClosed, onClosedChange, watchlist, onSelectCompany }: { watchlist?:ChartWatchlist; onSelectCompany?:(id:string)=>void; closed?:boolean; onClosedChange?:(closed:boolean)=>void; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
+export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, closed:controlledClosed, onClosedChange, watchlist, onSelectCompany, stockToolsRequest, onCloseStockToolsRequest }: { stockToolsRequest?:{companyId:string;anchor:EventWindowAnchor}|null; onCloseStockToolsRequest?:()=>void; watchlist?:ChartWatchlist; onSelectCompany?:(id:string)=>void; closed?:boolean; onClosedChange?:(closed:boolean)=>void; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
   const { text, chinese, locale } = useLocale();
   const [stockChoice, setStockChoice] = useState<{source: string; item: SearchSuggestion} | null>(null);
   const chosenStock = stockChoice?.source === initialCompanyId ? stockChoice.item : null;
@@ -31,7 +31,9 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const onSelectEvent = chosenStock ? undefined : originalSelectEvent;
   const selectedEventId = chosenStock ? undefined : originalEventId;
 
-  const [stockTools,setStockTools]=useState<{companyId:string;anchor:EventWindowAnchor}|null>(null);
+  const [localStockTools,setStockTools]=useState<{companyId:string;anchor:EventWindowAnchor}|null>(null);
+  const stockTools=stockToolsRequest?.companyId===companyId?stockToolsRequest:localStockTools;
+  const closeStockTools=()=>{setStockTools(null);onCloseStockToolsRequest?.();};
   const researchPath=companyResearchPath(companyId,locale);
   useEffect(()=>{
     const openResearch=(event:KeyboardEvent)=>{
@@ -277,7 +279,18 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     if(onSelectCompany&&chartSize!=='full'&&(graph??loadedGraph)?.nodes.some(item=>item.id===node.id)){onSelectCompany(node.id);return;}
     chooseStock({id:node.id,symbol:node.symbol??node.id.split(':').at(-1)??node.id,name:companyName(node,locale),market:node.market,slug:node.slug,exchange:null,micCode:null,type:null});
   }
-  if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button></section>;
+  const movingAverageWindow=maSettings&&<FloatingEventWindow role="dialog" anchor={maSettings} title={text('Moving average settings','均线设置')} closeLabel={text('Close MA settings','关闭均线设置')} onClose={()=>setMaSettings(null)}>
+      <div role="group" aria-label={text('Moving average lines','均线显示')} className={styles.indicatorControls}>
+        {averagePeriods.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):movingAveragePeriods([...values,period]))}>{text('MA','MA')}{period}</button>)}
+      </div>
+      <form key={averages.join(',')} className={styles.maSettings} onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);setAverages(()=>movingAveragePeriods(Array.from({length:8},(_,index)=>Number(form.get(`ma-${index}`)))));setMaSettings(null);}}>
+        <p>{text('MA periods count bars in the selected interval. Set 0 to disable a line.','均线周期按所选K线的根数计算。填 0 关闭该线。')}</p>
+        {Array.from({length:8},(_,index)=><label key={index}>{text('Line','第')}{index+1}{chinese?'条':''}<input name={`ma-${index}`} type="number" min={0} max={500} step={1} defaultValue={averages[index]??0}/></label>)}
+        <button type="submit">{text('Apply','应用')}</button>
+      </form>
+    </FloatingEventWindow>;
+  const stockReview=<ChartStockReview companyId={companyId} company={chosenStock?{id:chosenStock.id,kind:'COMPANY',order:0,name:chosenStock.name,symbol:chosenStock.symbol}:undefined} graph={graph??loadedGraph} anchor={stockTools?.companyId===companyId?stockTools.anchor:null} closeTools={closeStockTools} settings={settings} changeSettings={changeSettings} openAverages={setMaSettings} selectCompany={reviewCompany} watchlist={watchlist} showWatchlist={showWatchlist} onShowWatchlistChange={show=>updateIndustryBrowse({chartWatchlist:show?'1':''})}/>;
+  if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button>{movingAverageWindow}{stockReview}</section>;
   return <section id="company-timeline" ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴") + (chosenStock ? ` · ${chosenStock.name} · ${chosenStock.symbol}` : "")} data-company-timeline={companyId}>
     <div className={styles.tools} data-chart-toolbar>
       {chosenStock && <span data-chart-company>{chosenStock.name} · {chosenStock.symbol}</span>}
@@ -310,16 +323,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
       <p>{text('Wheel / ↑↓ zoom · ←→ pan when zoomed · F10 opens company fundamentals in a new tab.','滚轮／↑↓ 缩放 · 放大后 ←→ 平移 · F10 在新标签页打开公司基本面。')}</p>
       <p>{text('Hover or focus controls for their names. The layers icon opens MA settings; the star toggles events. The bars and coins select Volume and Turnover. The last three indicator icons select MACD, KDJ and BOLL.','悬停或聚焦控件查看名称。图层图标打开均线设置；星形切换事件。柱形和硬币图标选择成交量与成交额；最后三个指标图标选择 MACD、KDJ 和 BOLL。')}</p>
     </FloatingEventWindow>}
-    {maSettings&&<FloatingEventWindow role="dialog" anchor={maSettings} title={text('Moving average settings','均线设置')} closeLabel={text('Close MA settings','关闭均线设置')} onClose={()=>setMaSettings(null)}>
-      <div role="group" aria-label={text('Moving average lines','均线显示')} className={styles.indicatorControls}>
-        {averagePeriods.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):movingAveragePeriods([...values,period]))}>{text('MA','MA')}{period}</button>)}
-      </div>
-      <form key={averages.join(',')} className={styles.maSettings} onSubmit={event=>{event.preventDefault();const form=new FormData(event.currentTarget);setAverages(()=>movingAveragePeriods(Array.from({length:8},(_,index)=>Number(form.get(`ma-${index}`)))));setMaSettings(null);}}>
-        <p>{text('MA periods count bars in the selected interval. Set 0 to disable a line.','均线周期按所选K线的根数计算。填 0 关闭该线。')}</p>
-        {Array.from({length:8},(_,index)=><label key={index}>{text('Line','第')}{index+1}{chinese?'条':''}<input name={`ma-${index}`} type="number" min={0} max={500} step={1} defaultValue={averages[index]??0}/></label>)}
-        <button type="submit">{text('Apply','应用')}</button>
-      </form>
-    </FloatingEventWindow>}
+    {movingAverageWindow}
     {shareResult&&<div className={styles.status} role="status">{shareResult.copied?text('Chart link copied','图表链接已复制'):text('Copy this chart link:','请复制此图表链接：')}{!shareResult.copied&&<input aria-label={text('Chart link','图表链接')} readOnly value={shareResult.url} onFocus={event=>event.target.select()} style={{width:'100%'}}/>}<button type="button" aria-label={text('Dismiss share message','关闭分享提示')} onClick={()=>setShareResult(null)}>×</button></div>}
     {needsHistory&&loaded?.key!==key&&!initialHistoryReady&&<p className={styles.status} role="status">{text('Loading indicator history…','正在加载指标历史数据…')}</p>}
     {loaded?.key===key&&loaded.indicatorError&&<p className={styles.status} role="status">{text('Indicator history unavailable; showing supplied prices.','指标历史数据暂时不可用，保留已有股价数据。')} <button type="button" onClick={()=>setRetry(value=>value+1)}>{text('Retry indicator history','重试指标历史数据')}</button></p>}
@@ -413,7 +417,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     </div>
     <p className={styles.coverage}>{chartMode==='candles'&&prices.length>0&&!useCandles&&<span>{text("OHLC unavailable; showing closes","暂无完整开高低收数据，显示收盘价")} · </span>}{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${barsLabel} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>
     {data && !data.available && <button type="button" className={styles.retry} onClick={() => setRetry(value => value + 1)}>{text("Retry prices", "重试读取股价")}</button>}
-    <ChartStockReview companyId={companyId} company={chosenStock?{id:chosenStock.id,kind:'COMPANY',order:0,name:chosenStock.name,symbol:chosenStock.symbol}:undefined} graph={graph??loadedGraph} anchor={stockTools?.companyId===companyId?stockTools.anchor:null} closeTools={()=>setStockTools(null)} settings={settings} changeSettings={changeSettings} openAverages={setMaSettings} selectCompany={reviewCompany} watchlist={watchlist} showWatchlist={showWatchlist} onShowWatchlistChange={show=>updateIndustryBrowse({chartWatchlist:show?'1':''})}/>
+    {stockReview}
     {selected && !onSelectEvent && <FloatingEventWindow key={selected.id} anchor={eventAnchor} title={text('Event details','事件详情')} onClose={()=>{setSelectedId('');setHoverDate(null);}}>
       <strong>{eventPresentation(selected,chinese).symbol} {eventPresentation(selected,chinese).label}</strong><h2>{selected.title}</h2><p>{text('Published','发布于')} · {selected.date}</p>
       {selectedGroup && selectedGroup.events.length > 1 && <div className={styles.eventList}>{selectedGroup.events.map(event => <button key={event.id} type="button" aria-pressed={event.id === selected.id} onClick={click=>selectEvent(event.id,click)}>{formatDate(event.date)} · {event.title}</button>)}</div>}
