@@ -68,6 +68,50 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+test('all workspace panels and views open the selected stock tools without duplicate menus',async({page,isMobile})=>{
+ test.skip(isMobile,'Three-panel coverage uses the desktop layout.');
+ await page.setViewportSize({width:1600,height:1000});await open(page);
+ await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none');
+ const tools=page.getByRole('dialog',{name:'Stock tools · MU',exact:true});
+ for(const tab of ['Relationship graph','Industry tree','Company hierarchy','Company list']){
+  await page.getByRole('tab',{name:tab,exact:true}).click();
+  for(const surface of [page.getByRole('complementary',{name:'Universe navigation'}),page.locator('[data-company-workspace]'),page.getByRole('complementary',{name:'Events and sources'})]){
+   await surface.click({button:'right',position:{x:20,y:20}});
+   await expect(tools).toBeVisible();await expect(page.getByRole('dialog',{name:/^Stock tools/})).toHaveCount(1);
+   await expect(tools.getByRole('button',{name:'MACD',exact:true})).toBeVisible();
+   await page.keyboard.press('Escape');await expect(tools).toHaveCount(0);
+   await expect(page).toHaveURL(/company=US%3AMU/);
+  }
+ }
+ await page.getByRole('complementary',{name:'Events and sources'}).click({button:'right',position:{x:20,y:20}});
+ await tools.getByRole('button',{name:'MACD',exact:true}).click();
+ await expect(page).toHaveURL(/chartIndicator=macd/);
+ await tools.getByRole('checkbox',{name:'Watchlist',exact:true}).check();
+ await expect(page).toHaveURL(/chartWatchlist=1/);
+ await page.screenshot({path:test.info().outputPath('workspace-shared-stock-tools.png')});
+});
+
+test('stock tools work in every fullscreen view with the price chart hidden',async({page})=>{
+ await open(page);await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none&chartWatchlist=1');
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ await workspace.getByRole('button',{name:'Close timeline',exact:true}).click();
+ await expect(workspace.locator('[data-chart-watchlist]')).toHaveCount(0);
+ for(const tab of ['Relationship graph','Industry tree','Company hierarchy','Company list']){
+  await page.getByRole('tab',{name:tab,exact:true}).click();
+  await workspace.locator('[data-company-workspace]').click({button:'right',position:{x:20,y:20}});
+  const tools=page.getByRole('dialog',{name:'Stock tools · MU',exact:true});await expect(tools).toBeVisible();
+  await expect(tools.getByRole('checkbox',{name:'Watchlist',exact:true})).toBeChecked();
+  await expect(workspace.locator('[data-chart-watchlist]')).toHaveCount(0);
+  expect(await tools.evaluate(element=>Boolean(element.closest('[data-chart-size="full"]')))).toBe(true);
+  await tools.getByRole('button',{name:'Moving average settings',exact:false}).click();
+  await expect(page.getByRole('dialog',{name:'Moving average settings',exact:true})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(workspace).toHaveAttribute('data-chart-size','full');
+  await expect(workspace.getByRole('button',{name:'Show timeline',exact:true})).toBeVisible();
+ }
+});
+
 test('workspace session watchlist appears below indicators and restores company selection during review',async({page})=>{
  await open(page);
  await page.route('**/api/company-timeline?*',route=>route.fulfill({json:{companyId:new URL(route.request().url()).searchParams.get('company'),start:'2026-01-01',end:'2026-10-04',available:true,currency:'USD',prices:[{date:'2026-10-02',open:100,high:115,low:98,close:110,volume:1000}]}}));

@@ -157,6 +157,8 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const activeIds=new Set(activity.activeIds);
   const companies=scope.filter(node=>(!activeOnly&&!sourceFilter)||activeIds.has(node.id));
   const company=allCompanies.find(node=>node.id===selected);
+  const [stockToolsRequest,setStockToolsRequest]=useState<{companyId:string;anchor:EventWindowAnchor}|null>(null);
+  if(stockToolsRequest&&stockToolsRequest.companyId!==company?.id)setStockToolsRequest(null);
   const timelineEvents=intelligenceTimelineEvents(selected,snapshot.events,chinese,sourceFilter);
   // Research bookmarks may refer to editorial events outside the collected feed.
   // They populate the selection only; recorded activity totals remain unchanged.
@@ -225,8 +227,17 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
     <GraphCompanyOutlook company={company}/><p className={styles.evidenceNote}><UiText text="Source activity and research relevance do not indicate price direction or verify that an announced plan has been delivered."/></p>
   </section>:null;
 
-  const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock><CompanyTimeline onSelectCompany={id=>selectCompany(id)} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} key={company.id} closed={timelineClosed} onClosedChange={setTimelineClosed} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/></div>:null;
-  return <main onClickCapture={event=>{if((event.target as Element).closest('[data-node-card],[data-event-window]'))return;eventTrigger.current=(event.target as Element).closest<HTMLElement>('button');const r=(event.target as Element).getBoundingClientRect();clickAnchor.current=event.detail?{x:event.clientX,y:event.clientY}:{x:r.right,y:r.bottom};}} className={`${styles.shell} ${liveStyles.regionWorkspace} ${leftOpen?'':styles.leftClosed} ${rightOpen?'':styles.rightClosed}`}>
+  const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock><CompanyTimeline stockToolsRequest={stockToolsRequest} onCloseStockToolsRequest={()=>setStockToolsRequest(null)} onSelectCompany={id=>selectCompany(id)} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} key={company.id} closed={timelineClosed} onClosedChange={setTimelineClosed} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/></div>:null;
+  function openStockTools(event:React.MouseEvent<HTMLElement>){
+    const target=event.target instanceof Element?event.target:null;
+    // The chart owns its own selected stock (including fullscreen search).
+    // Preserve text-editing menus and interactions inside floating dialogs.
+    if(!company||switching||!target||target.closest('[data-company-timeline],[data-event-window],input,textarea,select,[contenteditable="true"]'))return;
+    event.preventDefault();event.stopPropagation();
+    const trigger=target.closest<HTMLElement>('button,a,[tabindex]')??event.currentTarget;
+    setStockToolsRequest({companyId:company.id,anchor:eventWindowAnchor(event,trigger)});
+  }
+  return <main onContextMenuCapture={openStockTools} onClickCapture={event=>{if((event.target as Element).closest('[data-node-card],[data-event-window]'))return;eventTrigger.current=(event.target as Element).closest<HTMLElement>('button');const r=(event.target as Element).getBoundingClientRect();clickAnchor.current=event.detail?{x:event.clientX,y:event.clientY}:{x:r.right,y:r.bottom};}} className={`${styles.shell} ${liveStyles.regionWorkspace} ${leftOpen?'':styles.leftClosed} ${rightOpen?'':styles.rightClosed}`}>
     <h1 className={styles.srOnly}><UiText text="Investment Intelligence"/></h1>
     <aside className={styles.left} aria-label="Universe navigation" data-filtered={Boolean(region)||Boolean(query)||tab==='watchlist'||activeOnly||Boolean(sourceFilter)}>
       <div className={styles.panelTitle}><strong><UiText text={"Explore universe"}/></strong><button aria-label="Collapse left panel" onClick={()=>setLeftOpen(false)}>‹</button></div>
