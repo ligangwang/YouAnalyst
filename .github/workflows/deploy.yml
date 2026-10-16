@@ -144,6 +144,15 @@ jobs:
           path: test-results/conversion
           retention-days: 7
 
+      # Refresh shard balancing from these reports with --record-timings.
+      - name: Save browser timings
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-timings-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: test-results/conversion/report.json
+          retention-days: 7
+
   # Keep one stable required check; every shard must pass, including auth on shard 1.
   verify-browser:
     if: always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)

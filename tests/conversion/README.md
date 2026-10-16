@@ -29,6 +29,14 @@ Playwright test list per runner, including both device projects and new tests.
 Use `--list` to inspect an assignment. Weights are estimates, not timeouts or
 selection filters; the required browser gate still requires all four runners.
 
+Weights come from measured seconds in `timings.json`: tests that took at least
+five seconds are listed by ID, and every other test uses its file's median, so
+new tests are balanced before they have history. When shard durations drift
+apart, download the four `browser-timings-*` artifacts from a passing run and
+refresh the file:
+
+    node scripts/conversion-shards.mjs --record-timings shard-*/report.json
+
 The map fixture's `tour-clock` esbuild plugin accelerates only the tour entry
 points in explicitly opted-in tests (8x by default). A rate of zero lets a test
 inspect the initial frame before advancing. Production source and user speed
