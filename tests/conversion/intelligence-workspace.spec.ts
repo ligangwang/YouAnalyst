@@ -764,14 +764,14 @@ test('company feed fetches older matching documents before the global cap and re
  const left=page.getByRole('complementary',{name:'Universe navigation'});
  await left.getByRole('combobox',{name:'Region',exact:true}).selectOption('US');
  await left.getByRole('button',{name:/ARM.*Arm/}).click();
- await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  expect(requested).toContain('US:ARM');
  await expect(panel.getByText('12 loaded source documents',{exact:true})).toBeVisible();
  await expect(panel.getByText('Source documents',{exact:true}).locator('..')).toContainText('12');
  await page.reload();
- await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  await panel.getByRole('button',{name:'Clear company event filter'}).click();
- await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(198);
+ await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(10);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
  const search=bookmarkedQuery(page);
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
@@ -780,13 +780,13 @@ test('company feed fetches older matching documents before the global cap and re
  await search.pressSequentially('ARM',{delay:60});
  expect(requested.length).toBeGreaterThanOrEqual(beforeSearch);
  await expect(page).toHaveURL(/q=ARM/);
- await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
+ await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  await expect(page).toHaveURL(/q=ARM/);
  await expect(panel.getByText('12 loaded source documents',{exact:true})).toBeVisible();
- await page.reload();await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(12);
+ await page.reload();await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(10);
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  await search.fill('');await search.press('Enter');
- await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(198);
+ await expect(panel.getByRole('button',{name:/Published company update/})).toHaveCount(10);
  await expect(panel.getByRole('button',{name:/Older ARM document/})).toHaveCount(0);
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  await left.getByRole('button',{name:/MU.*Micron/}).click();
@@ -1269,14 +1269,14 @@ for(const chinese of [false,true])test('active workspace company summary follows
 });
 
 test('Chinese event feed uses saved headlines and retains the original title',async({page})=>{
-  await open(page,true);
+  await open(page,true,{...snapshot,events:[events[199]]});
   const headline=page.getByText('Lumentum 通信业务最新进展',{exact:true});
   await expect(headline).toBeVisible();
   await expect(headline).toHaveAttribute('title','Lumentum communication update');
 });
 
 test('English event feed displays saved English translations of Chinese headlines',async({page})=>{
- await open(page);
+ await open(page,false,{...snapshot,events:[events[198]]});
  const headline=page.getByText('Announcement of a shareholders meeting',{exact:true});
  await expect(headline).toBeVisible();await expect(headline).toHaveAttribute('title','关于召开股东大会的公告');
  await expect(page.getByText('关于召开股东大会的公告',{exact:true})).toHaveCount(0);

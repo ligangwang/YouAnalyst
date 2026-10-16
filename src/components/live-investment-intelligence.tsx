@@ -288,7 +288,6 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
         <span>{chinese?'已加载':'Loaded'} {snapshot.feedWindow.loadedFrom} – {snapshot.feedWindow.through}</span>
         {snapshot.feedWindow.hasMore?<button disabled={loadingOlder||switching} onClick={loadPreviousDay}>{loadingOlder?(chinese?'加载中…':'Loading…'):(chinese?'加载前一天':'Load previous day')}</button>:<span>{chinese?'已显示最近 7 天':'Last 7 days loaded'}</span>}
       </div>}
-      {error&&!eventsPending&&<p role="alert">{error} <button onClick={reconnect}>{chinese?'重试':'Retry'}</button></p>}
       </>}</div><details className={styles.rightFoot} hidden={eventsPending}><summary>{chinese?'来源状态':'Source status'}{partialCoverage?' · ◐':''}</summary><p><UiText text={"Counts deduplicate source documents."}/></p>{snapshot.truncated&&<p>{chinese?`列表显示最新 ${snapshot.limit} 条；统计独立于列表上限。`:`The list shows the latest ${snapshot.limit} entries; totals are independent of the list limit.`}</p>}{newsCoverage&&<p>{chinese?'公司新闻覆盖':'Company news coverage'} {newsCoverage.configured}/{newsCoverage.total} · {newsCoverage.healthy} {chinese?'正常':'healthy'}</p>}{warnings.map(warning=><p key={warning}><UiText text={warning}/></p>)}</details>
     </aside>
     {event&&<EventDetailsWindow event={event} anchor={eventAnchor} returns={snapshot.eventReturns?.[event.id]?.filter(value=>companiesById.has(value.companyId)&&(!activityCompany||value.companyId===activityCompany.id))} symbol={label} onClose={closeEvent}/>}
