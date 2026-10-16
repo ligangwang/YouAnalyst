@@ -518,8 +518,8 @@ jobs:
         run: npm run smoke:test
 
   deploy-production:
-    if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')) }}
-    needs: [verify, verify-browser, build-release]
+    if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && (needs.deploy-background-jobs.result == 'success' || needs.deploy-background-jobs.result == 'skipped') && ((github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.environment == 'production')) }}
+    needs: [verify, verify-browser, build-release, deploy-background-jobs]
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -792,8 +792,8 @@ jobs:
         run: npm run smoke:test
 
   deploy-background-jobs:
-    needs: [verify, deploy-production]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.verify.result == 'success' && needs.deploy-production.result == 'success' && needs.verify.outputs.workers != 'none' }}
+    needs: [verify, verify-browser, build-release]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.verify.result == 'success' && needs.verify-browser.result == 'success' && needs.build-release.result == 'success' && (github.event_name == 'push' || inputs.environment == 'production') && needs.verify.outputs.workers != 'none' }}
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 60
@@ -842,8 +842,22 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
         with:
           install_components: beta
+      - name: Capture pre-deployment Firestore usage
+        continue-on-error: true
+        env:
+          USAGE_LABEL: before-cache
+        run: node scripts/firestore/read-usage.mjs
+      - name: Save pre-deployment Firestore usage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firestore-usage-before-cache
+          path: artifacts/firestore-usage
+          if-no-files-found: warn
       - name: Deploy changed background workers
         run: bash scripts/deploy-background-jobs.sh "$TARGET_JOB"
+      - name: Drain pre-rollout feed producer executions
+        run: node scripts/wait-feed-producers.mjs
       - name: Verify SEC Pub/Sub delivery with cached companies
         if: ${{ env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'sec-fundamentals' }}
         run: >-

@@ -27,6 +27,7 @@ esac
 echo "[1/5] Deploying Firestore indexes"
 if [[ "${APPLY_FIRESTORE_INDEXES:-1}" == "1" ]]; then
   FIRESTORE_PROJECT_ID="$firestore_project_id" npm run firestore:indexes:apply
+  FIRESTORE_PROJECT_ID="$firestore_project_id" node scripts/firestore/wait-feed-cache-index.mjs
 else
   echo "Skipping Firestore index deployment (APPLY_FIRESTORE_INDEXES=${APPLY_FIRESTORE_INDEXES:-0})"
 fi

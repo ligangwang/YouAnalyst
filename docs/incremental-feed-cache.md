@@ -56,5 +56,8 @@ so pagination does not silently discard entries beyond the old 200-item cap.
 4. Compare actual daily document reads and writes after rollout. Local tests
    validate behavior, not production cost attribution or live IAM/index access.
 
-No deployment or production database mutation was performed while implementing
-this change. Changes are on `codex/incremental-feed-cache`.
+The production workflow now deploys changed workers before the web, waits for old
+feed executions to drain and the SEC index to become ready, and saves a 24-hour
+Firestore operations baseline as a workflow artifact. The read-only **Firestore
+usage report** workflow can capture a matching post-deployment interval.
+Changes are on `codex/incremental-feed-cache`.

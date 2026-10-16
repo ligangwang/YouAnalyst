@@ -38,14 +38,16 @@ test('website-only changes skip workers and worker inputs select their images',(
   assert.equal(backgroundJobTarget(['.github/workflows/deploy.yml']),'all');
   for(const p of ['src/lib/maintenance-lease.ts','package-lock.json','.dockerignore','.gcloudignore','scripts/lib/maintenance-job-iam.sh','scripts/build-fundamentals.sh']) assert.equal(backgroundJobTarget([p]),'all');
 });
-test('worker release waits for successful production release and uses detected targets',()=>{
+test('worker release passes checks before production web and uses detected targets',()=>{
   const workflow=require('js-yaml').load(readFileSync('.github/workflows/deploy.yml','utf8'));
   const job=workflow.jobs['deploy-background-jobs'];
   assert.match(workflow.jobs['deploy-production'].if,/github.ref == 'refs\/heads\/main'/);
-  assert.deepEqual(job.needs,['verify','deploy-production']);
+  assert.deepEqual(job.needs,['verify','verify-browser','build-release']);
+  assert(workflow.jobs['deploy-production'].needs.includes('deploy-background-jobs'));
+  assert.match(workflow.jobs['deploy-production'].if,/deploy-background-jobs.result == 'success'/);
   assert.match(job.if,/!cancelled\(\)/);
   assert.match(job.if,/needs.verify.result == 'success'/);
-  assert.match(job.if,/refs\/heads\/main/);assert.match(job.if,/deploy-production.result == 'success'/);
+  assert.match(job.if,/refs\/heads\/main/);assert.match(job.if,/build-release.result == 'success'/);
   assert.match(job.if,/workers != 'none'/);
   assert.equal(job.env.TARGET_JOB,'${{ needs.verify.outputs.workers }}');
   assert.equal(existsSync('.github/workflows/deploy-background-jobs.yml'),false);
