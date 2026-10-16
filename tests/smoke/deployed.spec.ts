@@ -205,6 +205,8 @@ test("feed shows research updates without filing features", async ({ page, reque
 });
 
 test("homepage defaults to graph and supports all four industry views", async ({ page, request }) => {
+  // Software WebGL on CI can spend several seconds mounting and disposing each view.
+  test.setTimeout(60_000);
   const response = await request.get("/api/knowledge-graph");
   expect(response.ok()).toBeTruthy();
   const graph = await response.json();
@@ -223,11 +225,27 @@ test("homepage defaults to graph and supports all four industry views", async ({
   await expect(page.getByRole("heading", { name: "Vertical tree", exact: true })).toHaveCount(1);
   await expect(page.locator('[data-industry-tree="vertical"] canvas')).toBeVisible();
   await page.getByRole("tab", { name: "Company hierarchy", exact: true }).click();
-  await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible();
+  await expect(page.locator('[data-industry-tree="hierarchy"] svg')).toBeVisible({timeout:15_000});
   await expect(page.locator('[data-industry-tree="hierarchy"] canvas')).toHaveCount(0);
-  await page.getByRole("tab", { name: "Relationship graph", exact: true }).click();
+ });
+
+test('homepage graph choice and company coverage survive reload',async({page,request})=>{
+  const response=await request.get('/api/knowledge-graph');
+  expect(response.ok()).toBeTruthy();
+  const graph=await response.json();
+  const count=graph.nodes.filter((node:{kind:string})=>node.kind==='COMPANY').length;
+  await page.goto('/en?view=table');
+  await expect(page.locator('[data-list-company]').first()).toBeVisible();
+  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('canvas')).toBeVisible();
   await page.reload();
+  await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByRole('button',{name:'Filter to active companies'})).toContainText(`/ ${count}`);
+});
+
+test('homepage event link preserves company selection when changing view',async({page})=>{
   await page.goto('/en?event=amd-anthropic-mi450-20260722');
   const selected=page.getByRole('region',{name:'Company details',exact:true});
   await expect(selected.locator('[data-card-drag]')).toBeVisible();
