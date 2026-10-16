@@ -1,3 +1,4 @@
+import {markFeedChanged} from '../intelligence/feed-cache-changes';
 import {FieldPath,type Firestore} from 'firebase-admin/firestore';
 import {EVENTS_COLLECTION} from './model';
 import {EVENT_CLASSIFICATION_VERSION,classifyEvent} from './classification';
@@ -52,7 +53,7 @@ export async function backfillEventClassifications(db:Firestore,options:{apply:b
     }catch{result.failed++; /* Keep broad ownership classification; never guess buy or sell. */}
    }
    if(Object.keys(patch).length){
-    const written=!options.apply||await db.runTransaction(async tx=>{const latest=await tx.get(doc.ref);if(!latest.exists||Number(latest.get('eventClassification')?.version)>EVENT_CLASSIFICATION_VERSION||latest.get('url')!==row.url||latest.get('title')!==row.title||latest.get('form')!==row.form)return false;tx.update(doc.ref,patch);return true;});
+    const written=!options.apply||await db.runTransaction(async tx=>{const latest=await tx.get(doc.ref);if(!latest.exists||Number(latest.get('eventClassification')?.version)>EVENT_CLASSIFICATION_VERSION||latest.get('url')!==row.url||latest.get('title')!==row.title||latest.get('form')!==row.form)return false;tx.update(doc.ref,patch);markFeedChanged(db,tx,doc.ref);return true;});
     if(written)result.updated++;
    }
    result.cursor=doc.id;

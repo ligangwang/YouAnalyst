@@ -8,8 +8,8 @@ import styles from './intelligence-activity-overview.module.css';
 
 const sourceColors:Record<IntelligenceSource,string>={SEC:'#ff9eae',IR:'#67e6bc',Exchange:'#65d9ff',GitHub:'#c4a0ff',X:'#f4eb87',Reddit:'#ffc57a',Other:'#8faaff'};
 
-export function IntelligenceActivityOverview({events,documents,complete=false,companies,recentFallback,period,sourceFilter,limit,truncated,onSector,onSource,onEvent}:{
-  events:IntelligenceEvent[];documents?:IntelligenceSourceDocument[];complete?:boolean;companies:GraphNode[];recentFallback:boolean;period:'today'|'recent'|'replay';sourceFilter:IntelligenceSource|'';limit:number;truncated:boolean;
+export function IntelligenceActivityOverview({events,documents,complete=false,historyPartial=false,companies,recentFallback,period,sourceFilter,limit,truncated,onSector,onSource,onEvent}:{
+  events:IntelligenceEvent[];documents?:IntelligenceSourceDocument[];complete?:boolean;historyPartial?:boolean;companies:GraphNode[];recentFallback:boolean;period:'today'|'recent'|'replay';sourceFilter:IntelligenceSource|'';limit:number;truncated:boolean;
   onSector:(id:string)=>void;onSource:(source:IntelligenceSource)=>void;onEvent:(id:string)=>void;
 }){
   const {text,chinese}=useLocale();
@@ -23,12 +23,12 @@ export function IntelligenceActivityOverview({events,documents,complete=false,co
   const largest=Math.max(1,...sectors.map(sector=>sector.count));
   if(!sourceDocuments.length)return null;
   return <section className={styles.overview} aria-label={text('Source activity overview','来源活动概览')}>
-    <div className={styles.heading}><strong>{text('Source activity','来源活动')}</strong><span>{period==='recent'?text('Last 30 days','近 30 天'):period==='replay'?text('Replay','回放'):text('Today','今日')}{!complete&&text(' · Partial data',' · 部分数据')}</span></div>
+    <div className={styles.heading}><strong>{text('Source activity','来源活动')}</strong><span>{period==='recent'?text('Last 7 days','近 7 天'):period==='replay'?text('Replay','回放'):text('Today','今日')}{!complete&&text(' · Partial data',' · 部分数据')}</span></div>
     <div className={styles.metrics}>
       <div><strong>{activity.activeIds.length}</strong><span>{text('Active companies','活跃公司')}</span></div>
       <div><strong>{activity.signals}</strong><span>{text('Source documents','来源文档')}</span></div>
     </div>
-    <p className={styles.scopeNote}>{!complete?text('Some sources are unavailable; totals are partial.','部分来源暂不可用；统计数据不完整。'):truncated?text(`Latest ${limit} entries shown; totals include all recorded sources in this period.`,`列表显示最新 ${limit} 条；统计涵盖该时段所有已收录来源。`):text('Totals include all recorded sources in this period.','统计涵盖该时段所有已收录来源。')}</p>
+    <p className={styles.scopeNote}>{historyPartial?text('Totals cover loaded days only. Load previous days to see more of the last 7 days.','统计仅涵盖已加载日期。加载前一天可查看更多最近 7 天的数据。'):!complete?text('Some sources are unavailable; totals are partial.','部分来源暂不可用；统计数据不完整。'):truncated?text(`Latest ${limit} entries shown; totals include all recorded sources in this period.`,`列表显示最新 ${limit} 条；统计涵盖该时段所有已收录来源。`):text('Totals include all recorded sources in this period.','统计涵盖该时段所有已收录来源。')}</p>
     <details className={styles.breakdown}><summary>{text('Sector breakdown','行业分布')}</summary>
     <div className={styles.sectors}>{sectors.map(sector=><button key={sector.id} onClick={()=>onSector(sector.id)} title={text('Explore this sector','探索此行业')}>
       <span>{chinese?sector.zh:sector.en}</span><i><b style={{width:`${sector.count/largest*100}%`,background:sector.color}}/></i><strong>{sector.count}</strong>

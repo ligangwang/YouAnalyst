@@ -1,5 +1,6 @@
 {
   "indexes": [
+    {"collectionGroup":"sec_filings","queryScope":"COLLECTION","fields":[{"fieldPath":"published_at","order":"ASCENDING"},{"fieldPath":"filingDate","order":"DESCENDING"}]},
     {
       "collectionGroup": "events",
       "queryScope": "COLLECTION",
@@ -391,6 +392,7 @@
     }
   ],
   "fieldOverrides": [
+  {"collectionGroup":"collectors","fieldPath":"payload","indexes":[]},
   {
     "collectionGroup": "companies",
     "fieldPath": "symbolPrefixes",

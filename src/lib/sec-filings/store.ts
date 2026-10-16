@@ -1,3 +1,4 @@
+import {markFeedChanged} from '../intelligence/feed-cache-changes';
 import type { SecFiling } from "./source";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { isSecFilingDate, parseSecFilingDiscovered, type SecFilingDiscovered } from "./event";
@@ -71,7 +72,7 @@ export async function persistSecFilingDiscovery(db: Firestore, event: SecFilingD
       }
       if (!["baseline", "pending", "published"].includes(existing.state)) throw new Error("Invalid SEC discovery state");
       const observedAt=firstIntelligenceObservation(records);
-      if(observedAt&&stored?.intelligenceObservedAt!==observedAt)tx.set(ref,{intelligenceObservedAt:observedAt},{merge:true});
+      if(observedAt&&stored?.intelligenceObservedAt!==observedAt){tx.set(ref,{intelligenceObservedAt:observedAt},{merge:true});markFeedChanged(db,tx,ref);}
       return "existing" as const;
     }
     for (const record of Object.values(records)) {
@@ -96,6 +97,7 @@ export async function persistSecFilingDiscovery(db: Firestore, event: SecFilingD
       discoveryPending: !baseline || stored?.discoveryPending === true,
       ...(observedAt?{intelligenceObservedAt:observedAt}:{}),
     }, { merge: true });
+    markFeedChanged(db,tx,ref);
     return state;
   });
 }

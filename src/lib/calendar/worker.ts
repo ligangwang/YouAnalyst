@@ -1,3 +1,4 @@
+import {markFeedChanged} from '../intelligence/feed-cache-changes';
 import { randomUUID } from 'node:crypto';
 import { FieldPath, type Firestore, type DocumentSnapshot } from 'firebase-admin/firestore';
 import { EVENTS_COLLECTION, eventDocumentId } from '../events/model';
@@ -110,6 +111,7 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
     tx.set(receiptRef,{...receipt,processed_at:at,eventIds:schedules.map(item=>item.id),validatedSchedules:schedules,...(usage?{usageEventId:usage.id}:{})},{merge:true});
     const future=schedules.some(item=>item.scheduled_date>=at.slice(0,10));
     const recent=source.publication_date && Date.parse(source.publication_date)>=now()-60*86400000;
+    markFeedChanged(db,tx,ref);
     tx.set(ref,{calendarExtraction:{receiptId,contentHash,status:receipt.status,checkedAt:at,nextCheckAtMs:future||recent||receipt.status!=='complete'?now()+86400000:Number.MAX_SAFE_INTEGER,failures:0,lastError:receipt.error??null}},{merge:true});
   });
   for(let attempt=0;;attempt++)try { await persist();break; } catch(error) { if(attempt>=2)throw error; }

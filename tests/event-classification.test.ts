@@ -48,7 +48,7 @@ test('migration dry run writes nothing; apply preserves publication and processi
  let writes=0;const row:Record<string,unknown>={type:'company_news',title:'AMD Reports Third Quarter Financial Results',published_at:'2026-10-02T10:00:00Z',processed_at:'2026-10-03T10:00:00Z'};
  const doc={id:'a',ref:{id:'a'},exists:true,data:()=>row,get:(key:string)=>row[key]};
  const query={orderBy:()=>query,limit:()=>query,startAfter:()=>query,get:async()=>({docs:[doc],size:1,empty:false})};
- const db={collection:(name:string)=>name==='events'?query:{doc:()=>({set:async()=>{writes++;}})},runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>fn({get:async()=>doc,update:(_ref:unknown,patch:Record<string,unknown>)=>{writes++;Object.assign(row,patch);}})} as unknown as Firestore;
+ const db={collection:(name:string)=>name==='events'?query:{doc:()=>({set:async()=>{writes++;}})},runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>fn({get:async()=>doc,set:(ref:unknown,patch:Record<string,unknown>)=>{writes++;if(ref===doc.ref)Object.assign(row,patch);},update:(_ref:unknown,patch:Record<string,unknown>)=>{writes++;Object.assign(row,patch);}})} as unknown as Firestore;
  const preview=await backfillEventClassifications(db,{apply:false});assert.equal(preview.updated,1);assert.equal(writes,0);
  assert.equal((await backfillEventClassifications(db,{apply:true})).updated,1);
  assert.equal(row.published_at,'2026-10-02T10:00:00Z');assert.equal(row.processed_at,'2026-10-03T10:00:00Z');

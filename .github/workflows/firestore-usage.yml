@@ -1,0 +1,36 @@
+name: Firestore usage report
+on:
+  workflow_dispatch:
+    inputs:
+      start_at:
+        description: Interval start (UTC ISO timestamp; default 24 hours ago)
+        required: false
+        type: string
+      end_at:
+        description: Interval end (UTC ISO timestamp; default now)
+        required: false
+        type: string
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      deployment: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Read document operation metrics
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          USAGE_START_AT: ${{ inputs.start_at }}
+          USAGE_END_AT: ${{ inputs.end_at }}
+        run: node scripts/firestore/read-usage.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firestore-usage
+          path: artifacts/firestore-usage

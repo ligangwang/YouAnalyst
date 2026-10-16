@@ -28,6 +28,7 @@ export function intelligenceEventTitle(event:Pick<IntelligenceEvent,'title'|'tit
 export type IntelligenceSourceDocument = {id:string;channel:IntelligenceSource;companyIds:string[];published_at:string|null;publication_date:string};
 export type IntelligenceSnapshot = { eventReturns?: Record<string,import("./price-performance").EventPriceReturn[]>;
   eventsPending?:boolean;
+  feedWindow?:{loadedFrom:string;through:string;maxDays:7;hasMore:boolean;version:string};
   theme?: import('../company-themes/model').CompanyThemeId;
   graph:KnowledgeGraph; graphVersion:string; events:IntelligenceEvent[]; generatedAt:string;
   session:{date:string;timeZone:'America/New_York';startAt:string;endAt:string};

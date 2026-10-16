@@ -1,3 +1,4 @@
+import {markFeedChanged} from '../intelligence/feed-cache-changes';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {Disclosure} from './disclosures';
 import {EVENTS_COLLECTION} from './model';
@@ -12,7 +13,7 @@ export async function saveDisclosures(db:Firestore,rows:Disclosure[],at:string,b
     const batch=unique.slice(start,start+100);
     created+=await db.runTransaction(async tx=>{
       const refs=batch.map(row=>db.collection(EVENTS_COLLECTION).doc(row.id)),docs=await tx.getAll(...refs);let count=0;
-      batch.forEach((row,i)=>{if(!docs[i].exists){tx.create(refs[i],{...row,...classifyEvent(row),collected_at:at,processed_at:at,baseline});count++;}});return count;
+      batch.forEach((row,i)=>{if(!docs[i].exists){tx.create(refs[i],{...row,...classifyEvent(row),collected_at:at,processed_at:at,baseline});markFeedChanged(db,tx,refs[i]);count++;}});return count;
     });
   }
   return created;

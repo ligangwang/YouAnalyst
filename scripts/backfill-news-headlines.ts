@@ -1,6 +1,6 @@
 import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
-import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
+import {FieldValue,type Firestore,type DocumentSnapshot} from 'firebase-admin/firestore';
 import {headlineTargetLocale,translateCollectedHeadlines} from '../src/lib/intelligence/collectors/headline-translations';
 import {company,encode,type Document} from './migrate-company-themes';
 async function main(){
@@ -34,7 +34,10 @@ async function getAll(refs:Ref[]){
 const records=await getAll(ids.map(id=>ref('events',id)));
 const db={collection:(name:string)=>({doc:(id:string)=>ref(name,id)}),runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>{
  const writes:unknown[]=[];
- const result=await fn({getAll:(...refs:Ref[])=>getAll(refs),get:async(item:Ref)=>{const document=await request('https://firestore.googleapis.com/v1/'+item.path) as Document|null;if(document)documents.set(item.path,document);return {exists:!!document,data:()=>document?company(document):undefined};},update:(item:Ref,patch:Record<string,unknown>)=>{
+ const result=await fn({set:(item:Ref,patch:Record<string,unknown>)=>{
+  assert(Object.values(patch).every(value=>value instanceof FieldValue&&value.isEqual(FieldValue.serverTimestamp())),'Only cache timestamp transforms use adapter set');
+  writes.push({update:{name:item.path,fields:{}},updateMask:{fieldPaths:[]},updateTransforms:Object.keys(patch).map(fieldPath=>({fieldPath,setToServerValue:'REQUEST_TIME'}))});
+ },getAll:(...refs:Ref[])=>getAll(refs),get:async(item:Ref)=>{const document=await request('https://firestore.googleapis.com/v1/'+item.path) as Document|null;if(document)documents.set(item.path,document);return {exists:!!document,data:()=>document?company(document):undefined};},update:(item:Ref,patch:Record<string,unknown>)=>{
   const fields:Record<string,unknown>={};for(const [path,value] of Object.entries(patch)){const parts=path.split('.');let parent=fields;for(const part of parts.slice(0,-1))parent=(parent[part]??={}) as Record<string,unknown>;parent[parts.at(-1)!]=value;}
   writes.push({update:{name:item.path,fields:Object.fromEntries(Object.entries(fields).map(([key,value])=>[key,encode(value)]))},updateMask:{fieldPaths:Object.keys(patch).map(path=>path.split('.').map(key=>/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)?key:'`'+key+'`').join('.'))},currentDocument:{updateTime:documents.get(item.path)!.updateTime}});
  },create:(item:Ref,data:Record<string,unknown>)=>writes.push({update:{name:item.path,fields:Object.fromEntries(Object.entries(data).map(([key,value])=>[key,encode(value)]))},currentDocument:{exists:false}})});
