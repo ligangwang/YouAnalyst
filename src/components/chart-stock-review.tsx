@@ -2,8 +2,7 @@
 
 import {useRef,useState} from 'react';
 import {companyName,type GraphNode,type KnowledgeGraph} from '@/lib/knowledge-graph/model';
-import {companySectors} from '@/lib/knowledge-graph/views';
-import {OTHER_SECTOR} from '@/lib/knowledge-graph/sectors';
+import {STOCK_SECTOR_GROUPS,stockSectors,stockSectorPeers} from '@/lib/knowledge-graph/stock-sectors';
 import {signedPercent} from '@/lib/intelligence/price-performance';
 import type {SharedChart} from '@/lib/ui/chart-share';
 import {companyResearchPath} from '@/lib/ui/chart-share';
@@ -23,6 +22,7 @@ export function ChartStockReview(props:Props){
  const [pending,setPending]=useState(false),[failed,setFailed]=useState(false);
  const locked=useRef(false);
  const [sector,setSector]=useState('');
+ const [sectorsOpen,setSectorsOpen]=useState(false);
  const watchlist:ChartWatchlist=props.watchlist??{
   ids:follows.user?follows.ids:guest.ids,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,session:!follows.user,
   change:async(id,follow)=>{if(follows.user)await follows.change(id,follow);else guest.change(id,follow);},refresh:()=>{void follows.refresh();},
@@ -33,12 +33,12 @@ export function ChartStockReview(props:Props){
  const current=byId.get(props.companyId);
  const fallback=(id:string):GraphNode=>({id,kind:'COMPANY',order:0,symbol:id.split(':').slice(1).join(':'),name:id.split(':').slice(1).join(':')||id});
  const selected=current??fallback(props.companyId);
- const sectors=current?companySectors(current).filter(item=>item.id!==OTHER_SECTOR.id):[];
+ const sectors=current?stockSectors(current,props.graph,watchlist.ids):[];
  const selectedSector=sectors.find(item=>item.id===sector);
- const peers=selectedSector?companies.filter(node=>node.id!==props.companyId&&companySectors(node).some(item=>item.id===selectedSector.id)):[];
+ const peers=selectedSector?stockSectorPeers(selectedSector,props.companyId,props.graph,watchlist.ids):[];
  const saved=watchlist.ids.map(id=>byId.get(id)??fallback(id));
  const followed=watchlist.ids.includes(props.companyId);
- const close=()=>{setSector('');props.closeTools();};
+ const close=()=>{setSector('');setSectorsOpen(false);props.closeTools();};
  async function toggleFollow(){
   if(locked.current||watchlist.loading)return;
   locked.current=true;setPending(true);setFailed(false);
@@ -61,9 +61,13 @@ export function ChartStockReview(props:Props){
      <p>{companyName(selected,locale)} · {text('Sector member','所属板块')}</p>
      <p>{text('Other companies covered in this graph','当前图谱覆盖的同板块其他公司')} · {peers.length}</p>
      {peers.length?rows(peers):<p>{text('No other covered companies in this sector.','当前覆盖数据中暂无其他同板块公司。')}</p>}
+     {selectedSector.sources.length>0&&<details><summary>{text('Classification sources','分类依据')}</summary>{selectedSector.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.title} ↗</a>)}</details>}
     </>:<>
      <button type="button" disabled={pending||watchlist.loading} aria-pressed={followed} onClick={()=>void toggleFollow()}>{pending?text('Saving…','保存中…'):followed?text('Remove from watchlist','移出自选股'):text('Add to watchlist','加入自选股')}</button>
-     <details><summary>{text('Sectors','所属板块')}</summary>{sectors.length?sectors.map(item=><button type="button" key={item.id} onClick={()=>setSector(item.id)}>{chinese?item.zh:item.en} →</button>):<p>{text('Sector classification is not available in the current graph.','当前图谱暂无此公司的板块分类。')}</p>}</details>
+     <details open={sectorsOpen} onToggle={event=>setSectorsOpen(event.currentTarget.open)}><summary>{text('Sectors','所属板块')}</summary>{sectors.length?STOCK_SECTOR_GROUPS.map(group=>{
+      const items=sectors.filter(item=>item.group===group.id);
+      return items.length>0&&<div key={group.id} role="group" aria-label={chinese?group.zh:group.en} className={styles.sectorGroup}><strong>{chinese?group.zh:group.en}</strong>{items.map(item=><button type="button" key={item.id} onClick={()=>setSector(item.id)}>{chinese?item.zh:item.en} →</button>)}</div>;
+     }):<p>{text('Sector classification is not available in the current graph.','当前图谱暂无此公司的板块分类。')}</p>}</details>
      <a href={companyResearchPath(props.companyId,locale)} onClick={close}>{text('Company research','公司研究')} ↗</a>
      <label className={styles.panelToggle}><input type="checkbox" checked={props.showWatchlist} onChange={event=>props.onShowWatchlistChange(event.target.checked)}/>{text('Watchlist','自选股')}</label>
      <hr/><strong>{text('Technical indicators','技术指标')}</strong>
