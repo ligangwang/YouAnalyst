@@ -26,13 +26,16 @@ test('workspace locates AMD across tree hierarchy and paginated list without los
  await page.goto('http://workspace.test/?view=graph&company=US%3AAMD');
  const visibleCompany=async(selector:string)=>{
   const company=page.locator(selector.includes('data-list-company')?`${selector} button[aria-pressed=true]`:selector).first();await expect(company).toBeVisible({timeout:15000});
+  await expect(company).toHaveAttribute('aria-pressed','true');
   await page.screenshot({path:test.info().outputPath(`before-${selector.includes('list')?'list':'tree'}.png`)});
-  await expect.poll(()=>company.evaluate(el=>{const r=el.getBoundingClientRect(),p=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!p&&(p===el||el.contains(p))?'reachable':JSON.stringify({rect:r.toJSON(),hit:p?.outerHTML.slice(0,200),container:el.closest('[role=region]')?.getBoundingClientRect().toJSON()});})).toBe('reachable');
+  // A floating card may cover the selected company, but switching views must
+  // still locate it inside the viewport rather than scroll it out of sight.
+  await expect.poll(()=>company.evaluate(el=>{const r=el.getBoundingClientRect(),p=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!p&&(p===el||el.contains(p)||p.closest('[data-node-card="US:AMD"]'))?'located':JSON.stringify({rect:r.toJSON(),hit:p?.outerHTML.slice(0,200),container:el.closest('[role=region]')?.getBoundingClientRect().toJSON()});})).toBe('located');
  };
  for(const [tab,selector] of [['Industry tree','[data-tree-company="US:AMD"]'],['Company hierarchy','[data-tree-company="US:AMD"]'],['Company list','[data-list-company="US:AMD"]'],['Industry tree','[data-tree-company="US:AMD"]']] as const){
   await page.getByRole('tab',{name:tab,exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);await visibleCompany(selector);
   await page.screenshot({path:test.info().outputPath(`selected-amd-${tab.replaceAll(' ','-')}.png`)});
-  if(tab==='Company list'){await expect(page).toHaveURL(/page=2/);await page.getByRole('button',{name:'Previous',exact:true}).click();await expect(page).toHaveURL(/page=1/);}
+  if(tab==='Company list'){await expect(page).toHaveURL(/page=2/);const previous=page.getByRole('button',{name:'Previous',exact:true});await previous.focus();await previous.press('Enter');await expect(page).toHaveURL(/page=1/);}
  }
  await page.getByRole('tab',{name:'Relationship graph',exact:true}).click();await expect(page).toHaveURL(/company=US%3AAMD/);
 });
@@ -928,6 +931,23 @@ test('committed theme changes restart real chart and tree tours without replacin
   await expect(page.getByRole('tab',{name:'Industry tree',exact:true})).toHaveAttribute('aria-selected','true');
   expect(await workspace!.evaluate(element=>element.isConnected)).toBe(true);
 });
+for(const chinese of [false,true])test(`workspace view icons keep localized hints and keyboard navigation (${chinese?'Chinese':'English'})`,async({page})=>{
+ await open(page,chinese);
+ const tabs=page.getByRole('tablist',{name:chinese?'公司宇宙视图':'Universe views'});
+ const names=chinese?['关系图谱','产业树','公司层级图','公司列表']:['Relationship graph','Industry tree','Company hierarchy','Company list'];
+ const hints=chinese?['关系图','树状图','层级图','列表']:['Graph','Tree','Hierarchy','List'];
+ for(let i=0;i<names.length;i++){
+  const tab=tabs.getByRole('tab',{name:names[i],exact:true});
+  await expect(tab).toHaveAttribute('title',hints[i]);await expect(tab).toHaveText('');
+  await expect(tab.locator('svg')).toHaveAttribute('aria-hidden','true');
+ }
+ const graph=tabs.getByRole('tab',{name:names[0],exact:true}),tree=tabs.getByRole('tab',{name:names[1],exact:true});
+ await graph.focus();await graph.press('ArrowRight');await expect(tree).toBeFocused();await expect(tree).toHaveAttribute('aria-selected','true');
+ await tree.press('End');await expect(tabs.getByRole('tab',{name:names[3],exact:true})).toBeFocused();
+ await tabs.getByRole('tab',{name:names[2],exact:true}).click();await expect(page).toHaveURL(/view=hierarchy/);
+ await tabs.screenshot({path:test.info().outputPath('view-icons.png')});
+});
+
 test('shared periods, exact ticker search and selected sources remain visible above a capped feed',async({page},info)=>{
   test.skip(info.project.name!=='desktop','Desktop workspace checks');await page.clock.install({time:new Date('2026-10-04T16:00:00Z')});await page.setViewportSize({width:1500,height:800});await open(page);
   const panel=page.getByRole('complementary',{name:'Events and sources'});
@@ -1266,6 +1286,22 @@ for(const view of ['tree','hierarchy','table'])test(view+' company selection ope
  await expect(card).toBeVisible();await expect(card).toBeFocused();
  await expect(page.getByRole('complementary',{name:'Events and sources'}).getByRole('region',{name:'Company details'})).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Collapse right panel',exact:true})).not.toBeVisible();
+ const content=page.locator('[data-company-workspace] > [data-industry-section], [data-company-workspace] > [data-company-table]');
+ const fillsView=async()=>{
+  await expect.poll(()=>content.evaluate(el=>{
+   const view=el.getBoundingClientRect(),host=el.parentElement!.getBoundingClientRect();
+   return Math.max(Math.abs(view.x-host.x),Math.abs(view.y-host.y),Math.abs(view.width-host.width),Math.abs(view.height-host.height));
+  })).toBeLessThan(1);
+ };
+ await fillsView();
+ const size=page.getByRole('group',{name:'Company view size',exact:true});
+ const original=await page.locator('[data-company-workspace]').evaluate(el=>el.closest('[data-chart-size]')!.getAttribute('data-chart-size'));
+ await size.getByRole('button',{name:'Full screen',exact:true}).click();await fillsView();
+ await expect(card).toBeVisible();
+ await page.screenshot({path:test.info().outputPath(`${view}-company-card-overlay.png`)});
+ if(original==='half')await size.getByRole('button',{name:'Half screen',exact:true}).click();
+ else if(original==='compact')await size.getByRole('button',{name:'Restore layout',exact:true}).click();
+ await fillsView();
  const host=(await page.locator('[data-company-workspace]').boundingBox())!;
  const box=(await card.boundingBox())!;
  expect(box.x).toBeGreaterThanOrEqual(host.x);

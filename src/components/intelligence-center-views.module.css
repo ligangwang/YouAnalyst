@@ -1,7 +1,7 @@
 .theme{display:flex;align-items:center;gap:4px;flex-shrink:0;padding-right:10px;border-right:1px solid var(--ui-line,#213242);white-space:nowrap}
 .theme strong{color:var(--ui-text,#98e7d6)}
 .tabs{display:flex;align-items:center;gap:2px;flex-shrink:0}
-.tabs button{padding:5px 9px!important;font-size:11px!important;color:var(--ui-muted,#9ab0c3)!important}
+.tabs button{display:inline-flex;align-items:center;justify-content:center;width:36px;min-height:32px;padding:5px 9px!important;font-size:11px!important;color:var(--ui-muted,#9ab0c3)!important}
 .tabs button[aria-selected=true]{background:var(--ui-selected,#203a3e);color:var(--ui-text,#98e7d6)!important}
 .panel{flex:1;min-height:200px;min-width:0;overflow:hidden;position:relative}
 .table{display:flex;flex-direction:column;height:100%;min-height:0}
