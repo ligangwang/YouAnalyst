@@ -59,7 +59,7 @@ export function stockSectors(company:GraphNode,graph:KnowledgeGraph|null|undefin
   if(coverage.length)result.push({...concept,id:'business:'+concept.id,group:'business',sources:coverage.flatMap(item=>item.sources)});
  }
  const market=company.market;
- if(market==='US'||market==='CN_A')result.push({id:'market:'+market,group:'market',en:market==='US'?'US-listed stocks':'China A-shares',zh:market==='US'?'美股':'中国 A 股',sources:[]});
+ if(company.listingStatus!=='PRIVATE'&&(market==='US'||market==='CN_A'))result.push({id:'market:'+market,group:'market',en:market==='US'?'US-listed stocks':'China A-shares',zh:market==='US'?'美股':'中国 A 股',sources:[]});
  // GLOBAL includes private companies and is not a listing market.
  if(watchlist.includes(company.id))result.push({id:'watchlist:saved',group:'watchlist',en:'Watchlist',zh:'自选股',sources:[]});
  return result;

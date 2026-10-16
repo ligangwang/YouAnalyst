@@ -55,3 +55,10 @@ test('distinct recorded supply-chain roles retain their localized labels',()=>{
  assert.ok(roles.some(item=>item.group==='industry'&&item.en==='Semiconductors'));
  assert.ok(roles.some(item=>item.id==='stage:equipment'&&item.zh==='制造设备'));
 });
+
+test('explicit private status excludes both US and China listing-market groups and peers',()=>{
+ const privateNodes=(['US','CN_A'] as const).map(market=>({...company('ORG:PRIVATE-'+market,[],market),listingStatus:'PRIVATE' as const}));
+ for(const node of privateNodes)assert.ok(!stockSectors(node,graph).some(item=>item.group==='market'));
+ const market=stockSectors(micron,graph).find(item=>item.id==='market:US')!;
+ assert.deepEqual(stockSectorPeers(market,micron.id,{...graph,nodes:[micron,hynix,...privateNodes]}).map(node=>node.id),[hynix.id]);
+});
