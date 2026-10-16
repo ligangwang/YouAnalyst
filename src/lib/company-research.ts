@@ -46,8 +46,20 @@ export function buildCompanyResearch(ticker: string, listings: Record<string, un
 
 export type CompanyResearch = ReturnType<typeof buildCompanyResearch>;
 
+// Searchers look for "<ticker> stock", so the headline leads with that and names
+// only what the page actually shows: earnings and relationships exist for map companies.
+export function companyPageHeadline(company: CompanyResearch, locale = "en") {
+  const name = companyName({id: company.ticker, name: company.name, names: company.names}, locale);
+  const zh = locale === "zh-CN";
+  const topics = company.connections.length ? (zh ? "AI 产业链、财报与分析师观点" : "AI Supply Chain, Earnings & Analyst Views")
+    : company.inMap ? (zh ? "财务、财报与分析师观点" : "Financials, Earnings & Analyst Views")
+    : (zh ? "财务与分析师观点" : "Financials & Analyst Views");
+  return zh ? `${name}（${company.ticker}）股票：${topics}` : `${name} (${company.ticker}) Stock: ${topics}`;
+}
+
 export function companyResearchDescription(company: CompanyResearch, locale = "en") {
   const name = companyName({id: company.ticker, name: company.name, names: company.names}, locale);
-  if (locale === "zh-CN") return `研究${name}（${company.ticker}）：公司业务与财务${company.inMap ? "、有来源支持的产业链关系" : ""}，以及公开投资观点。`;
-  return `Research ${name} (${company.ticker}): business and financials${company.inMap ? ", sourced company relationships" : ""}, and public investment views.`;
+  const sector = company.sector && company.sector.id !== "other" ? company.sector : null;
+  if (locale === "zh-CN") return `${name}（${company.ticker}）股票${company.exchange ? `，${company.exchange} 上市` : ""}${sector ? ` · ${sector.zh}` : ""}。研究其公司业务与财务${company.inMap ? "、最新财报" : ""}${company.connections.length ? "、有来源支持的产业链关系" : ""}，以及公开分析师观点。`;
+  return `${name} (${company.ticker}) stock${company.exchange ? ` on ${company.exchange}` : ""}${sector ? ` · ${sector.en}` : ""}. Research its business and financials${company.inMap ? ", latest earnings" : ""}${company.connections.length ? ", sourced company relationships" : ""}, and public analyst views.`;
 }

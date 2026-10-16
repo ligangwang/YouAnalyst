@@ -12,7 +12,7 @@ import { TickerPage } from "@/components/ticker-page";
 import { normalizeTicker } from "@/lib/predictions/types";
 import { notFound, permanentRedirect } from "next/navigation";
 import { loadCompanyResearch } from "@/lib/company-research-service";
-import { companyResearchDescription } from "@/lib/company-research";
+import { companyPageHeadline, companyResearchDescription } from "@/lib/company-research";
 import { CompanyResearchOverview } from "@/components/company-research-overview";
 import {loadCompanyAnnouncements} from '@/lib/events/company-announcements';
 import {loadLatestCompanyEarnings} from '@/lib/earnings/public-service';
@@ -59,15 +59,13 @@ async function buildPageMetadata({
   const chinaId = chinaCompanyId(symbol);
   if (chinaId) {
     const company = await loadChinaCompany(chinaId);
-    return { title: `${companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)} (${chinaId.split(":")[1]}) ${locale === "zh-CN" ? "公司研究" : "company research"} | YouAnalyst`, description: locale === "en" ? company.descriptionEn || company.description : company.description,
+    return { title: `${companyName({...company, names: {...company.names, en: company.names?.en || company.en}}, locale)} (${chinaId.split(":")[1]}) ${locale === "zh-CN" ? "股票：财务、公告与分析师观点" : "Stock: Financials, Announcements & Analyst Views"} | YouAnalyst`, description: locale === "en" ? company.descriptionEn || company.description : company.description,
       alternates: { canonical: companyPageUrl(chinaId, "CN_A",company.slug) } };
   }
   const ticker = resolveTicker(symbol);
   const company = await loadCompanyResearch(ticker);
   const canonical = await canonicalCompanyPath(`US:${ticker}`) ?? companyPageUrl(ticker,'US',company.slug);
-  const zh = locale === "zh-CN";
-  const focus = company.connections.length ? (zh ? "AI 生态与产业链关系" : "AI ecosystem & supply-chain relationships") : (zh ? "公司研究" : "company research");
-  const title = `${companyName({id:ticker, name:company.name, names:company.names},locale)} (${ticker}) ${focus} | YouAnalyst`;
+  const title = `${companyPageHeadline(company, locale)} | YouAnalyst`;
   const description = companyResearchDescription(company, locale);
 
   return {
@@ -111,7 +109,7 @@ export async function CompanyTickerContent({ params }: { params: Promise<{ symbo
     "@context": "https://schema.org",
     "@graph": [
       ...(company.known ? [companyOrganizationSchema({ ...company, id: `US:${ticker}` }, locale, absoluteUrl(localizedPath(canonical, locale)), ticker, company.exchange)] : []),
-      { "@type": "WebPage", name: `${companyName({id:ticker, name:company.name, names:company.names},locale)} (${ticker}) ${locale === "zh-CN" ? "公司研究" : "company research"}`, url: absoluteUrl(localizedPath(canonical, locale)), description: companyResearchDescription(company, locale) },
+      { "@type": "WebPage", name: companyPageHeadline(company, locale), url: absoluteUrl(localizedPath(canonical, locale)), description: companyResearchDescription(company, locale) },
       { "@type": "BreadcrumbList", itemListElement: [
         { "@type": "ListItem", position: 1, name: "YouAnalyst", item: absoluteUrl(localizedPath("/", locale)) },
         { "@type": "ListItem", position: 2, name: locale === "zh-CN" ? "公司" : "Companies", item: absoluteUrl(localizedPath("/companies", locale)) },
