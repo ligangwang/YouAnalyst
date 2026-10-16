@@ -92,14 +92,17 @@ test('all workspace panels and views open the selected stock tools without dupli
 });
 
 test('stock tools work in every fullscreen view with the price chart hidden',async({page})=>{
- await open(page);await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none');
+ await open(page);await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none&chartWatchlist=1');
  const workspace=page.locator('section[aria-label="Company relationship chart"]');
  await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
  await workspace.getByRole('button',{name:'Close timeline',exact:true}).click();
+ await expect(workspace.locator('[data-chart-watchlist]')).toHaveCount(0);
  for(const tab of ['Relationship graph','Industry tree','Company hierarchy','Company list']){
   await page.getByRole('tab',{name:tab,exact:true}).click();
   await workspace.locator('[data-company-workspace]').click({button:'right',position:{x:20,y:20}});
   const tools=page.getByRole('dialog',{name:'Stock tools · MU',exact:true});await expect(tools).toBeVisible();
+  await expect(tools.getByRole('checkbox',{name:'Watchlist',exact:true})).toBeChecked();
+  await expect(workspace.locator('[data-chart-watchlist]')).toHaveCount(0);
   expect(await tools.evaluate(element=>Boolean(element.closest('[data-chart-size="full"]')))).toBe(true);
   await tools.getByRole('button',{name:'Moving average settings',exact:false}).click();
   await expect(page.getByRole('dialog',{name:'Moving average settings',exact:true})).toBeVisible();
