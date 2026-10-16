@@ -18,7 +18,7 @@ import { leafBladeTexture } from '@/lib/ui/knowledge-graph/leaf-texture';
 import styles from './industry-tree.module.css';
 import {WebGLContextRecovery} from './webgl-context-recovery';
 import {useNodePresence} from './use-node-presence';
-import { tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
+import { TOUR_IDLE_RESUME_MS, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/ui/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/ui/knowledge-graph/label-fade';
 
@@ -58,7 +58,7 @@ function Scene(props:TreeSceneProps){
     const schedule=()=>{
       clear();
       if(pointers.size||keys.size||document.hidden||userPositioned.current)return;
-      idleTimer.current=setTimeout(()=>{idleTimer.current=null;resumeReady.current=true;invalidate();},2000);
+      idleTimer.current=setTimeout(()=>{idleTimer.current=null;resumeReady.current=true;invalidate();},TOUR_IDLE_RESUME_MS);
       invalidate();
     };
     scheduleResume.current=schedule;

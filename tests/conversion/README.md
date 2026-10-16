@@ -40,9 +40,17 @@ refresh the file:
 The map fixture's `tour-clock` esbuild plugin accelerates only the tour entry
 points in explicitly opted-in tests (8x by default). A rate of zero lets a test
 inspect the initial frame before advancing. Production source and user speed
-settings are unchanged. CSS fades, camera damping and idle-resume timers keep
-real timing. Pure tour tests cover real pacing, frame rates and full cycles
-without wall-clock waits; browser tests cover integration and interactions.
+settings are unchanged. CSS fades and camera damping keep real timing.
+
+The same plugin scales the shared idle-resume deadline (`TOUR_IDLE_RESUME_MS`)
+only in tests that call `shortenIdleResume` (1/8 by default). Opt in only when a
+test checks what happens after the deadline, such as a parked camera staying
+put; tests that assert states within the deadline keep real timing. Wait with
+`pastIdleResume(page, margin)` rather than a fixed sleep, so the wait follows
+the page's real or shortened deadline.
+
+Pure tour tests cover real pacing, frame rates and full cycles without
+wall-clock waits; browser tests cover integration and interactions.
 The overlapping tree approach check is covered by the full presentation journey.
 Its unique disabled-during-exit assertion now uses a small, manually expanded
 fixture without waiting through another introduction. Pure graph data/layout
