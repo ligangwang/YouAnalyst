@@ -14,7 +14,7 @@ if [[ "${CACHE_BOOTSTRAP:-0}" == "1" ]]; then
   gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" --member "serviceAccount:$identity" --role roles/eventarc.eventReceiver --condition=None --quiet >/dev/null
   gcloud run services add-iam-policy-binding "$CACHE_WEB_SERVICE" --project "$GCP_PROJECT_ID" --region "$region" --member "serviceAccount:$identity" --role roles/run.invoker --quiet >/dev/null
 else
-  gcloud iam service-accounts describe "$identity" --project "$GCP_PROJECT_ID" >/dev/null
+  gcloud iam service-accounts describe "$identity" --project "$GCP_PROJECT_ID" >/dev/null || { echo "Cache identity unavailable; run setup with CACHE_BOOTSTRAP=1 as an administrator" >&2; exit 1; }
 fi
 url="$(gcloud run services describe "$CACHE_WEB_SERVICE" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
 [[ "$url" == https://*.run.app ]] || { echo 'Invalid receiver URL' >&2; exit 1; }

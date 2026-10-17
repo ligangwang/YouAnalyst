@@ -9,6 +9,7 @@ function run(extra: Record<string,string> = {}) {
     gcloud() {
       echo "GCLOUD $*" >&2
       case "$*" in
+        "iam service-accounts describe"*) [[ "\${MISSING_IDENTITY:-0}" != 1 ]] ;;
         "run services describe"*) echo https://web.run.app ;;
         "firestore databases describe"*) echo us-east4 ;;
         "eventarc triggers describe"*"--format=json"*) return 0 ;;
@@ -37,3 +38,9 @@ test('explicit administrator bootstrap provisions permissions and missing trigge
   assert.equal(result.stderr.match(/GCLOUD eventarc triggers create/g)?.length,12);
 });
 
+
+test('missing delivery identity reports bootstrap guidance and blocks activation',()=>{
+  const result=run({MISSING_IDENTITY:'1'}); assert.notEqual(result.status,0);
+  assert.match(result.stderr,/Cache identity unavailable; run setup with CACHE_BOOTSTRAP=1/);
+  assert.doesNotMatch(result.stderr,/GCLOUD .* create |NODE scripts\/activate-change-cache.mjs\n/);
+});
