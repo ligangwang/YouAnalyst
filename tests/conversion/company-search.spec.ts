@@ -128,9 +128,12 @@ test('editing or dismissing a pending Enter never opens a stale company',async({
 });
 
 test('page search is directly visible, header focuses it and suggestions stay below the field',async({page},info)=>{
+ let countRequests = 0;
+ page.on('request', request => { const url = new URL(request.url()); if (url.pathname === '/api/tickers/search' && !url.searchParams.get('q')) countRequests++; });
  await open(page);
  await expect(input(page)).toBeVisible();await expect(input(page)).not.toBeFocused();
  await expect(page.getByText('Search the 123 companies we currently cover.', {exact:false})).toBeVisible();
+ expect(countRequests).toBe(1);
  await page.getByRole('button',{name:'Search company',exact:true}).click();
  await expect(input(page)).toBeFocused();await expect(page.getByRole('dialog')).toHaveCount(0);
  await input(page).fill('nvidia');await expect(page.getByRole('option')).toHaveCount(2);

@@ -1,5 +1,6 @@
 import { COMPANY_SEARCH_VERSION } from '@/lib/market-companies/search';
 import { loadCollectionUniverse } from '@/lib/company-themes/service';
+import { changeCached } from '@/lib/change-cache';
 import { reviewedCompanyNames } from '@/lib/market-companies/reviewed-names';
 import { companyPinyinTerms, normalizeStockQuery, stockNameTerms } from "@/lib/market-companies/pinyin-search";
 import { predictionInstrument } from "@/lib/predictions/instrument";
@@ -54,6 +55,8 @@ function readString(value: unknown): string | null {
 
 function scoreTicker(item: TickerSearchItem & { symbolLower: string; nameLower: string; exchangePriority: number; searchNames: string[] }, query: string): number {
   let score = item.exchangePriority;
+
+  if (item.id.toLowerCase() === query) score += 1000;
 
   if (item.symbolLower === query) {
     score += 1000;
@@ -119,13 +122,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (coveredOnly) {
-      const graph = await loadCollectionUniverse();
-      const companies = graph.nodes.filter(node => node.kind === 'COMPANY');
+      const db = getAdminFirestore();
+      const companies = await changeCached(db, 'covered-company-search', ['companies', 'company_relationships', 'directory_syncs'], async () => {
+        const graph = await loadCollectionUniverse(db);
+        return graph.nodes.filter(node => node.kind === 'COMPANY');
+      });
       const compact = query.replace(/\s+/g, '');
       const items = !query ? [] : companies
         .map(company => toSearchItem(company.id, { ...company, searchTerms: companyPinyinTerms(company) }))
         .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
-        .filter(item => item.symbolLower.includes(query) || item.searchNames.some(name => name.includes(query) || name.replace(/\s+/g, '').includes(compact)))
+        .filter(item => item.id.toLowerCase().includes(query) || item.symbolLower.includes(query) || item.searchNames.some(name => name.includes(query) || name.replace(/\s+/g, '').includes(compact)))
         .sort((left, right) => scoreTicker(right, query) - scoreTicker(left, query) || left.name.localeCompare(right.name))
         .slice(0, limit)
         .map(item => ({ id: item.id, kind: item.kind, symbol: item.symbol, name: nameLocale ? item.names[nameLocale] || item.name : item.name,

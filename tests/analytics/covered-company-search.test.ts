@@ -11,7 +11,8 @@ test('covered search and its count use the same current coverage universe', asyn
   ] };
   const bundle = await build({ entryPoints: ['src/app/api/tickers/search/route.ts'], bundle: true, write: false, platform: 'node', format: 'cjs', packages: 'external', plugins: [{ name: 'coverage-fixture', setup(builder) {
     builder.onLoad({ filter: /[\\/]company-themes[\\/]service\.ts$/ }, () => ({ contents: 'export const loadCollectionUniverse = async () => fixture;', loader: 'js' }));
-    builder.onLoad({ filter: /[\\/]firebase[\\/]admin\.ts$/ }, () => ({ contents: 'export const getAdminFirestore = () => { throw Error("Unexpected database read"); };', loader: 'js' }));
+    builder.onLoad({ filter: /[\\/]firebase[\\/]admin\.ts$/ }, () => ({ contents: 'export const getAdminFirestore = () => ({});', loader: 'js' }));
+    builder.onLoad({ filter: /[\\/]change-cache\.ts$/ }, () => ({ contents: 'export const changeCached = (db, key, collections, load) => load();', loader: 'js' }));
   } }] });
   const testModule = { exports: {} as { GET: (request: { nextUrl: URL }) => Promise<Response> } };
   new Function('fixture', 'require', 'module', bundle.outputFiles[0].text)(fixture, createRequire(import.meta.url), testModule);
@@ -22,6 +23,7 @@ test('covered search and its count use the same current coverage universe', asyn
   };
   assert.deepEqual(await search(), { items: [], total: 2 });
   assert.deepEqual((await search('NVDA')).items.map((item: { id: string }) => item.id), ['US:NVDA']);
+  assert.equal((await search('US:NVDA')).items[0].id, 'US:NVDA');
   assert.equal((await search('英伟达')).items[0].name, '英伟达');
   assert.equal((await search('OpenAI')).items[0].slug, 'openai');
   assert.deepEqual((await search('IBM')).items, []);

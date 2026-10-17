@@ -19,14 +19,15 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const listId = useId(), composing = useRef(false);
   const queuedQuery = useRef<string | null>(null), destination = useRef({onSelect, locale});
   useEffect(() => { destination.current = {onSelect, locale}; }, [onSelect, locale]);
+  const coverageVisible = inline || open;
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !coverageVisible) return;
     const controller = new AbortController();
     void fetch('/api/tickers/search?scope=covered', { signal: controller.signal })
       .then(async response => { if (response.ok) { const data = await response.json(); if (!controller.signal.aborted && Number.isInteger(data.total)) setCoverageCount(data.total); } })
       .catch(() => {});
     return () => controller.abort();
-  }, [enabled]);
+  }, [enabled, coverageVisible]);
   const searched = query.normalize('NFKC').trim().replace(/^\$/, '');
   const items = results?.query === searched ? results.items : [];
   const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (!inline && previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, [inline]);
