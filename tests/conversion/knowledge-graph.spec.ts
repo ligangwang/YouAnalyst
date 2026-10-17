@@ -265,7 +265,12 @@ test('tree layer changes preserve the manual camera and closed layers stay close
  await expect(canvas).toHaveAttribute('data-camera','idle');
  const pose=()=>canvas.evaluate(el=>[el.getAttribute('data-camera-position'),el.getAttribute('data-camera-target')].join(','));
  const initial=await pose();
- await tree.locator('[data-tree-kind="layer"][data-tree-node="energy"]').evaluate((el:HTMLButtonElement)=>el.click());
+ const energy=tree.locator('[data-tree-kind="layer"][data-tree-node="energy"]');
+ // At overview distance the first activation reveals culled company names.
+ await energy.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="energy"][data-label-visible="true"]').count()).toBeGreaterThan(0);
+ expect(await pose()).toEqual(initial);
+ await energy.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(canvas).not.toHaveAttribute('data-tour-open-layers',/energy/);
  expect(await pose()).toEqual(initial);
  await page.emulateMedia({reducedMotion:'no-preference'});await pastIdleResume(page);
@@ -2057,7 +2062,10 @@ test('hierarchy drags from node content without expanding and resets to a center
 
 test('tree reset reopens every layer after a manual zoom and collapse',async({page})=>{
  test.setTimeout(75000);await accelerateTours(page,8);await shortenIdleResume(page);await page.emulateMedia({reducedMotion:'no-preference'});
- await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
+ // Keep this camera/reset lifecycle bounded on software WebGL. Full-universe
+ // rendering and layer persistence are exercised by the separate camera test.
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD','US:GEV','US:MSFT'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');await canvas.scrollIntoViewIfNeeded();
  await expect(canvas).toHaveAttribute('data-camera-position',/.+/);
@@ -2068,6 +2076,12 @@ test('tree reset reopens every layer after a manual zoom and collapse',async({pa
  const pose=await canvas.getAttribute('data-camera-target');await pastIdleResume(page);
  expect(await canvas.getAttribute('data-camera-target')).toBe(pose);await expect(canvas).toHaveAttribute('data-tour','stopped');
  const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toHaveAttribute('aria-expanded','true');
+ // Explicitly open a globally collapsed sector so the following activation
+ // tests collapse rather than the first-click reveal of distance-culled names.
+ await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect(chips).toHaveAttribute('aria-expanded','false');
+ await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(chips).toHaveAttribute('aria-expanded','true',{timeout:20000});
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(chips).toHaveAttribute('aria-expanded','false');
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
