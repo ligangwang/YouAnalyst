@@ -1,3 +1,5 @@
+import {loadPriceCache} from './price-cache';
+import {changeCached,withCacheReadScope} from '../change-cache';
 import {loadCachedFeed,type CachedFeed} from './feed-cache-store';
 import { createHash } from 'node:crypto';
 import { getAdminFirestore } from '../firebase/admin';
@@ -26,8 +28,6 @@ const companyRequests=new WeakMap<IntelligenceSnapshot,Map<string,Promise<Intell
 
 /** The directory can render without waiting for source reads or price enrichment. */
 export async function loadIntelligenceUniverse(now=new Date(),theme:CompanyThemeId='ai'):Promise<IntelligenceSnapshot>{
-  const cached=caches.get(theme);
-  if(cached&&cached.value.session.date===intelligenceSession(now).date)return cached.value;
   const graph=await loadUniverseGraph(theme);
   return {theme,graph,graphVersion:createHash('sha256').update(JSON.stringify(graph)).digest('hex'),events:[],sourceDocuments:[],eventsPending:true,statisticsComplete:false,generatedAt:now.toISOString(),session:intelligenceSession(now),coverage:[],warnings:[],truncated:false,limit:LIMIT};
 }
@@ -67,21 +67,23 @@ export async function loadCompanyIntelligenceSnapshot(now=new Date(),theme:Compa
 }
 
 /** Persistent day partitions are shared across users, processes and themes.
- * Only projection/price metadata is refreshed periodically; source days never expire.
+ * Time-dependent display/freshness is projected from change-cached source data.
  */
 export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyThemeId='ai',_scheduleRefresh?:ScheduleRefresh,before?:string):Promise<IntelligenceSnapshot>{
+  return withCacheReadScope(()=>buildIntelligenceSnapshot(now,theme,before));
+}
+async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:string):Promise<IntelligenceSnapshot>{
   const session=intelligenceSession(now);
   const preview=process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1';
   let feed:CachedFeed|undefined,feedError:unknown;
   if(!preview)try{feed=await loadCachedFeed(getAdminFirestore(),now,before);}catch(error){feedError=error;}
+  const priceView=preview?undefined:await loadPriceCache(getAdminFirestore());
   const graph=await loadUniverseGraph(theme);
-  // Prices may change without a news arrival. Re-project from cached source days,
-  // never re-query the historical source collections on this five-minute boundary.
-  const key=[session.date,feed?.revision??'unavailable',createHash('sha256').update(JSON.stringify(graph)).digest('hex'),Math.floor(now.getTime()/300_000)].join(':');
+  // Re-evaluate clock-dependent coverage on reads; source data has no timer expiry.
+  const key=[session.date,feed?.revision??'unavailable',priceView?.version??'',createHash('sha256').update(JSON.stringify(graph)).digest('hex'),now.getTime()].join(':');
   const requestKey=`${theme}:${key}`;
   const cached=caches.get(theme),pending=requests.get(requestKey);
   if(feedError&&cached?.value.session.date===session.date)return {...cached.value,statisticsComplete:false,warnings:[...cached.value.warnings,'Feed updates are temporarily unavailable. Showing the previously loaded days.']};
-  if(!feedError&&cached?.key===key)return cached.value;
   if(pending)return pending;
   const request=(async()=>{
     const warnings:string[]=[];
@@ -95,7 +97,7 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     }else try{
       if(feedError)throw feedError;
       const db=getAdminFirestore();
-      const metadata=await secCollectorMetadata(db).get();
+      const metadata=await changeCached(db,'sec-collector-status',['company_fundamentals'],()=>secCollectorMetadata(db).get());
       const lastRun=metadata.get('lastRunAt');
       secFresh=secCollectorIsFresh(lastRun,metadata.get('result'),now);
       if(!secFresh){
@@ -143,7 +145,7 @@ export async function loadIntelligenceSnapshot(now=new Date(),theme:CompanyTheme
     const events=ordered;
     let priced={graph,eventReturns:{} as NonNullable<IntelligenceSnapshot['eventReturns']>};
     if(!(process.env.NODE_ENV==='development'&&process.env.INTELLIGENCE_DEV_PUBLIC_GRAPH==='1')){
-      priced=await attachPricePerformance(getAdminFirestore(),graph,events,now);
+      priced=await attachPricePerformance(getAdminFirestore(),graph,events,now,priceView);
     }
     // Price changes must reach clients that retain the graph on unchanged polls.
     const graphVersion=createHash('sha256').update(JSON.stringify(priced.graph)).digest('hex');

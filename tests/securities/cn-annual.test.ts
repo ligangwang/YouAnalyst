@@ -34,7 +34,7 @@ test('selects latest corrected year, never a half year or forecast, and preserve
 });
 function database(seed:Record<string,unknown>={}){
   const docs=new Map<string,Record<string,unknown>>([[id,seed]]),writes:unknown[]=[];
-  const db={collection:(name:string)=>{assert.equal(name,'company_fundamentals');return {doc:(key:string)=>({
+  const db={collection:(name:string)=>{if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})};assert.equal(name,'company_fundamentals');return {doc:(key:string)=>({
     get:async()=>({exists:docs.has(key),data:()=>docs.get(key),get:(field:string)=>docs.get(key)?.[field]}),
     set:async(value:Record<string,unknown>,options:unknown)=>{assert.deepEqual(options,{merge:true});writes.push(value);docs.set(key,{...docs.get(key),...value});}
   })};}} as unknown as Firestore;

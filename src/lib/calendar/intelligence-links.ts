@@ -4,9 +4,14 @@ import type { IntelligenceEvent } from '../intelligence/model';
 import { isCalendarCandidate } from './candidates';
 import { eventDay } from './display';
 import type { ScheduledEvent } from './model';
+import {changeCached} from '../change-cache';
+import {createHash} from 'node:crypto';
 
 /** Follow stored receipts to current schedules, never infer creation from a title. */
 export async function attachCalendarLinks(db:Firestore,events:IntelligenceEvent[]):Promise<IntelligenceEvent[]> {
+  return changeCached(db,`calendar-links:${createHash('sha256').update(JSON.stringify(events)).digest('hex')}`,['events'],()=>readCalendarLinks(db,events));
+}
+async function readCalendarLinks(db:Firestore,events:IntelligenceEvent[]):Promise<IntelligenceEvent[]> {
   const sourceIds=[...new Set(events.filter(event=>event.category==='BUSINESS'&&isCalendarCandidate(event.title,event.summary))
     .flatMap(event=>event.evidence.filter(source=>['IR','Exchange'].includes(source.channel)&&/^company_(?:news|disclosure)_/.test(source.id)).map(source=>source.id)))];
   if(!sourceIds.length)return events;

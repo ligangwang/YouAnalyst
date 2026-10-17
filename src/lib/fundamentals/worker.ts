@@ -6,12 +6,12 @@ import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { secRequest } from "../sec-request";
 import { assessShares } from "./market-cap";
 import type { SecFilingDiscovered } from "../sec-filings/event";
+import { changeCached } from '../change-cache';
 
 const DAY = 86_400_000;
 class SecFilingPendingError extends Error {
   constructor(message: string, readonly code = "SEC_FILING_SUBMISSIONS_UNRESOLVED") { super(message); }
 }
-let identities: { expires: number; value: Promise<Map<string, string>> } | null = null;
 async function secJson<T>(url: string): Promise<T> {
   return secRequest(url, {
     headers: { "user-agent": process.env.SEC_USER_AGENT?.trim() || "YouAnalyst/1.0 (https://youanalyst.com)", accept: "application/json" },
@@ -20,17 +20,16 @@ async function secJson<T>(url: string): Promise<T> {
 }
 
 async function resolveCik(ticker: string): Promise<string | null> {
-  if (!identities || identities.expires < Date.now()) {
-    identities = { expires: Date.now() + DAY, value: secJson<{ fields: string[]; data: unknown[][] }>("https://www.sec.gov/files/company_tickers_exchange.json").then(payload => {
+  // Directory imports/company onboarding invalidate identity mappings.
+  const mapping = await changeCached(getAdminFirestore(),'sec-identity-map',['companies','directory_syncs'],()=>
+    secJson<{ fields: string[]; data: unknown[][] }>("https://www.sec.gov/files/company_tickers_exchange.json").then(payload => {
       const cikIndex = payload.fields.indexOf("cik"), tickerIndex = payload.fields.indexOf("ticker");
       if (cikIndex < 0 || tickerIndex < 0) throw new Error("SEC identity columns missing");
       return new Map(payload.data.flatMap(row => {
         const cik = String(row[cikIndex]), symbol = row[tickerIndex];
         return typeof symbol === "string" && /^\d{1,10}$/.test(cik) ? [[symbol.toUpperCase(), cik.padStart(10, "0")]] : [];
       }));
-    }).catch(error => { identities = null; throw error; }) };
-  }
-  const mapping = await identities.value;
+    }));
   // SEC uses hyphens for share classes; only use the alias when there is no exact mapping.
   return mapping.get(ticker) ?? mapping.get(ticker.replaceAll(".", "-")) ?? null;
 }

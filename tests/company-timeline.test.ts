@@ -146,6 +146,7 @@ test('timeline API adjusts Firestore OHLC before aggregation, refreshes changed 
  let ratio=10,fail=false,actionReads=0;
  const row={ticker:'NVDA',market:'US',tradingDate:'2024-06-07',rawClose:1208.88,close:120.5,open:1197.7,high:1216.917,low:1180.22,volume:412385776};
  const db={collection:(name:string)=>{
+  if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:true,versions:{corporate_actions:String(ratio)+String(fail)}})})})};
   if(name==='corporate_actions')return {where:(field:string,op:string,value:string)=>{
    assert.deepEqual([field,op,value],['ticker','==','NVDA']);
    return {get:async()=>{actionReads++;if(fail)throw Error('read failed');return {docs:[{data:()=>({ticker:'NVDA',market:'US',type:'split',status:'completed',effectiveDate:'2024-06-10',splitNumerator:ratio,splitDenominator:1})}]};}};
@@ -191,14 +192,17 @@ test('weekly event grouping retains individual publication dates and separates f
  assert.equal(layoutTimelineMarkers(events,'2026-09-01','2026-10-12',500).length,3);
 });
 
-test('timeline cache shares pending reads, expires, separates revisions and retries failures',async()=>{
+test('timeline cache shares reads until data changes and retries failures',async()=>{
  let calls=0;const data={companyId:'US:TEST',start:'2021-01-01',end:'2026-01-01',prices:[],currency:'USD',available:true};
+ let revision='one';
+ const db={collection:()=>({doc:()=>({get:async()=>({data:()=>({enabled:true,versions:{eod_prices:revision}})})})})} as unknown as import('firebase-admin/firestore').Firestore;
  const load=async()=>{calls++;return data;};
- await Promise.all([cachedTimelinePrices('test-revision-1',load,0),cachedTimelinePrices('test-revision-1',load,1)]);assert.equal(calls,1);
- await cachedTimelinePrices('test-revision-1',load,60_001);assert.equal(calls,2);
- await cachedTimelinePrices('test-revision-2',load,60_002);assert.equal(calls,3);
- await assert.rejects(cachedTimelinePrices('test-failure',async()=>{throw Error('read failed');},0));
- await cachedTimelinePrices('test-failure',load,1);assert.equal(calls,4);
+ await Promise.all([cachedTimelinePrices(db,'range-1',load),cachedTimelinePrices(db,'range-1',load)]);assert.equal(calls,1);
+ await cachedTimelinePrices(db,'range-1',load);assert.equal(calls,1);
+ revision='correction';await cachedTimelinePrices(db,'range-1',load);assert.equal(calls,2);
+ await cachedTimelinePrices(db,'range-2',load);assert.equal(calls,3);
+ await assert.rejects(cachedTimelinePrices(db,'failure',async()=>{throw Error('read failed');}));
+ await cachedTimelinePrices(db,'failure',load);assert.equal(calls,4);
 });
 
 test('BOLL uses complete closes and population deviation without future prices',()=>{

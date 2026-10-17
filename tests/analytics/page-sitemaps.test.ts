@@ -20,6 +20,7 @@ async function loadSitemap(unavailable = false) {
         export function getAdminFirestore() {
           if (${unavailable}) throw new Error('Unavailable');
           return { collection(name) {
+            if (name === 'collectors') return { doc: () => ({ get: async () => ({ data: () => ({ enabled: true, versions: {} }) }) }) };
             if (!fixtures[name]) throw new Error('Unexpected collection: ' + name);
             return { where() { return this; }, orderBy() { return this; }, limit() { return this; },
               async get() { return { docs: fixtures[name].map(({id, ...data}) => ({id, data: () => data})) }; } };

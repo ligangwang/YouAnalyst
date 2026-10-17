@@ -1,3 +1,4 @@
+import {writeCachedPrice} from '../intelligence/price-cache';
 import { saveLatestEodPrice } from "./latest-eod";
 import { backfillPriceHistory, historyThrough, historyProviderSymbol } from "./history-backfill";
 import { corporateActionTickers, syncCorporateActions } from './corporate-actions';
@@ -1563,10 +1564,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       for (const price of loadedPrices) {
         priceByTicker.set(price.ticker, price);
         if (!dryRun) {
-          await db
-            .collection("eod_prices")
-            .doc(eodPriceDocId(price.ticker, price.tradingDate, price.market))
-            .set(price, { merge: true });
+          await writeCachedPrice(db,db.collection("eod_prices").doc(eodPriceDocId(price.ticker, price.tradingDate, price.market)),{...price});
           await saveLatestEodPrice(db, {ticker:price.ticker,market:price.market,tradingDate:price.tradingDate,close:price.close,currency:price.market === "US" ? "USD" : "CNY",source:price.source,loadedAt:price.loadedAt});
         }
       }

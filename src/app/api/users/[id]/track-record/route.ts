@@ -2,6 +2,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { getDecodedUserFromRequest } from "@/lib/firebase/auth";
 import { computeTrackRecord, TRACK_RECORD_BENCHMARK, trackRecordDates, type TrackRecordRow } from "@/lib/predictions/track-record";
 import { NextRequest, NextResponse } from "next/server";
+import {changeCached} from '@/lib/change-cache';
 
 /** An analyst's public track record against the benchmark. Private profiles are visible only to their owner. */
 export async function GET(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -11,6 +12,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   try {
     const [decoded, profile] = await Promise.all([getDecodedUserFromRequest(request), db.collection("users").doc(id).get()]);
     if (profile.get("settings.isPublic") === false && decoded?.uid !== id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const result=await changeCached(db,`track-record:${id}`,['predictions','eod_prices'],async()=>{
     // Single-field equality query: no composite index. Visibility and status are filtered in computeTrackRecord.
     const snapshot = await db.collection("predictions").where("userId", "==", id).limit(1000).get();
     const rows: TrackRecordRow[] = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
@@ -23,7 +25,9 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
         if (doc.exists && typeof close === "number" && close > 0 && typeof tradingDate === "string") closes.set(tradingDate, close);
       }
     }
-    return NextResponse.json(computeTrackRecord(rows, closes), { headers: { "Cache-Control": "private, max-age=60" } });
+    return computeTrackRecord(rows, closes);
+    });
+    return NextResponse.json(result, { headers: { "Cache-Control": "private, no-cache" } });
   } catch {
     return NextResponse.json({ error: "Track record unavailable" }, { status: 500 });
   }

@@ -3,6 +3,7 @@ import { getAdminFirestore } from "@/lib/firebase/admin";
 import { absoluteUrl } from "@/lib/seo";
 import { infrastructureTopics, RESEARCH_REVIEWED } from "@/lib/research/infrastructure-topics";
 import { localizedPath } from "@/lib/i18n/urls";
+import {changeCached} from '@/lib/change-cache';
 
 function bilingual(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
   return entries.filter(entry => new URL(entry.url).pathname !== "/map").flatMap(entry => {
@@ -13,7 +14,6 @@ function bilingual(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
 }
 
 export const dynamic = "force-dynamic";
-export const revalidate = 3600;
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
   ...infrastructureTopics.map(topic => ({ url: absoluteUrl(`/research/${topic.slug}`), lastModified: RESEARCH_REVIEWED, changeFrequency: "weekly" as const, priority: 0.8 })),
@@ -70,6 +70,7 @@ function toIsoDate(value: unknown): string | undefined {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const db = getAdminFirestore();
+    return await changeCached(db,'pages-sitemap',['users','predictions','watchlists'],async()=>{
     // Company URLs belong exclusively to the uncapped company bucket sitemaps.
     const [predictionSnapshot, userSnapshot, watchlistSnapshot] = await Promise.all([
       db.collection("predictions").where("visibility", "==", "PUBLIC").orderBy("createdAt", "desc").limit(500).get(),
@@ -119,6 +120,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }));
 
     return bilingual([...STATIC_ROUTES, ...analystRoutes, ...watchlistRoutes, ...predictionRoutes]);
+    });
   } catch {
     return bilingual(STATIC_ROUTES);
   }

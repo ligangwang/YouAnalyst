@@ -15,15 +15,17 @@ function filing(index:number,day='2026-10-02',companyId='AMD'):FeedRecord{
   return {collection:'sec_filings',id:accessionNumber,data:{filingDate:day,published_at:null,discoveryEvents:{[event.eventId]:{event,state:'published'}}}};
 }
 function feed(records:FeedRecord[]=[],revision='one',loadedFrom='2026-10-02'):CachedFeed{return {days:{[loadedFrom]:records},revision,loadedFrom,hasMore:true};}
-async function isolated(load:()=>Promise<CachedFeed>,options:{graph?:()=>Promise<KnowledgeGraph>;collector?:Record<string,unknown>}={}){
-  const external=['./feed-cache-store','./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service','../calendar/intelligence-links'];
+async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>string;graph?:()=>Promise<KnowledgeGraph>;collector?:Record<string,unknown>}={}){
+  const external=['../change-cache','./price-cache','./feed-cache-store','./price-performance-service','../firebase/admin','../knowledge-graph/service','../knowledge-graph/curated-events','../sec-filings/store','../company-themes/graph-service','../calendar/intelligence-links'];
   const result=await build({entryPoints:['src/lib/intelligence/service.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external});
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
   const injected=(name:string)=>{
+    if(name==='./price-cache')return {loadPriceCache:async()=>({version:options.priceVersion?.()??'prices',entries:{}})};
     if(name==='./feed-cache-store')return {loadCachedFeed:load};
     if(name==='./price-performance-service')return {attachPricePerformance:async(_db:unknown,graph:KnowledgeGraph)=>({graph,eventReturns:{}})};
     if(name==='../calendar/intelligence-links')return {attachCalendarLinks:async(_db:unknown,events:unknown)=>events};
     if(name==='../firebase/admin')return {getAdminFirestore:()=>({})};
+    if(name==='../change-cache')return {withCacheReadScope:(load:()=>Promise<unknown>)=>load(),changeCached:async(_db:unknown,_key:string,_scopes:string[],load:()=>Promise<unknown>)=>load()};
     if(name==='../company-themes/graph-service')return {loadThemeGraph:options.graph??(async()=>graph)};
     if(name==='../knowledge-graph/service')return {loadKnowledgeGraph:options.graph??(async()=>graph)};
     if(name==='../knowledge-graph/curated-events')return {curatedEvents:[]};
@@ -39,7 +41,7 @@ test('unchanged feed revision reuses the projected feed past one minute; new arr
   const service=await isolated(async()=>current);
   const first=await service.loadIntelligenceSnapshot(now);
   assert.equal(first.events.length,1);
-  assert.equal(await service.loadIntelligenceSnapshot(new Date(now.getTime()+61_000)),first);
+  assert.deepEqual((await service.loadIntelligenceSnapshot(new Date(now.getTime()+61_000))).events,first.events);
   current=feed([filing(1),filing(2)],'two');
   const next=await service.loadIntelligenceSnapshot(new Date(now.getTime()+62_000));
   assert.equal(next.events.length,2);assert.notEqual(next,first);
@@ -124,3 +126,10 @@ test('the events route negotiates compression and preserves filters and deferred
   const error=await route.GET(new Request('http://localhost/api/intelligence?q=QCOM&region=US'));
   assert.equal(error.status,503);assert.equal(error.headers.get('content-encoding'),null);
 });
+
+ test('a price arrival invalidates the projected snapshot before the five-minute metadata refresh',async()=>{
+ let version='one';const service=await isolated(async()=>feed(),{priceVersion:()=>version});
+ const first=await service.loadIntelligenceSnapshot(now);
+ version='two';const next=await service.loadIntelligenceSnapshot(new Date(now.getTime()+1000));
+ assert.notEqual(next,first);
+ });

@@ -28,6 +28,15 @@ export function dailyPrice(bars:PriceBar[],market:PredictionMarket):DailyPrice|u
   return {close:latest.close,currency:market==='US'?'USD':'CNY',tradingDate:latest.date,previousTradingDate:previous?.date??null,change:previous?latest.close/previous.close-1:null};
 }
 
+export function eventBaselineThrough(event:IntelligenceEvent,market:PredictionMarket,now:Date):string|undefined{
+ if(event.planned)return;
+ const exact=event.published_at?new Date(event.published_at):null;
+ if(exact&&(!Number.isFinite(exact.getTime())||exact>now))return;
+ const day=exact?marketDate(market,exact):event.publication_date;
+ if(!validDate(day)||day>marketDate(market,now))return;
+ return exact&&localSeconds(market,exact)>closingHour(market,day)*3600?day:new Date(Date.parse(day)-86400000).toISOString().slice(0,10);
+}
+
 /** Daily closes, never a fabricated quote at the announcement's exact time. */
 export function eventPriceReturn(event:IntelligenceEvent,companyId:string,bars:PriceBar[],market:PredictionMarket,now=new Date()):EventPriceReturn|undefined{
   if(event.planned||!event.companyIds.includes(companyId))return;

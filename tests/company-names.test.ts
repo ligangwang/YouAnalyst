@@ -89,8 +89,8 @@ test("non-admin name edits fail before any database access", async () => {
 
 test("shared name revision invalidates warm graph caches in separate server instances", async () => {
  let revision = "old", name = "台积公司", companyReads = 0, revisionUnavailable = false;
- const db = {collection:(collection:string)=>({
-  doc:()=>({get:async()=>{if(revisionUnavailable)throw new Error("Unavailable");return {data:()=>({revision})};}}),
+ const db = {getAll:async()=>[],collection:(collection:string)=>({
+  doc:()=>({get:async()=>{if(revisionUnavailable)throw new Error("Unavailable");return {data:()=>({enabled:true,versions:{companies:revision}})};}}),
   where:()=>({get:async()=>({docs:collection === "companies" ? [ {id:"US:TSM",data:()=>{companyReads++;return {name:"TSMC",names:{"zh-CN":name},status:"PUBLISHED",aiGraph:{status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[]}};}} ] : []})})
  })};
  const a = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
@@ -101,7 +101,7 @@ test("shared name revision invalidates warm graph caches in separate server inst
  for(const server of [a,b]) assert.equal(companyName((await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>).nodes[0],"zh-CN"),"台积电");
  assert.equal(companyReads,4);
  revisionUnavailable = true;
- assert.equal(companyName((await a.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>).nodes[0],"zh-CN"),"台积电");
+ await assert.rejects(a.loadKnowledgeGraph(), /Unavailable/);
  const cold = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
  await assert.rejects(cold.loadKnowledgeGraph(), /Unavailable/);
  const realNow = Date.now;
@@ -117,7 +117,7 @@ test("graph loader combines generic and legacy memberships without duplicates", 
  const company = (id:string, fields:object) => ({id,data:()=>({name:id,status:"PUBLISHED",...fields})});
  const shared = company("US:BOTH", {inGraph:membership,aiGraph:membership});
  const queries:string[] = [];
- const db = {collection:(name:string)=>({
+ const db = {getAll:async()=>[],collection:(name:string)=>({
   doc:()=>({get:async()=>({data:()=>({revision:"generic"})})}),
   where:(field:string)=>({get:async()=>{queries.push(field);return {docs:name !== "companies" ? [] : field === "inGraph.status" ? [company("US:NEW",{inGraph:membership}), shared] : [company("US:OLD",{aiGraph:membership}), shared]};}})
  })};

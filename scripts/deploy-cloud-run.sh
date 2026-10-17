@@ -183,6 +183,10 @@ if [[ -z "$service_url" ]]; then
 fi
 
 health_url="$service_url/api/health"
+if [[ "$target" == production ]]; then
+  [[ "$firestore_project_id" == "$project_id" ]] || { echo 'Cache receiver requires Firestore and Cloud Run in the same project' >&2; exit 1; }
+  GCP_PROJECT_ID="$firestore_project_id" GCP_REGION="$region" CACHE_WEB_SERVICE="$service_name" bash scripts/setup-cache-changes.sh
+fi
 echo "[5/5] Smoke testing $health_url"
 
 health_tmp_file="$(mktemp)"
