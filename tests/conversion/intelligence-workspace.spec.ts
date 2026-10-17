@@ -1692,5 +1692,8 @@ for(const zh of [false,true])test(`AI sidebar shares the tree's five layers and 
  await nav.getByRole('button',{name:zh?'收起芯片':'Collapse Chips',exact:true}).click();await expect(memory).toBeHidden();
  await nav.getByRole('button',{name:zh?'模型 1':'Models 1',exact:true}).click();await expect(list.locator('[data-list-company="US:GOOGL"]')).toBeVisible();
  await page.getByRole('button',{name:'Clear sector focus',exact:true}).click();await expect(list.locator('[data-list-company]')).toHaveCount(7);
+ const panel=page.getByRole('complementary',{name:'Events and sources'});await panel.getByText(zh?'按行业':'By sector',{exact:true}).click();await panel.getByRole('button',{name:new RegExp('^'+(zh?'内存与存储':'Memory & storage'))}).click();
+ const legacy=page.getByRole('button',{name:zh?'清除内存与存储筛选':'Clear Memory & storage filter',exact:true});await expect(legacy).toBeVisible();await expect(list.locator('[data-list-company]')).toHaveCount(2);await legacy.click();await expect(legacy).toHaveCount(0);await expect(list.locator('[data-list-company]')).toHaveCount(7);
+
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
