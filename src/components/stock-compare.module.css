@@ -12,13 +12,15 @@
 .chips button { display:flex;align-items:center;gap:8px;border:1px solid var(--color-line);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:600; }
 .chips button span { color:var(--text-muted);margin-left:4px;font-size:16px; }
 .chips i,.legend i,.results i { display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0; }
-.settings { display:grid;grid-template-columns:minmax(180px,1.5fr) 1fr 1fr auto;gap:16px;align-items:end; }
+.settings { display:grid;grid-template-columns:minmax(240px,1.5fr) 1fr 1fr auto;gap:16px;align-items:start; }
 .settings label { font-size:12px;display:flex;flex-direction:column;gap:8px;color:var(--text-secondary); }
 .settings input { width:100%;min-width:0;background:var(--background);color:var(--foreground);border:1px solid var(--color-line);border-radius:8px;padding:10px;font-size:13px;min-height:42px; }
 .settings input[type=date] { color-scheme:dark; }
-.search { display:flex;gap:8px;align-items:end;min-width:0; }
-.search>div { flex:1;min-width:0; }
-.search>button { min-height:42px;border:1px solid var(--color-line);border-radius:8px;padding:0 12px;font-size:13px; }
+.search { display:flex;flex-direction:column;gap:8px;min-width:0; }
+.search>span { font-size:12px;color:var(--text-secondary); }
+.search>div { width:100%;min-width:0;margin:0; }
+.search input { padding-left:42px; }
+.settings>.primary { margin-top:26px; }
 .primary { background:#22d3ee!important;color:#07111d!important;font-weight:600;border:0!important;border-radius:8px;padding:11px 18px;font-size:13px; }
 .primary:hover { background:#67e8f9!important; }
 .page button:disabled { opacity:.4; }
@@ -108,7 +110,7 @@
 .embedResults .results { margin-top:16px;color:var(--foreground); }
 @media(max-width:700px) {
  .page { padding:25px 14px 40px; }.header{align-items:flex-start;flex-direction:column;gap:12px;margin-bottom:22px;}
- .editor { padding:17px; }.settings { grid-template-columns:1fr 1fr;gap:12px; }.search{grid-column:1/-1;}.settings>.primary{grid-column:1/-1;}
+ .editor { padding:17px; }.settings { grid-template-columns:1fr 1fr;gap:12px; }.search{grid-column:1/-1;}.settings>.primary{grid-column:1/-1;margin-top:0;}
  .stage { padding:20px 12px 16px; }.stageHeading { align-items:flex-start;flex-direction:column;gap:14px; }.stageHeading h2{font-size:17px;}
  .dateRow { margin-top:20px; }.dateRow time{font-size:22px;}.playback{gap:10px;}.playback .primary{padding:10px 13px;}
  .speed{font-size:0;gap:0;}.shareRow{align-items:flex-start;flex-direction:column;}.caption{gap:10px;}.caption p{max-width:260px;}

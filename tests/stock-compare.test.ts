@@ -6,7 +6,20 @@ import { compareEmbedPath, comparisonEmbedCode, comparisonEmbedHeight } from "..
 import { mapTimelinePrice, timelineSplits } from "../src/lib/ui/company-timeline";
 import { loadStockComparison } from "../src/lib/compare-service";
 import type { Firestore } from "firebase-admin/firestore";
+import { playbackStartDate, validatePlaybackConfig } from "../src/lib/ui/compare-range";
 const config: CompareConfig = { symbols: ["AAPL", "NVDA"], start: "2025-01-01", end: "2025-12-31", style: "line" };
+
+test("playback accepts five calendar years and rejects longer ranges, including leap dates", () => {
+  const now = new Date("2026-10-17T12:00:00Z");
+  assert.equal(validatePlaybackConfig({ ...config, start: "2020-12-31" }, now), null);
+  assert.equal(validatePlaybackConfig({ ...config, start: "2020-12-31", end: "2026-01-01" }, now), "Choose a period of 5 years or less.");
+  for (const start of ["2020-12-30", "2000-01-01"]) assert.equal(validatePlaybackConfig({ ...config, start }, now), "Choose a start date on or after December 31, 2020.");
+  assert.equal(validatePlaybackConfig({ ...config, start: "2021-02-28", end: "2026-02-28" }, now), null);
+  assert.equal(playbackStartDate("2024-02-29", 1), "2023-02-28");
+  assert.equal(playbackStartDate("2024-02-29"), "2020-12-31");
+  assert.equal(playbackStartDate("2026-10-17"), "2021-10-17");
+  assert.equal(validatePlaybackConfig({ ...config, start: "" }, now), "Choose a start date before the end date.");
+});
 
 test("paused frames use an actual close, including floating-point boundary positions", () => {
   const data = { dates: ["2025-01-02", "2025-01-03"], series: [{ symbol: "AAPL", values: [0, 20] }], frequency: "Daily" as const, source: "Test" };
