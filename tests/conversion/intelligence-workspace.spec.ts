@@ -898,13 +898,13 @@ test('region selection rebuilds the real graph with only matching companies',asy
  expect(Math.abs(themeBox.y-regionBox.y)).toBeLessThan(4);expect(themeBox.x+themeBox.width).toBeLessThan(regionBox.x);
 });
 
-test('first phone visit starts in List and explicit chart choices remain available',async({page})=>{
+test('first phone visit starts in Graph and explicit list choices remain available',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await open(page);
-  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
-  await expect(page.locator('[data-view="graph"]')).toHaveCount(0);
-  await page.goto('http://workspace.test/?view=graph');
   await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-view="graph"]')).toHaveCount(1);
+  await page.goto('http://workspace.test/?view=table');
+  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
 });
 
 test('news calendar icon links only confirmed schedules and does not select the news',async({page},info)=>{
