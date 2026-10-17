@@ -52,7 +52,9 @@ function Scene(props:TreeSceneProps){
   const resumeReady=useRef(false);
   const skipLayer=useRef<string|undefined>(undefined);
   const disclosedLayers=useRef(new Set<string>());
-  useEffect(()=>{disclosedLayers.current.clear();},[props.layers,props.request]);
+  // Reset disclosure before Html handlers can run for a new camera request.
+  // Refreshing the layer array must not undo an explicit sector reopening.
+  useLayoutEffect(()=>{disclosedLayers.current.clear();},[props.request]);
   const idleTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const scheduleResume=useRef<()=>void>(()=>{});
   useEffect(()=>{

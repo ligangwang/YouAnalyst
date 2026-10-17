@@ -469,7 +469,10 @@ test('graph resumes gently from the user view after release and respects reduced
 test('vertical tree labels fade fully before compacting and honor reduced motion',async({page})=>{
  test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
- await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:graph}):r.fulfill({contentType:'text/html',body:html}));
+ // A few leaves exercise the same fade lifecycle without full-universe
+ // software WebGL stalls skipping every intermediate animation frame.
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD','US:MSFT','US:GEV'].includes(n.id))};
+ await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.getByRole('region',{name:'Vertical tree',exact:true}),canvas=tree.locator('canvas');
  await canvas.scrollIntoViewIfNeeded();
@@ -487,12 +490,12 @@ test('vertical tree labels fade fully before compacting and honor reduced motion
  });
  await label.focus();
  await expect(label).toHaveAttribute('data-label-visible','true');
- await expect(label).toHaveAttribute('data-label-opacity','1',{timeout:5000});
+ await expect(label).toHaveAttribute('data-label-opacity','1',{timeout:15000});
  expect(JSON.parse((await label.getAttribute('data-fade-samples'))!).some((v:number)=>v>.1&&v<.9)).toBe(true);
  await label.evaluate(el=>{el.removeAttribute('data-fade-samples');(el as HTMLElement).blur();});
  await expect(label).toHaveAttribute('data-label-visible','false');
  // It retains its readable box until the text has faded, then becomes a tiny hit target.
- await expect(label).toHaveAttribute('data-label-opacity','0',{timeout:5000});
+ await expect(label).toHaveAttribute('data-label-opacity','0',{timeout:15000});
  await expect(label).toHaveAttribute('data-compact','true');
  expect(JSON.parse((await label.getAttribute('data-fade-samples'))!).some((v:number)=>v>.1&&v<.9)).toBe(true);
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -1962,19 +1965,28 @@ test('closing tree sectors removes their branches and leaves without moving othe
  await section.getByRole('button',{name:'Expand all',exact:true}).click();await expect(company).toBeAttached();await cameraUnchanged();
  const infrastructure=tree.locator('[data-tree-node="infrastructure"]');
  const infrastructureCompanies=tree.locator('[data-tree-company][data-tree-layer="infrastructure"]');
+ // Reopen from an explicit closed state. An already-open sector may either
+ // reveal distance-culled labels or close, depending on the current camera.
+ await section.getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect(infrastructure).toHaveAttribute('aria-expanded','false');
+ await expect(chips).toHaveAttribute('aria-expanded','false');
+ await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(chips).toHaveAttribute('aria-expanded','true');
  await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(infrastructure).toHaveAttribute('aria-expanded','true');
  // NVDA also belongs to Infrastructure. Collision filtering can prefer either
  // company on phones, but opening the sector must show readable names.
  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="infrastructure"][data-label-visible="true"][data-label-opacity="1"]').count()).toBeGreaterThan(0);
  await cameraUnchanged();
  await expect(chips).toHaveAttribute('aria-expanded','true');
  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"][data-label-visible="true"]').count()).toBeGreaterThan(0);
- await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());await expect(infrastructureCompanies).toHaveCount(0);await cameraUnchanged();
+ await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());await expect(infrastructure).toHaveAttribute('aria-expanded','false');await expect(infrastructureCompanies).toHaveCount(0);await cameraUnchanged();
  await expect(tree.locator('[data-tree-kind="branch"][data-tree-layer="infrastructure"]')).toHaveCount(0);
  await expect(company).toBeAttached();
  await expect(chips).toHaveAttribute('aria-expanded','true');
  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"][data-label-visible="true"]').count()).toBeGreaterThan(0);
  await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(infrastructure).toHaveAttribute('aria-expanded','true');
  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="infrastructure"][data-label-visible="true"]').count()).toBeGreaterThan(0);await cameraUnchanged();
  await hiddenLabels.evaluate(el=>el.parentNode?.removeChild(el));
 });
@@ -2091,6 +2103,7 @@ test('tree reset reopens every layer after a manual zoom and collapse',async({pa
  await expect(chips).toHaveAttribute('aria-expanded','false');
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(chips).toHaveAttribute('aria-expanded','true',{timeout:20000});
+ await expect(canvas).toHaveAttribute('data-tree-disclosed-layers',/chips/);
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(chips).toHaveAttribute('aria-expanded','false');
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
