@@ -14,7 +14,7 @@ test("comparison exports a watermarked video without a server encoding request",
   await mockPrices(page);
   await page.goto('/en/compare?' + query);
   const exporter = page.getByRole('region', { name: 'Export comparison video' });
-  await expect(exporter).toContainText('Includes YouAnalyst watermark.');
+  await expect(exporter).toContainText('YouAnalyst watermark.');
   await exporter.getByLabel('Video duration').selectOption('10');
   const download = page.waitForEvent('download');
   await exporter.getByRole('button', { name: 'Export video', exact: true }).click();

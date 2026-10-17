@@ -41,11 +41,11 @@ export function ComparisonVideoExport({ data, style, onStart }: { data: CompareD
 
   return <section className={styles.videoExport} aria-label={text('Export comparison video', '导出对比视频')}>
     <div><label>{text('Video duration', '视频时长')} <select value={seconds} disabled={progress !== null} onChange={event => setSeconds(Number(event.target.value))}>{[10, 15, 30].map(value => <option key={value} value={value}>{value}{text(' seconds', ' 秒')}</option>)}</select></label>
-      <button type="button" onClick={() => void exportVideo()} disabled={progress !== null}>{text('Export video', '导出视频')}</button>
+      <button type="button" title={text('MP4 where supported, otherwise WebM.', '支持时导出 MP4，否则导出 WebM。')} onClick={() => void exportVideo()} disabled={progress !== null}>{text('Export video', '导出视频')}</button>
       {progress !== null && <button type="button" onClick={() => active.current?.abort()}>{text('Cancel export', '取消导出')}</button>}
       {download && <a href={download.url} download={download.filename}>{text('Download video', '下载视频')}</a>}
     </div>
-    <p>{text('720p · 30 fps · Includes YouAnalyst watermark. MP4 where supported, otherwise WebM. Keep this tab visible during export.', '720p · 30 帧/秒 · 含 YouAnalyst 水印。支持时导出 MP4，否则导出 WebM。导出期间请保持此标签页可见。')}</p>
+    <p>{text('720p · 30 fps · YouAnalyst watermark. Keep this tab visible.', '720p · 30 帧/秒 · YouAnalyst 水印。导出时保持标签页可见。')}</p>
     {progress !== null && <progress aria-label={text('Video export progress', '视频导出进度')} value={progress} max={100}/>}
     <p role="status">{progress !== null ? text(`Exporting video… ${progress}%`, `正在导出视频… ${progress}%`) : message}</p>
   </section>;
