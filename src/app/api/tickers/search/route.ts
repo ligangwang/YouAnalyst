@@ -1,6 +1,7 @@
 import { COMPANY_SEARCH_VERSION } from '@/lib/market-companies/search';
+import { loadCollectionUniverse } from '@/lib/company-themes/service';
 import { reviewedCompanyNames } from '@/lib/market-companies/reviewed-names';
-import { normalizeStockQuery, stockNameTerms } from "@/lib/market-companies/pinyin-search";
+import { companyPinyinTerms, normalizeStockQuery, stockNameTerms } from "@/lib/market-companies/pinyin-search";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import { NVIDIA_EDITORIAL_COMPANIES } from "@/lib/research/nvidia-manufacturing";
 import { getAdminFirestore } from "@/lib/firebase/admin";
@@ -107,15 +108,30 @@ export async function GET(request: NextRequest) {
   const limitParam = Number(request.nextUrl.searchParams.get("limit") ?? "10");
   const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(Math.trunc(limitParam), 20)) : 10;
 
-  if (query.length === 0) {
+  const coveredOnly = request.nextUrl.searchParams.get('scope') === 'covered';
+  if (query.length === 0 && !coveredOnly) {
     return NextResponse.json({ items: [] });
   }
 
-  if (query.length > 120 || !/^[\p{L}\p{N}.:\-\s&'’()*]+$/u.test(query)) {
+  if (query.length > 120 || (query.length > 0 && !/^[\p{L}\p{N}.:\-\s&'’()*]+$/u.test(query))) {
     return NextResponse.json({ items: [] });
   }
 
   try {
+    if (coveredOnly) {
+      const graph = await loadCollectionUniverse();
+      const companies = graph.nodes.filter(node => node.kind === 'COMPANY');
+      const compact = query.replace(/\s+/g, '');
+      const items = !query ? [] : companies
+        .map(company => toSearchItem(company.id, { ...company, searchTerms: companyPinyinTerms(company) }))
+        .filter((item): item is NonNullable<ReturnType<typeof toSearchItem>> => Boolean(item))
+        .filter(item => item.symbolLower.includes(query) || item.searchNames.some(name => name.includes(query) || name.replace(/\s+/g, '').includes(compact)))
+        .sort((left, right) => scoreTicker(right, query) - scoreTicker(left, query) || left.name.localeCompare(right.name))
+        .slice(0, limit)
+        .map(item => ({ id: item.id, kind: item.kind, symbol: item.symbol, name: nameLocale ? item.names[nameLocale] || item.name : item.name,
+          ...(item.slug ? { slug: item.slug } : {}), exchange: item.exchange, micCode: item.micCode, type: item.type, market: item.market }));
+      return NextResponse.json({ items, total: companies.length }, { headers: { 'Cache-Control': 'no-store' } });
+    }
     const db = getAdminFirestore();
     const collection = db.collection("companies");
     const indexed = collection.select('slug','symbol','symbolLower','name','nameLower','names','aliases','legalName','searchTerms','exchange','micCode','type','exchangePriority','market','active','predictionSupported','status','listingStatus');
