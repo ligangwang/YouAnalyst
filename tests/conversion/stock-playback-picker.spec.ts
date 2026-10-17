@@ -34,6 +34,9 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   await expect(page.getByText('THE MARKET, IN MOTION', { exact: true })).toHaveCount(0);
   const chart = page.getByRole('region', { name: chinese ? '表现图表' : 'Performance chart', exact: true });
   const editor = page.getByRole('region', { name: chinese ? '编辑对比' : 'Edit comparison', exact: true });
+  await expect(chart.getByRole('region', { name: chinese ? '导出对比视频' : 'Export comparison video', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('region', { name: chinese ? '导出对比视频' : 'Export comparison video', exact: true })).toHaveCount(1);
+  await expect(page.getByText('The chart uses the first and last available shared trading days within your selected range.', { exact: true })).toHaveCount(0);
   const chartBox = await chart.boundingBox(), editorBox = await editor.boundingBox();
   expect(editorBox!.y).toBeGreaterThanOrEqual(chartBox!.y + chartBox!.height);
   const hint = page.getByText(chinese ? '已覆盖 178 家公司，持续扩充中。' : '178 companies covered · More coming soon', { exact: true });
