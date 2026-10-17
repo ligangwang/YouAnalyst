@@ -1,15 +1,14 @@
 import {getAdminFirestore} from '../firebase/admin';
 import {latestPublicEarnings,type PublicEarningsSummary} from './public-summary';
 import type {EarningsRecord} from './model';
+import {changeCached} from '../change-cache';
 
-const cache=new Map<string,{expires:number;value:Promise<PublicEarningsSummary|null>}>();
 /** Read existing immutable revisions and their current heads; never request providers on a page read. */
 export async function loadLatestCompanyEarnings(companyId:string):Promise<PublicEarningsSummary|null>{
   if(!/^(?:US:[A-Z0-9][A-Z0-9.-]{0,15}|XSHE:[03]\d{5}|XSHG:6\d{5})$/.test(companyId))return null;
-  const previous=cache.get(companyId);if(previous&&previous.expires>Date.now())return previous.value;
-  const value=(async()=>{
-    try{
-      const db=getAdminFirestore(),collection=db.collection('earnings_records');
+  const db=getAdminFirestore();
+  try{return await changeCached(db,`earnings:${companyId}`,['earnings_records'],async()=>{
+      const collection=db.collection('earnings_records');
       const page=await collection.where('companyId','==',companyId).get();
       const records=page.docs.filter(doc=>doc.get('recordType')==='revision').map(doc=>doc.get('record') as EarningsRecord).filter(record=>Boolean(record?.eventId&&record.revisionId));
       const heads=new Map<string,string>();
@@ -19,7 +18,5 @@ export async function loadLatestCompanyEarnings(companyId:string):Promise<Public
         docs.forEach((doc,index)=>{const revision=doc.get('revisionId');if(typeof revision==='string')heads.set(ids[offset+index],revision);});
       }
       return latestPublicEarnings(records,heads,companyId);
-    }catch(error){console.error('Company earnings summary unavailable',companyId,error);return null;}
-  })();
-  if(cache.size>200)cache.clear();cache.set(companyId,{expires:Date.now()+60_000,value});return value;
+  });}catch(error){console.error('Company earnings summary unavailable',companyId,error);return null;}
 }

@@ -1,3 +1,4 @@
+import {writeCachedPrice} from '../intelligence/price-cache';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {Bucket} from '@google-cloud/storage';
 import {historyBars,HISTORY_START} from './history-backfill';
@@ -20,7 +21,7 @@ export async function normalizeHistoryPrices({db,bucket,tickers,write=false,onPr
         if(!doc.exists){result.missing++;return;}
         if(price?.ticker!==ticker||price.market!==instrument.market||price.tradingDate!==row.date||price.isFinal!==true)throw Error('Historical price identity mismatch');
         if(typeof price.rawClose==='number'&&Number.isFinite(price.rawClose)&&price.rawClose>0){result.existing++;return;}
-        if(write)await refs[index].update({rawClose:row.close},{lastUpdateTime:doc.updateTime!});
+        if(write)await writeCachedPrice(db,refs[index],{rawClose:row.close},{precondition:{lastUpdateTime:doc.updateTime!}});
         result.updated++;
       }));
     }

@@ -6,16 +6,13 @@ import { RELATIONSHIP_COLLECTION, type MarketRelationship } from '../knowledge-g
 import { loadThemeCompanies } from './service';
 import { themedGraph } from './presentation';
 import type { CompanyThemeId } from './model';
+import { changeCached } from '../change-cache';
 
-const caches = new Map<CompanyThemeId,{graph:KnowledgeGraph;expires:number}>();
-const requests = new Map<CompanyThemeId,Promise<KnowledgeGraph>>();
 export async function loadThemeGraph(theme: CompanyThemeId): Promise<KnowledgeGraph> {
   if (theme === 'ai') return loadKnowledgeGraph();
-  const cached=caches.get(theme), pending=requests.get(theme);
-  if (cached && cached.expires > Date.now()) return cached.graph;
-  if (pending) return pending;
-  const request = (async () => {
-    const db = getAdminFirestore();
+  const db = getAdminFirestore();
+  let complete=true;
+  return changeCached(db, `theme-graph:${theme}`, ['companies', 'company_relationships', 'company_fundamentals'], async () => {
     const [companies, relationships] = await Promise.all([loadThemeCompanies(theme, db), db.collection(RELATIONSHIP_COLLECTION).where('themeIds', 'array-contains', theme).get()]);
     const graph = themedGraph(theme,companies, relationships.docs.map(doc => ({...doc.data(),id:doc.id} as MarketRelationship)));
     if (!graph.nodes.some(node => node.kind === 'COMPANY')) throw new Error('Theme company directory unavailable');
@@ -30,10 +27,7 @@ export async function loadThemeGraph(theme: CompanyThemeId): Promise<KnowledgeGr
         });
       }
       await attachCnMarketCaps(db, graph);
-    } catch (error) { console.error('Theme market cap summaries unavailable', error); }
-    caches.set(theme,{graph, expires:Date.now() + 60_000});
+    } catch (error) { complete=false;console.error('Theme market cap summaries unavailable', error); }
     return graph;
-  })();
-  requests.set(theme,request);
-  try { return await request; } finally { if(requests.get(theme)===request)requests.delete(theme); }
+  },()=>complete);
 }

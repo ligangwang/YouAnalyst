@@ -13,7 +13,7 @@ export async function saveDisclosures(db:Firestore,rows:Disclosure[],at:string,b
     const batch=unique.slice(start,start+100);
     created+=await db.runTransaction(async tx=>{
       const refs=batch.map(row=>db.collection(EVENTS_COLLECTION).doc(row.id)),docs=await tx.getAll(...refs);let count=0;
-      batch.forEach((row,i)=>{if(!docs[i].exists){tx.create(refs[i],{...row,...classifyEvent(row),collected_at:at,processed_at:at,baseline});markFeedChanged(db,tx,refs[i]);count++;}});return count;
+      batch.forEach((row,i)=>{if(!docs[i].exists){tx.create(refs[i],{...row,...classifyEvent(row),...(row.sourceType==='sec'&&/^(4|5)(\/A)?$/.test(String(row.form))?{insiderEnrichmentPending:true}:{}),collected_at:at,processed_at:at,baseline});markFeedChanged(db,tx,refs[i]);count++;}});return count;
     });
   }
   return created;

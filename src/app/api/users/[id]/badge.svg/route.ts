@@ -1,6 +1,7 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { readUserAnalytics } from "@/lib/predictions/user-analytics";
 import { NextRequest } from "next/server";
+import {changeCached} from '@/lib/change-cache';
 
 type UserStats = {
   totalPredictions: number;
@@ -110,10 +111,11 @@ export async function GET(
 
   try {
     const db = getAdminFirestore();
+    const svg=await changeCached(db,`analyst-badge:${id}`,['users','predictions'],async()=>{
     const snapshot = await db.collection("users").doc(id).get();
 
     if (!snapshot.exists) {
-      return new Response("User not found", { status: 404 });
+      return null;
     }
 
     const data = snapshot.data() as Record<string, unknown>;
@@ -122,17 +124,18 @@ export async function GET(
     const analytics = await readUserAnalytics(db, id, statsSource);
     const nickname = readString(data.nickname);
     const displayName = nickname ? `@${nickname}` : readString(data.displayName) ?? "YouAnalyst Analyst";
-    const svg = buildBadgeSvg({
+    return buildBadgeSvg({
       displayName,
       score: analytics.score,
       followersCount: stats.followersCount,
       totalPredictions: analytics.settledCalls,
     });
-
+    });
+    if(svg===null)return new Response('User not found',{status:404});
     return new Response(svg, {
       headers: {
         "content-type": "image/svg+xml; charset=utf-8",
-        "cache-control": "public, max-age=300, s-maxage=3600",
+        "cache-control": "no-cache",
       },
     });
   } catch (error) {

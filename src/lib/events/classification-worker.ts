@@ -21,12 +21,13 @@ export async function fetchOwnershipXml(url:string){
  });
 }
 /** Add classification fields only to existing source documents. Dry-run has no writes. */
-export async function backfillEventClassifications(db:Firestore,options:{apply:boolean;enrichInsiders?:boolean;deadline?:number;maxPages?:number;after?:string;download?:(url:string)=>Promise<string>;onProgress?:(result:Record<string,unknown>)=>void}){
+export async function backfillEventClassifications(db:Firestore,options:{apply:boolean;enrichInsiders?:boolean;deadline?:number;maxPages?:number;after?:string;pendingOnly?:boolean;scheduled?:boolean;download?:(url:string)=>Promise<string>;onProgress?:(result:Record<string,unknown>)=>void}){
  const result={scanned:0,eligible:0,updated:0,alreadyClassified:0,insiders:0,enriched:0,failed:0,complete:false,cursor:options.after??'',counts:{} as Record<string,number>};
  const checkpoint=db.collection('collectors').doc('event-classification-v1');
  for(let page=0;page<(options.maxPages??500);page++){
   if(Date.now()+20_000> (options.deadline??Infinity))break;
-  let query=db.collection(EVENTS_COLLECTION).orderBy(FieldPath.documentId()).limit(100);
+  const base=db.collection(EVENTS_COLLECTION);
+  let query=(options.pendingOnly?base.where('insiderEnrichmentPending','==',true):base).orderBy(FieldPath.documentId()).limit(100);
   if(result.cursor)query=query.startAfter(result.cursor);
   const docs=await query.get();
   for(const doc of docs.docs){
@@ -42,13 +43,18 @@ export async function backfillEventClassifications(db:Firestore,options:{apply:b
    let patch:Record<string,unknown>=current?{}:{...classification};
    if(current)result.alreadyClassified++;
    const insider=row.sourceType==='sec'&&/^(4|5)(\/A)?$/.test(String(row.form));
-   if(insider)result.insiders++;
+   if(insider){
+    result.insiders++;
+    const pending=row.insiderClassification?.version!==EVENT_CLASSIFICATION_VERSION;
+    if(row.insiderEnrichmentPending!==pending)patch.insiderEnrichmentPending=pending;
+   }
    if(options.enrichInsiders&&insider&&row.insiderClassification?.version!==EVENT_CLASSIFICATION_VERSION){
     try{
      const xml=await (options.download??fetchOwnershipXml)(ownershipXmlUrl(row.url));
      const groups=parseInsiderTransactions(xml,row.companyId);
      patch={...patch,insiderEventGroups:groups,insiderClassification:{version:EVENT_CLASSIFICATION_VERSION,status:'complete'}};
      if(groups.length){const types=new Set(groups.map(group=>group.eventSubtype));patch={...patch,...classification,eventSubtype:types.size===1?groups[0].eventSubtype:'insider_mixed',eventClassification:{version:1,method:'parser',rule:'sec.ownership.transaction_code',evidence:[...new Set(groups.flatMap(group=>group.eventClassification.evidence))].slice(0,3)}};}
+     patch.insiderEnrichmentPending=false;
      result.enriched++;
     }catch{result.failed++; /* Keep broad ownership classification; never guess buy or sell. */}
    }
@@ -59,9 +65,17 @@ export async function backfillEventClassifications(db:Firestore,options:{apply:b
    result.cursor=doc.id;
   }
   if(result.cursor===docs.docs.at(-1)?.id&&docs.size<100||docs.empty){result.complete=true;}
-  if(options.apply)await checkpoint.set({version:EVENT_CLASSIFICATION_VERSION,afterEventId:result.complete?'':result.cursor,lastRunAt:new Date().toISOString(),result},{merge:true});
+  if(options.apply)await checkpoint.set({version:EVENT_CLASSIFICATION_VERSION,afterEventId:result.complete?'':result.cursor,lastRunAt:new Date().toISOString(),result,...(options.scheduled?(options.pendingOnly?{pendingAfterEventId:result.complete?'':result.cursor}:{bootstrapAfterEventId:result.complete?'':result.cursor,...(result.complete?{bootstrapVersion:EVENT_CLASSIFICATION_VERSION}:{})}):{})},{merge:true});
   options.onProgress?.({...result});
   if(result.complete)break;
  }
  return result;
+}
+
+/** Complete the historical migration once; new disclosures enqueue enrichment at ingestion. */
+export async function runScheduledClassifications(db:Firestore,options:{enrichInsiders:boolean;deadline:number;maxPages?:number;download?:(url:string)=>Promise<string>}){
+ const state=(await db.collection('collectors').doc('event-classification-v1').get()).data();
+ const pendingOnly=state?.bootstrapVersion===EVENT_CLASSIFICATION_VERSION;
+ return backfillEventClassifications(db,{...options,apply:true,scheduled:true,pendingOnly,
+  after:String((pendingOnly?state?.pendingAfterEventId:state?.bootstrapAfterEventId)??'')});
 }

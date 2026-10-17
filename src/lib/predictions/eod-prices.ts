@@ -1,3 +1,5 @@
+import {eodWorkOnce, forgetEodWork} from './eod-work-scope';
+import {writeCachedPrice} from '../intelligence/price-cache';
 import { saveLatestEodPrice } from "./latest-eod";
 import { backfillPriceHistory, historyThrough, historyProviderSymbol } from "./history-backfill";
 import { corporateActionTickers, syncCorporateActions } from './corporate-actions';
@@ -359,11 +361,10 @@ async function readCachedEodPrices(tickers: string[], tradingDate: string): Prom
 
   await Promise.all(
     tickers.map(async (ticker) => {
-      const snapshot = await db
-        .collection("eod_prices")
-        .doc(eodPriceDocId(ticker, tradingDate))
-        .get();
-      const price = snapshot.exists ? toCachedEodPrice(snapshot.data()) : null;
+      const price = await eodWorkOnce(`cached-close:${ticker}:${tradingDate}`, async () => {
+        const snapshot = await db.collection("eod_prices").doc(eodPriceDocId(ticker, tradingDate)).get();
+        return snapshot.exists ? toCachedEodPrice(snapshot.data()) : null;
+      }, value => Boolean(value && isPriceForEodDate(value, ticker, tradingDate)));
       if (price && isPriceForEodDate(price, ticker, tradingDate)) {
         cached.set(ticker, price);
       }
@@ -587,7 +588,7 @@ async function readPreviousEodPrice(
 
 async function withTickerDailyReturns(db: FirebaseFirestore.Firestore, prices: EodPrice[]): Promise<EodPrice[]> {
   return Promise.all(prices.map(async (price) => {
-    const previous = await readPreviousEodPrice(db, price);
+    const previous = await eodWorkOnce(`previous-close:${price.market}:${price.ticker}:${price.tradingDate}`, () => readPreviousEodPrice(db, price), value => value !== null);
     if (!previous) {
       return {
         ...price,
@@ -1470,8 +1471,8 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     // The current daily run discovers all map/watchlist listings before loading prices.
     if(loadPrices&&!dryRun&&!input.skipHistoryBackfill&&!manualTickers.length&&runDate===marketDate(market)){
       log.stage('sync_corporate_actions');
-      const tickers=await corporateActionTickers(db,market,mapTickers);
-      corporateActions=await syncCorporateActions({db,tickers,through:runDate,token:process.env.EODHD_API_TOKEN??'',apiUrl:process.env.EODHD_API_URL});
+      const tickers=await eodWorkOnce(`action-universe:${market}`, () => corporateActionTickers(db,market,mapTickers));
+      corporateActions=await eodWorkOnce(`actions:${market}:${runDate}`, () => syncCorporateActions({db,tickers,through:runDate,token:process.env.EODHD_API_TOKEN??'',apiUrl:process.env.EODHD_API_URL}), result => !result.failures.length && !result.deferred);
       log.emit(corporateActions.failures.length||corporateActions.deferred?'ERROR':'INFO','corporate_actions_synced',corporateActions);
       await runRef.set({corporateActions},{merge:true});
       // Keep daily prices/scores flowing during a partial action-provider outage.
@@ -1505,7 +1506,7 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
 
     let fx: DailyEodMaintenanceResult["fx"];
     if (market === "US" && loadPrices && !dryRun) {
-      try { fx = await loadUsdCnyEod(db, runDate); log.emit("INFO", "fx_completed", fx); }
+      try { fx = await eodWorkOnce(`fx:${runDate}`, () => loadUsdCnyEod(db, runDate), result => !result.failed); log.emit("INFO", "fx_completed", fx); }
       catch (error) { fx = {processed:0,failed:1,error:maintenanceError(error).message}; log.emit("ERROR", "fx_failed", fx); }
     }
     const priceByTicker = new Map<string, EodPrice>();
@@ -1563,11 +1564,10 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
       for (const price of loadedPrices) {
         priceByTicker.set(price.ticker, price);
         if (!dryRun) {
-          await db
-            .collection("eod_prices")
-            .doc(eodPriceDocId(price.ticker, price.tradingDate, price.market))
-            .set(price, { merge: true });
-          await saveLatestEodPrice(db, {ticker:price.ticker,market:price.market,tradingDate:price.tradingDate,close:price.close,currency:price.market === "US" ? "USD" : "CNY",source:price.source,loadedAt:price.loadedAt});
+          await eodWorkOnce(`persist-price:${JSON.stringify(price)}`, async () => {
+            await writeCachedPrice(db,db.collection("eod_prices").doc(eodPriceDocId(price.ticker, price.tradingDate, price.market)),{...price});
+            await saveLatestEodPrice(db, {ticker:price.ticker,market:price.market,tradingDate:price.tradingDate,close:price.close,currency:price.market === "US" ? "USD" : "CNY",source:price.source,loadedAt:price.loadedAt});
+          });
         }
       }
       if (mapTickers.length) {
@@ -1585,8 +1585,12 @@ async function runDailyEodMaintenanceImpl(input: DailyEodMaintenanceInput, log: 
     if (loadPrices && !dryRun && !input.rollForward && !input.skipHistoryBackfill && !manualTickers.length && mapTickers.length
       && runDate >= historyThrough(market) && process.env.EODHD_API_TOKEN && process.env.EODHD_BULK_EOD_BUCKET) {
       try {
-        const history=await backfillPriceHistory({db,bucket:getAdminStorageBucket(process.env.EODHD_BULK_EOD_BUCKET),
-          tickers:[...mapTickers,...benchmarkTickers],through:historyThrough(market),limit:5,token:process.env.EODHD_API_TOKEN});
+        const history=await eodWorkOnce(`history:${market}:${runDate}`, async () => {
+          const result = await backfillPriceHistory({db,bucket:getAdminStorageBucket(process.env.EODHD_BULK_EOD_BUCKET),
+            tickers:[...mapTickers,...benchmarkTickers],through:historyThrough(market),limit:5,token:process.env.EODHD_API_TOKEN!});
+          if (result.created) forgetEodWork('previous-close:');
+          return result;
+        }, result => !result.failures.length);
         log.emit(history.failures.length ? 'WARNING' : 'INFO','mapped_history_backfill',history);
       } catch { log.emit('WARNING','mapped_history_backfill_failed',{reason:'History backfill unavailable; daily price processing continues'}); }
     }

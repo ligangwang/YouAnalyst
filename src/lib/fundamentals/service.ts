@@ -3,6 +3,7 @@ import { maintenanceError } from "../maintenance-log";
 import type { CompanyFundamentals } from "./model";
 import type { DocumentData } from "firebase-admin/firestore";
 import { reviewedDomesticIssuers } from "./domestic-share-counts";
+import {changeCached} from '../change-cache';
 
 export const FUNDAMENTALS_COLLECTION = "company_fundamentals";
 export const validFundamentalsTicker = (ticker: string) => /^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker);
@@ -23,7 +24,7 @@ export async function requestCompanyFundamentals(ticker: string, db: Database, n
     && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now
       || needsShareMetadataUpgrade(stored));
   const fresh = (value: CompanyFundamentals | null) => value ? { ...value, stale: now - Date.parse(value.fetchedAt) > 2 * 86_400_000 } : null;
-  const current = (await ref.get()).data();
+  const current = (await changeCached(db,`fundamentals:${ticker}`,['company_fundamentals'],()=>ref.get())).data();
   // Busy pages must not lock the cache document on every visitor read.
   if (!needsRequest(current)) return fresh(valueOf(current));
   return db.runTransaction(async tx => {

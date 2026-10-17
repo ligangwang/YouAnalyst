@@ -1,3 +1,4 @@
+import {eodWorkOnce} from '../../src/lib/predictions/eod-work-scope';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { targetDateFromRunStatus } from "../../src/lib/predictions/service";
@@ -119,4 +120,20 @@ test("queue acceptance freezes the cutoff even before delivery and does not over
   f.rows.set("eod_runs/US_2026-01-02", { status: "COMPLETED", priceLoad: { loaded: 4 } });
   await queueEodMaintenance(input, f.db, async () => {});
   assert.deepEqual(f.rows.get("eod_runs/US_2026-01-02"), { status: "COMPLETED", priceLoad: { loaded: 4 } });
+});
+
+
+test("worker reuses setup between pages but retries re-read after partial failure",async()=>{
+ const f=await fixture();let pages=0,reads=0,fail=true;
+ const run=async()=>{
+  await eodWorkOnce('setup',async()=>++reads);
+  pages++;
+  if(pages===2&&fail)throw Error('retry page');
+  return result(pages===1);
+ };
+ await assert.rejects(processEodMaintenance(f.message,f.db,f.log,{run}),/retry page/);
+ assert.equal(reads,1);
+ fail=false;
+ await processEodMaintenance(f.message,f.db,f.log,{run});
+ assert.equal(reads,2);
 });

@@ -11,11 +11,9 @@ if (!process.env.GCP_PROJECT_ID || !process.env.SEC_USER_AGENT || process.env.EA
 for (const flag of ["EARNINGS_PROCESSING_ENABLED", "EARNINGS_CANARY_ONLY"]) if (!["0", "1"].includes(process.env[flag] ?? "0")) throw new Error(`Invalid ${flag}`);
 initializeApp({ credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
 const db = getFirestore();
-let refreshedAt = 0;
 let refreshing: Promise<unknown> | undefined;
 async function refreshIssuers() {
-  if(Date.now()-refreshedAt<60_000)return;
-  refreshing ??= loadEarningsMap(db).then(() => {refreshedAt=Date.now();}).finally(() => {refreshing=undefined;});
+  refreshing ??= loadEarningsMap(db).finally(() => {refreshing=undefined;});
   await refreshing;
 }
 createJobSubscriber({ project: process.env.GCP_PROJECT_ID, subscription: EARNINGS_SUBSCRIPTION, job: "earnings-source", parse: parseEarningsJob,

@@ -68,12 +68,11 @@ export async function listDeferredCompanyGraphFilings(limit: number, db: Firesto
   let cursor = typeof saved === "string" && saved.startsWith(PREFIX) ? saved : null;
   const candidates: DeferredCompanyGraphFiling[] = [];
   const max = Math.max(1, Math.min(5, Math.trunc(limit)));
-  // Only document-ID inequalities/order: no new composite index, no unbounded
-  // collection scan, and a persisted cursor moves past not-yet-due records.
+  // Filter completed history in Firestore using the single-field status index.
+  // The persisted cursor still moves past pending but not-yet-due records.
   for (let page = 0; page < 10 && candidates.length < max; page++) {
     let query = db.collection("company_research_runs")
-      .where(FieldPath.documentId(), ">=", `${PREFIX}sec_`)
-      .where(FieldPath.documentId(), "<", `${PREFIX}sec_\uf8ff`)
+      .where("deferredStatus", "==", "PENDING")
       .orderBy(FieldPath.documentId()).limit(100);
     if (cursor) query = query.startAfter(cursor);
     const snapshot = await query.get();

@@ -3,20 +3,11 @@ import type { KnowledgeGraph } from "./model";
 import { graphFromMarket, RELATIONSHIP_COLLECTION, type MarketCompany, type MarketRelationship } from "./market-store";
 import { attachCnMarketCaps } from "./cn-market-caps";
 import { loadNvidiaManufacturingProjection } from "./nvidia-manufacturing-projection";
-let cached: { graph: KnowledgeGraph; expires: number; revision: string } | undefined;
-let pending: { promise: Promise<KnowledgeGraph>; revision: string } | undefined;
+import { changeCached } from '../change-cache';
 export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
   const db = getAdminFirestore();
-  let revision: string;
-  try {
-    revision = String((await db.collection("directory_syncs").doc("company_names").get()).data()?.revision ?? "");
-  } catch (error) {
-    if (cached && cached.expires > Date.now()) return cached.graph;
-    throw error;
-  }
-  if (cached && cached.revision === revision && cached.expires > Date.now()) return cached.graph;
-  if (pending?.revision === revision) return pending.promise;
-  const promise = (async () => {
+  let complete=true;
+  return changeCached(db, 'knowledge-graph', ['companies', 'company_relationships', 'company_fundamentals', 'directory_syncs'], async () => {
     const [companies, legacyCompanies, edges] = await Promise.all([
       db.collection("companies").where("inGraph.status", "==", "PUBLISHED").get(),
       db.collection("companies").where("aiGraph.status", "==", "PUBLISHED").get(),
@@ -33,7 +24,7 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
     }
     const projection = await loadNvidiaManufacturingProjection(db, rows, relationships);
     const graph = graphFromMarket(projection.companies, projection.records);
-    // Project only public valuation summaries; reuse the graph's five-minute cache.
+    // Public valuations are invalidated when fundamentals change.
     const usCompanies = graph.nodes.filter(n => n.kind === "COMPANY" && n.id.startsWith("US:"));
     try {
       for (let i = 0; i < usCompanies.length; i += 100) {
@@ -47,17 +38,16 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
         });
       }
     } catch (error) {
+      complete=false;
       console.error("Graph market cap summaries unavailable", error);
     }
     try {
       await attachCnMarketCaps(db, graph);
     } catch (error) {
+      complete=false;
       console.error("A-share market cap summaries unavailable", error);
     }
     if (!graph.nodes.some(n => n.kind === "COMPANY")) throw new Error("Graph company directory unavailable");
-    cached = { graph, expires: Date.now() + 300_000, revision };
     return graph;
-  })();
-  pending = { promise, revision };
-  try { return await promise; } finally { if (pending?.promise === promise) pending = undefined; }
+  },()=>complete);
 }

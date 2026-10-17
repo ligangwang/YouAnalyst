@@ -103,3 +103,17 @@ test('China map issuers use exact exchange identity and the reviewed common tabl
   assert.equal(extractEarnings({...doc,completeness:'full'},plan,now).status,'extracted');
   assert.deepEqual(discoverCnEarnings('XSHE:000063',{announcements:null,hasMore:false,totalAnnouncement:0},now),[]);
 });
+
+
+test('issuer membership refreshes on metadata changes without a minute timer',async()=>{
+ const fx=earningsFirestore();
+ fx.rows.set('collectors/_read_cache_versions_v1',{enabled:true,versions:{collectors:'one'}});
+ fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
+ await loadEarningsMap(fx.db,graph);
+ fx.rows.set('collectors/sec-US:AMAT',{companyId:'US:AMAT',cik:'0000006951'});
+ await loadEarningsMap(fx.db,graph);
+ assert.throws(()=>earningsCompany('US:AMAT'));
+ fx.rows.set('collectors/_read_cache_versions_v1',{enabled:true,versions:{collectors:'two'}});
+ await loadEarningsMap(fx.db,graph);
+ assert.equal(earningsCompany('US:AMAT').issuerId,'sec:0000006951');
+});

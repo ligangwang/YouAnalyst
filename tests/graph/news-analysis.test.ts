@@ -11,15 +11,16 @@ const companies:GraphNode[]=[{id:'US:ANET',name:'Arista',kind:'COMPANY',order:0}
 const sources=[{id:'arista',companyId:'US:ANET',name:'Arista IR',url:'https://investors.arista.com/feed',allowedHosts:['investors.arista.com'],pollMs:3600000}];
 const relationship:NewsRelationship={sourceId:'US:ANET',targetId:'US:AMD',sourceName:'Arista',targetName:'AMD',type:'PARTNER_OF',state:'ANNOUNCED',summaryEn:'Arista and AMD announced a planned AI networking partnership.',summaryZh:'Arista 与 AMD 宣布计划开展 AI 网络合作。',evidence:'Arista and AMD announced a partnership to develop Ethernet networking for AI systems.',eventDate:null,product:'Ethernet networking',confidence:.9};
 function fake(){
+ let receiptReads=0;
  const state=new Map<string,Record<string,unknown>>([['events/news',{type:'company_news',sourceType:'company_ir',sourceId:'arista',companyId:'US:ANET',companyIds:['US:ANET'],title:'Arista and AMD announce partnership',url:'https://investors.arista.com/news/partnership',publication_date:'2026-10-08'}]]);
- const ref=(collection:string,id:string)=>({id,path:collection+'/'+id,get:async()=>doc(ref(collection,id))});
+ const ref=(collection:string,id:string)=>({id,path:collection+'/'+id,get:async()=>{receiptReads++;return doc(ref(collection,id));}});
  const doc=(r:ReturnType<typeof ref>)=>({id:r.id,ref:r,exists:state.has(r.path),data:()=>state.get(r.path)}) as unknown as DocumentSnapshot;
  const db={collection:(name:string)=>({doc:(id:string)=>ref(name,id)}),runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>{
   const writes:(()=>void)[]=[];
   const result=await fn({get:async(r:ReturnType<typeof ref>)=>doc(r),getAll:async(...refs:ReturnType<typeof ref>[])=>refs.map(doc),create:(r:ReturnType<typeof ref>,data:Record<string,unknown>)=>writes.push(()=>{assert(!state.has(r.path));state.set(r.path,data);}),set:(r:ReturnType<typeof ref>,data:Record<string,unknown>,options?:{merge:boolean})=>writes.push(()=>state.set(r.path,options?.merge?{...state.get(r.path),...data}:data)),update:(r:ReturnType<typeof ref>,data:Record<string,unknown>)=>writes.push(()=>state.set(r.path,{...state.get(r.path),...data}))});
   writes.forEach(write=>write());return result;
  }} as unknown as Firestore;
- return {state,db,records:[doc(ref('events','news'))]};
+ return {state,db,records:[doc(ref('events','news'))],receiptReads:()=>receiptReads};
 }
 const extractedRelationship=Object.fromEntries(Object.entries(relationship).filter(([field])=>!['sourceId','targetId'].includes(field)));
 const output=()=>({analysis:{relationships:[extractedRelationship]},model:'gpt-6-luna',responseId:'resp_test',usage:{input_tokens:3000,output_tokens:500,total_tokens:3500}});
@@ -29,7 +30,8 @@ test('full article analysis persists bilingual review candidates once, never pub
  const f=fake();let calls=0;
  const config={...options,records:f.records,analyze:async()=>{calls++;return output();}};
  assert.equal((await analyzeCollectedNews(f.db,companies,sources,config)).candidates,1);
- await analyzeCollectedNews(f.db,companies,sources,config);assert.equal(calls,1);
+ const priorReads=f.receiptReads();
+ await analyzeCollectedNews(f.db,companies,sources,config);assert.equal(calls,1);assert.equal(f.receiptReads(),priorReads);
  const receipt=[...f.state.values()].find(row=>row.type==='news_analysis')!;
  assert.equal(receipt.content,text);assert.equal(receipt.status,'complete');
  const candidate=[...f.state.entries()].find(([path])=>path.startsWith('company_relationships/'))![1];

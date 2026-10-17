@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+let input='';for await(const chunk of process.stdin)input+=chunk;
+const trigger=JSON.parse(input),collection=process.env.CACHE_SOURCE_COLLECTION;
+assert.equal(trigger.serviceAccount,`cache-events@${process.env.GCP_PROJECT_ID}.iam.gserviceaccount.com`);
+assert.equal(trigger.destination?.cloudRun?.service,process.env.CACHE_WEB_SERVICE);
+assert.equal(trigger.destination?.cloudRun?.region,process.env.GCP_REGION||'us-central1');
+assert.equal(trigger.destination?.cloudRun?.path,'/api/internal/cache-changes');
+assert.equal(trigger.eventDataContentType,'application/protobuf');
+const filters=new Map(trigger.eventFilters.map(filter=>[filter.attribute,filter]));
+assert.equal(filters.get('type')?.value,'google.cloud.firestore.document.v1.written');
+assert.equal(filters.get('database')?.value,'(default)');
+assert.equal(filters.get('document')?.value,`${collection}/{document}`);
+assert.equal(filters.get('document')?.operator,'match-path-pattern');
+console.log(`Verified cache trigger for ${collection}`);

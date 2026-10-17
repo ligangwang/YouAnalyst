@@ -38,6 +38,14 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
   const url=canonicalEvidenceUrl(source.url);
   // Revalidate original URL and each redirect through the existing publisher adapter.
   if(!url||!config||!approvedNewsUrl(url,config,true)){result.failed++;processed.add(doc.id);continue;}
+  // The source marker and receipt are committed atomically. Completed sources
+  // need no second document read just to discover the same terminal receipt.
+  const savedAnalysis=doc.data()?.newsAnalysis;
+  if(savedAnalysis?.version===NEWS_ANALYSIS_VERSION
+    && ['complete','review_required'].includes(savedAnalysis.status)
+    && savedAnalysis.receiptId===eventDocumentId('news_analysis',articleHash(url))){
+    result.cached++;processed.add(doc.id);continue;
+  }
   const receipt=events.doc(eventDocumentId('news_analysis',articleHash(url))),prior=(await receipt.get()).data();
   if(prior&&prior.status!=='fetch_failed'){result.cached++;processed.add(doc.id);continue;}
   if(prior?.nextCheckAtMs>now()){result.cached++;processed.add(doc.id);continue;}

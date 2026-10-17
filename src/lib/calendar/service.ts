@@ -6,6 +6,7 @@ import { companySector } from '../knowledge-graph/sectors';
 import { validDate } from '../earnings/model';
 import { reviewedCompanyNames } from '../market-companies/reviewed-names';
 import type { CalendarItem, CalendarPayload, ScheduledEvent } from './model';
+import {changeCached} from '../change-cache';
 
 export function calendarRange(from: string | null, to: string | null) {
   if (!validDate(from) || !validDate(to) || from! > to! || Date.parse(to!) - Date.parse(from!) > 62*86400000) throw new Error('Choose a valid date range of at most 63 days.');
@@ -14,6 +15,9 @@ export function calendarRange(from: string | null, to: string | null) {
 
 /** Range by scheduled date, never by announcement date or a recent-feed limit. */
 export async function loadCalendar(from: string, to: string, db: Firestore = getAdminFirestore()): Promise<CalendarPayload> {
+  return changeCached(db,`calendar:${from}:${to}`,['events','companies','company_relationships','collectors'],()=>readCalendar(from,to,db));
+}
+async function readCalendar(from: string, to: string, db: Firestore): Promise<CalendarPayload> {
   // Include one source-local day either side for events converted to Eastern time.
   const shift = (day:string,delta:number)=>new Date(Date.parse(day)+delta*86400000).toISOString().slice(0,10);
   const query = db.collection('events').where('type','==','scheduled_event')

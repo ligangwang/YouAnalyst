@@ -29,14 +29,9 @@ export async function GET(request: NextRequest) {
     // Existing document IDs are market_ticker_date. A document-ID range needs no new composite index.
     const prefix = `${instrument.market}_${instrument.ticker}_`;
     const db=getAdminFirestore();
-    const collection=db.collection('eod_prices');
-    const [latest,actions]=await Promise.all([
-      collection.where(FieldPath.documentId(),'>=',prefix).where(FieldPath.documentId(),'<=',prefix+window.end).orderBy(FieldPath.documentId(),'desc').limit(1).get(),
-      loadTimelineSplits(db,instrument.ticker,instrument.market,window.end),
-    ]);
-    const revision=latest.docs[0];
-    const cacheKey=JSON.stringify([companyId,days,indicators,requestedPeriod,window.end,base.interval,revision?.id,revision?.updateTime.toMillis(),actions.revision]);
-    const result=await cachedTimelinePrices(cacheKey,async()=>{
+    const cacheKey=JSON.stringify([companyId,days,indicators,requestedPeriod,window.end,base.interval]);
+    const result=await cachedTimelinePrices(db,cacheKey,async()=>{
+    const actions=await loadTimelineSplits(db,instrument.ticker,instrument.market,window.end);
     const snapshot = await getAdminFirestore().collection("eod_prices")
       .where(FieldPath.documentId(), ">=", prefix + historyStart)
       .where(FieldPath.documentId(), "<=", prefix + window.end)
@@ -48,7 +43,7 @@ export async function GET(request: NextRequest) {
     const bars=timelinePriceBars(prices,window.start,interval);
     return {...base,prices:bars.prices,...(indicators?{warmupPrices:bars.warmupPrices}:{}),available:true};
     });
-    return Response.json(result,{headers:{'Cache-Control':'public, max-age=60'}});
+    return Response.json(result,{headers:{'Cache-Control':'no-cache'}});
   } catch {
     return Response.json({ ...base, prices: [], available: false }, { status: 503 });
   }

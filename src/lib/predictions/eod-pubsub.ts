@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import {withEodWorkScope} from './eod-work-scope';
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "../firebase/admin";
 import { digest } from "../fundamentals/pubsub";
@@ -75,6 +76,11 @@ export async function queueEodMaintenance(value: DailyEodMaintenanceInput = {}, 
 
 export async function processEodMaintenance(value: unknown, db: Firestore, log: MaintenanceLog,
   dependencies: { run?: typeof runDailyEodMaintenance; dates?: typeof readRollForwardDates; deadline?: number } = {}) {
+  return withEodWorkScope(() => processEodDelivery(value, db, log, dependencies));
+}
+
+async function processEodDelivery(value: unknown, db: Firestore, log: MaintenanceLog,
+  dependencies: { run?: typeof runDailyEodMaintenance; dates?: typeof readRollForwardDates; deadline?: number }) {
   const request = parseEodRequest(value), state = stateRef(db, request.input.market), ref = ledgerRef(db, request.batchId);
   if (!await acquireMaintenanceLease(state, log.runId)) throw busy();
   try {

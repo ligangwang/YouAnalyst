@@ -1,3 +1,4 @@
+import {writeCachedPrice} from '../intelligence/price-cache';
 import type { Firestore } from 'firebase-admin/firestore';
 import type { Bucket } from '@google-cloud/storage';
 import { marketDate, predictionInstrument, type PredictionMarket } from './instrument';
@@ -88,12 +89,12 @@ export async function backfillPriceHistory(input: {
           if (stored[i].exists) { result.existing++; return; }
           const previous=bars[offset+i-1];
           try {
-            await refs[i].create({market:instrument.market,ticker,requestedDate:row.date,tradingDate:row.date,
+            await writeCachedPrice(db,refs[i],{market:instrument.market,ticker,requestedDate:row.date,tradingDate:row.date,
               open:row.open,high:row.high,low:row.low,close:row.close,rawClose:row.close,adjustedClose:row.adjusted_close,volume:row.volume,
               source:'eodhd-eod',providerSymbol,exchange:instrument.exchange,
               exchangeTimezone:instrument.timeZone,micCode:instrument.exchange,loadedAt,isFinal:true,
               previousClose:previous?.close ?? null,previousTradingDate:previous?.date ?? null,
-              dailyReturn:previous ? (row.close-previous.close)/previous.close : null});
+              dailyReturn:previous ? (row.close-previous.close)/previous.close : null},{create:true});
             result.created++;
           } catch(error) { if (Number((error as {code?:number}).code) === 6) result.existing++; else throw Error('History document write failed'); }
         }));
