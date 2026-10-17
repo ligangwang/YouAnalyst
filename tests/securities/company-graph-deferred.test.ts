@@ -250,3 +250,12 @@ test("filing completion receipt is required before ACK and failed writes retry f
   assert.equal((await processCompanyGraphJob(skipped, f.db, log, exhausted)).status, "ineligible");
   assert.equal(f.rows.has(`company_research_runs/_graph_filing_receipt_${skipped.eventId}`), false);
 });
+
+
+test("completed deferred history is excluded before documents are returned", async () => {
+  const f=fixture(), event=filing();
+  for(let i=0;i<1005;i++)f.rows.set(`company_research_runs/_graph_deferred_sec_000_${i}`,{deferredStatus:"COMPLETED",nextAttemptAtMs:0});
+  await deferCompanyGraphFiling(event,retryAtMs,f.db,now);
+  assert.deepEqual((await listDeferredCompanyGraphFilings(1,f.db,retryAtMs)).map(row=>row.event),[event]);
+  assert.equal(f.queries.length,1);
+});

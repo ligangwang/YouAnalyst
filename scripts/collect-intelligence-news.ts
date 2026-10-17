@@ -12,7 +12,7 @@ import {randomUUID} from 'node:crypto';
 import {translateCollectedHeadlines} from '../src/lib/intelligence/collectors/headline-translations';
 import {analyzeCollectedNews} from '../src/lib/intelligence/collectors/news-analysis-worker';
 import {collectCalendarSchedules} from '../src/lib/calendar/worker';
-import {backfillEventClassifications} from '../src/lib/events/classification-worker';
+import {runScheduledClassifications} from '../src/lib/events/classification-worker';
 
 async function main(){
   const args=process.argv.slice(2);if(args.some(arg=>!['--apply','--revalidate-calendar'].includes(arg)))throw new Error('Usage: collect-intelligence-news [--apply] [--revalidate-calendar]');
@@ -37,8 +37,7 @@ async function main(){
     console.log(JSON.stringify({job:'revalidate-calendar',calendar}));return;
   }
   const deadline=Date.now()+18*60_000,newsDeadline=Date.now()+8*60_000;
-  const classificationState=await db.collection('collectors').doc('event-classification-v1').get();
-  const classifications=await backfillEventClassifications(db,{apply:true,enrichInsiders:Boolean(process.env.SEC_USER_AGENT),after:String(classificationState.get('afterEventId')??''),deadline:Date.now()+90_000,maxPages:5});
+  const classifications=await runScheduledClassifications(db,{enrichInsiders:Boolean(process.env.SEC_USER_AGENT),deadline:Date.now()+90_000,maxPages:5});
   // Rotate the start hourly; slow publishers cannot starve later map companies.
   const start=Math.floor(Date.now()/3600000)%Math.max(1,sources.length);
   const results=await collectNewsSources([...sources.slice(start),...sources.slice(0,start)],firestoreNewsStore(db),undefined,undefined,{deadline:newsDeadline});

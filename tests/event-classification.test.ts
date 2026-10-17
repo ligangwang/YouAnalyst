@@ -4,7 +4,7 @@ import {classifyEvent,eventPresentation} from '../src/lib/events/classification'
 import {parseInsiderTransactions,validInsiderGroup} from '../src/lib/events/insider-transactions';
 import {groupCompanyAnnouncements} from '../src/lib/intelligence/announcement-grouping';
 import {mergeIntelligenceEvents} from '../src/lib/intelligence/project';
-import {ownershipXmlUrl,backfillEventClassifications} from '../src/lib/events/classification-worker';
+import {ownershipXmlUrl,backfillEventClassifications,runScheduledClassifications} from '../src/lib/events/classification-worker';
 import type {IntelligenceEvent} from '../src/lib/intelligence/model';
 import type {Firestore} from 'firebase-admin/firestore';
 const xml=(code='P',owner='123',form='4',shares='100')=>`<ownershipDocument><documentType>${form}</documentType><issuer><issuerTradingSymbol>AMD</issuerTradingSymbol></issuer><reportingOwner><reportingOwnerId><rptOwnerCik>${owner}</rptOwnerCik><rptOwnerName>Owner</rptOwnerName></reportingOwnerId></reportingOwner><nonDerivativeTable><nonDerivativeTransaction><securityTitle><value>Common stock</value></securityTitle><transactionDate><value>2026-10-01</value></transactionDate><transactionCoding><transactionCode>${code}</transactionCode></transactionCoding><transactionAmounts><transactionShares><value>${shares}</value></transactionShares><transactionPricePerShare><value>100</value></transactionPricePerShare><transactionAcquiredDisposedCode><value>${code==='S'?'D':'A'}</value></transactionAcquiredDisposedCode></transactionAmounts></nonDerivativeTransaction></nonDerivativeTable></ownershipDocument>`;
@@ -53,4 +53,29 @@ test('migration dry run writes nothing; apply preserves publication and processi
  assert.equal((await backfillEventClassifications(db,{apply:true})).updated,1);
  assert.equal(row.published_at,'2026-10-02T10:00:00Z');assert.equal(row.processed_at,'2026-10-03T10:00:00Z');
  assert.equal((await backfillEventClassifications(db,{apply:true})).updated,0);
+});
+
+
+test('scheduled classification finishes history once and continues only pending enrichment',async()=>{
+ const rows=new Map<string,Record<string,unknown>>();
+ rows.set('events/old',{type:'company_news',title:'AMD reports results',...classifyEvent({title:'AMD reports results'})});
+ let reads=0;
+ const ref=(path:string)=>({path,set:async(patch:Record<string,unknown>)=>{rows.set(path,{...rows.get(path),...patch});},get:async()=>snap(path)});
+ const snap=(path:string)=>({id:path.split('/')[1],ref:ref(path),exists:rows.has(path),data:()=>rows.get(path),get:(key:string)=>rows.get(path)?.[key]});
+ const db={collection:(name:string)=>{
+  let pending=false,after='';
+  const q={doc:(id:string)=>ref(name+'/'+id),where:(field:string,op:string,value:unknown)=>{assert.equal(field,'insiderEnrichmentPending');assert.equal(op,'==');assert.equal(value,true);pending=true;return q;},orderBy:()=>q,limit:()=>q,startAfter:(id:string)=>{after=id;return q;},get:async()=>{
+   const docs=[...rows.keys()].filter(path=>path.startsWith(name+'/')&&path.split('/')[1]>after&&(!pending||rows.get(path)?.insiderEnrichmentPending)).sort().map(snap);reads+=docs.length;return {docs,size:docs.length,empty:!docs.length};
+  }};return q;
+ },runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>fn({get:async(r:ReturnType<typeof ref>)=>snap(r.path),update:(r:ReturnType<typeof ref>,patch:Record<string,unknown>)=>r.set(patch),set:(r:ReturnType<typeof ref>,patch:Record<string,unknown>)=>r.set(patch)})} as unknown as Firestore;
+ const options={enrichInsiders:true,deadline:Date.now()+90000,download:async()=>xml()};
+ assert.equal((await runScheduledClassifications(db,options)).scanned,1);
+ assert.equal((await runScheduledClassifications(db,options)).scanned,0);
+ assert.equal(reads,1,'completed historical events are not reread');
+ rows.set('events/a-new',{type:'company_disclosure',sourceType:'sec',form:'4',companyId:'US:AMD',title:'AMD ownership',url:'https://www.sec.gov/Archives/edgar/data/123/000000000000000001/owner.xml',...classifyEvent({form:'4'}),insiderEnrichmentPending:true});
+ assert.equal((await runScheduledClassifications(db,{...options,download:async()=>{throw Error('temporary');}})).failed,1);
+ assert.equal(rows.get('events/a-new')?.insiderEnrichmentPending,true);
+ assert.equal((await runScheduledClassifications(db,options)).enriched,1);
+ assert.equal((await runScheduledClassifications(db,options)).scanned,0);
+ assert.equal(rows.get('events/a-new')?.insiderEnrichmentPending,false);
 });

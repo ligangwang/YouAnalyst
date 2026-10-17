@@ -1,4 +1,5 @@
 import { loadCollectionUniverse } from "../company-themes/service";
+import {eodWorkOnce} from './eod-work-scope';
 import { usMapTickers } from "../knowledge-graph/us-companies";
 import { cnMapCompanies } from "../knowledge-graph/cn-companies";
 import { predictionInstrument, type PredictionMarket } from "./instrument";
@@ -13,7 +14,7 @@ export async function loadEodPriceUniverse(input: {
   // includes the market's full live map, independently of prediction pagination
   // (A-share market caps are calculated from these stored closes).
   if (input.loadPrices && !input.manualTickers.length) {
-    const graph = await loadGraph();
+    const graph = await eodWorkOnce('company-universe', () => loadGraph());
     mapTickers = input.market === "US" ? usMapTickers(graph) : cnMapCompanies(graph);
     if (!mapTickers.length) throw new Error(`No ${input.market} map companies found; refusing to skip EOD map coverage`);
     const invalid = mapTickers.filter(ticker => predictionInstrument(ticker)?.market !== input.market);
