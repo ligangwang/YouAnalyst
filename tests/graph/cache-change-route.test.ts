@@ -43,10 +43,13 @@ test('deployment covers every cache source and rejects a trigger targeting anoth
  const script=readFileSync('scripts/setup-cache-changes.sh','utf8');
  const collections=script.match(/for collection in (.+); do/)![1].split(' ');
  assert.deepEqual(collections,[...CHANGE_CACHE_COLLECTIONS]);
- const trigger={serviceAccount:'cache-events@test.iam.gserviceaccount.com',destination:{cloudRun:{service:'web',region:'us-central1',path:'/api/internal/cache-changes'}},eventFilters:[
+ assert.match(script,/eventarcpublishing\.googleapis\.com/);
+ assert.match(script,/--event-data-content-type application\/protobuf/);
+ const trigger={eventDataContentType:'application/protobuf',serviceAccount:'cache-events@test.iam.gserviceaccount.com',destination:{cloudRun:{service:'web',region:'us-central1',path:'/api/internal/cache-changes'}},eventFilters:[
   {attribute:'type',value:'google.cloud.firestore.document.v1.written'},
   {attribute:'database',value:'(default)'},{attribute:'document',value:'companies/{document}',operator:'match-path-pattern'},
  ]};
  const run=()=>spawnSync(process.execPath,['scripts/verify-cache-trigger.mjs'],{input:JSON.stringify(trigger),encoding:'utf8',env:{...process.env,GCP_PROJECT_ID:'test',CACHE_WEB_SERVICE:'web',GCP_REGION:'us-central1',CACHE_SOURCE_COLLECTION:'companies'}});
- assert.equal(run().status,0);trigger.destination.cloudRun.service='other';assert.notEqual(run().status,0);
+ assert.equal(run().status,0);
+ trigger.eventDataContentType='application/json';assert.notEqual(run().status,0);trigger.eventDataContentType='application/protobuf';trigger.destination.cloudRun.service='other';assert.notEqual(run().status,0);
 });

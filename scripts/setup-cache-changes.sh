@@ -5,7 +5,7 @@ set -euo pipefail
 region="${GCP_REGION:-us-central1}"
 identity="cache-events@$GCP_PROJECT_ID.iam.gserviceaccount.com"
 node scripts/activate-change-cache.mjs --disable
-gcloud services enable eventarc.googleapis.com pubsub.googleapis.com --project "$GCP_PROJECT_ID" --quiet
+gcloud services enable eventarc.googleapis.com eventarcpublishing.googleapis.com pubsub.googleapis.com --project "$GCP_PROJECT_ID" --quiet
 if ! gcloud iam service-accounts describe "$identity" --project "$GCP_PROJECT_ID" >/dev/null 2>&1; then
   gcloud iam service-accounts create cache-events --project "$GCP_PROJECT_ID" --display-name 'Firestore cache change delivery' --quiet
 fi
@@ -22,6 +22,7 @@ for collection in companies company_relationships company_fundamentals eod_price
     gcloud eventarc triggers create "$trigger" --project "$GCP_PROJECT_ID" --location "$location" \
       --destination-run-service "$CACHE_WEB_SERVICE" --destination-run-region "$region" \
       --destination-run-path /api/internal/cache-changes --service-account "$identity" \
+      --event-data-content-type application/protobuf \
       --event-filters 'type=google.cloud.firestore.document.v1.written' \
       --event-filters 'database=(default)' --event-filters-path-pattern "document=$collection/{document}" --quiet
   fi
