@@ -3,11 +3,51 @@ import assert from 'node:assert/strict';
 import { createTreeTour, treeTourStops, treeTourPlan, treeTourFromView, type TreeTourStop, type TreeShot } from '../src/lib/ui/knowledge-graph/tree-tour';
 import type { TreePoint } from '../src/lib/ui/knowledge-graph/industry-tree';
 import { industryTree } from '../src/lib/ui/knowledge-graph/industry-tree';
-import { layoutVerticalTree } from '../src/lib/ui/knowledge-graph/vertical-tree';
+import { layoutVerticalTree, visibleVerticalTreeNodes, verticalTreeCrownCap } from '../src/lib/ui/knowledge-graph/vertical-tree';
 import { createStrandWriter, verticalTreeStrands, verticalTreeStrandGeometries } from '../src/lib/ui/knowledge-graph/vertical-tree-geometry';
 import type { GraphNode } from '../src/lib/knowledge-graph/model';
 import graph from '../data/ai-supply-chain/ai-us.json';
 import { createTreeOverviewTour, treeOverviewPlan, treeOverviewShot } from '../src/lib/ui/knowledge-graph/tree-tour';
+
+test('sector collapse removes its physical branches and leaves while preserving shared companies elsewhere',()=>{
+  const shared={id:'US:SHARED',kind:'COMPANY',name:'Shared company',stageIds:['compute','cloud']} as GraphNode;
+  const layers=industryTree([shared,{id:'US:MEM',kind:'COMPANY',name:'Memory',stageIds:['memory']} as GraphNode]);
+  const open=new Set(['root',...layers.flatMap(layer=>[layer.id,...layer.branches.map(branch=>branch.id)])]);
+  const all=layoutVerticalTree(layers,open,'en');
+  open.delete('chips');
+  const visible=visibleVerticalTreeNodes(all,open);
+  assert(visible.some(node=>node.id==='chips'),'sector anchor remains available');
+  assert(!visible.some(node=>node.layer==='chips'&&node.kind!=='layer'));
+  assert(!verticalTreeStrands(visible).some(strand=>strand.layer==='chips'&&['branch','twig'].includes(strand.kind)));
+  assert(visible.some(node=>node.company?.id===shared.id&&node.layer==='infrastructure'));
+  for(const node of visible)assert.strictEqual(node,all.find(item=>item.id===node.id),'unaffected positions and identities remain stable');
+  open.add('chips');
+  assert.deepEqual(visibleVerticalTreeNodes(all,open),all,'reopening restores the complete subtree');
+  open.delete('chips/compute');
+  const branchClosed=visibleVerticalTreeNodes(all,open);
+  assert(branchClosed.some(node=>node.id==='chips/compute'));
+  assert(!branchClosed.some(node=>node.branch==='chips/compute'&&node.company));
+  assert(branchClosed.some(node=>node.branch==='chips/memory'&&node.company));
+  assert(visibleVerticalTreeNodes(all,new Set()).every(node=>node.kind==='root'||node.kind==='layer'));
+});
+
+test('direct-sector canopy collapse removes decorative foliage only from its owning sector',()=>{
+  const company={id:'US:SHARED',kind:'COMPANY',name:'Shared company'} as GraphNode;
+  const layers=['one','two'].map(id=>({id:`robotics:${id}`,en:id,zh:id,color:'#67e6bc',stages:[],companies:[company],branches:[],directCompanies:true}));
+  const open=new Set(['root',...layers.map(layer=>layer.id)]),all=layoutVerticalTree(layers,open,'en');
+  assert(all.some(node=>node.kind==='foliage'));
+  open.delete(layers[0].id);
+  const visible=visibleVerticalTreeNodes(all,open);
+  assert(!visible.some(node=>node.layer===layers[0].id&&node.kind!=='layer'));
+  assert(visible.some(node=>node.layer===layers[1].id&&node.kind==='foliage'));
+  assert(visible.some(node=>node.layer===layers[1].id&&node.company?.id===company.id));
+  const cap=verticalTreeCrownCap(visible);
+  assert.equal(cap?.layer,layers[1].id);
+  assert.deepEqual(cap?.position,verticalTreeCrownCap(all)?.position);
+  open.add(layers[0].id);open.delete(layers[1].id);
+  assert.equal(verticalTreeCrownCap(visibleVerticalTreeNodes(all,open)),undefined,'closed crown sector cannot leave a decorative leaf cap behind');
+  assert.equal(verticalTreeCrownCap(visibleVerticalTreeNodes(all,new Set())),undefined);
+});
 
 test('overview frames every layer and leaf on desktop and mobile without camera travel',()=>{
   const layers=industryTree(graph.nodes.filter(n=>n.kind==='COMPANY') as GraphNode[]);

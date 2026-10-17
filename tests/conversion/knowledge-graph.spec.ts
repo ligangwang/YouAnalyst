@@ -1909,7 +1909,7 @@ test('manual hierarchy centers each parent vertically over its children after ex
  await chart.screenshot({path:test.info().outputPath('centered-hierarchy.png')});
 });
 
-test('tree disclosure hides company names without changing wood, foliage or camera',async({page})=>{
+test('closing tree sectors removes their branches and leaves without moving other sectors or the camera',async({page})=>{
  test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const members=['US:NVDA','US:AMD','US:MU','US:MSFT'];
@@ -1930,43 +1930,52 @@ test('tree disclosure hides company names without changing wood, foliage or came
  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"][data-label-visible="true"]').count()).toBeGreaterThan(0);
  await page.waitForTimeout(500);
  const before=await canvas.screenshot(),pose=await canvas.getAttribute('data-camera-position'),target=await canvas.getAttribute('data-camera-target');
- const unchanged=async()=>{
+ const cameraUnchanged=async()=>{
   await expect(canvas).toHaveAttribute('data-camera-position',pose!);
   await expect(canvas).toHaveAttribute('data-camera-target',target!);
-  expect((await canvas.screenshot()).equals(before),'wood and foliage remain pixel-identical').toBe(true);
  };
+ await expect(canvas).toHaveAttribute('data-tree-disclosed-layers',/chips/);
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(chips).toHaveAttribute('aria-expanded','false');
- await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"]').evaluateAll(els=>els.every(el=>(el as HTMLButtonElement).hidden))).toBe(true);
- await expect(branch).toBeAttached();await unchanged();
- await chips.evaluate((el:HTMLButtonElement)=>el.click());await expect(company).not.toHaveAttribute('hidden','');await unchanged();
- await branch.evaluate((el:HTMLButtonElement)=>el.click());await expect(company).toHaveAttribute('hidden','');await unchanged();
- await branch.evaluate((el:HTMLButtonElement)=>el.click());await expect(company).not.toHaveAttribute('hidden','');await unchanged();
+ await expect(tree.locator('[data-tree-company][data-tree-layer="chips"]')).toHaveCount(0);
+ await expect(branch).toHaveCount(0);await cameraUnchanged();
+ expect((await canvas.screenshot()).equals(before),'the physical sector canopy disappears').toBe(false);
+ const sharedElsewhere=tree.locator('[data-tree-company="US:NVDA"][data-tree-layer="infrastructure"]');
+ await expect(sharedElsewhere).toBeAttached();
+ await canvas.screenshot({path:test.info().outputPath('chips-sector-collapsed.png')});
+ await chips.evaluate((el:HTMLButtonElement)=>el.click());await expect(chips).toHaveAttribute('aria-expanded','true');await expect(company).toBeAttached();await cameraUnchanged();
+ await branch.evaluate((el:HTMLButtonElement)=>el.click());await expect(branch).toHaveAttribute('aria-expanded','false');await expect(company).toHaveCount(0);await cameraUnchanged();
+ await branch.evaluate((el:HTMLButtonElement)=>el.click());await expect(branch).toHaveAttribute('aria-expanded','true');await expect(company).toBeAttached();await cameraUnchanged();
  await section.getByRole('button',{name:'Collapse all',exact:true}).click();
- await expect.poll(()=>tree.locator('[data-tree-company]').evaluateAll(els=>els.every(el=>(el as HTMLButtonElement).hidden))).toBe(true);await unchanged();
+ await expect(tree.locator('[data-tree-company]')).toHaveCount(0);
+ await expect(tree.locator('[data-tree-kind="branch"]')).toHaveCount(0);await cameraUnchanged();
  // A visible sector reopens its ancestor path after global or root collapse.
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
  await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','true');
- await expect(company).not.toHaveAttribute('hidden','');await unchanged();
+ await expect(company).toBeAttached();await cameraUnchanged();
+ await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','true');
  await tree.locator('[data-tree-node="root"]').evaluate((el:HTMLButtonElement)=>el.click());
- await expect(company).toHaveAttribute('hidden','');
+ await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','false');
+ await expect(company).toHaveCount(0);
  await chips.evaluate((el:HTMLButtonElement)=>el.click());
- await expect(company).not.toHaveAttribute('hidden','');await unchanged();
- await section.getByRole('button',{name:'Expand all',exact:true}).click();await expect(company).not.toHaveAttribute('hidden','');await unchanged();
+ await expect(company).toBeAttached();await cameraUnchanged();
+ await section.getByRole('button',{name:'Expand all',exact:true}).click();await expect(company).toBeAttached();await cameraUnchanged();
  const infrastructure=tree.locator('[data-tree-node="infrastructure"]');
  const infrastructureCompanies=tree.locator('[data-tree-company][data-tree-layer="infrastructure"]');
  await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());
  // NVDA also belongs to Infrastructure. Collision filtering can prefer either
  // company on phones, but opening the sector must show readable names.
  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="infrastructure"][data-label-visible="true"][data-label-opacity="1"]').count()).toBeGreaterThan(0);
- await unchanged();
+ await cameraUnchanged();
  await expect(chips).toHaveAttribute('aria-expanded','true');
  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"][data-label-visible="true"]').count()).toBeGreaterThan(0);
- await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());await expect.poll(()=>infrastructureCompanies.evaluateAll(els=>els.every(el=>(el as HTMLButtonElement).hidden))).toBe(true);await unchanged();
+ await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());await expect(infrastructureCompanies).toHaveCount(0);await cameraUnchanged();
+ await expect(tree.locator('[data-tree-kind="branch"][data-tree-layer="infrastructure"]')).toHaveCount(0);
+ await expect(company).toBeAttached();
  await expect(chips).toHaveAttribute('aria-expanded','true');
  await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"][data-label-visible="true"]').count()).toBeGreaterThan(0);
  await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());
- await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="infrastructure"][data-label-visible="true"]').count()).toBeGreaterThan(0);await unchanged();
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="infrastructure"][data-label-visible="true"]').count()).toBeGreaterThan(0);await cameraUnchanged();
  await hiddenLabels.evaluate(el=>el.parentNode?.removeChild(el));
 });
 

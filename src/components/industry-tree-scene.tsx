@@ -1,7 +1,7 @@
 "use client";
 
 import {CompanyPriceChange} from './company-price-change';
-import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import Image from 'next/image';
 import {useNavigationSettings} from "./navigation-settings";
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
@@ -10,7 +10,7 @@ import { AdditiveBlending, BufferGeometry, Color, DoubleSide, Float32BufferAttri
 import { layoutIndustryTree, companyTreePath, type TreeLayer, type TreePoint } from '@/lib/ui/knowledge-graph/industry-tree';
 import { marketCapDescription, marketCapLabel, marketCapScale } from '@/lib/knowledge-graph/market-cap';
 import { useLocale } from './providers/locale-provider';
-import { layoutVerticalTree } from '@/lib/ui/knowledge-graph/vertical-tree';
+import { layoutVerticalTree, visibleVerticalTreeNodes } from '@/lib/ui/knowledge-graph/vertical-tree';
 import { VerticalTreeBranches } from './vertical-tree-branches';
 import { TreeMeadowEnvironment } from './tree-meadow-environment';
 import { verticalLeafPose, verticalTreeNodeStyle, VERTICAL_LEAF_BLADE } from '@/lib/ui/knowledge-graph/vertical-tree-geometry';
@@ -32,6 +32,10 @@ class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{fa
   render(){return this.state.failed?null:this.props.children;}
 }
 function Scene(props:TreeSceneProps){
+  // Drei Html controls commit through a separate React root. Their previous
+  // click handler can survive a frame after the scene's expansion state changes.
+  const currentOpen=useRef(props.open);
+  useLayoutEffect(()=>{currentOpen.current=props.open;},[props.open]);
   const navigation=useNavigationSettings();
   const {locale,text}=useLocale();
   const {size,invalidate,gl}=useThree();
@@ -139,9 +143,9 @@ function Scene(props:TreeSceneProps){
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
   const expandedNodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
   const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
-  // In the living tree, disclosure controls company names only. Keep the full
-  // physical tree mounted so its wood, leaves and node positions never collapse.
-  const nodes=props.vertical?all:expandedNodes;
+  // Filter a stable full layout so closing a sector removes its wood and leaves
+  // without moving neighbouring sectors or another instance of a shared company.
+  const nodes=useMemo(()=>props.vertical?visibleVerticalTreeNodes(all,new Set(props.open)):expandedNodes,[props.vertical,all,props.open,expandedNodes]);
   const companyLabels=useMemo(()=>new Set(expandedNodes.filter(n=>n.company).map(n=>n.id)),[expandedNodes]);
   // Mount the trunk and layer anchors before company leaves, even as lower layers grow.
   const selectedPath=useMemo(()=>companyTreePath(props.layers,props.selected),[props.layers,props.selected]);
@@ -239,7 +243,7 @@ function Scene(props:TreeSceneProps){
     if(!props.vertical){props.onToggle(node.id);return;}
     // A sector may be logically open while distance culling hides every name.
     // The first click should reveal those names, not silently close the sector.
-    const revealHidden=node.kind==='layer'&&props.open.includes('root')&&props.open.includes(node.id)&&!disclosedLayers.current.has(node.layer??'')&&![...labels.current.values()].some(label=>label.dataset.treeCompany&&label.dataset.treeLayer===node.layer&&label.dataset.labelVisible==='true');
+    const revealHidden=node.kind==='layer'&&currentOpen.current.includes('root')&&currentOpen.current.includes(node.id)&&!disclosedLayers.current.has(node.layer??'')&&![...labels.current.values()].some(label=>label.dataset.treeCompany&&label.dataset.treeLayer===node.layer&&label.dataset.labelVisible==='true');
     if(node.layer)disclosedLayers.current.add(node.layer);
     else if(node.kind==='root')disclosedLayers.current.clear();
     userPositioned.current=true;tourRef.current=false;resumeReady.current=false;
@@ -487,7 +491,7 @@ function Scene(props:TreeSceneProps){
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
     {props.vertical&&<>
-      <TreeMeadowEnvironment nodes={renderedNodes} paused={props.paused}/>
+      <TreeMeadowEnvironment nodes={renderedNodes} layoutNodes={all} paused={props.paused}/>
       <hemisphereLight args={['#dce8f3','#495632',1.15]}/>
       <directionalLight position={[2100,4400,-2200]} color="#ffe2a0" intensity={3.2}/>
       <directionalLight position={[-1600,1700,1400]} color="#b9d4ec" intensity={.8}/>
