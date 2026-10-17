@@ -191,13 +191,13 @@ for(const view of ['graph','tree','hierarchy','table'])test(`shared company dial
  await expect(page.getByRole('dialog',{name:'Search company',exact:true})).toHaveCount(0);
  await expect(page).toHaveURL(/company=US%3AMU/);await expect(page.locator('[data-company-timeline="US:MU"]')).toBeVisible();
 });
-for(const view of ['graph','tree','hierarchy','table'])test(`sector selection replaces bookmarked filters in ${view}`,async({page},info)=>{
- await open(page);await bookmarkedQuery(page).fill('MULT');
+for(const view of ['graph','tree','hierarchy','table'])test(`sector selection replaces bookmarked filters in ${view}`,async({page})=>{
+ await open(page);await page.goto(`http://workspace.test/?view=${view}`);await bookmarkedQuery(page).fill('MULT');
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  await page.getByRole('button',{name:/^Memory & storage/}).click();
  await expect(page).not.toHaveURL(/company=|q=/);
- const list=info.project.name==='mobile'?page.getByRole('region',{name:'Company list',exact:true}):page.getByRole('complementary',{name:'Universe navigation'});
- await expect(list.getByRole('button',{name:info.project.name==='mobile'?'Micron':'MU Micron',exact:true})).toBeVisible();
+ const navigation=page.getByRole('complementary',{name:'Universe navigation'});
+ await expect(navigation.getByRole('button',{name:'MU Micron',exact:true})).toBeVisible();
 });
 
 for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup preserves closed and open price charts`,async({page})=>{
