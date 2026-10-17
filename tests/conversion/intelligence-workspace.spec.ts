@@ -68,6 +68,13 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+test('workspace defaults to graph and respects an explicit list link',async({page})=>{
+ await open(page);
+ await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+ await page.goto('http://workspace.test/?view=table');
+ await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+});
+
 test('all workspace panels and views open the selected stock tools without duplicate menus',async({page,isMobile})=>{
  test.skip(isMobile,'Three-panel coverage uses the desktop layout.');
  await page.setViewportSize({width:1600,height:1000});await open(page);

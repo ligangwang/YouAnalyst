@@ -239,7 +239,7 @@ function Scene(props:TreeSceneProps){
     if(!props.vertical){props.onToggle(node.id);return;}
     // A sector may be logically open while distance culling hides every name.
     // The first click should reveal those names, not silently close the sector.
-    const revealHidden=node.kind==='layer'&&props.open.includes(node.id)&&!disclosedLayers.current.has(node.layer??'')&&![...labels.current.values()].some(label=>label.dataset.treeCompany&&label.dataset.treeLayer===node.layer&&label.dataset.labelVisible==='true');
+    const revealHidden=node.kind==='layer'&&props.open.includes('root')&&props.open.includes(node.id)&&!disclosedLayers.current.has(node.layer??'')&&![...labels.current.values()].some(label=>label.dataset.treeCompany&&label.dataset.treeLayer===node.layer&&label.dataset.labelVisible==='true');
     if(node.layer)disclosedLayers.current.add(node.layer);
     else if(node.kind==='root')disclosedLayers.current.clear();
     userPositioned.current=true;tourRef.current=false;resumeReady.current=false;

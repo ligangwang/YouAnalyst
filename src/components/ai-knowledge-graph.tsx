@@ -37,10 +37,8 @@ const CompanyGraph3D = lazy(() => import("./company-graph-3d"));
 const IndustryStructure = lazy(() => import("./industry-tree").then(module => ({ default: module.IndustryStructure })));
 const IndustryHierarchy = lazy(() => import("./industry-hierarchy").then(module => ({ default: module.IndustryHierarchy })));
 const subscribeView = (notify: () => void) => {
-  const mobile = window.matchMedia("(max-width: 767px)");
-  mobile.addEventListener("change", notify);
   window.addEventListener("storage", notify); window.addEventListener("popstate", notify); window.addEventListener("industry-view-changed", notify);
-  return () => { mobile.removeEventListener("change", notify); window.removeEventListener("storage", notify); window.removeEventListener("popstate", notify); window.removeEventListener("industry-view-changed", notify); };
+  return () => { window.removeEventListener("storage", notify); window.removeEventListener("popstate", notify); window.removeEventListener("industry-view-changed", notify); };
 };
 const EMPTY: KnowledgeGraph = { nodes: [], relationships: [], sources: [], asOf: "" };
 export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initialEdge = "", initialEvent = "", startingPoints, introduction, allowedRelationshipIds, initialGraph, previewPrices }: { initialCompany?: string; initialQuery?: string; initialEdge?: string; initialEvent?: string; startingPoints?: React.ReactNode; introduction?: React.ReactNode; allowedRelationshipIds?: string[]; initialGraph?: KnowledgeGraph; previewPrices?: TimelinePrices }) {
@@ -51,8 +49,8 @@ export function AiKnowledgeGraph({ initialCompany = "", initialQuery = "", initi
     if (requested) return requested;
     if (initialEdge || initialEvent || allowedRelationshipIds) return "graph";
     try { const saved = parseIndustryView(localStorage.getItem("ya-industry-view")); if (saved) return saved; } catch { /* Storage is optional. */ }
-    return window.matchMedia("(max-width: 767px)").matches ? "table" : defaultView;
-  }, () => "table");
+    return defaultView;
+  }, () => defaultView);
   const viewId = useId();
   const [treeVisited, setTreeVisited] = useState(false);
   const marketFilter = useIndustryBrowseParam('listingMarket', 'all');

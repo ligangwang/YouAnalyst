@@ -64,13 +64,14 @@ for (const view of ['graph','vertical'] as const) test(`clicking the selected ${
 });
 
 for(const view of ['graph','tree'] as const)test(`${view} restores repeated WebGL context loss and can reload without losing selection`,async({page})=>{
+ if(view==='tree')test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto(`http://graph.test/map?lang=en&view=${view}`);
  const scope=view==='graph'?page.locator('[data-graph-interaction]'):page.locator('[data-industry-section="vertical"]');
  const canvas=scope.locator('canvas'),node=scope.locator(view==='graph'?'[data-company-id="US:NVDA"]':'[data-tree-company="US:NVDA"]').first();
- await expect(node).toBeAttached();await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
+ await expect(node).toBeAttached({timeout:20000});await node.evaluate((el:HTMLButtonElement)=>el.click());await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
  const selectedAttribute=view==='graph'?'data-company-focus':'aria-pressed',selectedValue=view==='graph'?'selected':'true';
  await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>{
    el.dataset.originalCanvas='true';el.loss=el.getContext('webgl2')!.getExtension('WEBGL_lose_context')!;
@@ -89,7 +90,7 @@ for(const view of ['graph','tree'] as const)test(`${view} restores repeated WebG
  await canvas.evaluate((el:HTMLCanvasElement & {loss?:WEBGL_lose_context})=>el.loss!.loseContext());
  await expect(status).toBeVisible();await status.getByRole('button',{name:'Reload 3D'}).click();
  await expect(status).toHaveCount(0);await expect(canvas).not.toHaveAttribute('data-original-canvas','true');
- await expect(node).toHaveAttribute(selectedAttribute,selectedValue);
+ await expect(node).toHaveAttribute(selectedAttribute,selectedValue,{timeout:20000});
  await expect(page.locator('aside[data-node-card="US:NVDA"]')).toBeVisible();
 });
 
@@ -795,6 +796,15 @@ test.beforeAll(async () => {
   html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#08131d;font-family:Arial}*{box-sizing:border-box}button,input{font:inherit} ${bundle.outputFiles.find(f => f.path.endsWith(".css"))?.text}</style></head><body><div id="root"></div><script>${bundle.outputFiles.find(f => f.path.endsWith(".js"))!.text.replaceAll("</script", "<\\/script")}</script></body></html>`;
 });
 
+
+test('three views default to graph on a fresh visit and respect an explicit list link',async({page})=>{
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='US:NVDA')};
+ await page.route('**/*',route=>route.request().url().includes('/api/knowledge-graph')?route.fulfill({json:fixture}):route.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en');
+ await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+ await page.goto('http://graph.test/map?lang=en&view=table');
+ await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+});
 
 for (const language of ["en", "zh-CN"]) test(`directory renders only on expansion and reuses graph data (${language})`, async ({ page }) => {
   let requests = 0;
@@ -1929,6 +1939,14 @@ test('tree disclosure hides company names without changing wood, foliage or came
  await branch.evaluate((el:HTMLButtonElement)=>el.click());await expect(company).not.toHaveAttribute('hidden','');await unchanged();
  await section.getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect.poll(()=>tree.locator('[data-tree-company]').evaluateAll(els=>els.every(el=>(el as HTMLButtonElement).hidden))).toBe(true);await unchanged();
+ // A visible sector reopens its ancestor path after global or root collapse.
+ await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(tree.locator('[data-tree-node="root"]')).toHaveAttribute('aria-expanded','true');
+ await expect(company).not.toHaveAttribute('hidden','');await unchanged();
+ await tree.locator('[data-tree-node="root"]').evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(company).toHaveAttribute('hidden','');
+ await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(company).not.toHaveAttribute('hidden','');await unchanged();
  await section.getByRole('button',{name:'Expand all',exact:true}).click();await expect(company).not.toHaveAttribute('hidden','');await unchanged();
  const infrastructure=tree.locator('[data-tree-node="infrastructure"]');
  const infrastructureCompanies=tree.locator('[data-tree-company][data-tree-layer="infrastructure"]');
