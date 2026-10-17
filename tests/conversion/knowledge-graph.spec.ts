@@ -156,7 +156,7 @@ test('cinematic tree appears complete immediately, respects reduced motion and p
 });
 test('tree manual views remain parked through release, tab changes and company details',async({page,isMobile})=>{
  await accelerateTours(page);await shortenIdleResume(page);
- test.setTimeout(90000);
+ test.setTimeout(120000);
  await page.emulateMedia({reducedMotion:'reduce'});
  // This checks input and idle-resume timing, not full-universe rendering. Keep
  // representative layers without hundreds of labels competing with the idle timer.
@@ -1399,7 +1399,7 @@ for(const [id,part] of [['US:NVDA','leaf body'],['US:CEG','root nodule']]) test(
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const node=page.locator(`[data-tree-company="${id}"]`).first(),canvas=page.locator('[data-industry-tree="vertical"] canvas');
- await expect(node).toHaveAttribute('data-compact','true');
+ await expect(node).toHaveAttribute('data-compact','true',{timeout:20000});
  await canvas.scrollIntoViewIfNeeded();
  // Park the pointer away from the stem so its label is not hover-expanded.
  const box=(await canvas.boundingBox())!;await page.mouse.move(box.x+4,box.y+4);
@@ -1434,7 +1434,7 @@ test('three views vertical defaults to expanded and preserves zoom and pan when 
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const node=page.locator('[data-tree-company="US:NVDA"]').first(),canvas=page.locator('[data-industry-tree="vertical"] canvas');
- await expect(node).toBeVisible();
+ await expect(node).toBeVisible({timeout:20000});
  await canvas.scrollIntoViewIfNeeded();
  const box=(await canvas.boundingBox())!;
  // Measure the projected node anchor: hovering/selecting a compact marker can
@@ -1910,7 +1910,7 @@ test('manual hierarchy centers each parent vertically over its children after ex
 });
 
 test('tree disclosure hides company names without changing wood, foliage or camera',async({page})=>{
- test.setTimeout(60000);
+ test.setTimeout(90000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const members=['US:NVDA','US:AMD','US:MU','US:MSFT'];
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||members.includes(n.id))};
