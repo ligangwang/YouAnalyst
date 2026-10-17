@@ -12,12 +12,22 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
   const { text, locale } = useLocale();
   const [open, setOpen] = useState(false), [query, setQuery] = useState('');
   const [results, setResults] = useState<{ query: string; items: SearchSuggestion[] } | null>(null);
+  const [coverageCount, setCoverageCount] = useState<number | null>(null);
   const [active, setActive] = useState(0), [busy, setBusy] = useState(false), [error, setError] = useState(false);
   const input = useRef<HTMLInputElement>(null), panel = useRef<HTMLDivElement>(null), previousFocus = useRef<HTMLElement | null>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const listId = useId(), composing = useRef(false);
   const queuedQuery = useRef<string | null>(null), destination = useRef({onSelect, locale});
   useEffect(() => { destination.current = {onSelect, locale}; }, [onSelect, locale]);
+  const coverageVisible = inline || open;
+  useEffect(() => {
+    if (!enabled || !coverageVisible) return;
+    const controller = new AbortController();
+    void fetch('/api/tickers/search?scope=covered', { signal: controller.signal })
+      .then(async response => { if (response.ok) { const data = await response.json(); if (!controller.signal.aborted && Number.isInteger(data.total)) setCoverageCount(data.total); } })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [enabled, coverageVisible]);
   const searched = query.normalize('NFKC').trim().replace(/^\$/, '');
   const items = results?.query === searched ? results.items : [];
   const close = useCallback(() => { queuedQuery.current = null; composing.current = false; setOpen(false); if (!inline && previousFocus.current?.isConnected) previousFocus.current.focus({ preventScroll: true }); }, [inline]);
@@ -56,8 +66,8 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
     const controller = new AbortController();
     const timer = setTimeout(() => {
       setBusy(true); setError(false);
-      void fetch('/api/tickers/search?' + new URLSearchParams({ q: searched, limit: '8', scope: 'all' }), { signal: controller.signal })
-        .then(async response => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) { const matches: SearchSuggestion[] = data.items ?? []; setResults({ query: searched, items: matches }); setActive(0); if (queuedQuery.current === searched) { queuedQuery.current = null; if (matches[0]) choose(matches[0]); } } })
+      void fetch('/api/tickers/search?' + new URLSearchParams({ q: searched, limit: '8', scope: 'covered' }), { signal: controller.signal })
+        .then(async response => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) { if (Number.isInteger(data.total)) setCoverageCount(data.total); const matches: SearchSuggestion[] = data.items ?? []; setResults({ query: searched, items: matches }); setActive(0); if (queuedQuery.current === searched) { queuedQuery.current = null; if (matches[0]) choose(matches[0]); } } })
         .catch(() => { if (!controller.signal.aborted) { setError(true); setResults(null); } })
         .finally(() => { if (!controller.signal.aborted) setBusy(false); });
     }, 180);
@@ -82,11 +92,13 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
           }} />;
   const suggestions = <>
     <div id={listId} role="listbox" aria-label={text('Matching companies', '匹配公司')}>{items.map((item, index) => <button id={`${listId}-${index}`} key={item.id} type="button" role="option" aria-selected={active === index} onPointerMove={() => setActive(index)} onClick={() => choose(item)}><strong>{item.name}</strong><span>{item.symbol} · {item.market ?? ''} {item.exchange ?? ''}</span></button>)}</div>
-        {error ? <p role="alert">{text('Search unavailable. Try again.', '搜索暂时不可用，请重试。')}</p> : busy && searched ? <p role="status">{text('Searching…', '搜索中…')}</p> : searched && results?.query === searched && !items.length ? <p role="status">{text('No matching companies.', '没有匹配的公司。')}</p> : null}
+        {error ? <p role="alert">{text('Search unavailable. Try again.', '搜索暂时不可用，请重试。')}</p> : busy && searched ? <p role="status">{text('Searching…', '搜索中…')}</p> : searched && results?.query === searched && !items.length ? <p role="status">{text('No covered companies match your search.', '未找到匹配的已覆盖公司。')}</p> : null}
   </>;
+  const coverageHint = <p>{coverageCount === null ? text('Search the companies we currently cover.', '搜索我们目前覆盖的公司。') : text(`Search the ${coverageCount.toLocaleString('en-US')} companies we currently cover.`, `搜索我们目前覆盖的 ${coverageCount.toLocaleString('zh-CN')} 家公司。`)}{' '}{text('We’re expanding coverage—check back soon for more.', '我们正在扩大覆盖范围，欢迎稍后回来查看更多公司。')}</p>;
   if (inline) return <div className={styles.embedded} data-company-search-owner={owner}>
     <div ref={panel} className={`${styles.panel} ${styles.inline}`} data-company-search={open || undefined} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) close(); }}>
       <div className={styles.searchField}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>{field}</div>
+      {coverageHint}
       {open && searched && <div className={styles.suggestions}>{suggestions}</div>}
     </div>
   </div>;
@@ -102,6 +114,7 @@ export function CompanySearch({ enabled = true, onSelect, owner = 'global', type
       }}>
         <header><strong>{text('Search company', '搜索公司')}</strong><button type="button" aria-label={text('Close company search', '关闭公司搜索')} onClick={close}>×</button></header>
         {field}
+        {coverageHint}
         {suggestions}
       </div>
     </div>;

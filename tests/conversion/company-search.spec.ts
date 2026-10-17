@@ -47,11 +47,13 @@ async function open(page: Page, query = "", delayMs = 0) {
     const url = new URL(request.url());
     if (url.origin !== origin || request.method() !== "GET") return route.abort();
     if (url.pathname === "/api/tickers/search") {
+      expect(url.searchParams.get('scope')).toBe('covered');
+      if (!url.searchParams.get('q')) return route.fulfill({ json: { items: [], total: 123 } });
       searches.push(url.search);
       if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
       const q = url.searchParams.get("q")?.toUpperCase() ?? "";
       const items = q.startsWith("OPEN") ? [openai] : q.startsWith("NV") || q === '英伟达' || q === 'YINGWEIDA' || q === 'YWD' ? [nvidia, leveraged] : [];
-      return route.fulfill({ json: { items: items.slice(0, Number(url.searchParams.get("limit") ?? 8)) } });
+      return route.fulfill({ json: { items: items.slice(0, Number(url.searchParams.get("limit") ?? 8)), total: 123 } });
     }
     if (url.pathname === "/api/knowledge-graph") return route.fulfill({ json: graph });
     if (request.isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
@@ -83,7 +85,7 @@ test('typing focuses embedded search, control keys do not start it, and Escape d
 });
 test('missing company results stay in search rather than fabricating a destination',async({page})=>{
  await open(page);await launch(page);await input(page).fill('no such co');
- await expect(page.getByRole('status')).toHaveText('No matching companies.');await input(page).press('Enter');
+ await expect(page.getByRole('status')).toHaveText('No covered companies match your search.');await input(page).press('Enter');
  await expect(page).toHaveURL(`${origin}/`);
 });
 
@@ -126,8 +128,12 @@ test('editing or dismissing a pending Enter never opens a stale company',async({
 });
 
 test('page search is directly visible, header focuses it and suggestions stay below the field',async({page},info)=>{
+ let countRequests = 0;
+ page.on('request', request => { const url = new URL(request.url()); if (url.pathname === '/api/tickers/search' && !url.searchParams.get('q')) countRequests++; });
  await open(page);
  await expect(input(page)).toBeVisible();await expect(input(page)).not.toBeFocused();
+ await expect(page.getByText('Search the 123 companies we currently cover.', {exact:false})).toBeVisible();
+ expect(countRequests).toBe(1);
  await page.getByRole('button',{name:'Search company',exact:true}).click();
  await expect(input(page)).toBeFocused();await expect(page.getByRole('dialog')).toHaveCount(0);
  await input(page).fill('nvidia');await expect(page.getByRole('option')).toHaveCount(2);
