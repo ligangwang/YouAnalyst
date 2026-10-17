@@ -49,14 +49,14 @@ const SUN=new Vector3(.45,.8,.4).normalize(),UP=new Vector3(0,1,0);
 const LEAF_SHADE=new Color('#2b5520'),LEAF_MID=new Color('#6e9e3c'),LEAF_LIT=new Color('#e2f59a');
 // Lower clumps spread into a broad skirt; upper clumps retain enough volume
 // for a rounded crown rather than a narrow, pointed tip.
-const Canopy=memo(function Canopy({node,crown,map,material}:{node:TreePoint;crown:[number,number];map:Texture|null;material:MeshStandardMaterial}){
+const Canopy=memo(function Canopy({node,crown,map,material,crownCap=false}:{node:TreePoint;crown:[number,number];map:Texture|null;material:MeshStandardMaterial;crownCap?:boolean}){
  const items=useMemo(()=>{
   const [nx,y,nz]=node.position,direction=new Vector3(),facing=new Vector3(),color=new Color(),turn=new Quaternion(),twist=new Quaternion(),euler=new Euler();
   const height=Math.min(1,Math.max(0,(y-crown[0])/(crown[1]-crown[0]||1))),lower=(1-height)**2;
   const upper=Math.max(0,(height-.65)/.35);
   const swell=.72+.48*Math.sin(Math.PI*(.12+.88*height))+.3*lower+.46*upper*upper;
   const out=Math.hypot(nx,nz)||1,spread=(swell-1)*260+110*lower,x=nx+nx/out*spread,z=nz+nz/out*spread;
-  return Array.from({length:map?260+Math.round(120*lower):850},(_,i):Plant=>{
+  return Array.from({length:map?(crownCap?620:260+Math.round(120*lower+180*upper)):850},(_,i):Plant=>{
    const id=`${node.id}:canopy:${i}`,lift=jitter(id,1)*2-1,a=jitter(id,2)*Math.PI*2,ring=Math.sqrt(1-lift*lift);
    direction.set(Math.cos(a)*ring,lift,Math.sin(a)*ring);
    const depth=.4+.6*Math.sqrt(jitter(id,3)),light=Math.max(0,direction.dot(SUN))*depth;
@@ -67,12 +67,12 @@ const Canopy=memo(function Canopy({node,crown,map,material}:{node:TreePoint;crow
    facing.copy(direction).multiplyScalar(.75).addScaledVector(UP,.45).add(new Vector3(jitter(id,5)-.5,jitter(id,6)-.5,jitter(id,7)-.5).multiplyScalar(.5)).normalize();
    turn.setFromUnitVectors(UP,facing).multiply(twist.setFromAxisAngle(UP,jitter(id,10)*Math.PI*2));
    euler.setFromQuaternion(turn);
-   const s=78+jitter(id,4)*44;
+   const s=(crownCap?96:78)+jitter(id,4)*44;
    return {position,scale:[s,s,s],rotation:[euler.x,euler.y,euler.z],color:'#'+color.getHexString()};
   });
- },[node,crown,map]);
+ },[node,crown,map,crownCap]);
  return <Plants items={items} leaf map={map} material={material}/>;
-},(a,b)=>a.node.id===b.node.id&&a.map===b.map&&a.material===b.material&&a.crown[0]===b.crown[0]&&a.crown[1]===b.crown[1]&&a.node.position.every((value,i)=>value===b.node.position[i]));
+},(a,b)=>a.node.id===b.node.id&&a.map===b.map&&a.material===b.material&&a.crownCap===b.crownCap&&a.crown[0]===b.crown[0]&&a.crown[1]===b.crown[1]&&a.node.position.every((value,i)=>value===b.node.position[i]));
 
 // A cumulus is a cluster of squashed puffs: tall in the middle, trailing off
 // at the ends, with a flat base. Lit from above, so the underside greys softly.
@@ -99,6 +99,12 @@ export function TreeMeadowEnvironment({nodes,paused=false}:{nodes:TreePoint[];pa
  const limbs=nodes.filter(node=>node.kind==='branch'&&node.layer!=='energy');
  const low=Math.min(...limbs.map(node=>node.position[1])),high=Math.max(...limbs.map(node=>node.position[1]));
  const crown=useMemo(():[number,number]=>[low,high],[low,high]);
+ // A leafy cap joins the upper limb clusters across the exposed trunk tip.
+ // It is scenery only, independent of company labels and sector disclosure.
+ const crownCap=useMemo(()=>{
+  const top=nodes.filter(node=>node.kind==='layer'&&node.layer!=='energy').reduce<TreePoint|undefined>((highest,node)=>!highest||node.position[1]>highest.position[1]?node:highest,undefined);
+  return top?{...top,id:'tree-crown-cap',kind:'foliage' as const,decorative:true,label:'',position:[top.position[0],top.position[1]+40,top.position[2]] as [number,number,number]}:undefined;
+ },[nodes]);
  const leaves=useMemo(()=>leafClusterTexture(),[]);
  const clock=useMemo(()=>createMeadowClock(),[]);
  const foliage=useMemo(()=>meadowMaterial(clock,leaves,true),[clock,leaves]);
@@ -161,6 +167,7 @@ export function TreeMeadowEnvironment({nodes,paused=false}:{nodes:TreePoint[];pa
   {[0,Math.PI/2,Math.PI,Math.PI*1.5].map(angle=><group key={angle} rotation={[0,angle,0]}>{mountains.map((geometry,i)=><mesh key={i} position={[0,0,-23000+i*4500]} geometry={geometry} raycast={noHit}><meshStandardMaterial vertexColors roughness={1} side={DoubleSide}/></mesh>)}</group>)}
   <Clouds/>
   <Plants items={grass} material={grassMaterial}/><Plants items={flowers} flower material={grassMaterial}/>{limbs.map(node=><Canopy key={node.id} node={node} crown={crown} map={leaves} material={foliage}/>)}
+  {crownCap&&<Canopy node={crownCap} crown={crown} map={leaves} material={foliage} crownCap/>}
   <TreeCinematicAtmosphere clock={clock} paused={paused} top={Number.isFinite(high)?high:2400}/>
  </group></>;
 }
