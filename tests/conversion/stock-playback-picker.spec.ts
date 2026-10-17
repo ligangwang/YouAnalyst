@@ -15,7 +15,7 @@ test.beforeAll(async () => {
       build.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: 'dynamic', namespace: 'chart-mock' }));
       build.onLoad({ filter: /.*/, namespace: 'chart-mock' }, () => ({ contents: 'export default function dynamic(){return ()=>null}', loader: 'js' }));
     } }],
-  }, '*{box-sizing:border-box}body{margin:0;font-family:Arial;--background:#07111d;--foreground:#f8fafc;--color-shell:#0f172a;--color-line:#ffffff30;--text-secondary:#9ba8b7;--text-muted:#8794a4;background:var(--background);color:var(--foreground)}button,input{font:inherit}button{color:inherit;background:transparent}');
+  }, '.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}*{box-sizing:border-box}body{margin:0;font-family:Arial;--background:#07111d;--foreground:#f8fafc;--color-shell:#0f172a;--color-line:#ffffff30;--text-secondary:#9ba8b7;--text-muted:#8794a4;background:var(--background);color:var(--foreground)}button,input{font:inherit}button{color:inherit;background:transparent}');
 });
 
 for (const chinese of [false, true]) test(`covered company picker and five-year custom range (${chinese ? 'Chinese' : 'English'})`, async ({ page }, info) => {
@@ -30,6 +30,12 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
     return route.fulfill({ contentType: 'text/html', body: html });
   });
   await page.goto(`http://playback.test/${chinese ? 'zh-cn' : 'en'}/compare`);
+  await expect(page.getByRole('heading', { name: chinese ? '股票表现回放' : 'Stock performance playback', exact: true })).toHaveClass('sr-only');
+  await expect(page.getByText('THE MARKET, IN MOTION', { exact: true })).toHaveCount(0);
+  const chart = page.getByRole('region', { name: chinese ? '表现图表' : 'Performance chart', exact: true });
+  const editor = page.getByRole('region', { name: chinese ? '编辑对比' : 'Edit comparison', exact: true });
+  const chartBox = await chart.boundingBox(), editorBox = await editor.boundingBox();
+  expect(editorBox!.y).toBeGreaterThanOrEqual(chartBox!.y + chartBox!.height);
   const hint = page.getByText(chinese ? '已覆盖 178 家公司，持续扩充中。' : '178 companies covered · More coming soon', { exact: true });
   await expect(hint).toBeVisible();
   const input = page.getByRole('combobox', { name: chinese ? '搜索公司' : 'Search company', exact: true });
