@@ -35,9 +35,13 @@ media/assets keep their existing HTTP caching.
 ## Deployment
 
 Production deployment calls `scripts/setup-cache-changes.sh`. It bypasses caches
-during setup, provisions a dedicated `cache-events` identity and collection-scoped
-Eventarc triggers, and configures the receiver audience. It needs Eventarc/service
-account/IAM bootstrap privileges in addition to normal Cloud Run deployment rights.
+during setup, verifies existing collection-scoped Eventarc triggers, and configures
+the receiver audience. Before the first release, an administrator runs the script
+with `CACHE_BOOTSTRAP=1` to provision the dedicated `cache-events` identity, IAM
+bindings, and triggers. Routine deployments need `roles/eventarc.viewer` alongside
+their existing Cloud Run, service-account-user, and Firestore permissions; they do
+not create identities or change project IAM policies. Missing triggers fail with
+a bootstrap instruction instead of attempting privileged provisioning.
 The Firestore project and Cloud Run project must match for this setup script.
 No new Firestore collections are created.
 
