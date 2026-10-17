@@ -66,7 +66,12 @@ export function IndustryStructure({musicControls=false,companies,selected,onSele
   const headingId=useId();
   function toggle(id:string){
     const closing=open.includes(id);
-    setOpen(current=>closing?current.filter(key=>key!==id):[...new Set([...current,id])]);
+    setOpen(current=>{
+      if(current.includes(id)&&(!vertical||id==='root'||current.includes('root')))return current.filter(key=>key!==id);
+      const layer=vertical?layers.find(layer=>layer.id===id||layer.branches.some(branch=>branch.id===id)):undefined;
+      const ancestors=layer?['root',layer.id,...(layer.id===id?layer.branches.map(branch=>branch.id):[])]:[];
+      return [...new Set([...current,...ancestors,id])];
+    });
     if(!vertical){setFocus(closing||id==='root'?'':id);setRequest(n=>n+1);}
   }
   return <section className={`${styles.tree} ${vertical?styles.vertical:''} ${embedded?styles.embedded:''}`} aria-labelledby={headingId} data-industry-section={vertical?'vertical':'horizontal'}>

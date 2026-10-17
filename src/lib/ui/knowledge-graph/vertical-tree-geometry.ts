@@ -12,7 +12,8 @@ import { VERTICAL_ROOT_REACH, verticalBranchOrigin, verticalJitter, verticalLimb
 // layer reads as one band while the trunk still reads as one living thing.
 const segments=20;
 const sides=8;
-const TRUNK_HALF_WIDTH=144;
+const WOOD_WIDTH_SCALE=1.3;
+const TRUNK_HALF_WIDTH=165*WOOD_WIDTH_SCALE;
 const SEAM_BLEND=60;
 type Kind='trunk'|'fiber'|'root'|'ring'|'branch'|'twig';
 type Attach='trunk'|'root'|'crown'|'node';
@@ -24,11 +25,14 @@ type XY={x:number;y:number;z?:number};
 // steady taper that still carries weight up to the crown.
 const trunkHalf=(t:number)=>{
   const height=Math.min(1,Math.max(0,t));
-  // Start narrowing below the crown so the trunk flows into its upper forks
-  // without a thick shoulder followed by an abrupt needle-shaped tip.
-  const crown=Math.max(0,(height-.48)/.52);
-  const taper=.045+.955*Math.pow(1-crown,1.35);
-  return TRUNK_HALF_WIDTH*(.4+.6*Math.pow(1-height,1.05))*taper+TRUNK_HALF_WIDTH*.75*Math.pow(Math.max(0,1-height/.09),2);
+  // Narrow earlier through the lower and middle stem, then settle into a
+  // substantial upper stem. The base remains widest without a swollen middle.
+  const lowerStem=Math.max(0,1-height/.65);
+  const upperStem=Math.min(1,Math.max(0,(height-.25)/.35));
+  const upperTaper=1-.06*upperStem*upperStem*(3-2*upperStem);
+  const crownTip=Math.min(1,Math.max(0,(height-.65)/.35));
+  const crownTaper=1-.2*crownTip*crownTip*(3-2*crownTip);
+  return TRUNK_HALF_WIDTH*(.84+.16*lowerStem*lowerStem)*upperTaper*crownTaper+TRUNK_HALF_WIDTH*.12*Math.pow(Math.max(0,1-height/.16),2);
 };
 
 function gradient(stops:[number,Color][]){
@@ -64,11 +68,11 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
   if(stack.length)seams.push(stack[stack.length-1].span![1]);
   stops.push([1,bark(crownLayer.color)]);
   const trunkColor=gradient(stops);
-  // The trunk dissolves into its roots at the base instead of ending in a cut.
-  const base=(t:number)=>ease(Math.min(1,t/.045));
-  trunk.push({from:'root',to:crownLayer.id,kind:'trunk',width:[1,1],offset:0,color:t=>rgba(trunkColor(t),.97*base(t))});
+  // Solid bark continues below the soil. Fading the collar at ground level
+  // makes the base look pinched even when its geometry is wider.
+  trunk.push({from:'root',to:crownLayer.id,kind:'trunk',width:[1,1],offset:0,color:t=>rgba(trunkColor(t),.97)});
   // Inner light fibres follow the trunk silhouette like grain.
-  for(const f of [-.7,-.44,-.18,.1,.36,.62])trunk.push({from:'root',to:crownLayer.id,kind:'fiber',width:[1.4,.7],offset:f,color:t=>rgba(mix(trunkColor(t),'#f2fbff',.5),.26*(1-t*.5)*base(t))});
+  for(const f of [-.7,-.44,-.18,.1,.36,.62])trunk.push({from:'root',to:crownLayer.id,kind:'fiber',width:[1.4,.7],offset:f,color:t=>rgba(mix(trunkColor(t),'#f2fbff',.5),.26*(1-t*.5))});
   // Growth rings mark where one layer rests on the next.
   for(const y of seams)trunk.push({from:'root',to:crownLayer.id,kind:'ring',width:[2.4,2.4],offset:0,end:[y,0],color:t=>rgba(new Color('#eaf8ff'),.42*Math.sin(Math.PI*t))});
   // Energy roots: thick at the flare, hairline and fading at the tips.
@@ -78,7 +82,7 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
     const x=side*VERTICAL_ROOT_REACH*(.16+.8*Math.pow(s,.95))*(.92+wobble*.1);
     const y=-(60+220*Math.pow(1-s,1.2)+wobble*50);
     const deep=bark(gold.getStyle());
-    roots.push({from:'root',to:'root',kind:'root',width:[16*(1-s)+5,.4],offset:side*(.25+.6*s),end:[x,y],color:t=>rgba(mix(deep,gold,t*.8),.92*Math.pow(1-t,1.3))});
+    roots.push({from:'root',to:'root',kind:'root',width:[36*(1-s)+10,1.1],offset:side*(.25+.6*s),end:[x,y],color:t=>rgba(mix(deep,gold,t*.8),.92*Math.pow(1-t,1.3))});
   }
   const byId=new Map(nodes.map(n=>[n.id,n]));
   for(const n of nodes){
@@ -102,7 +106,7 @@ export function verticalTreeStrands(nodes:TreePoint[]):Strand[]{
   }
   // Draw order: limbs tuck in behind the trunk so they appear to grow out of
   // it; roots spill over the trunk base; crown branches and twigs sit on top.
-  return [...limbs,...trunk,...roots,...crown,...twigs].map(s=>({...s,azimuth:byId.get(s.to)?.azimuth,pivotX:byId.get(s.to)?.pivotX}));
+  return [...limbs,...trunk,...roots,...crown,...twigs].map(s=>({...s,width:[s.width[0]*WOOD_WIDTH_SCALE,s.width[1]*WOOD_WIDTH_SCALE] as [number,number],azimuth:byId.get(s.to)?.azimuth,pivotX:byId.get(s.to)?.pivotX}));
 }
 
 export function verticalTreeStrandGeometries(strands:Strand[],focus:string){
@@ -223,7 +227,7 @@ export function createStrandWriter(){
       const end=strand.end;
       const point=(t:number,out:Vector3)=>{
         if(curve)return cubic(curve,t,out);
-        if(strand.kind==='trunk')return out.set(tx(top*t),top*t-30*(1-t),-4);
+        if(strand.kind==='trunk')return out.set(tx(top*t),top*t-90*(1-t),-4);
         if(strand.kind==='fiber')return out.set(tx(top*t)+strand.offset*trunkHalf(t)*(1-.1*t),top*t,-4);
         if(strand.kind==='ring'&&end){
           const y=end[0],hw=trunkHalf(y/top)*1.04;
@@ -260,7 +264,9 @@ export function createStrandWriter(){
             for(let face=0;face<sides;face++){
               const a=face*2*Math.PI/sides,b=(face+1)*2*Math.PI/sides;
               const write=(i:number,v:Vector3,n:Vector3,w:number,angle:number)=>{
-                const ridge=1+.055*Math.sin(angle*4+v.y*.007)+.025*Math.sin(angle*8-v.y*.021);
+                // Bark relief may vary along branches, but the trunk silhouette
+                // must narrow steadily upward without a bulging middle.
+                const ridge=strand.kind==='trunk'?1+.025*Math.cos(angle*4)+.015*Math.cos(angle*2):1+.055*Math.sin(angle*4+v.y*.007)+.025*Math.sin(angle*8-v.y*.021);
                 pos.setXYZ(base+face*6+i,v.x+n.x*w*ridge*Math.cos(angle),v.y+n.y*w*ridge*Math.cos(angle),v.z+w*.65*ridge*Math.sin(angle));
               };
               write(0,p,normalP,wp,a);write(1,p,normalP,wp,b);write(2,q,normalQ,wq,a);

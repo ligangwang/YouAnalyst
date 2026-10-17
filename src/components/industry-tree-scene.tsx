@@ -24,6 +24,7 @@ import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/ui/know
 
 export type TreeSceneProps={tour:{current:boolean};active?:boolean;paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
+const NO_TREE_POINTS:TreePoint[]=[];
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
   state={failed:false};
   static getDerivedStateFromError(){return {failed:true};}
@@ -46,6 +47,8 @@ function Scene(props:TreeSceneProps){
   const resumePending=useRef(false);
   const resumeReady=useRef(false);
   const skipLayer=useRef<string|undefined>(undefined);
+  const disclosedLayers=useRef(new Set<string>());
+  useEffect(()=>{disclosedLayers.current.clear();},[props.layers,props.request]);
   const idleTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const scheduleResume=useRef<()=>void>(()=>{});
   useEffect(()=>{
@@ -134,20 +137,25 @@ function Scene(props:TreeSceneProps){
   useEffect(()=>()=>bladeTexture?.dispose(),[bladeTexture]);
   const reduced=useRef(false);
   const layout=props.vertical?layoutVerticalTree:layoutIndustryTree;
-  const nodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
+  const expandedNodes=useMemo(()=>layout(props.layers,new Set(props.open),locale),[props.layers,props.open,locale,layout]);
+  const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
+  // In the living tree, disclosure controls company names only. Keep the full
+  // physical tree mounted so its wood, leaves and node positions never collapse.
+  const nodes=props.vertical?all:expandedNodes;
+  const companyLabels=useMemo(()=>new Set(expandedNodes.filter(n=>n.company).map(n=>n.id)),[expandedNodes]);
   // Mount the trunk and layer anchors before company leaves, even as lower layers grow.
   const selectedPath=useMemo(()=>companyTreePath(props.layers,props.selected),[props.layers,props.selected]);
   const presenceNodes=useMemo(()=>{
     const ordered=props.vertical?[...nodes.filter(n=>n.kind==='root'||n.kind==='layer'),...nodes.filter(n=>n.kind!=='root'&&n.kind!=='layer')]:nodes;
     return selectedPath?[...ordered].sort((a,b)=>Number(b.id===selectedPath.nodeId)-Number(a.id===selectedPath.nodeId)):ordered;
   },[nodes,props.vertical,selectedPath]);
-  const presence=useNodePresence(presenceNodes,navigation.speed,props.vertical?.04:.24);
+  const animatedPresence=useNodePresence(props.vertical?NO_TREE_POINTS:presenceNodes,navigation.speed);
+  const presence=useMemo(()=>props.vertical?presenceNodes.map(node=>({node,exiting:false})):animatedPresence,[props.vertical,presenceNodes,animatedPresence]);
   const renderedNodes=useMemo(()=>presence.map(entry=>entry.node),[presence]);
   const present=useMemo(()=>new Map(presence.map(entry=>[entry.node.id,entry])),[presence]);
   useEffect(()=>{invalidate();},[presence,invalidate]);
-  useEffect(()=>{collisionLabels.current.clear();lastCollision.current=-Infinity;invalidate();},[nodes,props.selected,props.focus,invalidate]);
-  const all=useMemo(()=>layout(props.layers,new Set(['root',...props.layers.flatMap(l=>[l.id,...l.branches.map(b=>b.id)])]),locale),[props.layers,locale,layout]);
-  const plan=useMemo(()=>treeOverviewPlan(nodes,new Set(props.open)),[nodes,props.open]);
+  useEffect(()=>{collisionLabels.current.clear();lastCollision.current=-Infinity;invalidate();},[nodes,props.open,props.selected,props.focus,invalidate]);
+  const plan=useMemo(()=>treeOverviewPlan(expandedNodes,new Set(props.open)),[expandedNodes,props.open]);
   const targets=useMemo(()=>{
     const visible=new Map(presence.filter(entry=>!entry.exiting).map(entry=>[entry.node.id,entry.node]));
     const catalog=new Map(all.map(n=>[n.id,n]));
@@ -227,6 +235,18 @@ function Scene(props:TreeSceneProps){
   const selectionFocus=useRef('');
   const internalSelection=useRef('');
   const selectCompany=(id:string)=>{internalSelection.current=id;props.onSelect(id);};
+  const toggleNode=(node:TreePoint)=>{
+    if(!props.vertical){props.onToggle(node.id);return;}
+    // A sector may be logically open while distance culling hides every name.
+    // The first click should reveal those names, not silently close the sector.
+    const revealHidden=node.kind==='layer'&&props.open.includes('root')&&props.open.includes(node.id)&&!disclosedLayers.current.has(node.layer??'')&&![...labels.current.values()].some(label=>label.dataset.treeCompany&&label.dataset.treeLayer===node.layer&&label.dataset.labelVisible==='true');
+    if(node.layer)disclosedLayers.current.add(node.layer);
+    else if(node.kind==='root')disclosedLayers.current.clear();
+    userPositioned.current=true;tourRef.current=false;resumeReady.current=false;
+    collisionLabels.current.clear();lastCollision.current=-Infinity;
+    if(!revealHidden)props.onToggle(node.id);
+    invalidate();
+  };
   useEffect(()=>{
     if(props.active===false||!props.selected){selectionFocus.current='';internalSelection.current='';return;}
     if(props.paused)return;
@@ -302,11 +322,24 @@ function Scene(props:TreeSceneProps){
       }
       moving=true;
     }
+    // Manual disclosure takes precedence over distance culling and a paused
+    // presentation's last layer, so opening any sector visibly reveals names.
     const visitingLayer=presentationFrame&&['ascent','descent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
+    const layerLabelsVisible=(layer?:string)=>Boolean(layer&&(disclosedLayers.current.has(layer)||layer===visitingLayer));
+    // Keep one nearby company readable in every manually disclosed sector,
+    // even when narrow-screen collisions would otherwise hide the entire group.
+    const primaryDisclosures=new Map<string,{id:string;distance:number}>();
+    for(const node of nodes){
+      if(!node.company||!node.layer||!companyLabels.has(node.id)||!disclosedLayers.current.has(node.layer)||!labels.current.has(node.id))continue;
+      const [x,y,z]=node.position,distance=(x-state.camera.position.x)**2+(y-state.camera.position.y)**2+(z-state.camera.position.z)**2;
+      if(distance<(primaryDisclosures.get(node.layer)?.distance??Infinity))primaryDisclosures.set(node.layer,{id:node.id,distance});
+    }
+    const pinnedNames=new Set([...primaryDisclosures.values()].map(node=>node.id));
     gl.domElement.setAttribute('data-tour-phase',presentationFrame?.phase??'manual');
     gl.domElement.setAttribute('data-user-positioned',String(userPositioned.current));
     gl.domElement.setAttribute('data-tour-layer',presentationFrame?.layer??flight.current?.destination()?.layer??'');
     gl.domElement.setAttribute('data-tour-open-layers',[...new Set(plan.map(stop=>stop.layer))].join(','));
+    gl.domElement.setAttribute('data-tree-disclosed-layers',[...disclosedLayers.current].join(','));
     if(controls.current){
       gl.domElement.setAttribute('data-camera-position',controls.current.getPosition(vector,false).toArray().join(','));
       gl.domElement.setAttribute('data-camera-target',controls.current.getTarget(vector,false).toArray().join(','));
@@ -315,12 +348,12 @@ function Scene(props:TreeSceneProps){
       const group=groups.current.get(target.node.id);if(!group)continue;
       vector.set(...target.position);
       const scale=target.visible?1:0;
-      const amount=reduced.current?1:1-Math.exp(-tourDelta(delta,navigation.speed)*1.8);
+      const amount=props.vertical||reduced.current?1:1-Math.exp(-tourDelta(delta,navigation.speed)*1.8);
       group.position.lerp(vector,amount);
       group.scale.lerp(vector.setScalar(scale),amount);
       group.visible=group.scale.x>.002;
       const alpha=Number(group.userData.presenceAlpha??0),step=tourDelta(delta,navigation.speed)/.8;
-      group.userData.presenceAlpha=reduced.current?scale:Math.max(0,Math.min(1,alpha+(scale?step:-step)));
+      group.userData.presenceAlpha=props.vertical||reduced.current?scale:Math.max(0,Math.min(1,alpha+(scale?step:-step)));
       group.traverse(child=>{
         if(!('material' in child))return;
         const materials=Array.isArray((child as Mesh).material)?(child as Mesh).material:[(child as Mesh).material];
@@ -338,6 +371,11 @@ function Scene(props:TreeSceneProps){
         if(hit)hit.scale.setScalar(Math.max(Number(hit.userData.minimumRadius),state.camera.position.distanceTo(group.position)*2*Math.tan(Math.PI/8)/size.height*10));
       }
       const label=labels.current.get(target.node.id);
+      if(label&&props.vertical&&target.node.company){
+        const shown=companyLabels.has(target.node.id);
+        label.hidden=!shown;label.style.display=shown?'':'none';label.disabled=!shown||!target.visible;
+        if(!shown){label.dataset.labelVisible='false';label.dataset.labelOpacity='0';continue;}
+      }
       if(label&&props.vertical&&target.node.kind==='layer'){
         label.style.opacity=String(group.userData.presenceAlpha);
         label.style.visibility=group.userData.presenceAlpha>.01?'visible':'hidden';
@@ -355,14 +393,15 @@ function Scene(props:TreeSceneProps){
           const threshold=target.node.kind==='company'?.65:.72;
           // Pin the selected label's shape: a card following its bounds must not
           // move back and forth as the card covers/uncover its hover target.
-          const intentional=Boolean(props.selected&&target.node.company?.id===props.selected)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
-          const wanted=intentional||((target.node.layer===visitingLayer||htmlScale>=threshold+(fade.visible?0:.04))&&!collisionLabels.current.has(target.node.id));
+          const intentional=Boolean(props.selected&&target.node.company?.id===props.selected)||pinnedNames.has(target.node.id)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
+          const wanted=intentional||((layerLabelsVisible(target.node.layer)||htmlScale>=threshold+(fade.visible?0:.04))&&!collisionLabels.current.has(target.node.id));
           const previous=fade.level;
           const result=advanceLabelFade(fade,wanted,now,reduced.current);
           compact=fade.level===0&&!fade.visible;
           label.style.opacity=String(result.opacity*(label.dataset.treeDimmed==='true'?.2:1));
           label.style.pointerEvents=fade.visible||compact?'auto':'none';
           label.dataset.labelVisible=String(fade.visible);
+          label.dataset.labelPinned=String(pinnedNames.has(target.node.id));
           label.dataset.labelOpacity=String(result.opacity);
           if(result.moving)moving=true;
           if(previous>0&&compact){lastCollision.current=-Infinity;moving=true;}
@@ -376,19 +415,21 @@ function Scene(props:TreeSceneProps){
           // Collapsed sibling branches sit 72 units apart: grow their labels up to that gap, never past natural size.
           const gap=72*htmlScale*size.height/1100;
           label.style.transform=`scale(${Math.min(1,Math.max(htmlScale,gap/34))/htmlScale})`;
-        }else label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?(target.node.layer===visitingLayer?1.15:Math.min(1,Math.max(.7,htmlScale))):1):Math.min(1,1/htmlScale)})`;
+        }else label.style.transform=`scale(${props.vertical?(target.node.kind==='company'?(layerLabelsVisible(target.node.layer)?1.15:Math.min(1,Math.max(.7,htmlScale))):1):Math.min(1,1/htmlScale)})`;
         if(props.vertical)label.dataset.compact=String(compact);
       }
       if(group.position.distanceToSquared(vector.set(...target.position))>.01||Math.abs(group.scale.x-scale)>.002)moving=true;
     }
+    if(props.vertical)gl.domElement.setAttribute('data-tree-growth',nodes.every(node=>{const group=groups.current.get(node.id);return group&&group.scale.x===1;})?'complete':'growing');
     if(checkCollisions){
       // Around a real canopy, foreground and rear leaves can project onto one
       // another. Keep nearby names readable and use dots for competing labels.
       const target=controls.current?.getTarget(new Vector3())??new Vector3();
-      const distances=new Map(nodes.map(n=>[n.id,new Vector3(...n.position).distanceToSquared(visitingLayer?state.camera.position:target)]));
+      const distances=new Map(nodes.map(n=>[n.id,new Vector3(...n.position).distanceToSquared(visitingLayer||disclosedLayers.current.size?state.camera.position:target)]));
       const ordered=[...nodes].sort((a,b)=>Number(b.company?.id===props.selected)-Number(a.company?.id===props.selected)
         ||Number(b.kind==='layer'||b.kind==='root')-Number(a.kind==='layer'||a.kind==='root')
-        ||Number(b.layer===visitingLayer)-Number(a.layer===visitingLayer)
+        ||Number(b.kind==='company'&&disclosedLayers.current.has(b.layer??''))-Number(a.kind==='company'&&disclosedLayers.current.has(a.layer??''))
+        ||Number(layerLabelsVisible(b.layer))-Number(layerLabelsVisible(a.layer))
         ||distances.get(a.id)!-distances.get(b.id)!);
       // Read all bounds together before changing any collision state. Cache the
       // result between passes so the cinematic frame loop avoids forced layouts.
@@ -396,13 +437,14 @@ function Scene(props:TreeSceneProps){
       const bounds=new Map(ordered.flatMap(node=>{
         const el=labels.current.get(node.id);
         if(!el)return [];
+        if(node.company&&!companyLabels.has(node.id))return [];
         if(node.kind!=='company'&&node.kind!=='branch')return [[node.id,el.getBoundingClientRect()] as const];
         const group=groups.current.get(node.id),dimensions=labelSizes.current.get(el);
         if(!group||!dimensions)return [];
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
         const fade=labelFades.current.get(el),threshold=(node.kind==='company'?.65:.72)+(fade?.visible?0:.04);
-        if(node.layer!==visitingLayer&&htmlScale<threshold&&!fade?.level)return [];
-        const left=node.position[0]<0,scale=node.kind==='company'?(node.layer===visitingLayer?1.15:Math.min(1,Math.max(.7,htmlScale))):1;
+        if(!layerLabelsVisible(node.layer)&&htmlScale<threshold&&!fade?.level)return [];
+        const left=node.position[0]<0,scale=node.kind==='company'?(layerLabelsVisible(node.layer)?1.15:Math.min(1,Math.max(.7,htmlScale))):1;
         vector.copy(group.position);vector.x+=(left?-1:1)*(node.kind==='company'?16:22)*group.scale.x;
         vector.project(state.camera);
         const width=dimensions.width*scale,height=dimensions.height*scale;
@@ -445,11 +487,11 @@ function Scene(props:TreeSceneProps){
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
     {props.vertical&&<>
-      <TreeMeadowEnvironment nodes={renderedNodes}/>
-      <hemisphereLight args={['#e5f5ff','#596937',1.8]}/>
-      <directionalLight position={[1800,2800,1600]} color="#fff0d9" intensity={2.2}/>
-      <directionalLight position={[-1600,1700,-1400]} color={props.vertical?'#b8c9b0':'#6cbaff'} intensity={props.vertical?1.3:2.8}/>
-      <directionalLight position={[600,400,-1800]} color="#76e4c5" intensity={.8}/>
+      <TreeMeadowEnvironment nodes={renderedNodes} paused={props.paused}/>
+      <hemisphereLight args={['#dce8f3','#495632',1.15]}/>
+      <directionalLight position={[2100,4400,-2200]} color="#ffe2a0" intensity={3.2}/>
+      <directionalLight position={[-1600,1700,1400]} color="#b9d4ec" intensity={.8}/>
+      <directionalLight position={[600,900,-1800]} color="#d6edb2" intensity={.65}/>
     </>}
     {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
@@ -472,7 +514,7 @@ function Scene(props:TreeSceneProps){
         onPointerOver:(event:ThreeEvent<PointerEvent>)=>{event.stopPropagation();gl.domElement.style.cursor='pointer';},
         onPointerOut:()=>{gl.domElement.style.cursor='';},
       }:{};
-      return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(0);}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
+      return <group key={node.id} ref={g=>{if(g){if(!g.userData.treeInitialized){g.userData.treeInitialized=true;g.position.set(...position);g.scale.setScalar(props.vertical?1:0);g.userData.presenceAlpha=props.vertical?1:0;}groups.current.set(node.id,g);}else groups.current.delete(node.id);}}>
         {leaf?<group rotation={[0,node.azimuth??0,0]}><group rotation={[0,0,leaf.angle]}>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length*1.12,leaf.width*1.18,leaf.length*.5]} position={[-leaf.length*.12,0,-.5]}><meshBasicMaterial color={leaf.tint} transparent opacity={dim?.01:.035} depthWrite={false} blending={AdditiveBlending}/></mesh>
           <mesh geometry={VERTICAL_LEAF_BLADE} scale={[leaf.length,leaf.width,leaf.length*.5]} {...pick}><meshStandardMaterial vertexColors map={bladeTexture} color={leaf.tint} roughness={.78} metalness={0} side={DoubleSide} transparent opacity={dim?.12:.98}/></mesh>
@@ -483,7 +525,13 @@ function Scene(props:TreeSceneProps){
         </>}
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
         {!node.decorative&&present.has(node.id)&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={`${left&&!centered?styles.labelLeft:''} ${present.get(node.id)?.exiting?styles.exiting:styles.entering}`} style={{animationDuration:`${.8/navigation.speed}s`}}><button
-          ref={el=>{if(el){labels.current.set(node.id,el);window.clearTimeout(labelsSettled.current);labelsSettled.current=window.setTimeout(invalidate,120);}else labels.current.delete(node.id);}}
+          ref={el=>{
+            if(!el)return;
+            labels.current.set(node.id,el);window.clearTimeout(labelsSettled.current);labelsSettled.current=window.setTimeout(invalidate,120);
+            // Html owns separate React roots; a retiring root must not unregister
+            // the replacement label that already mounted with the same node id.
+            return ()=>{if(labels.current.get(node.id)===el)labels.current.delete(node.id);};
+          }}
           className={`${styles.node} ${styles[node.kind]}`} style={{color:node.color,...(props.vertical&&(node.kind==='company'||node.kind==='branch')?{}:{opacity:dim ? .2 : 1}),pointerEvents:'auto',...(node.company?{'--cap':capScale}:{})} as CSSProperties}
           disabled={!visible} data-exiting={present.get(node.id)?.exiting} data-tree-node={node.id} data-tree-layer={node.layer} data-tree-kind={node.kind} data-tree-dimmed={dim}
           data-compact={props.vertical&&(node.kind==='company'||node.kind==='branch')?false:undefined}
@@ -493,7 +541,7 @@ function Scene(props:TreeSceneProps){
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
           title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
-          onClick={event=>{event.stopPropagation();if(node.company)selectCompany(node.company.id);else {if(props.vertical){userPositioned.current=true;tourRef.current=false;resumeReady.current=false;}props.onToggle(node.id);}}}>
+          onClick={event=>{event.stopPropagation();if(node.company)selectCompany(node.company.id);else toggleNode(node);}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('In watchlist','已加入自选股')}> ★</span>}</strong>
           {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')} <CompanyPriceChange price={node.company.dailyPrice} locale={locale}/></small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}

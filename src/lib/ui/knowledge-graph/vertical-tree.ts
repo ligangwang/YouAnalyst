@@ -64,25 +64,26 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   // AI retains its additional supply-chain subdivisions.
   if(layers.every(layer=>layer.directCompanies)){
     // A full canopy is presentation geometry, independent of company coverage.
-    // Four wooden limbs per sector use the same curved wood and leaf blades as AI.
-    const height=420,top=150+layers.length*height;
+    // Six lower boughs spread outward; upper sectors retain four limbs each.
+    const height=540,top=150+layers.length*height;
     let bottom=150;
     for(const [index,layer] of layers.entries()){
       const y=bottom+height*(index===layers.length-1?1:.5);
       nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[verticalTrunkX(y,top),y,0],count:layer.companies.length,span:[bottom,bottom+height]});
       if(open.has(layer.id)){
         const companies=[...layer.companies].sort((a,b)=>a.id.localeCompare(b.id));
-        const slots=Math.max(6,Math.ceil(companies.length/4));
-        for(let limbIndex=0;limbIndex<4;limbIndex++){
-          const branchId=`${layer.id}/canopy-${limbIndex}`,stem=bottom+70+limbIndex*65;
-          const pivot=verticalTrunkX(stem,top),reach=(680-200*index/Math.max(1,layers.length-1))*(.9+.2*verticalJitter(branchId,3));
+        const limbCount=index===0?6:4;
+        const slots=Math.max(6,Math.ceil(companies.length/limbCount));
+        for(let limbIndex=0;limbIndex<limbCount;limbIndex++){
+          const branchId=`${layer.id}/canopy-${limbIndex}`,stem=bottom+height*(.16+.72*limbIndex/Math.max(1,limbCount-1));
+          const pivot=verticalTrunkX(stem,top),reach=(index===0?920:680-200*index/Math.max(1,layers.length-1))*(.9+.2*verticalJitter(branchId,3));
           const lean=(22+index*3+verticalJitter(branchId,1)*8)*Math.PI/180;
           const azimuth=(index*4+limbIndex)*Math.PI*(3-Math.sqrt(5));
           const origin:[number,number]=[pivot+30,stem],tip:[number,number]=[origin[0]+reach*Math.cos(lean),stem+reach*Math.sin(lean)];
           const place=(x:number,y:number):[number,number,number]=>[pivot+(x-pivot)*Math.cos(azimuth),y,-(x-pivot)*Math.sin(azimuth)];
           nodes.push({id:branchId,parent:layer.id,layer:layer.id,branch:branchId,kind:'branch',decorative:true,label:'',color:layer.color,position:place(...tip),planar:[...tip,0],azimuth,pivotX:pivot,stem});
           for(let slot=0;slot<slots;slot++){
-            const company=companies[slot*4+limbIndex],id=company?`${layer.id}/${company.id}`:`${branchId}/leaf-${slot}`;
+            const company=companies[slot*limbCount+limbIndex],id=company?`${layer.id}/${company.id}`:`${branchId}/leaf-${slot}`;
             const t=.48+.8*(slot+.3+.4*verticalJitter(id,3))/slots;
             const flank=(slot%2?1:-1)*(55+65*verticalJitter(id,5));
             const x=origin[0]+(tip[0]-origin[0])*t-Math.sin(lean)*flank;
@@ -126,7 +127,7 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   // Lower limbs reach furthest and upper ones less, so the canopy tapers to a
   // rounded crown instead of a rectangle.
   const stack=layers.filter(l=>!ROOT_LAYERS.has(l.id)&&l.id!==CROWN_LAYER).map(l=>l.id);
-  const tierReach=(id:string)=>id===CROWN_LAYER?470:660-85*Math.max(0,stack.indexOf(id));
+  const tierReach=(id:string)=>id===CROWN_LAYER?470:([920,700,540][Math.max(0,stack.indexOf(id))]??490);
   let bottom=150;
   for(const layer of layers){
     const expanded=open.has(layer.id);
@@ -139,12 +140,12 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       continue;
     }
     if(layer.id===CROWN_LAYER){
-      const y=bottom+220;
+      const y=bottom+280;
       nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,y,0],count:layer.companies.length,span:[bottom,y]});
       if(expanded)layer.branches.forEach((branch,i)=>{
         const offset=i-(layer.branches.length-1)/2,side=Math.sign(offset)||(i%2?-1:1),jitter=verticalJitter(branch.id);
         // Stagger forks below the tip instead of balancing twigs on a flat cut.
-        const stem=y-170-(i%3)*55;
+        const stem=y-210-(i%3)*70;
         const angle=(55-8*Math.min(1,Math.abs(offset)/2)+(jitter-.5)*10)*Math.PI/180;
         limb(layer,branch,[verticalTrunkX(stem,y),stem],side,tierReach(layer.id)*(.88+.24*jitter),angle,stem);
       });
@@ -153,13 +154,13 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
     // Limbs alternate sides and climb the segment; stems stay in the layer's
     // own part of the trunk while the tips lean up into the canopy.
     const perSide=Math.ceil(layer.branches.length/2);
-    const step=125;
-    const height=Math.max(360,perSide*step+200);
+    const step=160;
+    const height=Math.max(460,perSide*step+250);
     const y=bottom+height/2;
     nodes.push({id:layer.id,parent:'root',layer:layer.id,kind:'layer',label:label(layer),color:layer.color,position:[0,y,0],count:layer.companies.length,span:[bottom,bottom+height]});
     if(expanded)layer.branches.forEach((branch,i)=>{
       const side=i%2?1:-1,k=Math.floor(i/2);
-      const stem=Math.min(bottom+height-60,bottom+90+k*step+(side>0?step*.5:0)+(verticalJitter(branch.id,2)-.5)*30);
+      const stem=Math.min(bottom+height-75,bottom+115+k*step+(side>0?step*.5:0)+(verticalJitter(branch.id,2)-.5)*30);
       // Higher limbs within a layer are a little shorter, continuing the taper.
       const climb=perSide>1?k/(perSide-1):0,jitter=verticalJitter(branch.id);
       const reach=tierReach(layer.id)*(1-.14*climb)*(.86+.28*jitter);
@@ -168,6 +169,14 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
       const angle=Math.min(42,19+7*tier+6*climb+8*verticalJitter(branch.id,1))*Math.PI/180;
       limb(layer,branch,[side*30,stem],side,reach,angle,stem);
     });
+    // Extra lower boughs fill the skirt of the tree. They carry decorative
+    // foliage only, never extra companies, taxonomy labels, or tour stops.
+    if(expanded&&layer.id===stack[0])for(let i=0;i<4;i++){
+      const id=`${layer.id}/lower-canopy-${i}`,side=i%2?1:-1;
+      const stem=bottom+75+i*46,reach=tierReach(layer.id)*(.94+.12*verticalJitter(id,3));
+      const angle=(19+verticalJitter(id,1)*7)*Math.PI/180;
+      nodes.push({id,parent:layer.id,layer:layer.id,branch:id,kind:'branch',decorative:true,label:'',color:layer.color,stem,position:[side*(30+reach*Math.cos(angle)),stem+reach*Math.sin(angle),0]});
+    }
     bottom+=height;
   }
   // The trunk sways; keep every trunk layer label on the trunk itself.
@@ -180,7 +189,7 @@ export function layoutVerticalTree(layers:TreeLayer[],open:ReadonlySet<string>,l
   }
   // A golden-angle spiral grows limbs around the full trunk, not just its left
   // and right edges. Preserve each limb's local plane for its curved wood and leaves.
-  const branchOrder=layers.flatMap(l=>l.branches.map(b=>b.id));
+  const branchOrder=[...layers.flatMap(l=>l.branches.map(b=>b.id)),...nodes.filter(n=>n.kind==='branch'&&n.decorative).map(n=>n.id)];
   for(const branch of nodes.filter(n=>n.kind==='branch')){
     const [pivotX]=verticalBranchOrigin(branch,top);
     const side=Math.sign(branch.position[0]-pivotX)||1;

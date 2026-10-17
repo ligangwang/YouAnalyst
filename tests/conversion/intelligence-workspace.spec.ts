@@ -68,6 +68,13 @@ async function open(page:import('@playwright/test').Page,zh=false,fixture=snapsh
   await page.goto(`http://workspace.test/${zh?'?lang=zh-CN':''}`);
 }
 
+test('workspace defaults to graph and respects an explicit list link',async({page})=>{
+ await open(page);
+ await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+ await page.goto('http://workspace.test/?view=table');
+ await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+});
+
 test('all workspace panels and views open the selected stock tools without duplicate menus',async({page,isMobile})=>{
  test.skip(isMobile,'Three-panel coverage uses the desktop layout.');
  await page.setViewportSize({width:1600,height:1000});await open(page);
@@ -184,13 +191,14 @@ for(const view of ['graph','tree','hierarchy','table'])test(`shared company dial
  await expect(page.getByRole('dialog',{name:'Search company',exact:true})).toHaveCount(0);
  await expect(page).toHaveURL(/company=US%3AMU/);await expect(page.locator('[data-company-timeline="US:MU"]')).toBeVisible();
 });
-for(const view of ['graph','tree','hierarchy','table'])test(`sector selection replaces bookmarked filters in ${view}`,async({page},info)=>{
- await open(page);await bookmarkedQuery(page).fill('MULT');
+for(const view of ['graph','tree','hierarchy','table'])test(`sector selection replaces bookmarked filters in ${view}`,async({page,isMobile})=>{
+ await open(page);await page.goto(`http://workspace.test/?view=${view}`);await bookmarkedQuery(page).fill('MULT');
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
  await page.getByRole('button',{name:/^Memory & storage/}).click();
  await expect(page).not.toHaveURL(/company=|q=/);
- const list=info.project.name==='mobile'?page.getByRole('region',{name:'Company list',exact:true}):page.getByRole('complementary',{name:'Universe navigation'});
- await expect(list.getByRole('button',{name:info.project.name==='mobile'?'Micron':'MU Micron',exact:true})).toBeVisible();
+ if(isMobile)await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ const list=isMobile?page.getByRole('region',{name:'Company list',exact:true}):page.getByRole('complementary',{name:'Universe navigation'});
+ await expect(list.getByRole('button',{name:isMobile?'Micron':'MU Micron',exact:true})).toBeVisible();
 });
 
 for(const view of ['graph','tree','hierarchy','table'])test(`fullscreen ${view} lookup preserves closed and open price charts`,async({page})=>{
@@ -890,13 +898,13 @@ test('region selection rebuilds the real graph with only matching companies',asy
  expect(Math.abs(themeBox.y-regionBox.y)).toBeLessThan(4);expect(themeBox.x+themeBox.width).toBeLessThan(regionBox.x);
 });
 
-test('first phone visit starts in List and explicit chart choices remain available',async({page})=>{
+test('first phone visit starts in Graph and explicit list choices remain available',async({page})=>{
   await page.setViewportSize({width:390,height:844});
   await open(page);
-  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
-  await expect(page.locator('[data-view="graph"]')).toHaveCount(0);
-  await page.goto('http://workspace.test/?view=graph');
   await expect(page.getByRole('tab',{name:'Relationship graph',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-view="graph"]')).toHaveCount(1);
+  await page.goto('http://workspace.test/?view=table');
+  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
 });
 
 test('news calendar icon links only confirmed schedules and does not select the news',async({page},info)=>{
