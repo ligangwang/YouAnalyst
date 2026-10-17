@@ -132,10 +132,11 @@ export function FeedbackPage() {
                 <button
                   key={option.value}
                   type="button"
+                  aria-pressed={category === option.value}
                   onClick={() => setCategory(option.value)}
                   className={`rounded-xl border p-3 text-left transition ${
                     category === option.value
-                      ? "border-cyan-300/70 bg-cyan-400/15 text-cyan-50"
+                      ? "border-cyan-300/70 bg-cyan-400/15 text-foreground"
                       : "border-white/15 bg-slate-950/40 text-slate-200 hover:border-cyan-300/40"
                   }`}
                 >

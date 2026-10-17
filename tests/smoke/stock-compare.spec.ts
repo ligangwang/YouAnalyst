@@ -10,6 +10,18 @@ async function mockPrices(page: Page) {
   await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { items: [] } }));
 }
 const query="symbols=AAPL,MSFT,NVDA,GOOGL,AMZN&start=2025-01-01&end=2025-12-31&style=line";
+test("comparison exports a watermarked video without a server encoding request", async ({ page }) => {
+  await mockPrices(page);
+  await page.goto('/en/compare?' + query);
+  const exporter = page.getByRole('region', { name: 'Export comparison video' });
+  await expect(exporter).toContainText('Includes YouAnalyst watermark.');
+  await exporter.getByLabel('Video duration').selectOption('10');
+  const download = page.waitForEvent('download');
+  await exporter.getByRole('button', { name: 'Export video', exact: true }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^YouAnalyst-line-2025-01-02-2025-06-02\.(mp4|webm)$/);
+  await expect(exporter.getByRole('status')).toContainText('Video ready.');
+});
 test("public comparison plays, scrubs, switches style, and shares its configuration", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read","clipboard-write"]);
   await mockPrices(page);

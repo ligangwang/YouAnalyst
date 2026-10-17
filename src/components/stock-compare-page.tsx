@@ -9,6 +9,7 @@ import { compareEmbedPath, comparisonEmbedCode, type CompareEmbedTheme } from "@
 import { comparisonPosition, snapComparisonProgress } from "@/lib/compare-chart";
 import { COMPARE_LIGHT_COLORS } from "@/lib/compare";
 import { TickerSearchInput } from "./ticker-search-input";
+import { ComparisonVideoExport } from "./comparison-video-export";
 import { LocalizedLink as Link } from "./localized-link";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./stock-compare.module.css";
@@ -148,6 +149,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       </>}
     </section>
     {!embedded && <div className={styles.shareRow}><p>{text("A comparison worth sharing.", "分享你的对比。")} <span>{text("One link. The same stocks, dates, and style.", "一个链接，保留股票、日期和样式。")}</span></p><div><button type="button" disabled={!data || loading} onClick={() => void copy()}>{text("Copy link", "复制链接")}</button><button type="button" disabled={!data || loading} onClick={() => void share()}>{text("Share", "分享")} <span aria-hidden="true">↗</span></button><button type="button" disabled={!data || loading} onClick={() => { setEmbedCode(buildEmbed()); setShowEmbed(value => !value); }} aria-expanded={showEmbed} aria-controls="comparison-embed-options">{text("Embed", "嵌入网站")}</button>{data && !loading && <a href={xPostIntentUrl({ text: `Watch ${applied.symbols.join(" vs ")} on YouAnalyst`, url: xTrackedShareUrl({campaign: "stock-comparison", url: localizedPath(comparePath({ ...applied, style }), locale)}) })} target="_blank" rel="noopener noreferrer">{text("Post to X", "分享到 X")}</a>}</div></div>}
+    {!embedded && data && !loading && <ComparisonVideoExport data={data} style={style} onStart={() => setPlaying(false)}/>}
     {!embedded && showEmbed && <section id="comparison-embed-options" className={styles.embedOptions} aria-label={text("Website embed", "网站嵌入")}>
       <h2>{text("Add this comparison to your website", "将此对比嵌入你的网站")}</h2>
       <label>{text("Widget theme", "组件主题")}<select aria-label={text("Widget theme", "组件主题")} value={theme} onChange={event => { const nextTheme = event.target.value === "light" ? "light" : "dark"; setTheme(nextTheme); setEmbedCode(buildEmbed(nextTheme)); }}><option value="dark">{text("Dark", "深色")}</option><option value="light">{text("Light", "浅色")}</option></select></label>

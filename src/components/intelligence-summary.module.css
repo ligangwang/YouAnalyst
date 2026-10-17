@@ -19,3 +19,5 @@
 
 .period { display:inline-flex; gap:1px; border:1px solid var(--ui-line,#263c4b); border-radius:4px; overflow:hidden; }
 .period button { font-size:9px; padding:2px 5px; }
+.feedback { margin-left:auto; padding:4px 6px; color:var(--ui-text,#e4edf5); white-space:nowrap; text-decoration:underline; text-underline-offset:3px; }
+.feedback:hover { background:var(--ui-selected,#203a3e); border-radius:4px; }
