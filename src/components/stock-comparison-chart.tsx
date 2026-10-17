@@ -83,6 +83,7 @@ export function StockComparisonChart({ data, progress, style, highlighted }: Pro
   }, [data, frame, height, highlighted, progress, style, width]);
 
   return <div className={styles.chart} ref={container} style={{ height }} role="img" aria-label={text("Animated stock price return comparison", "股票价格收益对比动画")}>
+    <span aria-hidden="true" style={{ position: "absolute", top: 6, right: 12, zIndex: 3, pointerEvents: "none", userSelect: "none", color: "var(--text-secondary)", opacity: .55, fontSize: 12, fontWeight: 600, letterSpacing: ".04em" }}>YouAnalyst</span>
     {!failed && <div className={styles.grid} aria-hidden="true">
       {Array.from({ length: 5 }, (_, i) => {
         const value = frame.low + (frame.high - frame.low) * i / 4, position = frame.scale(value);
