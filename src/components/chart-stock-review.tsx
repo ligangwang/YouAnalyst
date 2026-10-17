@@ -6,6 +6,7 @@ import {STOCK_SECTOR_GROUPS,stockSectors,stockSectorPeers} from '@/lib/knowledge
 import {signedPercent} from '@/lib/intelligence/price-performance';
 import type {SharedChart} from '@/lib/ui/chart-share';
 import {companyResearchPath} from '@/lib/ui/chart-share';
+import {localizedPath} from '@/lib/i18n/urls';
 import {useCompanyFollows} from './company-follow-button';
 import {useSessionCompanyWatchlist} from './use-session-company-watchlist';
 import {useLocale} from './providers/locale-provider';
@@ -69,6 +70,7 @@ export function ChartStockReview(props:Props){
       return items.length>0&&<div key={group.id} role="group" aria-label={chinese?group.zh:group.en} className={styles.sectorGroup}><strong>{chinese?group.zh:group.en}</strong>{items.map(item=><button type="button" key={item.id} onClick={()=>setSector(item.id)}>{chinese?item.zh:item.en} →</button>)}</div>;
      }):<p>{text('Sector classification is not available in the current graph.','当前图谱暂无此公司的板块分类。')}</p>}</details>
      <a href={companyResearchPath(props.companyId,locale)} onClick={close}>{text('Company research','公司研究')} ↗</a>
+     {!props.companyId.startsWith('ORG:')&&<a href={localizedPath('/compare?'+new URLSearchParams({symbols:props.companyId.replace(/^US:/,'')}).toString(),locale)} onClick={close}>{text('Compare performance','对比表现')} ↗</a>}
      <label className={styles.panelToggle}><input type="checkbox" checked={props.showWatchlist} onChange={event=>props.onShowWatchlistChange(event.target.checked)}/>{text('Watchlist','自选股')}</label>
      <hr/><strong>{text('Technical indicators','技术指标')}</strong>
      <button type="button" onClick={()=>{const anchor=props.anchor!;close();props.openAverages(anchor);}}>{text('Moving average settings','均线设置')}…</button>

@@ -24,7 +24,7 @@ export default async function AnalystWatchlistPage({
 }) {
   const { watchlistId } = await params;
   const group = await getAdminFirestore().collection("watchlists").doc(watchlistId).get();
-  if (group.get("kind") === "COMPARISON") redirect("/compare");
+  if (group.get("kind") === "COMPARISON") redirect("/compare/analyst-views");
   return <WatchlistDetailPage watchlistId={watchlistId} />;
 }
 
