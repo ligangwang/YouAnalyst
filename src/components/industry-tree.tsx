@@ -66,7 +66,7 @@ export function IndustryStructure({musicControls=false,companies,selected,onSele
   const headingId=useId();
   function toggle(id:string){
     const closing=open.includes(id);
-    setOpen(current=>closing?current.filter(key=>key!==id):[...new Set([...current,id])]);
+    setOpen(current=>current.includes(id)?current.filter(key=>key!==id):[...new Set([...current,id])]);
     if(!vertical){setFocus(closing||id==='root'?'':id);setRequest(n=>n+1);}
   }
   return <section className={`${styles.tree} ${vertical?styles.vertical:''} ${embedded?styles.embedded:''}`} aria-labelledby={headingId} data-industry-section={vertical?'vertical':'horizontal'}>

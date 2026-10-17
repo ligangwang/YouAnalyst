@@ -68,6 +68,17 @@ test('tree has depth, connected 3D wood and a complete deterministic company iti
   // Check rendered endpoints too: the writer must not replace the semantic
   // parent with the decorative trunk base when drawing root connections.
   const verticesPerStrand=positions.count/strands.length,sides=verticesPerStrand/(20*6);
+  const trunkIndex=strands.findIndex(s=>s.kind==='trunk');
+  const trunkRadii=Array.from({length:21},(_,step)=>{
+    const offset=step===20?verticesPerStrand-sides*6+2:step*sides*6;
+    const ring=Array.from({length:sides},(_,face)=>trunkIndex*verticesPerStrand+offset+face*6);
+    const centre=[0,1,2].map(axis=>ring.reduce((sum,v)=>sum+positions.getComponent(v,axis),0)/sides);
+    if(step===0)assert(centre[1]<-30,'solid trunk extends below the soil instead of fading at ground level');
+    return Math.max(...ring.map(v=>Math.hypot(...centre.map((value,axis)=>positions.getComponent(v,axis)-value))));
+  });
+  trunkRadii.forEach((radius,step)=>{if(step)assert(radius<=trunkRadii[step-1]+.001,'every upper trunk section is narrower than the one below');});
+  assert(trunkRadii[20]>trunkRadii[0]*.5,'the narrower crown retains a solid stem rather than ending in a needle');
+  assert(strands[trunkIndex].color(0)[3]>.9,'bark stays opaque at the root collar');
   for(const strand of strands.filter(s=>s.attach==='node')){
     const index=strands.indexOf(strand);
     for(const [id,offset] of [[strand.from,0],[strand.to,verticesPerStrand-sides*6+2]] as const){

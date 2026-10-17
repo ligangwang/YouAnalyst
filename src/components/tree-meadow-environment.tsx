@@ -1,10 +1,12 @@
 "use client";
 
 import {memo,useEffect,useLayoutEffect,useMemo,useRef} from 'react';
-import {BackSide,Color,DoubleSide,Euler,Float32BufferAttribute,InstancedMesh,Object3D,PlaneGeometry,Quaternion,Shape,ShapeGeometry,Vector3,type Texture} from 'three';
+import {BackSide,Color,DoubleSide,Euler,Float32BufferAttribute,InstancedMesh,Object3D,PlaneGeometry,Quaternion,Shape,ShapeGeometry,Vector3,type MeshStandardMaterial,type Texture} from 'three';
 import type {TreePoint} from '@/lib/ui/knowledge-graph/industry-tree';
 import {verticalJitter as jitter,VERTICAL_SOIL_Y} from '@/lib/ui/knowledge-graph/vertical-tree';
 import {leafClusterTexture,meadowTexture} from '@/lib/ui/knowledge-graph/leaf-texture';
+import {createMeadowClock,meadowMaterial} from '@/lib/ui/knowledge-graph/tree-cinematic-material';
+import {TreeCinematicAtmosphere} from './tree-cinematic-atmosphere';
 
 const noHit=()=>{};
 type Plant={position:[number,number,number];scale:[number,number,number];rotation:[number,number,number];color:string};
@@ -19,7 +21,7 @@ const groundHeight=(x:number,z:number)=>{
 
 // Decorative instances have no hit targets: company leaves and canvas gestures stay usable.
 // With a map, each instance is a cut-out card anchored at its bottom edge.
-function Plants({items,flower=false,leaf=false,map}:{items:Plant[];flower?:boolean;leaf?:boolean;map?:Texture|null}){
+function Plants({items,flower=false,leaf=false,map,material}:{items:Plant[];flower?:boolean;leaf?:boolean;map?:Texture|null;material:MeshStandardMaterial}){
  const ref=useRef<InstancedMesh>(null);
  const geometry=useMemo(()=>{
   if(map)return new PlaneGeometry(1,1).translate(0,.5,0);
@@ -36,9 +38,7 @@ function Plants({items,flower=false,leaf=false,map}:{items:Plant[];flower?:boole
   items.forEach((plant,i)=>{dummy.position.set(...plant.position);dummy.scale.set(...plant.scale);dummy.rotation.set(...plant.rotation);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);mesh.setColorAt(i,new Color(plant.color));});
   mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.computeBoundingSphere();
  },[items]);
- return <instancedMesh key={items.length} ref={ref} args={[geometry,undefined,items.length]} raycast={noHit}>
-  <meshStandardMaterial key={map?'card':'shape'} map={map??null} alphaTest={map?.5:0} side={DoubleSide} roughness={map?.7:.85} metalness={0} emissive={leaf?'#2f5c14':'#182c04'} emissiveIntensity={leaf?map?.08:.16:.07}/>
- </instancedMesh>;
+ return <instancedMesh key={items.length} ref={ref} args={[geometry,material,items.length]} raycast={noHit} dispose={null}/>;
 }
 
 // Keep each limb's instance buffer alive as other branches enter or leave.
@@ -47,14 +47,16 @@ function Plants({items,flower=false,leaf=false,map}:{items:Plant[];flower?:boole
 // falls into shade, so the crown reads as soft volumes of individual leaves.
 const SUN=new Vector3(.45,.8,.4).normalize(),UP=new Vector3(0,1,0);
 const LEAF_SHADE=new Color('#2b5520'),LEAF_MID=new Color('#6e9e3c'),LEAF_LIT=new Color('#e2f59a');
-// Clumps swell through the middle of the crown and shrink towards its base and
-// top, so the canopy rounds out instead of stacking into a column.
-const Canopy=memo(function Canopy({node,crown,map}:{node:TreePoint;crown:[number,number];map:Texture|null}){
+// Lower clumps spread into a broad skirt; upper clumps retain enough volume
+// for a rounded crown rather than a narrow, pointed tip.
+const Canopy=memo(function Canopy({node,crown,map,material}:{node:TreePoint;crown:[number,number];map:Texture|null;material:MeshStandardMaterial}){
  const items=useMemo(()=>{
   const [nx,y,nz]=node.position,direction=new Vector3(),facing=new Vector3(),color=new Color(),turn=new Quaternion(),twist=new Quaternion(),euler=new Euler();
-  const height=Math.min(1,Math.max(0,(y-crown[0])/(crown[1]-crown[0]||1))),swell=.72+.48*Math.sin(Math.PI*(.12+.88*height));
-  const out=Math.hypot(nx,nz)||1,x=nx+nx/out*(swell-1)*260,z=nz+nz/out*(swell-1)*260;
-  return Array.from({length:map?190:650},(_,i):Plant=>{
+  const height=Math.min(1,Math.max(0,(y-crown[0])/(crown[1]-crown[0]||1))),lower=(1-height)**2;
+  const upper=Math.max(0,(height-.65)/.35);
+  const swell=.72+.48*Math.sin(Math.PI*(.12+.88*height))+.3*lower+.46*upper*upper;
+  const out=Math.hypot(nx,nz)||1,spread=(swell-1)*260+110*lower,x=nx+nx/out*spread,z=nz+nz/out*spread;
+  return Array.from({length:map?260+Math.round(120*lower):850},(_,i):Plant=>{
    const id=`${node.id}:canopy:${i}`,lift=jitter(id,1)*2-1,a=jitter(id,2)*Math.PI*2,ring=Math.sqrt(1-lift*lift);
    direction.set(Math.cos(a)*ring,lift,Math.sin(a)*ring);
    const depth=.4+.6*Math.sqrt(jitter(id,3)),light=Math.max(0,direction.dot(SUN))*depth;
@@ -65,32 +67,43 @@ const Canopy=memo(function Canopy({node,crown,map}:{node:TreePoint;crown:[number
    facing.copy(direction).multiplyScalar(.75).addScaledVector(UP,.45).add(new Vector3(jitter(id,5)-.5,jitter(id,6)-.5,jitter(id,7)-.5).multiplyScalar(.5)).normalize();
    turn.setFromUnitVectors(UP,facing).multiply(twist.setFromAxisAngle(UP,jitter(id,10)*Math.PI*2));
    euler.setFromQuaternion(turn);
-   const s=70+jitter(id,4)*40;
+   const s=78+jitter(id,4)*44;
    return {position,scale:[s,s,s],rotation:[euler.x,euler.y,euler.z],color:'#'+color.getHexString()};
   });
  },[node,crown,map]);
- return <Plants items={items} leaf map={map}/>;
-},(a,b)=>a.node.id===b.node.id&&a.map===b.map&&a.crown[0]===b.crown[0]&&a.crown[1]===b.crown[1]&&a.node.position.every((value,i)=>value===b.node.position[i]));
+ return <Plants items={items} leaf map={map} material={material}/>;
+},(a,b)=>a.node.id===b.node.id&&a.map===b.map&&a.material===b.material&&a.crown[0]===b.crown[0]&&a.crown[1]===b.crown[1]&&a.node.position.every((value,i)=>value===b.node.position[i]));
 
 // A cumulus is a cluster of squashed puffs: tall in the middle, trailing off
 // at the ends, with a flat base. Lit from above, so the underside greys softly.
-function Cloud({seed}:{seed:number}){
- const puffs=useMemo(()=>{
-  const id=`cloud${seed}`,count=7+Math.floor(jitter(id,1)*5);
+function Clouds(){
+ const ref=useRef<InstancedMesh>(null);
+ const puffs=useMemo(()=>Array.from({length:11},(_,i)=>{
+  const id=`cloud${i}`,a=(i+jitter(id,2)*.6)/11*Math.PI*2,r=16000+jitter(id,3)*7000,s=.8+jitter(id,4)*.6,angle=-a+Math.PI/2,count=7+Math.floor(jitter(id,1)*5);
   return Array.from({length:count},(_,j)=>{
-   const along=(j/(count-1))*2-1,peak=1-along*along,size=(.55+.55*peak)*(.8+.4*jitter(id,j+10));
-   return {position:[along*1500+(jitter(id,j+20)-.5)*300,size*220+(jitter(id,j+30)-.3)*160*peak,(jitter(id,j+40)-.5)*600] as [number,number,number],scale:[size*820,size*480,size*620] as [number,number,number]};
+   const along=j/(count-1)*2-1,peak=1-along*along,size=(.55+.55*peak)*(.8+.4*jitter(id,j+10));
+   const x=(along*1500+(jitter(id,j+20)-.5)*300)*s,z=(jitter(id,j+40)-.5)*600*s;
+   return {x:Math.cos(a)*r+x*Math.cos(angle)+z*Math.sin(angle),y:5200+jitter(id)*2600+(size*220+(jitter(id,j+30)-.3)*160*peak)*s,z:Math.sin(a)*r-x*Math.sin(angle)+z*Math.cos(angle),s:size*s,angle};
   });
- },[seed]);
- return <>{puffs.map((puff,j)=><mesh key={j} position={puff.position} scale={puff.scale} raycast={noHit}><sphereGeometry args={[1,12,8]}/><meshStandardMaterial color="#ffffff" emissive="#d9e6f2" emissiveIntensity={.62} roughness={1} transparent opacity={.94} depthWrite={false}/></mesh>)}</>;
+ }).flat(),[]);
+ useLayoutEffect(()=>{
+  const mesh=ref.current;if(!mesh)return;const dummy=new Object3D();
+  puffs.forEach((puff,index)=>{dummy.position.set(puff.x,puff.y,puff.z);dummy.rotation.set(0,puff.angle,0);dummy.scale.set(puff.s*820,puff.s*480,puff.s*620);dummy.updateMatrix();mesh.setMatrixAt(index,dummy.matrix);});
+  mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();
+ },[puffs]);
+ return <instancedMesh ref={ref} args={[undefined,undefined,puffs.length]} raycast={noHit}><sphereGeometry args={[1,12,8]}/><meshStandardMaterial color="#fff8e9" emissive="#d9e6f2" emissiveIntensity={.38} roughness={1}/></instancedMesh>;
 }
 const MOUNTAIN_TONES=[['#7f9db6','#c3d4e3'],['#6b8f9c','#a3bfc6'],['#58806a','#8eae96']];
 
-export function TreeMeadowEnvironment({nodes}:{nodes:TreePoint[]}){
+export function TreeMeadowEnvironment({nodes,paused=false}:{nodes:TreePoint[];paused?:boolean}){
  const limbs=nodes.filter(node=>node.kind==='branch'&&node.layer!=='energy');
  const low=Math.min(...limbs.map(node=>node.position[1])),high=Math.max(...limbs.map(node=>node.position[1]));
  const crown=useMemo(():[number,number]=>[low,high],[low,high]);
  const leaves=useMemo(()=>leafClusterTexture(),[]);
+ const clock=useMemo(()=>createMeadowClock(),[]);
+ const foliage=useMemo(()=>meadowMaterial(clock,leaves,true),[clock,leaves]);
+ const grassMaterial=useMemo(()=>meadowMaterial(clock,null),[clock]);
+ useEffect(()=>()=>{foliage.dispose();grassMaterial.dispose();},[foliage,grassMaterial]);
  // One grass tile every ~280 units: blades and soil flecks read up close, blend into the meadow's tint far away.
  const turf=useMemo(()=>{const texture=meadowTexture();texture?.repeat.set(72,72);return texture;},[]);
  useEffect(()=>()=>{leaves?.dispose();turf?.dispose();},[leaves,turf]);
@@ -136,8 +149,8 @@ export function TreeMeadowEnvironment({nodes}:{nodes:TreePoint[]}){
  }),[]);
  useEffect(()=>()=>{terrain.dispose();mountains.forEach(geometry=>geometry.dispose());},[terrain,mountains]);
  return <>
-  <color attach="background" args={['#a9d6ee']}/>
-  <fog attach="fog" args={['#cfe4ea',9500,38000]}/>
+  <color attach="background" args={['#bdd6de']}/>
+  <fog attach="fog" args={['#e2dcc2',7500,33000]}/>
   <group name="meadow-environment">
   {/* Sky: pale, warm haze at the horizon deepening to blue overhead, with a soft halo around the sun. */}
   <mesh raycast={noHit}><sphereGeometry args={[65000,32,20]}/><shaderMaterial side={BackSide} depthWrite={false} toneMapped={false}
@@ -146,7 +159,8 @@ export function TreeMeadowEnvironment({nodes}:{nodes:TreePoint[]}){
   <mesh rotation={[-Math.PI/2,0,0]} position={[0,MEADOW_Y-60,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#769d53" roughness={1}/></mesh>
   <mesh geometry={terrain} raycast={noHit}><meshStandardMaterial vertexColors map={turf} roughness={1}/></mesh>
   {[0,Math.PI/2,Math.PI,Math.PI*1.5].map(angle=><group key={angle} rotation={[0,angle,0]}>{mountains.map((geometry,i)=><mesh key={i} position={[0,0,-23000+i*4500]} geometry={geometry} raycast={noHit}><meshStandardMaterial vertexColors roughness={1} side={DoubleSide}/></mesh>)}</group>)}
-  {Array.from({length:11},(_,i)=>{const a=(i+jitter(`cloud${i}`,2)*.6)/11*Math.PI*2,r=16000+jitter(`cloud${i}`,3)*7000,s=.8+jitter(`cloud${i}`,4)*.6;return <group key={i} position={[Math.cos(a)*r,5200+jitter(`cloud${i}`)*2600,Math.sin(a)*r]} rotation={[0,-a+Math.PI/2,0]} scale={s}><Cloud seed={i}/></group>;})}
-  <Plants items={grass}/><Plants items={flowers} flower/>{limbs.map(node=><Canopy key={node.id} node={node} crown={crown} map={leaves}/>)}
+  <Clouds/>
+  <Plants items={grass} material={grassMaterial}/><Plants items={flowers} flower material={grassMaterial}/>{limbs.map(node=><Canopy key={node.id} node={node} crown={crown} map={leaves} material={foliage}/>)}
+  <TreeCinematicAtmosphere clock={clock} paused={paused} top={Number.isFinite(high)?high:2400}/>
  </group></>;
 }

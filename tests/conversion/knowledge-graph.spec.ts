@@ -112,6 +112,47 @@ async function revealListFilters(page:Page) {
  if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+
+test('cinematic tree appears complete immediately, respects reduced motion and pauses in hidden views',async({page,isMobile})=>{
+ test.setTimeout(60000);
+ if(!isMobile)await page.setViewportSize({width:1600,height:1000});
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await page.addInitScript(()=>{
+  const firstFrame=window as typeof window&{firstTreeGrowth?:string};
+  new MutationObserver(records=>{
+   for(const record of records){
+    const state=(record.target as Element).getAttribute('data-tree-growth');
+    if(state&&firstFrame.firstTreeGrowth===undefined)firstFrame.firstTreeGrowth=state;
+   }
+  }).observe(document,{subtree:true,attributes:true,attributeFilter:['data-tree-growth']});
+ });
+ const errors:string[]=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ page.on('console',message=>{if(message.type()==='error'&&/shader|WebGLProgram|GL_INVALID/i.test(message.text()))errors.push(message.text());});
+ const members=new Set(['US:CEG','US:NVDA','US:AMD','US:MU','US:GOOGL','US:AAPL','US:MSFT','US:AMZN','US:AVGO','US:VRT']);
+ const fixture={...graph,nodes:graph.nodes.filter(node=>node.kind==='STAGE'||members.has(node.id))};
+ await page.route('**/*',route=>route.request().url().includes('/api/knowledge-graph')?route.fulfill({json:fixture}):route.request().url().includes('/api/company-fundamentals')?route.fulfill({json:{data:null}}):route.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.locator('[data-industry-section="vertical"]'),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tree-effects','cinematic');
+ await expect.poll(()=>page.evaluate(()=>(window as typeof window&{firstTreeGrowth?:string}).firstTreeGrowth)).toBe('complete');
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await expect(canvas).toHaveAttribute('data-tree-motion','reduced');
+ const reducedTime=await canvas.getAttribute('data-tree-effect-time');
+ await page.waitForTimeout(200);await expect(canvas).toHaveAttribute('data-tree-effect-time',reducedTime!);
+ await expect(tree.locator('[data-tree-company="US:NVDA"]').first()).toBeAttached();
+ await tree.screenshot({path:test.info().outputPath('cinematic-tree-overview.png')});
+ expect(errors).toEqual([]);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect(canvas).toHaveAttribute('data-tree-motion','animated');
+ await expect.poll(async()=>Number(await canvas.getAttribute('data-tree-effect-time'))).toBeGreaterThan(.1);
+ await page.getByRole('tab',{name:'Company list',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-tree-motion','paused');
+ const frozen=await canvas.getAttribute('data-tree-effect-time');
+ await page.waitForTimeout(250);await expect(canvas).toHaveAttribute('data-tree-effect-time',frozen!);
+ expect(errors).toEqual([]);
+});
 test('tree manual views remain parked through release, tab changes and company details',async({page,isMobile})=>{
  await accelerateTours(page);await shortenIdleResume(page);
  test.setTimeout(90000);
@@ -1853,40 +1894,57 @@ test('manual hierarchy centers each parent vertically over its children after ex
  await chart.screenshot({path:test.info().outputPath('centered-hierarchy.png')});
 });
 
-test('navigation: collapsing a tree branch disables its fading companies',async({page})=>{
+test('tree disclosure hides company names without changing wood, foliage or camera',async({page})=>{
  test.setTimeout(60000);
- await accelerateTours(page,0);
- // Finish entry without animation, then observe the animated exit commit.
  await page.emulateMedia({reducedMotion:'reduce'});
- const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD'].includes(n.id))};
+ const members=['US:NVDA','US:AMD','US:MU','US:MSFT'];
+ const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||members.includes(n.id))};
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
- const tree=page.locator('[data-industry-tree="vertical"]');
- await expect(tree.locator('[data-tree-node="chips"]')).toBeAttached({timeout:20000});
- await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Expand all',exact:true}).click();
- await expect(tree.locator('[data-tree-node="chips/compute/US:NVDA"]')).toBeAttached();
+ const section=page.locator('[data-industry-section="vertical"]'),tree=section.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tree-motion','reduced');
+ const chips=tree.locator('[data-tree-node="chips"]'),branch=tree.locator('[data-tree-node="chips/compute"]');
  const company=tree.locator('[data-tree-node="chips/compute/US:NVDA"]');
- await expect(company).toBeEnabled();
- await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','true');
- const motionReady=await page.evaluateHandle(()=>({ready:new Promise<void>(resolve=>{
-  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',()=>{
-   requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()));
-  },{once:true});
- })}));
- await page.emulateMedia({reducedMotion:'no-preference'});
- await motionReady.evaluate(({ready})=>ready);await motionReady.dispose();
- // Observe the exit commit directly so a busy renderer cannot skip its short
- // disabled state between two assertions.
- const disabledDuringExit=await company.evaluate(el=>new Promise<boolean>(resolve=>{
-  const observer=new MutationObserver(()=>{
-   if(el.getAttribute('data-exiting')==='true'){observer.disconnect();resolve((el as HTMLButtonElement).disabled);}
-  });
-  observer.observe(el,{attributes:true,attributeFilter:['data-exiting','disabled']});
-  (el.closest('[data-industry-tree]')!.querySelector('[data-tree-node="chips"]') as HTMLButtonElement).click();
- }));
- expect(disabledDuringExit).toBe(true);
- await expect(tree.locator('[data-tree-node="chips"]')).toHaveAttribute('aria-expanded','false');
- await expect(company).toHaveCount(0);
+ await expect(company).toBeAttached();await expect(branch).toBeAttached();
+ await expect(canvas).toHaveAttribute('data-camera','idle');
+ // HTML labels sit over the WebGL scene. Hide them for a pixel comparison of
+ // the actual tree; exercise their controls through the same click handlers.
+ const hiddenLabels=await page.addStyleTag({content:'[data-industry-tree="vertical"] [data-tree-node]{visibility:hidden!important}'});
+ await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"][data-label-visible="true"]').count()).toBeGreaterThan(0);
+ await page.waitForTimeout(500);
+ const before=await canvas.screenshot(),pose=await canvas.getAttribute('data-camera-position'),target=await canvas.getAttribute('data-camera-target');
+ const unchanged=async()=>{
+  await expect(canvas).toHaveAttribute('data-camera-position',pose!);
+  await expect(canvas).toHaveAttribute('data-camera-target',target!);
+  expect((await canvas.screenshot()).equals(before),'wood and foliage remain pixel-identical').toBe(true);
+ };
+ await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect(chips).toHaveAttribute('aria-expanded','false');
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"]').evaluateAll(els=>els.every(el=>(el as HTMLButtonElement).hidden))).toBe(true);
+ await expect(branch).toBeAttached();await unchanged();
+ await chips.evaluate((el:HTMLButtonElement)=>el.click());await expect(company).not.toHaveAttribute('hidden','');await unchanged();
+ await branch.evaluate((el:HTMLButtonElement)=>el.click());await expect(company).toHaveAttribute('hidden','');await unchanged();
+ await branch.evaluate((el:HTMLButtonElement)=>el.click());await expect(company).not.toHaveAttribute('hidden','');await unchanged();
+ await section.getByRole('button',{name:'Collapse all',exact:true}).click();
+ await expect.poll(()=>tree.locator('[data-tree-company]').evaluateAll(els=>els.every(el=>(el as HTMLButtonElement).hidden))).toBe(true);await unchanged();
+ await section.getByRole('button',{name:'Expand all',exact:true}).click();await expect(company).not.toHaveAttribute('hidden','');await unchanged();
+ const infrastructure=tree.locator('[data-tree-node="infrastructure"]');
+ const infrastructureCompanies=tree.locator('[data-tree-company][data-tree-layer="infrastructure"]');
+ await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());
+ // NVDA also belongs to Infrastructure. Collision filtering can prefer either
+ // company on phones, but opening the sector must show readable names.
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="infrastructure"][data-label-visible="true"][data-label-opacity="1"]').count()).toBeGreaterThan(0);
+ await unchanged();
+ await expect(chips).toHaveAttribute('aria-expanded','true');
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"][data-label-visible="true"]').count()).toBeGreaterThan(0);
+ await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());await expect.poll(()=>infrastructureCompanies.evaluateAll(els=>els.every(el=>(el as HTMLButtonElement).hidden))).toBe(true);await unchanged();
+ await expect(chips).toHaveAttribute('aria-expanded','true');
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="chips"][data-label-visible="true"]').count()).toBeGreaterThan(0);
+ await infrastructure.evaluate((el:HTMLButtonElement)=>el.click());
+ await expect.poll(()=>tree.locator('[data-tree-company][data-tree-layer="infrastructure"][data-label-visible="true"]').count()).toBeGreaterThan(0);await unchanged();
+ await hiddenLabels.evaluate(el=>el.parentNode?.removeChild(el));
 });
 
 

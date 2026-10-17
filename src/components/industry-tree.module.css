@@ -39,6 +39,11 @@
 .vertical .scene {height:min(90vh,1100px);min-height:780px;}
 .vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 23px color-mix(in srgb,currentColor,transparent 68%),inset 0 0 16px color-mix(in srgb,currentColor,transparent 85%);background:var(--ui-surface,#071727ee);}
 .vertical .branch {border-radius:16px;}
+/* Warm text stays legible against foliage; sector colour remains an accent. */
+.vertical .company {background:#0a151ce8;border-color:#e4f2e929;border-inline-start:2px solid currentColor;box-shadow:0 2px 8px #0005;}
+.vertical .company strong {color:#fff3df;font-weight:600;text-shadow:0 1px 2px #0008;}
+.vertical .company small {color:#d3dce4;}
+.vertical .company:hover,.vertical .company:focus-visible,.vertical .company[aria-pressed='true'] {background:#102631f2;border-color:currentColor;}
 /* The frame loop fades text before shrinking its hit target; never display:none mid-fade. */
 .vertical .branch,.vertical .company {transition:background .2s;}
 .vertical .branch[data-label-visible='false']:not([data-label-opacity]),.vertical .company[data-label-visible='false']:not([data-label-opacity]) {opacity:0;}
@@ -61,6 +66,7 @@
 @keyframes nodeExit{from{opacity:1}to{opacity:0}}
 
 .entering{animation:nodeEnter .8s ease both}.exiting{animation:nodeExit .8s ease both;pointer-events:none}
+.vertical .entering{animation:none}
 @media(prefers-reduced-motion:reduce){.entering,.exiting{animation:none}}
 .embedded{height:100%;min-height:0;border-radius:0;display:flex;flex-direction:column;position:relative}
 .embedded.vertical .scene{flex:1;height:auto;min-height:0;max-height:none}

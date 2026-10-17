@@ -161,12 +161,14 @@ test('sparse sector themes retain full decorative canopies without inventing com
     const leaves=nodes.filter(n=>n.kind==='company');
     assert.equal(leaves.length,3);
     assert.equal(nodes.filter(n=>n.kind==='branch'&&!n.decorative).length,0);
-    assert.equal(nodes.filter(n=>n.kind==='foliage').length,69);
+    const canopySlots=(6+4+4)*6;
+    assert.deepEqual(layers.map(layer=>nodes.filter(n=>n.kind==='branch'&&n.layer===layer.id).length),[6,4,4],'the lower canopy has additional boughs');
+    assert.equal(nodes.filter(n=>n.kind==='foliage').length,canopySlots-leaves.length);
     assert(nodes.filter(n=>n.decorative).every(n=>!n.company&&!n.label));
     assert.deepEqual(nodes.filter(n=>n.kind==='layer').map(n=>n.count),[1,1,1]);
     const more=layers.map(layer=>({...layer,companies:[...layer.companies,{...layer.companies[0],id:layer.companies[0].id+'-NEW'}]}));
     const fuller=layoutVerticalTree(more,new Set(['root',...more.map(l=>l.id)]),'en');
-    assert.equal(fuller.filter(n=>n.kind==='company'||n.kind==='foliage').length,72,'company additions replace decorative leaves rather than changing canopy density');
+    assert.equal(fuller.filter(n=>n.kind==='company'||n.kind==='foliage').length,canopySlots,'company additions replace decorative leaves rather than changing canopy density');
     assert.deepEqual(fuller.filter(n=>n.kind==='branch').map(n=>n.position),nodes.filter(n=>n.kind==='branch').map(n=>n.position),'wood silhouette stays independent of company coverage');
     const strands=verticalTreeStrands(nodes);
     for(const leaf of leaves){
