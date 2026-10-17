@@ -3,7 +3,7 @@
 import {memo,useEffect,useLayoutEffect,useMemo,useRef} from 'react';
 import {BackSide,Color,DoubleSide,Euler,Float32BufferAttribute,InstancedMesh,Object3D,PlaneGeometry,Quaternion,Shape,ShapeGeometry,Vector3,type MeshStandardMaterial,type Texture} from 'three';
 import type {TreePoint} from '@/lib/ui/knowledge-graph/industry-tree';
-import {verticalJitter as jitter,VERTICAL_SOIL_Y} from '@/lib/ui/knowledge-graph/vertical-tree';
+import {verticalJitter as jitter,verticalTreeCrownCap,VERTICAL_SOIL_Y} from '@/lib/ui/knowledge-graph/vertical-tree';
 import {leafClusterTexture,meadowTexture} from '@/lib/ui/knowledge-graph/leaf-texture';
 import {createMeadowClock,meadowMaterial} from '@/lib/ui/knowledge-graph/tree-cinematic-material';
 import {TreeCinematicAtmosphere} from './tree-cinematic-atmosphere';
@@ -95,16 +95,14 @@ function Clouds(){
 }
 const MOUNTAIN_TONES=[['#7f9db6','#c3d4e3'],['#6b8f9c','#a3bfc6'],['#58806a','#8eae96']];
 
-export function TreeMeadowEnvironment({nodes,paused=false}:{nodes:TreePoint[];paused?:boolean}){
+export function TreeMeadowEnvironment({nodes,layoutNodes=nodes,paused=false}:{nodes:TreePoint[];layoutNodes?:TreePoint[];paused?:boolean}){
  const limbs=nodes.filter(node=>node.kind==='branch'&&node.layer!=='energy');
- const low=Math.min(...limbs.map(node=>node.position[1])),high=Math.max(...limbs.map(node=>node.position[1]));
+ const allLimbs=layoutNodes.filter(node=>node.kind==='branch'&&node.layer!=='energy');
+ const low=Math.min(...allLimbs.map(node=>node.position[1])),high=Math.max(...allLimbs.map(node=>node.position[1]));
  const crown=useMemo(():[number,number]=>[low,high],[low,high]);
  // A leafy cap joins the upper limb clusters across the exposed trunk tip.
- // It is scenery only, independent of company labels and sector disclosure.
- const crownCap=useMemo(()=>{
-  const top=nodes.filter(node=>node.kind==='layer'&&node.layer!=='energy').reduce<TreePoint|undefined>((highest,node)=>!highest||node.position[1]>highest.position[1]?node:highest,undefined);
-  return top?{...top,id:'tree-crown-cap',kind:'foliage' as const,decorative:true,label:'',position:[top.position[0],top.position[1]+40,top.position[2]] as [number,number,number]}:undefined;
- },[nodes]);
+ // It closes with its owning sector, just like that sector's limb clusters.
+ const crownCap=useMemo(()=>verticalTreeCrownCap(nodes),[nodes]);
  const leaves=useMemo(()=>leafClusterTexture(),[]);
  const clock=useMemo(()=>createMeadowClock(),[]);
  const foliage=useMemo(()=>meadowMaterial(clock,leaves,true),[clock,leaves]);

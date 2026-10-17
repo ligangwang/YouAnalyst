@@ -8,7 +8,7 @@ test.beforeAll(async () => {
     import React from 'react'; import {createRoot} from 'react-dom/client';
     import {ComparisonVideoExport} from './src/components/comparison-video-export';
     import {LocaleProvider} from './src/components/providers/locale-provider';
-    import {drawComparisonVideoFrame} from './src/lib/compare-video';
+    import {drawComparisonVideoFrame} from './src/lib/ui/compare-video';
     const params=new URLSearchParams(location.search), data=${JSON.stringify(data)};
     if(params.get('style')==='bar')data.series=Array.from({length:10},(_,i)=>({symbol:['NVDA','MSFT','AAPL','AMZN','GOOGL','META','TSLA','AMD','AVGO','XSHG:600519'][i],values:[0,35-i*7,70-i*13]}));
     document.documentElement.dataset.theme=params.get('theme')||'dark';

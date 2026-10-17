@@ -10,6 +10,30 @@ export const VERTICAL_SOIL_Y=-30;
 const ROOT_LAYERS=new Set(['energy']);
 const CROWN_LAYER='applications';
 
+// Keep trunk/sector anchors available for reopening. Descendants belong to
+// their parent path, not to a height band or a globally unique company ID.
+// Decorative canopy branches have no disclosure button of their own.
+export function visibleVerticalTreeNodes(nodes:TreePoint[],open:ReadonlySet<string>):TreePoint[]{
+  const byId=new Map(nodes.map(node=>[node.id,node]));
+  return nodes.filter(node=>{
+    if(node.kind==='root'||node.kind==='layer')return true;
+    let parent=node.parent?byId.get(node.parent):undefined;
+    while(parent){
+      if(!parent.decorative&&!open.has(parent.id))return false;
+      parent=parent.parent?byId.get(parent.parent):undefined;
+    }
+    return true;
+  });
+}
+
+export function verticalTreeCrownCap(nodes:TreePoint[]):TreePoint|undefined{
+  const top=nodes.filter(node=>node.kind==='layer'&&node.layer!=='energy').reduce<TreePoint|undefined>((highest,node)=>!highest||node.position[1]>highest.position[1]?node:highest,undefined);
+  // The cap belongs to the original top sector; never move it to a lower,
+  // still-open sector when its own limbs have been collapsed.
+  if(!top||!nodes.some(node=>node.kind==='branch'&&node.layer===top.id))return;
+  return {...top,id:'tree-crown-cap',parent:top.id,kind:'foliage',decorative:true,label:'',position:[top.position[0],top.position[1]+40,top.position[2]]};
+}
+
 // The trunk sways gently and returns to centre at the base and the crown.
 export function verticalTrunkX(y:number,top:number){
   const t=Math.min(1,Math.max(0,y/Math.max(top,1)));

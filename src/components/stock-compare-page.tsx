@@ -2,13 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { COMPARE_COLORS, comparePath, compareSymbol, latestCompareDate, returnLabel, validateCompareConfig, yearsBefore, type CompareConfig, type CompareData, type CompareStyle } from "@/lib/compare";
+import { COMPARE_COLORS, comparePath, compareSymbol, latestCompareDate, returnLabel, type CompareConfig, type CompareData, type CompareStyle } from "@/lib/compare";
+import { EARLIEST_PLAYBACK_DATE, MAX_PLAYBACK_YEARS, playbackStartDate, validatePlaybackConfig } from "@/lib/ui/compare-range";
 import { localizedPath } from "@/lib/i18n/urls";
 import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
 import { compareEmbedPath, comparisonEmbedCode, type CompareEmbedTheme } from "@/lib/compare-embed";
 import { comparisonPosition, snapComparisonProgress } from "@/lib/compare-chart";
 import { COMPARE_LIGHT_COLORS } from "@/lib/compare";
-import { TickerSearchInput } from "./ticker-search-input";
+import { CompanySearch } from "./company-search";
 import { ComparisonVideoExport } from "./comparison-video-export";
 import { LocalizedLink as Link } from "./localized-link";
 import { useLocale } from "./providers/locale-provider";
@@ -24,7 +25,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const { text, locale } = useLocale();
   const [draft, setDraft] = useState(initial), [applied, setApplied] = useState(initial);
   const [style, setStyle] = useState<CompareStyle>(initial.style);
-  const [query, setQuery] = useState(""), [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState("");
   const [data, setData] = useState<CompareData | null>(null), [error, setError] = useState(""), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
   const [progress, setProgress] = useState(1), [playing, setPlaying] = useState(false), [speed, setSpeed] = useState(1);
   const [highlighted, setHighlighted] = useState<string | null>(null), [shareUrl, setShareUrl] = useState("");
@@ -37,7 +38,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
 
   useEffect(() => {
     const controller = new AbortController();
-    const invalid = validateCompareConfig(applied);
+    const invalid = validatePlaybackConfig(applied);
     setLoading(true); setData(null); setError(""); setPlaying(false); setProgress(1); setHighlighted(null);
     if (invalid) { setError(invalid); setLoading(false); return; }
     void fetch(`/api/compare?${requestKey}`, { signal: controller.signal }).then(async response => {
@@ -73,13 +74,13 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     if (!compareSymbol(symbol)) { setNotice(text("Choose a listed stock ticker.", "请选择上市股票代码。")); return; }
     if (draft.symbols.includes(symbol)) { setNotice(text("This stock is already selected.", "已选择此股票。")); return; }
     if (draft.symbols.length >= 10) { setNotice(text("You can compare up to 10 stocks.", "最多可对比 10 只股票。")); return; }
-    setDraft({ ...draft, symbols: [...draft.symbols, symbol] }); setQuery(""); setNotice("");
+    setDraft({ ...draft, symbols: [...draft.symbols, symbol] }); setNotice("");
   }
   function updateAddress(config: CompareConfig) {
     window.history.replaceState(null, "", localizedPath(embedded ? compareEmbedPath(config, theme) : comparePath(config), locale));
   }
   function apply() {
-    const invalid = validateCompareConfig(draft);
+    const invalid = validatePlaybackConfig(draft);
     if (invalid) { setNotice(invalid); return; }
     setApplied({ ...draft, style }); setNotice(""); setShareUrl(""); setShowEmbed(false); updateAddress({ ...draft, style });
   }
@@ -117,22 +118,22 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const results = ranking && <section className={styles.results}><h2>{text("At a glance", "表现一览")} <span>{fraction > 0 ? text("Interpolated", "插值") : data?.dates[index]}</span></h2><table><caption className="sr-only">{fraction > 0 ? text("Animated returns between stored closes", "收盘数据之间的动画插值收益") : text("Price returns at the selected playback date", "回放所选日期的价格收益")}</caption><thead><tr><th>{text("Rank", "排名")}</th><th>{text("Stock", "股票")}</th><th>{text("Price return", "价格收益")}</th></tr></thead><tbody>{ranking.map((row, i) => <tr key={row.symbol}><td>{i + 1}</td><td><i style={{ background: row.color }}/>{row.symbol}</td><td>{returnLabel(row.value)}</td></tr>)}</tbody></table></section>;
 
   return <main className={`${styles.page}${embedded ? ` ${styles.embedded}` : ""}`} data-embed-theme={embedded ? theme : undefined}>
-    {!embedded && <header className={styles.header}><div><p className={styles.eyebrow}>{text("THE MARKET, IN MOTION", "市场，动起来")}</p><h1>{text("Compare stocks", "股票对比")}</h1><p>{text("Pick your stocks. Set the starting line. Watch the story unfold.", "选择股票，设定起点，回放市场表现。")}</p></div><Link href="/compare/analyst-views" className={styles.subtle}>{text("Analyst comparisons", "分析师观点对比")} ↗</Link></header>}
-    {embedded && <h1 className="sr-only">{text("Compare stocks", "股票对比")}</h1>}
+    {!embedded && <header className={styles.header}><div><p className={styles.eyebrow}>{text("THE MARKET, IN MOTION", "市场，动起来")}</p><h1>{text("Stock performance playback", "股票表现回放")}</h1><p>{text("Pick your stocks. Set the starting line. Watch the story unfold.", "选择股票，设定起点，回放市场表现。")}</p></div><Link href="/compare/analyst-views" className={styles.subtle}>{text("Analyst comparisons", "分析师观点对比")} ↗</Link></header>}
+    {embedded && <h1 className="sr-only">{text("Stock performance playback", "股票表现回放")}</h1>}
     {!embedded && <section ref={editor} id="comparison-editor" className={styles.editor} aria-label={text("Edit comparison", "编辑对比")}>
       <div className={styles.editorHeading}><h2>{text("Your lineup", "对比股票")}</h2><span>{draft.symbols.length} / 10</span></div>
       <div className={styles.chips}>{draft.symbols.map((symbol, i) => <button key={symbol} type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><i style={{ background: COMPARE_COLORS[i] }}/>{symbol}<span aria-hidden="true">×</span></button>)}</div>
       <div className={styles.settings}>
-        <div className={styles.search}><TickerSearchInput predictionSearch value={query} onChange={setQuery} onSelectSuggestion={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)} label={text("Add a stock", "添加股票")} showHelperText={false}/><button type="button" onClick={() => addStock(query)} disabled={!query.trim() || draft.symbols.length >= 10}>{text("Add", "添加")}</button></div>
-        <label>{text("From", "起始日期")}<input type="date" value={draft.start} max={draft.end} onChange={e => setDraft({ ...draft, start: e.target.value })}/></label>
-        <label>{text("To", "结束日期")}<input type="date" value={draft.end} max={latestCompareDate()} onChange={e => setDraft({ ...draft, end: e.target.value })}/></label>
+        <div className={styles.search}><span>{text("Add a stock", "添加股票")}</span><CompanySearch inline owner="chart" typeToSearch={false} clearOnSelect onSelect={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)}/></div>
+        <label>{text("From", "起始日期")}<input type="date" value={draft.start} min={playbackStartDate(draft.end)} max={draft.end} onChange={e => setDraft({ ...draft, start: e.target.value })}/></label>
+        <label>{text("To", "结束日期")}<input type="date" value={draft.end} min={draft.start > EARLIEST_PLAYBACK_DATE ? draft.start : EARLIEST_PLAYBACK_DATE} max={latestCompareDate()} onChange={e => setDraft({ ...draft, end: e.target.value })}/></label>
         <button type="button" className={styles.primary} onClick={apply} disabled={!draft.symbols.length}>{text("Compare", "开始对比")} <span aria-hidden="true">→</span></button>
       </div>
-      <div className={styles.presets}><span>{text("Quick range", "快捷区间")}</span>{[1, 3, 5, 10].map(years => <button type="button" key={years} onClick={() => setDraft({ ...draft, start: yearsBefore(draft.end || initial.end, years) })}>{years}Y</button>)}{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
+      <div className={styles.presets}><span>{text("Quick range", "快捷区间")}</span>{[1, 3, MAX_PLAYBACK_YEARS].map(years => <button type="button" key={years} onClick={() => setDraft({ ...draft, start: playbackStartDate(draft.end || initial.end, years) })}>{years}Y</button>)}<span>{text("Up to 5 years · Available from Dec 31, 2020", "最长 5 年 · 数据始于 2020 年 12 月 31 日")}</span>{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
     </section>}
     {!embedded && <p className={styles.notice} role="status">{notice}</p>}
     <section className={styles.stage} aria-label={text("Performance chart", "表现图表")} aria-busy={loading}>
-      <div className={styles.stageHeading}><div><p className={styles.eyebrow}>{text("PRICE RETURN", "价格收益")}</p><h2>{text("Every stock. Same starting line.", "相同起点，逐一对比。")}</h2></div><div className={styles.styleSwitch} role="group" aria-label={text("Animation style", "动画样式")}>{(["line", "bar"] as const).map(option => <button key={option} type="button" aria-pressed={style === option} onClick={() => changeStyle(option)}>{option === "line" ? text("Line race", "折线竞赛") : text("Bar race", "条形竞赛")}</button>)}</div></div>
+      <div className={styles.stageHeading}><div><p className={styles.eyebrow}>{text("PRICE RETURN", "价格收益")}</p></div><div className={styles.styleSwitch} role="group" aria-label={text("Animation style", "动画样式")}>{(["line", "bar"] as const).map(option => <button key={option} type="button" aria-pressed={style === option} onClick={() => changeStyle(option)}>{option === "line" ? text("Line race", "折线竞赛") : text("Bar race", "条形竞赛")}</button>)}</div></div>
       {loading ? <div className={styles.empty} role="status">{text("Loading daily closes…", "正在加载每日收盘价…")}</div> : error ? <div className={styles.empty}><p role="alert">{error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>{text("Retry", "重试")}</button></div> : data && <>
         <div className={styles.dateRow}><time data-testid="comparison-date">{data.dates[index]}</time><span>{fraction > 0 ? `→ ${data.dates[next]} · ${text("Interpolated", "插值")}` : text(data.frequency + " closes", data.frequency === "Daily" ? "每日收盘" : data.frequency === "Weekly" ? "每周收盘" : "每月收盘")}</span></div>
         <Chart data={data} progress={visibleProgress} style={style} highlighted={highlighted} colors={colors} onUnavailable={handleUnavailable}/>
