@@ -132,7 +132,7 @@ test('page search is directly visible, header focuses it and suggestions stay be
  page.on('request', request => { const url = new URL(request.url()); if (url.pathname === '/api/tickers/search' && !url.searchParams.get('q')) countRequests++; });
  await open(page);
  await expect(input(page)).toBeVisible();await expect(input(page)).not.toBeFocused();
- await expect(page.getByText('Search the 123 companies we currently cover.', {exact:false})).toBeVisible();
+ await expect(page.getByText('123 companies covered · More coming soon', {exact:true})).toBeVisible();
  expect(countRequests).toBe(1);
  await page.getByRole('button',{name:'Search company',exact:true}).click();
  await expect(input(page)).toBeFocused();await expect(page.getByRole('dialog')).toHaveCount(0);

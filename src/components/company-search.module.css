@@ -6,6 +6,7 @@
 .trigger.iconOnly{min-width:36px;padding:6px;}.trigger.iconOnly>span{display:none;}@media(pointer:coarse){.trigger.iconOnly{min-width:44px;min-height:44px;}}
 
 .embedded{width:min(460px,100%);margin-inline:auto;}
+.panel .coverageHint{margin:12px 2px 10px;line-height:1.5;}
 .inline.panel{position:relative;width:100%;max-height:none;overflow:visible;padding:0;border:0;border-radius:0;box-shadow:none;background:transparent;}
 .searchField{position:relative;}
 .searchField>svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ui-muted,#8ca4b9);}
