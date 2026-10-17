@@ -39,8 +39,8 @@ test("public comparison plays, scrubs, switches style, and shares its configurat
   await expect(page.getByTestId("chart-watermark")).toBeVisible();
   await page.evaluate(()=>window.scrollTo({top:0,behavior:"instant"}));
   await page.screenshot({path:"test-results/compare-desktop.png",fullPage:true});
-  await page.getByRole("button",{name:"Bar race",exact:true}).click();
-  await expect(page.getByRole("button",{name:"Bar race",exact:true})).toHaveAttribute("aria-pressed","true");
+  await page.getByRole("button",{name:"Bar",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Bar",exact:true})).toHaveAttribute("aria-pressed","true");
   await page.getByRole("button",{name:"Copy link",exact:true}).click();
   const copied=await page.evaluate(()=>navigator.clipboard.readText());
   const shared=new URL(copied);
@@ -50,7 +50,7 @@ test("public comparison plays, scrubs, switches style, and shares its configurat
   const xLink=new URL((await page.getByRole("link",{name:"Post to X"}).getAttribute("href"))!);
   expect(new URL(xLink.searchParams.get("url")!).searchParams.get("style")).toBe("bar");
   await page.goto(copied);
-  await expect(page.getByRole("button",{name:"Bar race",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(page.getByRole("button",{name:"Bar",exact:true})).toHaveAttribute("aria-pressed","true");
   await expect(page.getByTestId("comparison-date")).toHaveText("2025-06-02");
 });
 test("ten stocks fit on mobile, enforce the limit, and can be removed", async ({ page }) => {
@@ -60,11 +60,12 @@ test("ten stocks fit on mobile, enforce the limit, and can be removed", async ({
   await page.goto("/en/compare?"+query.replace("AAPL,MSFT,NVDA,GOOGL,AMZN",symbols));
   await expect(page.getByRole("table")).toBeVisible();
   await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ id: "IBM", symbol: "IBM", name: "IBM", market: "US" }] } }));
+  await page.getByRole("button",{name:"Selected stocks",exact:true}).click();
   await page.locator('main').getByRole("combobox",{name:"Search company",exact:true}).fill("IBM");
   await page.getByRole("option",{name:/IBM/}).click();
   await expect(page.getByRole("status").filter({hasText:"You can compare up to 10 stocks."})).toBeVisible();
   await expect(page.getByRole("button",{name:"Remove IBM",exact:true})).toHaveCount(0);
-  await page.getByRole("button",{name:"Bar race",exact:true}).click();
+  await page.getByRole("button",{name:"Bar",exact:true}).click();
   await expect(page.locator("canvas")).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.evaluate(()=>window.scrollTo({top:0,behavior:"instant"}));
@@ -99,7 +100,7 @@ test("default selection is five stocks and works without signing in",async({page
   await page.goto("/en/compare");
   const params=new URL((await request).url()).searchParams;
   expect(params.get("symbols")).toBe("AAPL,MSFT,NVDA,GOOGL,AMZN");
-  await expect(page.getByRole("button",{name:"Line race",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(page.getByRole("button",{name:"Line",exact:true})).toHaveAttribute("aria-pressed","true");
   await expect(page.getByRole("table")).toBeVisible();
 });
 test("a browser without WebGL still shows readable returns",async({page})=>{
@@ -118,6 +119,7 @@ test("Chinese listings can be found and selected through the comparison picker",
   await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ id: "XSHG:600519", symbol: "600519", name: "贵州茅台", exchange: "SSE", micCode: "XSHG", type: "Common Stock", market: "CN_A" }] } }));
   await page.goto("/en/compare?" + query);
   const search = page.waitForRequest(request => new URL(request.url()).pathname === "/api/tickers/search" && new URL(request.url()).searchParams.has("q"));
+  await page.getByRole("button",{name:"Selected stocks",exact:true}).click();
   await page.locator('main').getByRole("combobox", { name: "Search company", exact: true }).fill("茅台");
   expect(new URL((await search).url()).searchParams.get("scope")).toBe("covered");
   await page.getByRole("option", { name: /贵州茅台/ }).click();
@@ -150,7 +152,7 @@ test("copied widget works inside a foreign website with its theme, watermark and
   await widget.getByRole("button", { name: "Pause animation", exact: true }).click();
   await widget.getByRole("slider", { name: "Comparison timeline" }).fill("0.59");
   await expect(widget.getByTestId("comparison-date")).toHaveText("2025-03-03");
-  await widget.getByRole("button", { name: "Bar race", exact: true }).click();
+  await widget.getByRole("button", { name: "Bar", exact: true }).click();
   await expect(widget.getByTestId("chart-watermark")).toBeVisible();
   await expect(widget.getByRole("link", { name: "Open in YouAnalyst" })).toHaveAttribute("href", /\/en\/compare\?.*style=bar/);
   await widget.getByText("View returns table", { exact: true }).click();
