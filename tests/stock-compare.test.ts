@@ -1,11 +1,41 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildComparison, comparePath, parseCompareConfig, validateCompareConfig, yearsBefore, type CompareConfig } from "../src/lib/compare";
-import { comparisonFrame } from "../src/lib/compare-chart";
+import { comparisonFrame, comparisonPosition, snapComparisonProgress } from "../src/lib/compare-chart";
+import { compareEmbedPath, comparisonEmbedCode, comparisonEmbedHeight } from "../src/lib/compare-embed";
 import { mapTimelinePrice, timelineSplits } from "../src/lib/ui/company-timeline";
 import { loadStockComparison } from "../src/lib/compare-service";
 import type { Firestore } from "firebase-admin/firestore";
 const config: CompareConfig = { symbols: ["AAPL", "NVDA"], start: "2025-01-01", end: "2025-12-31", style: "line" };
+
+test("paused frames use an actual close, including floating-point boundary positions", () => {
+  const data = { dates: ["2025-01-02", "2025-01-03"], series: [{ symbol: "AAPL", values: [0, 20] }], frequency: "Daily" as const, source: "Test" };
+  assert.equal(comparisonFrame(data, .5, "line", 800, 420).values[0], 10);
+  const paused = comparisonFrame(data, snapComparisonProgress(.5, 2), "line", 800, 420);
+  assert.equal(paused.index, 0);
+  assert.equal(paused.values[0], 0);
+  for (let count = 2; count <= 200; count++) {
+    for (let index = 0; index < count; index++) {
+      const position = comparisonPosition(index / (count - 1), count);
+      assert.equal(position.index, index);
+      assert.equal(position.fraction, 0);
+    }
+  }
+});
+
+test("iframe code preserves the comparison, locale and theme using HTML-safe URLs", () => {
+  const value = { ...config, symbols: ["AAPL", "XSHG:600519"], style: "bar" as const };
+  const path = compareEmbedPath(value, "light");
+  const url = new URL(path, "https://youanalyst.com");
+  assert.deepEqual(parseCompareConfig(url.searchParams), value);
+  assert.equal(url.searchParams.get("theme"), "light");
+  const code = comparisonEmbedCode(value, "light", "zh-CN", "https://youanalyst.com");
+  assert.match(code, /src="https:\/\/youanalyst.com\/zh-cn\/compare\/embed\?/);
+  assert.match(code, /&amp;theme=light/);
+  assert.match(code, /width="100%"/);
+  assert.match(code, /loading="lazy"/);
+  assert.ok(comparisonEmbedHeight(10) > comparisonEmbedHeight(5));
+});
 
 test("share links round-trip ten stocks, fixed dates and bar style", () => {
   const value = {...config, symbols: ["AAPL","NVDA","MSFT","AMZN","GOOGL","META","TSLA","AMD","AVGO","XSHG:600519"],style:"bar" as const};

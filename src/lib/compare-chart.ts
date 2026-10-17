@@ -1,8 +1,19 @@
 import type { CompareData, CompareStyle } from "./compare";
 
+export function comparisonPosition(progress: number, count: number) {
+  const raw = Math.max(0, Math.min(1, progress)) * Math.max(0, count - 1);
+  // Snapped fractions may multiply back to just below an integer.
+  const position = Math.abs(raw - Math.round(raw)) < 1e-9 ? Math.round(raw) : raw;
+  const index = Math.floor(position), next = Math.min(index + 1, Math.max(0, count - 1));
+  return { position, index, next, fraction: position - index };
+}
+
+export function snapComparisonProgress(progress: number, count: number) {
+  return count < 2 ? 0 : comparisonPosition(progress, count).index / (count - 1);
+}
+
 export function comparisonFrame(data: CompareData, progress: number, style: CompareStyle, width: number, height: number) {
-  const position = Math.max(0, Math.min(1, progress)) * (data.dates.length - 1);
-  const index = Math.floor(position), next = Math.min(index + 1, data.dates.length - 1), fraction = position - index;
+  const { position, index, next, fraction } = comparisonPosition(progress, data.dates.length);
   const values = data.series.map(s => s.values[index] + (s.values[next] - s.values[index]) * fraction);
   let low = 0, high = 0;
   for (const series of data.series) for (const value of series.values) { low = Math.min(low, value); high = Math.max(high, value); }

@@ -1,5 +1,6 @@
 export const DEFAULT_SYMBOLS = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN"];
 export const COMPARE_COLORS = ["#22d3ee", "#a78bfa", "#34d399", "#fb923c", "#f472b6", "#facc15", "#60a5fa", "#f87171", "#a3e635", "#e2e8f0"];
+export const COMPARE_LIGHT_COLORS = ["#087e99", "#7540b7", "#087b56", "#ba4d08", "#b52e76", "#896500", "#2563b0", "#bc3343", "#537c12", "#475569"];
 export type CompareStyle = "line" | "bar";
 export function compareSymbol(value: string): boolean {
   return /^(?:[A-Z][A-Z0-9.-]{0,11}|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(value);

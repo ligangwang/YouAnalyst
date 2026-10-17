@@ -23,6 +23,8 @@ test("public comparison plays, scrubs, switches style, and shares its configurat
   await page.getByRole("button",{name:"Pause animation",exact:true}).click();
   await page.getByRole("slider",{name:"Comparison timeline"}).fill("0.5");
   await expect(page.getByTestId("comparison-date")).toHaveText("2025-03-03");
+  await expect(page.getByRole("row").filter({ hasText: "AAPL" }).locator("td").last()).toHaveText("+10.00%");
+  await expect(page.getByTestId("chart-watermark")).toBeVisible();
   await page.evaluate(()=>window.scrollTo({top:0,behavior:"instant"}));
   await page.screenshot({path:"test-results/compare-desktop.png",fullPage:true});
   await page.getByRole("button",{name:"Bar race",exact:true}).click();
@@ -94,4 +96,67 @@ test("a browser without WebGL still shows readable returns",async({page})=>{
   await page.goto("/en/compare?"+query);
   await expect(page.getByText("Animation is unavailable in this browser. Returns are shown in the table below.")).toBeVisible();
   await expect(page.getByRole("table")).toBeVisible();
+});
+
+test("Chinese listings can be found and selected through the comparison picker", async ({ page }) => {
+  await mockPrices(page);
+  await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { items: [{ id: "XSHG:600519", symbol: "600519", name: "贵州茅台", exchange: "SSE", micCode: "XSHG", type: "Common Stock", market: "CN_A" }] } }));
+  await page.goto("/en/compare?" + query);
+  const search = page.waitForRequest(request => new URL(request.url()).pathname === "/api/tickers/search");
+  await page.getByLabel("Add a stock", { exact: true }).fill("茅台");
+  expect(new URL((await search).url()).searchParams.get("scope")).toBe("calls");
+  await page.getByRole("option", { name: /贵州茅台/ }).click();
+  await expect(page.getByRole("button", { name: "Remove XSHG:600519", exact: true })).toBeVisible();
+});
+
+test("copied widget works inside a foreign website with its theme, watermark and playback", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write", "local-network-access"]);
+  await mockPrices(page);
+  await page.goto("/en/compare?" + query);
+  await page.getByRole("button", { name: "Embed", exact: true }).click();
+  await page.getByLabel("Widget theme", { exact: true }).selectOption("light");
+  await page.getByRole("button", { name: "Copy embed code", exact: true }).click();
+  const code = await page.evaluate(() => navigator.clipboard.readText());
+  expect(code).toContain("&amp;theme=light");
+  // Use a different origin and grant test-only loopback access for Chromium's
+  // local-network checks; production embeds use the public YouAnalyst origin.
+  const publisher = "http://localhost:3018/comparison";
+  await page.route(publisher, route => route.fulfill({ contentType: "text/html", body: `<!doctype html><html><body style="margin:0"><div style="width:390px;max-width:100%">${code}</div></body></html>` }));
+  await page.goto(publisher);
+  const widget = page.frameLocator("iframe");
+  await expect(widget.getByTestId("chart-watermark")).toBeVisible();
+  await expect(widget.locator("[data-embed-theme]")).toHaveAttribute("data-embed-theme", "light");
+  await expect(widget.getByRole("navigation")).toHaveCount(0);
+  await expect(widget.getByLabel("Edit comparison", { exact: true })).toHaveCount(0);
+  await expect(widget.getByTestId("comparison-date")).toHaveText("2025-06-02");
+  await widget.getByRole("button", { name: "Play animation", exact: true }).click();
+  await expect(widget.getByRole("button", { name: "Pause animation", exact: true })).toBeVisible();
+  await widget.getByRole("button", { name: "Pause animation", exact: true }).click();
+  await widget.getByRole("slider", { name: "Comparison timeline" }).fill("0.59");
+  await expect(widget.getByTestId("comparison-date")).toHaveText("2025-03-03");
+  await widget.getByRole("button", { name: "Bar race", exact: true }).click();
+  await expect(widget.getByTestId("chart-watermark")).toBeVisible();
+  await expect(widget.getByRole("link", { name: "Open in YouAnalyst" })).toHaveAttribute("href", /\/en\/compare\?.*style=bar/);
+  await widget.getByText("View returns table", { exact: true }).click();
+  await expect(widget.getByRole("row").filter({ hasText: "AAPL" }).locator("td").last()).toHaveText("+10.00%");
+  expect(await widget.locator("html").evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.locator("iframe").screenshot({ path: "test-results/compare-widget-light.png" });
+});
+
+test("a narrow dark ten-stock widget has a readable fallback without WebGL", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 1100 });
+  await page.addInitScript(`const original=HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext=function(type,...args){
+      return type==='webgl'||type==='webgl2'?null:original.call(this,type,...args);
+    };`);
+  await mockPrices(page);
+  const symbols = "AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA,AMD,AVGO,INTC";
+  await page.goto("/zh-cn/compare/embed?" + query.replace("AAPL,MSFT,NVDA,GOOGL,AMZN", symbols).replace("style=line", "style=bar") + "&theme=dark");
+  await expect(page.locator("[data-embed-theme]")).toHaveAttribute("data-embed-theme", "dark");
+  await expect(page.getByTestId("chart-watermark")).toBeVisible();
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByRole("row")).toHaveCount(11);
+  await expect(page.getByRole("link", { name: "在 YouAnalyst 中打开" })).toHaveAttribute("href", /\/zh-cn\/compare\?/);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
