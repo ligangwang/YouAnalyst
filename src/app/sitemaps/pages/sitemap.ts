@@ -110,7 +110,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .map((doc) => ({ id: doc.id, data: doc.data() as Record<string, unknown> }))
       .filter(({ data }) => {
         const userId = typeof data.userId === "string" ? data.userId : "";
-        return !data.archivedAt && !!userId && publicUsers.has(userId);
+        // Comparison groups redirect to /compare/analyst-views instead of serving a watchlist page.
+        return data.kind !== "COMPARISON" && !data.archivedAt && !!userId && publicUsers.has(userId);
       })
       .map(({ id, data }) => ({
         url: absoluteUrl(`/analysts/${data.userId as string}/watchlists/${id}`),
