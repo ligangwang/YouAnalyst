@@ -22,6 +22,7 @@ function run(extra: Record<string,string> = {}) {
 test('routine rollout verifies all triggers without IAM or resource provisioning',()=>{
   const result=run(); assert.ifError(result.error); assert.equal(result.status,0,result.stderr);
   assert.doesNotMatch(result.stderr,/GCLOUD .*add-iam-policy-binding|GCLOUD services enable|GCLOUD .* create /);
+  assert.match(result.stderr,/CACHE_EVENT_AUDIENCE=https:\/\/web.run.app\/api\/internal\/cache-changes/);
   assert.equal(result.stderr.match(/NODE scripts\/verify-cache-trigger.mjs/g)?.length,12);
   assert.match(result.stderr,/NODE scripts\/activate-change-cache.mjs\n/);
 });

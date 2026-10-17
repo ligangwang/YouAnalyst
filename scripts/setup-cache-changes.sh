@@ -18,7 +18,7 @@ else
 fi
 url="$(gcloud run services describe "$CACHE_WEB_SERVICE" --project "$GCP_PROJECT_ID" --region "$region" --format='value(status.url)')"
 [[ "$url" == https://*.run.app ]] || { echo 'Invalid receiver URL' >&2; exit 1; }
-gcloud run services update "$CACHE_WEB_SERVICE" --project "$GCP_PROJECT_ID" --region "$region" --update-env-vars "CACHE_EVENT_AUDIENCE=$url" --quiet
+gcloud run services update "$CACHE_WEB_SERVICE" --project "$GCP_PROJECT_ID" --region "$region" --update-env-vars "CACHE_EVENT_AUDIENCE=$url/api/internal/cache-changes" --quiet
 location="$(gcloud firestore databases describe --database='(default)' --project "$GCP_PROJECT_ID" --format='value(locationId)')"
 [[ -n "$location" ]] || { echo 'Missing Firestore location' >&2; exit 1; }
 for collection in companies company_relationships company_fundamentals eod_prices corporate_actions earnings_records collectors events users directory_syncs predictions watchlists; do
