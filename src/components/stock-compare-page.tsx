@@ -25,7 +25,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const { text, locale } = useLocale();
   const [draft, setDraft] = useState(initial), [applied, setApplied] = useState(initial);
   const [style, setStyle] = useState<CompareStyle>(initial.style);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(""), [shareNotice, setShareNotice] = useState("");
   const [editorOpen, setEditorOpen] = useState(() => Boolean(validatePlaybackConfig(initial)));
   const [data, setData] = useState<CompareData | null>(null), [error, setError] = useState(""), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
   const [progress, setProgress] = useState(1), [playing, setPlaying] = useState(false), [speed, setSpeed] = useState(1);
@@ -84,16 +84,16 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     const invalid = validatePlaybackConfig(draft);
     if (invalid) { setNotice(invalid); return; }
     setEditorOpen(false);
-    setApplied({ ...draft, style }); setNotice(""); setShareUrl(""); setShowEmbed(false); updateAddress({ ...draft, style });
+    setApplied({ ...draft, style }); setNotice(""); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress({ ...draft, style });
   }
   function changeStyle(next: CompareStyle) {
-    setStyle(next); setShareUrl(""); setShowEmbed(false); updateAddress({ ...applied, style: next });
+    setStyle(next); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress({ ...applied, style: next });
   }
   function currentUrl() { return new URL(localizedPath(comparePath({ ...applied, style }), locale), window.location.origin).href; }
   async function copy() {
     const url = currentUrl();
-    try { await navigator.clipboard.writeText(url); setNotice(text("Comparison link copied.", "已复制对比链接。")); }
-    catch { setShareUrl(url); setNotice(text("Copy the link below to share this comparison.", "复制下方链接分享此对比。")); }
+    try { await navigator.clipboard.writeText(url); setShareNotice(text("Comparison link copied.", "已复制对比链接。")); }
+    catch { setShareUrl(url); setShareNotice(text("Copy the link below to share this comparison.", "复制下方链接分享此对比。")); }
   }
   async function share() {
     const url = currentUrl();
@@ -109,8 +109,8 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   async function copyEmbed() {
     const code = buildEmbed();
     setEmbedCode(code); setShowEmbed(true);
-    try { await navigator.clipboard.writeText(code); setNotice(text("Embed code copied.", "已复制嵌入代码。")); }
-    catch { setNotice(text("Copy the embed code below.", "请复制下方嵌入代码。")); }
+    try { await navigator.clipboard.writeText(code); setShareNotice(text("Embed code copied.", "已复制嵌入代码。")); }
+    catch { setShareNotice(text("Copy the embed code below.", "请复制下方嵌入代码。")); }
   }
   const visibleProgress = data && !playing ? snapComparisonProgress(progress, data.dates.length) : progress;
   const { index, next, fraction } = comparisonPosition(visibleProgress, data?.dates.length ?? 0);
@@ -155,7 +155,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         {!embedded && <ComparisonVideoExport data={data} style={style} onStart={() => setPlaying(false)}/>}
       </>}
     </section>
-    {!embedded && <div className={styles.shareRow}><p>{text("A comparison worth sharing.", "分享你的对比。")} <span>{text("One link. The same stocks, dates, and style.", "一个链接，保留股票、日期和样式。")}</span></p><div><button type="button" disabled={!data || loading} onClick={() => void copy()}>{text("Copy link", "复制链接")}</button><button type="button" disabled={!data || loading} onClick={() => void share()}>{text("Share", "分享")} <span aria-hidden="true">↗</span></button><button type="button" disabled={!data || loading} onClick={() => { setEmbedCode(buildEmbed()); setShowEmbed(value => !value); }} aria-expanded={showEmbed} aria-controls="comparison-embed-options">{text("Embed", "嵌入网站")}</button>{data && !loading && <a href={xPostIntentUrl({ text: `Watch ${applied.symbols.join(" vs ")} on YouAnalyst`, url: xTrackedShareUrl({campaign: "stock-comparison", url: localizedPath(comparePath({ ...applied, style }), locale)}) })} target="_blank" rel="noopener noreferrer">{text("Post to X", "分享到 X")}</a>}</div></div>}
+    {!embedded && <div className={styles.shareRow}><p>{text("A comparison worth sharing.", "分享你的对比。")} <span>{text("One link. The same stocks, dates, and style.", "一个链接，保留股票、日期和样式。")}</span><span className={styles.notice} role="status">{shareNotice}</span></p><div><button type="button" disabled={!data || loading} onClick={() => void copy()}>{text("Copy link", "复制链接")}</button><button type="button" disabled={!data || loading} onClick={() => void share()}>{text("Share", "分享")} <span aria-hidden="true">↗</span></button><button type="button" disabled={!data || loading} onClick={() => { setEmbedCode(buildEmbed()); setShowEmbed(value => !value); }} aria-expanded={showEmbed} aria-controls="comparison-embed-options">{text("Embed", "嵌入网站")}</button>{data && !loading && <a href={xPostIntentUrl({ text: `Watch ${applied.symbols.join(" vs ")} on YouAnalyst`, url: xTrackedShareUrl({campaign: "stock-comparison", url: localizedPath(comparePath({ ...applied, style }), locale)}) })} target="_blank" rel="noopener noreferrer">{text("Post to X", "分享到 X")}</a>}</div></div>}
     {!embedded && showEmbed && <section id="comparison-embed-options" className={styles.embedOptions} aria-label={text("Website embed", "网站嵌入")}>
       <h2>{text("Add this comparison to your website", "将此对比嵌入你的网站")}</h2>
       <label>{text("Widget theme", "组件主题")}<select aria-label={text("Widget theme", "组件主题")} value={theme} onChange={event => { const nextTheme = event.target.value === "light" ? "light" : "dark"; setTheme(nextTheme); setEmbedCode(buildEmbed(nextTheme)); }}><option value="dark">{text("Dark", "深色")}</option><option value="light">{text("Light", "浅色")}</option></select></label>

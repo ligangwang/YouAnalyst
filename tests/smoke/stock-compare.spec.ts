@@ -42,6 +42,10 @@ test("public comparison plays, scrubs, switches style, and shares its configurat
   await page.getByRole("button",{name:"Bar",exact:true}).click();
   await expect(page.getByRole("button",{name:"Bar",exact:true})).toHaveAttribute("aria-pressed","true");
   await page.getByRole("button",{name:"Copy link",exact:true}).click();
+  const feedback=page.getByRole("status").filter({hasText:"Comparison link copied."});
+  await expect(feedback).toBeVisible();
+  const feedbackBox=await feedback.boundingBox(),copyBox=await page.getByRole("button",{name:"Copy link",exact:true}).boundingBox();
+  expect(Math.abs(feedbackBox!.y-copyBox!.y)).toBeLessThan(150);
   const copied=await page.evaluate(()=>navigator.clipboard.readText());
   const shared=new URL(copied);
   expect(shared.searchParams.get("style")).toBe("bar");
@@ -49,6 +53,13 @@ test("public comparison plays, scrubs, switches style, and shares its configurat
   expect(shared.searchParams.get("start")).toBe("2025-01-01");
   const xLink=new URL((await page.getByRole("link",{name:"Post to X"}).getAttribute("href"))!);
   expect(new URL(xLink.searchParams.get("url")!).searchParams.get("style")).toBe("bar");
+  await page.evaluate(() => { Object.defineProperty(navigator.clipboard, "writeText", { value: async () => { throw new Error("Clipboard unavailable"); } }); });
+  await page.getByRole("button",{name:"Copy link",exact:true}).click();
+  const fallback=page.getByRole("status").filter({hasText:"Copy the link below to share this comparison."});
+  await expect(fallback).toBeVisible();
+  await expect(page.getByRole("textbox",{name:"Shareable comparison link",exact:true})).toHaveValue(copied);
+  const fallbackBox=await fallback.boundingBox();
+  expect(Math.abs(fallbackBox!.y-copyBox!.y)).toBeLessThan(150);
   await page.goto(copied);
   await expect(page.getByRole("button",{name:"Bar",exact:true})).toHaveAttribute("aria-pressed","true");
   await expect(page.getByTestId("comparison-date")).toHaveText("2025-06-02");
