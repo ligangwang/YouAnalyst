@@ -25,6 +25,8 @@ test('website-only changes skip workers and worker inputs select their images',(
   assert.equal(backgroundJobTarget(['src/components/admin-jobs-page.tsx','docs/github-actions.md']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/ui/knowledge-graph/tree-tour.ts']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/future-chart-helper.ts']),'none');
+  assert.equal(backgroundJobTarget(['src/lib/compare-video.ts','src/lib/ui/compare-video.ts','src/components/comparison-video-export.tsx','scripts/background-job-changes.mjs']),'none');
+  assert.equal(backgroundJobTarget(['src/lib/ui/compare-video.ts','src/lib/events/classification.ts']),'all');
   assert.equal(backgroundJobTarget(['src/lib/company-timeline.ts','src/lib/knowledge-graph/tree-tour.ts','src/lib/ui/company-timeline.ts','scripts/background-job-changes.mjs']),'none');
   assert.equal(backgroundJobTarget(['src/lib/ui/company-timeline.ts','src/lib/events/classification.ts']),'all');
   assert.equal(backgroundJobTarget(['scripts/fetch-cn-annual.py']),'fundamentals');

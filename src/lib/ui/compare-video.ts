@@ -1,5 +1,5 @@
-import { COMPARE_COLORS, COMPARE_LIGHT_COLORS, returnLabel, type CompareData, type CompareStyle } from './compare';
-import { comparisonFrame } from './compare-chart';
+import { COMPARE_COLORS, COMPARE_LIGHT_COLORS, returnLabel, type CompareData, type CompareStyle } from '../compare';
+import { comparisonFrame } from '../compare-chart';
 
 type VideoOptions = { data: CompareData; style: CompareStyle; seconds: number; light: boolean; chinese: boolean; signal: AbortSignal; onProgress: (progress: number) => void };
 

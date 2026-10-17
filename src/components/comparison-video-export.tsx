@@ -20,7 +20,7 @@ export function ComparisonVideoExport({ data, style, onStart }: { data: CompareD
     setDownload(null);
     setProgress(0); setMessage(''); onStart();
     try {
-      const { recordComparisonVideo } = await import('@/lib/compare-video');
+      const { recordComparisonVideo } = await import('@/lib/ui/compare-video');
       const blob = await recordComparisonVideo({ data, style, seconds, light: document.documentElement.dataset.theme === 'light', chinese: locale === 'zh-CN', signal: controller.signal, onProgress: value => { if (active.current === controller) setProgress(Math.floor(value * 100)); } });
       if (active.current !== controller || controller.signal.aborted) return;
       const url = URL.createObjectURL(blob), link = document.createElement('a');

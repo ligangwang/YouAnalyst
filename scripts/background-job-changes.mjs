@@ -11,6 +11,7 @@ export const UI_LIBRARY_ROOT = 'src/lib/ui/';
 // shared path makes it subject to the normal worker-dependency rules again.
 const retiredUiPaths = new Set([
   'src/lib/company-timeline.ts',
+  'src/lib/compare-video.ts',
   ...['vertical-tree','vertical-tree-geometry','tree-tour','tour-motion','label-fade','intro-orbit','industry-tree','hierarchy-tour'].map(name=>`src/lib/knowledge-graph/${name}.ts`),
 ]);
 export function backgroundJobTarget(paths) {
