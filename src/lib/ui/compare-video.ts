@@ -12,7 +12,7 @@ export function drawComparisonVideoFrame(ctx: CanvasRenderingContext2D, data: Co
   const frame = comparisonFrame(data, progress, style, chartWidth, chartHeight);
   ctx.fillStyle = light ? '#f4f7fa' : '#07111d'; ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = foreground; ctx.font = '600 30px sans-serif';
-  ctx.fillText(chinese ? '股票价格收益对比' : 'Stock price return comparison', 48, 52);
+  ctx.fillText('PRICE RETURN', 48, 52);
   ctx.font = '600 22px sans-serif'; ctx.fillText(data.dates[frame.index], 48, 88);
   ctx.textAlign = 'right'; ctx.fillStyle = muted; ctx.font = '600 22px sans-serif'; ctx.fillText('YouAnalyst', width - 48, 52); ctx.textAlign = 'left';
   ctx.save(); ctx.translate(48, 112);

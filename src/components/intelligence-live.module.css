@@ -75,3 +75,7 @@
 @media(max-width:850px){.hasTimeline.hasTimeline{height:auto;min-height:650px}.hasTimeline>[role=tabpanel]{flex:0 0 360px}.timelineDock{max-height:340px}}
 @media(max-width:850px){.timelineDock:has([data-chart-watchlist] tbody tr){max-height:620px;}}
 @media(max-width:850px){.hasTimeline .graphViewport[data-chart-size=compact]>.graphStage>[role=tabpanel]{flex:0 0 360px;}}
+
+@media(max-width:850px){.regionWorkspace .layerSectionLabel.layerSectionLabel{display:flex}}
+
+@media(max-width:850px){.regionWorkspace .layerNavigation.layerNavigation{max-height:none;overflow:visible}}
