@@ -24,6 +24,7 @@ export function CompanyResearchOverview({ company, fundamentals, comparison, gra
         <Link href="/">YouAnalyst</Link><span aria-hidden="true">/</span><Link href="/companies"><UiText text={"Companies"} /></Link><span aria-hidden="true">/</span><span className="text-slate-300">{company.ticker}</span>
       </nav>
       <CompanyHeading name={company.name} names={company.names} ticker={company.ticker} country={company.country} />
+      {company.listingStatus !== "PRIVATE" && <Link href={`/compare?${new URLSearchParams({ symbols: company.ticker })}`} className="mt-4 inline-block rounded-lg border border-cyan-400/30 px-4 py-2 text-sm text-cyan-200"><UiText text="Compare performance"/> ↗</Link>}
       <section id="company-information" className="scroll-mt-24 py-6">
         <dl className="flex flex-wrap gap-x-8 gap-y-4 text-sm">
           {facts.map(([label, value]) => <div key={label}><dt className="text-slate-400"><UiText text={label} /></dt><dd className="mt-1 font-medium text-slate-100">{value}</dd></div>)}

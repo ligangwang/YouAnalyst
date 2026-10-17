@@ -107,9 +107,10 @@ test("signing in restores account language without restoring market filters when
 for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tools accessible (${language})`, async ({page}) => {
  await page.goto(`http://bilingual.test/?lang=${language}`);
  const nav=page.locator("header nav").first();
- await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["Explore","Companies","Calendar","Watchlist"] : ["探索","公司","日历","自选股"]);
- await expect(nav.getByRole("link").nth(2)).toHaveAttribute("href",language === "en" ? "/en/calendar" : "/zh-cn/calendar");
- await expect(nav.getByRole("link").nth(3)).toHaveAttribute("href",/watchlists\/following$/);
+ await expect(nav.getByRole("link")).toHaveText(language === "en" ? ["Explore","Companies","Compare","Calendar","Watchlist"] : ["探索","公司","股票对比","日历","自选股"]);
+ await expect(nav.getByRole("link",{name:language === "en" ? "Compare" : "股票对比",exact:true})).toHaveAttribute("href",language === "en" ? "/en/compare" : "/zh-cn/compare");
+ await expect(nav.getByRole("link",{name:language === "en" ? "Calendar" : "日历",exact:true})).toHaveAttribute("href",language === "en" ? "/en/calendar" : "/zh-cn/calendar");
+ await expect(nav.getByRole("link",{name:language === "en" ? "Watchlist" : "自选股",exact:true})).toHaveAttribute("href",/watchlists\/following$/);
  const menu=page.locator("header details").first();
  await expect(menu.getByRole("link")).toHaveCount(0);
  await menu.locator("summary").click();
@@ -131,6 +132,8 @@ test("primary navigation marks the current section on localized pages and compan
     ["/en/companies", "Companies"],
     ["/en/company/US%3AMU", "Companies"],
     ["/en/ticker/MU", "Companies"],
+    ["/en/compare", "Compare"],
+    ["/zh-cn/compare", "股票对比"],
     ["/en/feed", null],
     ["/en/calendar", "Calendar"],
     ["/en/watchlists/following", "Watchlist"],

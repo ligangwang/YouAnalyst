@@ -15,6 +15,7 @@ import "./globals.css";
 import { headers } from "next/headers";
 import { parseLocale } from "@/lib/locale";
 import { displayPreferencesBootstrap } from "@/lib/preferences";
+import { LocaleProvider } from "@/components/providers/locale-provider";
 
 const GOOGLE_ANALYTICS_ID = process.env.GOOGLE_ANALYTICS_ID;
 
@@ -64,7 +65,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = parseLocale((await headers()).get("x-ya-language")) ?? "en";
+  const requestHeaders = await headers();
+  const locale = parseLocale(requestHeaders.get("x-ya-language")) ?? "en";
+  const embedded = requestHeaders.get("x-ya-pathname") === "/compare/embed";
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -80,11 +83,11 @@ export default async function RootLayout({
       className={`${sora.variable} ${ibmPlexSans.variable} h-full antialiased`}
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: displayPreferencesBootstrap }} />
+        {!embedded && <script dangerouslySetInnerHTML={{ __html: displayPreferencesBootstrap }} />}
         <meta name="youanalyst-analytics" content="disabled" suppressHydrationWarning />
       </head>
       <body className="min-h-full flex flex-col">
-        {GOOGLE_ANALYTICS_ID && isProductionAppEnvironment() ? (
+        {!embedded && GOOGLE_ANALYTICS_ID && isProductionAppEnvironment() ? (
           <Script id="google-analytics" strategy="beforeInteractive">
             {analyticsBootstrap(GOOGLE_ANALYTICS_ID, true)}
           </Script>
@@ -92,7 +95,7 @@ export default async function RootLayout({
         <Script id="website-jsonld" type="application/ld+json" strategy="beforeInteractive">
           {JSON.stringify(websiteJsonLd)}
         </Script>
-        <AppProviders locale={locale}>
+        {embedded ? <LocaleProvider locale={locale}>{children}</LocaleProvider> : <AppProviders locale={locale}>
           <EnvironmentBanner />
           <FollowingReturnTracker />
           <a href="#page-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-cyan-200 focus:p-3 focus:text-slate-950"><UiText text={"Skip to content"} /></a>
@@ -110,7 +113,7 @@ export default async function RootLayout({
               <p className="mt-2 text-slate-500">© {new Date().getFullYear()}<UiText text={" YouAnalyst. "} /><UiText text={"All rights reserved."} /></p>
             </div>
           </footer>
-        </AppProviders>
+        </AppProviders>}
       </body>
     </html>
   );
