@@ -26,7 +26,7 @@ test("public comparison plays, scrubs, switches style, and shares its configurat
   await context.grantPermissions(["clipboard-read","clipboard-write"]);
   await mockPrices(page);
   await page.goto("/en/compare?"+query);
-  await expect(page.getByRole("heading",{name:"Compare stocks",exact:true})).toBeVisible();
+  await expect(page.getByRole("heading",{name:"Stock performance playback",exact:true})).toBeVisible();
   await expect(page.getByTestId("comparison-date")).toHaveText("2025-06-02");
   await expect(page.locator("canvas")).toBeVisible();
   await page.getByRole("button",{name:"Play animation",exact:true}).click();
