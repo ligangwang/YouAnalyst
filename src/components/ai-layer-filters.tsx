@@ -10,7 +10,7 @@ export function AiLayerFilters({layers,selected,onSelect}:{layers:TreeLayer[];se
   const [expanded,setExpanded]=useState<string[]>([]);
   const id=useId();
   return <nav className={styles.layers} aria-label={text('AI layers','AI 产业层级')}>
-    {layers.map(layer=>{
+    {[...layers].reverse().map(layer=>{
       const open=expanded.includes(layer.id),label=chinese?layer.zh:layer.en;
       return <section key={layer.id} className={styles.layer}>
         <div className={styles.heading}>
