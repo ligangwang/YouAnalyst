@@ -6,6 +6,8 @@ import { verifyCandidate } from '../../scripts/verify-release-candidate.mjs';
 test('website release validates a pinned candidate before changing traffic', () => {
   const build = readFileSync('cloudbuild.yaml', 'utf8');
   assert.match(build, /--no-traffic/);
+  assert.match(build, /--update-env-vars/);
+  assert.doesNotMatch(build, /--set-env-vars/); // Preserve CACHE_EVENT_AUDIENCE on the pinned candidate.
   assert.match(build, /--tag\s+- candidate/);
   const deploy = readFileSync('scripts/deploy-cloud-run.sh', 'utf8');
   assert(deploy.indexOf('node scripts/verify-release-candidate.mjs') < deploy.indexOf('gcloud run services update-traffic'));
