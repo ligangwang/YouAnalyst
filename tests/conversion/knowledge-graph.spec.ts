@@ -2097,14 +2097,16 @@ test('tree reset reopens every layer after a manual zoom and collapse',async({pa
  const pose=await canvas.getAttribute('data-camera-target');await pastIdleResume(page);
  expect(await canvas.getAttribute('data-camera-target')).toBe(pose);await expect(canvas).toHaveAttribute('data-tour','stopped');
  const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toHaveAttribute('aria-expanded','true');
+ // Use browser actionability checks: a direct DOM click is silently ignored
+ // while an animated Html label is disabled during a scene commit.
  // Explicitly open a globally collapsed sector so the following activation
  // tests collapse rather than the first-click reveal of distance-culled names.
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(chips).toHaveAttribute('aria-expanded','false');
- await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await chips.click();
  await expect(chips).toHaveAttribute('aria-expanded','true',{timeout:20000});
  await expect(canvas).toHaveAttribute('data-tree-disclosed-layers',/chips/);
- await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await chips.click();
  await expect(chips).toHaveAttribute('aria-expanded','false');
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
