@@ -9,8 +9,8 @@ export type FirestoreOperationLog = Record<string, unknown>;
 const instrumented = new WeakMap<object, Firestore>();
 const originals = new WeakMap<object, object>();
 const processRunId = randomUUID();
-const collectionPath = (path: string) => path.split('/').map((part, i) => i % 2 ? '*' : part).join('/');
-const documentCollection = (path: string) => collectionPath(path.split('/').slice(0, -1).join('/'));
+const collectionPath = (path: string = '(unknown)') => path.split('/').map((part, i) => i % 2 ? '*' : part).join('/');
+const documentCollection = (path: string = '(unknown)/*') => collectionPath(path.split('/').slice(0, -1).join('/'));
 function caller() {
   return (new Error().stack?.split('\n').slice(2).find(line =>
     !line.includes('firestore-observability') && !line.includes('node_modules') && !line.includes('node:')) ?? 'unknown')
@@ -75,11 +75,11 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         const invoke = (): any => Reflect.apply(member, object, args.map(unwrap));
         if (method === 'collection' || method === 'collectionGroup') {
           const result = invoke();
-          return wrap(result, 'query', { collection: method === 'collectionGroup' ? `group:${args[0]}` : collectionPath(result.path), clauses: [] });
+          return wrap(result, 'query', { collection: method === 'collectionGroup' ? `group:${args[0]}` : collectionPath(result.path ?? String(args[0])), clauses: [] });
         }
         if (method === 'doc') {
           const result = invoke();
-          return wrap(result, 'doc', { collection: documentCollection(result.path), clauses: [] });
+          return wrap(result, 'doc', { collection: result.path ? documentCollection(result.path) : kind === 'query' ? shape.collection : documentCollection(String(args[0])), clauses: [] });
         }
         if (['where', 'orderBy', 'limit', 'limitToLast', 'offset', 'select', 'startAt', 'startAfter', 'endAt', 'endBefore', 'withConverter', 'count', 'aggregate'].includes(method)) {
           const detail = method === 'where' ? `${String(args[0])} ${typeof args[1] === 'string' ? args[1] : ''} ?`
@@ -105,7 +105,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         }
         if (['set', 'update', 'delete', 'create'].includes(method) && ['batch', 'transaction'].includes(kind)) {
           const result = invoke();
-          pending.push({ operation: method, collection: documentCollection(args[0].path), caller: site });
+          pending.push({ operation: method, collection: metadata.get(args[0])?.shape.collection ?? documentCollection(args[0]?.path), caller: site });
           return result === object ? proxy : result;
         }
         if (method === 'get' || method === 'getAll' || method === 'commit' || ['set', 'update', 'delete', 'create', 'add'].includes(method)) {

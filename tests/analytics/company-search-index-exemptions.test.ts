@@ -13,7 +13,10 @@ test('index maintenance defers obsolete search exemptions until explicitly enabl
   const injected=(name:string)=>name==='node:fs'?{readFileSync:()=>JSON.stringify(config)}:name==='node:child_process'?{spawnSync:(command:string,args:string[])=>{assert.equal(command,'gcloud');commands.push(args);return {status:0,stdout:'',stderr:''};}}:realRequire(name);
   const evaluated={exports:{}};
   new Function('require','module','exports','process','console',bundle.outputFiles[0].text)(injected,evaluated,evaluated.exports,fixtureProcess,{log:()=>{},error:(message:unknown)=>assert.fail(String(message))});
-  assert.equal(commands.length,enabled?config.fieldOverrides.filter((field:{collectionGroup:string})=>field.collectionGroup==='companies').length:0);
-  for(const command of commands){assert(command.includes('--disable-indexes'));assert(command.includes('--collection-group=companies'));assert(!command.includes('searchPrefixes'));assert(!command.includes('symbolLower'));}
+  const composites=commands.filter(command=>command.includes('composite'));
+  assert.equal(composites.length,config.indexes.filter((index:{collectionGroup:string})=>index.collectionGroup==='companies').length);
+  const fields=commands.filter(command=>command.includes('fields'));
+  assert.equal(fields.length,enabled?config.fieldOverrides.filter((field:{collectionGroup:string})=>field.collectionGroup==='companies').length:0);
+  for(const command of fields){assert(command.includes('--disable-indexes'));assert(command.includes('--collection-group=companies'));assert(!command.includes('searchPrefixes'));assert(!command.includes('symbolLower'));}
  }
 });
