@@ -18,5 +18,6 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
   console.log(`Candidate ${revision} verified before traffic promotion.`);
 }
 if(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await verifyCandidate({url:process.env.CANDIDATE_URL,revision:process.env.CANDIDATE_REVISION,commit:process.env.GIT_SHA});
+  verifyCandidate({url:process.env.CANDIDATE_URL,revision:process.env.CANDIDATE_REVISION,commit:process.env.GIT_SHA})
+    .catch(error => { console.error(error.message); process.exitCode = 1; });
 }
