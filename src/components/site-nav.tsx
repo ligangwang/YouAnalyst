@@ -147,9 +147,8 @@ export function SiteNav() {
   const t = useNavText();
   const { text } = useLocale();
   const focus = <>
-    <span className="whitespace-nowrap font-medium text-slate-300">{text('AI · Robotics · Space', 'AI · 机器人 · 航天')}</span>
-    <span className="text-slate-500">{' — '}</span>
-    <span>{text('Technology stocks & company analysis', '科技股与公司分析')}</span>
+    <span className="font-medium text-slate-300">{text('Investment Intelligence. Reimagined.', '重新定义投资智慧')}</span>
+    <span className="mt-0.5 hidden text-[11px] leading-4 text-slate-400 lg:block">{text('AI · Robotics · Space — More coming soon.', 'AI · 机器人 · 太空 —— 更多即将上线。')}</span>
   </>;
   const pathname = unlocalizedPath(usePathname());
   const theme = parseCompanyTheme(useIndustryBrowseParam("theme"));
@@ -207,7 +206,7 @@ export function SiteNav() {
     <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/85 backdrop-blur">
       <div className="mx-auto w-full max-w-screen-2xl px-4 py-3">
         <div className="flex items-center justify-between gap-1 sm:gap-3">
-          <div className="flex items-center gap-5">
+          <div className="flex min-w-0 items-center gap-3 xl:gap-5">
             <Link href="/" className="inline-flex shrink-0 items-center">
               <BrandLogo
                 mobile
@@ -217,7 +216,7 @@ export function SiteNav() {
                 className="hidden h-10 w-auto lg:block"
               />
             </Link>
-            <p className="hidden shrink-0 whitespace-nowrap text-xs text-slate-400 min-[1536px]:block">{focus}</p>
+            <p className="hidden min-w-0 max-w-[260px] text-xs leading-4 text-slate-400 lg:block">{focus}</p>
           </div>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-3">
@@ -242,14 +241,13 @@ export function SiteNav() {
           </div>
         </div>
 
+        <p className="mt-1 pl-1 text-xs leading-5 text-slate-400 lg:hidden">{focus}</p>
         <nav aria-label={ui("Mobile navigation")} className="mt-1 flex flex-wrap items-center text-sm text-slate-200 lg:hidden">
           <div className="flex min-w-0 flex-wrap items-center min-[360px]:gap-0.5 min-[400px]:gap-1">
             {navItems.map(item => <Link key={item.href} href={item.href} aria-current={isPrimaryNavActive(pathname, item.href) ? "page" : undefined} className="shrink-0 whitespace-nowrap px-1 py-3 hover:text-cyan-200 aria-[current=page]:text-white aria-[current=page]:underline aria-[current=page]:decoration-cyan-300/80 aria-[current=page]:decoration-1 aria-[current=page]:underline-offset-8 max-[359px]:text-[13px] min-[360px]:px-1.5 min-[400px]:px-2">{t(item.label)}</Link>)}
           </div>
           <div className="ml-auto shrink-0"><MoreMenu admin={showAdminLink} /></div>
         </nav>
-        {/* Match the visible lettering inset inside the logo SVG. */}
-        <p className="mt-1 pl-1 text-xs leading-5 text-slate-400 lg:pl-2 min-[1536px]:hidden">{focus}</p>
       </div>
       <PreferenceError />
     </header>
