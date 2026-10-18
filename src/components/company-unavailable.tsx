@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Locale } from "@/lib/locale";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 
 export function CompanyUnavailable({ label, locale = "en" }: { label?: string; locale?: Locale }) {
   const text = (en: string, zh: string) => locale === "zh-CN" ? zh : en;

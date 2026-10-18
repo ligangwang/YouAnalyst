@@ -2,7 +2,7 @@
 import Link from "next/link";
 import type { ComponentProps } from "react";
 import { useLocale } from "./providers/locale-provider";
-import { isLocalizedPage, localizedPath, unlocalizedPath } from "@/lib/i18n/urls";
+import { isLocalizedPage, localizedPath, unlocalizedPath } from "@/lib/ui/i18n/urls";
 
 export function LocalizedLink({ href, ...props }: ComponentProps<typeof Link>) {
   const { locale } = useLocale();

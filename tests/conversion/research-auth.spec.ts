@@ -19,7 +19,7 @@ test.beforeAll(async () => {
         import AuthRoutePage from "./src/app/auth/page";
         import { FollowedCompaniesPage } from "./src/components/followed-companies-page";
         import { LocaleProvider } from "./src/components/providers/locale-provider";
-        import { pathLocale, unlocalizedPath } from "./src/lib/i18n/urls";
+        import { pathLocale, unlocalizedPath } from "./src/lib/ui/i18n/urls";
         const root = createRoot(document.getElementById("root"));
         async function render() {
           const url = new URL(window.location.href);

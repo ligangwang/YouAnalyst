@@ -8,7 +8,7 @@ import { UiText, useUiText } from "@/components/ui-text";
 import { useLocale } from "@/components/providers/locale-provider";
 import { companyName } from "@/lib/knowledge-graph/model";
 import { researchCompanyUrl } from "@/lib/knowledge-graph/research-view";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import { chinaCompanyId } from "@/lib/market-companies/routes";
 
 import Link from "next/link";

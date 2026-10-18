@@ -1,5 +1,5 @@
 import { FollowingReturnTracker } from "@/components/following-return-tracker";
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 
 import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";
@@ -33,7 +33,7 @@ const ibmPlexSans = localFont({
 
 const pageMetadata: Metadata = {
   metadataBase: getSiteUrl(),
-  title: "YouAnalyst | Company research, connected.",
+  title: "YouAnalyst | Investment Intelligence. Reimagined.",
   description: "Explore company relationships, inspect filing sources, and save companies for your next research session.",
   applicationName: "YouAnalyst",
   alternates: {
@@ -43,12 +43,12 @@ const pageMetadata: Metadata = {
     type: "website",
     url: "/",
     siteName: "YouAnalyst",
-    title: "YouAnalyst | Company research, connected.",
+    title: "YouAnalyst | Investment Intelligence. Reimagined.",
     description: "Follow source-linked market developments in a live feed, explore companies, and track your investment views.",
   },
   twitter: {
     card: "summary",
-    title: "YouAnalyst | Company research, connected.",
+    title: "YouAnalyst | Investment Intelligence. Reimagined.",
     description: "Explore company relationships, inspect filing sources, and save companies for your next research session.",
   },
   robots: isProductionAppEnvironment()

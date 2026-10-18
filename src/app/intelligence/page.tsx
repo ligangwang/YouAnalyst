@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { IntelligenceLoadingShell } from '@/components/intelligence-loading-shell';
 import { initialSnapshotWithinBudget } from '@/lib/intelligence/initial-snapshot';
 import { LiveInvestmentIntelligence } from '@/components/live-investment-intelligence';
-import { localizedMetadata } from '@/lib/i18n/server';
+import { localizedMetadata } from '@/lib/ui/i18n/server';
 import { loadIntelligenceSnapshot } from '@/lib/intelligence/service';
 import { parseCompanyTheme } from '@/lib/company-themes/model';
 export const dynamic='force-dynamic';

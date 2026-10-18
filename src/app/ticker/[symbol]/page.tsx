@@ -2,7 +2,7 @@ import { permanentRedirect, notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { CompanyTickerContent, companyTickerMetadata } from "@/components/company-ticker-route";
 import { chinaCompanyId } from "@/lib/market-companies/routes";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import { canonicalCompanyPath } from '@/lib/market-companies/slug-resolver';
 export const dynamic = "force-dynamic";
 function decodeSymbol(symbol: string) {

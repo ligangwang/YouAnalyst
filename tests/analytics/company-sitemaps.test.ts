@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COMPANY_SITEMAP_BUCKETS, companyBucketPrefix, companySitemapPath, companySitemapXml } from "../../src/lib/i18n/company-sitemaps";
+import { COMPANY_SITEMAP_BUCKETS, companyBucketPrefix, companySitemapPath, companySitemapXml } from "../../src/lib/ui/i18n/company-sitemaps";
 
 test("US and A-share IDs fall into exactly one sitemap range", () => {
   for (const id of ["US:NVDA", "US:AMD", "US:BRK.B", "US:0TEST", "XSHG:688041", "XSHG:600584", "XSHE:002837", "XSHE:300308"]) {

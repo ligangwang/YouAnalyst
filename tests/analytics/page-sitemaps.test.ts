@@ -39,6 +39,8 @@ function assertCanonicalPublicEntries(entries: MetadataRoute.Sitemap) {
   assert.equal(new Set(paths).size, paths.length);
   for (const locale of ["en", "zh-cn"]) {
     assert.ok(paths.includes(`/${locale}/calendar`));
+    assert.ok(paths.includes(`/${locale}/compare`));
+    assert.ok(!paths.includes(`/${locale}/compare/embed`));
     assert.ok(paths.includes(`/${locale}/daily/calls`));
     assert.ok(!paths.includes(`/${locale}/daily`));
     assert.ok(!paths.includes(`/${locale}/watchlists`));

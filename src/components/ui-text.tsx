@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale } from "./providers/locale-provider";
-import { translateUi } from "@/lib/i18n/translate";
+import { translateUi } from "@/lib/ui/i18n/translate";
 import type { ReactNode } from "react";
 
 /** Only authored UI text belongs here; never pass user posts or source excerpts. */

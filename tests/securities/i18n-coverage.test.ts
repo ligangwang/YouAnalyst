@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import { translateUi } from "../../src/lib/i18n/translate";
+import { translateUi } from "../../src/lib/ui/i18n/translate";
 
 test("authored static JSX labels have a translation or an explicit language/brand exception", () => {
   const missing: string[] = [];

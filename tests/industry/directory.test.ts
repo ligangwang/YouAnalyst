@@ -75,7 +75,7 @@ test("retired API returns Gone without loading an independent dataset", async ()
 
 import { relationLabels } from "../../src/lib/knowledge-graph/relationship-labels";
 import { RELATIONSHIP_LABELS } from "../../src/lib/industry-graph/model";
-import { translateUi } from "../../src/lib/i18n/translate";
+import { translateUi } from "../../src/lib/ui/i18n/translate";
 test("company relationship labels cover canonical types and translate complete headings", () => {
   for (const type of Object.keys(relationLabels).filter(type => type !== "PARTICIPATES_IN")) {
     assert.ok(RELATIONSHIP_LABELS[type], type);

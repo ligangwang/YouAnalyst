@@ -1,6 +1,6 @@
 import chinese from "./zh-CN.json";
 import templates from "./templates-zh-CN.json";
-import type { Locale } from "../locale";
+import type { Locale } from "../../locale";
 
 function decode(value: string): string {
   const entities: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0", mdash: "—", middot: "·" };

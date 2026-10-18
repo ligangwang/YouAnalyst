@@ -3,7 +3,7 @@ import { companySummary, relationshipSummary, relationshipSourceTitle, companyNa
 import { useLocale } from "./providers/locale-provider";
 import { companySector, GRAPH_SECTORS, OTHER_SECTOR } from "@/lib/knowledge-graph/sectors";
 import { companyPageUrl } from "@/lib/market-companies/routes";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 
 export default function AiMapDirectoryContent({ graph }: { graph: KnowledgeGraph }) {
   const { locale } = useLocale();

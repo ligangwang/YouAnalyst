@@ -6,7 +6,7 @@ import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { intelligenceTimelineEvents } from '@/lib/ui/company-timeline';
 import { CompanySearch } from './company-search';
 import { companyPageUrl } from '@/lib/market-companies/routes';
-import { localizedPath } from '@/lib/i18n/urls';
+import { localizedPath } from '@/lib/ui/i18n/urls';
 import { IntelligenceLoadingShell } from './intelligence-loading-shell';
 import { useNodeCardPosition } from './use-node-card-position';
 import {EventDetailsWindow, eventWindowAnchor, type EventWindowAnchor} from './event-details-window';

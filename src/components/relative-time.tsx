@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { formatAbsoluteDateTime, formatRelativeDateTime } from "@/lib/time";
 import styles from "./relative-time.module.css";
 import { useLocale } from "./providers/locale-provider";
-import { translateUi } from "@/lib/i18n/translate";
+import { translateUi } from "@/lib/ui/i18n/translate";
 
 let now = 0;
 let timer: ReturnType<typeof setInterval> | undefined;

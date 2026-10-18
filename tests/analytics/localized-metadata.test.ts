@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { localizeMetadata } from "../../src/lib/i18n/server";
+import { localizeMetadata } from "../../src/lib/ui/i18n/server";
 import { buildDailyScoresMetadata } from "../../src/lib/daily-scores/page-metadata";
 
 test("dated daily aliases share the localized canonical, hreflang and social URL", () => {

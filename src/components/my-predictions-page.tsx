@@ -7,7 +7,7 @@ import { useLocale } from "./providers/locale-provider";
 import { PredictionReturnSummary } from "./prediction-ui";
 import { CompanyPosts } from "./company-posts";
 import { ComparisonsPage } from "./comparisons-page";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import type { Prediction } from "@/lib/predictions/types";
 
 export function MyPredictionsPage({ ownerId, embedded = false }: { ownerId?: string; embedded?: boolean } = {}) {

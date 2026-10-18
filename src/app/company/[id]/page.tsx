@@ -9,8 +9,8 @@ import { CompanyTickerContent, companyTickerMetadata } from "@/components/compan
 import { resolveCompanyRoute } from '@/lib/market-companies/slug-resolver';
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { companyGeography, companyGeographyLabel } from "@/lib/market-companies/identity";
-import { localizedMetadata } from "@/lib/i18n/server";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import { normalizeCompanyProfile } from "@/lib/company-profile";
 import { CompanyProfileDetails } from "@/components/company-profile-details";
 import { reviewedCompanyNames } from "@/lib/market-companies/reviewed-names";

@@ -8,7 +8,7 @@ import { renderToPipeableStream } from 'react-dom/server';
 import { initialSnapshotWithinBudget } from '../../src/lib/intelligence/initial-snapshot';
 
 async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100){
-  const external=['@/components/live-investment-intelligence','@/components/intelligence-loading-shell','@/lib/intelligence/service','@/lib/intelligence/initial-snapshot','@/lib/i18n/server'];
+  const external=['@/components/live-investment-intelligence','@/components/intelligence-loading-shell','@/lib/intelligence/service','@/lib/intelligence/initial-snapshot','@/lib/ui/i18n/server'];
   const result=await build({entryPoints:['src/app/intelligence/page.tsx'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',external,jsx:'automatic'});
   const realRequire=createRequire(import.meta.url),evaluated={exports:{}};
   const injected=(name:string)=>{
@@ -16,7 +16,7 @@ async function pageWithSnapshot(load:()=>Promise<unknown>,budget=100){
     if(name==='@/components/intelligence-loading-shell')return {IntelligenceLoadingShell:()=> React.createElement('main',null,'Loading companies and recorded events…')};
     if(name==='@/lib/intelligence/service')return {loadIntelligenceSnapshot:load};
     if(name==='@/lib/intelligence/initial-snapshot')return {initialSnapshotWithinBudget:(request:Promise<unknown>)=>initialSnapshotWithinBudget(request,budget)};
-    if(name==='@/lib/i18n/server')return {localizedMetadata:async()=>({})};
+    if(name==='@/lib/ui/i18n/server')return {localizedMetadata:async()=>({})};
     return realRequire(name);
   };
   new Function('require','module','exports',result.outputFiles[0].text)(injected,evaluated,evaluated.exports);

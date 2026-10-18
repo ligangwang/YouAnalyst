@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { StockComparePage } from "@/components/stock-compare-page";
 import { comparePath, parseCompareConfig } from "@/lib/compare";
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 async function configFrom(props: Props) {

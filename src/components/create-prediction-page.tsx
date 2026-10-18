@@ -1,13 +1,13 @@
 "use client";
 import { trackEvent } from "@/lib/analytics";
-import { translateUi } from "@/lib/i18n/translate";
+import { translateUi } from "@/lib/ui/i18n/translate";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "./providers/locale-provider";
 import { TickerSearchInput } from "./ticker-search-input";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import { predictionSignInHref } from "@/lib/auth-continuation";
 import { predictionInstrument } from "@/lib/predictions/instrument";
 import type { CoverageGraph } from "@/lib/posts/evidence";

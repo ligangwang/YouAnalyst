@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { researchFilters, selectedConnections, researchConnections, REVIEWED } from "../../src/lib/research/amd-ecosystem";
-import { localizedPath, isLocalizedPage } from "../../src/lib/i18n/urls";
+import { localizedPath, isLocalizedPage } from "../../src/lib/ui/i18n/urls";
 
 test("research filters distinguish available CPU adoption from rack plans and preserve multi-product integration", () => {
   assert.deepEqual(selectedConnections("EPYC","integration").map(r=>r.symbol),["AMZN","DELL"]);

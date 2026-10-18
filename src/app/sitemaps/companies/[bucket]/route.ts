@@ -1,7 +1,7 @@
 import { changeCached } from '@/lib/change-cache';
 import { FieldPath } from "firebase-admin/firestore";
 import { getAdminFirestore } from "@/lib/firebase/admin";
-import { companyBucketPrefix, companySitemapPath, companySitemapXml } from "@/lib/i18n/company-sitemaps";
+import { companyBucketPrefix, companySitemapPath, companySitemapXml } from "@/lib/ui/i18n/company-sitemaps";
 
 const loadPaths = async (prefix: string) => {
   const db=getAdminFirestore();
