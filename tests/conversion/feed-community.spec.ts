@@ -143,7 +143,7 @@ test("feed uses publication date, keeps pipeline dates private and groups source
   }else{
     await expect(focus).toBeVisible();
     const focusBounds=(await focus.boundingBox())!,navBounds=(await page.getByRole('banner').getByRole('navigation').filter({visible:true}).boundingBox())!;
-    expect(focusBounds.y).toBeGreaterThanOrEqual(navBounds.y+navBounds.height);
+    expect(focusBounds.x+focusBounds.width).toBeLessThan(navBounds.x);
     await page.setViewportSize({width:320,height:800});
     await expect(focus).toBeVisible();
     expect(await noHorizontalScroll(page)).toBe(true);
