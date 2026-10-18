@@ -9,12 +9,13 @@ export function firestoreSource(db:Firestore):Source {
   return {
     boundary:async()=>{const doc=await db.collection('collectors').doc('_read_cache_versions_v1').get();return {seconds:doc.readTime.seconds,nanoseconds:doc.readTime.nanoseconds};},
     initial:async(collection,ids)=>collection==='companies'?read(db.collection(collection).where('themeIds','array-contains-any',['ai','robotics','space']).orderBy(FieldPath.documentId())):collection==='company_fundamentals'?documents(collection,ids):read(db.collection(collection).orderBy(FieldPath.documentId())),
-    changes:async(collection,since,through,ids)=>{
+    changes:async(collection,since,through)=>{
       const base=db.collection(collection).where('cacheUpdatedAt','>=',stamp(since)).where('cacheUpdatedAt','<=',stamp(through)).orderBy('cacheUpdatedAt').orderBy(FieldPath.documentId());
       const rows:Row[]=[];
       if(collection==='companies')rows.push(...await read(base.where('themeIds','array-contains-any',['ai','robotics','space'])));
-      else if(collection==='company_relationships')rows.push(...await read(base));
-      else for(let i=0;i<ids.length;i+=30)rows.push(...await read(base.where(FieldPath.documentId(),'in',ids.slice(i,i+30))));
+      // Firestore disallows document-ID equality combined with timestamp ranges.
+      // Read only changed rows; the cache engine keeps enrolled fundamentals.
+      else rows.push(...await read(base));
       // Durable tombstones in the existing collectors collection survive deployment
       // overlap. Re-read affected IDs so recreation always wins over an old deletion.
       const deleted=await read(db.collection('collectors').where('cacheDeletedCollection','==',collection).where('cacheUpdatedAt','>=',stamp(since)).where('cacheUpdatedAt','<=',stamp(through)).orderBy('cacheUpdatedAt').orderBy(FieldPath.documentId()));
