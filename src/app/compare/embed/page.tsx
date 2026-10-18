@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { localizedMetadata } from '@/lib/i18n/server';
 import { StockComparePage } from "@/components/stock-compare-page";
 import { comparePath, parseCompareConfig } from "@/lib/compare";
 
-export const metadata: Metadata = {
+export async function generateMetadata(): Promise<Metadata> { return localizedMetadata({
   title: "YouAnalyst Animated Stock Performance Comparison",
   robots: { index: false, follow: true },
-};
+}); }
 
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const query = await searchParams;
