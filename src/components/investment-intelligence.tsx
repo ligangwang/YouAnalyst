@@ -7,6 +7,7 @@ import {BrandLogo} from './brand-logo';
 import { demoEvents, demoGraph, demoSourceNames, type DemoSource } from '@/lib/knowledge-graph/intelligence-demo';
 import { companySector, GRAPH_SECTORS } from '@/lib/knowledge-graph/sectors';
 import { useAuth } from './providers/auth-provider';
+import { useMarket } from './providers/preferences-context';
 import styles from './investment-intelligence.module.css';
 import compactStyles from './intelligence-workspace-controls.module.css';
 import summaryStyles from './intelligence-summary.module.css';
@@ -17,15 +18,18 @@ const end=150;
 const subscribeWidth=(notify:()=>void)=>{const media=matchMedia('(min-width: 1440px)');media.addEventListener('change',notify);return()=>media.removeEventListener('change',notify);};
 const desktopWidth=()=>matchMedia('(min-width: 1440px)').matches;
 
+const subscribeAppearance=(notify:()=>void)=>{
+  const observer=new MutationObserver(notify);
+  observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+  return()=>observer.disconnect();
+};
+const readAppearance=()=>document.documentElement.dataset.theme==='light'?'light':'dark';
+
 export function InvestmentIntelligence(){
   const {user}=useAuth();
-  const [previewTheme,setPreviewTheme]=useState<'dark'|'light'>('dark');
-  useEffect(()=>{
-    const root=document.documentElement;
-    const previous=root.getAttribute('data-theme');
-    root.dataset.theme=previewTheme;
-    return()=>{if(previous===null)root.removeAttribute('data-theme');else root.setAttribute('data-theme',previous);};
-  },[previewTheme]);
+  const {theme:siteTheme}=useMarket();
+  const previewTheme=useSyncExternalStore(subscribeAppearance,readAppearance,()=> 'dark');
+  useEffect(()=>()=>{document.documentElement.dataset.theme=siteTheme;},[siteTheme]);
   const [leftChoice,setLeftOpen]=useState<boolean|null>(null),[rightOpen,setRightOpen]=useState(true);
   const wide=useSyncExternalStore(subscribeWidth,desktopWidth,()=>true);
   const leftOpen=leftChoice??wide;
@@ -68,7 +72,7 @@ export function InvestmentIntelligence(){
     <header className={styles.topbar}>
       <div className={styles.identity}><Link href="/" aria-label="YouAnalyst home"><BrandLogo mobile width={134} height={30}/></Link><h1 className={styles.srOnly}><UiText text={"Investment Intelligence"}/></h1><span className={styles.demoBadge}><UiText text={"MOCK DATA"}/></span></div>
       <nav aria-label="Workspace navigation" className={styles.navigation}><Link href="/?view=graph"><UiText text={"Map ↗"}/></Link><Link href="/feed"><UiText text={"Feed"}/></Link><Link href="/watchlists"><UiText text={"Watchlists"}/></Link></nav>
-      <div className={styles.session}><button type="button" onClick={()=>setPreviewTheme(value=>value==='dark'?'light':'dark')} aria-label="Switch preview appearance">{previewTheme==='dark'?'Light preview':'Dark preview'}</button><div className={compactStyles.liveControls}>{mode==='live'?<><span className={compactStyles.liveStatus}><i/><UiText text={"Live"}/>{' '}<small><UiText text={"demo"}/></small></span><button aria-expanded={false} aria-controls="intraday-replay" onClick={()=>{setMode('replay');setPlaying(false);}}><UiText text={"Replay"}/></button></>:<span className={compactStyles.liveStatus}><UiText text={"Replay"}/>{' '}<small><UiText text={"today"}/></small></span>}</div><details className={compactStyles.more} onKeyDown={e=>{if(e.key==='Escape'){e.currentTarget.open=false;e.currentTarget.querySelector('summary')?.focus();}}}><summary><UiText text={"More ▾"}/></summary><nav aria-label="More navigation" onClick={e=>{if((e.target as HTMLElement).closest('a'))e.currentTarget.closest('details')?.removeAttribute('open');}}>{[['/research','Research'],['/companies','Companies'],['/watchlists/following','Watchlist'],['/predictions','Investment ideas'],['/my/predictions','My ideas'],['/compare/analyst-views','Performance comparison'],['/predictions/new','Publish an idea'],['/daily/calls','Top Calls'],['/how-it-works','How it works']].map(([href,label])=><Link key={href} href={href}>{label}</Link>)}</nav></details><Link href={user?`/analysts/${user.uid}`:'/auth'} className={styles.account}>{user?'Account':'Sign in'}</Link></div>
+      <div className={styles.session}><button type="button" onClick={()=>{document.documentElement.dataset.theme=readAppearance()==='dark'?'light':'dark';}} aria-label="Switch preview appearance">{previewTheme==='dark'?'Light preview':'Dark preview'}</button><div className={compactStyles.liveControls}>{mode==='live'?<><span className={compactStyles.liveStatus}><i/><UiText text={"Live"}/>{' '}<small><UiText text={"demo"}/></small></span><button aria-expanded={false} aria-controls="intraday-replay" onClick={()=>{setMode('replay');setPlaying(false);}}><UiText text={"Replay"}/></button></>:<span className={compactStyles.liveStatus}><UiText text={"Replay"}/>{' '}<small><UiText text={"today"}/></small></span>}</div><details className={compactStyles.more} onKeyDown={e=>{if(e.key==='Escape'){e.currentTarget.open=false;e.currentTarget.querySelector('summary')?.focus();}}}><summary><UiText text={"More ▾"}/></summary><nav aria-label="More navigation" onClick={e=>{if((e.target as HTMLElement).closest('a'))e.currentTarget.closest('details')?.removeAttribute('open');}}>{[['/research','Research'],['/companies','Companies'],['/watchlists/following','Watchlist'],['/predictions','Investment ideas'],['/my/predictions','My ideas'],['/compare/analyst-views','Performance comparison'],['/predictions/new','Publish an idea'],['/daily/calls','Top Calls'],['/how-it-works','How it works']].map(([href,label])=><Link key={href} href={href}>{label}</Link>)}</nav></details><Link href={user?`/analysts/${user.uid}`:'/auth'} className={styles.account}>{user?'Account':'Sign in'}</Link></div>
     </header>
     <aside className={styles.left} aria-label="Universe navigation" data-filtered={Boolean(query)||tab==='watchlist'||activeOnly||Boolean(sourceFilter)}>
       <div className={styles.panelTitle}><strong><UiText text={"Explore universe"}/></strong><button aria-label="Collapse left panel" onClick={()=>setLeftOpen(false)}>‹</button></div>
