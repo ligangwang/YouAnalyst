@@ -64,7 +64,7 @@ async function fixture() {
   const name = (id: string) => `${root.replace('https://firestore.googleapis.com/v1/', '')}/companies/${id}`;
   const ai: KnowledgeGraph = { nodes: Array.from({ length: 134 }, (_, i) => ({ id: i === 0 ? 'US:NVDA' : i === 1 ? 'ORG:SAMSUNG-ELECTRONICS' : `US:AI${i}`, kind: 'COMPANY', name: `Company ${i}`, order: i, stageIds: ['compute'] })), relationships: [], sources: [], asOf: '2026-10-04' };
   const rows = new Map<string, Document>();
-  for (const node of ai.nodes.filter(node => node.id !== 'ORG:SAMSUNG-ELECTRONICS')) rows.set(name(node.id), { name: name(node.id), fields: encode({ name: node.name, status: 'DIRECTORY', aiGraph: { status: 'PUBLISHED', stageIds: ['compute'] }, description: 'Preserve this text', financials: { period: '2026Q3' } }).mapValue!.fields, updateTime: '2026-10-04T00:00:00Z' });
+  for (const node of ai.nodes.filter(node => node.id !== 'ORG:SAMSUNG-ELECTRONICS')) rows.set(name(node.id), { name: name(node.id), fields: encode({ name: node.name, status: 'DIRECTORY', inGraph: { status: 'PUBLISHED', stageIds: ['compute'] }, description: 'Preserve this text', financials: { period: '2026Q3' } }).mapValue!.fields, updateTime: '2026-10-04T00:00:00Z' });
   for (const proposal of batch.companies) {
     const existing = rows.get(name(proposal.id));
     if (existing) existing.fields.name = encode(proposal.expectedName);

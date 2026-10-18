@@ -32,7 +32,7 @@ export function isCollectionCompany(company: ThemedCompany) {
   if (!['PUBLISHED', 'DIRECTORY'].includes(String(company.status)) || !company.name) return false;
   if (activeThemeIds(company).some(id => COMPANY_THEMES.includes(id as CompanyThemeId))) return true;
   // Compatibility for existing AI records until memberships have been migrated.
-  const legacy = (company.inGraph ?? company.aiGraph) as { status?: string } | undefined;
+  const legacy = (company.inGraph) as { status?: string } | undefined;
   return !company.themeMemberships?.ai && legacy?.status === 'PUBLISHED';
 }
 

@@ -37,6 +37,8 @@ test("preview writes nothing; publication renders global nodes and evidence; rep
   assert.deepEqual(transactionModes, [true, false]);
   const companies = [...records].filter(([k]) => k.startsWith("companies/")).map(([, v]) => v) as MarketCompany[];
   const edges = [...records].filter(([k]) => k.startsWith("company_relationships/")).map(([, v]) => v) as MarketRelationship[];
+  assert.deepEqual(records.get("companies/ORG:OPENAI")!.themeIds, ["ai"]);
+  assert.equal((records.get("companies/ORG:OPENAI")!.themeMemberships as Record<string, {status:string}>).ai.status, "PUBLISHED");
   const graph = graphFromMarket(companies, edges);
   assert.equal(graph.relationships.filter(e => e.type !== "PARTICIPATES_IN").length, 5);
   assert.equal(graph.nodes.find(n => n.id === "ORG:MISTRAL-AI")?.country, "FR");
@@ -82,4 +84,16 @@ test("rejects unsourced claims, impossible dates and contradictory listing statu
   bad.sources = batch.sources;
   bad.companies[0].listings = [{ market: "US", exchange: "XNAS", symbol: "FAKE" }];
   assert.throws(() => validateResearch(bad), /Private company/);
+});
+
+
+test("research enrollment maps graph stages and evidence into the theme schema", async () => {
+  const batch = await fixture();
+  batch.companies[0].stageIds = ["equipment"];
+  const {db,records} = database(batch);
+  await publishResearch(db,batch,true);
+  const row = records.get(`companies/${batch.companies[0].id}`)!;
+  const member = (row.themeMemberships as Record<string,{primarySector:string;sources:{summary:string}[]}>).ai;
+  assert.equal(member.primarySector,"semiconductors");
+  assert.deepEqual(member.sources.map(source=>source.summary),batch.sources.filter(source=>batch.companies[0].sourceIds.includes(source.id)).map(source=>source.excerpt));
 });

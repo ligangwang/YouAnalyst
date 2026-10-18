@@ -1,3 +1,4 @@
+import { usFundamentalsId } from "./identity";
 import { randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "../firebase/admin";
@@ -10,7 +11,7 @@ import { digest, publishFundamentalsMessage, type FundamentalsRequest } from "./
 export async function dispatchRequestedFundamentals(ticker: string, db: Firestore = getAdminFirestore(),
   publish = (message: FundamentalsRequest) => publishFundamentalsMessage(process.env.FUNDAMENTALS_REQUEST_TOPIC || "sec-fundamentals-requests", message)) {
   if (!validFundamentalsTicker(ticker)) return;
-  const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
+  const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
   const owner = randomUUID();
   try {
     // Most page views have nothing to publish. Avoid a contended transaction on

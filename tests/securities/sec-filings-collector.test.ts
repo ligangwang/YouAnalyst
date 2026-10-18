@@ -14,7 +14,7 @@ import type { SecFiling, SecFilingsSource, SecSubmissions, SecSubmissionsFile } 
 type Data = Record<string, unknown>;
 const CIK = "0000002488";
 const META = "company_fundamentals/_sec_filings_collector";
-const COMPANY = "company_fundamentals/AMD";
+const COMPANY = "company_fundamentals/US:AMD";
 const iso = "2026-09-27T12:00:00.000Z";
 function filing(id = 1, date = "2026-09-27", form: SecFiling["form"] = "10-K"): SecFiling {
   return { accessionNumber: `0000002488-26-${String(id).padStart(6, "0")}`, filingDate: date, form,
@@ -153,7 +153,7 @@ test("persistent publisher outage prevents further discovery calls", async () =>
   assert.equal(f.requests.length, count);
 });
 test("multiple US listings sharing one accession keep independent events in the existing filing document", async () => {
-  const f = fixture({ [COMPANY]: { secFilingsCollector: cursor() }, "company_fundamentals/OTHER": { secFilingsCollector: cursor() } });
+  const f = fixture({ [COMPANY]: { secFilingsCollector: cursor() }, "company_fundamentals/US:OTHER": { secFilingsCollector: cursor() } });
   await f.run(["AMD", "OTHER"]);
   assert.equal(f.events.length, 2);
   assert.equal(new Set(f.events.map(event => event.eventId)).size, 2);

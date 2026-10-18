@@ -7,7 +7,7 @@ import { publishProfiles, validateProfiles, type ProfileBatch } from "../scripts
 
 const fixture = async () => JSON.parse(await readFile(new URL("../data/ai-supply-chain/company-profiles.json", import.meta.url), "utf8")) as ProfileBatch;
 function database(batch: ProfileBatch) {
-  const records = new Map(batch.companies.map(c => [c.id, { name: c.expectedName, status: "DIRECTORY", description: "Reviewed description", aiGraph: { status: "PUBLISHED" } } as Record<string, unknown>]));
+  const records = new Map(batch.companies.map(c => [c.id, { name: c.expectedName, status: "DIRECTORY", description: "Reviewed description", inGraph: { status: "PUBLISHED" } } as Record<string, unknown>]));
   const modes: boolean[] = [];
   const db = {
     collection: (name: string) => { assert.equal(name, "companies"); return { doc: (id: string) => id }; },

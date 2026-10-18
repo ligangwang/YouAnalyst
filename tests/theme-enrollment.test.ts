@@ -25,7 +25,7 @@ test('AI enrollment is data-only, preserves other themes and reaches the deploye
 
 test('enrollment rejects identity drift, editorial conflicts, unsafe sources and unknown sectors',()=>{
   assert.throws(()=>planEnrollment([{...profiles[0],name:'Different issuer'},profiles[1]],batch),/identity changed/);
-  assert.throws(()=>planEnrollment([{...profiles[0],aiGraph:{status:'PUBLISHED'}},profiles[1]],batch),/AI map decision conflicts/);
+  assert.throws(()=>planEnrollment([{...profiles[0],inGraph:{status:'PUBLISHED'}},profiles[1]],batch),/AI map decision conflicts/);
   assert.throws(()=>planEnrollment(profiles,{...batch,companies:[{...batch.companies[0],primarySector:'healthcare'}]}),/Unknown primary sector/);
   assert.throws(()=>planEnrollment(profiles,{...batch,companies:[{...batch.companies[0],sources:[{url:'http://example.com',title:'x',summary:'x'}]}]}),/Invalid reviewed source/);
 });

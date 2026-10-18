@@ -55,7 +55,7 @@ export default async function CompanyPage({ params, searchParams }: {
   const callTicker = identity.listingStatus === "PRIVATE" ? undefined : identity.listings.map(listing =>
     listing.market === "US" ? listing.symbol : `${listing.exchange}:${listing.symbol}`
   ).find(ticker => predictionInstrument(ticker));
-  const membership = data.inGraph ?? data.aiGraph;
+  const membership = data.inGraph;
   const sources: { url: string; title: string }[] = Array.isArray(membership?.sources) ? membership.sources.filter((s: { url?: unknown; title?: unknown }) => typeof s.url === "string" && s.url.startsWith("https://") && typeof s.title === "string") : [];
   return <main className="mx-auto max-w-5xl px-6 py-12 text-slate-200">
     <a className="text-cyan-200" href={`${localizedPath("/", locale)}?company=${encodeURIComponent(id)}&market=ALL`}>{zh ? "AI 产业图谱" : "AI Industry Map"} →</a>

@@ -1,3 +1,4 @@
+import { usFundamentalsId, usFundamentalsTicker } from "./identity";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { FUNDAMENTALS_COLLECTION, requestCompanyFundamentals, needsShareMetadataUpgrade } from "./service";
@@ -14,7 +15,7 @@ export async function seedMapFundamentals(db: Firestore, tickers: string[]) {
 export async function auditMapFundamentals(db: Firestore, tickers: string[]) {
   const result = { companies: tickers.length, cached: 0, pending: 0, unavailable: 0, missing: [] as string[] };
   for (let offset = 0; offset < tickers.length; offset += 100) {
-    const docs = await db.getAll(...tickers.slice(offset, offset + 100).map(t => db.collection(FUNDAMENTALS_COLLECTION).doc(t)));
+    const docs = await db.getAll(...tickers.slice(offset, offset + 100).map(t => db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(t))));
     for (const doc of docs) {
       const data = doc.data();
       if (data?.version === 1 && data.value) result.cached++;
@@ -34,19 +35,21 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
   if (cooldown > Date.now()) {
     log.emit("WARNING", "provider_cooldown", { retryAfter: new Date(cooldown).toISOString() });
     result.failed = 1;
-    result.remaining = (await db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).count().get()).data().count;
+    result.remaining = (await db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).orderBy(FieldPath.documentId()).startAt("US:").endBefore("US;").count().get()).data().count;
     return result;
   }
   let cursor: string | undefined;
   let stop = false;
   while (!stop && Date.now() < deadline && result.processed < 500) {
-    let query = db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).orderBy(FieldPath.documentId()).limit(100);
+    let query = db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).orderBy(FieldPath.documentId()).startAt("US:").endBefore("US;").limit(100);
     if (cursor) query = query.startAfter(cursor);
     const page = await query.get();
     if (page.empty) break;
     for (const doc of page.docs) {
       if (Date.now() >= deadline || result.processed >= 500) { stop = true; break; }
       cursor = doc.id;
+      const ticker = usFundamentalsTicker(doc.id);
+      if (!ticker) continue;
       const queued = doc.data();
       const needsShareUpgrade = needsShareMetadataUpgrade(queued);
       if (Number(queued.refreshAfter) > Date.now() && !needsShareUpgrade) {
@@ -62,16 +65,16 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
         continue;
       }
       try {
-        log.emit("INFO", "company_started", { ticker: doc.id });
-        await withSecRequestContext({ ticker: doc.id, runId: log.runId, job: "refresh-sec-fundamentals" },
-          () => refresh(doc.id, { db, log }));
+        log.emit("INFO", "company_started", { ticker });
+        await withSecRequestContext({ ticker, runId: log.runId, job: "refresh-sec-fundamentals" },
+          () => refresh(ticker, { db, log }));
         result.processed++;
-        log.emit("INFO", "company_completed", { ticker: doc.id });
+        log.emit("INFO", "company_completed", { ticker });
       } catch (error) {
         result.processed++;
         result.failed++;
         const details = maintenanceError(error);
-        log.emit("ERROR", "company_failed", { ticker: doc.id, error: details });
+        log.emit("ERROR", "company_failed", { ticker, error: details });
         // Do not hammer the provider after a block or rate-limit response.
         if (details.code === 403 || details.code === 429) {
           await worker.set({ providerRetryAfter: Date.now() + 3_600_000 }, { merge: true });
@@ -82,6 +85,6 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
     }
     if (page.size < 100) break;
   }
-  result.remaining = (await db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).count().get()).data().count;
+  result.remaining = (await db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).orderBy(FieldPath.documentId()).startAt("US:").endBefore("US;").count().get()).data().count;
   return result;
 }

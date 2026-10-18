@@ -43,7 +43,7 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch) {
       const sources=proposal.sources.map((source,index)=>({id:`theme:ai:${proposal.id}:${index}`,url:source.url,title:source.title,sourceDate:null}));
       const stages=stageIds.map(stage=>{const node=ai.nodes.find(node=>node.kind==='STAGE'&&node.id===`stage:${stage}`);assert(node,'Missing canonical AI stage');return {...structuredClone(node),labels:{en:node.label,'zh-CN':cn.nodes.find(row=>row.id===node.id)?.label??node.label}};});
       const graph={status:'PUBLISHED',stageIds,stages,memberships:stageIds.map(stage=>({id:`theme:ai:${proposal.id}:stage:${stage}`,source:proposal.id,target:`stage:${stage}`,type:'PARTICIPATES_IN',summary:proposal.sources.map(source=>source.summary).join(' '),sourceIds:sources.map(source=>source.id),commercialStatus:'NOT_A_COMMERCIAL_RELATIONSHIP'})),sources,order:1000,asOf:batch.reviewedAt};
-      const old=record.inGraph??record.aiGraph;
+      const old=record.inGraph;
       assert(!old||isDeepStrictEqual({...old as object,stages},graph),`${proposal.id}: existing AI map decision conflicts`);
       fields.inGraph=graph;
     }

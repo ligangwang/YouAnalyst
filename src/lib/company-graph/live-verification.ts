@@ -1,3 +1,4 @@
+import { usFundamentalsId } from "../fundamentals/identity";
 import { createHash } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { getGraphBudgetSummary, findGraphBudgetTicket, GRAPH_BUDGET_MODEL, GRAPH_FLEX_PRICE_VERSION, GRAPH_FLEX_RESERVATION_MICROS, type GraphBudgetSummary } from "./budget";
@@ -120,7 +121,7 @@ async function prepareActivation(db: Firestore, tree: string, now: number): Prom
     const filing = (await tx.get(db.collection("sec_filings").doc(accession))).data();
     const discovery = filing?.discoveryEvents?.[secFilingEventId(TICKER, CIK, accession)];
     const event = parseSecFilingDiscovered(discovery?.event);
-    const fundamentals = (await tx.get(db.collection("company_fundamentals").doc(TICKER))).data();
+    const fundamentals = (await tx.get(db.collection("company_fundamentals").doc(usFundamentalsId(TICKER)))).data();
     if (discovery.state !== "baseline" || event.companyId !== TICKER || event.cik !== CIK || event.form !== "10-K"
       || event.accessionNumber !== accession || event.filingDate !== result.filing.filingDate
       || event.primaryDocument !== result.filing.primaryDocument
@@ -255,7 +256,7 @@ export async function verifyLiveCompanyGraph(db: Firestore, tree: string, depend
   assertBudget(await bounded(() => readBudget(now())), false);
   const fanoutComplete = async () => {
     const [fundamentals, receipt] = await Promise.all([
-      db.collection("company_fundamentals").doc(TICKER).get(),
+      db.collection("company_fundamentals").doc(usFundamentalsId(TICKER)).get(),
       db.collection(COLLECTION).doc(`_graph_filing_receipt_${saved.event.eventId}`).get(),
     ]);
     const financial = fundamentals.data(), graph = receipt.data();

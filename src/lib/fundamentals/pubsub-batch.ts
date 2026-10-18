@@ -1,5 +1,6 @@
+import { usFundamentalsId, usFundamentalsTicker } from "./identity";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
-import { FUNDAMENTALS_COLLECTION, needsShareMetadataUpgrade, validFundamentalsTicker } from "./service";
+import { FUNDAMENTALS_COLLECTION, needsShareMetadataUpgrade } from "./service";
 import { refreshCompanyFundamentals } from "./worker";
 import { acquireMaintenanceLease, releaseMaintenanceLease } from "../maintenance-lease";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
@@ -19,13 +20,14 @@ export async function publishPendingFundamentals(db: Firestore, runId: string,
   const companyIds: string[] = [];
   let cursor: string | undefined;
   while (companyIds.length < 500) {
-    let query = db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).orderBy(FieldPath.documentId()).limit(100);
+    let query = db.collection(FUNDAMENTALS_COLLECTION).where("pending", "==", true).orderBy(FieldPath.documentId()).startAt("US:").endBefore("US;").limit(100);
     if (cursor) query = query.startAfter(cursor);
     const page = await query.get();
     for (const doc of page.docs) {
       cursor = doc.id;
       const data = doc.data();
-      if (validFundamentalsTicker(doc.id) && (Number(data.refreshAfter ?? 0) <= Date.now() || needsShareMetadataUpgrade(data))) companyIds.push(doc.id);
+      const ticker = usFundamentalsTicker(doc.id);
+      if (ticker && (Number(data.refreshAfter ?? 0) <= Date.now() || needsShareMetadataUpgrade(data))) companyIds.push(ticker);
       if (companyIds.length >= 500) break;
     }
     if (page.size < 100) break;
@@ -79,7 +81,7 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
       if (ledger.progress[ticker]?.completed) continue;
       if (Date.now() > deadline - 90_000) break;
       try {
-        const company = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
+        const company = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
         const stored = (await company.get()).data();
         const filingRefresh = request.filing && stored?.lastFilingRefresh?.eventId !== request.filing.eventId;
         const fresh = stored?.outcome === "ready" && stored?.pending !== true
@@ -149,8 +151,8 @@ export async function verifyFundamentalsDelivery(db: Firestore, runId: string,
   dependencies: { now?: () => number; sleep?: (ms: number) => Promise<void> } = {}) {
   const now = dependencies.now ?? Date.now;
   const sleep = dependencies.sleep ?? (ms => new Promise(resolve => setTimeout(resolve, ms)));
-  const page = await db.collection(FUNDAMENTALS_COLLECTION).where("outcome", "==", "ready").limit(100).get();
-  const companyIds = page.docs.filter(d => validFundamentalsTicker(d.id) && d.data().pending !== true && d.data().value).slice(0, 2).map(d => d.id);
+  const page = await db.collection(FUNDAMENTALS_COLLECTION).where("outcome", "==", "ready").orderBy(FieldPath.documentId()).startAt("US:").endBefore("US;").limit(100).get();
+  const companyIds = page.docs.filter(d => usFundamentalsTicker(d.id) && d.data().pending !== true && d.data().value).slice(0, 2).map(d => usFundamentalsTicker(d.id)!);
   if (companyIds.length < 2) throw new Error("Need two cached companies for safe Pub/Sub delivery verification");
   const request: FundamentalsRequest = { version: 1, type: "fundamentals.refresh.requested", batchId: digest({ probe: runId }),
     companyIds, reason: "verification", requestedAt: new Date().toISOString() };

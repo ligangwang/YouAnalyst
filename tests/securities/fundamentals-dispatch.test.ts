@@ -6,7 +6,7 @@ import type { FundamentalsRequest } from "../../src/lib/fundamentals/pubsub";
 
 test("simultaneous visitors dispatch one request per pending company", async () => {
   const f = sharedFirestore(), messages: FundamentalsRequest[] = [];
-  for (const ticker of ["AMD", "NVDA"]) f.documents.set(`company_fundamentals/${ticker}`, { pending: true, requestedAt: new Date(f.now()).toISOString() });
+  for (const ticker of ["AMD", "NVDA"]) f.documents.set(`company_fundamentals/US:${ticker}`, { pending: true, requestedAt: new Date(f.now()).toISOString() });
   const publish = async (message: FundamentalsRequest) => { messages.push(message); return "message-id"; };
   await Promise.all(Array.from({ length: 30 }, (_, i) => dispatchRequestedFundamentals(i % 2 ? "AMD" : "NVDA", f.db, publish)));
   assert.equal(messages.length, 2);
@@ -20,7 +20,7 @@ test("fresh, unavailable, cooling down and invalid companies do not dispatch", a
   const f = sharedFirestore();
   let calls = 0;
   for (const state of [{ pending: false }, { pending: true, refreshAfter: f.now() + 1000 }, {}]) {
-    f.documents.set("company_fundamentals/AMD", state);
+    f.documents.set("company_fundamentals/US:AMD", state);
     await dispatchRequestedFundamentals("AMD", f.db, async () => { calls++; return "id"; });
   }
   await dispatchRequestedFundamentals("../bad", f.db, async () => { calls++; return "id"; });
@@ -30,11 +30,11 @@ test("fresh, unavailable, cooling down and invalid companies do not dispatch", a
 test("failed publish retains durable work and allows a bounded retry", async t => {
   t.mock.method(console, "error", () => {});
   const f = sharedFirestore();
-  f.documents.set("company_fundamentals/AMD", { pending: true });
+  f.documents.set("company_fundamentals/US:AMD", { pending: true });
   let calls = 0;
   const publish = async () => { calls++; throw new Error("topic unavailable"); };
   await dispatchRequestedFundamentals("AMD", f.db, publish);
-  assert.equal(f.documents.get("company_fundamentals/AMD")!.pending, true);
+  assert.equal(f.documents.get("company_fundamentals/US:AMD")!.pending, true);
   await dispatchRequestedFundamentals("AMD", f.db, publish);
   assert.equal(calls, 1);
   f.advance(30_000);
@@ -44,7 +44,7 @@ test("failed publish retains durable work and allows a bounded retry", async t =
 
 test("concurrent visits dispatch fresh caches needing a share metadata upgrade once", async () => {
   const f = sharedFirestore(), messages: FundamentalsRequest[] = [];
-  f.documents.set("company_fundamentals/AMD", { version: 1, pending: true, outcome: "ready",
+  f.documents.set("company_fundamentals/US:AMD", { version: 1, pending: true, outcome: "ready",
     requestedAt: new Date(f.now()).toISOString(), refreshAfter: f.now() + 86400000,
     value: { report: { form: "10-K" } } });
   await Promise.all(Array.from({ length: 10 }, () => dispatchRequestedFundamentals("AMD", f.db,
@@ -56,7 +56,7 @@ test("concurrent visits dispatch fresh caches needing a share metadata upgrade o
 test("legacy pending requests without a timestamp preserve the same payload after an uncertain publish", async t => {
   t.mock.method(console, "error", () => {});
   const f = sharedFirestore(), messages: FundamentalsRequest[] = [];
-  f.documents.set("company_fundamentals/AMD", { pending: true });
+  f.documents.set("company_fundamentals/US:AMD", { pending: true });
   const publish = async (message: FundamentalsRequest) => { messages.push(message); throw Error("acknowledgment lost"); };
   await dispatchRequestedFundamentals("AMD", f.db, publish);
   f.advance(30000);

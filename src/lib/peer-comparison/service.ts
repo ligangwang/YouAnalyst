@@ -20,7 +20,7 @@ export async function loadPeerComparison(companyId:string):Promise<PeerCompariso
    const financials=new Map<string,unknown>(),prices=new Map<string,Record<string,unknown>[]>(),today=marketDate(group.market);
    for(let i=0;i<group.companies.length;i+=100){
     const batch=group.companies.slice(i,i+100);
-    const docs=await db.getAll(...batch.map(c=>db.collection('company_fundamentals').doc(group.market==='US'?c.id.slice(3):c.id)),{fieldMask:['value.metrics','value.report','value.marketCap','cnAnnual','marketCap']}).catch(()=>{complete=false;return [];});
+    const docs=await db.getAll(...batch.map(c=>db.collection('company_fundamentals').doc(c.id)),{fieldMask:['value.metrics','value.report','value.marketCap','cnAnnual','marketCap']}).catch(()=>{complete=false;return [];});
     docs.forEach((doc,index)=>financials.set(batch[index].id,doc.data()));
    }
    // Bound concurrent reads while retaining every member of the published comparison group.

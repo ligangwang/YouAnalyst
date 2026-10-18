@@ -208,7 +208,7 @@ test("rejects broken evidence, cross-market endpoints, and commercial stage edge
   ]) { const copy = structuredClone(graphs[0]); mutation(copy); assert.throws(() => validateGraph(copy)); }
 });
 test("new published master relationships bring in public neighbors; drafts, missing endpoints and unrelated companies stay out",()=>{
-  const seed={id:"US:NVDA",name:"NVIDIA",status:"PUBLISHED",aiGraph:{status:"PUBLISHED",stageIds:["compute"],stages:[{id:"stage:compute",kind:"STAGE",order:1}],sources:[],memberships:[],order:1,asOf:"2026-09-11"}} as MarketCompany;
+  const seed={id:"US:NVDA",name:"NVIDIA",status:"PUBLISHED",inGraph:{status:"PUBLISHED",stageIds:["compute"],stages:[{id:"stage:compute",kind:"STAGE",order:1}],sources:[],memberships:[],order:1,asOf:"2026-09-11"}} as MarketCompany;
   const evidence=[{id:"report",url:"https://example.com/report",title:"Report",sourceDate:null,summary:"Supplies hardware"}];
   const edge={id:"r",source:"US:NVDA",target:"US:NEW",type:"SUPPLIER_OF",status:"PUBLISHED",evidence};
   const companies=[seed,{id:"US:NEW",name:"New company",status:"DIRECTORY"},{id:"US:PRIVATE",name:"Private",status:"DRAFT"},{id:"US:OTHER",name:"Unrelated",status:"PUBLISHED"}];
