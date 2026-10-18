@@ -194,7 +194,8 @@ for(const view of ['graph','tree','hierarchy','table'])test(`shared company dial
 for(const view of ['graph','tree','hierarchy','table'])test(`sector selection replaces bookmarked filters in ${view}`,async({page,isMobile})=>{
  await open(page);await page.goto(`http://workspace.test/?view=${view}`);await bookmarkedQuery(page).fill('MULT');
  if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
- await page.getByRole('button',{name:/^Memory & storage/}).click();
+ await page.getByRole('button',{name:'Expand Chips',exact:true}).click();
+ await page.getByRole('navigation',{name:'AI layers',exact:true}).getByRole('button',{name:/^Memory & storage/}).click();
  await expect(page).not.toHaveURL(/company=|q=/);
  if(isMobile)await page.getByRole('tab',{name:'Company list',exact:true}).click();
  const list=isMobile?page.getByRole('region',{name:'Company list',exact:true}):page.getByRole('complementary',{name:'Universe navigation'});
@@ -1030,7 +1031,7 @@ test('shared periods, exact ticker search and selected sources remain visible ab
   await expect(firstEvent.locator('time')).toHaveText('2d');
   await expect(firstEvent.locator('time')).toHaveAttribute('title','Oct 2, 2026, 12:00:00 PM UTC');
   await expect(firstEvent.getByRole('button')).toHaveCount(0);
-  await expect(panel.getByRole('button',{name:/Published company update 2 /}).locator('time')).toContainText('date only');
+  await expect(panel.getByRole('button',{name:/Published company update 2 /}).locator('time')).toHaveText(/^\d{2}-\d{2}$/);
   const multiEvent=panel.getByRole('button',{name:/Published company update 2 /});
   const sectors=multiEvent.getByRole('group',{name:'Company sectors: Memory & storage / AI compute / Connectivity',exact:true});
   await expect(sectors).toHaveAttribute('title','Memory & storage / AI compute / Connectivity');
@@ -1669,4 +1670,30 @@ test('weekly feed loads ten items and requests one previous day without changing
   await panel.getByRole('button',{name:'Load previous day',exact:true}).click();
   await expect(panel.getByText('Loaded 2026-10-03 – 2026-10-04',{exact:true})).toBeVisible();
   expect(olderRequests).toBe(1);
+});
+
+for(const zh of [false,true])test(`AI sidebar shares the tree's five layers and role memberships (${zh?'Chinese':'English'})`,async({page})=>{
+ const fixture:IntelligenceSnapshot={...snapshot,graph:{...snapshot.graph,nodes:[...snapshot.graph.nodes,
+  {...snapshot.graph.nodes[0],id:'US:GOOGL',symbol:'GOOGL',name:'Alphabet',stageIds:['cloud']},
+  {...snapshot.graph.nodes[0],id:'US:EDGE',symbol:'EDGE',name:'Edge devices',stageIds:['edge']},
+  {...snapshot.graph.nodes[0],id:'US:ENERGY',symbol:'ENERGY',name:'Energy supplier',stageIds:['energy']},
+ ]}};
+ await open(page,zh,fixture);
+ if(await page.getByRole('button',{name:'Expand left panel'}).count())await page.getByRole('button',{name:'Expand left panel'}).click();
+ await page.getByRole('tab',{name:zh?'公司列表':'Company list',exact:true}).click();
+ const nav=page.getByRole('navigation',{name:zh?'AI 产业层级':'AI layers',exact:true});
+ const list=page.getByRole('region',{name:zh?'公司列表':'Company list',exact:true});
+ for(const [label,count] of (zh?[['能源',1],['芯片',3],['基础设施',2],['模型',1],['应用',1]]:[['Energy',1],['Chips',3],['Infrastructure',2],['Models',1],['Applications',1]])){
+  const button=nav.getByRole('button',{name:label+' '+count,exact:true});await expect(button).toBeVisible();const bounds=await button.boundingBox(),sidebar=await page.getByRole('complementary',{name:'Universe navigation'}).boundingBox();expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(sidebar!.y+sidebar!.height+1);await button.click();await expect(list.locator('[data-list-company]')).toHaveCount(Number(count));
+ }
+ const expand=nav.getByRole('button',{name:zh?'展开芯片':'Expand Chips',exact:true});await expand.focus();await expand.press('Enter');
+ const memory=nav.getByRole('button',{name:zh?'内存与存储 2':'Memory & storage 2',exact:true});await expect(memory).toBeVisible();await memory.click();
+ await expect(list.locator('[data-list-company]')).toHaveCount(2);await expect(list.locator('[data-list-company="US:MU"]')).toBeVisible();
+ await nav.getByRole('button',{name:zh?'收起芯片':'Collapse Chips',exact:true}).click();await expect(memory).toBeHidden();
+ await nav.getByRole('button',{name:zh?'模型 1':'Models 1',exact:true}).click();await expect(list.locator('[data-list-company="US:GOOGL"]')).toBeVisible();
+ await page.getByRole('button',{name:'Clear sector focus',exact:true}).click();await expect(list.locator('[data-list-company]')).toHaveCount(7);
+ const panel=page.getByRole('complementary',{name:'Events and sources'});await panel.getByText(zh?'按行业':'By sector',{exact:true}).click();await panel.getByRole('button',{name:new RegExp('^'+(zh?'内存与存储':'Memory & storage'))}).click();
+ const legacy=page.getByRole('button',{name:zh?'清除内存与存储筛选':'Clear Memory & storage filter',exact:true});await expect(legacy).toBeVisible();await expect(list.locator('[data-list-company]')).toHaveCount(2);await legacy.click();await expect(legacy).toHaveCount(0);await expect(list.locator('[data-list-company]')).toHaveCount(7);
+
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

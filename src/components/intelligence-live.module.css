@@ -75,3 +75,9 @@
 @media(max-width:850px){.hasTimeline.hasTimeline{height:auto;min-height:650px}.hasTimeline>[role=tabpanel]{flex:0 0 360px}.timelineDock{max-height:340px}}
 @media(max-width:850px){.timelineDock:has([data-chart-watchlist] tbody tr){max-height:620px;}}
 @media(max-width:850px){.hasTimeline .graphViewport[data-chart-size=compact]>.graphStage>[role=tabpanel]{flex:0 0 360px;}}
+
+@media(max-width:850px){.regionWorkspace .layerSectionLabel.layerSectionLabel{display:flex}}
+
+@media(max-width:850px){.regionWorkspace .layerNavigation.layerNavigation{max-height:none;overflow:visible}}
+
+.legacySector{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 10px 8px;padding:7px 9px;border:1px solid var(--ui-line,#426d63);border-radius:6px;background:var(--ui-selected,#173c42);color:var(--ui-text,#edfff9);font-size:11px;text-align:left}

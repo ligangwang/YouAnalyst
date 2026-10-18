@@ -66,7 +66,7 @@ export function EventDetailsWindow({event,anchor,returns,symbol,onClose}:{event:
   return <FloatingEventWindow key={event.id} anchor={anchor} title={text('Event details','事件详情')} onClose={onClose}>
     <EventTypeDetails event={event} chinese={chinese}/>
     <h2>{title}</h2>
-    <p className={styles.meta}>{event.companyIds.map(symbol).join(' · ')} · {text('Published','发布于')} {event.published_at?new Date(event.published_at).toLocaleString(locale,{timeZone:'America/New_York'})+' ET':`${event.publication_date} · ${text('date only','仅日期')}`}</p>
+    <p className={styles.meta}>{event.companyIds.map(symbol).join(' · ')} · {text('Published','发布于')} {event.published_at?new Date(event.published_at).toLocaleString(locale,{timeZone:'America/New_York'})+' ET':event.publication_date}</p>
     {event.eventDate&&<p className={styles.meta}>{text('Business / filing date','业务／申报日期')} · {event.eventDate}</p>}
     <p>{event.summary==='交易所上市公司原始公告。'?text('Original announcement from an exchange-listed company.',event.summary):event.summary}</p>
     {event.planned&&<p>{text('Announced / planned; completion is not established.','已宣布／计划中；尚不代表已完成。')}</p>}
