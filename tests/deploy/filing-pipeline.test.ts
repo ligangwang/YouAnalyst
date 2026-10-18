@@ -52,7 +52,7 @@ function run(script: string, extra: Record<string, string> = {}) {
     `], { encoding: 'utf8', timeout: 10000, env: { ...process.env,
       CALLS: path.join(dir, 'calls'), ENV_CAPTURE: path.join(dir, 'env'), ENV_PATHS: path.join(dir, 'env-paths'), SCRIPT: script, GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit',
       FUNDAMENTALS_IMAGE: 'example/image@sha256:abcdef', SEC_USER_AGENT: 'test contact', OPENAI_API_KEY: 'test-existing-key', OPENAI_MODEL: 'test-existing-model',
-      WEB_RUNTIME_SERVICE_ACCOUNT: 'web@demo.iam.gserviceaccount.com',
+      WEB_RUNTIME_SERVICE_ACCOUNT: 'web@demo.iam.gserviceaccount.com', CENTRAL_CACHE_URL: '',
       ENABLE_SEC_FILING_PIPELINE: '1', PUBSUB_BOOTSTRAP_IAM: '0', SEC_FILINGS_COLLECTOR_ENABLED: '0',
       ...extra,
     } });
