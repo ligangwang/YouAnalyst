@@ -1666,7 +1666,7 @@ test('weekly feed loads ten items and requests one previous day without changing
   await expect(panel.locator('[data-event-trigger]')).toHaveCount(20);
   await panel.getByRole('button',{name:'7 days',exact:true}).click();
   await expect(panel.locator('[data-event-trigger]')).toHaveCount(10);
-  await expect(panel.getByText('Loaded days only',{exact:true})).toBeVisible();
+  await expect(panel.getByText('Loaded days only',{exact:true})).toHaveCount(0);
   await panel.getByRole('button',{name:'Load previous day',exact:true}).click();
   await expect(panel.getByText('Loaded 2026-10-03 – 2026-10-04',{exact:true})).toBeVisible();
   expect(olderRequests).toBe(1);

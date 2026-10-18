@@ -81,3 +81,14 @@
 @media(max-width:850px){.regionWorkspace .layerNavigation.layerNavigation{max-height:none;overflow:visible}}
 
 .legacySector{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 10px 8px;padding:7px 9px;border:1px solid var(--ui-line,#426d63);border-radius:6px;background:var(--ui-selected,#173c42);color:var(--ui-text,#edfff9);font-size:11px;text-align:left}
+
+:global(:root:not([data-theme="light"])) .windowControls { gap:16px;padding-inline:16px; }
+:global(:root:not([data-theme="light"])) .windowControls button { border-radius:0;padding:6px 0; }
+:global(:root:not([data-theme="light"])) .windowControls button[aria-pressed=true] { background:none;color:#8cdef0;box-shadow:0 1px #8cdef0; }
+:global(:root:not([data-theme="light"])) .unifiedToolbar .sizeToolbar button { border-color:transparent;background:transparent; }
+:global(:root:not([data-theme="light"])) .unifiedToolbar .sizeToolbar button:hover { background:#8cdef00c; }
+
+:global(:root[data-theme="light"]) .windowControls { gap:16px;padding-inline:16px; }
+:global(:root[data-theme="light"]) .windowControls button { border-radius:0;padding:6px 0; }
+:global(:root[data-theme="light"]) .windowControls button[aria-pressed=true] { background:none;color:#087b86;box-shadow:0 1px #087b86; }
+:global(:root[data-theme="light"]) .unifiedToolbar .sizeToolbar button { border-color:transparent;background:transparent; }

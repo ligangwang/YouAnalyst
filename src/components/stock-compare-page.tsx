@@ -9,6 +9,7 @@ import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
 import { compareEmbedPath, comparisonEmbedCode, type CompareEmbedTheme } from "@/lib/compare-embed";
 import { comparisonPosition, snapComparisonProgress } from "@/lib/compare-chart";
 import { COMPARE_LIGHT_COLORS } from "@/lib/compare";
+import { useMarket } from "./providers/preferences-context";
 import { CompanySearch } from "./company-search";
 import { ComparisonVideoExport } from "./comparison-video-export";
 import { LocalizedLink as Link } from "./localized-link";
@@ -33,7 +34,9 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const [showEmbed, setShowEmbed] = useState(false), [theme, setTheme] = useState<CompareEmbedTheme>(embedTheme), [embedCode, setEmbedCode] = useState("");
   const [chartUnavailable, setChartUnavailable] = useState(false);
   const handleUnavailable = useCallback(() => setChartUnavailable(true), []);
-  const colors = embedded && theme === "light" ? COMPARE_LIGHT_COLORS : COMPARE_COLORS;
+  const { theme: siteTheme } = useMarket();
+  const displayTheme = embedded ? theme : siteTheme;
+  const colors = displayTheme === "light" ? COMPARE_LIGHT_COLORS : COMPARE_COLORS;
   const editor = useRef<HTMLElement>(null);
   const requestKey = new URLSearchParams({ symbols: applied.symbols.join(","), start: applied.start, end: applied.end }).toString();
 
@@ -119,7 +122,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
 
   const results = ranking && <section className={styles.results}><h2>{text("At a glance", "表现一览")} <span>{fraction > 0 ? text("Interpolated", "插值") : data?.dates[index]}</span></h2><table><caption className="sr-only">{fraction > 0 ? text("Animated returns between stored closes", "收盘数据之间的动画插值收益") : text("Price returns at the selected playback date", "回放所选日期的价格收益")}</caption><thead><tr><th>{text("Rank", "排名")}</th><th>{text("Stock", "股票")}</th><th>{text("Price return", "价格收益")}</th></tr></thead><tbody>{ranking.map((row, i) => <tr key={row.symbol}><td>{i + 1}</td><td><i style={{ background: row.color }}/>{row.symbol}</td><td>{returnLabel(row.value)}</td></tr>)}</tbody></table></section>;
 
-  return <main className={`${styles.page}${embedded ? ` ${styles.embedded}` : ""}`} data-embed-theme={embedded ? theme : undefined}>
+  return <main className={`${styles.page}${embedded ? ` ${styles.embedded}` : ""}`} data-compare-theme={displayTheme} data-embed-theme={embedded ? theme : undefined}>
     <h1 className="sr-only">{text("Stock performance playback", "股票表现回放")}</h1>
     {!embedded && <section ref={editor} id="comparison-editor" className={styles.editor} aria-label={text("Edit comparison", "编辑对比")}>
       <button type="button" className={styles.editorSummary} aria-label={text("Selected stocks", "所选股票")} aria-expanded={editorOpen} aria-controls="comparison-settings" onClick={() => setEditorOpen(value => !value)}>
@@ -128,7 +131,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         <span className={styles.editorRange}>{draft.start} → {draft.end}</span><span className={styles.editorChevron} aria-hidden="true">⌄</span>
       </button>
       <div id="comparison-settings" className={styles.editorBody} hidden={!editorOpen}>
-      <div className={styles.chips}>{draft.symbols.map((symbol, i) => <button key={symbol} type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><i style={{ background: COMPARE_COLORS[i] }}/>{symbol}<span aria-hidden="true">×</span></button>)}</div>
+      <div className={styles.chips}>{draft.symbols.map((symbol, i) => <button key={symbol} type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><i style={{ background: colors[i] }}/>{symbol}<span aria-hidden="true">×</span></button>)}</div>
       <div className={styles.settings}>
         <div className={styles.search}><span>{text("Add a stock", "添加股票")}</span><CompanySearch inline owner="chart" typeToSearch={false} clearOnSelect onSelect={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)}/></div>
         <label>{text("From", "起始日期")}<input type="date" value={draft.start} min={playbackStartDate(draft.end)} max={draft.end} onChange={e => setDraft({ ...draft, start: e.target.value })}/></label>

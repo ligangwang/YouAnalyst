@@ -27,7 +27,7 @@ export function IntelligenceActivityOverview({events,documents,complete=false,hi
       <div><strong>{activity.activeIds.length}</strong><span>{text('Companies','公司')}</span></div>
       <div><strong>{activity.signals}</strong><span>{text('Documents','文档')}</span></div>
     </div>
-    {(historyPartial||!complete)&&<p className={styles.scopeNote}>{historyPartial?text('Loaded days only','仅含已加载日期'):text('Partial data','部分数据')}</p>}
+    {!historyPartial&&!complete&&<p className={styles.scopeNote}>{text('Partial data','部分数据')}</p>}
     <details className={styles.breakdown}><summary>{text('By sector','按行业')}</summary>
     <div className={styles.sectors}>{sectors.map(sector=><button key={sector.id} onClick={()=>onSector(sector.id)} title={text('Explore this sector','探索此行业')}>
       <span>{chinese?sector.zh:sector.en}</span><i><b style={{width:`${sector.count/largest*100}%`,background:sector.color}}/></i><strong>{sector.count}</strong>
