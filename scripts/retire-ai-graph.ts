@@ -1,6 +1,5 @@
-import {OAuth2Client} from "google-auth-library";
 import {applicationDefault, initializeApp} from 'firebase-admin/app';
-import {FieldPath, Firestore, getFirestore} from 'firebase-admin/firestore';
+import {FieldPath, getFirestore} from 'firebase-admin/firestore';
 import {retireAiGraph} from '../src/lib/company-themes/retire-ai-graph';
 
 async function main() {
@@ -9,12 +8,8 @@ async function main() {
   const apply = args.has('--apply');
   if (!process.env.GCP_PROJECT_ID) throw Error('GCP_PROJECT_ID is required');
   if (apply && !args.has('--writers-paused')) throw Error('Pause company writers before applying; acknowledge with --writers-paused');
-  const projectId = process.env.GCP_PROJECT_ID;
-  const token = process.env.GOOGLE_OAUTH_ACCESS_TOKEN;
-  const authClient = new OAuth2Client();
-  if (token) authClient.setCredentials({access_token: token});
-  else initializeApp({credential: applicationDefault(), projectId});
-  const db = token ? new Firestore({projectId, authClient}) : getFirestore();
+  initializeApp({credential: applicationDefault(), projectId: process.env.GCP_PROJECT_ID});
+  const db = getFirestore();
   const counts: Record<string, number> = {};
   let cursor: string | undefined;
   // One-time paged scan also finds withdrawn/draft legacy fields; no aiGraph index needed.
