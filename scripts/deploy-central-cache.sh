@@ -2,6 +2,9 @@
 set -euo pipefail
 # Deploy a private candidate only. Do not enable CENTRAL_CACHE_URL on callers until
 # timestamp-capable writers are deployed and the collectors tombstone index is ready.
+# If a candidate was warmed before the new receiver was live, create a fresh
+# revision after writer/receiver rollout and in-flight legacy delivery drain.
+# Never enable callers against a pre-rollout snapshot: deletes may be missing.
 # Existing revisions keep serving; candidate promotion is a separate verified step.
 : "${GCP_PROJECT_ID:?}"
 : "${CACHE_IMAGE:?Use an immutable image digest}"

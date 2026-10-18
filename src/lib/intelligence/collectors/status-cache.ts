@@ -6,9 +6,10 @@ export function loadNewsCollectorStatuses(db:Firestore, ids:string[]) {
  return withCacheReadScope(async()=>{
   if(!ids.length)return [];
   const state=await readCacheState(db);
-  const dependencies:(CacheCollection|`collector:${string}`)[]=state.collectorDocumentsTracked
+  const tracked=state.collectorGeneration && state.collectorDocumentsVersion===state.versions?.collectors;
+  const dependencies:(CacheCollection|`collector:${string}`)[]=tracked
    ? [...new Set(ids)].sort().map(id=>`collector:${id}` as const) : ['collectors'];
-  return changeCached(db,`news-status:${JSON.stringify(ids)}`,dependencies,
+  return changeCached(db,`news-status:${tracked?state.collectorGeneration:"legacy"}:${JSON.stringify(ids)}`,dependencies,
    ()=>db.getAll(...ids.map(id=>db.collection('collectors').doc(id))));
  });
 }

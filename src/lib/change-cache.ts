@@ -9,7 +9,7 @@ export const CHANGE_CACHE_DOCUMENT = '_read_cache_versions_v1';
 export const CHANGE_CACHE_COLLECTIONS = ['companies', 'company_relationships', 'company_fundamentals',
   'eod_prices', 'corporate_actions', 'earnings_records', 'collectors', 'events', 'users', 'directory_syncs', 'predictions', 'watchlists'] as const;
 export type CacheCollection = typeof CHANGE_CACHE_COLLECTIONS[number];
-export type State = { enabled?: boolean; versions?: Record<string, string>; companyIndexes?: Record<string, CompanyIndex>; collectorDocumentsTracked?: boolean };
+export type State = { enabled?: boolean; versions?: Record<string, string>; companyIndexes?: Record<string, CompanyIndex>; collectorDocumentsTracked?: boolean; collectorDocumentsVersion?: string; collectorGeneration?: string };
 type Entry = { version: string; value: Promise<unknown> };
 const caches = new WeakMap<Firestore, Map<string, Entry>>();
 const pendingStates = new WeakMap<Firestore, Promise<State>>();
@@ -119,7 +119,16 @@ export async function applyCacheChange(db: Firestore, headers: Headers, project:
   }
   const probeNonce=collection==='collectors'&&id==='cache-change-probe'
     ? (await db.collection(collection).doc(id).get()).get('nonce') : undefined;
-  await db.collection('collectors').doc(CHANGE_CACHE_DOCUMENT).set({ versions: { [collection]: randomUUID(), ...(collection === 'collectors' ? { [`collector:${id}`]: randomUUID() } : {}) },
-    ...(collection === 'collectors' ? {collectorDocumentsTracked:true} : {}),
-    ...(typeof probeNonce==='string'?{probeNonce}:{}) }, { merge: true });
+  const stateRef=db.collection('collectors').doc(CHANGE_CACHE_DOCUMENT);
+  if(collection==='collectors') {
+    await db.runTransaction(async tx=>{
+      const previous=(await tx.get(stateRef)).data() as State|undefined;
+      const version=randomUUID();
+      const generation=previous?.collectorGeneration && previous.collectorDocumentsVersion===previous.versions?.collectors
+        ? previous.collectorGeneration : randomUUID();
+      tx.set(stateRef,{versions:{collectors:version,[`collector:${id}`]:randomUUID()},collectorDocumentsTracked:true,
+        collectorDocumentsVersion:version,collectorGeneration:generation,
+        ...(typeof probeNonce==='string'?{probeNonce}:{})},{merge:true});
+    });
+  } else await stateRef.set({versions:{[collection]:randomUUID()}},{merge:true});
 }

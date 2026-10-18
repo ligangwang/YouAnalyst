@@ -87,7 +87,7 @@ test('news status invalidation follows source IDs, with legacy fallback and dele
  const state={enabled:true,versions:{} as Record<string,string>,collectorDocumentsTracked:false};
  let reads=0,fail=false;
  const rows=new Map([['news-a',{lastSuccessAt:'today'}],['news-b',{lastSuccessAt:'yesterday'}]]);
- const db={collection:()=>({doc:(id:string)=>({id,get:async()=>({data:()=>structuredClone(state)}),set:async(value:typeof state)=>{Object.assign(state.versions,value.versions);if(value.collectorDocumentsTracked)state.collectorDocumentsTracked=true;}})}),getAll:async(...refs:{id:string}[])=>{reads++;if(fail)throw Error('offline');return refs.map(ref=>({id:ref.id,data:()=>rows.get(ref.id)}));}} as unknown as Firestore;
+ const db={runTransaction:async(work:(tx:unknown)=>Promise<void>)=>work({get:async()=>({data:()=>structuredClone(state)}),set:(ref:{set:(value:unknown)=>Promise<void>},value:unknown)=>ref.set(value)}),collection:()=>({doc:(id:string)=>({id,get:async()=>({data:()=>structuredClone(state)}),set:async(value:typeof state)=>{const {versions,...metadata}=value;Object.assign(state.versions,versions);Object.assign(state,metadata);}})}),getAll:async(...refs:{id:string}[])=>{reads++;if(fail)throw Error('offline');return refs.map(ref=>({id:ref.id,data:()=>rows.get(ref.id)}));}} as unknown as Firestore;
  const load=()=>loadNewsCollectorStatuses(db,['news-a','news-b']);
  await load();state.versions.collectors='old';await load();assert.equal(reads,2);
  await applyCacheChange(db,event('collectors','other-source'),'test');await load();assert.equal(reads,3);
@@ -96,4 +96,9 @@ test('news status invalidation follows source IDs, with legacy fallback and dele
  rows.delete('news-a');await applyCacheChange(db,event('collectors','news-a'),'test');
  const result=await load();assert.equal(reads,4);assert.equal(result[0].data(),undefined);
  await applyCacheChange(db,event('collectors','news-b'),'test');fail=true;await assert.rejects(load(),/offline/);fail=false;await load();assert.equal(reads,6);
+ // An old receiver changes only the global token. A new unrelated event must not hide that gap.
+ state.versions.collectors='legacy-late';
+ await applyCacheChange(db,event('collectors','other-source'),'test');
+ await load();assert.equal(reads,7);
+ state.versions.collectors='legacy-after';await load();assert.equal(reads,8);
 });
