@@ -1,11 +1,12 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { loadCollectionUniverse } from "../src/lib/company-themes/service";
-import { auditMapFundamentals, drainFundamentalsQueue, seedMapFundamentals, usMapTickers } from "../src/lib/fundamentals/batch";
+import { loadFundamentalsCompanyIds } from "../src/lib/fundamentals/company-scope";
+import { usFundamentalsTicker } from "../src/lib/fundamentals/identity";
+import { auditMapFundamentals, drainFundamentalsQueue, seedMapFundamentals } from "../src/lib/fundamentals/batch";
 import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../src/lib/maintenance-lease";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
-import { refreshCachedMarketCaps } from "../src/lib/fundamentals/market-cap";
+import { refreshCompanyMarketCaps } from "../src/lib/fundamentals/market-cap";
 import { backfillLatestEod } from "../src/lib/predictions/backfill-latest-eod";
 import { publishPendingFundamentals, verifyFundamentalsDelivery } from "../src/lib/fundamentals/pubsub-batch";
 import { publishFundamentalsMessage } from "../src/lib/fundamentals/pubsub";
@@ -33,7 +34,9 @@ async function main() {
       return;
     }
     log.stage("seed_map");
-    const tickers = usMapTickers(await loadCollectionUniverse(db));
+    const companyIds = await loadFundamentalsCompanyIds(db, "US");
+    // Provider messages retain raw tickers; storage converts them back to US: keys.
+    const tickers = companyIds.map(id => usFundamentalsTicker(id)!);
     if (!tickers.length) throw new Error("No US map companies found; refusing an incomplete coverage check");
     log.emit("INFO", "map_seeded", await seedMapFundamentals(db, tickers));
     if (process.argv.includes("--seed-only")) return;
@@ -47,9 +50,9 @@ async function main() {
       : await drainFundamentalsQueue(db, log, deadline - 120_000);
     const coverage = await auditMapFundamentals(db, tickers);
     log.stage("market_caps");
-    const marketCaps = await refreshCachedMarketCaps(db, log, deadline);
+    const marketCaps = await refreshCompanyMarketCaps(db, log, tickers);
     await lease.set({ lastRunAt: new Date().toISOString(), result, coverage, marketCaps }, { merge: true });
-    const failed = ("failed" in result && result.failed) || marketCaps.failed || marketCaps.incomplete;
+    const failed = ("failed" in result && result.failed) || marketCaps.failed;
     log.emit(failed ? "ERROR" : "INFO", "run_completed", { ...result, coverage, marketCaps });
     if (failed) throw new Error("Fundamentals or market-cap refresh failed or is incomplete; see run summary");
   } finally {

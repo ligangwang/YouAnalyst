@@ -9,7 +9,7 @@ import { build } from "esbuild";
 import { createRequire } from "node:module";
 const batch:NameBatch={asOf:"2026-09-14",companies:[{id:"US:NVDA",expectedName:"NVIDIA",names:{en:"NVIDIA","zh-CN":"英伟达"},sourceUrl:"https://www.nvidia.cn/newsroom/"}]};
 test("localized names survive projection and both names and aliases are searchable",()=>{
- const graph=graphFromMarket([{id:"US:NVDA",name:"NVIDIA",status:"PUBLISHED",names:{en:"NVIDIA","zh-CN":"英伟达",invalid:17},aliases:["辉达",17],aiGraph:{status:"PUBLISHED",stageIds:["compute"],stages:[],memberships:[],sources:[],order:0,asOf:"2026-09-14"}}],[]);
+ const graph=graphFromMarket([{id:"US:NVDA",name:"NVIDIA",status:"PUBLISHED",names:{en:"NVIDIA","zh-CN":"英伟达",invalid:17},aliases:["辉达",17],inGraph:{status:"PUBLISHED",stageIds:["compute"],stages:[],memberships:[],sources:[],order:0,asOf:"2026-09-14"}}],[]);
  const node=graph.nodes[0];
  assert.equal(companyName(node,"zh-CN"),"英伟达");assert.equal(companyName(node,"en"),"NVIDIA");
  assert.equal(companyName({...node,names:{en:" "}},"en"),"NVIDIA");
@@ -22,7 +22,7 @@ function fake(old:Record<string,unknown>|undefined){
  return {db,writes};
 }
 test("publication only updates existing names, evidence and search index and preview writes nothing",async()=>{
- const f=fake({name:"NVIDIA",status:"PUBLISHED",names:{fr:"NVIDIA"},description:"Keep",aiGraph:{status:"PUBLISHED"}});
+ const f=fake({name:"NVIDIA",status:"PUBLISHED",names:{fr:"NVIDIA"},description:"Keep",inGraph:{status:"PUBLISHED"}});
  await publishNames(f.db,batch,false);assert.equal(f.writes.length,0);
  await publishNames(f.db,batch,true);assert.equal(f.writes.length,1);
  assert.deepEqual(Object.keys(f.writes[0]).sort(),["nameEvidence","names","searchIndexVersion","searchPrefixes","searchTerms"]);
@@ -91,7 +91,7 @@ test("shared name revision invalidates warm graph caches in separate server inst
  let revision = "old", name = "台积公司", companyReads = 0, revisionUnavailable = false;
  const db = {getAll:async()=>[],collection:(collection:string)=>({
   doc:()=>({get:async()=>{if(revisionUnavailable)throw new Error("Unavailable");return {data:()=>({enabled:true,versions:{companies:revision}})};}}),
-  where:()=>({get:async()=>({docs:collection === "companies" ? [ {id:"US:TSM",data:()=>{companyReads++;return {name:"TSMC",names:{"zh-CN":name},status:"PUBLISHED",aiGraph:{status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[]}};}} ] : []})})
+  where:()=>({get:async()=>({docs:collection === "companies" ? [ {id:"US:TSM",data:()=>{companyReads++;return {name:"TSMC",names:{"zh-CN":name},status:"PUBLISHED",inGraph:{status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[]}};}} ] : []})})
  })};
  const a = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
  const b = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
@@ -112,17 +112,17 @@ test("shared name revision invalidates warm graph caches in separate server inst
 });
 
 
-test("graph loader combines generic and legacy memberships without duplicates", async () => {
+test("graph loader only queries canonical graph memberships", async () => {
  const membership = {status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[],order:1,asOf:"2026-09-20"};
  const company = (id:string, fields:object) => ({id,data:()=>({name:id,status:"PUBLISHED",...fields})});
- const shared = company("US:BOTH", {inGraph:membership,aiGraph:membership});
+ const shared = company("US:BOTH", {inGraph:membership});
  const queries:string[] = [];
  const db = {getAll:async()=>[],collection:(name:string)=>({
   doc:()=>({get:async()=>({data:()=>({revision:"generic"})})}),
-  where:(field:string)=>({get:async()=>{queries.push(field);return {docs:name !== "companies" ? [] : field === "inGraph.status" ? [company("US:NEW",{inGraph:membership}), shared] : [company("US:OLD",{aiGraph:membership}), shared]};}})
+  where:(field:string)=>({get:async()=>{queries.push(field);return {docs:name !== "companies" ? [] : field === "themeIds" ? [company("US:NEW",{inGraph:membership}), shared] : [company("US:OLD",{inGraph:membership}), shared]};}})
  })};
  const server = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
  const graph = await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>;
- assert.deepEqual(graph.nodes.filter(n=>n.kind === "COMPANY").map(n=>n.id).sort(), ["US:BOTH","US:NEW","US:OLD"]);
- assert(queries.includes("inGraph.status")); assert(queries.includes("aiGraph.status"));
+ assert.deepEqual(graph.nodes.filter(n=>n.kind === "COMPANY").map(n=>n.id).sort(), ["US:BOTH","US:NEW"]);
+ assert.equal(queries.filter(field => field === "themeIds").length, 1); assert(!queries.includes("inGraph.status")); assert(!queries.includes("aiGraph.status"));
 });

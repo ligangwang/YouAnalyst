@@ -16,7 +16,7 @@ test("reuses issuer across proposal IDs and blocks conflicting identities", () =
   assert.equal(matchCompany(nvidia, [nvidia, { ...nvidia, id: "OTHER:NVDA" }]).status, "REVIEW");
 });
 test("global private neighbors render with their own identity and profile route", () => {
-  const seed = { id: "US:NVDA", name: "NVIDIA", status: "DIRECTORY", aiGraph: { status: "PUBLISHED", stageIds: [], stages: [], sources: [], memberships: [], order: 1, asOf: "2026-09-13" } } as MarketCompany;
+  const seed = { id: "US:NVDA", name: "NVIDIA", status: "DIRECTORY", inGraph: { status: "PUBLISHED", stageIds: [], stages: [], sources: [], memberships: [], order: 1, asOf: "2026-09-13" } } as MarketCompany;
   const graph = graphFromMarket([seed, { id: "ORG:LAB", name: "Independent lab", slug: "independent-lab", status: "PUBLISHED", country: "FR", listingStatus: "PRIVATE" }], [{ id: "r", source: "US:NVDA", target: "ORG:LAB", type: "PARTNER_OF", status: "PUBLISHED", evidence: [{ id: "s", url: "https://example.com/announcement", title: "Announcement", sourceDate: null }] }]);
   const lab = graph.nodes.find(n => n.id === "ORG:LAB")!;
   assert.equal(lab.market, "GLOBAL");

@@ -67,7 +67,7 @@ export async function migrateCompanyThemes(options: { project: string; graph: Kn
     assert.equal(planCompanyThemeMigration(after.map(company), options.graph, batch).length, 0, 'Membership verification failed');
     for (const before of documents) {
       const next = after.find(doc => doc.name === before.name)!;
-      for (const key of ['aiGraph', 'inGraph']) assert.deepEqual(next.fields[key], before.fields[key], `${before.name}: existing AI graph metadata changed`);
+      for (const key of ['inGraph']) assert.deepEqual(next.fields[key], before.fields[key], `${before.name}: existing AI graph metadata changed`);
     }
     const current = await options.request(`${root}:runQuery`, 'POST', { structuredQuery: { from: [{ collectionId: 'companies' }], where: { fieldFilter: { field: { fieldPath: 'themeIds' }, op: 'ARRAY_CONTAINS', value: { stringValue: 'ai' } } } } }) as { document?: Document }[];
     const enrolled = new Set(current.flatMap(row => row.document ? [company(row.document).id] : []));

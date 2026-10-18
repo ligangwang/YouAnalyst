@@ -47,7 +47,7 @@ const ai: KnowledgeGraph = { nodes: Array.from({ length: 134 }, (_, i) => ({ id:
   relationships: [{ id: 'published-contract', source: 'US:NVDA', target: 'US:AI1', type: 'SUPPLIER', summary: 'Reviewed relationship', sourceIds: ['original-source'], commercialStatus: 'SHIPPED' }],
   sources: [{ id: 'original-source', title: 'Original source', url: 'https://example.com/original', sourceDate: '2026-01-01' }], asOf: '2026-10-04' };
 function records(): ThemedCompany[] {
-  const rows = new Map(ai.nodes.map(node => [node.id, { id: node.id, name: node.name, status: 'DIRECTORY', aiGraph: { status: 'PUBLISHED', stageIds: ['compute'], sources: ['original-source'] } } as ThemedCompany]));
+  const rows = new Map(ai.nodes.map(node => [node.id, { id: node.id, name: node.name, status: 'DIRECTORY', inGraph: { status: 'PUBLISHED', stageIds: ['compute'], sources: ['original-source'] } } as ThemedCompany]));
   for (const proposal of batch.companies) if (!rows.has(proposal.id)) rows.set(proposal.id, { id: proposal.id, name: proposal.expectedName, status: 'DIRECTORY' });
   return [...rows.values()];
 }
@@ -71,7 +71,7 @@ test('membership migration preserves all 134 AI companies, graph data and overla
 });
 
 test('relationship-only AI neighbors and unrelated theme memberships survive additive migration', () => {
-  const rows = records(); delete rows[1].aiGraph;
+  const rows = records(); delete rows[1].inGraph;
   rows[1].themeMemberships = { future: { status: 'PUBLISHED', primarySector: 'other', reviewedAt: '2026-01-01' } };
   const patches = planCompanyThemeMigration(rows, ai, batch);
   assert.deepEqual(patches.find(row => row.id === rows[1].id)!.themeIds, ['ai', 'future']);
@@ -90,28 +90,28 @@ test('authoritative membership status controls job eligibility and future enroll
   const row: ThemedCompany = { id: 'US:NEW', name: 'New company', status: 'DIRECTORY', themeIds: ['robotics'], themeMemberships: { robotics: { status: 'PUBLISHED', primarySector: 'sensors-vision', reviewedAt: '2026-10-04' } } };
   assert(isCollectionCompany(row)); assert(usMapTickers(collectionUniverse(ai, [row])).includes('NEW'));
   row.themeMemberships!.robotics.status = 'WITHDRAWN'; assert(!isCollectionCompany(row)); assert.deepEqual(activeThemeIds(row), []);
-  row.aiGraph = { status: 'PUBLISHED' }; assert(isCollectionCompany(row));
+  row.inGraph = { status: 'PUBLISHED' }; assert(isCollectionCompany(row));
   row.themeMemberships!.ai = { status: 'WITHDRAWN', primarySector: 'compute', reviewedAt: '2026-10-04' }; assert(!isCollectionCompany(row));
 });
 
 test('indexed theme reads reject stale array entries and combined enrollment deduplicates legacy records', async () => {
   const membership = { status: 'PUBLISHED', primarySector: 'compute-control', reviewedAt: '2026-10-04' };
   const rows = [
-    { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', themeIds: ['ai', 'robotics'], themeMemberships: { ai: membership, robotics: membership }, aiGraph: { status: 'PUBLISHED' } },
+    { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', themeIds: ['ai', 'robotics'], themeMemberships: { ai: membership, robotics: membership }, inGraph: { status: 'PUBLISHED' } },
     { id: 'US:OLD', name: 'Withdrawn company', status: 'DIRECTORY', themeIds: ['robotics'], themeMemberships: { robotics: { ...membership, status: 'WITHDRAWN' } } },
     { id: 'US:HIDDEN', name: 'Hidden company', status: 'DRAFT', themeIds: ['robotics'], themeMemberships: { robotics: membership } },
   ];
-  const db = { collection: (name: string) => { assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => ({ get: async () => ({ docs: rows.filter(row => {
+  const db = { collection: (name: string) => { assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert.equal(field, 'themeIds'); return ({ get: async () => ({ docs: rows.filter(row => {
     if (field === 'themeIds') return operator === 'array-contains' ? row.themeIds.includes(String(value)) : row.themeIds.some(theme => value.includes(theme));
-    return field === 'aiGraph.status' && row.aiGraph?.status === value;
-  }).map(row => ({ id: row.id, data: () => row })) }) }) }; } } as unknown as Firestore;
+    return field === 'inGraph.status' && row.inGraph?.status === value;
+  }).map(row => ({ id: row.id, data: () => row })) }) }); } }; } } as unknown as Firestore;
   assert.deepEqual((await loadThemeCompanies('robotics', db)).map(row => row.id), ['US:NVDA']);
   assert.deepEqual((await loadCollectionCompanies(db)).map(row => row.id), ['US:NVDA']);
 });
 
 test('withdrawn AI enrollment overrides legacy graph flags while neighbors and another published theme remain eligible', async () => {
-  const record: ThemedCompany = { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', themeIds: [], aiGraph: { status: 'PUBLISHED' }, themeMemberships: { ai: { status: 'WITHDRAWN', primarySector: 'compute', reviewedAt: '2026-10-04' } } };
-  const db = { collection: () => ({ where: (field: string) => ({ get: async () => ({ docs: field === 'aiGraph.status' ? [{ id: record.id, data: () => record }] : [] }) }) }) } as unknown as Firestore;
+  const record: ThemedCompany = { id: 'US:NVDA', name: 'NVIDIA', status: 'DIRECTORY', themeIds: [], inGraph: { status: 'PUBLISHED' }, themeMemberships: { ai: { status: 'WITHDRAWN', primarySector: 'compute', reviewedAt: '2026-10-04' } } };
+  const db = { collection: () => ({ where: (field: string) => ({ get: async () => ({ docs: field === 'themeIds' ? [{ id: record.id, data: () => record }] : [] }) }) }) } as unknown as Firestore;
   const excluded = await loadCollectionUniverse(db, ai);
   assert(!usMapTickers(excluded).includes('NVDA'));
   assert.equal(excluded.nodes.filter(node => node.kind === 'COMPANY').length, 133);

@@ -14,12 +14,9 @@ export async function loadThemeCompanies(theme: CompanyThemeId, db = getAdminFir
 
 /** Include negative decisions so legacy graph enrollment cannot override them. */
 async function loadEnrollmentRecords(db: Firestore) {
-  const snapshots = await Promise.all([
-    db.collection('companies').where('themeIds', 'array-contains-any', [...COMPANY_THEMES]).get(),
-    db.collection('companies').where('inGraph.status', '==', 'PUBLISHED').get(),
-    db.collection('companies').where('aiGraph.status', '==', 'PUBLISHED').get(),
-  ]);
-  return [...new Map(snapshots.flatMap(snapshot => snapshot.docs).map(doc => [doc.id, doc])).values()];
+  const snapshot = await db.collection('companies')
+    .where('themeIds', 'array-contains-any', [...COMPANY_THEMES]).get();
+  return snapshot.docs;
 }
 
 /** Read published memberships from companies, retaining legacy AI enrollment. */

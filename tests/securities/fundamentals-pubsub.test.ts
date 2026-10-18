@@ -14,9 +14,9 @@ function fixture(initial: Record<string, Data> = {}) {
     set: async (data: Data) => { rows.set(id, { ...rows.get(id), ...data }); },
     create: async (data: Data) => { assert.ok(!rows.has(id)); rows.set(id, data); } });
   const db = { collection: () => ({ doc: ref, where: (field: string, _operator: string, value: unknown) => {
-    let after = "", limit = 100;
-    const q = { orderBy: () => q, startAfter: (v: string) => { after = v; return q; }, limit: (v: number) => { limit = v; return q; },
-      get: async () => { const docs = [...rows].filter(([id, d]) => d[field] === value && id > after).sort(([a], [b]) => a.localeCompare(b))
+    let after = "", lower = "", upper = "\uffff", limit = 100;
+    const q = { orderBy: () => q, startAt: (v:string) => {lower=v;return q;}, endBefore: (v:string) => {upper=v;return q;}, startAfter: (v: string) => { after = v; return q; }, limit: (v: number) => { limit = v; return q; },
+      get: async () => { const docs = [...rows].filter(([id, d]) => d[field] === value && id > after && id >= lower && id < upper).sort(([a], [b]) => a.localeCompare(b))
         .slice(0, limit).map(([id]) => snap(id)); return { docs, size: docs.length }; } };
     return q;
   } }), runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ get: async (r: ReturnType<typeof ref>) => r.get(),
@@ -24,7 +24,7 @@ function fixture(initial: Record<string, Data> = {}) {
   const events: FundamentalsUpdate[] = [], calls: string[] = [];
   const logs: Data[] = [];
   const log = { runId: "attempt-1", emit: (_level: string, event: string, data: Data) => logs.push({ event, ...data }) } as unknown as MaintenanceLog;
-  const refresh = async (ticker: string) => { calls.push(ticker); rows.set(ticker, { pending: false, outcome: "ready", value: { metrics: { revenue: 10 }, fetchedAt: new Date().toISOString() } }); return null; };
+  const refresh = async (ticker: string) => { calls.push(ticker); rows.set(`US:${ticker}`, { pending: false, outcome: "ready", value: { metrics: { revenue: 10 }, fetchedAt: new Date().toISOString() } }); return null; };
   const marketCaps = async () => ({ processed: 0, failed: 0 });
   const publish = async (e: FundamentalsUpdate) => { events.push(e); };
   return { rows, db, log, events, calls, logs, refresh, marketCaps, publish };
@@ -40,8 +40,8 @@ test("batch validation rejects empty, oversized, duplicate and unsafe company li
   assert.deepEqual(parseFundamentalsRequest(request()), request());
 });
 test("batch publisher chunks all eligible companies and leaves fresh caches deferred", async () => {
-  const f = fixture(Object.fromEntries(Array.from({ length: 45 }, (_, i) => [`T${String(i).padStart(3, "0")}`, { pending: true }])));
-  f.rows.set("FRESH", { pending: true, refreshAfter: Date.now() + 86400000 });
+  const f = fixture(Object.fromEntries(Array.from({ length: 45 }, (_, i) => [`US:T${String(i).padStart(3, "0")}`, { pending: true }])));
+  f.rows.set("US:FRESH", { pending: true, refreshAfter: Date.now() + 86400000 });
   const messages: FundamentalsRequest[] = [];
   const result = await publishPendingFundamentals(f.db, "run-1", async r => { messages.push(r); }, f.log);
   assert.equal(result.requested, 45);
@@ -74,7 +74,7 @@ test("result publish failure resumes the durable outbox without another SEC fetc
   assert.equal(f.calls.length, 2); assert.equal(f.events.length, 1);
 });
 test("a crash after saving company data retains the before-version for resumed events", async () => {
-  const f = fixture({ AMD: { value: { metrics: { revenue: 5 } } } });
+  const f = fixture({ "US:AMD": { value: { metrics: { revenue: 5 } } } });
   let first = true;
   const refresh = async (ticker: string) => {
     if (first) { first = false; await f.refresh(ticker); throw new Error("interrupted after save"); }
@@ -86,7 +86,7 @@ test("a crash after saving company data retains the before-version for resumed e
   assert.equal(f.calls.length, 1);
 });
 test("freshness-only changes do not publish fundamentals.updated", async () => {
-  const f = fixture({ AMD: { value: { fetchedAt: "old", metrics: { revenue: 10 } } } });
+  const f = fixture({ "US:AMD": { value: { fetchedAt: "old", metrics: { revenue: 10 } } } });
   await processFundamentalsBatch(request(["AMD"]), f.db, f.log, f.publish, f);
   assert.equal(f.events.length, 0);
   assert.equal(fundamentalsVersion({ b: 2, a: 1 }), fundamentalsVersion({ a: 1, b: 2 }));
@@ -100,7 +100,7 @@ test("SEC provider blocks stop other companies and respect persisted cooldown", 
   assert.equal(f.calls.length, 0);
 });
 test("delivery verification reuses stale cached data even during an SEC cooldown", async () => {
-  const f = fixture({ AMD: { outcome: "ready", pending: false, refreshAfter: 0, value: { metrics: { revenue: 10 } } },
+  const f = fixture({ "US:AMD": { outcome: "ready", pending: false, refreshAfter: 0, value: { metrics: { revenue: 10 } } },
     _worker: { providerRetryAfter: Date.now() + 3600000 } });
   const result = await processFundamentalsBatch({ ...request(["AMD"]), reason: "verification" }, f.db, f.log, f.publish, f);
   assert.equal(result.completed, 1); assert.equal(f.calls.length, 0); assert.equal(f.events.length, 0);
@@ -119,7 +119,7 @@ test("reusing a batch identifier with different contents is rejected", async () 
 });
 
 test("delivery probe waits for the completed duplicate receipt before reporting success", async () => {
-  const f = fixture(Object.fromEntries(["AMD", "NVDA"].map(ticker => [ticker,
+  const f = fixture(Object.fromEntries(["AMD", "NVDA"].map(ticker => [`US:${ticker}`,
     { outcome: "ready", pending: false, value: { metrics: { revenue: 10 } } }])));
   let now = 0;
   let deliveries = 0;
@@ -141,7 +141,7 @@ test("delivery probe waits for the completed duplicate receipt before reporting 
 });
 
 test("confirmed republication without a duplicate delivery fails the probe", async () => {
-  const f = fixture(Object.fromEntries(["AMD", "NVDA"].map(ticker => [ticker,
+  const f = fixture(Object.fromEntries(["AMD", "NVDA"].map(ticker => [`US:${ticker}`,
     { outcome: "ready", pending: false, value: { metrics: { revenue: 10 } } }])));
   let now = 0;
   let deliveries = 0;

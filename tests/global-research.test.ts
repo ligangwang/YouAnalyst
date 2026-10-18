@@ -37,6 +37,8 @@ test("preview writes nothing; publication renders global nodes and evidence; rep
   assert.deepEqual(transactionModes, [true, false]);
   const companies = [...records].filter(([k]) => k.startsWith("companies/")).map(([, v]) => v) as MarketCompany[];
   const edges = [...records].filter(([k]) => k.startsWith("company_relationships/")).map(([, v]) => v) as MarketRelationship[];
+  assert.deepEqual(records.get("companies/ORG:OPENAI")!.themeIds, ["ai"]);
+  assert.equal((records.get("companies/ORG:OPENAI")!.themeMemberships as Record<string, {status:string}>).ai.status, "PUBLISHED");
   const graph = graphFromMarket(companies, edges);
   assert.equal(graph.relationships.filter(e => e.type !== "PARTICIPATES_IN").length, 5);
   assert.equal(graph.nodes.find(n => n.id === "ORG:MISTRAL-AI")?.country, "FR");

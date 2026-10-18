@@ -1,3 +1,4 @@
+import { usFundamentalsId, validFundamentalsTicker } from "./identity";
 import { getAdminFirestore } from "../firebase/admin";
 import { maintenanceError } from "../maintenance-log";
 import type { CompanyFundamentals } from "./model";
@@ -6,7 +7,7 @@ import { reviewedDomesticIssuers } from "./domestic-share-counts";
 import {changeCached} from '../change-cache';
 
 export const FUNDAMENTALS_COLLECTION = "company_fundamentals";
-export const validFundamentalsTicker = (ticker: string) => /^[A-Z0-9][A-Z0-9.-]{0,15}$/.test(ticker);
+export { validFundamentalsTicker } from "./identity";
 type Database = ReturnType<typeof getAdminFirestore>;
 export const needsShareMetadataUpgrade = (stored?: DocumentData) => Boolean(stored?.value
   && (!stored.value.shareAssessment || ((stored.value.report?.form === "20-F"
@@ -17,7 +18,7 @@ export const needsShareMetadataUpgrade = (stored?: DocumentData) => Boolean(stor
 // Page reads never import the SEC worker or make provider requests.
 export async function requestCompanyFundamentals(ticker: string, db: Database, now = Date.now()) {
   if (!validFundamentalsTicker(ticker)) return null;
-  const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
+  const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
   const valueOf = (stored?: DocumentData): CompanyFundamentals | null => stored?.version === 1 && stored.value
     ? { ...stored.value, ...(stored.marketCap ? { marketCap: stored.marketCap } : {}) } : null;
   const needsRequest = (stored?: DocumentData) => stored?.pending !== true

@@ -17,7 +17,7 @@ export async function publishNewsSources({project,sources,request,write=false,ba
   const guardUrl=`${root}/collectors/news-source-registry`;
   const guard=await request(guardUrl) as Document|null;
   const owners=structuredClone(guard?company(guard).sourceOwners??{}:{}) as Record<string,string>;
-  const queries=[{fieldFilter:{field:{fieldPath:'themeIds'},op:'ARRAY_CONTAINS_ANY',value:{arrayValue:{values:['ai','robotics','space'].map(stringValue=>({stringValue}))}}}},...['inGraph.status','aiGraph.status'].map(fieldPath=>({fieldFilter:{field:{fieldPath},op:'EQUAL',value:{stringValue:'PUBLISHED'}}}))];
+  const queries=[{fieldFilter:{field:{fieldPath:'themeIds'},op:'ARRAY_CONTAINS_ANY',value:{arrayValue:{values:['ai','robotics','space'].map(stringValue=>({stringValue}))}}}}];
   for(const where of queries){
     const rows=await request(`${root}:runQuery`,'POST',{structuredQuery:{from:[{collectionId:'companies'}],where,select:{fields:[{fieldPath:'newsSources'}]}}}) as {document?:Document}[];
     for(const {document} of rows){if(!document)continue;const row=company({...document,fields:document.fields??{}});for(const feed of (row.newsSources??[]) as CompanyNewsSource[]){

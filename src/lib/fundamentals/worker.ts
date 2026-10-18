@@ -1,3 +1,4 @@
+import { usFundamentalsId } from "./identity";
 import { getAdminFirestore } from "../firebase/admin";
 import { fetchLatest10KSections } from "../company-graph/sec";
 import { annualMetrics, businessExcerpt, latestAnnualReport, type CompanyFacts, type CompanyFundamentals } from "./model";
@@ -43,7 +44,7 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
   const db = dependencies?.db ?? getAdminFirestore();
   const identify = dependencies?.identify ?? resolveCik;
   const readJson = dependencies?.readJson ?? secJson;
-  const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(ticker);
+  const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
   const now = Date.now();
   const lease = await db.runTransaction(async tx => {
     const snapshot = await tx.get(ref);

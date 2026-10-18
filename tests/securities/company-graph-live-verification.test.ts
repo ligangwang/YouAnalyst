@@ -20,7 +20,7 @@ function fixture() {
   const rows = new Map<string, Row>([
     ["company_research_runs/NVDA_latest_10k", { status: "COMPLETED", extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION, result: resultFor("legacy") }],
     [`sec_filings/${event.accessionNumber}`, { discoveryPending: false, discoveryEvents: { [event.eventId]: { event, state: "baseline" } } }],
-    ["company_fundamentals/NVDA", { secFilingsCollector: { cik: event.cik, lastCompleteAt: event.discoveredAt, scan: null } }],
+    ["company_fundamentals/US:NVDA", { secFilingsCollector: { cik: event.cik, lastCompleteAt: event.discoveredAt, scan: null } }],
   ]);
   let clock = now, tail = Promise.resolve();
   const paths: string[] = [], publications: Array<{ type: string; id: string }> = [];
@@ -53,7 +53,7 @@ function fixture() {
     rows.set("company_research_requests/NVDA", { ...rows.get("company_research_requests/NVDA"), requestId: request.requestId, status: "COMPLETED" });
   };
   const completeFiling = (runId = String(rows.get(markerPath)!.runId)) => {
-    rows.set("company_fundamentals/NVDA", { ...rows.get("company_fundamentals/NVDA"), outcome: "ready",
+    rows.set("company_fundamentals/US:NVDA", { ...rows.get("company_fundamentals/US:NVDA"), outcome: "ready",
       lastFilingRefresh: { eventId: event.eventId, accessionNumber: event.accessionNumber } });
     rows.set(`company_research_runs/_graph_filing_receipt_${event.eventId}`, { completed: true,
       eventId: event.eventId, companyId: "NVDA", accessionNumber: event.accessionNumber, runId });
@@ -295,7 +295,7 @@ test("initial activation requires an exact completed baseline and matching cache
   for (const change of [
     (f: ReturnType<typeof fixture>) => f.rows.delete(`sec_filings/${event.accessionNumber}`),
     (f: ReturnType<typeof fixture>) => f.rows.set(`sec_filings/${event.accessionNumber}`, { discoveryEvents: { [event.eventId]: { event, state: "published" } } }),
-    (f: ReturnType<typeof fixture>) => f.rows.delete("company_fundamentals/NVDA"),
+    (f: ReturnType<typeof fixture>) => f.rows.delete("company_fundamentals/US:NVDA"),
     (f: ReturnType<typeof fixture>) => f.rows.set("company_research_runs/NVDA_latest_10k", { status: "FAILED" }),
   ]) {
     const f = fixture(); change(f); await assert.rejects(verifyLiveCompanyGraph(f.db, tree, f.deps));
@@ -334,7 +334,7 @@ test("both exact filing receipts are required, and incomplete fan-out stops afte
     const f = fixture();
     await assert.rejects(verifyLiveCompanyGraph(f.db, tree, { ...f.deps, publishFiling: async () => {
       f.completeFiling();
-      if (breakReceipt === "fundamentals") f.rows.set("company_fundamentals/NVDA", { outcome: "ready" });
+      if (breakReceipt === "fundamentals") f.rows.set("company_fundamentals/US:NVDA", { outcome: "ready" });
       if (breakReceipt === "graph") f.rows.delete(`company_research_runs/_graph_filing_receipt_${event.eventId}`);
       if (breakReceipt === "checkpoint") f.rows.delete(`company_research_runs/_graph_run_${f.rows.get(markerPath)!.runId}`);
     } }), /timed out/);

@@ -1,3 +1,4 @@
+import { COMPANY_THEMES } from "../company-themes/model";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { KnowledgeGraph } from "./model";
 import { graphFromMarket, RELATIONSHIP_COLLECTION, type MarketCompany, type MarketRelationship } from "./market-store";
@@ -8,13 +9,13 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
   const db = getAdminFirestore();
   let complete=true;
   return changeCached(db, 'knowledge-graph', ['companies', 'company_relationships', 'company_fundamentals', 'directory_syncs'], async () => {
-    const [companies, legacyCompanies, edges] = await Promise.all([
-      db.collection("companies").where("inGraph.status", "==", "PUBLISHED").get(),
-      db.collection("companies").where("aiGraph.status", "==", "PUBLISHED").get(),
+    const [companies, edges] = await Promise.all([
+      db.collection("companies").where("themeIds", "array-contains-any", [...COMPANY_THEMES]).get(),
       db.collection(RELATIONSHIP_COLLECTION).where("status", "==", "PUBLISHED").get(),
     ]);
-    const companyDocs = [...new Map([...legacyCompanies.docs, ...companies.docs].map(doc => [doc.id, doc])).values()];
-    const rows = companyDocs.map(d => ({ ...d.data(), id: d.id }) as MarketCompany);
+    // Retain graph layout enrollment without a second indexed company query.
+    const rows = companies.docs.map(d => ({ ...d.data(), id: d.id }) as MarketCompany)
+      .filter(company => company.inGraph?.status === "PUBLISHED");
     const ids = new Set(rows.map(c => c.id));
     const relationships = edges.docs.map(d => ({ ...d.data(), id: d.id }) as MarketRelationship);
     const neighbors = [...new Set(relationships.filter(r => ids.has(r.source) || ids.has(r.target)).flatMap(r => [r.source, r.target]))].filter(id => !ids.has(id) && /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id));
@@ -29,7 +30,7 @@ export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
     try {
       for (let i = 0; i < usCompanies.length; i += 100) {
         const batch = usCompanies.slice(i, i + 100);
-        const values = await db.getAll(...batch.map(n => db.collection("company_fundamentals").doc(n.id.slice(3))), { fieldMask: ["marketCap"] });
+        const values = await db.getAll(...batch.map(n => db.collection("company_fundamentals").doc(n.id)), { fieldMask: ["marketCap"] });
         values.forEach((doc, index) => {
           const cap = doc.data()?.marketCap;
           if (cap?.status === "estimated" && cap.currency === "USD" && typeof cap.value === "number" && Number.isFinite(cap.value) && cap.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? "")) {

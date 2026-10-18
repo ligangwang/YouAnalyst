@@ -392,6 +392,9 @@
     }
   ],
   "fieldOverrides": [
+  {"collectionGroup":"companies","fieldPath":"inGraph.status","indexes":[]},
+  {"collectionGroup":"companies","fieldPath":"aiGraph","indexes":[]},
+  {"collectionGroup":"companies","fieldPath":"aiGraph.status","indexes":[]},
   {"collectionGroup":"collectors","fieldPath":"payload","indexes":[]},
   {
     "collectionGroup": "companies",

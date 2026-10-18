@@ -18,7 +18,7 @@ export async function backfillRelationshipSources(project:string,token:string,ke
   const response=await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(data),signal:AbortSignal.timeout(60_000)});
   assert(response.ok,`Firestore returned HTTP ${response.status}`);return response.json();
  });
- const query=async(collectionId:string)=>await request(root+':runQuery',{structuredQuery:{from:[{collectionId}],select:{fields:(collectionId==='companies'?['status','inGraph.status','inGraph.sources','aiGraph.status','aiGraph.sources','themeMemberships']:['evidence','status']).map(fieldPath=>({fieldPath}))}}}) as {document?:Document}[];
+ const query=async(collectionId:string)=>await request(root+':runQuery',{structuredQuery:{from:[{collectionId}],select:{fields:(collectionId==='companies'?['status','inGraph.status','inGraph.sources','themeMemberships']:['evidence','status']).map(fieldPath=>({fieldPath}))}}}) as {document?:Document}[];
  const groups:Group[]=[];
  const add=(document:Document,path:string,sources:unknown)=>{if(Array.isArray(sources)&&sources.length)groups.push({document,path,sources:sources as Source[]});};
  const relationships=await query('company_relationships');
@@ -26,7 +26,7 @@ export async function backfillRelationshipSources(project:string,token:string,ke
  for(const row of await query('companies')){
   if(!row.document)continue;const record=company(row.document);
   if(!['PUBLISHED','DIRECTORY'].includes(String(record.status)))continue;
-  for(const field of ['inGraph','aiGraph']){const member=record[field] as {status?:string;sources?:unknown}|undefined;if(member?.status==='PUBLISHED')add(row.document,field+'.sources',member.sources);}
+  for(const field of ['inGraph']){const member=record[field] as {status?:string;sources?:unknown}|undefined;if(member?.status==='PUBLISHED')add(row.document,field+'.sources',member.sources);}
   for(const [theme,member] of Object.entries(record.themeMemberships??{}))if(member.status==='PUBLISHED')add(row.document,`themeMemberships.${theme}.sources`,member.sources);
  }
  const needs=(source:Source)=>typeof source.title==='string'&&source.title.trim()&&!/[\u4e00-\u9fff]/.test(source.title)&&!translatedSummary(source.title,source.titleTranslations?.['zh-CN']);

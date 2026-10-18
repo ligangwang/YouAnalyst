@@ -1,3 +1,4 @@
+import { usFundamentalsId } from "../fundamentals/identity";
 import {markFeedChanged} from '../intelligence/feed-cache-changes';
 import type { SecFiling } from "./source";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
@@ -39,7 +40,7 @@ export function secCollectorMetadata(db: Firestore) {
   return db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(SEC_COLLECTOR_METADATA_DOCUMENT);
 }
 export async function readSecCollectorCursor(db: Firestore, companyId: string): Promise<SecCollectorCursor | null> {
-  const value = (await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(companyId).get()).get("secFilingsCollector");
+  const value = (await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(usFundamentalsId(companyId)).get()).get("secFilingsCollector");
   if (!value) return null;
   if (value.version !== 1 || !/^\d{10}$/.test(value.cik) || !Number.isFinite(Date.parse(value.baselineAt))
     || (value.lastCompleteAt !== null && !Number.isFinite(Date.parse(value.lastCompleteAt)))
@@ -52,7 +53,7 @@ export async function readSecCollectorCursor(db: Firestore, companyId: string): 
   return value as SecCollectorCursor;
 }
 export async function writeSecCollectorCursor(db: Firestore, companyId: string, value: SecCollectorCursor) {
-  await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(companyId).set({ secFilingsCollector: value }, { merge: true });
+  await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(usFundamentalsId(companyId)).set({ secFilingsCollector: value }, { merge: true });
 }
 
 /** Existing accession documents also contain graph extraction results; always merge. */

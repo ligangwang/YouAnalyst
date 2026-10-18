@@ -7,7 +7,7 @@ import { companyGeography, companyGeographyLabel } from "../src/lib/market-compa
 
 const fixture = async () => JSON.parse(await readFile(new URL("../data/ai-supply-chain/company-identities.json", import.meta.url), "utf8")) as IdentityBatch;
 function database(batch: IdentityBatch) {
-  const records = new Map(batch.companies.map(c => [c.id, { name: c.expectedName, status: "DIRECTORY", listingStatus: "UNKNOWN", description: "Reviewed business", profile: { checkedAt: batch.asOf }, aiGraph: { status: "PUBLISHED" } } as Record<string, unknown>]));
+  const records = new Map(batch.companies.map(c => [c.id, { name: c.expectedName, status: "DIRECTORY", listingStatus: "UNKNOWN", description: "Reviewed business", profile: { checkedAt: batch.asOf }, inGraph: { status: "PUBLISHED" } } as Record<string, unknown>]));
   const modes: boolean[] = [];
   const db = {
     collection: (name: string) => { assert.equal(name, "companies"); return { doc: (id: string) => id }; },
@@ -45,7 +45,7 @@ test("identity preview is read-only; write preserves profiles, graph data and ex
   for (const [id, old] of before) {
     const current = records.get(id)!;
     assert.equal(current.listingStatus, "PUBLIC");
-    for (const key of ["name", "status", "description", "profile", "aiGraph"]) assert.deepEqual(current[key], old[key]);
+    for (const key of ["name", "status", "description", "profile", "inGraph"]) assert.deepEqual(current[key], old[key]);
   }
   assert.deepEqual((records.get("US:BABA")!.listings as unknown[])[0], extra);
   const published = structuredClone(records); await publishIdentities(db, batch, true); assert.deepEqual(records, published);

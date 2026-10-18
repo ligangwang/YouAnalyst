@@ -5,10 +5,10 @@ import { companyGeography } from "../market-companies/identity";
 import type { GraphFact, GraphEdge, GraphNode, GraphSource, KnowledgeGraph } from "./model";
 export const RELATIONSHIP_COLLECTION = "company_relationships";
 export type GraphMembership = { status: "PUBLISHED"; stageIds: string[]; stages: GraphNode[]; memberships: GraphEdge[]; sources: GraphSource[]; order: number; asOf: string };
-export type MarketCompany = Record<string, unknown> & { id: string; inGraph?: GraphMembership; aiGraph?: GraphMembership };
-// Read legacy records during the transition; the generic field takes precedence.
-export function graphMembership(company: { inGraph?: GraphMembership; aiGraph?: GraphMembership }) {
-  return company.inGraph ?? company.aiGraph;
+export type MarketCompany = Record<string, unknown> & { id: string; inGraph?: GraphMembership };
+// Graph enrollment has one authoritative field.
+export function graphMembership(company: { inGraph?: GraphMembership }) {
+  return company.inGraph;
 }
 export type MarketRelationship = Record<string, unknown> & { id: string; source: string; target: string; type: string; status: string; evidence?: (GraphSource & { summary?: string })[] };
 export function relationshipId(source: string, target: string, type: string) {

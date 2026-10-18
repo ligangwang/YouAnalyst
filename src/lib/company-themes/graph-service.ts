@@ -20,7 +20,7 @@ export async function loadThemeGraph(theme: CompanyThemeId): Promise<KnowledgeGr
     // Reuse existing public financial summaries; viewing never initiates a provider call.
     try {
       if (us.length) {
-        const values = await db.getAll(...us.map(node => db.collection('company_fundamentals').doc(node.id.slice(3))), {fieldMask:['marketCap']});
+        const values = await db.getAll(...us.map(node => db.collection('company_fundamentals').doc(node.id)), {fieldMask:['marketCap']});
         values.forEach((doc, index) => {
           const cap = doc.data()?.marketCap;
           if (cap?.status === 'estimated' && cap.currency === 'USD' && Number.isFinite(cap.value) && cap.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? '')) us[index].marketCap = {value:cap.value,currency:'USD',priceDate:cap.priceDate};

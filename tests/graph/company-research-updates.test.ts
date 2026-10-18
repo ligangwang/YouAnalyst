@@ -93,7 +93,7 @@ test("relationship categories follow supply direction and explain it in Chinese"
   assert.equal(researchCompanyUrl({ id: "ORG:OPENAI" }), "/company/openai");
 });
 test("public graph exposes only sourced research facts, without arbitrary private fields", () => {
-  const node = { id: "US:AMD", status: "PUBLISHED", name: "AMD", aiGraph: { status: "PUBLISHED" as const, stageIds: ["compute"], stages: [], memberships: [], sources: [], order: 1, asOf: "2026-09-15" } };
+  const node = { id: "US:AMD", status: "PUBLISHED", name: "AMD", inGraph: { status: "PUBLISHED" as const, stageIds: ["compute"], stages: [], memberships: [], sources: [], order: 1, asOf: "2026-09-15" } };
   const result = graphFromMarket([node, { id: "ORG:OPENAI", status: "DIRECTORY", name: "OpenAI" }], [{ ...graph.relationships[0], status: "PUBLISHED", evidence: graph.sources, researchFacts: [{ ...graph.relationships[0].facts![0], privateNote: "secret" }, { scope: "unsupported", state: "DOCUMENTED", sourceIds: ["missing"] }] }]);
   assert.equal(result.relationships[0].facts?.length, 1);
   assert.equal(JSON.stringify(result).includes("privateNote"), false);
@@ -117,7 +117,7 @@ test("published research retains each fact's status, scope, limitation and origi
   const previous = mergeEdge(batch, batch.relationships[0], null);
   const next = { ...batch, asOf: "2026-09-15", relationships: [{ ...batch.relationships[0], facts: [{ state: "ANNOUNCED" as const, scope: "Planned Instinct MI450 capacity", limitation: "No delivery confirmation", sourceIds: ["source"] }] }] };
   const record = mergeEdge(next, next.relationships[0], previous) as MarketRelationship;
-  const projected = graphFromMarket([{ id: "US:AMD", name: "AMD", status: "PUBLISHED", aiGraph: { status: "PUBLISHED", stageIds: ["compute"], stages: [], memberships: [], sources: [], order: 1, asOf: next.asOf } }, { id: "ORG:OPENAI", name: "OpenAI", status: "DIRECTORY" }], [record]);
+  const projected = graphFromMarket([{ id: "US:AMD", name: "AMD", status: "PUBLISHED", inGraph: { status: "PUBLISHED", stageIds: ["compute"], stages: [], memberships: [], sources: [], order: 1, asOf: next.asOf } }, { id: "ORG:OPENAI", name: "OpenAI", status: "DIRECTORY" }], [record]);
   assert.equal(projected.relationships[0].facts?.length, 2);
   assert.deepEqual(projected.relationships[0].facts?.map(f => [f.state, f.scope, f.limitation, f.reviewedAt]), [
     ["DOCUMENTED", "Existing EPYC deployment", "CPU only", "2026-09-14"],

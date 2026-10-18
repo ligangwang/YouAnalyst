@@ -13,7 +13,7 @@ type Row = Record<string, unknown>;
 function fixture() {
   const before = { report: { cik: filing.cik, accession: "0000002488-25-000010", form: "20-F" },
     metrics: [{ label: "Revenue", value: 100 }], shareAssessment: { version: 4 }, fetchedAt: "2026-09-30T23:00:00Z" };
-  const rows = new Map<string, Row>([["company_fundamentals/AMD", {
+  const rows = new Map<string, Row>([["company_fundamentals/US:AMD", {
     version: 1, pending: false, outcome: "ready", refreshAfter: Date.now() + 86400000, value: before }]]);
   const ref = (id: string) => ({ firestore: db, get: async () => ({ data: () => rows.get(id), get: (key: string) => rows.get(id)?.[key] }),
     set: async (data: Row) => { rows.set(id, { ...rows.get(id), ...data }); },
@@ -50,7 +50,7 @@ test("filing events force a fresh TTL refresh, then deduplicate provider work an
   assert.equal(result.completed, 1);
   assert.equal(f.reads(), 2);
   assert.equal(f.events.length, 1);
-  assert.equal((f.rows.get("company_fundamentals/AMD")!.lastFilingRefresh as Row).eventId, filing.eventId);
+  assert.equal((f.rows.get("company_fundamentals/US:AMD")!.lastFilingRefresh as Row).eventId, filing.eventId);
   const duplicate = await processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies);
   assert.equal("duplicate" in duplicate && duplicate.duplicate, true);
   assert.equal(f.reads(), 2);
@@ -61,7 +61,7 @@ test("companyfacts lag preserves the previous cache and retries without acknowle
   const f = fixture();
   f.available(false);
   await assert.rejects(processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies), /incomplete/);
-  const stored = f.rows.get("company_fundamentals/AMD")!;
+  const stored = f.rows.get("company_fundamentals/US:AMD")!;
   assert.deepEqual(stored.value, f.before);
   assert.equal(stored.pending, true);
   assert.ok(Number(stored.refreshAfter) > Date.now());
@@ -91,7 +91,7 @@ test("filing requests preserve global SEC provider cooldowns", async () => {
   f.rows.set("company_fundamentals/_worker", { providerRetryAfter: Date.now() + 3600000 });
   await assert.rejects(processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies), /incomplete/);
   assert.equal(f.reads(), 0);
-  assert.deepEqual(f.rows.get("company_fundamentals/AMD")!.value, f.before);
+  assert.deepEqual(f.rows.get("company_fundamentals/US:AMD")!.value, f.before);
 });
 
 test("filing refresh cannot complete without an accession checkpoint", async () => {
@@ -108,7 +108,7 @@ test("non-XBRL amendments refresh known data without waiting for nonexistent acc
   const event = createSecFilingDiscovered({ ...filing, accessionNumber: "0000002488-26-000011", form: "20-F/A", isXbrl: false });
   await processFundamentalsBatch(fundamentalsRequestForFiling(event), f.db, f.log, f.publish, f.dependencies);
   assert.equal(f.reads(), 2);
-  assert.equal((f.rows.get("company_fundamentals/AMD")!.lastFilingRefresh as Row).accessionNumber, event.accessionNumber);
+  assert.equal((f.rows.get("company_fundamentals/US:AMD")!.lastFilingRefresh as Row).accessionNumber, event.accessionNumber);
 });
 
 test("late older-period originals do not replace or block the latest annual report", async () => {
@@ -125,7 +125,7 @@ test("late older-period originals do not replace or block the latest annual repo
           { val: 200, start: "2025-01-01", end: "2025-12-31", filed: "2026-03-01", form: "20-F", accn: newerAnnual },
         ] } } } } }) as T });
   await processFundamentalsBatch(f.request, f.db, f.log, f.publish, { ...f.dependencies, refresh });
-  const value = f.rows.get("company_fundamentals/AMD")!.value as { report: { accession: string }; metrics: { value: number }[] };
+  const value = f.rows.get("company_fundamentals/US:AMD")!.value as { report: { accession: string }; metrics: { value: number }[] };
   assert.equal(value.report.accession, newerAnnual);
   assert.equal(value.metrics[0].value, 200);
 });
@@ -136,7 +136,7 @@ test("XBRL amendments without API-eligible facts stay retryable and never claim 
   f.available(false);
   const request = fundamentalsRequestForFiling(event);
   await assert.rejects(processFundamentalsBatch(request, f.db, f.log, f.publish, f.dependencies), /incomplete/);
-  const stored = f.rows.get("company_fundamentals/AMD")!;
+  const stored = f.rows.get("company_fundamentals/US:AMD")!;
   assert.deepEqual(stored.value, f.before);
   assert.equal(stored.lastFilingRefresh, undefined);
   assert.equal((stored.lastError as Row).code, "SEC_FILING_FACTS_UNRESOLVED");
