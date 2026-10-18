@@ -1,7 +1,7 @@
 import { FieldPath, type Firestore, type Query, type DocumentSnapshot, type Timestamp } from 'firebase-admin/firestore';
 import { CHANGE_CACHE_DOCUMENT } from '../change-cache';
 import { companySitemapPath } from '../ui/i18n/company-sitemaps';
-const fields=['name','slug','market','status','description','classification','stage','source','sourceLabel'];
+const fields=['name','slug','market','status','description','classification','stage','source','sourceLabel','cacheUpdatedAt'];
 type Bucket={paths:Map<string,string>;checkpoint:Timestamp;version:string};
 const caches=new WeakMap<Firestore,Map<string,Promise<Bucket>>>();
 async function pages(query:Query){const result:DocumentSnapshot[]=[];let cursor;for(;;){const page=await (cursor?query.startAfter(cursor):query).limit(200).get();result.push(...page.docs);if(page.size<200)return result;cursor=page.docs.at(-1)!;}}

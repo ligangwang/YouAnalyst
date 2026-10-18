@@ -22,3 +22,26 @@ test('sitemap loads once, queries deltas, applies deletes/recreation and retries
  tick=3;version='three';rows=[{id:'ORG:A',data:{name:'A',status:'PUBLISHED'}}];deleted=['ORG:A'];assert.equal((await loadIncrementalSitemap(db,'ORG:')).length,1,'recreated document survives old deletion marker');
  tick=4;version='four';rows=[];assert.deepEqual(await loadIncrementalSitemap(db,'ORG:'),[],'hard deletion removes URL');
 });
+
+
+test('incremental sitemap pagination retains the timestamp required by snapshot cursors',async()=>{
+ let version='one',page=0;const selected:string[][]=[];
+ const db={collection:(collection:string)=>{
+  const query=(fields:string[]=[],incremental=false,cursor=false):unknown=>({
+   where:(field:unknown)=>query(fields,incremental||String(field)==='cacheUpdatedAt',cursor),
+   orderBy:()=>query(fields,incremental,cursor),select:(...next:string[])=>{selected.push(next);return query(next,incremental,cursor);},
+   limit:()=>query(fields,incremental,cursor),
+   startAfter:(doc:{get:(key:string)=>unknown})=>{assert.ok(doc.get('cacheUpdatedAt'),'Firestore requires the ordered field in the cursor snapshot');return query(fields,incremental,true);},
+   get:async()=>{
+    if(collection!=='companies'||!incremental||cursor)return {docs:[],size:0};
+    page++;
+    const docs=Array.from({length:200},(_,i)=>({id:`ORG:A${i}`,exists:true,data:()=>({name:`A${i}`,status:'PUBLISHED'}),get:(key:string)=>fields.includes(key)&&key==='cacheUpdatedAt'?new Timestamp(1,0):undefined}));
+    return {docs,size:docs.length};
+   },
+   doc:()=>({get:async()=>({readTime:new Timestamp(2,0),get:(key:string)=>key==='enabled'?true:{companies:version}})})
+  });return query();
+ }} as unknown as Firestore;
+ await loadIncrementalSitemap(db,'ORG:');version='two';
+ assert.equal((await loadIncrementalSitemap(db,'ORG:')).length,200);assert.equal(page,1);
+ assert.ok(selected.at(-1)!.includes('cacheUpdatedAt'));
+});
