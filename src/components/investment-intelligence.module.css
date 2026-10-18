@@ -26,3 +26,37 @@
 .companyList>.selectedCompany strong{color:var(--ui-text,#a8ffeb);font-weight:800}
 .sectors button[aria-pressed=true]{background:var(--ui-selected,#173c42);box-shadow:inset 4px 0 #9ff4e1,inset 0 0 0 1px #77dcca;color:var(--ui-text,#edfff9);font-weight:700}
 .sectors button[aria-pressed=true] small{color:var(--ui-text,#a8ffeb);font-weight:700}
+
+/* Dark exploration workspace: quiet chrome around the luminous canvas. */
+:global(:root:not([data-theme="light"])) .shell {
+  --ui-surface:#080f1b;
+  --ui-line:#b4d4fa16;
+  --ui-selected:#88dcf00c;
+  --ui-text:#dce6f2;
+  --ui-muted:#91a3b8;
+  --ui-accent:#8cdef0;
+}
+:global(:root:not([data-theme="light"])) .left,
+:global(:root:not([data-theme="light"])) .right { background:#0a1220; }
+:global(:root:not([data-theme="light"])) .panelTitle { padding:16px 16px 12px; }
+:global(:root:not([data-theme="light"])) .panelTitle strong { font-weight:400;letter-spacing:.025em; }
+:global(:root:not([data-theme="light"])) .graphToolbar { background:#080f1b;padding-block:10px; }
+:global(:root:not([data-theme="light"])) .eventList { padding-inline:12px; }
+:global(:root:not([data-theme="light"])) .eventList>div>button { padding:16px 4px 14px;margin-bottom:0;border-radius:0;border-bottom:1px solid #b4d4fa0c; }
+:global(:root:not([data-theme="light"])) .eventList strong { font-weight:400;line-height:1.65;letter-spacing:.005em;color:#dce6f2;margin-block:8px; }
+:global(:root:not([data-theme="light"])) .eventList>div>button>div { letter-spacing:.025em;color:#91a3b8; }
+:global(:root:not([data-theme="light"])) .companyList>.selectedCompany,
+:global(:root:not([data-theme="light"])) .sectors button[aria-pressed=true] { box-shadow:inset 2px 0 #8cdef0;font-weight:400; }
+:global(:root:not([data-theme="light"])) .companyList>.selectedCompany strong,
+:global(:root:not([data-theme="light"])) .companyList>.selectedCompany span { font-weight:500; }
+
+/* Airy light chrome; the star field keeps its own contrast-safe palette. */
+:global(:root[data-theme="light"]) .shell { --ui-surface:#f8fafc;--ui-line:#dce4ec;--ui-selected:#eaf4f6;--ui-text:#24384b;--ui-muted:#566d81;--ui-accent:#087b86; }
+:global(:root[data-theme="light"]) .left,:global(:root[data-theme="light"]) .right { background:#f8fafc; }
+:global(:root[data-theme="light"]) .panelTitle { padding:16px 16px 12px; }
+:global(:root[data-theme="light"]) .panelTitle strong { font-weight:400;letter-spacing:.025em; }
+:global(:root[data-theme="light"]) .graphToolbar { padding-block:10px;background:#fff; }
+:global(:root[data-theme="light"]) .eventList { padding-inline:12px; }
+:global(:root[data-theme="light"]) .eventList>button,:global(:root[data-theme="light"]) .eventList>div>button { padding:16px 4px 14px;margin-bottom:0;border-radius:0;border-bottom:1px solid #e5ebf1; }
+:global(:root[data-theme="light"]) .eventList strong { font-weight:400;line-height:1.65;letter-spacing:.005em;margin-block:8px; }
+:global(:root[data-theme="light"]) .companyList>.selectedCompany,:global(:root[data-theme="light"]) .sectors button[aria-pressed=true] { box-shadow:inset 2px 0 #087b86;font-weight:400; }
