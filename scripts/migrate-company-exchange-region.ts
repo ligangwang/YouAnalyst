@@ -29,7 +29,7 @@ async function main() {
   for (;;) {
     const rows = await request('runQuery', { structuredQuery: {
       from: [{ collectionId: 'companies' }], select: {fields: [{fieldPath: 'exchange_region'}]},
-      orderBy: [{field: {fieldPath: '__name__'}, direction: 'ASCENDING'}], limit: 200,
+      orderBy: [{field: {fieldPath: '__name__'}, direction: 'ASCENDING'}], limit: 25,
       ...(cursor ? {startAt: {values: [{referenceValue: cursor}], before: false}} : {}),
     } }) as {document?: Document}[];
     const docs = rows.flatMap(row => row.document ? [row.document] : []);
@@ -46,6 +46,11 @@ async function main() {
       name: doc.name, updateTime: doc.updateTime, previous: doc.fields?.exchange_region, next: value,
     })), null, 2), {flag: 'wx'});
     if (apply && patches.length) {
+      // Company writes fan out through Eventarc to the website. Keep bursts small,
+      // let invalidations drain, and fail closed if the live service is unhealthy.
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      const health = await fetch('https://ifindata-web-zcgfwde4aa-uc.a.run.app/api/health', {signal: AbortSignal.timeout(15000)});
+      assert.equal(health.status, 200, 'Stop backfill: live service is not healthy; completed batches remain safe to resume');
       await request('commit', {writes: patches.map(({doc, value}) => ({
         update: {name: doc.name, fields: {exchange_region: value === null ? {nullValue: null} : {stringValue: value}}},
         updateMask: {fieldPaths: ['exchange_region']}, currentDocument: {updateTime: doc.updateTime},
