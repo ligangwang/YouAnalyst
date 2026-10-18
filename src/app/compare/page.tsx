@@ -10,7 +10,7 @@ async function configFrom(props: Props) {
 }
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const config = await configFrom(props);
-  const title = `${config.symbols.join(" vs ")} | YouAnalyst Compare`;
+  const title = `${config.symbols.join(" vs ")} | YouAnalyst Stock Performance Comparison`;
   const description = `Replay stock price returns from ${config.start} to ${config.end}. Choose a line race or bar race and share your comparison.`;
   const image = `/api/compare/share-image?${comparePath(config).split("?")[1]}`;
   return localizedMetadata({ title, description, alternates: { canonical: "/compare" }, openGraph: { title, description, images: [{ url: image, width: 1200, height: 630, alt: title }] }, twitter: { card: "summary_large_image", title, description, images: [image] } });

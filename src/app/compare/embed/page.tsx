@@ -3,7 +3,7 @@ import { StockComparePage } from "@/components/stock-compare-page";
 import { comparePath, parseCompareConfig } from "@/lib/compare";
 
 export const metadata: Metadata = {
-  title: "YouAnalyst Compare",
+  title: "YouAnalyst Stock Performance Comparison",
   robots: { index: false, follow: true },
 };
 
