@@ -113,6 +113,16 @@ async function revealListFilters(page:Page) {
  if(await button.isVisible() && await button.getAttribute('aria-expanded')==='false') await button.click();
 }
 const graph = combineGraphs([us, cn] as unknown as (KnowledgeGraph & { id: string; language: string })[]);
+// Tree interaction tests need roles, not the production-sized catalog. Keep the
+// selected companies and their internal relationships/evidence; no unused stages.
+function treeFixture(companyIds:readonly string[]):KnowledgeGraph {
+ const ids=new Set(companyIds),nodes=graph.nodes.filter(node=>node.kind==='COMPANY'&&ids.has(node.id));
+ if(nodes.length!==ids.size)throw new Error('Unknown company in tree test fixture');
+ const relationships=graph.relationships.filter(edge=>ids.has(edge.source)&&ids.has(edge.target));
+ const sources=new Set([...nodes.flatMap(node=>node.sourceIds??[]),...relationships.flatMap(edge=>edge.sourceIds)]);
+ return {...graph,nodes,relationships,sources:graph.sources.filter(source=>sources.has(source.id))};
+}
+
 
 test('cinematic tree appears complete immediately, respects reduced motion and pauses in hidden views',async({page,isMobile})=>{
  test.setTimeout(60000);
@@ -130,8 +140,7 @@ test('cinematic tree appears complete immediately, respects reduced motion and p
  const errors:string[]=[];
  page.on('pageerror',error=>errors.push(error.message));
  page.on('console',message=>{if(message.type()==='error'&&/shader|WebGLProgram|GL_INVALID/i.test(message.text()))errors.push(message.text());});
- const members=new Set(['US:CEG','US:NVDA','US:AMD','US:MU','US:GOOGL','US:AAPL','US:MSFT','US:AMZN','US:AVGO','US:VRT']);
- const fixture={...graph,nodes:graph.nodes.filter(node=>node.kind==='STAGE'||members.has(node.id))};
+ const fixture=treeFixture(['US:CEG','US:NVDA','US:MSFT','US:GOOGL','US:AAPL']);
  await page.route('**/*',route=>route.request().url().includes('/api/knowledge-graph')?route.fulfill({json:fixture}):route.request().url().includes('/api/company-fundamentals')?route.fulfill({json:{data:null}}):route.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-section="vertical"]'),canvas=tree.locator('canvas');
@@ -160,8 +169,8 @@ test('tree manual views remain parked through release, tab changes and company d
  await page.emulateMedia({reducedMotion:'reduce'});
  // This checks input and idle-resume timing, not full-universe rendering. Keep
  // representative layers without hundreds of labels competing with the idle timer.
- const members=new Set(['US:CEG','US:AMD','US:NVDA','US:GOOGL','US:AAPL']);
- const fixture={...graph,nodes:graph.nodes.filter(node=>node.kind==='STAGE'||members.has(node.id)),relationships:graph.relationships.filter(edge=>members.has(edge.source)&&members.has(edge.target))};
+ const members=new Set(['US:CEG','US:NVDA','US:GOOGL','US:AAPL']);
+ const fixture=treeFixture([...members]);
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.getByRole('region',{name:'Vertical tree',exact:true}),canvas=tree.locator('canvas');
@@ -471,7 +480,7 @@ test('vertical tree labels fade fully before compacting and honor reduced motion
  await page.emulateMedia({reducedMotion:'reduce'});
  // A few leaves exercise the same fade lifecycle without full-universe
  // software WebGL stalls skipping every intermediate animation frame.
- const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD','US:MSFT','US:GEV'].includes(n.id))};
+ const fixture=treeFixture(['US:NVDA','US:AAPL']);
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.getByRole('region',{name:'Vertical tree',exact:true}),canvas=tree.locator('canvas');
@@ -1812,7 +1821,8 @@ test('tree continuously surrounds the trunk and resumes after company details',a
  test.setTimeout(240000);
  await page.emulateMedia({reducedMotion:'no-preference'});
  await page.addInitScript(()=>localStorage.setItem('ya-navigation-speed','2'));
- const fixture=graph;
+ // One representative per role keeps all five tour stops with only five companies.
+ const fixture=treeFixture(['US:CEG','US:NVDA','US:MSFT','US:GOOGL','US:AAPL']);
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');
@@ -2085,7 +2095,7 @@ test('tree reset reopens every layer after a manual zoom and collapse',async({pa
  test.setTimeout(75000);await accelerateTours(page,8);await shortenIdleResume(page);await page.emulateMedia({reducedMotion:'no-preference'});
  // Keep this camera/reset lifecycle bounded on software WebGL. Full-universe
  // rendering and layer persistence are exercised by the separate camera test.
- const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||['US:NVDA','US:AMD','US:GEV','US:MSFT'].includes(n.id))};
+ const fixture=treeFixture(['US:NVDA','US:AAPL']);
  await page.route('**/*',r=>r.request().url().includes('/api/knowledge-graph')?r.fulfill({json:fixture}):r.request().url().includes('/api/company-fundamentals')?r.fulfill({json:{data:null}}):r.fulfill({contentType:'text/html',body:html}));
  await page.goto('http://graph.test/map?lang=en&view=tree');
  const tree=page.locator('[data-industry-tree="vertical"]'),canvas=tree.locator('canvas');await canvas.scrollIntoViewIfNeeded();
@@ -2097,14 +2107,16 @@ test('tree reset reopens every layer after a manual zoom and collapse',async({pa
  const pose=await canvas.getAttribute('data-camera-target');await pastIdleResume(page);
  expect(await canvas.getAttribute('data-camera-target')).toBe(pose);await expect(canvas).toHaveAttribute('data-tour','stopped');
  const chips=tree.locator('[data-tree-node="chips"]');await expect(chips).toHaveAttribute('aria-expanded','true');
+ // Use browser actionability checks: a direct DOM click is silently ignored
+ // while an animated Html label is disabled during a scene commit.
  // Explicitly open a globally collapsed sector so the following activation
  // tests collapse rather than the first-click reveal of distance-culled names.
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Collapse all',exact:true}).click();
  await expect(chips).toHaveAttribute('aria-expanded','false');
- await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await chips.click();
  await expect(chips).toHaveAttribute('aria-expanded','true',{timeout:20000});
  await expect(canvas).toHaveAttribute('data-tree-disclosed-layers',/chips/);
- await chips.evaluate((el:HTMLButtonElement)=>el.click());
+ await chips.click();
  await expect(chips).toHaveAttribute('aria-expanded','false');
  await page.locator('[data-industry-section="vertical"]').getByRole('button',{name:'Reset view',exact:true}).click();
  await page.evaluate(()=>Object.assign(globalThis,{__fixtureTourRate:0}));
