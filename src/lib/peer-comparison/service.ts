@@ -1,4 +1,5 @@
-import { FieldPath } from 'firebase-admin/firestore';
+import { loadCompanyDocuments } from '../company-document-cache';
+import { loadPeerPrices } from './price-cache';
 import { getAdminFirestore } from '../firebase/admin';
 import { loadThemeGraph } from '../company-themes/graph-service';
 import { COMPANY_THEMES } from '../company-themes/model';
@@ -20,14 +21,13 @@ export async function loadPeerComparison(companyId:string):Promise<PeerCompariso
    const financials=new Map<string,unknown>(),prices=new Map<string,Record<string,unknown>[]>(),today=marketDate(group.market);
    for(let i=0;i<group.companies.length;i+=100){
     const batch=group.companies.slice(i,i+100);
-    const docs=await db.getAll(...batch.map(c=>db.collection('company_fundamentals').doc(c.id)),{fieldMask:['value.metrics','value.report','value.marketCap','cnAnnual','marketCap']}).catch(()=>{complete=false;return [];});
+    const docs=await loadCompanyDocuments(db,'company_fundamentals',batch.map(c=>c.id)).catch(()=>{complete=false;return [];});
     docs.forEach((doc,index)=>financials.set(batch[index].id,doc.data()));
    }
    // Bound concurrent reads while retaining every member of the published comparison group.
    for(let i=0;i<group.companies.length;i+=8)await Promise.all(group.companies.slice(i,i+8).map(async company=>{
-    const ticker=group.market==='US'?company.id.slice(3):company.id,prefix=`${group.market}_${ticker}_`;
-    const snapshot=await db.collection('eod_prices').where(FieldPath.documentId(),'>=',prefix).where(FieldPath.documentId(),'<=',prefix+today).orderBy(FieldPath.documentId(),'desc').limit(12).get().catch(()=>{complete=false;return null;});
-    prices.set(company.id,snapshot?.docs.map(doc=>doc.data())??[]);
+    const rows=await loadPeerPrices(db,company.id,group.market,today).catch(()=>{complete=false;return [];});
+    prices.set(company.id,rows);
    }));
    return buildPeerComparison(companyId,graph.nodes,financials,prices,today);
   }

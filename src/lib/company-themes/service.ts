@@ -1,3 +1,5 @@
+import { centralDocuments } from '../central-cache/client';
+import { loadThemeEnrolledCompanies } from '../knowledge-graph/company-cache';
 import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../firebase/admin';
@@ -8,13 +10,15 @@ import { COMPANY_THEMES, collectionUniverse, isCollectionCompany, type CompanyTh
 /** Single-field array index; no composite index or extra collection is required. */
 export async function loadThemeCompanies(theme: CompanyThemeId, db = getAdminFirestore()): Promise<ThemedCompany[]> {
   if (!COMPANY_THEMES.includes(theme)) throw new Error('Unknown company theme');
-  const snapshot = await db.collection('companies').where('themeIds', 'array-contains', theme).get();
+  const snapshot = await loadThemeEnrolledCompanies(db);
   return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ThemedCompany))
-    .filter(company => isCollectionCompany(company) && company.themeMemberships?.[theme]?.status === 'PUBLISHED');
+    .filter(company => company.themeIds?.includes(theme) && isCollectionCompany(company) && company.themeMemberships?.[theme]?.status === 'PUBLISHED');
 }
 
 /** Include negative decisions so legacy graph enrollment cannot override them. */
 async function loadEnrollmentRecords(db: Firestore, region?: ExchangeRegion) {
+  const central = await centralDocuments(db, 'companies', undefined, undefined, undefined, region);
+  if (central !== undefined) return central;
   let query = db.collection('companies').where('themeIds', 'array-contains-any', [...COMPANY_THEMES]);
   if (region) query = query.where('exchange_region', '==', region);
   const snapshot = await query.get();

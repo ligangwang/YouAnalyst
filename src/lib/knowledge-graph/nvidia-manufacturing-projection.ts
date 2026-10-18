@@ -1,5 +1,6 @@
+import { loadCompanyDocuments } from '../company-document-cache';
 import type { Firestore } from "firebase-admin/firestore";
-import { loadAllRelationships } from './relationship-cache';
+import { loadCompanyRelationships } from './relationship-cache';
 import { graphMembership, relationshipId, type MarketCompany, type MarketRelationship } from "./market-store";
 import { NVIDIA_EDITORIAL_COMPANIES, NVIDIA_MANUFACTURING_FACTS, NVIDIA_MANUFACTURING_REVIEWED, NVIDIA_MANUFACTURING_SOURCE } from "../research/nvidia-manufacturing";
 
@@ -57,8 +58,8 @@ export function projectNvidiaManufacturing(companies: MarketCompany[], records: 
 export async function loadNvidiaManufacturingProjection(db: Firestore, companies: MarketCompany[], records: MarketRelationship[]) {
   if (!companies.some(company => company.id === "US:NVDA" && publicCompany(company))) return { companies, records };
   const [identities, relationships] = await Promise.all([
-    db.getAll(...NVIDIA_MANUFACTURING_FACTS.map(({ source }) => db.collection("companies").doc(source))),
-    loadAllRelationships(db),
+    loadCompanyDocuments(db, 'companies', NVIDIA_MANUFACTURING_FACTS.map(({source}) => source)),
+    loadCompanyRelationships(db, ["US:NVDA"], NVIDIA_MANUFACTURING_FACTS.map(({source}) => relationshipId(source, "US:NVDA", "SUPPLIER_OF"))),
   ]);
   const byCompany = new Map(companies.map(company => [company.id, company]));
   for (const doc of identities) {

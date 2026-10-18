@@ -133,6 +133,7 @@ test('graph subscriber keeps request and filing delivery isolated and processing
   assert.match(r.calls, /subscriptions update company-graph-filings.*--dead-letter-topic company-graph-filings-dead-letter/);
   assert.match(r.calls, /subscriptions describe company-graph-filings.*value\(topic\)/);
   assert.deepEqual(r.workerEnv, {
+    CENTRAL_CACHE_URL: '',
     GCP_PROJECT_ID: 'demo', GIT_SHA: 'commit', SEC_USER_AGENT: 'test contact',
     OPENAI_API_KEY: 'test-existing-key', OPENAI_MODEL: 'test-existing-model',
     OPENAI_COMPANY_GRAPH_MODEL: 'gpt-6-luna',

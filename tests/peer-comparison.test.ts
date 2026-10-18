@@ -48,3 +48,21 @@ test('non-NVIDIA historical splits use provider-adjusted closes and invalid adju
  assert.equal(panel.count,1);assert(Math.abs(panel.rows[0].observation!.value-5)<1e-9);assert.equal(panel.rows[1].observation,null);
  const missing=a.map(row=>({...row,adjustedClose:undefined}));assert.equal(buildPeerComparison('US:A',[node('US:A')],new Map(),new Map([['US:A',missing]]),today)!.panels.length,0);
 });
+
+
+test('peer price history is shared across callers and invalidated only by price changes',async()=>{
+ const {loadPeerPrices}=await import('../src/lib/peer-comparison/price-cache');
+ const state={enabled:true,versions:{companies:'1',company_fundamentals:'1',eod_prices:'1'}};
+ let reads=0,fail=false;
+ const bounds:unknown[][]=[];
+ const query={where:(...args:unknown[])=>{bounds.push(args);return query;},orderBy:()=>query,limit:(n:number)=>{assert.equal(n,12);return query;},get:async()=>{reads++;if(fail)throw Error('offline');return {docs:[{data:()=>({rawClose:reads})}]};}};
+ const db={collection:(name:string)=>name==='collectors'?{doc:()=>({get:async()=>({data:()=>structuredClone(state)})})}:query} as unknown as import('firebase-admin/firestore').Firestore;
+ const load=()=>loadPeerPrices(db,'US:AMD','US','2026-10-18');
+ const [first,second]=await Promise.all([load(),load()]);assert.deepEqual(first,second);assert.equal(reads,1);
+ state.versions.companies='2';state.versions.company_fundamentals='2';await load();assert.equal(reads,1);
+ state.versions.eod_prices='2';await load();assert.equal(reads,2);
+ state.versions.eod_prices='3';fail=true;await assert.rejects(load(),/offline/);fail=false;await load();assert.equal(reads,4);
+ assert.equal(bounds[0][2],'US_AMD_');assert.equal(bounds[1][2],'US_AMD_2026-10-18');
+ await loadPeerPrices(db,'XSHE:000001','CN_A','2026-10-18');assert.equal(reads,5);
+ state.enabled=false;await load();await load();assert.equal(reads,7);
+});

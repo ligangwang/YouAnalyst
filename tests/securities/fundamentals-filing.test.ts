@@ -46,9 +46,13 @@ test("filing events force a fresh TTL refresh, then deduplicate provider work an
   const f = fixture();
   assert.deepEqual(parseFundamentalsRequest(f.request), f.request);
   assert.throws(() => parseFundamentalsRequest({ ...f.request, companyIds: ["NVDA"] }), /issuer/);
+  const startedAt = Date.now();
   const result = await processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies);
   assert.equal(result.completed, 1);
   assert.equal(f.reads(), 2);
+  const saved = f.rows.get("company_fundamentals/US:AMD")!;
+  assert.ok(Number(saved.refreshAfter) >= startedAt + 7 * 86400000);
+  assert.ok(Number(saved.refreshAfter) <= Date.now() + 7 * 86400000);
   assert.equal(f.events.length, 1);
   assert.equal((f.rows.get("company_fundamentals/US:AMD")!.lastFilingRefresh as Row).eventId, filing.eventId);
   const duplicate = await processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies);
@@ -57,23 +61,23 @@ test("filing events force a fresh TTL refresh, then deduplicate provider work an
   assert.equal(f.events.length, 1);
 });
 
-test("companyfacts lag preserves the previous cache and retries without acknowledging stale data", async () => {
-  const f = fixture();
-  f.available(false);
-  await assert.rejects(processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies), /incomplete/);
-  const stored = f.rows.get("company_fundamentals/US:AMD")!;
-  assert.deepEqual(stored.value, f.before);
-  assert.equal(stored.pending, true);
-  assert.ok(Number(stored.refreshAfter) > Date.now());
-  assert.ok(Number(stored.refreshAfter) <= Date.now() + 300000);
-  assert.equal(f.events.length, 0);
-  await assert.rejects(processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies), /incomplete/);
-  assert.equal(f.reads(), 2);
-  stored.refreshAfter = 0;
-  f.available(true);
-  await processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies);
-  assert.equal(f.reads(), 4);
-  assert.equal(f.events.length, 1);
+test("companyfacts lag is saved for admin and redelivery does not retry SEC", async () => {
+ const f=fixture();f.available(false);
+ const result=await processFundamentalsBatch(f.request,f.db,f.log,f.publish,f.dependencies);
+ assert.equal(result.failed,1);
+ const stored=f.rows.get("company_fundamentals/US:AMD")!;
+ assert.deepEqual(stored.value,f.before);assert.equal(stored.pending,false);assert.equal(stored.outcome,"error");
+ assert.equal(stored.refreshAfter,null);assert.equal(f.events.length,0);
+ f.available(true);await processFundamentalsBatch(f.request,f.db,f.log,f.publish,f.dependencies);
+ assert.equal(f.reads(),2);
+ // Even a different batch cannot bypass the manual hold.
+ await processFundamentalsBatch({...f.request,batchId:"another"},f.db,f.log,f.publish,f.dependencies);
+ assert.equal(f.reads(),2);
+ // Admin action releases the hold and submits a new request, not the completed failed batch.
+ Object.assign(f.rows.get("company_fundamentals/US:AMD")!,{outcome:"pending",pending:true,refreshAfter:0});
+ const retried=await processFundamentalsBatch({...f.request,batchId:"manual"},f.db,f.log,f.publish,f.dependencies);
+ assert.equal(retried.completed,1);assert.equal(f.reads(),4);
+ assert.equal(f.rows.get("company_fundamentals/US:AMD")!.lastError,null);
 });
 
 test("filing result publication resumes from the saved outbox without another SEC call", async () => {
@@ -97,8 +101,8 @@ test("filing requests preserve global SEC provider cooldowns", async () => {
 test("filing refresh cannot complete without an accession checkpoint", async () => {
   const f = fixture();
   const refresh: typeof refreshCompanyFundamentals = async () => null;
-  await assert.rejects(processFundamentalsBatch(f.request, f.db, f.log, f.publish,
-    { ...f.dependencies, refresh }), /incomplete/);
+  const result=await processFundamentalsBatch(f.request, f.db, f.log, f.publish, { ...f.dependencies, refresh });
+  assert.equal(result.failed,1);
   assert.equal(f.events.length, 0);
 });
 
@@ -130,17 +134,18 @@ test("late older-period originals do not replace or block the latest annual repo
   assert.equal(value.metrics[0].value, 200);
 });
 
-test("XBRL amendments without API-eligible facts stay retryable and never claim stale success", async () => {
+test("XBRL amendments without API-eligible facts require admin and never claim stale success", async () => {
   const f = fixture();
   const event = createSecFilingDiscovered({ ...filing, form: "20-F/A" });
   f.available(false);
   const request = fundamentalsRequestForFiling(event);
-  await assert.rejects(processFundamentalsBatch(request, f.db, f.log, f.publish, f.dependencies), /incomplete/);
+  const result=await processFundamentalsBatch(request, f.db, f.log, f.publish, f.dependencies);
+  assert.equal(result.failed,1);
   const stored = f.rows.get("company_fundamentals/US:AMD")!;
   assert.deepEqual(stored.value, f.before);
   assert.equal(stored.lastFilingRefresh, undefined);
   assert.equal((stored.lastError as Row).code, "SEC_FILING_FACTS_UNRESOLVED");
-  assert.equal(f.rows.get(`company_fundamentals/_batch_${request.batchId}`)!.completed, undefined);
+  assert.equal(f.rows.get(`company_fundamentals/_batch_${request.batchId}`)!.completed, true);
   assert.deepEqual(f.events, []);
   stored.refreshAfter = 0;
   f.available(true);

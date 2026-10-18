@@ -42,15 +42,18 @@ test("fundamentals snapshot is cached and subsequent visits do not call SEC", as
   assert.equal(f.requests(), 2);
 });
 
-test("expired snapshot survives provider failure with bounded retry delay", async () => {
+test("expired snapshot survives provider failure and requires manual retry", async () => {
   const f = fixture();
   const first = await refreshCompanyFundamentals("AMD", f.dependencies);
   f.expire(); f.fail();
   await assert.rejects(refreshCompanyFundamentals("AMD", f.dependencies), /Synthetic SEC outage/);
   assert.deepEqual(f.stored().value, first);
-  assert.equal(f.stored().pending, true);
-  const retry = Number(f.stored().refreshAfter) - Date.now();
-  assert.ok(retry > 3_500_000 && retry <= 3_600_000);
+  assert.equal(f.stored().pending, false);
+  assert.equal(f.stored().refreshAfter, null);
+  const requests=f.requests();
+  await requestCompanyFundamentals("AMD",f.dependencies.db);
+  await refreshCompanyFundamentals("AMD",f.dependencies);
+  assert.equal(f.requests(),requests);
 });
 
 test("another active refresh lease avoids duplicate requests, including an empty first load", async () => {
@@ -129,8 +132,8 @@ for (const code of [403, 429]) test(`filing HTML ${code} preserves the queue ins
   f.dependencies.readSections = async () => { throw Object.assign(new Error("SEC filing blocked"), {code}); };
   await requestCompanyFundamentals("AMD", f.dependencies.db);
   await assert.rejects(refreshCompanyFundamentals("AMD", f.dependencies), /SEC filing blocked/);
-  assert.equal(f.stored().pending, true);
-  assert.equal(f.stored().outcome, "retry");
+  assert.equal(f.stored().pending, false);
+  assert.equal(f.stored().outcome, "error");
   assert.equal((f.stored().lastError as {code:number}).code, code);
 });
 
@@ -143,4 +146,19 @@ test("legacy fresh SEC snapshots are queued once for share metadata without bypa
  }
  const cooldown=fixture({version:1,value:old,outcome:"retry",pending:true,refreshAfter:Date.now()+3600000});
  await refreshCompanyFundamentals("AMD",cooldown.dependencies);assert.equal(cooldown.requests(),0);
+});
+
+test('company page fundamentals use central snapshots and still transactionally check writes',async(t)=>{
+ const {encode}=await import('../../src/lib/central-cache/codec');
+ const prior=process.env.CENTRAL_CACHE_URL;process.env.CENTRAL_CACHE_URL='http://127.0.0.1:8088';
+ t.after(()=>{if(prior===undefined)delete process.env.CENTRAL_CACHE_URL;else process.env.CENTRAL_CACHE_URL=prior;});
+ const value={fetchedAt:new Date().toISOString(),shareAssessment:{version:4},metrics:[]};
+ let rows:unknown[]=[{id:'US:AMD',data:{version:1,value,pending:false,refreshAfter:Date.now()+7*86400000}}];
+ t.mock.method(globalThis,'fetch',async(_url:unknown,options:RequestInit)=>{
+  assert.deepEqual(JSON.parse(String(options.body)),{collection:'company_fundamentals',ids:['US:AMD']});return new Response(JSON.stringify(encode(rows)));
+ });
+ const f=fixture({version:1,value,pending:false,refreshAfter:Date.now()+7*86400000});
+ assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),0);
+ // A cached absence must not overwrite a concurrently completed source document.
+ rows=[];assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),1);assert.equal(f.writes(),0);
 });

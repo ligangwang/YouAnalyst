@@ -1,3 +1,4 @@
+import { encode } from '../src/lib/central-cache/codec';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';
@@ -136,7 +137,7 @@ test('indexed theme reads reject stale array entries and combined enrollment ded
     { id: 'US:OLD', name: 'Withdrawn company', status: 'DIRECTORY', themeIds: ['robotics'], themeMemberships: { robotics: { ...membership, status: 'WITHDRAWN' } } },
     { id: 'US:HIDDEN', name: 'Hidden company', status: 'DRAFT', themeIds: ['robotics'], themeMemberships: { robotics: membership } },
   ];
-  const db = { collection: (name: string) => { assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert.equal(field, 'themeIds'); return ({ get: async () => ({ docs: rows.filter(row => {
+  const db = { collection: (name: string) => { if(name==='collectors')return {doc:()=>({get:async()=>({data:()=>({enabled:false})})})}; assert.equal(name, 'companies'); return { where: (field: string, operator: string, value: string | string[]) => { assert.equal(field, 'themeIds'); return ({ get: async () => ({ docs: rows.filter(row => {
     if (field === 'themeIds') return operator === 'array-contains' ? row.themeIds.includes(String(value)) : row.themeIds.some(theme => value.includes(theme));
     return field === 'inGraph.status' && row.inGraph?.status === value;
   }).map(row => ({ id: row.id, data: () => row })) }) }); } }; } } as unknown as Firestore;
@@ -218,4 +219,20 @@ test('sparse sector themes retain full decorative canopies without inventing com
     assert(Array.from(geometry[0].getAttribute('position').array).every(Number.isFinite));
     geometry.forEach(g=>g.dispose());
   }
+});
+
+test('enrollment uses central region selection, accepts empty results and retains indexed fallback',async(t)=>{
+ const prior=process.env.CENTRAL_CACHE_URL;process.env.CENTRAL_CACHE_URL='http://127.0.0.1:8088';
+ t.after(()=>{if(prior===undefined)delete process.env.CENTRAL_CACHE_URL;else process.env.CENTRAL_CACHE_URL=prior;});
+ let available=true,requests=0,reads=0;const filters:unknown[]=[];
+ t.mock.method(globalThis,'fetch',async(_url:unknown,options:RequestInit)=>{
+  requests++;assert.deepEqual(JSON.parse(String(options.body)),{collection:'companies',exchangeRegion:'US'});
+  return new Response(available?JSON.stringify(encode([])):'{}',{status:available?200:503});
+ });
+ const query={where:(...args:unknown[])=>{filters.push(args);return query;},get:async()=>{reads++;return {docs:[]};}};
+ const db={collection:(name:string)=>{assert.equal(name,'companies');return query;}} as unknown as Firestore;
+ assert.deepEqual(await loadCollectionCompanies(db,'US'),[]);assert.equal(reads,0);
+ available=false;assert.deepEqual(await loadCollectionCompanies(db,'US'),[]);
+ assert.equal(requests,2);assert.equal(reads,1);
+ assert.deepEqual(filters,[['themeIds','array-contains-any',['ai','robotics','space']],['exchange_region','==','US']]);
 });

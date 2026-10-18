@@ -1,5 +1,5 @@
 import {translatedSummary} from '../../knowledge-graph/summary-translations';
-import {changeCached} from '../../change-cache';
+import {loadNewsCollectorStatuses} from './status-cache';
 import {readPeriodDocuments} from '../period-query';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {KnowledgeGraph} from '../../knowledge-graph/model';
@@ -7,7 +7,7 @@ import {canonicalEvidenceUrl,observation,type IntelligenceEvent} from '../model'
 import type {NewsSource} from './sources';
 import {loadNewsSources} from './source-service';
 import {newsArticles} from './article-quality';
-import {NEWS_COLLECTORS_COLLECTION,NEWS_EVENTS_COLLECTION} from './store';
+import {NEWS_EVENTS_COLLECTION} from './store';
 import {eventClassification} from '../../events/classification';
 
 /** Weekend pauses are expected; compare against the latest weekday poll slot. */
@@ -42,7 +42,7 @@ export async function loadCollectedNews(db:Firestore,graph:KnowledgeGraph,now:Da
   const [page,dated,states]=await Promise.all([
     cachedRecords?Promise.resolve([]):read(typed().where('published_at','>=',`${earliestDay}T00:00:00.000Z`).orderBy('published_at','desc')),
     cachedRecords?Promise.resolve([]):read(typed().where('published_at','==',null).where('publication_date','>=',earliestDay).orderBy('publication_date','desc')),
-    sources.length?changeCached(db,`news-status:${sources.map(source=>source.id).join(',')}`,['collectors'],()=>db.getAll(...sources.map(source=>db.collection(NEWS_COLLECTORS_COLLECTION).doc(source.id)))):Promise.resolve([]),
+    loadNewsCollectorStatuses(db,sources.map(source=>source.id)),
   ]);
   const unhealthy=sources.filter((source,index)=>{
     const state=states[index].data();

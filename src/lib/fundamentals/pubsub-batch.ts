@@ -9,7 +9,7 @@ import { refreshCompanyMarketCaps } from "./market-cap";
 import { digest, fundamentalsVersion, MAX_BATCH_COMPANIES, parseFundamentalsRequest,
   type FundamentalsRequest, type FundamentalsUpdate } from "./pubsub";
 
-type Progress = { before: string; completed?: boolean; version?: string; changed?: boolean };
+type Progress = { before: string; completed?: boolean; failed?: boolean; version?: string; changed?: boolean };
 type Ledger = { request: FundamentalsRequest; progress: Record<string, Progress>; publishedEventId?: string; completed?: boolean };
 const batchRef = (db: Firestore, id: string) => db.collection(FUNDAMENTALS_COLLECTION).doc(`_batch_${id}`);
 
@@ -26,6 +26,7 @@ export async function publishPendingFundamentals(db: Firestore, runId: string,
     for (const doc of page.docs) {
       cursor = doc.id;
       const data = doc.data();
+      if (["error", "retry"].includes(data.outcome)) continue;
       const ticker = usFundamentalsTicker(doc.id);
       if (ticker && (Number(data.refreshAfter ?? 0) <= Date.now() || needsShareMetadataUpgrade(data))) companyIds.push(ticker);
       if (companyIds.length >= 500) break;
@@ -68,7 +69,8 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
       // A confirmed publish alone does not prove that the duplicate was delivered.
       // Only probes need this receipt; ordinary redelivery remains a read-only fast path.
       if (request.reason === "verification") await ref.set({ verificationDuplicateRunId: log.runId }, { merge: true });
-      return { requested: request.companyIds.length, completed: request.companyIds.length, failed: 0, duplicate: true };
+      const failed = Object.values(ledger.progress).filter(item => item.failed).length;
+      return { requested: request.companyIds.length, completed: request.companyIds.length - failed, failed, remaining: 0, duplicate: true, status: failed ? "needs_admin" : "verified" };
     }
     if (!ledger) {
       ledger = { request, progress: {} };
@@ -76,13 +78,20 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
     }
     const deadline = dependencies.deadline ?? Date.now() + 7 * 60_000;
     const refresh = dependencies.refresh ?? refreshCompanyFundamentals;
-    let failed = 0;
+
     for (const ticker of request.companyIds) {
       if (ledger.progress[ticker]?.completed) continue;
       if (Date.now() > deadline - 90_000) break;
       try {
         const company = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
         const stored = (await company.get()).data();
+        if (["error", "retry"].includes(stored?.outcome)) {
+          await company.set({pending:false,outcome:"error"},{merge:true});
+          ledger.progress[ticker]={before:fundamentalsVersion(stored?.value),completed:true,failed:true,changed:false};
+          await ref.set({progress:ledger.progress},{merge:true});
+          log.emit("ERROR","company_requires_admin",{ticker,batchId:request.batchId,error:stored?.lastError});
+          continue;
+        }
         const filingRefresh = request.filing && stored?.lastFilingRefresh?.eventId !== request.filing.eventId;
         const fresh = stored?.outcome === "ready" && stored?.pending !== true
           && (request.reason === "verification" || (!filingRefresh && Number(stored.refreshAfter) > Date.now() && !needsShareMetadataUpgrade(stored)));
@@ -107,8 +116,12 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
         await ref.set({ progress: ledger.progress }, { merge: true });
         log.emit("INFO", "company_completed", { ticker, batchId: request.batchId });
       } catch (error) {
-        failed++;
+
         const details = maintenanceError(error);
+        // Persist before acknowledging. A storage failure must not silently lose the error.
+        await db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker)).set({pending:false,outcome:"error",lastError:{...details,stack:details.stack??null},failedAt:new Date().toISOString(),refreshAfter:null},{merge:true});
+        ledger.progress[ticker]={before:ledger.progress[ticker]?.before??fundamentalsVersion(null),completed:true,failed:true,changed:false};
+        await ref.set({progress:ledger.progress},{merge:true});
         log.emit("ERROR", "company_failed", { ticker, batchId: request.batchId, error: details,
           ...(request.filing ? { filingEventId: request.filing.eventId, accessionNumber: request.filing.accessionNumber } : {}) });
         if (Number(details.code) === 403 || Number(details.code) === 429) {
@@ -117,7 +130,8 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
         }
       }
     }
-    const completed = request.companyIds.filter(t => ledger!.progress[t]?.completed);
+    const completed = request.companyIds.filter(t => ledger!.progress[t]?.completed && !ledger!.progress[t]?.failed);
+    const failedCompanies = request.companyIds.filter(t => ledger!.progress[t]?.failed);
     const marketCaps = await (dependencies.marketCaps ?? refreshCompanyMarketCaps)(db, log, completed);
     if (marketCaps.failed) throw new Error("Batch market-cap updates need retry");
     const changed = completed.filter(t => ledger!.progress[t].changed);
@@ -132,7 +146,8 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
       }
     }
     const result = { requested: request.companyIds.length, completed: completed.length,
-      failed, remaining: request.companyIds.length - completed.length, changed: changed.length };
+      failed: failedCompanies.length, remaining: request.companyIds.length - completed.length - failedCompanies.length, changed: changed.length,
+      status: failedCompanies.length ? "needs_admin" : "verified" };
     await ref.set({ result, updatedAt: new Date().toISOString() }, { merge: true });
     if (result.remaining) {
       log.emit("WARNING", "batch_retry", { ...result, batchId: request.batchId });
