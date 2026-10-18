@@ -95,5 +95,5 @@ test("research enrollment maps graph stages and evidence into the theme schema",
   const row = records.get(`companies/${batch.companies[0].id}`)!;
   const member = (row.themeMemberships as Record<string,{primarySector:string;sources:{summary:string}[]}>).ai;
   assert.equal(member.primarySector,"semiconductors");
-  assert.equal(member.sources[0].summary,batch.sources.find(source=>source.id===batch.companies[0].sourceIds[0])!.excerpt);
+  assert.deepEqual(member.sources.map(source=>source.summary),batch.sources.filter(source=>batch.companies[0].sourceIds.includes(source.id)).map(source=>source.excerpt));
 });
