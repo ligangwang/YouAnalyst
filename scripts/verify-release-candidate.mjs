@@ -8,7 +8,7 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
   assert.equal(body.status, 'ok');
   assert.equal(body.commitSha, commit, 'Candidate commit mismatch');
   assert.equal(body.revision, revision, 'Candidate revision mismatch');
-  for (const path of ['/', '/ai']) {
+  for (const path of ['/', '/feed']) {
     const response = await request(`${url}${path}`, {signal:AbortSignal.timeout(60000)});
     assert.equal(response.status, 200, `Candidate ${path} failed; existing traffic stays unchanged`);
     const html = await response.text();
