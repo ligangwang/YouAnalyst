@@ -1,7 +1,7 @@
 "use client";
 import {useState} from 'react';
-import {useLocale} from './providers/locale-provider';
-import {useAuth} from './providers/auth-provider';
+import {useLocale} from '@/components/providers/locale-provider';
+import {useAuth} from '@/components/providers/auth-provider';
 type Failure={id:string;ticker:string;message:string;failedAt:string|null};
 export function AdminFundamentalsErrors(){
  const {getIdToken}=useAuth();const {text}=useLocale();const [rows,setRows]=useState<Failure[]>([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
