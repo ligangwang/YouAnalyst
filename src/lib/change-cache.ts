@@ -101,13 +101,16 @@ export async function applyCacheChange(db: Firestore, headers: Headers, project:
   if (collection === 'company_fundamentals' && id.startsWith('_') && id !== '_sec_filings_collector') return;
   // A duplicate delivery may invalidate again, but can never restore stale data.
   if (collection === 'companies' || collection === 'company_fundamentals' || collection === 'company_relationships') {
-    if (process.env.CENTRAL_CACHE_URL) {
+    if (body || process.env.CENTRAL_CACHE_URL) {
+      // Persist hard deletions even before callers switch to the central service.
       // Persist hard deletions before publishing the collection version. Existing
       // collectors collection; underscore IDs are excluded from event recursion.
       const changedDoc=await db.collection(collection).doc(id).get();
       const themes=changedDoc.get('themeIds');
       if (!changedDoc.exists || (collection==='companies' && (!Array.isArray(themes) || !themes.some(theme=>['ai','robotics','space'].includes(theme))))) await db.collection('collectors')
         .doc(`_cache_deleted_${companyChangeKey(`${collection}/${id}`)}`).set({cacheDeletedCollection:collection,sourceId:id,cacheUpdatedAt:FieldValue.serverTimestamp()});
+    }
+    if (process.env.CENTRAL_CACHE_URL) {
       await db.collection('collectors').doc(CHANGE_CACHE_DOCUMENT).set({versions:{[collection]:randomUUID()}},{merge:true});
       if(await centralRequest('/change',{collection,ids:[id]})===undefined)throw Error('Central cache change delivery failed');
       return;
