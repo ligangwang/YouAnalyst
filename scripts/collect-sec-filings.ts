@@ -1,7 +1,7 @@
 import { applicationDefault, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { loadCollectionUniverse } from "../src/lib/company-themes/service";
-import { usMapTickers } from "../src/lib/knowledge-graph/us-companies";
+import { getFirestore, type DocumentData } from "../src/lib/firebase/firestore";
+import { loadCollectionCompanyScope } from "../src/lib/company-themes/service";
+import { usFundamentalsTicker } from "../src/lib/fundamentals/identity";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { publishJobMessage } from "../src/lib/job-pubsub";
 import { collectSecFilings, inspectSecFilingCollection } from "../src/lib/sec-filings/collector";
@@ -42,8 +42,12 @@ async function main() {
     if (result.status === "partial") throw new Error("Initial baseline incomplete; retry only the frozen snapshot");
     return;
   }
-  const graph = await loadCollectionUniverse(db);
-  const companyIds = usMapTickers(graph);
+  const companies = await loadCollectionCompanyScope(db, 'US');
+  const companyIds = companies.nodes.map(company => {
+    const ticker = usFundamentalsTicker(company.id);
+    if (!ticker) throw new Error(`Invalid US listing identity: ${company.id}`);
+    return ticker;
+  }).sort();
   if (!apply) {
     log.emit("INFO", "run_completed", { ...await inspectSecFilingCollection(db, companyIds), maxCompaniesPerRun: maxCompanies });
     return;
@@ -51,11 +55,12 @@ async function main() {
   if (!process.env.SEC_USER_AGENT?.trim()) throw new Error("SEC_USER_AGENT is required");
   const timeoutMs = 12 * 60_000;
   const deadline = Date.now() + timeoutMs;
-  await loadEarningsMap(db, graph);
+  const initialStates = new Map<string, DocumentData | undefined>();
+  await loadEarningsMap(db, companies, initialStates);
   const earnings = process.env.EARNINGS_COLLECTION_ENABLED === "1" ? createSecEarningsObserver(db, log, { deadline }) : null;
   const byCik=new Map<string,string[]>();
   for(const company of earningsCompanies())if(company.cik&&companyIds.includes(company.companyId.slice(3)))byCik.set(company.cik,[...(byCik.get(company.cik)??[]),company.companyId]);
-  const disclosures=createMapSecObserver(db,byCik,{deadline});
+  const disclosures=createMapSecObserver(db,byCik,{deadline,initialStates});
   const source = createSecFilingsSource(process.env.SEC_USER_AGENT, AbortSignal.timeout(timeoutMs), async(cik,value,archive)=>{
     await disclosures.observe(cik,value,archive);
     await earnings?.observe(cik,value,archive);

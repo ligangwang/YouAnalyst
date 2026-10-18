@@ -1,5 +1,5 @@
 import { applicationDefault, initializeApp } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
 import { publishJobMessage } from "../src/lib/job-pubsub";
 import { parseEarningsCollectorArgs } from "../src/lib/earnings/live-cli";

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore, type DocumentReference, type Firestore, type SetOptions, type Transaction } from "firebase-admin/firestore";
+import { getFirestore, type DocumentReference, type Firestore, type SetOptions, type Transaction } from "../src/lib/firebase/firestore";
 import { matchCompany, type CompanyIdentity } from "../src/lib/market-companies/identity";
 import { companyFields } from "../src/lib/market-companies/model";
 import { relationshipId } from "../src/lib/knowledge-graph/market-store";

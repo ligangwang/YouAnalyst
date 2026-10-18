@@ -12,6 +12,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "verify": "npm run verify:checks && npm run build",
+    "test:firestore": "tsx --test tests/firestore-observability.test.ts tests/firestore-operation-report.test.ts tests/company-exchange-region.test.ts",
     "test:analytics": "tsx --test tests/analytics/*.test.ts",
     "test:auth": "tsx --test tests/auth/*.test.ts",
     "test:watchlists": "tsx --test tests/watchlists/*.test.ts",
@@ -25,7 +26,7 @@
     "smoke:install": "playwright install chromium",
     "deploy:staging": "./scripts/deploy-cloud-run.sh staging",
     "deploy:production": "./scripts/deploy-cloud-run.sh production",
-    "verify:checks": "npm run lint && npm run typecheck && npm run test:analytics && npm run test:securities && npm run test:watchlists && npm run test:deploy"
+    "verify:checks": "npm run lint && npm run typecheck && npm run test:firestore && npm run test:analytics && npm run test:securities && npm run test:watchlists && npm run test:deploy"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",

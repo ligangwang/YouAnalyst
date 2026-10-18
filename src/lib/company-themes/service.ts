@@ -1,3 +1,4 @@
+import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getAdminFirestore } from '../firebase/admin';
 import { loadKnowledgeGraph } from '../knowledge-graph/service';
@@ -13,18 +14,28 @@ export async function loadThemeCompanies(theme: CompanyThemeId, db = getAdminFir
 }
 
 /** Include negative decisions so legacy graph enrollment cannot override them. */
-async function loadEnrollmentRecords(db: Firestore) {
-  const snapshot = await db.collection('companies')
-    .where('themeIds', 'array-contains-any', [...COMPANY_THEMES]).get();
+async function loadEnrollmentRecords(db: Firestore, region?: ExchangeRegion) {
+  let query = db.collection('companies').where('themeIds', 'array-contains-any', [...COMPANY_THEMES]);
+  if (region) query = query.where('exchange_region', '==', region);
+  const snapshot = await query.get();
   return snapshot.docs;
 }
 
 /** Read published memberships from companies, retaining legacy AI enrollment. */
-export async function loadCollectionCompanies(db: Firestore) {
-  return (await loadEnrollmentRecords(db)).filter(doc => isCollectionCompany({ ...doc.data(), id: doc.id } as ThemedCompany));
+export async function loadCollectionCompanies(db: Firestore, region?: ExchangeRegion) {
+  return (await loadEnrollmentRecords(db, region)).filter(doc => isCollectionCompany({ ...doc.data(), id: doc.id } as ThemedCompany));
+}
+
+/** Company metadata for collectors; no relationship expansion or valuation reads. */
+export async function loadCollectionCompanyScope(db: Firestore, region?: ExchangeRegion): Promise<KnowledgeGraph> {
+  const companies = await loadCollectionCompanies(db, region);
+  return collectionUniverse({ nodes: [], relationships: [], sources: [], asOf: '' },
+    companies.map(doc => ({ ...doc.data(), id: doc.id } as ThemedCompany)));
 }
 
 export async function loadCollectionUniverse(db = getAdminFirestore(), legacy?: KnowledgeGraph) {
-  const [graph, companies] = await Promise.all([legacy ?? loadKnowledgeGraph(), loadEnrollmentRecords(db)]);
+  const companies = await loadEnrollmentRecords(db);
+  // Reuse the same enrollment snapshot while retaining relationship-only neighbors.
+  const graph = legacy ?? await loadKnowledgeGraph({ db, companies });
   return collectionUniverse(graph, companies.map(doc => ({ ...doc.data(), id: doc.id } as ThemedCompany)));
 }

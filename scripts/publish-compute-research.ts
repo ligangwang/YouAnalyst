@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 
 import { processBatch, validateBatch, type ComputeBatch, type Plan } from "../src/lib/research/publisher";
 export { canonical, hash, mergeEdge, processBatch, validateBatch, type ComputeBatch } from "../src/lib/research/publisher";

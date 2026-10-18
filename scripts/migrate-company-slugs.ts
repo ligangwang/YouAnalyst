@@ -1,5 +1,5 @@
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore } from '../src/lib/firebase/firestore';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { buildCompanySlugPlan, type CompanySlugPlan } from '../src/lib/market-companies/slug-plan';

@@ -1,5 +1,5 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { loadFundamentalsCompanyIds } from "../src/lib/fundamentals/company-scope";
 import { usFundamentalsTicker } from "../src/lib/fundamentals/identity";
 import { auditMapFundamentals, drainFundamentalsQueue, seedMapFundamentals } from "../src/lib/fundamentals/batch";

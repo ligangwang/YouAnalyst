@@ -1,5 +1,5 @@
 import {applicationDefault, initializeApp} from 'firebase-admin/app';
-import {FieldPath, getFirestore} from 'firebase-admin/firestore';
+import {FieldPath, getFirestore} from '../src/lib/firebase/firestore';
 import {retireAiGraph} from '../src/lib/company-themes/retire-ai-graph';
 
 async function main() {

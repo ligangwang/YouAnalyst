@@ -1,5 +1,5 @@
 import { applicationDefault, initializeApp } from "firebase-admin/app";
-import { FieldPath, getFirestore } from "firebase-admin/firestore";
+import { FieldPath, getFirestore } from "../src/lib/firebase/firestore";
 import { validFundamentalsTicker } from "../src/lib/fundamentals/identity";
 import { copyLegacyFundamentals } from "../src/lib/fundamentals/migrate-ids";
 

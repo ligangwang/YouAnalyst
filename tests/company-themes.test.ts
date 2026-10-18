@@ -13,6 +13,40 @@ import spaceBatch from '../data/space/company-memberships.json';
 import {planThemeEnrollment,validateThemeBatch} from '../src/lib/company-themes/migration';
 import {themedGraph} from '../src/lib/company-themes/presentation';
 import {themeMetadata} from '../src/lib/company-themes/metadata';
+import {loadKnowledgeGraph} from '../src/lib/knowledge-graph/service';
+
+test('collection scope reuses one theme query without dropping graph neighbors or theme-only companies', async () => {
+  const membership = {status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:1,asOf:'2026-10-17'};
+  const enrolled = [
+    {id:'US:AAA',name:'Graph company',status:'PUBLISHED',inGraph:membership},
+    {id:'US:CCC',name:'Theme-only company',status:'DIRECTORY',themeMemberships:{space:{status:'PUBLISHED',primarySector:'launch'}}},
+    {id:'US:DDD',name:'Withdrawn company',status:'DIRECTORY',themeMemberships:{ai:{status:'WITHDRAWN'}}},
+  ];
+  const neighbor = {id:'US:BBB',name:'Related company',status:'DIRECTORY'};
+  const edge = {id:'edge',source:'US:AAA',target:'US:BBB',type:'SUPPLIER_OF',status:'PUBLISHED',evidence:[{url:'https://example.com/report',title:'Report'}]};
+  const snapshot = (row: Record<string, unknown>) => ({id:row.id,exists:true,data:()=>row});
+  let themeReads=0;
+  const db = {
+    collection: (name:string) => ({
+      doc: (id:string) => ({name,id,get:async()=>snapshot({enabled:false})}),
+      where: (field:string,operator:string,value:unknown) => ({get:async()=>{
+        if(name==='companies') {
+          assert.equal(field,'themeIds');assert.equal(operator,'array-contains-any');assert.deepEqual(value,['ai','robotics','space']);
+          themeReads++;return {docs:enrolled.map(snapshot)};
+        }
+        assert.equal(name,'company_relationships');return {docs:[snapshot(edge)]};
+      }}),
+    }),
+    getAll: async (...refs:Array<{name?:string;id?:string}>) => refs.filter(ref=>ref.id).map(ref=>snapshot(ref.name==='companies'?neighbor:{id:ref.id})),
+  } as unknown as Firestore;
+  const scope=await loadCollectionUniverse(db);
+  assert.equal(themeReads,1);
+  assert.deepEqual(usMapTickers(scope),['AAA','BBB','CCC']);
+  assert.equal(scope.relationships.length,1);
+  // Standalone graph callers still perform their own enrollment query.
+  await loadKnowledgeGraph({db});
+  assert.equal(themeReads,2);
+});
 
 test('Space enrollment preserves overlapping themes, drives job scopes and projects reviewed roles',()=>{
   validateThemeBatch(spaceBatch,'space');

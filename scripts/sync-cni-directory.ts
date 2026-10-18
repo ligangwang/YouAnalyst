@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { importCniDirectory } from "../src/lib/industry-research/directory-sync";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

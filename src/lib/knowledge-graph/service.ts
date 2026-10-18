@@ -5,12 +5,14 @@ import { graphFromMarket, RELATIONSHIP_COLLECTION, type MarketCompany, type Mark
 import { attachCnMarketCaps } from "./cn-market-caps";
 import { loadNvidiaManufacturingProjection } from "./nvidia-manufacturing-projection";
 import { changeCached } from '../change-cache';
-export async function loadKnowledgeGraph(): Promise<KnowledgeGraph> {
-  const db = getAdminFirestore();
+import type { Firestore, QueryDocumentSnapshot } from 'firebase-admin/firestore';
+export async function loadKnowledgeGraph(options: { db?: Firestore; companies?: QueryDocumentSnapshot[] } = {}): Promise<KnowledgeGraph> {
+  const db = options.db ?? getAdminFirestore();
   let complete=true;
   return changeCached(db, 'knowledge-graph', ['companies', 'company_relationships', 'company_fundamentals', 'directory_syncs'], async () => {
     const [companies, edges] = await Promise.all([
-      db.collection("companies").where("themeIds", "array-contains-any", [...COMPANY_THEMES]).get(),
+      options.companies !== undefined ? { docs: options.companies }
+        : db.collection("companies").where("themeIds", "array-contains-any", [...COMPANY_THEMES]).get(),
       db.collection(RELATIONSHIP_COLLECTION).where("status", "==", "PUBLISHED").get(),
     ]);
     // Retain graph layout enrollment without a second indexed company query.

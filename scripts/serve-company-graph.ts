@@ -1,5 +1,5 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { createJobSubscriber } from "../src/lib/job-pubsub-server";
 import { parseCompanyGraphManualJob, parseCompanyGraphFiling, type CompanyGraphJob } from "../src/lib/company-graph/pubsub";
 import { processCompanyGraphJob } from "../src/lib/company-graph/queue-worker";

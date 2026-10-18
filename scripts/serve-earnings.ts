@@ -1,5 +1,5 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { createJobSubscriber } from "../src/lib/job-pubsub-server";
 import { publishJobMessage } from "../src/lib/job-pubsub";
 import { EARNINGS_SUBSCRIPTION, EARNINGS_TOPIC, parseEarningsJob } from "../src/lib/earnings/live-event";

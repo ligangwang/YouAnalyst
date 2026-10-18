@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { applicationDefault, initializeApp } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "../src/lib/firebase/firestore";
 import { parseSecFilingDiscovered, type SecFilingDiscovered } from "../src/lib/sec-filings/event";
 import { readSecCollectorCursor, secCollectorMetadata, type SecCollectorCursor } from "../src/lib/sec-filings/store";
 

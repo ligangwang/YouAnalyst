@@ -160,10 +160,14 @@ while true; do
   esac
 done
 
-# A rollback pins traffic to an older revision. Explicitly promote the newly
-# deployed revision on a successful release instead of leaving that pin active.
+# Validate the exact candidate while the existing revision continues serving users.
+candidate_json="$(gcloud run services describe "$service_name" --project "$project_id" --region "$region" --format=json)"
+candidate_url="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{const t=JSON.parse(s).status.traffic.find(x=>x.tag==="candidate");if(!t?.url)process.exit(1);console.log(t.url);})')"
+candidate_revision="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{const t=JSON.parse(s).status.traffic.find(x=>x.tag==="candidate");if(!t?.revisionName)process.exit(1);console.log(t.revisionName);})')"
+CANDIDATE_URL="$candidate_url" CANDIDATE_REVISION="$candidate_revision" GIT_SHA="${GIT_SHA:-local}" node scripts/verify-release-candidate.mjs
+# Promote a verified revision by name, never an unverified latest revision.
 gcloud run services update-traffic "$service_name" --project "$project_id" \
-  --region "$region" --to-latest --quiet
+  --region "$region" --to-revisions "$candidate_revision=100" --quiet
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf 'Cloud Build and rollout: %s seconds\n' "$((SECONDS - build_started))" >> "$GITHUB_STEP_SUMMARY"

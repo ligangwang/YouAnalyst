@@ -1,6 +1,6 @@
 import { createJobSubscriber } from "../src/lib/job-pubsub-server";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { processCnRequest, parseCnRequest } from "../src/lib/fundamentals/cn-pubsub";
 
 if (!process.env.GCP_PROJECT_ID

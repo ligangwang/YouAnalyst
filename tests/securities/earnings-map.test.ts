@@ -14,6 +14,11 @@ import {loadEarningsMap} from '../../src/lib/earnings/map-issuers';
 import {earningsFirestore} from '../helpers/earnings-firestore';
 import {publicEarningsSummary,latestPublicEarnings} from '../../src/lib/earnings/public-summary';
 import type {MaintenanceLog} from '../../src/lib/maintenance-log';
+import type {Firestore} from 'firebase-admin/firestore';
+import {loadCollectionCompanyScope} from '../../src/lib/company-themes/service';
+import {usMapTickers} from '../../src/lib/knowledge-graph/us-companies';
+import {createMapSecObserver} from '../../src/lib/events/sec-disclosures';
+import type {DocumentData} from 'firebase-admin/firestore';
 
 const graph:KnowledgeGraph={asOf:'2026-10-04',nodes:[
   {id:'US:MU',market:'US',name:'Micron Technology, Inc.',aliases:['Micron'],kind:'COMPANY',order:1},
@@ -24,6 +29,72 @@ const ids=new Map([['US:MU','0000723125'],['US:AMAT','0000006951']]);
 const now='2026-10-04T12:00:00Z';
 const payload={cik:723125,filings:{files:[],recent:{form:['8-K'],accessionNumber:['0000723125-26-000018'],filingDate:['2026-09-30'],primaryDocument:['mu-20260930.htm'],acceptanceDateTime:['2026-09-30T20:02:22Z']}}};
 test.afterEach(()=>restoreEarningsFixtures());
+
+test('SEC identity snapshots avoid disclosure rereads, but failed scans reload durable progress',async()=>{
+  const fx=earningsFirestore(),reads=new Map<string,number>();
+  fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
+  const db={collection:(name:string)=>{
+    const collection=fx.db.collection(name);
+    return {doc:(id:string)=>{
+      const ref=collection.doc(id);
+      return {get:async()=>{reads.set(id,(reads.get(id)??0)+1);return ref.get();},set:ref.set.bind(ref)};
+    }};
+  }} as unknown as Firestore;
+  const initialStates=new Map<string,DocumentData|undefined>();
+  await loadEarningsMap(db,graph,initialStates);
+  assert(initialStates.has('US:AMAT'),'Missing identity documents must also be reusable');
+  assert.equal(initialStates.get('US:AMAT'),undefined);
+  const observer=createMapSecObserver(db,new Map([['0000723125',['US:MU']],['0000006951',['US:AMAT']]]),
+    {deadline:fx.now()+60000,now:fx.now,initialStates});
+  const empty=(cik:number)=>({cik,filings:{files:[],recent:{form:[],accessionNumber:[],filingDate:[],primaryDocument:[]}}});
+  const archive=async()=>{throw new Error('Unexpected archive');};
+  await observer.observe('0000723125',empty(723125),archive);
+  await observer.observe('0000723125',empty(723125),archive);
+  assert.equal(reads.get('sec-US:MU'),1);
+  assert.equal(observer.failed.size,0);
+  await observer.observe('0000006951',{cik:6951},archive);
+  assert(observer.failed.has('US:AMAT'));
+  assert.equal(reads.get('sec-US:AMAT'),1);
+  await observer.observe('0000006951',empty(6951),archive);
+  assert.equal(reads.get('sec-US:AMAT'),2,'Retry must read the checkpoint saved after failure');
+  assert.equal(observer.failed.size,0);
+  // Starting another run must refresh states instead of reusing the old missing value.
+  await loadEarningsMap(db,graph,initialStates);
+  assert.equal(initialStates.get('US:AMAT')?.status,'complete');
+  assert.equal(reads.get('sec-US:AMAT'),3);
+});
+
+test('SEC and earnings discovery reuse one theme scope without reading relationships or valuations',async()=>{
+  const fx=earningsFirestore();
+  fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
+  const published={status:'PUBLISHED',primarySector:'compute',reviewedAt:'2026-10-17'};
+  const rows=[
+    {id:'US:MU',name:'Micron Technology',names:{en:'Micron Technology'},aliases:['Micron'],status:'DIRECTORY',themeMemberships:{ai:published,robotics:published}},
+    {id:'US:AMAT',name:'Applied Materials',status:'DIRECTORY',themeMemberships:{space:published}},
+    {id:'XSHE:000063',name:'ZTE',status:'DIRECTORY',themeMemberships:{robotics:published}},
+    {id:'ORG:OPENAI',name:'OpenAI',status:'DIRECTORY',themeMemberships:{ai:published}},
+    {id:'US:WITHDRAWN',name:'Withdrawn',status:'DIRECTORY',inGraph:{status:'PUBLISHED'},themeMemberships:{ai:{...published,status:'WITHDRAWN'}}},
+  ];
+  let companyQueries=0;
+  const db={collection:(name:string)=>{
+    if(name==='companies')return {where:(field:string,op:string,values:string[])=>{
+      assert.equal(field,'themeIds');assert.equal(op,'array-contains-any');assert.deepEqual(values,['ai','robotics','space']);
+      return {get:async()=>{companyQueries++;return {docs:rows.map(row=>({id:row.id,data:()=>row}))};}};
+    }};
+    assert.equal(name,'collectors','Company scope must not load relationships or fundamentals');
+    return fx.db.collection(name);
+  }} as unknown as Firestore;
+  const scope=await loadCollectionCompanyScope(db);
+  assert.deepEqual(usMapTickers(scope),['AMAT','MU']);
+  assert.deepEqual(scope.relationships,[]);
+  await loadEarningsMap(db,scope);
+  assert.equal(companyQueries,1);
+  assert.deepEqual(earningsCompanies().map(row=>row.companyId),['US:MU','XSHE:000063']);
+  assert(earningsCompany('US:MU').aliases.includes('Micron'));
+  registerEarningsIssuer('US:AMAT','0000006951');
+  assert.equal(earningsCompany('US:AMAT').name,'Applied Materials');
+  assert.throws(()=>registerEarningsIssuer('US:NEIGHBOR','0000001234'),/Unverified map/);
+});
 
 test('earnings eligibility follows the map and verified scanner identities, never the adapter hints',async()=>{
   const fx=earningsFirestore();fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
