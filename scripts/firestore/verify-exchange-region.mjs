@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 const project=process.env.GCP_PROJECT_ID;
 assert(project, 'GCP_PROJECT_ID is required');
-const token=execFileSync('gcloud',['auth','print-access-token'],{encoding:'utf8'}).trim();
+const token=process.env.GOOGLE_OAUTH_ACCESS_TOKEN ?? execFileSync('gcloud',['auth','print-access-token'],{encoding:'utf8'}).trim();
 async function query(filters) {
   const response=await fetch(`https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents:runQuery`,{
     method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
