@@ -1,3 +1,6 @@
+// These unit fixtures exercise the local Firestore cache, not a deployed service.
+delete process.env.CENTRAL_CACHE_URL;
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type {Firestore} from 'firebase-admin/firestore';
