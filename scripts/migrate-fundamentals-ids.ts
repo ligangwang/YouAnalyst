@@ -1,5 +1,6 @@
+import {OAuth2Client} from "google-auth-library";
 import { applicationDefault, initializeApp } from "firebase-admin/app";
-import { FieldPath, getFirestore } from "firebase-admin/firestore";
+import { FieldPath, Firestore, getFirestore } from "firebase-admin/firestore";
 import { validFundamentalsTicker } from "../src/lib/fundamentals/identity";
 import { copyLegacyFundamentals } from "../src/lib/fundamentals/migrate-ids";
 
@@ -9,8 +10,12 @@ async function main() {
   const apply = args.has("--apply");
   if (!process.env.GCP_PROJECT_ID) throw new Error("GCP_PROJECT_ID must explicitly select the migration project");
   if (apply && !args.has("--writers-paused")) throw new Error("Pause all legacy readers/writers and deliveries before applying; then pass --writers-paused");
-  initializeApp({ credential: process.env.GOOGLE_OAUTH_ACCESS_TOKEN ? {getAccessToken: async () => ({access_token: process.env.GOOGLE_OAUTH_ACCESS_TOKEN!, expires_in: 3600})} : applicationDefault(), projectId: process.env.GCP_PROJECT_ID });
-  const db = getFirestore();
+  const projectId = process.env.GCP_PROJECT_ID;
+  const token = process.env.GOOGLE_OAUTH_ACCESS_TOKEN;
+  const authClient = new OAuth2Client();
+  if (token) authClient.setCredentials({access_token: token});
+  else initializeApp({credential: applicationDefault(), projectId});
+  const db = token ? new Firestore({projectId, authClient}) : getFirestore();
   const counts: Record<string, number> = {};
   let cursor: string | undefined;
   // Legacy tickers begin with a digit or uppercase letter. Exclude '_' operational
