@@ -56,35 +56,29 @@ test("redelivery skips completed companies and duplicate result publication", as
   assert.equal(a.completed, 2); assert.equal("duplicate" in b && b.duplicate, true);
   assert.deepEqual(f.calls, ["AMD", "NVDA"]); assert.equal(f.events.length, 1);
 });
-test("partial failure publishes successful changes and retries only unfinished companies", async () => {
-  const f = fixture();
-  let fail = true;
-  const refresh = async (ticker: string) => { if (ticker === "NVDA" && fail) throw new Error("temporary failure"); return f.refresh(ticker); };
-  await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, f.publish, { ...f, refresh }), /incomplete/);
-  assert.deepEqual(f.events[0].companyIds, ["AMD"]);
-  fail = false;
-  const result = await processFundamentalsBatch(request(), f.db, f.log, f.publish, { ...f, refresh });
-  assert.equal(result.completed, 2); assert.deepEqual(f.calls, ["AMD", "NVDA"]);
-  assert.deepEqual(f.events[1].companyIds, ["AMD", "NVDA"]);
+test("partial failure publishes successful changes and holds failures for admin", async () => {
+ const f=fixture();const refresh=async(ticker:string)=>{if(ticker==='NVDA')throw Error('temporary failure');return f.refresh(ticker);};
+ const result=await processFundamentalsBatch(request(),f.db,f.log,f.publish,{...f,refresh});
+ assert.equal(result.failed,1);assert.equal(result.remaining,0);
+ assert.deepEqual(f.events[0].companyIds,['AMD']);
+ await processFundamentalsBatch(request(),f.db,f.log,f.publish,f);
+ assert.deepEqual(f.calls,['AMD']);assert.equal(f.rows.get('US:NVDA')?.outcome,'error');
 });
+
 test("result publish failure resumes the durable outbox without another SEC fetch", async () => {
   const f = fixture();
   await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, async () => { throw new Error("publish outage"); }, f), /publish outage/);
   await processFundamentalsBatch(request(), f.db, f.log, f.publish, f);
   assert.equal(f.calls.length, 2); assert.equal(f.events.length, 1);
 });
-test("a crash after saving company data retains the before-version for resumed events", async () => {
-  const f = fixture({ "US:AMD": { value: { metrics: { revenue: 5 } } } });
-  let first = true;
-  const refresh = async (ticker: string) => {
-    if (first) { first = false; await f.refresh(ticker); throw new Error("interrupted after save"); }
-    return null; // Existing refresh routine returns its fresh cache on retry.
-  };
-  await assert.rejects(processFundamentalsBatch(request(["AMD"]), f.db, f.log, f.publish, { ...f, refresh }), /incomplete/);
-  await processFundamentalsBatch(request(["AMD"]), f.db, f.log, f.publish, { ...f, refresh });
-  assert.deepEqual(f.events[0].companyIds, ["AMD"]);
-  assert.equal(f.calls.length, 1);
+test("an exception after saving data is retained for admin without automatic re-execution", async () => {
+ const f=fixture();const refresh=async(ticker:string)=>{await f.refresh(ticker);throw Error('interrupted after save');};
+ const result=await processFundamentalsBatch(request(['AMD']),f.db,f.log,f.publish,{...f,refresh});
+ assert.equal(result.failed,1);assert.ok(f.rows.get('US:AMD')?.value);
+ await processFundamentalsBatch(request(['AMD']),f.db,f.log,f.publish,{...f,refresh});
+ assert.equal(f.calls.length,1);assert.equal(f.events.length,0);
 });
+
 test("freshness-only changes do not publish fundamentals.updated", async () => {
   const f = fixture({ "US:AMD": { value: { fetchedAt: "old", metrics: { revenue: 10 } } } });
   await processFundamentalsBatch(request(["AMD"]), f.db, f.log, f.publish, f);

@@ -107,7 +107,7 @@ test("a retry during provider cooldown still reports the unresolved failure", as
   const result=await drainFundamentalsQueue(db,log,Date.now()+10000,async()=>{throw Error("should not fetch during cooldown");});
   assert.equal(result.failed,1);
   assert.equal(result.deferred,1);
-  assert.equal(result.remaining,1);
+  assert.equal(result.remaining,0);
 });
 
 

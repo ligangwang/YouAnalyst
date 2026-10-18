@@ -7,7 +7,7 @@ import {
 } from "@/lib/company-graph/types";
 import { collapseCompanyGraphEntityEdges } from "@/lib/company-graph/entities";
 import { displayRelationshipTargetName, reviewRelationships } from "@/lib/company-graph/quality";
-import { FieldPath } from "firebase-admin/firestore";
+import { loadFilingRelationships } from "@/lib/knowledge-graph/relationship-cache";
 import { NextRequest, NextResponse } from "next/server";
 
 const MAX_EDGES = 50;
@@ -147,13 +147,7 @@ export async function GET(
       : null;
     const resultEdges = isCurrentExtractionVersion ? readRunResultEdges(runData?.result) : null;
     const edgesSnapshot = resultEdges === null && edgePrefix
-      ? await db
-          .collection("company_relationships")
-          .where(FieldPath.documentId(), ">=", edgePrefix)
-          .where(FieldPath.documentId(), "<", `${edgePrefix}\uf8ff`)
-          .orderBy(FieldPath.documentId())
-          .limit(100)
-          .get()
+      ? await loadFilingRelationships(db, edgePrefix, 100)
       : null;
     const edges = resultEdges ?? (edgesSnapshot
       ? edgesSnapshot.docs

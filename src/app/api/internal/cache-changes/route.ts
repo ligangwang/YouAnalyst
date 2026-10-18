@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       return new Response('Forbidden', { status: 403 });
   } catch { return new Response('Unauthorized', { status: 401 }); }
   try {
-    await applyCacheChange(getAdminFirestore(), request.headers, project);
+    await applyCacheChange(getAdminFirestore(), request.headers, project, new Uint8Array(await request.arrayBuffer()));
     return new Response(null, { status: 204 });
   } catch (error) {
     console.error('Cache change delivery failed', error);

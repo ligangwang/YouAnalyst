@@ -20,7 +20,7 @@ chmod 600 "$env_file"
 trap 'rm -f "$env_file"' EXIT
 node - "$env_file" <<'NODE'
 const fs = require('node:fs');
-const env = {GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA || 'unknown',
+const env = {CENTRAL_CACHE_URL:process.env.CENTRAL_CACHE_URL || '',GCP_PROJECT_ID:process.env.GCP_PROJECT_ID,GIT_SHA:process.env.GIT_SHA || 'unknown',
   SEC_USER_AGENT:process.env.SEC_USER_AGENT || '',
   INTELLIGENCE_NEWS_COLLECTOR_ENABLED:process.env.INTELLIGENCE_NEWS_COLLECTOR_ENABLED || '0',
   EARNINGS_COLLECTION_ENABLED:process.env.EARNINGS_COLLECTION_ENABLED || '0',

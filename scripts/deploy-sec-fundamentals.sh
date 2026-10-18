@@ -15,7 +15,7 @@ bash scripts/deploy-sec-pubsub.sh
 gcloud run jobs deploy "$job" --project "$GCP_PROJECT_ID" --region "$region" \
   --image "$FUNDAMENTALS_IMAGE" --service-account "$runtime" --tasks 1 --parallelism 1 \
   --max-retries 1 --task-timeout 20m --memory 1Gi --cpu 1 \
-  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_REQUEST_TOPIC=sec-fundamentals-requests" --quiet
+  --set-env-vars "^|^GCP_PROJECT_ID=$GCP_PROJECT_ID|SEC_USER_AGENT=$SEC_USER_AGENT|GIT_SHA=${GIT_SHA:-unknown}|FUNDAMENTALS_REQUEST_TOPIC=sec-fundamentals-requests|CENTRAL_CACHE_URL=${CENTRAL_CACHE_URL:-}" --quiet
 # Scheduler and web app (/admin/jobs "Run now") invoker grants on this job.
 ensure_maintenance_job_iam "$job"
 operation=create

@@ -51,6 +51,9 @@ export async function drainFundamentalsQueue(db: Firestore, log: MaintenanceLog,
       const ticker = usFundamentalsTicker(doc.id);
       if (!ticker) continue;
       const queued = doc.data();
+      if (["error", "retry"].includes(queued.outcome)) { await db.collection(FUNDAMENTALS_COLLECTION).doc(doc.id).set({pending:false,outcome:"error"},{merge:true}); result.failed++; result.deferred++;
+        if ([403,429].includes(Number(queued.lastError?.code)) && Number(queued.refreshAfter)>Date.now()) { await worker.set({providerRetryAfter:queued.refreshAfter},{merge:true}); stop=true; break; }
+        continue; }
       const needsShareUpgrade = needsShareMetadataUpgrade(queued);
       if (Number(queued.refreshAfter) > Date.now() && !needsShareUpgrade) {
         result.deferred++;

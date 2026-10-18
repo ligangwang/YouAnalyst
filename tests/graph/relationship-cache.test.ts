@@ -45,3 +45,17 @@ test('graph rebuilds reuse relationships until relationship changes, including d
   await graph();
   assert.equal(reads, 6, 'disabled change delivery must bypass caching');
 });
+
+test('published relationships use the central selector without querying Firestore',async(t)=>{
+ const {encode}=await import('../../src/lib/central-cache/codec');
+ const previous=process.env.CENTRAL_CACHE_URL;process.env.CENTRAL_CACHE_URL='http://127.0.0.1:8088';
+ t.after(()=>{if(previous===undefined)delete process.env.CENTRAL_CACHE_URL;else process.env.CENTRAL_CACHE_URL=previous;});
+ let calls=0;
+ t.mock.method(globalThis,'fetch',async(url:unknown,options:RequestInit)=>{
+  calls++;assert.equal(url,'http://127.0.0.1:8088/read');
+  assert.deepEqual(JSON.parse(String(options.body)),{collection:'company_relationships',query:{status:'PUBLISHED'}});
+  return new Response(JSON.stringify(encode([{id:'edge',data:{source:'US:A',target:'US:B',status:'PUBLISHED'}}])));
+ });
+ const db={collection:(name:string)=>{assert.equal(name,'company_relationships');return {doc:(id:string)=>({id}),get:()=>{throw Error('Unexpected Firestore read');}};}} as unknown as Firestore;
+ const result=await loadPublishedRelationships(db);assert.equal(calls,1);assert.equal(result.docs[0].id,'edge');assert.equal(result.docs[0].get('target'),'US:B');
+});

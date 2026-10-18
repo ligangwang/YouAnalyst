@@ -18,7 +18,7 @@ export async function dispatchRequestedFundamentals(ticker: string, db: Firestor
     // every visit/poll; the transaction below rechecks before claiming work.
     const current = await ref.get();
     const eligible = (stored: FirebaseFirestore.DocumentData | undefined, now: number) =>
-      stored?.pending === true && (!(Number(stored.refreshAfter) > now) || needsShareMetadataUpgrade(stored))
+      !["error", "retry"].includes(stored?.outcome) && stored?.pending === true && (!(Number(stored.refreshAfter) > now) || needsShareMetadataUpgrade(stored))
       && !(Number(stored.dispatchAfter) > now);
     if (!eligible(current.data(), current.readTime.toMillis())) return;
     const request = await db.runTransaction(async tx => {

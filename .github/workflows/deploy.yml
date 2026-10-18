@@ -32,6 +32,7 @@ on:
 
 env:
   GCP_REGION: us-central1
+  CENTRAL_CACHE_URL: ${{ github.ref == 'refs/heads/main' && vars.CENTRAL_CACHE_URL || '' }}
 
 concurrency:
   group: deploy-${{ github.workflow }}-${{ github.ref }}

@@ -1,3 +1,4 @@
+import { loadCompanyDocuments } from '../company-document-cache';
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { chinaCompanyId } from "@/lib/market-companies/routes";
 import { sanitizePredictionThesis, sanitizePredictionThesisTitle } from "@/lib/predictions/types";
@@ -290,7 +291,7 @@ export async function getDailyScores(dateInput?: string | null): Promise<DailySc
   const companyIds = [...new Set(topCalls.map(call => companyIdFor(call.ticker)).filter((id): id is string => id !== null))];
   if (companyIds.length) {
     try {
-      const profiles = await db.getAll(...companyIds.map(id => db.collection("companies").doc(id)));
+      const profiles = await loadCompanyDocuments(db, 'companies', companyIds);
       const companies = new Map(profiles.filter(profile => profile.exists).map(profile => {
         const data = profile.data()!;
         return [profile.id, {

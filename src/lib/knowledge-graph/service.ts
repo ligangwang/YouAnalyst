@@ -1,3 +1,4 @@
+import { loadCompanyDocuments } from '../company-document-cache';
 import { loadThemeEnrolledCompanies } from './company-cache';
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { KnowledgeGraph } from "./model";
@@ -6,8 +7,8 @@ import { loadPublishedRelationships } from './relationship-cache';
 import { attachCnMarketCaps } from "./cn-market-caps";
 import { loadNvidiaManufacturingProjection } from "./nvidia-manufacturing-projection";
 import { changeCached } from '../change-cache';
-import type { Firestore, QueryDocumentSnapshot } from 'firebase-admin/firestore';
-export async function loadKnowledgeGraph(options: { db?: Firestore; companies?: QueryDocumentSnapshot[] } = {}): Promise<KnowledgeGraph> {
+import type { Firestore, DocumentSnapshot } from 'firebase-admin/firestore';
+export async function loadKnowledgeGraph(options: { db?: Firestore; companies?: DocumentSnapshot[] } = {}): Promise<KnowledgeGraph> {
   const db = options.db ?? getAdminFirestore();
   let complete=true;
   return changeCached(db, 'knowledge-graph', ['companies', 'company_relationships', 'company_fundamentals', 'directory_syncs'], async () => {
@@ -23,7 +24,7 @@ export async function loadKnowledgeGraph(options: { db?: Firestore; companies?: 
     const relationships = edges.docs.map(d => ({ ...d.data(), id: d.id }) as MarketRelationship);
     const neighbors = [...new Set(relationships.filter(r => ids.has(r.source) || ids.has(r.target)).flatMap(r => [r.source, r.target]))].filter(id => !ids.has(id) && /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id));
     for (let i = 0; i < neighbors.length; i += 200) {
-      const profiles = await db.getAll(...neighbors.slice(i, i + 200).map(id => db.collection("companies").doc(id)));
+      const profiles = await loadCompanyDocuments(db, 'companies', neighbors.slice(i, i + 200));
       rows.push(...profiles.filter(d => d.exists).map(d => ({ ...d.data(), id: d.id }) as MarketCompany));
     }
     const projection = await loadNvidiaManufacturingProjection(db, rows, relationships);
@@ -33,7 +34,7 @@ export async function loadKnowledgeGraph(options: { db?: Firestore; companies?: 
     try {
       for (let i = 0; i < usCompanies.length; i += 100) {
         const batch = usCompanies.slice(i, i + 100);
-        const values = await db.getAll(...batch.map(n => db.collection("company_fundamentals").doc(n.id)), { fieldMask: ["marketCap"] });
+        const values = await loadCompanyDocuments(db, 'company_fundamentals', batch.map(n => n.id), 'marketCap');
         values.forEach((doc, index) => {
           const cap = doc.data()?.marketCap;
           if (cap?.status === "estimated" && cap.currency === "USD" && typeof cap.value === "number" && Number.isFinite(cap.value) && cap.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(cap.priceDate ?? "")) {

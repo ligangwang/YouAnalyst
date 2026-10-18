@@ -6,9 +6,9 @@ import {applyCacheChange,changeCached,CHANGE_CACHE_DOCUMENT,withCacheReadScope} 
 function fixture(){
   const state:{enabled:boolean;versions:Record<string,string>}={enabled:true,versions:{}};
   let unavailable=false,writes=0,checks=0;
-  const db={collection:(name:string)=>({doc:(id:string)=>({
+  const db={runTransaction:async(work:(tx:unknown)=>Promise<void>)=>work({get:async()=>({data:()=>structuredClone(state)}),set:(ref:{set:(value:unknown)=>Promise<void>},value:unknown)=>ref.set(value)}),collection:(name:string)=>({doc:(id:string)=>({
     get:async()=>{checks++;assert.equal(name,'collectors');assert.equal(id,CHANGE_CACHE_DOCUMENT);if(unavailable)throw Error('offline');return {data:()=>structuredClone(state)};},
-    set:async(value:{versions:Record<string,string>})=>{writes++;Object.assign(state.versions,value.versions);},
+    set:async(value:{versions:Record<string,string>})=>{if(id===CHANGE_CACHE_DOCUMENT){writes++;Object.assign(state.versions,value.versions);}},
   })})} as unknown as Firestore;
   return {db,state,get writes(){return writes;},get checks(){return checks;},fail(value:boolean){unavailable=value;}};
 }
@@ -80,4 +80,20 @@ test('a degraded optional-data result is returned but not frozen in cache',async
  healthy=true;
  assert.deepEqual(await changeCached(f.db,'optional',['companies'],load,value=>!value.partial),{partial:false});
  await changeCached(f.db,'optional',['companies'],load,value=>!value.partial);assert.equal(reads,2);
+});
+
+test('news status invalidation follows source IDs, with legacy fallback and delete events',async()=>{
+ const {loadNewsCollectorStatuses}=await import('../../src/lib/intelligence/collectors/status-cache');
+ const state={enabled:true,versions:{} as Record<string,string>,collectorDocumentsTracked:false};
+ let reads=0,fail=false;
+ const rows=new Map([['news-a',{lastSuccessAt:'today'}],['news-b',{lastSuccessAt:'yesterday'}]]);
+ const db={collection:()=>({doc:(id:string)=>({id,get:async()=>({data:()=>structuredClone(state)}),set:async(value:typeof state)=>{Object.assign(state.versions,value.versions);if(value.collectorDocumentsTracked)state.collectorDocumentsTracked=true;}})}),getAll:async(...refs:{id:string}[])=>{reads++;if(fail)throw Error('offline');return refs.map(ref=>({id:ref.id,data:()=>rows.get(ref.id)}));}} as unknown as Firestore;
+ const load=()=>loadNewsCollectorStatuses(db,['news-a','news-b']);
+ await load();state.versions.collectors='old';await load();assert.equal(reads,2);
+ await applyCacheChange(db,event('collectors','other-source'),'test');await load();assert.equal(reads,3);
+ await applyCacheChange(db,event('collectors','other-source'),'test');await load();assert.equal(reads,3);
+ await applyCacheChange(db,event('collectors','_graph_prices_v1'),'test');await load();assert.equal(reads,3);
+ rows.delete('news-a');await applyCacheChange(db,event('collectors','news-a'),'test');
+ const result=await load();assert.equal(reads,4);assert.equal(result[0].data(),undefined);
+ await applyCacheChange(db,event('collectors','news-b'),'test');fail=true;await assert.rejects(load(),/offline/);fail=false;await load();assert.equal(reads,6);
 });

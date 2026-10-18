@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */
+import { timestampWrite } from '../central-cache/write-timestamps';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 
@@ -72,7 +73,11 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
       if (typeof member !== 'function') return member;
       return (...args: any[]) => {
         const method = String(key), site = caller(), started = Date.now();
-        const invoke = (): any => Reflect.apply(member, object, args.map(unwrap));
+        const invoke = (): any => {
+          const offset = ['batch','transaction'].includes(kind) ? 1 : 0;
+          const path = offset ? args[0]?.path : kind === 'doc' ? object.path : '';
+          return Reflect.apply(member, object, timestampWrite(method,path ?? '',args,offset).map(unwrap));
+        };
         if (method === 'collection' || method === 'collectionGroup') {
           const result = invoke();
           return wrap(result, 'query', { collection: method === 'collectionGroup' ? `group:${args[0]}` : collectionPath(result.path ?? String(args[0])), clauses: [] });

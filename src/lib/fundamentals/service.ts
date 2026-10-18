@@ -4,7 +4,7 @@ import { maintenanceError } from "../maintenance-log";
 import type { CompanyFundamentals } from "./model";
 import type { DocumentData } from "firebase-admin/firestore";
 import { reviewedDomesticIssuers } from "./domestic-share-counts";
-import {changeCached} from '../change-cache';
+import {loadFundamentalsSnapshot} from './document-cache';
 
 export const FUNDAMENTALS_COLLECTION = "company_fundamentals";
 export { validFundamentalsTicker } from "./identity";
@@ -21,11 +21,11 @@ export async function requestCompanyFundamentals(ticker: string, db: Database, n
   const ref = db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker));
   const valueOf = (stored?: DocumentData): CompanyFundamentals | null => stored?.version === 1 && stored.value
     ? { ...stored.value, ...(stored.marketCap ? { marketCap: stored.marketCap } : {}) } : null;
-  const needsRequest = (stored?: DocumentData) => stored?.pending !== true
+  const needsRequest = (stored?: DocumentData) => !["error", "retry"].includes(stored?.outcome) && stored?.pending !== true
     && ((!stored?.requestedAt && !valueOf(stored)) || Number(stored?.refreshAfter ?? 0) <= now
       || needsShareMetadataUpgrade(stored));
   const fresh = (value: CompanyFundamentals | null) => value ? { ...value, stale: now - Date.parse(value.fetchedAt) > 2 * 86_400_000 } : null;
-  const current = (await changeCached(db,`fundamentals:${ticker}`,['company_fundamentals'],()=>ref.get())).data();
+  const current = (await loadFundamentalsSnapshot(db,usFundamentalsId(ticker))).data();
   // Busy pages must not lock the cache document on every visitor read.
   if (!needsRequest(current)) return fresh(valueOf(current));
   return db.runTransaction(async tx => {

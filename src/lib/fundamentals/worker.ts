@@ -50,10 +50,10 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
     const snapshot = await tx.get(ref);
     const stored = snapshot.data();
     const value = stored?.version === 1 ? (stored.value as CompanyFundamentals | null) ?? null : null;
+    if (["error", "retry"].includes(stored?.outcome)) return { acquired: false, value };
     const needsShareUpgrade = needsShareMetadataUpgrade(stored);
     const filingRefresh = dependencies?.filing && stored?.lastFilingRefresh?.eventId !== dependencies.filing.eventId;
-    const coolingDown = stored?.pending === true && stored.outcome === "retry" && Number(stored.refreshAfter) > now;
-    if (coolingDown || (stored?.version === 1 && Number(stored.refreshAfter) > now && !needsShareUpgrade && !filingRefresh)) return { acquired: false, value };
+    if (stored?.version === 1 && Number(stored.refreshAfter) > now && !needsShareUpgrade && !filingRefresh) return { acquired: false, value };
     tx.set(ref, { version: 1, pending: true, refreshAfter: now + 90_000, lastAttemptAt: new Date(now).toISOString() }, { merge: true });
     return { acquired: true, value };
   });
@@ -107,18 +107,17 @@ export async function refreshCompanyFundamentals(ticker: string, dependencies?: 
     }
     const value: CompanyFundamentals = { report, metrics: annualMetrics(facts, report), excerpt, fetchedAt: new Date().toISOString(),
       shareAssessment: assessShares(facts, ticker, submissions.tickers, report.form) };
-    // Freshness margin prevents daily runs skipping yesterday's cache if today's
-    // worker starts a few seconds earlier.
+    // Reuse successful fundamentals for seven days; new filing events can refresh sooner.
     await ref.set({ version: 1, value, pending: false, outcome: "ready", unavailableReason: null, lastError: null,
       ...(dependencies?.filing ? { lastFilingRefresh: { eventId: dependencies.filing.eventId,
         accessionNumber: dependencies.filing.accessionNumber, filingDate: dependencies.filing.filingDate } } : {}),
-      refreshAfter: Date.now() + 23 * 3_600_000 }, { merge: true });
+      refreshAfter: Date.now() + 7 * DAY }, { merge: true });
     return value;
   } catch (error) {
-    // Preserve the last good cache and request for the next scheduled run.
+    // Preserve the last good data; only an administrator may retry this failure.
     const details = maintenanceError(error);
-    await ref.set({ version: 1, pending: true, outcome: "retry", lastError: { ...details, stack: details.stack ?? null },
-      refreshAfter: Date.now() + (error instanceof SecFilingPendingError ? 300_000 : 3_600_000) }, { merge: true })
+    await ref.set({ version: 1, pending: false, outcome: "error", lastError: { ...details, stack: details.stack ?? null },
+      failedAt: new Date().toISOString(), refreshAfter: null }, { merge: true })
       .catch(persistError => dependencies?.log?.emit("ERROR", "failure_status_write_failed", { ticker, error: maintenanceError(persistError) }));
     throw error;
   }
