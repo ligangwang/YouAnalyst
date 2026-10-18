@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {initializeApp,applicationDefault} from 'firebase-admin/app';
-import {getFirestore,type Firestore} from 'firebase-admin/firestore';
+import {getFirestore,type Firestore} from '../src/lib/firebase/firestore';
 import {company,encode,type Document,type Request} from './migrate-company-themes';
 export type SummaryBatch={asOf:string;summaries:{id:string;theme:'ai'|'robotics'|'space';source:string;text:string}[]};
 export async function publishSummaries(db:Firestore,batch:SummaryBatch,write=false){

@@ -1,6 +1,6 @@
 import { createJobSubscriber } from "../src/lib/job-pubsub-server";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { processFundamentalsBatch } from "../src/lib/fundamentals/pubsub-batch";
 import { fundamentalsRequestForFiling, parseFundamentalsRequest, publishFundamentalsMessage } from "../src/lib/fundamentals/pubsub";
 

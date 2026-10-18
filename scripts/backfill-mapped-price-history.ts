@@ -1,3 +1,4 @@
+import { observeFirestore } from '../src/lib/firebase/firestore-observability';
 import { Firestore } from '@google-cloud/firestore';
 import { Storage, type StorageOptions } from '@google-cloud/storage';
 import { createRequire } from 'node:module';
@@ -16,7 +17,7 @@ const sdkRequire=createRequire(createRequire(resolve('package.json')).resolve('@
 const {OAuth2Client}=sdkRequire('google-auth-library') as typeof import('google-auth-library');
 const authClient=capturedToken ? new OAuth2Client() : undefined;
 authClient?.setCredentials({access_token:capturedToken});
-const db=new Firestore({projectId,authClient,preferRest:true});
+const db=observeFirestore(new Firestore({projectId,authClient,preferRest:true}));
 const graph=await loadCollectionUniverse(db,{nodes:[],relationships:[],sources:[],asOf:new Date().toISOString()});
 const universes={US:usMapTickers(graph),CN_A:cnMapCompanies(graph)};
 const now=new Date();

@@ -1,3 +1,4 @@
+import { observeFirestore } from './firestore-observability';
 import * as admin from "firebase-admin";
 import { getStorage } from "firebase-admin/storage";
 
@@ -37,7 +38,7 @@ export async function verifyIdToken(token: string): Promise<admin.auth.DecodedId
 }
 
 export function getAdminFirestore(): admin.firestore.Firestore {
-  return getAdminApp().firestore();
+  return observeFirestore(getAdminApp().firestore());
 }
 
 export function getAdminStorageBucket(bucketName?: string) {

@@ -1,5 +1,5 @@
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
-import {getFirestore} from 'firebase-admin/firestore';
+import {getFirestore} from '../src/lib/firebase/firestore';
 import {loadNewsSources} from '../src/lib/intelligence/collectors/source-service';
 import {fetchNews} from '../src/lib/intelligence/collectors/news';
 import {NEWS_HISTORY_START} from '../src/lib/intelligence/collectors/collector';

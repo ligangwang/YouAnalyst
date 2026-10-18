@@ -1,3 +1,4 @@
+import { exchangeRegion } from './exchange-region';
 import { companySearchFields } from "./search";
 import { COMPANY_LINK_SLUGS } from './slugs';
 import { nameSlug, validCompanySlug } from './slug-plan';
@@ -12,7 +13,7 @@ export function companyFields(id: string, data: Record<string, unknown>) {
   const base = nameSlug(typeof english === 'string' ? english : name);
   const qualifier=nameSlug(id.replace(':','-'));
   const slug = validCompanySlug(data.slug) ? data.slug : COMPANY_LINK_SLUGS[id] ?? `${base.slice(0,119-qualifier.length).replace(/-$/,'')}-${qualifier}`;
-  return { ...companySearchFields(id,data), id, market, symbol, name, ...(validCompanySlug(slug)?{slug}:{}), symbolLower: normalized(symbol), nameLower: normalized(name) };
+  return { ...companySearchFields(id,data), id, market, exchange_region: exchangeRegion(id), symbol, name, ...(validCompanySlug(slug)?{slug}:{}), symbolLower: normalized(symbol), nameLower: normalized(name) };
 }
 
 /** Name edits update search metadata without rewriting identity/listing fields. */

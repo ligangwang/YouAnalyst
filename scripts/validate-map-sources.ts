@@ -1,7 +1,7 @@
 // Read-only database-backed source verification; no event or checkpoint writes.
 import {loadNewsSources} from '../src/lib/intelligence/collectors/source-service';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
-import {getFirestore} from 'firebase-admin/firestore';
+import {getFirestore} from '../src/lib/firebase/firestore';
 import {fetchNews} from '../src/lib/intelligence/collectors/news';
 let next=0;
 

@@ -1,6 +1,6 @@
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { matchCompany, type CompanyIdentity } from "../src/lib/market-companies/identity";
 
 // Read-only: produces an identity review artifact. Publication is a separate action.

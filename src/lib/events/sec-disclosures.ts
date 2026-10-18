@@ -1,4 +1,4 @@
-import type {Firestore} from 'firebase-admin/firestore';
+import type {DocumentData,Firestore} from 'firebase-admin/firestore';
 import type {SecRawSubmissionsObserver} from '../sec-filings/source';
 import {secDisclosureRows,type Disclosure} from './disclosures';
 import {saveDisclosures,DISCLOSURE_HISTORY_START} from './disclosure-store';
@@ -19,8 +19,9 @@ function pendingScan(value:unknown,cik:string):LinkScan|null {
 }
 
 /** Observes the existing SEC transport and cache; never creates a second poller. */
-export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,string[]>,options:{deadline:number;now?:()=>number;maxRowsPerCompany?:number;maxArchivesPerCompany?:number}){
+export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,string[]>,options:{deadline:number;now?:()=>number;maxRowsPerCompany?:number;maxArchivesPerCompany?:number;initialStates?:ReadonlyMap<string,DocumentData|undefined>}){
   const now=options.now??Date.now,observed=new Set<string>(),completedCompanies=new Set<string>(),failed=new Set<string>();
+  const initialStates=new Map(options.initialStates);
   const maxRows=options.maxRowsPerCompany??1000,maxArchives=options.maxArchivesPerCompany??5;
   if(!Number.isSafeInteger(maxRows)||maxRows<1||maxRows>10000||!Number.isSafeInteger(maxArchives)||maxArchives<1||maxArchives>20)throw new Error('Invalid SEC disclosure budget');
   const observe:SecRawSubmissionsObserver=async(cik,payload,archive)=>{
@@ -30,7 +31,11 @@ export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,stri
       failed.add(companyId);
       const ref=db.collection('collectors').doc(`sec-${companyId}`),at=new Date(now()).toISOString();
       try{
-        const state=(await ref.get()).data();
+        // Consume once, including known-missing documents. A failed scan retries
+        // from its persisted progress rather than replaying the initial snapshot.
+        const preloaded=initialStates.has(companyId),initial=initialStates.get(companyId);
+        initialStates.delete(companyId);
+        const state=preloaded?initial:(await ref.get()).data();
         // Widened form coverage must revisit history even for already-initialized issuers.
         const upgrading=state?.linkCoverageVersion!==SEC_LINK_COVERAGE_VERSION||state?.cik!==cik;
         const scan=(state?.cik===cik?pendingScan(state?.linkScan,cik):null)??{version:SEC_LINK_COVERAGE_VERSION,

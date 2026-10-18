@@ -1,5 +1,5 @@
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
-import {getFirestore} from 'firebase-admin/firestore';
+import {getFirestore} from '../src/lib/firebase/firestore';
 import {backfillEventClassifications} from '../src/lib/events/classification-worker';
 async function main(){
  const args=process.argv.slice(2);

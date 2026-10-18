@@ -1,5 +1,5 @@
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore } from "../src/lib/firebase/firestore";
 import { loadFundamentalsCompanyIds } from "../src/lib/fundamentals/company-scope";
 import { CN_COMPANY_ID } from "../src/lib/knowledge-graph/cn-companies";
 import { FUNDAMENTALS_COLLECTION } from "../src/lib/fundamentals/service";

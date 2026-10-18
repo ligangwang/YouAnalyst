@@ -1,3 +1,4 @@
+import { exchangeRegion } from '../src/lib/market-companies/exchange-region';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {isDeepStrictEqual} from 'node:util';
@@ -35,7 +36,7 @@ export function planEnrollment(records:ThemedCompany[], batch:EnrollmentBatch) {
     const memberships=structuredClone(record.themeMemberships??{});
     assert(!memberships[batch.theme]||isDeepStrictEqual(memberships[batch.theme],membership),`${proposal.id}: existing theme decision conflicts`);
     memberships[batch.theme]=membership;
-    const fields:Record<string,unknown>={themeMemberships:memberships,themeIds:activeThemeIds({themeMemberships:memberships})};
+    const fields:Record<string,unknown>={exchange_region:exchangeRegion(proposal.id),themeMemberships:memberships,themeIds:activeThemeIds({themeMemberships:memberships})};
     if(batch.theme==='ai'){
       // The deployed AI reader uses inGraph; write its projection and the job index atomically.
       const stageIds=proposal.aiStageIds??[sector.stages[0]];

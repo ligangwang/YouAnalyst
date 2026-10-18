@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "../src/lib/firebase/firestore";
 import { normalizeCompanyProfile, profileDate, type CompanyProfile } from "../src/lib/company-profile";
 
 export type ProfileBatch = { asOf: string; companies: { id: string; expectedName: string; profile: CompanyProfile }[] };

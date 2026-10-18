@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
-import { getFirestore, type Firestore, type Transaction } from "firebase-admin/firestore";
+import { getFirestore, type Firestore, type Transaction } from "../src/lib/firebase/firestore";
 import { applyResearchPlan, planResearchInTransaction, validateResearch, type ResearchBatch } from "./publish-global-ai-research";
 import { applyBatchPlan, hash, planBatchInTransaction, validateBatch, type ComputeBatch, type Plan } from "../src/lib/research/publisher";
 import { relationshipTrust } from "../src/lib/knowledge-graph/relationship-status";
