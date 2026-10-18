@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { proxy } from "../../src/proxy";
-import { languageUrl } from "../../src/lib/i18n/urls";
+import { languageUrl } from "../../src/lib/ui/i18n/urls";
 
 const request = (path: string, cookie = "") => new NextRequest(`https://youanalyst.com${path}`, { headers: { host: "youanalyst.com", cookie } });
 test("legacy graph links preserve company and market without redirect loops", () => {

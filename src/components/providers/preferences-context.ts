@@ -1,5 +1,5 @@
 "use client";
-import { languageUrl } from "@/lib/i18n/urls";
+import { languageUrl } from "@/lib/ui/i18n/urls";
 import { createContext, useContext } from "react";
 import type { DisplayPreferences, MarketSelection, PriceColorConvention, UiTheme } from "@/lib/preferences";
 export type MarketContextValue = { active: boolean; market: MarketSelection; priceColors: PriceColorConvention; theme: UiTheme; saving: boolean; error: boolean; change: (preferences: DisplayPreferences) => Promise<void> };

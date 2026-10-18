@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { researchFilters, selectedConnections, researchConnections, researchCompanies, layerSummaries, roadmap, LAYERS, REVIEWED, RESEARCH_PATH } from "../../src/lib/research/nvidia-ecosystem";
 import { companyLinks, deepDives } from "../../src/lib/research/deep-dives";
-import { isLocalizedPage } from "../../src/lib/i18n/urls";
+import { isLocalizedPage } from "../../src/lib/ui/i18n/urls";
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../../src/lib/knowledge-graph/market-store";
 import { projectNvidiaManufacturing } from "../../src/lib/knowledge-graph/nvidia-manufacturing-projection";
 import type { KnowledgeGraph } from "../../src/lib/knowledge-graph/model";

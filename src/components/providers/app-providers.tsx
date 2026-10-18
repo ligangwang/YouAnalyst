@@ -2,7 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { pathLocale } from "@/lib/i18n/urls";
+import { pathLocale } from "@/lib/ui/i18n/urls";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { LocaleProvider } from "./locale-provider";
 import type { Locale } from "@/lib/locale";

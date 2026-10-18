@@ -6,7 +6,7 @@ import {STOCK_SECTOR_GROUPS,stockSectors,stockSectorPeers} from '@/lib/knowledge
 import {signedPercent} from '@/lib/intelligence/price-performance';
 import type {SharedChart} from '@/lib/ui/chart-share';
 import {companyResearchPath} from '@/lib/ui/chart-share';
-import {localizedPath} from '@/lib/i18n/urls';
+import {localizedPath} from '@/lib/ui/i18n/urls';
 import {useCompanyFollows} from './company-follow-button';
 import {useSessionCompanyWatchlist} from './use-session-company-watchlist';
 import {useLocale} from './providers/locale-provider';

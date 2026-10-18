@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
 import type { Metadata } from "next";
-import { parseLocale } from "../locale";
+import { parseLocale } from "../../locale";
 import { translateUi } from "./translate";
 import { localizedPath } from "./urls";
-import type { Locale } from "../locale";
+import type { Locale } from "../../locale";
 
 type LocalizationOptions = { usePageCanonical?: boolean };
 

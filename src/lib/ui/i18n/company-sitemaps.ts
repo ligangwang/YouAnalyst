@@ -1,9 +1,9 @@
-import { isMapTicker } from "../industry-graph/directory";
-import { publicChinaCompany } from "../industry-research/china-directory";
+import { isMapTicker } from "../../industry-graph/directory";
+import { publicChinaCompany } from "../../industry-research/china-directory";
 import { localizedPath } from "./urls";
-import { absoluteUrl } from "../seo";
-import { companyPageUrl } from "../market-companies/routes";
-import { inventoryCompanyPath } from '../market-companies/slug-inventory';
+import { absoluteUrl } from "../../seo";
+import { companyPageUrl } from "../../market-companies/routes";
+import { inventoryCompanyPath } from '../../market-companies/slug-inventory';
 
 // Disjoint ID ranges keep each response small without imposing a company limit.
 export const COMPANY_SITEMAP_BUCKETS = [

@@ -3,7 +3,7 @@ import { useEffect,useState } from 'react';
 import { useAuth } from './providers/auth-provider';
 import { useLocale } from './providers/locale-provider';
 import { companyPageUrl } from '@/lib/market-companies/routes';
-import { localizedPath } from '@/lib/i18n/urls';
+import { localizedPath } from '@/lib/ui/i18n/urls';
 import type { Locale } from '@/lib/locale';
 import type { NameResolutionReceipt,IdentityCandidate,IdentityProposal } from '@/lib/market-companies/name-resolution';
 import styles from './company-name-resolution.module.css';

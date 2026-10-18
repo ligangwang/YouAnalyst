@@ -1,4 +1,4 @@
-import { COMPANY_SITEMAP_BUCKETS, xml } from "@/lib/i18n/company-sitemaps";
+import { COMPANY_SITEMAP_BUCKETS, xml } from "@/lib/ui/i18n/company-sitemaps";
 import { absoluteUrl } from "@/lib/seo";
 
 export function GET() {

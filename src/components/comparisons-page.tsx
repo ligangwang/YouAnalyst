@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "./providers/locale-provider";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import type { Prediction } from "@/lib/predictions/types";
 import { PredictionReturnSummary } from "./prediction-ui";
 

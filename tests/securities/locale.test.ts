@@ -3,7 +3,7 @@ import test from "node:test";
 import { NextRequest } from "next/server";
 import { proxy } from "../../src/proxy";
 import { parsePreferences } from "../../src/lib/preferences";
-import { translateUi } from "../../src/lib/i18n/translate";
+import { translateUi } from "../../src/lib/ui/i18n/translate";
 
 test("explicit language overrides cookie without changing market or company", () => {
   const request = new NextRequest("https://youanalyst.com/map?market=CN_A&company=688041&lang=zh-CN", { headers: { cookie: "ya-language=en", "x-ya-language": "fake" } });

@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { COMPARE_COLORS, comparePath, compareSymbol, latestCompareDate, returnLabel, type CompareConfig, type CompareData, type CompareStyle } from "@/lib/compare";
 import { EARLIEST_PLAYBACK_DATE, MAX_PLAYBACK_YEARS, playbackStartDate, validatePlaybackConfig } from "@/lib/ui/compare-range";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
 import { compareEmbedPath, comparisonEmbedCode, type CompareEmbedTheme } from "@/lib/compare-embed";
 import { comparisonPosition, snapComparisonProgress } from "@/lib/compare-chart";

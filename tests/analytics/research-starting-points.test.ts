@@ -6,7 +6,7 @@ import { buildSync } from "esbuild";
 import { researchStartingPoints } from "../../src/lib/research/starting-points";
 import { researchConnections as amdConnections, selectedConnections as amdSelected } from "../../src/lib/research/amd-ecosystem";
 import { researchConnections as nvidiaConnections, selectedConnections as nvidiaSelected } from "../../src/lib/research/nvidia-ecosystem";
-import { isLocalizedPage, localizedPath } from "../../src/lib/i18n/urls";
+import { isLocalizedPage, localizedPath } from "../../src/lib/ui/i18n/urls";
 import { topicSources } from "../../src/lib/research/infrastructure-topics";
 
 test("homepage questions preserve localized, focused research destinations", () => {

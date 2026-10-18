@@ -74,7 +74,7 @@ test("sitemap index exposes bounded bilingual company sitemaps", async ({ reques
 
 test("English and Chinese workspace URLs retain SEO and bookmarked company links", async ({ request, page }) => {
   test.setTimeout(90_000);
-  for (const [prefix, language, title] of [["en", "en", "AI, Robotics & Space Stocks and Companies | YouAnalyst"], ["zh-cn", "zh-CN", "AI、机器人与太空股票及公司 | YouAnalyst"]]) {
+  for (const [prefix, language, title] of [["en", "en", "YouAnalyst | Investment Intelligence. Reimagined."], ["zh-cn", "zh-CN", "YouAnalyst | 重新定义投资智慧"]]) {
     const response = await request.get(`/${prefix}?view=graph`);
     expect(response.status()).toBe(200);
     const html = await response.text();

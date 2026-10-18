@@ -1,6 +1,6 @@
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { redirect } from "next/navigation";
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 import type { Metadata } from "next";
 import { WatchlistDetailPage } from "@/components/watchlist-detail-page";
 import { generatePublicWatchlistMetadata } from "@/lib/watchlists/public-page";

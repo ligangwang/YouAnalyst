@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import IntelligencePage from "@/app/intelligence/page";
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 import { themeMetadata } from "@/lib/company-themes/metadata";
 
 export const dynamic = "force-dynamic";

@@ -1,4 +1,4 @@
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 import type { Metadata } from "next";
 import { CreatePredictionPage } from "@/components/create-prediction-page";
 import { noIndexRobots } from "@/lib/seo";

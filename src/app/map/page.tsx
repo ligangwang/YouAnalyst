@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { parseLocale } from '@/lib/locale';
-import { localizedPath } from '@/lib/i18n/urls';
+import { localizedPath } from '@/lib/ui/i18n/urls';
 
 // Compatibility only: the homepage now owns every industry view.
 export default async function MapPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){

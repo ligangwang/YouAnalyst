@@ -1,5 +1,5 @@
 import { FollowedCompaniesPage } from "@/components/followed-companies-page";
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";

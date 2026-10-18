@@ -5,7 +5,7 @@ import type { SearchSuggestion } from './ticker-search-input';
 import { useLocale } from './providers/locale-provider';
 import styles from './company-search.module.css';
 import { companyPageUrl } from '@/lib/market-companies/routes';
-import { localizedPath } from '@/lib/i18n/urls';
+import { localizedPath } from '@/lib/ui/i18n/urls';
 import { createPortal } from 'react-dom';
 
 export function CompanySearch({ enabled = true, onSelect, owner = 'global', typeToSearch = true, iconOnly = false, inline = false, clearOnSelect = false }: { enabled?: boolean; onSelect?: (item: SearchSuggestion) => void; owner?: 'global' | 'workspace' | 'directory' | 'chart'; typeToSearch?: boolean; iconOnly?: boolean; inline?: boolean; clearOnSelect?: boolean }) {

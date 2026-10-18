@@ -1,4 +1,4 @@
-import type { Locale } from "../locale";
+import type { Locale } from "../../locale";
 
 const PREFIX = /^\/(en|zh-cn)(?=\/|$)/;
 export function pathLocale(path: string): Locale | null {

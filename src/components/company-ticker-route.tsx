@@ -1,7 +1,7 @@
 import { companyName } from "@/lib/knowledge-graph/model";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 
 import { UiText } from "@/components/ui-text";
 import type { Metadata } from "next";

@@ -1,4 +1,4 @@
-import { unlocalizedPath } from "./i18n/urls";
+import { unlocalizedPath } from "./ui/i18n/urls";
 
 /** Accept only same-site paths before passing a continuation to the router. */
 export function safeAuthDestination(requested: string | null | undefined): string | null {

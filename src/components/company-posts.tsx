@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import type { Post } from "@/lib/posts/model";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useLocale } from "./providers/locale-provider";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import { ViewEvidenceList } from "./view-evidence-list";
 
 type Props = { ticker?: string; predictionId?: string; postId?: string; userId?: string };

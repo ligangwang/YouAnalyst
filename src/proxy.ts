@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { parseLocale } from "./lib/locale";
 import { parseMarket } from "./lib/preferences";
-import { isLocalizedPage, localizedPath, pathLocale, unlocalizedPath } from "./lib/i18n/urls";
+import { isLocalizedPage, localizedPath, pathLocale, unlocalizedPath } from "./lib/ui/i18n/urls";
 import { publicCompanyPath } from "./lib/market-companies/slugs";
 import { inventoryCompanyPath } from './lib/market-companies/slug-inventory';
 

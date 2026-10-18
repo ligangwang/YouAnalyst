@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 import { LAYERS, RELATIONS, STAGES, layerNames, layerSummaries, relationNames, researchCompanies, researchFilters, roadmap, selectedConnections, stageNames, RESEARCH_PATH, REVIEWED, type Evidence } from "@/lib/research/nvidia-ecosystem";
 import { companyLinks } from "@/lib/research/deep-dives";
 import { CompanyFollowButton } from "@/components/company-follow-button";

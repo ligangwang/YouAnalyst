@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { pathLocale } from "@/lib/i18n/urls";
+import { pathLocale } from "@/lib/ui/i18n/urls";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "./auth-provider";
 import { useLocale } from "./locale-provider";

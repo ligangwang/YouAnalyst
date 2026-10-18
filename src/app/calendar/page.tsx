@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { localizedMetadata } from '@/lib/i18n/server';
+import { localizedMetadata } from '@/lib/ui/i18n/server';
 import { EarningsCalendar } from '@/components/earnings-calendar';
 import { validDate } from '@/lib/earnings/model';
 import { loadCalendar } from '@/lib/calendar/service';

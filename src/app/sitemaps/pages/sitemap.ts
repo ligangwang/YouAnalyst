@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import { absoluteUrl } from "@/lib/seo";
 import { infrastructureTopics, RESEARCH_REVIEWED } from "@/lib/research/infrastructure-topics";
-import { localizedPath } from "@/lib/i18n/urls";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 import {changeCached} from '@/lib/change-cache';
 
 function bilingual(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
@@ -21,6 +21,7 @@ const STATIC_ROUTES: MetadataRoute.Sitemap = [
   { url: absoluteUrl("/research/nvidia-ai-ecosystem"), lastModified: "2026-09-24", changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/research/amd-ai-ecosystem"), lastModified: "2026-09-17", changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/feed"), changeFrequency: "hourly", priority: 0.8 },
+  { url: absoluteUrl("/compare"), changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/map"), changeFrequency: "daily", priority: 0.7 },
   {
     url: absoluteUrl("/"),

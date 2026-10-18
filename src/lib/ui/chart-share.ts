@@ -1,7 +1,7 @@
 import { DEFAULT_TIMELINE_RANGE, TIMELINE_RANGES, TIMELINE_INTERVALS, type TimelineRange, type TimelineIntervalChoice } from './company-timeline';
 import { MA_PERIODS, movingAveragePeriods } from './technical-indicators';
 import { companyPageUrl } from '../market-companies/routes';
-import { localizedPath } from '../i18n/urls';
+import { localizedPath } from './i18n/urls';
 import type { Locale } from '../locale';
 import type { CompanyThemeId } from '../company-themes/model';
 

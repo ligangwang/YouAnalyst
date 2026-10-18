@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { localizedMetadata } from "@/lib/i18n/server";
+import { localizedMetadata } from "@/lib/ui/i18n/server";
 import { companyLinks, deepDives } from "@/lib/research/deep-dives";
 import { infrastructureTopics, RESEARCH_REVIEWED } from "@/lib/research/infrastructure-topics";
 import styles from "@/components/research-discovery.module.css";

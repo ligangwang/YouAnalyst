@@ -1,5 +1,5 @@
 import { comparePath, type CompareConfig } from "./compare";
-import { localizedPath } from "./i18n/urls";
+import { localizedPath } from "./ui/i18n/urls";
 import type { Locale } from "./locale";
 
 export type CompareEmbedTheme = "dark" | "light";
