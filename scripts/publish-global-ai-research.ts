@@ -1,3 +1,4 @@
+import { GRAPH_SECTORS } from "../src/lib/knowledge-graph/sectors";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -94,8 +95,8 @@ export async function planResearchInTransaction(db: Firestore, tx: Transaction, 
       const inGraph = { status: "PUBLISHED", asOf: batch.asOf, order: 1000, stageIds: c.stageIds, sources, memberships, stages: stages.filter((s: { id: string }) => c.stageIds.includes(s.id.slice(6))).map((s: { id: string; label: string }) => ({ ...s, labels: { en: s.label, "zh-CN": cn.nodes.find((n: { id: string }) => n.id === s.id)?.label ?? s.label } })) };
       const profile = { ...c, status: "DIRECTORY", identityReviewedAt: batch.asOf, ...old };
       const themeMemberships = { ...old.themeMemberships, ai: old.themeMemberships?.ai ?? {
-        status: old.inGraph?.status ?? "PUBLISHED", primarySector: (old.inGraph?.stageIds ?? c.stageIds)[0],
-        reviewedAt: batch.asOf, sources,
+        status: old.inGraph?.status ?? "PUBLISHED", primarySector: GRAPH_SECTORS.find(sector => sector.stages.includes((old.inGraph?.stageIds ?? c.stageIds)[0]))?.id ?? "other",
+        reviewedAt: batch.asOf, sources: sources.map(source => ({url: source.url, title: source.title, summary: source.excerpt})),
       } };
       const themeIds = [...new Set([...(old.themeIds ?? []), ...Object.entries(themeMemberships)
         .filter(([, member]) => (member as {status?: string})?.status === "PUBLISHED").map(([theme]) => theme)])].sort();

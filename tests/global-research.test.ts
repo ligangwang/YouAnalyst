@@ -85,3 +85,15 @@ test("rejects unsourced claims, impossible dates and contradictory listing statu
   bad.companies[0].listings = [{ market: "US", exchange: "XNAS", symbol: "FAKE" }];
   assert.throws(() => validateResearch(bad), /Private company/);
 });
+
+
+test("research enrollment maps graph stages and evidence into the theme schema", async () => {
+  const batch = await fixture();
+  batch.companies[0].stageIds = ["equipment"];
+  const {db,records} = database(batch);
+  await publishResearch(db,batch,true);
+  const row = records.get(`companies/${batch.companies[0].id}`)!;
+  const member = (row.themeMemberships as Record<string,{primarySector:string;sources:{summary:string}[]}>).ai;
+  assert.equal(member.primarySector,"semiconductors");
+  assert.equal(member.sources[0].summary,batch.sources.find(source=>source.id===batch.companies[0].sourceIds[0])!.excerpt);
+});
