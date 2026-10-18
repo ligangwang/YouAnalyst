@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { loadAllRelationships } from './relationship-cache';
 import { graphMembership, relationshipId, type MarketCompany, type MarketRelationship } from "./market-store";
 import { NVIDIA_EDITORIAL_COMPANIES, NVIDIA_MANUFACTURING_FACTS, NVIDIA_MANUFACTURING_REVIEWED, NVIDIA_MANUFACTURING_SOURCE } from "../research/nvidia-manufacturing";
 
@@ -55,11 +56,9 @@ export function projectNvidiaManufacturing(companies: MarketCompany[], records: 
 /** No writes or error fallback. Failed reads propagate rather than manufacturing a current directory. */
 export async function loadNvidiaManufacturingProjection(db: Firestore, companies: MarketCompany[], records: MarketRelationship[]) {
   if (!companies.some(company => company.id === "US:NVDA" && publicCompany(company))) return { companies, records };
-  const [identities, exactRelationships, incoming, outgoing] = await Promise.all([
+  const [identities, relationships] = await Promise.all([
     db.getAll(...NVIDIA_MANUFACTURING_FACTS.map(({ source }) => db.collection("companies").doc(source))),
-    db.getAll(...NVIDIA_MANUFACTURING_FACTS.map(({ source }) => db.collection("company_relationships").doc(relationshipId(source, "US:NVDA", "SUPPLIER_OF")))),
-    db.collection("company_relationships").where("target", "==", "US:NVDA").get(),
-    db.collection("company_relationships").where("source", "==", "US:NVDA").get(),
+    loadAllRelationships(db),
   ]);
   const byCompany = new Map(companies.map(company => [company.id, company]));
   for (const doc of identities) {
@@ -67,6 +66,12 @@ export async function loadNvidiaManufacturingProjection(db: Firestore, companies
   }
   const byRelationship = new Map(records.map(record => [record.id, record]));
   // Exact keys also catch suppressed or corrupt rows whose endpoints no longer match either query.
-  for (const doc of [...incoming.docs, ...outgoing.docs, ...exactRelationships.filter(doc => doc.exists)]) byRelationship.set(doc.id, { ...doc.data(), id: doc.id } as MarketRelationship);
+  const exactIds = new Set(NVIDIA_MANUFACTURING_FACTS.map(({ source }) => relationshipId(source, "US:NVDA", "SUPPLIER_OF")));
+  for (const doc of relationships.docs) {
+    const row = doc.data();
+    if (row.target === 'US:NVDA' || row.source === 'US:NVDA' || exactIds.has(doc.id)) {
+      byRelationship.set(doc.id, { ...row, id: doc.id } as MarketRelationship);
+    }
+  }
   return projectNvidiaManufacturing([...byCompany.values()], [...byRelationship.values()]);
 }

@@ -1,7 +1,8 @@
-import { COMPANY_THEMES } from "../company-themes/model";
+import { loadThemeEnrolledCompanies } from './company-cache';
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { KnowledgeGraph } from "./model";
-import { graphFromMarket, RELATIONSHIP_COLLECTION, type MarketCompany, type MarketRelationship } from "./market-store";
+import { graphFromMarket, type MarketCompany, type MarketRelationship } from "./market-store";
+import { loadPublishedRelationships } from './relationship-cache';
 import { attachCnMarketCaps } from "./cn-market-caps";
 import { loadNvidiaManufacturingProjection } from "./nvidia-manufacturing-projection";
 import { changeCached } from '../change-cache';
@@ -12,8 +13,8 @@ export async function loadKnowledgeGraph(options: { db?: Firestore; companies?: 
   return changeCached(db, 'knowledge-graph', ['companies', 'company_relationships', 'company_fundamentals', 'directory_syncs'], async () => {
     const [companies, edges] = await Promise.all([
       options.companies !== undefined ? { docs: options.companies }
-        : db.collection("companies").where("themeIds", "array-contains-any", [...COMPANY_THEMES]).get(),
-      db.collection(RELATIONSHIP_COLLECTION).where("status", "==", "PUBLISHED").get(),
+        : loadThemeEnrolledCompanies(db),
+      loadPublishedRelationships(db),
     ]);
     // Retain graph layout enrollment without a second indexed company query.
     const rows = companies.docs.map(d => ({ ...d.data(), id: d.id }) as MarketCompany)

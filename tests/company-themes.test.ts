@@ -28,6 +28,7 @@ test('collection scope reuses one theme query without dropping graph neighbors o
   let themeReads=0;
   const db = {
     collection: (name:string) => ({
+      get:async()=>{assert.equal(name,'company_relationships');return {docs:[snapshot(edge)]};},
       doc: (id:string) => ({name,id,get:async()=>snapshot({enabled:false})}),
       where: (field:string,operator:string,value:unknown) => ({get:async()=>{
         if(name==='companies') {

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from "../../src/lib/knowledge-graph/market-store";
 import { loadNvidiaManufacturingProjection, projectNvidiaManufacturing } from "../../src/lib/knowledge-graph/nvidia-manufacturing-projection";
+import { loadPublishedRelationships } from '../../src/lib/knowledge-graph/relationship-cache';
 import { NVIDIA_EDITORIAL_COMPANIES, NVIDIA_MANUFACTURING_REVIEWED, NVIDIA_MANUFACTURING_SOURCE, nvidiaEditorialCompany } from "../../src/lib/research/nvidia-manufacturing";
 import { companyResearchGraph } from "../../src/lib/knowledge-graph/company-research-projection";
 import { buildCompanyResearch } from "../../src/lib/company-research";
@@ -117,12 +118,12 @@ function database(fail = false) {
   const hidden = { ...NVIDIA_EDITORIAL_COMPANIES[0], status: "ARCHIVED" };
   const db = {
     collection: (name: string) => ({
-      doc: (id: string) => ({ id }),
-      where: (field: string, op: string, value: string) => ({ get: async () => {
-        queries.push(`${name}:${field}:${op}:${value}`);
+      doc: (id: string) => ({ id, get: async () => ({ data: () => ({ enabled: true }) }) }),
+      get: async () => {
+        queries.push(name);
         if (fail) throw new Error("Firestore unavailable");
-        return { docs: field === "target" ? [{ id, data: () => ({ ...oldEdge(), status: "WITHDRAWN" }) }] : [] };
-      } }),
+        return { docs: [{ id, data: () => ({ ...oldEdge(), status: "WITHDRAWN" }) }] };
+      },
     }),
     getAll: async (...refs: { id: string }[]) => refs.map(ref => ({ id: ref.id, exists: ref.id === hidden.id, data: () => ref.id === hidden.id ? hidden : undefined })),
   } as unknown as Firestore;
@@ -131,17 +132,20 @@ function database(fail = false) {
 
 test("runtime reads exact company identities and all relationship statuses; unavailable reads never fall back", async () => {
   const { db, queries } = database();
+  assert.equal((await loadPublishedRelationships(db)).docs.length, 0, 'withdrawn rows stay out of the published view');
   const projected = await loadNvidiaManufacturingProjection(db, companies(), [oldEdge()]);
   assert.equal(projected.companies.find(company => company.id === "US:SKHY")?.status, "ARCHIVED");
   assert.equal(projected.records.find(edge => edge.id === id)?.status, "WITHDRAWN");
-  assert.deepEqual(queries.sort(), ["company_relationships:source:==:US:NVDA", "company_relationships:target:==:US:NVDA"]);
+  await loadNvidiaManufacturingProjection(db, companies(), [oldEdge()]);
+  assert.deepEqual(queries, ["company_relationships"]);
   await assert.rejects(loadNvidiaManufacturingProjection(database(true).db, companies(), []), /Firestore unavailable/);
 });
 
 test("runtime preserves a hidden exact canonical document even when its endpoints miss NVIDIA queries", async () => {
   const hidden = { status: "WITHDRAWN", source: "US:TSM", target: "US:AMD", type: "SUPPLIER_OF", summary: "Requires identity review" };
   const db = {
-    collection: () => ({ doc: (id: string) => ({ id }), where: () => ({ get: async () => ({ docs: [] }) }) }),
+    collection: () => ({ doc: (id: string) => ({ id, get: async () => ({ data: () => ({ enabled: true }) }) }),
+      get: async () => ({ docs: [{ id, data: () => hidden }] }) }),
     getAll: async (...refs: { id: string }[]) => refs.map(ref => ({ id: ref.id, exists: ref.id === id, data: () => ref.id === id ? hidden : undefined })),
   } as unknown as Firestore;
   const projected = await loadNvidiaManufacturingProjection(db, companies(), []);

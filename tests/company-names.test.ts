@@ -90,6 +90,7 @@ test("non-admin name edits fail before any database access", async () => {
 test("shared name revision invalidates warm graph caches in separate server instances", async () => {
  let revision = "old", name = "台积公司", companyReads = 0, revisionUnavailable = false;
  const db = {getAll:async()=>[],collection:(collection:string)=>({
+  get:async()=>{assert.equal(collection,'company_relationships');return {docs:[]};},
   doc:()=>({get:async()=>{if(revisionUnavailable)throw new Error("Unavailable");return {data:()=>({enabled:true,versions:{companies:revision}})};}}),
   where:()=>({get:async()=>({docs:collection === "companies" ? [ {id:"US:TSM",data:()=>{companyReads++;return {name:"TSMC",names:{"zh-CN":name},status:"PUBLISHED",inGraph:{status:"PUBLISHED",stageIds:[],stages:[],memberships:[],sources:[]}};}} ] : []})})
  })};
@@ -118,6 +119,7 @@ test("graph loader only queries canonical graph memberships", async () => {
  const shared = company("US:BOTH", {inGraph:membership});
  const queries:string[] = [];
  const db = {getAll:async()=>[],collection:(name:string)=>({
+  get:async()=>{assert.equal(name,'company_relationships');return {docs:[]};},
   doc:()=>({get:async()=>({data:()=>({revision:"generic"})})}),
   where:(field:string)=>({get:async()=>{queries.push(field);return {docs:name !== "companies" ? [] : field === "themeIds" ? [company("US:NEW",{inGraph:membership}), shared] : [company("US:OLD",{inGraph:membership}), shared]};}})
  })};
