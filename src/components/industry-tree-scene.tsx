@@ -343,11 +343,11 @@ function Scene(props:TreeSceneProps){
     // presentation's last layer, so opening any sector visibly reveals names.
     const visitingLayer=presentationFrame&&['ascent','descent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
     const layerLabelsVisible=(layer?:string)=>Boolean(layer&&(disclosedLayers.current.has(layer)||layer===visitingLayer));
-    // Keep one nearby company readable in every manually disclosed sector,
-    // even when narrow-screen collisions would otherwise hide the entire group.
+    // Reserve one nearby company for the current tour layer or each disclosed
+    // sector; on narrow screens its label may dock at the viewport edge.
     const primaryDisclosures=new Map<string,{id:string;distance:number}>();
     for(const node of nodes){
-      if(!node.company||!node.layer||!companyLabels.has(node.id)||!disclosedLayers.current.has(node.layer)||!labels.current.has(node.id))continue;
+      if(!node.company||!node.layer||!companyLabels.has(node.id)||!layerLabelsVisible(node.layer)||!labels.current.has(node.id))continue;
       const [x,y,z]=node.position,distance=(x-state.camera.position.x)**2+(y-state.camera.position.y)**2+(z-state.camera.position.z)**2;
       if(distance<(primaryDisclosures.get(node.layer)?.distance??Infinity))primaryDisclosures.set(node.layer,{id:node.id,distance});
     }
@@ -462,8 +462,8 @@ function Scene(props:TreeSceneProps){
         // Html and left-facing wrappers apply their own transforms. Once a
         // label is expanded, use its actual painted box rather than guessing it.
         if(el.dataset.compact!=='true'){
-          const rect=el.getBoundingClientRect(),offset=Number(el.dataset.labelOffset??0);
-          return [[node.id,new DOMRect(rect.x,rect.y-offset,rect.width,rect.height)] as const];
+          const rect=el.getBoundingClientRect(),offset=Number(el.dataset.labelOffset??0),offsetX=Number(el.dataset.labelOffsetX??0);
+          return [[node.id,new DOMRect(rect.x-offsetX,rect.y-offset,rect.width,rect.height)] as const];
         }
         const group=groups.current.get(node.id),dimensions=labelSizes.current.get(el);
         if(!group||!dimensions)return [];
@@ -484,13 +484,14 @@ function Scene(props:TreeSceneProps){
         const box=bounds.get(node.id);if(!box)continue;
         if(node.kind==='company'||node.kind==='branch'){
           const el=labels.current.get(node.id)!;
-          const placed=placeTreeLabel(box,occupied.map(entry=>entry.box),canvasBounds,{x:0,y:Number(el.dataset.labelOffset??0)});
+          const placed=placeTreeLabel(box,occupied.map(entry=>entry.box),canvasBounds,{x:Number(el.dataset.labelOffsetX??0),y:Number(el.dataset.labelOffset??0)},pinnedNames.has(node.id)||node.company?.id===props.selected);
           if(!placed){
             collisionLabels.current.add(node.id);continue;
           }
-          if(el.dataset.labelOffset!==String(placed.y))labelsChanged=true;
+          if(el.dataset.labelOffset!==String(placed.y)||el.dataset.labelOffsetX!==String(placed.x))labelsChanged=true;
           el.dataset.labelOffset=String(placed.y);
-          el.style.translate=`0 ${placed.y}px`;
+          el.dataset.labelOffsetX=String(placed.x);
+          el.style.translate=`${placed.x}px ${placed.y}px`;
           occupied.push({id:node.id,box:new DOMRect(placed.box.left,placed.box.top,placed.box.width,placed.box.height)});
           continue;
         }

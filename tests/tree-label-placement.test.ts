@@ -23,3 +23,10 @@ test('labels respect the canvas edges and leave room above and below the tree',(
   assert(placed.box.bottom<=384);
   assert.equal(placeTreeLabel(box(-20,100),[],viewport),null);
 });
+test('the current tour representative remains readable when its stem projects beyond a phone edge',()=>{
+  const phone=box(0,0,390,500),company=box(410,450);
+  assert.equal(placeTreeLabel(company,[],phone),null);
+  const placed=placeTreeLabel(company,[box(160,420,100,30)],phone,{x:0,y:0},true)!;
+  assert(placed.box.left>=12&&placed.box.right<=378);
+  assert(placed.box.top>=16&&placed.box.bottom<=484);
+});
