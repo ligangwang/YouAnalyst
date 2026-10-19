@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getFirestore} from '../src/lib/firebase/firestore';
 import {loadNewsSources} from '../src/lib/intelligence/collectors/source-service';
@@ -38,4 +39,4 @@ async function main(){
   });
   console.log(JSON.stringify(result));
 }
-main().catch(error=>{console.error(error instanceof Error?error.message:'Publication repair failed');process.exitCode=1;});
+main().finally(closeLocalCaches).catch(error=>{console.error(error instanceof Error?error.message:'Publication repair failed');process.exitCode=1;});

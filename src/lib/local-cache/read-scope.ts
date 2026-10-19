@@ -1,0 +1,59 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- SDK snapshots retain their public shape. */
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { Watch, track } from './watch';
+const scope = new AsyncLocalStorage<boolean>();
+export const withSourceCache = <T>(work: () => Promise<T>): Promise<T> => scope.run(true, work);
+type Source = { isEqual(other: any): boolean; onSnapshot(next: (snapshot: any) => void, error: (error: Error) => void): () => void };
+type Entry = { source: Source; watch: Watch<any>; users: number; bytes: number };
+const stores = new WeakMap<object, Set<Entry>>();
+const MAX_LISTENERS = 128, MAX_BYTES = 4 * 1024 * 1024;
+// Estimate retained user data without serializing SDK document references (which
+// contain the Firestore client and may be cyclic). Stop at the eviction budget.
+function dataBytes(value: unknown): number {
+  const pending: unknown[] = [value], seen = new WeakSet<object>(); let bytes = 0;
+  while (pending.length && bytes <= MAX_BYTES) {
+    const item = pending.pop();
+    if (typeof item === 'string') {bytes += Buffer.byteLength(item); continue;}
+    if (!item || typeof item !== 'object') {bytes += 8; continue;}
+    if (seen.has(item)) continue; seen.add(item);
+    if (Buffer.isBuffer(item)) {bytes += item.byteLength; continue;}
+    const reference = item as {path?: unknown; isEqual?: unknown};
+    if (typeof reference.path === 'string' && typeof reference.isEqual === 'function') {bytes += Buffer.byteLength(reference.path); continue;}
+    bytes += 32;
+    for (const [key, child] of Object.entries(item)) {bytes += Buffer.byteLength(key); pending.push(child);}
+  }
+  return bytes;
+}
+/** Cache the exact query/document, including its filters and authorization scope.
+ * No global version document, TTL, or request-time refresh query. */
+export function sourceSnapshot(owner: object, source: Source): Promise<any> | undefined {
+  if (!scope.getStore() || typeof source.onSnapshot !== 'function' || typeof source.isEqual !== 'function') return undefined;
+  let entries = stores.get(owner);
+  if (!entries) { entries = new Set(); stores.set(owner, entries); }
+  const cache = entries;
+  const evict = () => {
+    let bytes = [...cache].reduce((sum, entry) => sum + entry.bytes, 0);
+    for (const entry of cache) {
+      if (cache.size <= MAX_LISTENERS && bytes <= MAX_BYTES) break;
+      if (entry.users) continue;
+      bytes -= entry.bytes; entry.watch.close();
+    }
+  };
+  let entry = [...cache].find(candidate => source.isEqual(candidate.source));
+  if (!entry) {
+    // SDK delivers asynchronously; the microtask also supports synchronous adapters.
+    entry = {source, users: 0, bytes: 0, watch: undefined as unknown as Watch<any>};
+    const created = entry;
+    created.watch = track(new Watch<any>((next, error) => source.onSnapshot(value => {
+      const docs = Array.isArray(value.docs) ? value.docs : [value];
+      created.bytes = docs.reduce((sum: number, doc: any) => sum + dataBytes(doc.data()), 0);
+      next(value); queueMicrotask(evict);
+    }, error)));
+    const close = created.watch.close.bind(created.watch);
+    created.watch.close = () => {cache.delete(created); close();};
+    cache.add(created);
+  }
+  entry.users++; cache.delete(entry); cache.add(entry);
+  const selected = entry;
+  return selected.watch.read().finally(() => {selected.users--; evict();});
+}

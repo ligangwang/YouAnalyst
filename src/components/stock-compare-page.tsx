@@ -15,6 +15,8 @@ import { ComparisonVideoExport } from "./comparison-video-export";
 import { LocalizedLink as Link } from "./localized-link";
 import { useLocale } from "./providers/locale-provider";
 import styles from "./stock-compare.module.css";
+import {FloatingEventWindow,eventWindowAnchor,type EventWindowAnchor} from './event-details-window';
+import toolStyles from './chart-stock-review.module.css';
 
 function ChartLoading() {
   const { text } = useLocale();
@@ -33,6 +35,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const [highlighted, setHighlighted] = useState<string | null>(null), [shareUrl, setShareUrl] = useState("");
   const [showEmbed, setShowEmbed] = useState(false), [theme, setTheme] = useState<CompareEmbedTheme>(embedTheme), [embedCode, setEmbedCode] = useState("");
   const [chartUnavailable, setChartUnavailable] = useState(false);
+  const [contextMenu,setContextMenu]=useState<EventWindowAnchor|null>(null);
   const handleUnavailable = useCallback(() => setChartUnavailable(true), []);
   const { theme: siteTheme } = useMarket();
   const displayTheme = embedded ? theme : siteTheme;
@@ -122,7 +125,13 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
 
   const results = ranking && <section className={styles.results}><h2>{text("At a glance", "表现一览")} <span>{fraction > 0 ? text("Interpolated", "插值") : data?.dates[index]}</span></h2><table><caption className="sr-only">{fraction > 0 ? text("Animated returns between stored closes", "收盘数据之间的动画插值收益") : text("Price returns at the selected playback date", "回放所选日期的价格收益")}</caption><thead><tr><th>{text("Rank", "排名")}</th><th>{text("Stock", "股票")}</th><th>{text("Price return", "价格收益")}</th></tr></thead><tbody>{ranking.map((row, i) => <tr key={row.symbol}><td>{i + 1}</td><td><i style={{ background: row.color }}/>{row.symbol}</td><td>{returnLabel(row.value)}</td></tr>)}</tbody></table></section>;
 
-  return <main className={`${styles.page}${embedded ? ` ${styles.embedded}` : ""}`} data-compare-theme={displayTheme} data-embed-theme={embedded ? theme : undefined}>
+  return <main className={`${styles.page}${embedded ? ` ${styles.embedded}` : ""}`} data-compare-theme={displayTheme} data-embed-theme={embedded ? theme : undefined} onContextMenuCapture={event=>{event.preventDefault();if((event.target as Element).closest('[data-event-window]'))return;event.stopPropagation();setContextMenu(eventWindowAnchor(event));}}>
+    {contextMenu&&<FloatingEventWindow anchor={contextMenu} title={text('Comparison tools','对比工具')} closeLabel={text('Close comparison tools','关闭对比工具')} onClose={()=>setContextMenu(null)}><div className={toolStyles.tools}>
+      <button type="button" disabled={!data||loading} onClick={()=>{setProgress(!playing&&progress>=1?0:progress);setPlaying(!playing);setContextMenu(null);}}>{playing?text('Pause animation','暂停动画'):text('Play animation','播放动画')}</button>
+      <button type="button" disabled={!data||loading} onClick={()=>{setProgress(0);setPlaying(true);setContextMenu(null);}}>{text('Replay animation','重播动画')}</button>
+      <button type="button" aria-pressed={style==='line'} onClick={()=>changeStyle('line')}>{text('Line','折线')}</button><button type="button" aria-pressed={style==='bar'} onClick={()=>changeStyle('bar')}>{text('Bar','条形')}</button>
+      {!embedded&&<><button type="button" onClick={()=>{setEditorOpen(true);setContextMenu(null);}}>{text('Edit stocks and dates','修改股票和日期')}</button><button type="button" disabled={!data||loading} onClick={()=>{void copy();setContextMenu(null);}}>{text('Copy link','复制链接')}</button></>}
+    </div></FloatingEventWindow>}
     <h1 className="sr-only">{text("Stock performance playback", "股票表现回放")}</h1>
     {!embedded && <section ref={editor} id="comparison-editor" className={styles.editor} aria-label={text("Edit comparison", "编辑对比")}>
       <button type="button" className={styles.editorSummary} aria-label={text("Selected stocks", "所选股票")} aria-expanded={editorOpen} aria-controls="comparison-settings" onClick={() => setEditorOpen(value => !value)}>

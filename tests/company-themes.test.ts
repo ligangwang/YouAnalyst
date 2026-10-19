@@ -1,4 +1,3 @@
-import { encode } from '../src/lib/central-cache/codec';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { KnowledgeGraph } from '../src/lib/knowledge-graph/model';
@@ -179,18 +178,12 @@ test('sparse sector themes retain full decorative canopies without inventing com
   }
 });
 
-test('enrollment uses central region selection, accepts empty results and retains indexed fallback',async(t)=>{
- const prior=process.env.CENTRAL_CACHE_URL;process.env.CENTRAL_CACHE_URL='http://127.0.0.1:8088';
- t.after(()=>{if(prior===undefined)delete process.env.CENTRAL_CACHE_URL;else process.env.CENTRAL_CACHE_URL=prior;});
- let available=true,requests=0,reads=0;const filters:unknown[]=[];
- t.mock.method(globalThis,'fetch',async(_url:unknown,options:RequestInit)=>{
-  requests++;assert.deepEqual(JSON.parse(String(options.body)),{collection:'companies',exchangeRegion:'US'});
-  return new Response(available?JSON.stringify(encode([])):'{}',{status:available?200:503});
- });
- const query={where:(...args:unknown[])=>{filters.push(args);return query;},get:async()=>{reads++;return {docs:[]};}};
- const db={collection:(name:string)=>{assert.equal(name,'companies');return query;}} as unknown as Firestore;
- assert.deepEqual(await loadCollectionCompanies(db,'US'),[]);assert.equal(reads,0);
- available=false;assert.deepEqual(await loadCollectionCompanies(db,'US'),[]);
- assert.equal(requests,2);assert.equal(reads,1);
- assert.deepEqual(filters,[['themeIds','array-contains-any',['ai','robotics','space']],['exchange_region','==','US']]);
+test('enrollment uses local push updates including an empty result',async()=>{
+ let calls=0;let push:(value:unknown)=>void=()=>{};
+ const query={where:()=>query,onSnapshot:(next:(value:unknown)=>void)=>{calls++;push=next;next({docs:[]});return ()=>{};}};
+ const db={collection:()=>query} as unknown as Firestore;
+ assert.deepEqual(await loadCollectionCompanies(db,'US'),[]);
+ push({docs:[{id:'US:A',get:(field:string)=>field==='exchange_region'?'US':undefined,data:()=>({name:'A',status:'DIRECTORY',symbol:'A',themeIds:['ai'],themeMemberships:{ai:{status:'PUBLISHED'}},kind:'COMPANY'})}]});
+ assert.equal((await loadCollectionCompanies(db,'US')).length,1);
+ assert.deepEqual(await loadCollectionCompanies(db,'CN'),[]);assert.equal(calls,1);
 });

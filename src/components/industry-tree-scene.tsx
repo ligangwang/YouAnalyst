@@ -23,7 +23,7 @@ import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOve
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/ui/knowledge-graph/label-fade';
 import {placeTreeLabel} from '@/lib/ui/knowledge-graph/tree-label-placement';
 
-export type TreeSceneProps={tour:{current:boolean};active?:boolean;paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
+export type TreeSceneProps={tour:{current:boolean};active?:boolean;paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;fitRequest?:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 const NO_TREE_POINTS:TreePoint[]=[];
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
@@ -239,6 +239,13 @@ function Scene(props:TreeSceneProps){
     flight.current=createTreeTour({position,target},plan);
     invalidate();
   },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,tourRef]);
+  useEffect(()=>{
+    if(!props.vertical||!props.fitRequest||!controls.current)return;
+    userPositioned.current=true;tourRef.current=false;resumePending.current=false;resumeReady.current=false;
+    if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
+    const shot=treeOverviewShot(all,size.width,size.height);
+    void controls.current.setLookAt(...shot.position,...shot.target,!reduced.current);invalidate();
+  },[props.fitRequest,props.vertical,all,size.width,size.height,invalidate,tourRef]);
   const selectionFocus=useRef('');
   const internalSelection=useRef('');
   const selectCompany=(id:string)=>{internalSelection.current=id;props.onSelect(id);};
@@ -509,13 +516,14 @@ function Scene(props:TreeSceneProps){
   return <>
     <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.setAttribute('data-camera','moving');}} onSleep={()=>{gl.domElement.setAttribute('data-camera','idle');invalidate();}}
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
-      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
+      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} dollySpeed={props.vertical?.45:1} minDistance={props.vertical?700:180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
     {props.vertical&&<>
       <TreeMeadowEnvironment nodes={renderedNodes} layoutNodes={all} paused={props.paused}/>
-      <hemisphereLight args={['#c9d9e6','#354b35',1.1]}/>
-      <directionalLight position={[2100,4400,-2200]} color="#ffebca" intensity={2.2}/>
-      <directionalLight position={[-1600,1700,1400]} color="#b9d4ec" intensity={.8}/>
-      <directionalLight position={[600,900,-1800]} color="#c5dfcb" intensity={.35}/>
+      {/* Starlit dusk: cool sky fill, a warm afterglow rim from behind the tree and soft moonlight in front. */}
+      <hemisphereLight args={['#7c84d0','#26331f',.9]}/>
+      <directionalLight position={[-1400,300,-2600]} color="#ffc27a" intensity={2.6}/>
+      <directionalLight position={[1600,2600,2200]} color="#aab8ff" intensity={.9}/>
+      <directionalLight position={[600,900,-1800]} color="#d6b8ff" intensity={.45}/>
     </>}
     {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus||selectedPath?.open.at(-1)||''}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
@@ -563,7 +571,7 @@ function Scene(props:TreeSceneProps){
           aria-label={props.vertical&&(node.company||node.kind==='branch')?[node.label,node.company?.symbol].filter(Boolean).join(' '):undefined}
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
-          title={!props.vertical&&node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):undefined}
+          title={props.vertical&&node.kind==='layer'?text(`Explore ${node.count??0} companies`,`探索 ${node.count??0} 家公司`):!props.vertical&&node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
           onClick={event=>{event.stopPropagation();if(node.company)selectCompany(node.company.id);else toggleNode(node);}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('In watchlist','已加入自选股')}> ★</span>}</strong>

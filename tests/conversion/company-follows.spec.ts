@@ -37,6 +37,25 @@ test("business updates explain one hop, preserve dates, and toggle direct-only",
   await expect(page.getByRole("heading",{name:"Customer expansion"})).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Research summary", exact: true })).toHaveCount(0);
 });
+test('watchlist background and company cards open custom stock tools',async({page})=>{
+ await page.addInitScript(()=>{window.authScenario={signedIn:true};});
+ await page.route('**/*',route=>{
+  const url=new URL(route.request().url());
+  if(route.request().isNavigationRequest())return route.fulfill({contentType:'text/html',body:html});
+  if(url.pathname==='/api/map-follows')return route.fulfill({json:{companyIds:['US:AMD']}});
+  if(url.pathname==='/api/company-updates')return route.fulfill({json:{items:[]}});
+  return route.fulfill({json:graph});
+ });
+ await page.goto(origin+'/en/watchlists/following');
+ const card=page.locator('[data-watchlist-company="US:AMD"]');await expect(card).toBeVisible();
+ expect(await page.locator('main').evaluate(el=>!el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
+ const tools=page.getByRole('dialog',{name:'Stock tools',exact:true});await expect(tools).toBeVisible();await page.keyboard.press('Escape');
+ await card.click({button:'right'});
+ const companyTools=page.getByRole('dialog',{name:'Stock tools · AMD',exact:true});await expect(companyTools).toBeVisible();
+ await expect(companyTools.getByRole('button',{name:'Remove from watchlist',exact:true})).toBeVisible();
+ await page.keyboard.press('Escape');await expect(companyTools).toHaveCount(0);
+});
+
 test.beforeEach(({ page }) => { page.on("pageerror", error => { throw error; }); });
 test.beforeAll(async () => {
   const bundle = await build({ stdin: { contents: `

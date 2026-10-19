@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { readFile } from "node:fs/promises";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "../src/lib/firebase/firestore";
@@ -42,4 +43,4 @@ async function main() {
     await releaseMaintenanceLease(lease, log.runId).catch(error => log.emit("ERROR", "lease_release_failed", { error: maintenanceError(error) }));
   }
 }
-main().catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });
+main().finally(closeLocalCaches).catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });

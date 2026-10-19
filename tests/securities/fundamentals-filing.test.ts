@@ -1,3 +1,4 @@
+import { rerunFundamentalsBatch } from '../../src/lib/fundamentals/admin-rerun';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
@@ -15,12 +16,12 @@ function fixture() {
     metrics: [{ label: "Revenue", value: 100 }], shareAssessment: { version: 4 }, fetchedAt: "2026-09-30T23:00:00Z" };
   const rows = new Map<string, Row>([["company_fundamentals/US:AMD", {
     version: 1, pending: false, outcome: "ready", refreshAfter: Date.now() + 86400000, value: before }]]);
-  const ref = (id: string) => ({ firestore: db, get: async () => ({ data: () => rows.get(id), get: (key: string) => rows.get(id)?.[key] }),
+  const ref = (id: string) => ({ firestore: db, get: async () => ({ ref:ref(id), data: () => rows.get(id), get: (key: string) => rows.get(id)?.[key] }),
     set: async (data: Row) => { rows.set(id, { ...rows.get(id), ...data }); },
     create: async (data: Row) => { assert.ok(!rows.has(id)); rows.set(id, data); } });
   const db = { collection: (name: string) => ({ doc: (id: string) => ref(`${name}/${id}`) }),
     runTransaction: async (fn: (tx: unknown) => unknown) => fn({ get: (r: ReturnType<typeof ref>) => r.get(),
-      set: (r: ReturnType<typeof ref>, data: Row) => r.set(data) }) } as unknown as Firestore;
+      set: (r: ReturnType<typeof ref>, data: Row) => r.set(data), update: (r: ReturnType<typeof ref>, data: Row) => r.set(data) }) } as unknown as Firestore;
   const events: FundamentalsUpdate[] = [];
   const log = { runId: "00000000-0000-0000-0000-000000000001", emit: () => {} } as unknown as MaintenanceLog;
   let reads = 0, available = true;
@@ -82,8 +83,9 @@ test("companyfacts lag is saved for admin and redelivery does not retry SEC", as
 
 test("filing result publication resumes from the saved outbox without another SEC call", async () => {
   const f = fixture();
-  await assert.rejects(processFundamentalsBatch(f.request, f.db, f.log,
-    async () => { throw Error("result topic unavailable"); }, f.dependencies), /result topic/);
+  assert.equal((await processFundamentalsBatch(f.request, f.db, f.log,
+    async () => { throw Error('result topic unavailable'); }, f.dependencies)).status,'needs_admin');
+  await rerunFundamentalsBatch(f.db,f.request.batchId,'admin',async r=>assert.deepEqual(r,f.request));
   assert.equal(f.reads(), 2);
   await processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies);
   assert.equal(f.reads(), 2);
@@ -93,7 +95,7 @@ test("filing result publication resumes from the saved outbox without another SE
 test("filing requests preserve global SEC provider cooldowns", async () => {
   const f = fixture();
   f.rows.set("company_fundamentals/_worker", { providerRetryAfter: Date.now() + 3600000 });
-  await assert.rejects(processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies), /incomplete/);
+  assert.equal((await processFundamentalsBatch(f.request, f.db, f.log, f.publish, f.dependencies)).status,'needs_admin');
   assert.equal(f.reads(), 0);
   assert.deepEqual(f.rows.get("company_fundamentals/US:AMD")!.value, f.before);
 });

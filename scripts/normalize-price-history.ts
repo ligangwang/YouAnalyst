@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { observeFirestore } from '../src/lib/firebase/firestore-observability';
 import {Firestore} from '@google-cloud/firestore';
 import {Storage,type StorageOptions} from '@google-cloud/storage';
@@ -21,4 +22,4 @@ async function main(){
   console.log(JSON.stringify({write:process.argv.includes('--write'),...result}));
   if(result.missing)process.exitCode=1;
 }
-main().catch(()=>{console.error('Stored price normalization failed; no provider requests were made.');process.exitCode=1;});
+main().finally(closeLocalCaches).catch(()=>{console.error('Stored price normalization failed; no provider requests were made.');process.exitCode=1;});

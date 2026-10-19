@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 // Read-only database-backed source verification; no event or checkpoint writes.
 import {loadNewsSources} from '../src/lib/intelligence/collectors/source-service';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
@@ -17,4 +18,4 @@ async function main(){if(!process.env.GCP_PROJECT_ID)throw new Error('GCP_PROJEC
     console.log(JSON.stringify(results[index]));
   }
 }));}
-main().catch(error=>{console.error(error);process.exitCode=1;});
+main().finally(closeLocalCaches).catch(error=>{console.error(error);process.exitCode=1;});

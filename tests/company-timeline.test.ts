@@ -192,17 +192,13 @@ test('weekly event grouping retains individual publication dates and separates f
  assert.equal(layoutTimelineMarkers(events,'2026-09-01','2026-10-12',500).length,3);
 });
 
-test('timeline cache shares reads until data changes and retries failures',async()=>{
- let calls=0;const data={companyId:'US:TEST',start:'2021-01-01',end:'2026-01-01',prices:[],currency:'USD',available:true};
- let revision='one';
- const db={collection:()=>({doc:()=>({get:async()=>({data:()=>({enabled:true,versions:{eod_prices:revision}})})})})} as unknown as import('firebase-admin/firestore').Firestore;
- const load=async()=>{calls++;return data;};
- await Promise.all([cachedTimelinePrices(db,'range-1',load),cachedTimelinePrices(db,'range-1',load)]);assert.equal(calls,1);
- await cachedTimelinePrices(db,'range-1',load);assert.equal(calls,1);
- revision='correction';await cachedTimelinePrices(db,'range-1',load);assert.equal(calls,2);
- await cachedTimelinePrices(db,'range-2',load);assert.equal(calls,3);
- await assert.rejects(cachedTimelinePrices(db,'failure',async()=>{throw Error('read failed');}));
- await cachedTimelinePrices(db,'failure',load);assert.equal(calls,4);
+test('timeline mapper recomputes from source snapshots and does not freeze a failed result',async()=>{
+ const data={companyId:'US:TEST',start:'2021-01-01',end:'2026-01-01',prices:[],currency:'USD',available:true};
+ const db={collection:()=>{throw Error('No metadata reads');}} as unknown as import('firebase-admin/firestore').Firestore;
+ let calls=0;const load=async()=>{calls++;return data;};
+ await cachedTimelinePrices(db,'range',load);await cachedTimelinePrices(db,'range',load);assert.equal(calls,2);
+ await assert.rejects(cachedTimelinePrices(db,'range',async()=>{throw Error('read failed');}));
+ assert.equal(await cachedTimelinePrices(db,'range',load),data);
 });
 
 test('BOLL uses complete closes and population deviation without future prices',()=>{
