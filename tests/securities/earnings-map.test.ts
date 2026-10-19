@@ -176,15 +176,14 @@ test('China map issuers use exact exchange identity and the reviewed common tabl
 });
 
 
-test('issuer membership refreshes on metadata changes without a minute timer',async()=>{
+test('issuer membership reflects source changes without a checkpoint or timer',async()=>{
  const fx=earningsFirestore();
  fx.rows.set('collectors/_read_cache_versions_v1',{enabled:true,versions:{collectors:'one'}});
  fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
  await loadEarningsMap(fx.db,graph);
  fx.rows.set('collectors/sec-US:AMAT',{companyId:'US:AMAT',cik:'0000006951'});
  await loadEarningsMap(fx.db,graph);
- assert.throws(()=>earningsCompany('US:AMAT'));
- fx.rows.set('collectors/_read_cache_versions_v1',{enabled:true,versions:{collectors:'two'}});
+ assert.equal(earningsCompany('US:AMAT').issuerId,'sec:0000006951');
  await loadEarningsMap(fx.db,graph);
  assert.equal(earningsCompany('US:AMAT').issuerId,'sec:0000006951');
 });

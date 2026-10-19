@@ -1,3 +1,4 @@
+import { sourceSnapshot } from '../local-cache/read-scope';
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */
 import { timestampWrite } from '../central-cache/write-timestamps';
 import { createHash, randomUUID } from 'node:crypto';
@@ -56,7 +57,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
     if (!('docs' in value) && !('ref' in value)) return value;
     const proxy = new Proxy(value, { get(target, key) {
       if (key === 'ref') return wrap(target.ref, 'doc', { collection: documentCollection(target.ref.path), clauses: [] });
-      if (key === 'docs') return target.docs.map(snapshot);
+      if (key === 'docs' && Array.isArray(target.docs)) return target.docs.map(snapshot);
       if (key === 'forEach') return (fn: (doc: any) => void, thisArg?: any) => target.forEach((doc: any) => fn.call(thisArg, snapshot(doc)));
       const member = Reflect.get(target, key, target);
       return typeof member === 'function' ? member.bind(target) : member;
@@ -123,6 +124,16 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
           const result = invoke();
           pending.push({ operation: method, collection: metadata.get(args[0])?.shape.collection ?? documentCollection(args[0]?.path), caller: site });
           return result === object ? proxy : result;
+        }
+        // Only reads inside an explicit cache scope use source subscriptions.
+        // Transactions, aggregates, field-mask reads and writes retain SDK semantics.
+        if (method === 'get' && (kind === 'doc' || kind === 'query') && !shape.clauses.some(clause => clause.startsWith('select('))) {
+          const cached = sourceSnapshot(db, proxy);
+          if (cached) return cached;
+        }
+        if (method === 'getAll' && kind === 'db' && args.length && args.every(ref => typeof ref.onSnapshot === 'function')) {
+          const reads = args.map(ref => sourceSnapshot(db, ref));
+          if (reads.every(Boolean)) return Promise.all(reads);
         }
         if (method === 'get' || method === 'getAll' || method === 'commit' || ['set', 'update', 'delete', 'create', 'add'].includes(method)) {
           const reading = method === 'get' || method === 'getAll';

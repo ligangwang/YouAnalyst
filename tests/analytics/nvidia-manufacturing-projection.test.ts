@@ -137,7 +137,7 @@ test("runtime reads exact company identities and all relationship statuses; unav
   assert.equal(projected.companies.find(company => company.id === "US:SKHY")?.status, "ARCHIVED");
   assert.equal(projected.records.find(edge => edge.id === id)?.status, "WITHDRAWN");
   await loadNvidiaManufacturingProjection(db, companies(), [oldEdge()]);
-  assert.deepEqual(queries, ["company_relationships"]);
+  assert.deepEqual(queries, Array(3).fill("company_relationships"), "adapters without listeners read fresh source data");
   await assert.rejects(loadNvidiaManufacturingProjection(database(true).db, companies(), []), /Firestore unavailable/);
 });
 

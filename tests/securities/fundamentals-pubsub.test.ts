@@ -1,3 +1,4 @@
+import { rerunFundamentalsBatch } from '../../src/lib/fundamentals/admin-rerun';
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Firestore } from "firebase-admin/firestore";
@@ -8,7 +9,7 @@ import { fundamentalsVersion, parseFundamentalsRequest, type FundamentalsRequest
 type Data = Record<string, unknown>;
 function fixture(initial: Record<string, Data> = {}) {
   const rows = new Map<string, Data>(Object.entries(initial));
-  const snap = (id: string) => ({ id, data: () => rows.has(id) ? structuredClone(rows.get(id)) : undefined,
+  const snap = (id: string) => ({ id, ref:ref(id), data: () => rows.has(id) ? structuredClone(rows.get(id)) : undefined,
     get: (key: string) => rows.get(id)?.[key] });
   const ref = (id: string) => ({ id, firestore: db, get: async () => snap(id),
     set: async (data: Data) => { rows.set(id, { ...rows.get(id), ...data }); },
@@ -20,7 +21,7 @@ function fixture(initial: Record<string, Data> = {}) {
         .slice(0, limit).map(([id]) => snap(id)); return { docs, size: docs.length }; } };
     return q;
   } }), runTransaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ get: async (r: ReturnType<typeof ref>) => r.get(),
-    set: (r: ReturnType<typeof ref>, data: Data) => r.set(data) }) } as unknown as Firestore;
+    set: (r: ReturnType<typeof ref>, data: Data) => r.set(data), update: (r: ReturnType<typeof ref>, data: Data) => r.set(data) }) } as unknown as Firestore;
   const events: FundamentalsUpdate[] = [], calls: string[] = [];
   const logs: Data[] = [];
   const log = { runId: "attempt-1", emit: (_level: string, event: string, data: Data) => logs.push({ event, ...data }) } as unknown as MaintenanceLog;
@@ -67,7 +68,9 @@ test("partial failure publishes successful changes and holds failures for admin"
 
 test("result publish failure resumes the durable outbox without another SEC fetch", async () => {
   const f = fixture();
-  await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, async () => { throw new Error("publish outage"); }, f), /publish outage/);
+  assert.equal((await processFundamentalsBatch(request(), f.db, f.log, async () => { throw new Error("publish outage"); }, f)).status,'needs_admin');
+  await processFundamentalsBatch(request(),f.db,f.log,f.publish,f);assert.equal(f.events.length,0);
+  assert.equal(await rerunFundamentalsBatch(f.db,'batch-1','admin',async()=>{}),true);
   await processFundamentalsBatch(request(), f.db, f.log, f.publish, f);
   assert.equal(f.calls.length, 2); assert.equal(f.events.length, 1);
 });
@@ -88,9 +91,9 @@ test("freshness-only changes do not publish fundamentals.updated", async () => {
 test("SEC provider blocks stop other companies and respect persisted cooldown", async () => {
   const f = fixture();
   const refresh = async () => { throw Object.assign(new Error("blocked"), { code: 429 }); };
-  await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, f.publish, { ...f, refresh }), /incomplete/);
+  assert.equal((await processFundamentalsBatch(request(), f.db, f.log, f.publish, { ...f, refresh })).status,'needs_admin');
   assert.ok(Number(f.rows.get("_worker")?.providerRetryAfter) > Date.now());
-  await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, f.publish, f), /incomplete/);
+  assert.equal((await processFundamentalsBatch(request(), f.db, f.log, f.publish, f)).status,'needs_admin');
   assert.equal(f.calls.length, 0);
 });
 test("delivery verification reuses stale cached data even during an SEC cooldown", async () => {
@@ -99,11 +102,14 @@ test("delivery verification reuses stale cached data even during an SEC cooldown
   const result = await processFundamentalsBatch({ ...request(["AMD"]), reason: "verification" }, f.db, f.log, f.publish, f);
   assert.equal(result.completed, 1); assert.equal(f.calls.length, 0); assert.equal(f.events.length, 0);
 });
-test("leased worker and exhausted time budget leave work unacknowledged", async () => {
+test("leased worker and exhausted time budget save errors for admin without redelivery", async () => {
   const f = fixture({ _worker: { leaseExpiresAtMs: Date.now() + 60000 } });
-  await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, f.publish, f), /busy/);
+  assert.equal((await processFundamentalsBatch(request(), f.db, f.log, f.publish, f)).status,'needs_admin');
+  assert.match(String((f.rows.get('_batch_batch-1')?.lastError as Data).message),/busy/);
   f.rows.delete("_worker");
-  await assert.rejects(processFundamentalsBatch(request(), f.db, f.log, f.publish, { ...f, deadline: Date.now() }), /incomplete/);
+  await rerunFundamentalsBatch(f.db,'batch-1','admin',async()=>{});
+  assert.equal((await processFundamentalsBatch(request(), f.db, f.log, f.publish, { ...f, deadline: Date.now() })).status,'needs_admin');
+  assert.match(String((f.rows.get('_batch_batch-1')?.lastError as Data).message),/incomplete/);
   assert.equal(f.calls.length, 0);
 });
 test("reusing a batch identifier with different contents is rejected", async () => {
@@ -145,3 +151,17 @@ test("confirmed republication without a duplicate delivery fails the probe", asy
   assert.equal(deliveries, 2);
   assert.equal(f.logs.some(log => log.event === "pubsub_delivery_verified"), false);
 });
+
+ test('manual rerun is claimed once and failed publication remains visible',async()=>{
+ const f=fixture({_worker:{providerRetryAfter:Date.now()+3600000}});
+ await processFundamentalsBatch(request(),f.db,f.log,f.publish,f);
+ assert.equal(f.rows.get('US:AMD')?.outcome,'error');
+ await assert.rejects(rerunFundamentalsBatch(f.db,'batch-1','admin',async()=>{throw Error('offline');}),/offline/);
+ assert.equal(f.rows.get('_batch_batch-1')?.manualRequired,true);
+ let sent:FundamentalsRequest|undefined;
+ assert.equal(await rerunFundamentalsBatch(f.db,'batch-1','admin',async r=>{sent=r;}),true);
+ assert.deepEqual(sent,request());
+ assert.equal(await rerunFundamentalsBatch(f.db,'batch-1','admin',async()=>{}),false);
+ f.rows.delete('_worker');
+ assert.equal((await processFundamentalsBatch(sent,f.db,f.log,f.publish,f)).completed,2);
+ });
