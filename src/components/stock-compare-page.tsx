@@ -1,14 +1,17 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { COMPARE_COLORS, comparePath, compareSymbol, latestCompareDate, returnLabel, type CompareConfig, type CompareData, type CompareStyle } from "@/lib/compare";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { comparePath, compareSymbol, latestCompareDate, returnLabel, type CompareConfig, type CompareData, type CompareStyle } from "@/lib/compare";
 import { EARLIEST_PLAYBACK_DATE, MAX_PLAYBACK_YEARS, playbackStartDate, validatePlaybackConfig } from "@/lib/ui/compare-range";
 import { localizedPath } from "@/lib/ui/i18n/urls";
 import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
 import { compareEmbedPath, comparisonEmbedCode, type CompareEmbedTheme } from "@/lib/compare-embed";
 import { comparisonPosition, snapComparisonProgress } from "@/lib/compare-chart";
-import { COMPARE_LIGHT_COLORS } from "@/lib/compare";
+import { companyCompareColor } from "@/lib/compare-appearance";
+import { CompareCustomization, useCompareAppearance } from "./compare-customization";
+import { ComparisonCommunity, ComparisonCredit } from "./compare-community";
+import type { CommunityComparison } from "@/lib/compare-community";
 import { useMarket } from "./providers/preferences-context";
 import { CompanySearch } from "./company-search";
 import { ComparisonVideoExport } from "./comparison-video-export";
@@ -24,7 +27,7 @@ function ChartLoading() {
 }
 const Chart = dynamic(() => import("./stock-comparison-chart").then(module => module.StockComparisonChart), { ssr: false, loading: ChartLoading });
 
-export function StockComparePage({ initial, embedded = false, embedTheme = "dark" }: { initial: CompareConfig; embedded?: boolean; embedTheme?: CompareEmbedTheme }) {
+export function StockComparePage({ initial, embedded = false, embedTheme = "dark", featured = null }: { initial: CompareConfig; embedded?: boolean; embedTheme?: CompareEmbedTheme; featured?: CommunityComparison | null }) {
   const { text, locale } = useLocale();
   const [draft, setDraft] = useState(initial), [applied, setApplied] = useState(initial);
   const [style, setStyle] = useState<CompareStyle>(initial.style);
@@ -39,7 +42,14 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const handleUnavailable = useCallback(() => setChartUnavailable(true), []);
   const { theme: siteTheme } = useMarket();
   const displayTheme = embedded ? theme : siteTheme;
-  const colors = displayTheme === "light" ? COMPARE_LIGHT_COLORS : COMPARE_COLORS;
+  const preferences = useCompareAppearance(embedded);
+  const [linkColors, setLinkColors] = useState(initial.colors ?? {});
+  const { appearance } = preferences;
+  const colors = useMemo(() => (data?.series.map(series => series.symbol) ?? applied.symbols).map(symbol => linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light")), [data, applied.symbols, linkColors, appearance, displayTheme]);
+  const styleChosen = useRef(!!featured);
+  useEffect(() => {
+    if (preferences.ready && !styleChosen.current && !new URLSearchParams(window.location.search).has("style")) setStyle(appearance.style);
+  }, [preferences.ready, appearance.style]);
   const editor = useRef<HTMLElement>(null);
   const requestKey = new URLSearchParams({ symbols: applied.symbols.join(","), start: applied.start, end: applied.end }).toString();
 
@@ -84,7 +94,11 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     setDraft({ ...draft, symbols: [...draft.symbols, symbol] }); setNotice("");
   }
   function updateAddress(config: CompareConfig) {
-    window.history.replaceState(null, "", localizedPath(embedded ? compareEmbedPath(config, theme) : comparePath(config), locale));
+    const shared = styledConfig(config);
+    window.history.replaceState(null, "", localizedPath(embedded ? compareEmbedPath(shared, theme) : comparePath(shared), locale));
+  }
+  function styledConfig(config: CompareConfig = { ...applied, style }): CompareConfig {
+    return { ...config, colors: Object.fromEntries(config.symbols.map(symbol => [symbol, linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light")])) };
   }
   function apply() {
     const invalid = validatePlaybackConfig(draft);
@@ -93,9 +107,10 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     setApplied({ ...draft, style }); setNotice(""); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress({ ...draft, style });
   }
   function changeStyle(next: CompareStyle) {
+    styleChosen.current = true;
     setStyle(next); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress({ ...applied, style: next });
   }
-  function currentUrl() { return new URL(localizedPath(comparePath({ ...applied, style }), locale), window.location.origin).href; }
+  function currentUrl() { return new URL(localizedPath(comparePath(styledConfig()), locale), window.location.origin).href; }
   async function copy() {
     const url = currentUrl();
     try { await navigator.clipboard.writeText(url); setShareNotice(text("Comparison link copied.", "已复制对比链接。")); }
@@ -110,7 +125,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     await copy();
   }
   function buildEmbed(nextTheme = theme) {
-    return comparisonEmbedCode({ ...applied, style }, nextTheme, locale, window.location.origin);
+    return comparisonEmbedCode(styledConfig(), nextTheme, locale, window.location.origin);
   }
   async function copyEmbed() {
     const code = buildEmbed();
@@ -133,6 +148,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       {!embedded&&<><button type="button" onClick={()=>{setEditorOpen(true);setContextMenu(null);}}>{text('Edit stocks and dates','修改股票和日期')}</button><button type="button" disabled={!data||loading} onClick={()=>{void copy();setContextMenu(null);}}>{text('Copy link','复制链接')}</button></>}
     </div></FloatingEventWindow>}
     <h1 className="sr-only">{text("Stock performance playback", "股票表现回放")}</h1>
+    {!embedded && featured && comparePath(styledConfig()) === comparePath(featured.comparison.config) && <ComparisonCredit post={featured}/>}
     {!embedded && <section ref={editor} id="comparison-editor" className={styles.editor} aria-label={text("Edit comparison", "编辑对比")}>
       <button type="button" className={styles.editorSummary} aria-label={text("Selected stocks", "所选股票")} aria-expanded={editorOpen} aria-controls="comparison-settings" onClick={() => setEditorOpen(value => !value)}>
         <span className={styles.editorTitle}>{text("Selected stocks", "所选股票")} <small>{draft.symbols.length} / 10</small></span>
@@ -140,7 +156,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         <span className={styles.editorRange}>{draft.start} → {draft.end}</span><span className={styles.editorChevron} aria-hidden="true">⌄</span>
       </button>
       <div id="comparison-settings" className={styles.editorBody} hidden={!editorOpen}>
-      <div className={styles.chips}>{draft.symbols.map((symbol, i) => <button key={symbol} type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><i style={{ background: colors[i] }}/>{symbol}<span aria-hidden="true">×</span></button>)}</div>
+      <div className={styles.chips}>{draft.symbols.map(symbol => <button key={symbol} type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><i style={{ background: linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light") }}/>{symbol}<span aria-hidden="true">×</span></button>)}</div>
       <div className={styles.settings}>
         <div className={styles.search}><span>{text("Add a stock", "添加股票")}</span><CompanySearch inline owner="chart" typeToSearch={false} clearOnSelect onSelect={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)}/></div>
         <label>{text("From", "起始日期")}<input type="date" value={draft.start} min={playbackStartDate(draft.end)} max={draft.end} onChange={e => setDraft({ ...draft, start: e.target.value })}/></label>
@@ -151,6 +167,11 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       </div>
     </section>}
     {!embedded && <p className={styles.notice} role="status">{notice}</p>}
+    {!embedded && <CompareCustomization preferences={preferences} symbols={applied.symbols} style={style} light={displayTheme === "light"} colors={linkColors} next={localizedPath(comparePath(styledConfig()), locale)} onChange={next => {
+      preferences.change(next); setLinkColors({}); setShareUrl(""); setShareNotice(""); setShowEmbed(false);
+      // Remove the previous shared palette; new share links capture the preview.
+      window.history.replaceState(null, "", localizedPath(comparePath({ symbols: applied.symbols, start: applied.start, end: applied.end, style }), locale));
+    }}/>}
     <section className={styles.stage} aria-label={text("Performance chart", "表现图表")} aria-busy={loading}>
       <div className={styles.stageHeading}><div><p className={styles.eyebrow} title={text("Dividends are not reinvested. Motion between closes is interpolated.", "股息不再投资，收盘数据之间的动画为插值。")}>{text("PRICE RETURN", "价格收益")}</p></div><div className={styles.styleSwitch} role="group" aria-label={text("Animation style", "动画样式")}>{(["line", "bar"] as const).map(option => <button key={option} type="button" aria-pressed={style === option} onClick={() => changeStyle(option)}>{option === "line" ? text("Line", "折线") : text("Bar", "条形")}</button>)}</div></div>
       {loading ? <div className={styles.empty} role="status">{text("Loading daily closes…", "正在加载每日收盘价…")}</div> : error ? <div className={styles.empty}><p role="alert">{error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>{text("Retry", "重试")}</button></div> : data && <>
@@ -164,20 +185,21 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
           <label className={styles.speed}>{text("Speed", "速度")}<select aria-label={text("Playback speed", "播放速度")} value={speed} onChange={e => setSpeed(Number(e.target.value))}>{[.5, 1, 2, 4].map(value => <option key={value} value={value}>{value}×</option>)}</select></label>
         </div>
         <div className={styles.caption}><p>{text("Shared trading dates", "共同交易日期")}: {data.dates[0]} → {data.dates.at(-1)}. {text("All stocks start at 0%.", "所有股票从 0% 开始。")}</p><span>YouAnalyst</span></div>
-        {!embedded && <ComparisonVideoExport data={data} style={style} onStart={() => setPlaying(false)}/>}
+        {!embedded && <ComparisonVideoExport data={data} style={style} colors={colors} onStart={() => setPlaying(false)}/>}
       </>}
     </section>
-    {!embedded && <div className={styles.shareRow}><p>{text("A comparison worth sharing.", "分享你的对比。")} <span>{text("One link. The same stocks, dates, and style.", "一个链接，保留股票、日期和样式。")}</span><span className={styles.notice} role="status">{shareNotice}</span></p><div><button type="button" disabled={!data || loading} onClick={() => void copy()}>{text("Copy link", "复制链接")}</button><button type="button" disabled={!data || loading} onClick={() => void share()}>{text("Share", "分享")} <span aria-hidden="true">↗</span></button><button type="button" disabled={!data || loading} onClick={() => { setEmbedCode(buildEmbed()); setShowEmbed(value => !value); }} aria-expanded={showEmbed} aria-controls="comparison-embed-options">{text("Embed", "嵌入网站")}</button>{data && !loading && <a href={xPostIntentUrl({ text: `Watch ${applied.symbols.join(" vs ")} on YouAnalyst`, url: xTrackedShareUrl({campaign: "stock-comparison", url: localizedPath(comparePath({ ...applied, style }), locale)}) })} target="_blank" rel="noopener noreferrer">{text("Post to X", "分享到 X")}</a>}</div></div>}
+    {!embedded && <div className={styles.shareRow}><p>{text("A comparison worth sharing.", "分享你的对比。")} <span>{text("One link. The same stocks, dates, and style.", "一个链接，保留股票、日期和样式。")}</span><span className={styles.notice} role="status">{shareNotice}</span></p><div><button type="button" disabled={!data || loading} onClick={() => void copy()}>{text("Copy link", "复制链接")}</button><button type="button" disabled={!data || loading} onClick={() => void share()}>{text("Share", "分享")} <span aria-hidden="true">↗</span></button><button type="button" disabled={!data || loading} onClick={() => { setEmbedCode(buildEmbed()); setShowEmbed(value => !value); }} aria-expanded={showEmbed} aria-controls="comparison-embed-options">{text("Embed", "嵌入网站")}</button>{data && !loading && <a href={xPostIntentUrl({ text: `Watch ${applied.symbols.join(" vs ")} on YouAnalyst`, url: xTrackedShareUrl({campaign: "stock-comparison", url: localizedPath(comparePath(styledConfig()), locale)}) })} target="_blank" rel="noopener noreferrer">{text("Post to X", "分享到 X")}</a>}</div></div>}
     {!embedded && showEmbed && <section id="comparison-embed-options" className={styles.embedOptions} aria-label={text("Website embed", "网站嵌入")}>
       <h2>{text("Add this comparison to your website", "将此对比嵌入你的网站")}</h2>
       <label>{text("Widget theme", "组件主题")}<select aria-label={text("Widget theme", "组件主题")} value={theme} onChange={event => { const nextTheme = event.target.value === "light" ? "light" : "dark"; setTheme(nextTheme); setEmbedCode(buildEmbed(nextTheme)); }}><option value="dark">{text("Dark", "深色")}</option><option value="light">{text("Light", "浅色")}</option></select></label>
       <p>{text("Includes playback controls and the YouAnalyst watermark. Paste this code into your website's HTML.", "包含播放控件及 YouAnalyst 水印。将此代码粘贴到网站 HTML 中。")}</p>
       <textarea aria-label={text("Website embed code", "网站嵌入代码")} readOnly value={embedCode} onFocus={event => event.target.select()}/>
       <button type="button" disabled={!data || loading} onClick={() => void copyEmbed()}>{text("Copy embed code", "复制嵌入代码")}</button>
-      <Link href={compareEmbedPath({ ...applied, style }, theme)} target="_blank" rel="noopener noreferrer">{text("Preview widget", "预览组件")} ↗</Link>
+      <Link href={compareEmbedPath(styledConfig(), theme)} target="_blank" rel="noopener noreferrer">{text("Preview widget", "预览组件")} ↗</Link>
     </section>}
     {shareUrl && <input className={styles.shareInput} aria-label={text("Shareable comparison link", "对比分享链接")} readOnly value={shareUrl} onFocus={e => e.target.select()}/>}
-    {embedded ? <><div className={styles.embedFooter}><span>YouAnalyst</span><Link href={comparePath({ ...applied, style })} target="_blank" rel="noopener noreferrer">{text("Open in YouAnalyst", "在 YouAnalyst 中打开")} ↗</Link></div>{results && <details className={styles.embedResults} open={chartUnavailable || undefined}><summary>{text("View returns table", "查看收益表")}</summary>{results}</details>}</> : results}
+    {embedded ? <><div className={styles.embedFooter}><span>YouAnalyst</span><Link href={comparePath(styledConfig())} target="_blank" rel="noopener noreferrer">{text("Open in YouAnalyst", "在 YouAnalyst 中打开")} ↗</Link></div>{results && <details className={styles.embedResults} open={chartUnavailable || undefined}><summary>{text("View returns table", "查看收益表")}</summary>{results}</details>}</> : results}
+    {!embedded && <ComparisonCommunity comparison={{ config: styledConfig(), theme: displayTheme }} ready={!!data && !loading && !error}/>}
     {!embedded && <section className="mt-6 space-y-2 text-sm text-slate-400" aria-labelledby="comparison-introduction">
       <h2 id="comparison-introduction" className="font-semibold text-slate-200">{text("Animated Stock Performance Comparison", "股票表现动态对比")}</h2>
       <p>{text("Compare stock returns over time with animated line and bar charts. Choose companies and dates to see how their performance differs.", "通过动态折线图和条形图，对比股票在不同时期的收益表现。选择公司和日期范围，直观了解它们的表现差异。")}</p>

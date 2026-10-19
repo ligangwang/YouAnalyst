@@ -124,3 +124,15 @@
  .dateRow { margin-top:20px; }.dateRow time{font-size:22px;}.playback{gap:10px;}.playback .primary{padding:10px 13px;}
  .speed{font-size:0;gap:0;}.shareRow{align-items:flex-start;flex-direction:column;}.caption{gap:10px;}.caption p{max-width:260px;}
 }
+.customization { border:1px solid var(--color-line);border-radius:12px;padding:14px 18px;margin:0 0 18px;color:var(--foreground); }
+.customization summary { cursor:pointer;font-size:14px;font-weight:600; }
+.customization p { margin:12px 0;font-size:13px;color:var(--text-secondary); }
+.customization a { color:var(--accent,#22d3ee);text-decoration:underline; }
+.customization fieldset { border:0;padding:0;margin:12px 0;min-width:0; }
+.customization legend { font-size:13px;margin-bottom:8px; }
+.customization button { border:1px solid var(--color-line);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer; }
+.customization button[aria-pressed=true] { border-color:var(--accent,#22d3ee);background:var(--background); }
+.customization button:disabled { opacity:.5;cursor:default; }
+.templateOptions,.companyColors { display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px; }
+.companyColors>div,.companyColors label { display:flex;align-items:center;gap:8px;font-size:13px; }
+.companyColors input { width:36px;height:36px;border:1px solid var(--color-line);border-radius:6px;padding:2px;background:transparent;cursor:pointer; }

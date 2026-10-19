@@ -53,6 +53,7 @@ function PostHistory({ ticker, predictionId, postId, userId }: Props) {
       <h3 className="text-lg font-semibold"><Link href={localizedPath(`/posts/${post.id}`, locale)}>{post.title?.trim() || text(`Research on ${post.ticker}`, `${post.ticker} 研究`)}</Link></h3>
       <p className="my-2 text-sm text-slate-400"><RelativeTime value={post.createdAt} /> · {post.ticker} · <Link href={localizedPath(`/analysts/${post.userId}`, locale)}>{text("Author", "作者")}</Link></p>
       <p className="whitespace-pre-wrap break-words">{post.body}</p>
+      {post.comparison && <p className="my-3 text-sm"><span>{post.comparison.config.symbols.join(" · ")} · {post.comparison.config.start} → {post.comparison.config.end}</span><br/><Link className="text-cyan-300 underline" href={localizedPath(`/compare/community/${post.id}`, locale)}>{text("Replay comparison & join the discussion", "回放对比并参与讨论")}</Link></p>}
       <ViewEvidenceList evidence={post.evidence} compact />
       <div className="mt-3 flex gap-4 text-cyan-300"><Link href={localizedPath(companyPageUrl(post.ticker), locale)}>{text("Open company", "查看公司")}</Link>{post.predictionId && <Link href={localizedPath(`/predictions/${post.predictionId}`, locale)}>{text("View track record", "查看历史表现")}</Link>}</div>
     </article>)}

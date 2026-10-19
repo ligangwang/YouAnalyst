@@ -5,7 +5,7 @@ import type { CompareData, CompareStyle } from '@/lib/compare';
 import { useLocale } from './providers/locale-provider';
 import styles from './stock-compare.module.css';
 
-export function ComparisonVideoExport({ data, style, onStart }: { data: CompareData; style: CompareStyle; onStart: () => void }) {
+export function ComparisonVideoExport({ data, style, colors, onStart }: { data: CompareData; style: CompareStyle; colors?: string[]; onStart: () => void }) {
   const { text, locale } = useLocale();
   const [seconds, setSeconds] = useState(15), [progress, setProgress] = useState<number | null>(null), [message, setMessage] = useState('');
   const [download, setDownload] = useState<{ url: string; filename: string } | null>(null);
@@ -21,7 +21,7 @@ export function ComparisonVideoExport({ data, style, onStart }: { data: CompareD
     setProgress(0); setMessage(''); onStart();
     try {
       const { recordComparisonVideo } = await import('@/lib/ui/compare-video');
-      const blob = await recordComparisonVideo({ data, style, seconds, light: document.documentElement.dataset.theme === 'light', chinese: locale === 'zh-CN', signal: controller.signal, onProgress: value => { if (active.current === controller) setProgress(Math.floor(value * 100)); } });
+      const blob = await recordComparisonVideo({ data, style, colors, seconds, light: document.documentElement.dataset.theme === 'light', chinese: locale === 'zh-CN', signal: controller.signal, onProgress: value => { if (active.current === controller) setProgress(Math.floor(value * 100)); } });
       if (active.current !== controller || controller.signal.aborted) return;
       const url = URL.createObjectURL(blob), link = document.createElement('a');
       link.href = url; link.download = `YouAnalyst-${style}-${data.dates[0]}-${data.dates.at(-1)}.${blob.type.includes('mp4') ? 'mp4' : 'webm'}`;

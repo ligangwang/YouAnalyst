@@ -47,6 +47,8 @@ export function useAuth() {
   };
 }
 
+export const useOptionalAuth = useAuth;
+
 const router = {
   push(href: string) {
     window.history.pushState(null, "", href);

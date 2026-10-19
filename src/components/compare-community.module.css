@@ -1,0 +1,27 @@
+.community { margin-top:32px;border-top:1px solid var(--color-line);padding-top:24px; }
+.community h2,.detail h1 { font-size:22px;font-weight:650;margin:12px 0; }
+.community>p,.meta,.credit>span { color:var(--text-secondary);font-size:13px;line-height:1.7; }
+.community a,.detail a,.credit a { color:var(--foreground);text-decoration:underline;text-underline-offset:3px; }
+.community button,.detail button { border:1px solid var(--color-line);border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer; }
+.community button:disabled,.detail button:disabled { opacity:.5;cursor:default; }
+.community button[aria-pressed=true],.detail button[aria-pressed=true] { border-color:#0891b2;background:var(--background); }
+.grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0; }
+.card,.composer,.credit { min-width:0;padding:18px;border:1px solid var(--color-line);border-radius:12px;margin:14px 0; }
+.card h3 { font-size:18px;font-weight:600;overflow-wrap:anywhere; }
+.card p { margin:8px 0;overflow-wrap:anywhere; }
+.message { white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7; }
+.composer summary { cursor:pointer;font-weight:600; }
+.composer fieldset { border:0;margin:0;padding:0;min-width:0; }
+.composer label,.discussion label { display:flex;flex-direction:column;gap:8px;margin:12px 0;font-size:14px; }
+.composer input,.composer textarea,.discussion textarea { border:1px solid var(--color-line);border-radius:8px;padding:10px;background:var(--background);color:var(--foreground);width:100%;box-sizing:border-box; }
+.composer p { margin:12px 0;font-size:13px;color:var(--text-secondary); }
+.votes,.links { display:flex;flex-wrap:wrap;align-items:center;gap:12px;font-size:13px;margin-top:16px; }
+.credit strong { display:block;font-size:18px;margin:8px 0;overflow-wrap:anywhere; }
+.credit p { margin:0;font-size:13px; }
+.detail { max-width:1000px;margin:auto;padding:24px; }
+.replay { display:block;width:100%;border:1px solid var(--color-line);border-radius:10px;margin:18px 0; }
+.discussion { margin-top:24px; }
+.discussion h2 { font-size:20px;font-weight:600; }
+.comment { border-top:1px solid var(--color-line);padding:12px 0; }
+.comment>p:first-child { font-size:13px;color:var(--text-secondary); }
+@media(max-width:640px) { .grid { grid-template-columns:minmax(0,1fr); }.detail { padding:16px; }.card { padding:14px; } }
