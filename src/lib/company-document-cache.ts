@@ -1,4 +1,4 @@
-import { centralDocuments } from './central-cache/client';
+import { localDocuments } from './local-cache/entities';
 import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 import { readCacheState, withCacheReadScope, type State } from './change-cache';
 import { companyChangeDocument, companyChangeKey, companyChangeShard, type CompanyChange, type IndexedCollection } from './company-change-index';
@@ -39,7 +39,7 @@ export async function companyVersions(db: Firestore, collection: IndexedCollecti
 export function loadCompanyDocuments(db: Firestore, collection: IndexedCollection, ids: string[], projection: 'full' | 'marketCap' = 'full'): Promise<DocumentSnapshot[]> {
   return withCacheReadScope(async () => {
     if (!ids.length) return [];
-    const central=await centralDocuments(db,collection,ids,undefined,projection==='marketCap'?'marketCap':undefined);if(central)return central;
+    const local=await localDocuments(db,collection,ids,undefined,projection==='marketCap'?'marketCap':undefined);if(local)return local;
     const state = await readCacheState(db), cache = cacheFor(documents, db);
     if (!state.enabled) { documents.delete(db); shardCaches.delete(db); }
     const indexed = hasCompanyIndex(state, collection);

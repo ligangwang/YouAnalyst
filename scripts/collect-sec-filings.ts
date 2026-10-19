@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore, type DocumentData } from "../src/lib/firebase/firestore";
 import { loadCollectionCompanyScope } from "../src/lib/company-themes/service";
@@ -84,4 +85,4 @@ async function main() {
   if (earnings?.failed.size) throw new Error("Earnings SEC discovery was incomplete; existing financial discovery completed independently");
   if(disclosures.failed.size)throw new Error(`Map SEC announcement discovery incomplete for ${[...disclosures.failed].join(', ')}`);
 }
-main().catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });
+main().finally(closeLocalCaches).catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });

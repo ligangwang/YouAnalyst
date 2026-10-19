@@ -24,7 +24,7 @@ test('routine rollout verifies all triggers without IAM or resource provisioning
   const result=run(); assert.ifError(result.error); assert.equal(result.status,0,result.stderr);
   assert.doesNotMatch(result.stderr,/GCLOUD .*add-iam-policy-binding|GCLOUD services enable|GCLOUD .* create /);
   assert.match(result.stderr,/CACHE_EVENT_AUDIENCE=https:\/\/web.run.app\/api\/internal\/cache-changes/);
-  assert.equal(result.stderr.match(/NODE scripts\/verify-cache-trigger.mjs/g)?.length,12);
+  assert.equal(result.stderr.match(/NODE scripts\/verify-cache-trigger.mjs/g)?.length,9);
   assert.match(result.stderr,/NODE scripts\/activate-change-cache.mjs\n/);
 });
 test('missing trigger blocks activation and requests administrator bootstrap',()=>{
@@ -35,7 +35,7 @@ test('missing trigger blocks activation and requests administrator bootstrap',()
 test('explicit administrator bootstrap provisions permissions and missing triggers',()=>{
   const result=run({CACHE_BOOTSTRAP:'1',MISSING_TRIGGER:'1'}); assert.equal(result.status,0,result.stderr);
   assert.match(result.stderr,/GCLOUD projects add-iam-policy-binding/);
-  assert.equal(result.stderr.match(/GCLOUD eventarc triggers create/g)?.length,12);
+  assert.equal(result.stderr.match(/GCLOUD eventarc triggers create/g)?.length,9);
 });
 
 

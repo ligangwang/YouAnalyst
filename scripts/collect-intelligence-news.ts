@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
 import {getFirestore} from '../src/lib/firebase/firestore';
 import {loadNewsSources} from '../src/lib/intelligence/collectors/source-service';
@@ -53,4 +54,4 @@ async function main(){
   if('failed' in exchange&&exchange.failed)process.exitCode=1;
   if('failed' in calendar&&calendar.failed)process.exitCode=1;
 }
-main().catch(error=>{console.error(error instanceof Error?error.message:'Collector failed');process.exitCode=1;});
+main().finally(closeLocalCaches).catch(error=>{console.error(error instanceof Error?error.message:'Collector failed');process.exitCode=1;});

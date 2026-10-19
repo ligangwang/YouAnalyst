@@ -1,10 +1,10 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { centralDocuments } from '../central-cache/client';
+import { localDocuments } from '../local-cache/entities';
 import { changeCached } from '../change-cache';
 
-/** Central covered-company snapshot; retain the existing fallback for other companies. */
+/** Push-synchronized local snapshot, including companies outside graph coverage. */
 export async function loadFundamentalsSnapshot(db:Firestore,id:string){
- const central=await centralDocuments(db,'company_fundamentals',[id]);
- if(central!==undefined)return central[0];
+ const local=await localDocuments(db,'company_fundamentals',[id]);
+ if(local!==undefined)return local[0];
  return changeCached(db,`fundamentals-document:${id}`,['company_fundamentals'],()=>db.collection('company_fundamentals').doc(id).get());
 }

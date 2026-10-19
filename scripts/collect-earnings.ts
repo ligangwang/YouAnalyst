@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "../src/lib/firebase/firestore";
 import { createMaintenanceLog, maintenanceError } from "../src/lib/maintenance-log";
@@ -48,4 +49,4 @@ async function main() {
   log.emit(result.failed || result.deferred ? "WARNING" : "INFO", "run_completed", result);
   if (result.failed) throw new Error("Earnings discovery had incomplete sources; checkpoints retained");
 }
-main().catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });
+main().finally(closeLocalCaches).catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });

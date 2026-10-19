@@ -93,6 +93,17 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
           return wrap(invoke(), ['count', 'aggregate'].includes(method) ? 'aggregate' : kind,
             { ...shape, clauses: [...shape.clauses, `${method}(${detail})`] });
         }
+        if(method==='onSnapshot'){
+          const [next,error,...rest]=args;
+          let initial=true;
+          return Reflect.apply(member,object,[(value:any)=>{
+            const changes=typeof value.docChanges==='function'?value.docChanges():[{type:value.exists?'modified':'removed',doc:value}];
+            const docs=changes.filter((change:any)=>change.type!=='removed').map((change:any)=>change.doc);
+            emit('listen',shape,site,{status:'success',initial,documentsReturned:docs.length,documentsRemoved:changes.length-docs.length,
+              changedIds:changes.map((change:any)=>change.doc.id),documentsByCollection:{[shape.collection]:docs.length}});
+            initial=false;next(value);
+          },(failure:any)=>{emit('listen',shape,site,{status:'error',errorCode:failure?.code??'unknown'});error?.(failure);},...rest]);
+        }
         if (method === 'batch') return wrap(invoke(), 'batch', shape);
         if (method === 'runTransaction') {
           const transactionId = randomUUID(); let attempt = 0; let finalWrites: Pending[] = [];
