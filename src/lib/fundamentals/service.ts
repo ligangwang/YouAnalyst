@@ -37,9 +37,18 @@ export async function requestCompanyFundamentals(ticker: string, db: Database, n
   });
 }
 
+/** Visitor reads never enqueue work, even for missing or expired snapshots. */
+export async function readCompanyFundamentals(ticker: string, db: Database, now = Date.now()): Promise<CompanyFundamentals | null> {
+  if (!validFundamentalsTicker(ticker)) return null;
+  const stored = (await loadFundamentalsSnapshot(db, usFundamentalsId(ticker))).data();
+  if (stored?.version !== 1 || !stored.value) return null;
+  return { ...stored.value, ...(stored.marketCap ? { marketCap: stored.marketCap } : {}),
+    stale: now - Date.parse(stored.value.fetchedAt) > 2 * 86_400_000 };
+}
+
 export async function loadCompanyFundamentals(ticker: string): Promise<CompanyFundamentals | null> {
   try {
-    return await requestCompanyFundamentals(ticker, getAdminFirestore());
+    return await readCompanyFundamentals(ticker, getAdminFirestore());
   } catch (error) {
     console.error(JSON.stringify({ severity: "ERROR", message: "fundamentals: cache_request_failed", ticker, error: maintenanceError(error) }));
     return null;

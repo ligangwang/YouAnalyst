@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refreshCompanyFundamentals } from "../../src/lib/fundamentals/worker";
-import { requestCompanyFundamentals } from "../../src/lib/fundamentals/service";
+import { readCompanyFundamentals, requestCompanyFundamentals } from "../../src/lib/fundamentals/service";
 
 type Dependencies = NonNullable<Parameters<typeof refreshCompanyFundamentals>[1]>;
 function fixture(initial: Record<string, unknown> = {}) {
@@ -158,3 +158,15 @@ test('company page push cache retains transactional checks for a cached absence'
  assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),0);
  push({docs:[]});assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),1);assert.equal(f.writes(),0);
 });
+
+ test("visitor reads do not enqueue missing, expired, pending or upgrade-needed fundamentals", async () => {
+  for (const initial of [{}, {version: 1, value: {fetchedAt: "2020-01-01T00:00:00Z"}, refreshAfter: 0}, {version: 1, pending: true}]) {
+    const f = fixture(initial);
+    const result = await readCompanyFundamentals("AMD", f.dependencies.db);
+    assert.equal(f.writes(), 0);
+    assert.equal(f.transactions(), 0);
+    assert.equal(f.requests(), 0);
+    if ('value' in initial) assert.equal(result?.stale, true);
+    else assert.equal(result, null);
+  }
+ });
