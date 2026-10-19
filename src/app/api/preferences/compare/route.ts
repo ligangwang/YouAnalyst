@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore, verifyIdToken } from "@/lib/firebase/admin";
 import { DEFAULT_COMPARE_APPEARANCE, parseCompareAppearance } from "@/lib/compare-appearance";
+import { CompareProfileNotReadyError, saveCompareAppearance } from "@/lib/compare-preferences-service";
 
 const headers = { "Cache-Control": "private, no-store" };
 async function userId(request: NextRequest) {
@@ -25,12 +26,9 @@ export async function PATCH(request: NextRequest) {
   if (!appearance) return NextResponse.json({ error: "Invalid comparison preferences" }, { status: 400, headers });
   try {
     // Replace this field, including removed overrides, without changing other profile fields.
-    const document = getAdminFirestore().collection("users").doc(uid);
-    await getAdminFirestore().runTransaction(async transaction => {
-      const snapshot = await transaction.get(document);
-      if (snapshot.exists) transaction.update(document, { compareAppearance: appearance });
-      else transaction.set(document, { compareAppearance: appearance });
-    });
+    await saveCompareAppearance(getAdminFirestore(), uid, appearance);
     return NextResponse.json({ appearance }, { headers });
-  } catch { return NextResponse.json({ error: "Could not save preferences" }, { status: 503, headers }); }
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof CompareProfileNotReadyError ? error.message : "Could not save preferences" }, { status: error instanceof CompareProfileNotReadyError ? 409 : 503, headers });
+  }
 }
