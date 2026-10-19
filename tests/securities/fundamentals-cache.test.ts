@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { refreshCompanyFundamentals } from "../../src/lib/fundamentals/worker";
-import { requestCompanyFundamentals } from "../../src/lib/fundamentals/service";
+import { requestMissingCompanyFundamentals, requestCompanyFundamentals } from "../../src/lib/fundamentals/service";
 
 type Dependencies = NonNullable<Parameters<typeof refreshCompanyFundamentals>[1]>;
 function fixture(initial: Record<string, unknown> = {}) {
@@ -157,4 +157,29 @@ test('company page push cache retains transactional checks for a cached absence'
  f.dependencies.db.collection=(()=>query) as unknown as typeof f.dependencies.db.collection;
  assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),0);
  push({docs:[]});assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),1);assert.equal(f.writes(),0);
+});
+
+test("visitor miss queues once without calling SEC", async () => {
+  const f = fixture();
+  for (let i = 0; i < 10; i++) assert.equal(await requestMissingCompanyFundamentals("AMD", f.dependencies.db), null);
+  assert.equal(f.writes(), 1);
+  assert.equal(f.stored().pending, true);
+  assert.equal(f.requests(), 0);
+});
+
+test("visitor reads do not refresh existing data or retry failed/unavailable work", async () => {
+  for (const initial of [
+    {version: 1, value: {fetchedAt: "2020-01-01T00:00:00Z"}, refreshAfter: 0},
+    {version: 1, pending: true},
+    {outcome: "error"}, {outcome: "retry"},
+    {outcome: "unavailable", requestedAt: "2020-01-01T00:00:00Z", refreshAfter: 0},
+  ]) {
+    const f = fixture(initial);
+    const result = await requestMissingCompanyFundamentals("AMD", f.dependencies.db);
+    assert.equal(f.writes(), 0);
+    assert.equal(f.transactions(), 0);
+    assert.equal(f.requests(), 0);
+    if ('value' in initial) assert.equal(result?.stale, true);
+    else assert.equal(result, null);
+  }
 });
