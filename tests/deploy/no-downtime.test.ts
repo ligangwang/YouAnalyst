@@ -19,6 +19,7 @@ test('candidate checks reject wrong versions and failed pages before promotion',
   const options = {url: 'https://candidate.invalid', revision: 'rev-2', commit: 'abc'};
   const ok = async (url: string | URL | Request) => String(url).endsWith('/api/health')
     ? Response.json({status: 'ok', commitSha: 'abc', revision: 'rev-2'})
+    : String(url).includes('/api/intelligence?') ? Response.json({graph:{nodes:[{kind:'COMPANY'}]}})
     : new Response('<html>' + 'x'.repeat(1100) + '</html>');
   await verifyCandidate({...options, request: ok});
   await assert.rejects(verifyCandidate({...options, commit: 'wrong', request: ok}), /commit mismatch/);

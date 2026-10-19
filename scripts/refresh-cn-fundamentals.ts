@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { getFirestore } from "../src/lib/firebase/firestore";
 import { loadFundamentalsCompanyIds } from "../src/lib/fundamentals/company-scope";
@@ -61,4 +62,4 @@ async function main() {
     if (!dryRun) await releaseMaintenanceLease(lease, log.runId);
   }
 }
-main().catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });
+main().finally(closeLocalCaches).catch(error => { log.emit("ERROR", "run_failed", { error: maintenanceError(error) }); process.exitCode = 1; });

@@ -1,4 +1,4 @@
-import { centralDocuments } from '../central-cache/client';
+import { localDocuments } from '../local-cache/entities';
 import type { Firestore, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { changeCached, readCacheState, withCacheReadScope } from '../change-cache';
 import { companyVersions, hasCompanyIndex, loadCompanyDocuments } from '../company-document-cache';
@@ -61,11 +61,11 @@ function loadStore(db: Firestore): Promise<Store> {
   });
 }
 export async function loadAllRelationships(db: Firestore) {
-  const central=await centralDocuments(db,'company_relationships');if(central)return {docs:central as QueryDocumentSnapshot[]};
+  const local=await localDocuments(db,'company_relationships');if(local)return {docs:local as QueryDocumentSnapshot[]};
   return {docs:[...(await loadStore(db)).docs.values()]};
 }
 async function select(db: Firestore, field: Field, value: string) {
-  const central=await centralDocuments(db,'company_relationships',undefined,field==='status'?{status:value}:{theme:value});if(central)return {docs:central as QueryDocumentSnapshot[]};
+  const local=await localDocuments(db,'company_relationships',undefined,field==='status'?{status:value}:{theme:value});if(local)return {docs:local as QueryDocumentSnapshot[]};
   const store = await loadStore(db);
   return {docs:[...(store.indexes[field].get(value) ?? [])].map(id => store.docs.get(id)!)};
 }
@@ -73,7 +73,7 @@ export function loadPublishedRelationships(db: Firestore) { return select(db,'st
 export function loadThemeRelationships(db: Firestore, theme: string) { return select(db,'themeIds',theme); }
 /** Union incoming/outgoing edges and exact IDs, including suppressed or malformed rows. */
 export async function loadCompanyRelationships(db: Firestore, companyIds: readonly string[], exactIds: readonly string[] = []) {
-  const central=await centralDocuments(db,'company_relationships',undefined,{companyIds:[...companyIds],exactIds:[...exactIds]});if(central)return {docs:central as QueryDocumentSnapshot[]};
+  const local=await localDocuments(db,'company_relationships',undefined,{companyIds:[...companyIds],exactIds:[...exactIds]});if(local)return {docs:local as QueryDocumentSnapshot[]};
   const store = await loadStore(db), ids = new Set(exactIds);
   for (const companyId of companyIds) for (const field of ['source','target'] as const) {
     for (const id of store.indexes[field].get(companyId) ?? []) ids.add(id);
@@ -83,7 +83,7 @@ export async function loadCompanyRelationships(db: Firestore, companyIds: readon
 
 /** Match the existing Firestore document-ID range and limit before edge validation. */
 export async function loadFilingRelationships(db: Firestore, prefix: string, limit = 100) {
-  const central=await centralDocuments(db,'company_relationships',undefined,{prefix,limit});if(central)return {docs:central as QueryDocumentSnapshot[]};
+  const local=await localDocuments(db,'company_relationships',undefined,{prefix,limit});if(local)return {docs:local as QueryDocumentSnapshot[]};
   const store = await loadStore(db), lower = Buffer.from(prefix), upper = Buffer.from(`${prefix}\uf8ff`);
   let start=0, end=store.sortedIds.length;
   while(start<end) { const mid=(start+end)>>>1; if(Buffer.compare(Buffer.from(store.sortedIds[mid]),lower)<0)start=mid+1;else end=mid; }

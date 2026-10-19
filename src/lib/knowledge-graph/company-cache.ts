@@ -1,4 +1,4 @@
-import { centralDocuments } from '../central-cache/client';
+import { localDocuments } from '../local-cache/entities';
 import type { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 import { changeCached, readCacheState, withCacheReadScope } from '../change-cache';
 import { COMPANY_THEMES } from '../company-themes/model';
@@ -11,7 +11,7 @@ const enrolled = new WeakMap<Firestore, Promise<Enrollment>>();
 /** Reuse enrollment records across graph rebuilds until company data changes. */
 export function loadThemeEnrolledCompanies(db: Firestore) {
   return withCacheReadScope(async () => {
-    const central=await centralDocuments(db,'companies');if(central)return {docs:central};
+    const local=await localDocuments(db,'companies');if(local)return {docs:local};
     const state = await readCacheState(db);
     if (!hasCompanyIndex(state, 'companies')) {
       enrolled.delete(db);

@@ -148,17 +148,13 @@ test("legacy fresh SEC snapshots are queued once for share metadata without bypa
  await refreshCompanyFundamentals("AMD",cooldown.dependencies);assert.equal(cooldown.requests(),0);
 });
 
-test('company page fundamentals use central snapshots and still transactionally check writes',async(t)=>{
- const {encode}=await import('../../src/lib/central-cache/codec');
- const prior=process.env.CENTRAL_CACHE_URL;process.env.CENTRAL_CACHE_URL='http://127.0.0.1:8088';
- t.after(()=>{if(prior===undefined)delete process.env.CENTRAL_CACHE_URL;else process.env.CENTRAL_CACHE_URL=prior;});
+test('company page push cache retains transactional checks for a cached absence',async()=>{
  const value={fetchedAt:new Date().toISOString(),shareAssessment:{version:4},metrics:[]};
- let rows:unknown[]=[{id:'US:AMD',data:{version:1,value,pending:false,refreshAfter:Date.now()+7*86400000}}];
- t.mock.method(globalThis,'fetch',async(_url:unknown,options:RequestInit)=>{
-  assert.deepEqual(JSON.parse(String(options.body)),{collection:'company_fundamentals',ids:['US:AMD']});return new Response(JSON.stringify(encode(rows)));
- });
  const f=fixture({version:1,value,pending:false,refreshAfter:Date.now()+7*86400000});
+ const original=f.dependencies.db.collection.bind(f.dependencies.db);
+ let push:(value:unknown)=>void=()=>{};
+ const query={where:()=>query,doc:(id:string)=>original('company_fundamentals').doc(id),onSnapshot:(next:(value:unknown)=>void)=>{push=next;next({docs:[{id:'US:AMD',exists:true,data:f.stored,get:(key:string)=>f.stored()[key]}]});return ()=>{};}};
+ f.dependencies.db.collection=(()=>query) as unknown as typeof f.dependencies.db.collection;
  assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),0);
- // A cached absence must not overwrite a concurrently completed source document.
- rows=[];assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),1);assert.equal(f.writes(),0);
+ push({docs:[]});assert.ok(await requestCompanyFundamentals('AMD',f.dependencies.db));assert.equal(f.transactions(),1);assert.equal(f.writes(),0);
 });

@@ -1,4 +1,5 @@
-import { centralRequest } from './central-cache/client';
+import { localEntityVersions } from './local-cache/entities';
+import { Watch, track } from './local-cache/watch';
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {randomUUID} from 'node:crypto';
@@ -12,6 +13,7 @@ export type CacheCollection = typeof CHANGE_CACHE_COLLECTIONS[number];
 export type State = { enabled?: boolean; versions?: Record<string, string>; companyIndexes?: Record<string, CompanyIndex>; collectorDocumentsTracked?: boolean; collectorDocumentsVersion?: string; collectorGeneration?: string };
 type Entry = { version: string; value: Promise<unknown> };
 const caches = new WeakMap<Firestore, Map<string, Entry>>();
+const pushedStates = new WeakMap<Firestore, Watch<State>>();
 const pendingStates = new WeakMap<Firestore, Promise<State>>();
 const scopes=new AsyncLocalStorage<Map<Firestore,Promise<State>>>();
 export function withCacheReadScope<T>(work:()=>Promise<T>):Promise<T>{
@@ -20,6 +22,13 @@ export function withCacheReadScope<T>(work:()=>Promise<T>):Promise<T>{
 
 /** Coalesce concurrent checks only. Never keep a version check on a timer. */
 export async function readCacheState(db: Firestore): Promise<State> {
+  const ref=db.collection('collectors').doc(CHANGE_CACHE_DOCUMENT);
+  if(typeof ref.onSnapshot==='function'){
+    let watch=pushedStates.get(db);
+    if(!watch){watch=track(new Watch<State>((next,error)=>ref.onSnapshot(doc=>next((doc.data()??{}) as State),error)));pushedStates.set(db,watch);}
+    const state=await watch.read();
+    return {...state,versions:{...state.versions,...localEntityVersions(db)}};
+  }
   const scope=scopes.getStore(),scoped=scope?.get(db);if(scoped)return scoped;
   const pending = pendingStates.get(db); if (pending) { scope?.set(db,pending); return pending; }
   const request = db.collection('collectors').doc(CHANGE_CACHE_DOCUMENT).get().then(doc => (doc.data() ?? {}) as State);
@@ -112,7 +121,8 @@ export async function applyCacheChange(db: Firestore, headers: Headers, project:
     }
     if (process.env.CENTRAL_CACHE_URL) {
       await db.collection('collectors').doc(CHANGE_CACHE_DOCUMENT).set({versions:{[collection]:randomUUID()}},{merge:true});
-      if(await centralRequest('/change',{collection,ids:[id]})===undefined)throw Error('Central cache change delivery failed');
+      // Rolling compatibility: old readers still observe versions and tombstones.
+      // New local subscribers receive changed IDs/data directly from Firestore.
       return;
     }
     await invalidateCompanyDocuments(db, collection, [id], {

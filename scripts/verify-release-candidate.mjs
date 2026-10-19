@@ -15,6 +15,11 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
     assert(html.length > 1000 && /<html/i.test(html), `Candidate ${path} did not return an application page`);
     assert(!/The requested URL was not found on this server/.test(html));
   }
+  // Exercise the data path before promotion, not only an HTML shell/health check.
+  const graphResponse=await request(`${url}/api/intelligence?theme=ai&section=universe`,{signal:AbortSignal.timeout(60000)});
+  assert.equal(graphResponse.status,200,'Candidate graph failed; existing traffic stays unchanged');
+  const graph=await graphResponse.json();
+  assert(Array.isArray(graph.graph?.nodes)&&graph.graph.nodes.some(node=>node.kind==='COMPANY'),'Candidate graph has no companies');
   console.log(`Candidate ${revision} verified before traffic promotion.`);
 }
 if(process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

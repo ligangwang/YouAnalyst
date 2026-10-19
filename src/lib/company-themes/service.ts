@@ -1,4 +1,4 @@
-import { centralDocuments } from '../central-cache/client';
+import { localDocuments } from '../local-cache/entities';
 import { loadThemeEnrolledCompanies } from '../knowledge-graph/company-cache';
 import type { ExchangeRegion } from '../market-companies/exchange-region';
 import type { Firestore } from 'firebase-admin/firestore';
@@ -17,8 +17,8 @@ export async function loadThemeCompanies(theme: CompanyThemeId, db = getAdminFir
 
 /** Include negative decisions so legacy graph enrollment cannot override them. */
 async function loadEnrollmentRecords(db: Firestore, region?: ExchangeRegion) {
-  const central = await centralDocuments(db, 'companies', undefined, undefined, undefined, region);
-  if (central !== undefined) return central;
+  const local = await localDocuments(db, 'companies', undefined, undefined, undefined, region);
+  if (local !== undefined) return local;
   let query = db.collection('companies').where('themeIds', 'array-contains-any', [...COMPANY_THEMES]);
   if (region) query = query.where('exchange_region', '==', region);
   const snapshot = await query.get();

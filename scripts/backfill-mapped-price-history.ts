@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 import { observeFirestore } from '../src/lib/firebase/firestore-observability';
 import { Firestore } from '@google-cloud/firestore';
 import { Storage, type StorageOptions } from '@google-cloud/storage';
@@ -37,7 +38,7 @@ if (process.argv.includes('--write')) {
   }
 }
 }
-main().catch((error: unknown)=>{
+main().finally(closeLocalCaches).catch((error: unknown)=>{
   let message=error instanceof Error ? error.message : 'Unknown error';
   for(const secret of [process.env.GOOGLE_OAUTH_ACCESS_TOKEN,process.env.EODHD_API_TOKEN]) if(secret) message=message.replaceAll(secret,'[redacted]');
   console.error(JSON.stringify({error:'Historical backfill failed',message}));process.exitCode=1;
