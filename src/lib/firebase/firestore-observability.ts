@@ -101,7 +101,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
             const docs=changes.filter((change:any)=>change.type!=='removed').map((change:any)=>change.doc);
             emit('listen',shape,site,{status:'success',initial,documentsReturned:docs.length,documentsRemoved:changes.length-docs.length,
               changedIds:changes.map((change:any)=>change.doc.id),documentsByCollection:{[shape.collection]:docs.length}});
-            initial=false;next(value);
+            initial=false;next(snapshot(value));
           },(failure:any)=>{emit('listen',shape,site,{status:'error',errorCode:failure?.code??'unknown'});error?.(failure);},...rest]);
         }
         if (method === 'batch') return wrap(invoke(), 'batch', shape);
