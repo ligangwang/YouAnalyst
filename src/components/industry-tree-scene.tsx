@@ -494,10 +494,11 @@ function Scene(props:TreeSceneProps){
       touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
     {props.vertical&&<>
       <TreeMeadowEnvironment nodes={renderedNodes} layoutNodes={all} paused={props.paused}/>
-      <hemisphereLight args={['#dce8f3','#495632',1.15]}/>
-      <directionalLight position={[2100,4400,-2200]} color="#ffe2a0" intensity={3.2}/>
-      <directionalLight position={[-1600,1700,1400]} color="#b9d4ec" intensity={.8}/>
-      <directionalLight position={[600,900,-1800]} color="#d6edb2" intensity={.65}/>
+      {/* Starlit dusk: cool sky fill, a warm afterglow rim from behind the tree and soft moonlight in front. */}
+      <hemisphereLight args={['#7c84d0','#26331f',.9]}/>
+      <directionalLight position={[-1400,300,-2600]} color="#ffc27a" intensity={2.6}/>
+      <directionalLight position={[1600,2600,2200]} color="#aab8ff" intensity={.9}/>
+      <directionalLight position={[600,900,-1800]} color="#d6b8ff" intensity={.45}/>
     </>}
     {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}

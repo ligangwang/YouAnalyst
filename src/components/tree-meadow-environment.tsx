@@ -7,6 +7,7 @@ import {verticalJitter as jitter,verticalTreeCrownCap,VERTICAL_SOIL_Y} from '@/l
 import {leafClusterTexture,meadowTexture} from '@/lib/ui/knowledge-graph/leaf-texture';
 import {createMeadowClock,meadowMaterial} from '@/lib/ui/knowledge-graph/tree-cinematic-material';
 import {TreeCinematicAtmosphere} from './tree-cinematic-atmosphere';
+import {TreeGalaxies} from './tree-galaxies';
 
 const noHit=()=>{};
 type Plant={position:[number,number,number];scale:[number,number,number];rotation:[number,number,number];color:string};
@@ -75,7 +76,7 @@ const Canopy=memo(function Canopy({node,crown,map,material,crownCap=false}:{node
 },(a,b)=>a.node.id===b.node.id&&a.map===b.map&&a.material===b.material&&a.crownCap===b.crownCap&&a.crown[0]===b.crown[0]&&a.crown[1]===b.crown[1]&&a.node.position.every((value,i)=>value===b.node.position[i]));
 
 // A cumulus is a cluster of squashed puffs: tall in the middle, trailing off
-// at the ends, with a flat base. Lit from above, so the underside greys softly.
+// at the ends, with a flat base. At dusk they glow faintly violet from within.
 function Clouds(){
  const ref=useRef<InstancedMesh>(null);
  const puffs=useMemo(()=>Array.from({length:11},(_,i)=>{
@@ -91,9 +92,26 @@ function Clouds(){
   puffs.forEach((puff,index)=>{dummy.position.set(puff.x,puff.y,puff.z);dummy.rotation.set(0,puff.angle,0);dummy.scale.set(puff.s*820,puff.s*480,puff.s*620);dummy.updateMatrix();mesh.setMatrixAt(index,dummy.matrix);});
   mesh.instanceMatrix.needsUpdate=true;mesh.computeBoundingSphere();
  },[puffs]);
- return <instancedMesh ref={ref} args={[undefined,undefined,puffs.length]} raycast={noHit}><sphereGeometry args={[1,12,8]}/><meshStandardMaterial color="#fff8e9" emissive="#d9e6f2" emissiveIntensity={.38} roughness={1}/></instancedMesh>;
+ return <instancedMesh ref={ref} args={[undefined,undefined,puffs.length]} raycast={noHit}><sphereGeometry args={[1,12,8]}/><meshStandardMaterial color="#8c7bb0" emissive="#5d4b8c" emissiveIntensity={.55} roughness={1}/></instancedMesh>;
 }
-const MOUNTAIN_TONES=[['#7f9db6','#c3d4e3'],['#6b8f9c','#a3bfc6'],['#58806a','#8eae96']];
+const SKY_SHADER=`varying vec3 direction;
+float hash(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
+float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fbm(vec3 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*noise(p);p*=2.03;a*=.5;}return v;}
+void main(){
+ vec3 d=normalize(direction);float h=max(0.,d.y);
+ vec3 sky=mix(vec3(.26,.22,.4),vec3(.11,.1,.3),smoothstep(0.,.12,h));
+ sky=mix(sky,vec3(.02,.035,.13),smoothstep(.08,.55,h));
+ float band=exp(-pow(dot(d,normalize(vec3(.57,-.62,-.44)))/.2,2.))*smoothstep(.04,.3,h);
+ // Noise is the costliest part of the sky; evaluate it only inside the Milky Way band.
+ if(band>.01)sky+=band*(vec3(.3,.24,.58)*fbm(d*3.5)+vec3(.28,.36,.66)*smoothstep(.45,.8,fbm(d*9.+3.)));
+ vec3 heading=normalize(vec3(d.x,0.,d.z)+1e-4);
+ float behind=pow(max(0.,dot(heading,normalize(vec3(-.35,0.,-1.)))),4.);
+ sky+=vec3(1.,.7,.34)*exp(-h*5.)*(.08+.8*behind)+vec3(1.,.86,.6)*exp(-h*14.)*behind*.5;
+ gl_FragColor=vec4(sky,1.);
+}`;
+const MOUNTAIN_TONES=[['#2c2f5a','#5a5488'],['#232a4c','#47487a'],['#1b2b33','#34465a']];
 
 export function TreeMeadowEnvironment({nodes,layoutNodes=nodes,paused=false}:{nodes:TreePoint[];layoutNodes?:TreePoint[];paused?:boolean}){
  const limbs=nodes.filter(node=>node.kind==='branch'&&node.layer!=='energy');
@@ -117,7 +135,7 @@ export function TreeMeadowEnvironment({nodes,layoutNodes=nodes,paused=false}:{no
   const colors=[];
   for(let i=0;i<positions.count;i++){
    const x=positions.getX(i),z=positions.getZ(i);positions.setY(i,groundHeight(x,z));
-   const color=new Color('#588335').lerp(new Color('#a8b85e'),.4+.22*Math.sin(x/360)*Math.cos(z/550)+jitter(`ground${i}`)*.18);colors.push(...color.toArray());
+   const color=new Color('#1d4519').lerp(new Color('#4f7a2a'),.4+.22*Math.sin(x/360)*Math.cos(z/550)+jitter(`ground${i}`)*.18);colors.push(...color.toArray());
   }
   geometry.setAttribute('color',new Float32BufferAttribute(colors,3));
   geometry.computeVertexNormals();return geometry;
@@ -136,7 +154,7 @@ export function TreeMeadowEnvironment({nodes,layoutNodes=nodes,paused=false}:{no
  // a much denser one made software-rendered and low-end GPUs visibly slower.
  const mountains=useMemo(()=>Array.from({length:3},(_,layer)=>{
   const geometry=new PlaneGeometry(120000,12000,240,4);const positions=geometry.attributes.position;
-  const [base,peak]=MOUNTAIN_TONES[layer].map(hex=>new Color(hex)),snow=new Color('#f4f8fb'),colors=[];
+  const [base,peak]=MOUNTAIN_TONES[layer].map(hex=>new Color(hex)),snow=new Color('#b6b4dc'),colors=[];
   const near=layer/2,color=new Color();
   for(let i=0;i<positions.count;i++){
    const x=positions.getX(i),v=(positions.getY(i)+6000)/12000;
@@ -153,17 +171,18 @@ export function TreeMeadowEnvironment({nodes,layoutNodes=nodes,paused=false}:{no
  }),[]);
  useEffect(()=>()=>{terrain.dispose();mountains.forEach(geometry=>geometry.dispose());},[terrain,mountains]);
  return <>
-  <color attach="background" args={['#bdd6de']}/>
-  <fog attach="fog" args={['#e2dcc2',7500,33000]}/>
+  <color attach="background" args={['#0b1030']}/>
+  <fog attach="fog" args={['#2f2c55',7500,33000]}/>
   <group name="meadow-environment">
-  {/* Sky: pale, warm haze at the horizon deepening to blue overhead, with a soft halo around the sun. */}
+  {/* Night sky: deep indigo overhead over a violet band of Milky Way dust, with a warm afterglow along the horizon behind the tree. */}
   <mesh raycast={noHit}><sphereGeometry args={[65000,32,20]}/><shaderMaterial side={BackSide} depthWrite={false} toneMapped={false}
    vertexShader="varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}"
-   fragmentShader="varying vec3 direction;void main(){vec3 d=normalize(direction);float h=max(0.,d.y);vec3 horizon=vec3(.9,.94,.93);vec3 sky=mix(horizon,vec3(.58,.8,.94),smoothstep(0.,.16,h));sky=mix(sky,vec3(.2,.5,.84),smoothstep(.12,.9,h));float sun=max(0.,dot(d,normalize(vec3(.5,.7,-.6))));sky+=vec3(1.,.86,.62)*pow(sun,6.)*.2+vec3(1.,.96,.84)*pow(sun,260.)*.8;gl_FragColor=vec4(sky,1.);}"/></mesh>
-  <mesh rotation={[-Math.PI/2,0,0]} position={[0,MEADOW_Y-60,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#769d53" roughness={1}/></mesh>
+   fragmentShader={SKY_SHADER}/></mesh>
+  <mesh rotation={[-Math.PI/2,0,0]} position={[0,MEADOW_Y-60,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#26421f" roughness={1}/></mesh>
   <mesh geometry={terrain} raycast={noHit}><meshStandardMaterial vertexColors map={turf} roughness={1}/></mesh>
   {[0,Math.PI/2,Math.PI,Math.PI*1.5].map(angle=><group key={angle} rotation={[0,angle,0]}>{mountains.map((geometry,i)=><mesh key={i} position={[0,0,-23000+i*4500]} geometry={geometry} raycast={noHit}><meshStandardMaterial vertexColors roughness={1} side={DoubleSide}/></mesh>)}</group>)}
   <Clouds/>
+  <TreeGalaxies height={Number.isFinite(high)?high:2400}/>
   <Plants items={grass} material={grassMaterial}/><Plants items={flowers} flower material={grassMaterial}/>{limbs.map(node=><Canopy key={node.id} node={node} crown={crown} map={leaves} material={foliage}/>)}
   {crownCap&&<Canopy node={crownCap} crown={crown} map={leaves} material={foliage} crownCap/>}
   <TreeCinematicAtmosphere clock={clock} paused={paused} top={Number.isFinite(high)?high:2400}/>

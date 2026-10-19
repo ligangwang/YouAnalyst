@@ -90,6 +90,12 @@ test('all workspace panels and views open the selected stock tools without dupli
    await expect(page).toHaveURL(/company=US%3AMU/);
   }
  }
+ // Price chart areas outside the plot, such as its date coverage line, and the activity summary below it.
+ for(const surface of [page.locator('[data-company-timeline] > p').first(),page.getByRole('region',{name:'Theme activity summary',exact:true})]){
+  await surface.click({button:'right'});
+  await expect(tools).toBeVisible();await expect(page.getByRole('dialog',{name:/^Stock tools/})).toHaveCount(1);
+  await page.keyboard.press('Escape');await expect(tools).toHaveCount(0);
+ }
  await page.getByRole('complementary',{name:'Events and sources'}).click({button:'right',position:{x:20,y:20}});
  await tools.getByRole('button',{name:'MACD',exact:true}).click();
  await expect(page).toHaveURL(/chartIndicator=macd/);
