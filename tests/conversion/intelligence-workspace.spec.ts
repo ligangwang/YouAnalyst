@@ -140,6 +140,60 @@ test('workspace right click opens tools without selecting a stock and prevents t
  }
 });
 
+test('Explorer loading and connection errors also open custom stock tools',async({page})=>{
+ const body=await workspaceFixture(false,snapshot,false);
+ let failRequest:()=>void=()=>{};
+ const pending=new Promise<void>(resolve=>{failRequest=resolve;});
+ await page.route('**/*',async route=>{
+  if(route.request().url().includes('/api/intelligence')){await pending;await route.fulfill({status:503,json:{error:'Unavailable'}});}
+  else if(route.request().isNavigationRequest())await route.fulfill({contentType:'text/html',body});
+  else await route.fulfill({status:404,body:''});
+ });
+ await page.goto('http://workspace.test/');
+ await expect(page.locator('main')).toHaveAttribute('aria-busy','true');
+ for(const busy of ['true','false']){
+  await expect(page.locator('main')).toHaveAttribute('aria-busy',busy);
+  expect(await page.locator('main').evaluate(el=>!el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:80,clientY:100})))).toBe(true);
+  await expect(page.getByRole('dialog',{name:'Stock tools',exact:true})).toBeVisible();
+  await page.keyboard.press('Escape');
+  failRequest();
+ }
+});
+
+test('every visible Explorer table target suppresses the browser menu, with and without a selected stock',async({page})=>{
+ await open(page);
+ for(const company of ['', 'US:MU']){
+  await page.goto(`http://workspace.test/?view=table${company?'&company='+encodeURIComponent(company):''}`);
+  await expect(page.getByRole('tab',{name:'Company list',exact:true})).toHaveAttribute('aria-selected','true');
+  await expect(page.locator('[data-list-company]').first()).toBeVisible();
+  const uncovered=await page.locator('main').evaluate(root=>{
+   // Include nested labels, links, table cells, activity entries, and disabled
+   // controls. Capture must win even if a descendant stops propagation.
+   return [...root.querySelectorAll('*')].filter(el=>el.getClientRects().length&&!el.closest('[data-event-window]')).flatMap(el=>{
+    el.addEventListener('contextmenu',event=>event.stopPropagation(),{once:true});
+    const event=new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:80,clientY:100});
+    el.dispatchEvent(event);
+    return event.defaultPrevented?[]:[el.outerHTML.slice(0,160)];
+   });
+  });
+  expect(uncovered).toEqual([]);
+  const tools=page.getByRole('dialog',{name:company?'Stock tools · MU':'Stock tools',exact:true});
+  await expect(tools).toBeVisible();
+  await expect(page.getByRole('dialog',{name:/^Stock tools/})).toHaveCount(1);
+  await page.keyboard.press('Escape');
+ }
+});
+
+test('Explorer keeps stock tools available while a theme is loading',async({page})=>{
+ await page.setViewportSize({width:1600,height:1000});
+ await open(page);await page.goto('http://workspace.test/?company=US%3AMU');
+ await page.locator('select[aria-label="Investment theme"]:visible').first().selectOption('space');
+ await expect(page.locator('[data-company-workspace]')).toHaveAttribute('inert','');
+ expect(await page.locator('main').evaluate(el=>!el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:80,clientY:100})))).toBe(true);
+ await expect(page.getByRole('dialog',{name:'Stock tools · MU',exact:true})).toBeVisible();
+ await expect(page.getByRole('dialog',{name:/^Stock tools/})).toHaveCount(1);
+});
+
 test('stock tools work in every fullscreen view with the price chart hidden',async({page})=>{
  await open(page);await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none&chartWatchlist=1');
  const workspace=page.locator('section[aria-label="Company relationship chart"]');

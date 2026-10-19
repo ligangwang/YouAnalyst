@@ -469,7 +469,7 @@ function Scene(props:TreeSceneProps){
         if(!group||!dimensions)return [];
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
         const fade=labelFades.current.get(el),threshold=(node.kind==='company'?.65:.72)+(fade?.visible?0:.04);
-        if(!layerLabelsVisible(node.layer)&&htmlScale<threshold&&!fade?.level)return [];
+        if(!layerLabelsVisible(node.layer)&&node.company?.id!==props.selected&&!pinnedNames.has(node.id)&&htmlScale<threshold&&!fade?.level)return [];
         const left=node.position[0]<0,scale=node.kind==='company'?(layerLabelsVisible(node.layer)?1.15:Math.min(1,Math.max(.7,htmlScale))):1;
         vector.copy(group.position);vector.x+=(left?-1:1)*(node.kind==='company'?16:22)*group.scale.x;
         vector.project(state.camera);

@@ -240,8 +240,8 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
     const target=event.target instanceof Element?event.target:null;
     // The chart owns its own selected stock (including fullscreen search).
     // Floating dialogs retain their current tools; browser menus are suppressed above.
-    if(switching||!target||target.closest('[data-company-timeline],[data-event-window]'))return;
-    event.preventDefault();event.stopPropagation();
+    if(!target||target.closest('[data-company-timeline],[data-event-window]'))return;
+    event.stopPropagation();
     const trigger=target.closest<HTMLElement>('button,a,[tabindex]')??event.currentTarget;
     setStockToolsRequest({companyId:company?.id??'',anchor:eventWindowAnchor(event,trigger)});
   }
@@ -298,7 +298,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
       </div>}
       </>}</div><details className={styles.rightFoot} hidden={eventsPending}><summary>{chinese?'来源状态':'Source status'}{partialCoverage?' · ◐':''}</summary><p><UiText text={"Counts deduplicate source documents."}/></p>{snapshot.truncated&&<p>{chinese?`列表显示最新 ${snapshot.limit} 条；统计独立于列表上限。`:`The list shows the latest ${snapshot.limit} entries; totals are independent of the list limit.`}</p>}{newsCoverage&&<p>{chinese?'公司新闻覆盖':'Company news coverage'} {newsCoverage.configured}/{newsCoverage.total} · {newsCoverage.healthy} {chinese?'正常':'healthy'}</p>}{warnings.map(warning=><p key={warning}><UiText text={warning}/></p>)}</details>
     </aside>
-    {!company&&<WorkspaceStockTools anchor={stockToolsRequest?.anchor??null} onClose={()=>setStockToolsRequest(null)} graph={graph} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} onSelect={id=>selectCompany(id)}/>}
+    {(!company||switching)&&<WorkspaceStockTools companyId={company?.id} anchor={stockToolsRequest?.anchor??null} onClose={()=>setStockToolsRequest(null)} graph={graph} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} onSelect={id=>selectCompany(id)}/>}
     {event&&<EventDetailsWindow event={event} anchor={eventAnchor} returns={snapshot.eventReturns?.[event.id]?.filter(value=>companiesById.has(value.companyId)&&(!activityCompany||value.companyId===activityCompany.id))} symbol={label} onClose={closeEvent}/>}
     {followConfirmation&&<CompanyFollowConfirmation key={followConfirmation.id} label={followConfirmation.label} followed={followConfirmation.followed} anchor={followConfirmation.anchor}/>}
   </main>;

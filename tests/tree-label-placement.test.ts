@@ -30,3 +30,11 @@ test('the current tour representative remains readable when its stem projects be
   assert(placed.box.left>=12&&placed.box.right<=378);
   assert(placed.box.top>=16&&placed.box.bottom<=484);
 });
+
+test('disclosed sectors use another edge when headings fill the nearest phone column',()=>{
+  const phone=box(0,0,390,180),company=box(250,70,100,25);
+  const placed=placeTreeLabel(company,[box(230,0,160,180)],phone,{x:0,y:0},true)!;
+  assert(placed);
+  assert(placed.box.right<=222);
+  assert(placed.box.top>=16&&placed.box.bottom<=164);
+});

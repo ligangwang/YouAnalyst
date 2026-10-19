@@ -12,4 +12,3 @@ export const encode = (value: unknown): Value => value === null ? { nullValue: n
   : typeof value === 'number' ? Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value }
   : typeof value === 'boolean' ? { booleanValue: value } : { stringValue: String(value) };
 export const company = (document: Document): ThemedCompany => ({ ...Object.fromEntries(Object.entries(document.fields).map(([key, value]) => [key, decode(value)])), id: document.name.split('/').at(-1)! });
-
