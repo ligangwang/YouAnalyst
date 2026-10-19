@@ -11,31 +11,9 @@ market-cap updates also use this selected list rather than scanning fundamentals
 The US worker still drains previously queued explicit requests, including those
 outside scheduled theme coverage; this preserves already-requested work.
 
-These local changes require a coordinated data migration before production rollout.
-Do not deploy the new readers against unmigrated data: they deliberately do not
-fall back to raw ticker documents or double-read both keys.
+The one-time legacy-ID copy runner has been retired. Its implementation and original procedure remain in Git history. Current readers and writers use canonical company IDs; removing the runner does not delete legacy production documents.
 
-1. Export/backup the existing collection. Set `GCP_PROJECT_ID` explicitly.
-2. Preview with `npx tsx scripts/migrate-fundamentals-ids.ts`. This performs reads
-   but no writes. Resolve any conflicting source/target pairs before proceeding.
-3. During a maintenance window stop legacy web traffic (page reads can enqueue
-   writes), scheduled jobs, running executions, and Pub/Sub subscriber deliveries
-   that write fundamentals or SEC collector checkpoints. A worker lease alone
-   does not stop all these writers. Keep them paused through verification.
-4. Run `npx tsx scripts/migrate-fundamentals-ids.ts --apply --writers-paused`.
-   This flag is an operator acknowledgement, not an automatic pause mechanism.
-   The script copies entire documents transactionally, including SEC checkpoints,
-   and preserves Firestore field types. It never overwrites a differing target,
-   deletes a source, or creates a new collection. A failure can leave a partial
-   copy; resolve conflicts and rerun while writers remain paused.
-5. Rerun the preview: all existing legacy records must report `identical`.
-   Deploy every affected reader and writer, verify canonical reads and writes,
-   then resume traffic/jobs/deliveries. Retained legacy pending records are ignored
-   by the new US workers. Remove legacy copies only as a separate reviewed cleanup.
-
-After new writers resume, legacy copies become stale. Rolling back to old code
-requires stopping writers and reconciling canonical changes back to legacy keys;
-simply switching revisions would lose checkpoint continuity.
+A future recovery must reconcile any legitimate updates made after the cutover before restoring older data or code. Keep the serving website available throughout recovery.
 
 The standalone full market-cap refresh now pages only the `US:` document-ID range. This excludes
 operational receipts and CN records from that scan; it still reads each US company

@@ -41,7 +41,7 @@ export function ChartStockReview(props:Props){
  const followed=watchlist.ids.includes(props.companyId);
  const close=()=>{setSector('');setSectorsOpen(false);props.closeTools();};
  async function toggleFollow(){
-  if(locked.current||watchlist.loading)return;
+  if(!props.companyId||locked.current||watchlist.loading)return;
   locked.current=true;setPending(true);setFailed(false);
   try{await watchlist.change(props.companyId,!followed);}catch{setFailed(true);}finally{locked.current=false;setPending(false);}
  }
@@ -54,7 +54,7 @@ export function ChartStockReview(props:Props){
   </tr>)}</tbody>
  </table></div>;}
  return <>
-  {props.anchor&&<FloatingEventWindow anchor={props.anchor} title={text('Stock tools','股票工具')+' · '+(selected.symbol??companyName(selected,locale))} closeLabel={text('Close stock tools','关闭股票工具')} onClose={close}>
+  {props.anchor&&<FloatingEventWindow anchor={props.anchor} title={text('Stock tools','股票工具')+(props.companyId?' · '+(selected.symbol??companyName(selected,locale)):'')} closeLabel={text('Close stock tools','关闭股票工具')} onClose={close}>
    <div className={styles.tools}>
     {selectedSector?<>
      <button type="button" onClick={()=>setSector('')}>← {text('Stock tools','股票工具')}</button>
@@ -64,13 +64,14 @@ export function ChartStockReview(props:Props){
      {peers.length?rows(peers):<p>{text('No other covered companies in this sector.','当前覆盖数据中暂无其他同板块公司。')}</p>}
      {selectedSector.sources.length>0&&<details><summary>{text('Classification sources','分类依据')}</summary>{selectedSector.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.title} ↗</a>)}</details>}
     </>:<>
-     <button type="button" disabled={pending||watchlist.loading} aria-pressed={followed} onClick={()=>void toggleFollow()}>{pending?text('Saving…','保存中…'):followed?text('Remove from watchlist','移出自选股'):text('Add to watchlist','加入自选股')}</button>
+     {!props.companyId&&<><p>{text('Select a stock to open its chart and company tools.','选择股票以打开图表和公司工具。')}</p><details><summary>{text('Select stock','选择股票')}</summary>{rows(companies)}</details>{saved.length>0&&<details><summary>{text('Saved stocks','自选股票')}</summary>{rows(saved)}</details>}</>}
+     {props.companyId&&<><button type="button" disabled={pending||watchlist.loading} aria-pressed={followed} onClick={()=>void toggleFollow()}>{pending?text('Saving…','保存中…'):followed?text('Remove from watchlist','移出自选股'):text('Add to watchlist','加入自选股')}</button>
      <details open={sectorsOpen} onToggle={event=>setSectorsOpen(event.currentTarget.open)}><summary>{text('Sectors','所属板块')}</summary>{sectors.length?STOCK_SECTOR_GROUPS.map(group=>{
       const items=sectors.filter(item=>item.group===group.id);
       return items.length>0&&<div key={group.id} role="group" aria-label={chinese?group.zh:group.en} className={styles.sectorGroup}><strong>{chinese?group.zh:group.en}</strong>{items.map(item=><button type="button" key={item.id} onClick={()=>setSector(item.id)}>{chinese?item.zh:item.en} →</button>)}</div>;
      }):<p>{text('Sector classification is not available in the current graph.','当前图谱暂无此公司的板块分类。')}</p>}</details>
      <a href={companyResearchPath(props.companyId,locale)} onClick={close}>{text('Company research','公司研究')} ↗</a>
-     {!props.companyId.startsWith('ORG:')&&<a href={localizedPath('/compare?'+new URLSearchParams({symbols:props.companyId.replace(/^US:/,'')}).toString(),locale)} onClick={close}>{text('Compare performance','对比表现')} ↗</a>}
+     {!props.companyId.startsWith('ORG:')&&<a href={localizedPath('/compare?'+new URLSearchParams({symbols:props.companyId.replace(/^US:/,'')}).toString(),locale)} onClick={close}>{text('Compare performance','对比表现')} ↗</a>}</>}
      <label className={styles.panelToggle}><input type="checkbox" checked={props.showWatchlist} onChange={event=>props.onShowWatchlistChange(event.target.checked)}/>{text('Watchlist','自选股')}</label>
      <hr/><strong>{text('Technical indicators','技术指标')}</strong>
      <button type="button" onClick={()=>{const anchor=props.anchor!;close();props.openAverages(anchor);}}>{text('Moving average settings','均线设置')}…</button>

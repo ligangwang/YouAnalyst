@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
-import {company,encode,type Document} from './migrate-company-themes';
+import {company,encode,type Document} from './lib/firestore-rest';
 import {buildOpenAiUsageEvent} from '../src/lib/openai/usage';
 import {translatedSummary} from '../src/lib/knowledge-graph/summary-translations';
 import {translateHeadlines} from '../src/lib/intelligence/collectors/headline-translations';

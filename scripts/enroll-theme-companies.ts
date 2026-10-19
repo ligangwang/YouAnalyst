@@ -7,7 +7,7 @@ import {pathToFileURL} from 'node:url';
 import {GoogleAuth} from 'google-auth-library';
 import {activeThemeIds, COMPANY_THEMES, type CompanyThemeId, type ThemedCompany} from '../src/lib/company-themes/model';
 import {graphSectors} from '../src/lib/knowledge-graph/sectors';
-import {company, encode, type Document, type Request} from './migrate-company-themes';
+import {company, encode, type Document, type Request} from './lib/firestore-rest';
 import ai from '../data/ai-supply-chain/ai-us.json';
 import cn from '../data/ai-supply-chain/ai-cn-a.json';
 

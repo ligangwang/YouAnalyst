@@ -21,8 +21,9 @@ import {useNodePresence} from './use-node-presence';
 import { TOUR_IDLE_RESUME_MS, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
 import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/ui/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/ui/knowledge-graph/label-fade';
+import {placeTreeLabel} from '@/lib/ui/knowledge-graph/tree-label-placement';
 
-export type TreeSceneProps={tour:{current:boolean};active?:boolean;paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
+export type TreeSceneProps={tour:{current:boolean};active?:boolean;paused?:boolean;vertical?:boolean;layers:TreeLayer[];open:string[];focus:string;selected:string;followedIds:string[];request:number;fitRequest?:number;onToggle:(id:string)=>void;onSelect:(id:string)=>void;onUnavailable:()=>void;onRetry:()=>void};
 const flags=new Set(['CA','CN','FR','GB','IE','NL','SG','TW','US']);
 const NO_TREE_POINTS:TreePoint[]=[];
 class Boundary extends Component<{children:ReactNode;onUnavailable:()=>void},{failed:boolean}>{
@@ -238,6 +239,15 @@ function Scene(props:TreeSceneProps){
     flight.current=createTreeTour({position,target},plan);
     invalidate();
   },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,tourRef]);
+  const appliedFitRequest=useRef(0);
+  useEffect(()=>{
+    if(!props.vertical||!props.fitRequest||props.fitRequest===appliedFitRequest.current||!controls.current)return;
+    appliedFitRequest.current=props.fitRequest;
+    userPositioned.current=true;tourRef.current=false;resumePending.current=false;resumeReady.current=false;
+    if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
+    const shot=treeOverviewShot(all,size.width,size.height);
+    void controls.current.setLookAt(...shot.position,...shot.target,!reduced.current);invalidate();
+  },[props.fitRequest,props.vertical,all,size.width,size.height,invalidate,tourRef]);
   const selectionFocus=useRef('');
   const internalSelection=useRef('');
   const selectCompany=(id:string)=>{internalSelection.current=id;props.onSelect(id);};
@@ -300,6 +310,7 @@ function Scene(props:TreeSceneProps){
       else{const expanded=String(props.open.includes(label.getAttribute('data-tree-node')??''));if(label.getAttribute('aria-expanded')!==expanded)label.setAttribute('aria-expanded',expanded);}
     }
     let moving=false;
+    let labelsChanged=false;
     const now=performance.now();
     const checkCollisions=props.vertical&&now-lastCollision.current>=200;
     const touring=props.tour.current&&plan.length>0&&(!props.vertical||props.open.includes('root'))&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
@@ -332,11 +343,11 @@ function Scene(props:TreeSceneProps){
     // presentation's last layer, so opening any sector visibly reveals names.
     const visitingLayer=presentationFrame&&['ascent','descent'].includes(presentationFrame.phase)?presentationFrame.layer:'';
     const layerLabelsVisible=(layer?:string)=>Boolean(layer&&(disclosedLayers.current.has(layer)||layer===visitingLayer));
-    // Keep one nearby company readable in every manually disclosed sector,
-    // even when narrow-screen collisions would otherwise hide the entire group.
+    // Reserve one nearby company for the current tour layer or each disclosed
+    // sector; on narrow screens its label may dock at the viewport edge.
     const primaryDisclosures=new Map<string,{id:string;distance:number}>();
     for(const node of nodes){
-      if(!node.company||!node.layer||!companyLabels.has(node.id)||!disclosedLayers.current.has(node.layer)||!labels.current.has(node.id))continue;
+      if(!node.company||!node.layer||!companyLabels.has(node.id)||!layerLabelsVisible(node.layer)||!labels.current.has(node.id))continue;
       const [x,y,z]=node.position,distance=(x-state.camera.position.x)**2+(y-state.camera.position.y)**2+(z-state.camera.position.z)**2;
       if(distance<(primaryDisclosures.get(node.layer)?.distance??Infinity))primaryDisclosures.set(node.layer,{id:node.id,distance});
     }
@@ -400,9 +411,10 @@ function Scene(props:TreeSceneProps){
           // Pin the selected label's shape: a card following its bounds must not
           // move back and forth as the card covers/uncover its hover target.
           const intentional=Boolean(props.selected&&target.node.company?.id===props.selected)||pinnedNames.has(target.node.id)||label.matches(':focus')||(!props.selected&&label.matches(':hover'));
-          const wanted=intentional||((layerLabelsVisible(target.node.layer)||htmlScale>=threshold+(fade.visible?0:.04))&&!collisionLabels.current.has(target.node.id));
+          const wanted=(intentional||layerLabelsVisible(target.node.layer)||htmlScale>=threshold+(fade.visible?0:.04))&&!collisionLabels.current.has(target.node.id);
           const previous=fade.level;
           const result=advanceLabelFade(fade,wanted,now,reduced.current);
+          if(previous!==fade.level)labelsChanged=true;
           compact=fade.level===0&&!fade.visible;
           label.style.opacity=String(result.opacity*(label.dataset.treeDimmed==='true'?.2:1));
           label.style.pointerEvents=fade.visible||compact?'auto':'none';
@@ -413,6 +425,7 @@ function Scene(props:TreeSceneProps){
           if(previous>0&&compact){lastCollision.current=-Infinity;moving=true;}
         }
         if(compact){
+          label.style.translate='';
           // A compact dot replaces the label: centre it on the node instead of beside it.
           const px=htmlScale*size.height/1100,offset=(target.node.kind==='company'?16:22)*px;
           const dot=target.node.kind==='company'?3+2.4*marketCapScale(target.node.company?.marketCap):12;
@@ -432,8 +445,9 @@ function Scene(props:TreeSceneProps){
       // another. Keep nearby names readable and use dots for competing labels.
       const target=controls.current?.getTarget(new Vector3())??new Vector3();
       const distances=new Map(nodes.map(n=>[n.id,new Vector3(...n.position).distanceToSquared(visitingLayer||disclosedLayers.current.size?state.camera.position:target)]));
-      const ordered=[...nodes].sort((a,b)=>Number(b.company?.id===props.selected)-Number(a.company?.id===props.selected)
-        ||Number(b.kind==='layer'||b.kind==='root')-Number(a.kind==='layer'||a.kind==='root')
+      const ordered=[...nodes].sort((a,b)=>Number(b.kind==='layer'||b.kind==='root')-Number(a.kind==='layer'||a.kind==='root')
+        ||Number(b.company?.id===props.selected)-Number(a.company?.id===props.selected)
+        ||Number(pinnedNames.has(b.id))-Number(pinnedNames.has(a.id))
         ||Number(b.kind==='company'&&disclosedLayers.current.has(b.layer??''))-Number(a.kind==='company'&&disclosedLayers.current.has(a.layer??''))
         ||Number(layerLabelsVisible(b.layer))-Number(layerLabelsVisible(a.layer))
         ||distances.get(a.id)!-distances.get(b.id)!);
@@ -445,11 +459,17 @@ function Scene(props:TreeSceneProps){
         if(!el)return [];
         if(node.company&&!companyLabels.has(node.id))return [];
         if(node.kind!=='company'&&node.kind!=='branch')return [[node.id,el.getBoundingClientRect()] as const];
+        // Html and left-facing wrappers apply their own transforms. Once a
+        // label is expanded, use its actual painted box rather than guessing it.
+        if(el.dataset.compact!=='true'){
+          const rect=el.getBoundingClientRect(),offset=Number(el.dataset.labelOffset??0),offsetX=Number(el.dataset.labelOffsetX??0);
+          return [[node.id,new DOMRect(rect.x-offsetX,rect.y-offset,rect.width,rect.height)] as const];
+        }
         const group=groups.current.get(node.id),dimensions=labelSizes.current.get(el);
         if(!group||!dimensions)return [];
         const htmlScale=1100/(2*Math.tan(Math.PI/8)*group.position.distanceTo(state.camera.position));
         const fade=labelFades.current.get(el),threshold=(node.kind==='company'?.65:.72)+(fade?.visible?0:.04);
-        if(!layerLabelsVisible(node.layer)&&htmlScale<threshold&&!fade?.level)return [];
+        if(!layerLabelsVisible(node.layer)&&node.company?.id!==props.selected&&!pinnedNames.has(node.id)&&htmlScale<threshold&&!fade?.level)return [];
         const left=node.position[0]<0,scale=node.kind==='company'?(layerLabelsVisible(node.layer)?1.15:Math.min(1,Math.max(.7,htmlScale))):1;
         vector.copy(group.position);vector.x+=(left?-1:1)*(node.kind==='company'?16:22)*group.scale.x;
         vector.project(state.camera);
@@ -457,19 +477,23 @@ function Scene(props:TreeSceneProps){
         const x=canvasBounds.left+(vector.x+1)*size.width/2,y=canvasBounds.top+(1-vector.y)*size.height/2;
         return [[node.id,new DOMRect(x-(left?width:0),y,width,height)] as const];
       }));
-      const occupied:{id:string;box:DOMRect;retiring?:boolean}[]=ordered.flatMap(node=>{
-        const el=labels.current.get(node.id),box=bounds.get(node.id),fade=el&&labelFades.current.get(el);
-        return box&&fade&&!fade.visible&&fade.level>0?[{id:node.id,box,retiring:true}]:[];
-      });
+      const occupied:{id:string;box:DOMRect}[]=[];
       const previousCollisions=new Set(collisionLabels.current);
       collisionLabels.current.clear();
       for(const node of ordered){
         const box=bounds.get(node.id);if(!box)continue;
         if(node.kind==='company'||node.kind==='branch'){
-          const el=labels.current.get(node.id),fade=el&&labelFades.current.get(el);
-          if(occupied.some(({id,box:r,retiring})=>id!==node.id&&!(retiring&&fade?.visible)&&box.left<r.right+5&&box.right>r.left-5&&box.top<r.bottom+5&&box.bottom>r.top-5)){
+          const el=labels.current.get(node.id)!;
+          const placed=placeTreeLabel(box,occupied.map(entry=>entry.box),canvasBounds,{x:Number(el.dataset.labelOffsetX??0),y:Number(el.dataset.labelOffset??0)},pinnedNames.has(node.id)||node.company?.id===props.selected);
+          if(!placed){
             collisionLabels.current.add(node.id);continue;
           }
+          if(el.dataset.labelOffset!==String(placed.y)||el.dataset.labelOffsetX!==String(placed.x))labelsChanged=true;
+          el.dataset.labelOffset=String(placed.y);
+          el.dataset.labelOffsetX=String(placed.x);
+          el.style.translate=`${placed.x}px ${placed.y}px`;
+          occupied.push({id:node.id,box:new DOMRect(placed.box.left,placed.box.top,placed.box.width,placed.box.height)});
+          continue;
         }
         if(!occupied.some(entry=>entry.id===node.id))occupied.push({id:node.id,box});
       }
@@ -486,12 +510,16 @@ function Scene(props:TreeSceneProps){
       if(particle&&a&&b){particle.visible=!reduced.current;particle.position.copy(a).lerp(b,(state.clock.elapsedTime*.16+i/6)%1);}
     });
     if(flowing.length&&!reduced.current&&!document.hidden)moving=true;
+    if(labelsChanged){
+      window.clearTimeout(labelsSettled.current);
+      labelsSettled.current=window.setTimeout(()=>{lastCollision.current=-Infinity;invalidate();},220);
+    }
     if(moving)invalidate();
   });
   return <>
     <CameraControls ref={controls} makeDefault onWake={()=>{gl.domElement.setAttribute('data-camera','moving');}} onSleep={()=>{gl.domElement.setAttribute('data-camera','idle');invalidate();}}
       mouseButtons={{left:CameraControlsImpl.ACTION.TRUCK,middle:CameraControlsImpl.ACTION.DOLLY,right:props.vertical?CameraControlsImpl.ACTION.ROTATE:CameraControlsImpl.ACTION.TRUCK,wheel:CameraControlsImpl.ACTION.DOLLY}}
-      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} minDistance={180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
+      touches={{one:CameraControlsImpl.ACTION.TOUCH_TRUCK,two:CameraControlsImpl.ACTION.TOUCH_DOLLY_TRUCK,three:CameraControlsImpl.ACTION.TOUCH_TRUCK}} dollySpeed={props.vertical?.45:1} minDistance={props.vertical?700:180} maxDistance={60000} smoothTime={.8/navigation.speed}/>
     {props.vertical&&<>
       <TreeMeadowEnvironment nodes={renderedNodes} layoutNodes={all} paused={props.paused}/>
       {/* Starlit dusk: cool sky fill, a warm afterglow rim from behind the tree and soft moonlight in front. */}
@@ -500,10 +528,10 @@ function Scene(props:TreeSceneProps){
       <directionalLight position={[1600,2600,2200]} color="#aab8ff" intensity={.9}/>
       <directionalLight position={[600,900,-1800]} color="#d6b8ff" intensity={.45}/>
     </>}
-    {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
+    {props.vertical?<VerticalTreeBranches nodes={renderedNodes} groups={groups} focus={props.focus||selectedPath?.open.at(-1)||''}/>:<lineSegments geometry={geometry}><lineBasicMaterial vertexColors transparent opacity={.7}/></lineSegments>}
     {flowing.map(n=><mesh key={n.id} ref={m=>{if(m)particles.current.set(n.id,m);else particles.current.delete(n.id);}}><sphereGeometry args={[2.1,8,8]}/><meshBasicMaterial color={n.color} transparent opacity={.7}/></mesh>)}
     {targets.map(({node,visible,position})=>{
-      const dim=Boolean(props.selected ? node.company?.id!==props.selected && node.kind!=='root' : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
+      const dim=Boolean(props.selected ? node.company?.id!==props.selected && !selectedPath?.open.includes(node.id) : props.focus&&node.id!=='root'&&node.id!==props.focus&&node.layer!==props.focus&&node.branch!==props.focus);
       // In the horizontal tree the root label points away from the layers, so it never covers the middle layer's label.
       const left=Boolean(props.vertical?position[0]<0:node.kind==='root');
       // Layer pills sit on their limb like knots, so fans of sub-branches never run under a label.
@@ -531,7 +559,7 @@ function Scene(props:TreeSceneProps){
         {props.vertical&&node.company&&node.layer==='energy'&&<mesh {...pick} userData={{rootHitTarget:true,minimumRadius:look.glowRadius||radius*2}}><sphereGeometry args={[1,12,8]}/><meshBasicMaterial transparent opacity={0} depthWrite={false}/></mesh>}
         </>}
         {!props.vertical&&node.kind==='layer'&&<mesh position={[0,-15,0]}><cylinderGeometry args={[115,115,3,64]}/><meshBasicMaterial color={node.color} transparent opacity={dim ? .015 : .09} depthWrite={false}/></mesh>}
-        {!node.decorative&&present.has(node.id)&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[15,10]:[5,0]:[15,0]} style={{pointerEvents:'none'}}><div className={`${left&&!centered?styles.labelLeft:''} ${present.get(node.id)?.exiting?styles.exiting:styles.entering}`} style={{animationDuration:`${.8/navigation.speed}s`}}><button
+        {!node.decorative&&present.has(node.id)&&<Html center={centered} position={centered?[0,node.kind==='root'?-25:0,0]:[(left?-1:1)*(node.kind==='company'?16:22),0,0]} distanceFactor={!props.vertical&&(node.kind==='company'||node.kind==='branch')?1100:undefined} zIndexRange={props.vertical?node.kind==='company'?[35,30]:node.kind==='branch'?[25,20]:node.kind==='layer'?[45,40]:[48,46]:[15,0]} style={{pointerEvents:'none'}}><div className={`${left&&!centered?styles.labelLeft:''} ${present.get(node.id)?.exiting?styles.exiting:styles.entering}`} style={{animationDuration:`${.8/navigation.speed}s`}}><button
           ref={el=>{
             if(!el)return;
             labels.current.set(node.id,el);window.clearTimeout(labelsSettled.current);labelsSettled.current=window.setTimeout(invalidate,120);
@@ -546,11 +574,11 @@ function Scene(props:TreeSceneProps){
           aria-label={props.vertical&&(node.company||node.kind==='branch')?[node.label,node.company?.symbol].filter(Boolean).join(' '):undefined}
           data-tree-company={node.company?.id} data-cap-scale={node.company?marketCapScale(node.company.marketCap):undefined}
           aria-expanded={node.kind==='company'?undefined:props.open.includes(node.id)} aria-pressed={node.company?props.selected===node.company.id:undefined}
-          title={node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):props.vertical&&node.kind==='branch'?node.label:undefined}
+          title={props.vertical&&node.kind==='layer'?text(`Explore ${node.count??0} companies`,`探索 ${node.count??0} 家公司`):!props.vertical&&node.company?[node.label,marketCapDescription(node.company.marketCap,locale)].filter(Boolean).join(' · '):undefined}
           onFocus={()=>invalidate()} onBlur={()=>invalidate()} onPointerEnter={()=>invalidate()} onPointerLeave={()=>invalidate()}
           onClick={event=>{event.stopPropagation();if(node.company)selectCompany(node.company.id);else toggleNode(node);}}>
           <strong>{node.company?.country&&flags.has(node.company.country)&&<Image src={`/flags/${node.company.country.toLowerCase()}.svg`} alt="" width={14} height={10} unoptimized/>}{node.label}{node.company&&props.followedIds.includes(node.company.id)&&<span aria-label={text('In watchlist','已加入自选股')}> ★</span>}</strong>
-          {node.company?<small>{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')} <CompanyPriceChange price={node.company.dailyPrice} locale={locale}/></small>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
+          {node.company?<><small>{!props.vertical&&([node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市'))} <CompanyPriceChange price={node.company.dailyPrice} locale={locale} nativeHint={!props.vertical}/></small>{props.vertical&&<span className={styles.companyDetails} aria-hidden="true">{[node.company.symbol,marketCapLabel(node.company.marketCap)].filter(Boolean).join(' · ')||text('Private / unlisted','非上市')}<span>{marketCapDescription(node.company.marketCap,locale)}</span></span>}</>:<span className={styles.count}>{node.count??''} {props.open.includes(node.id)?'−':'+'}</span>}
         </button></div></Html>}
       </group>;
     })}

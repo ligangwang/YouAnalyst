@@ -43,6 +43,12 @@
 .vertical .company {background:#0a151ce8;border-color:#e4f2e929;border-inline-start:2px solid currentColor;box-shadow:0 2px 8px #0005;}
 .vertical .company strong {color:#fff3df;font-weight:600;text-shadow:0 1px 2px #0008;}
 .vertical .company small {color:#d3dce4;}
+.vertical .company {position:relative;max-width:200px;}
+.vertical .company strong {max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+.companyDetails {display:none;position:absolute;bottom:calc(100% + 8px);left:0;width:max-content;max-width:240px;padding:8px 10px;border:1px solid #7298ae66;border-radius:8px;background:#0a1728f5;color:#d9e7f0;font-size:11px;line-height:1.5;white-space:normal;box-shadow:0 6px 20px #0005;pointer-events:none;}
+.companyDetails>span {display:block;color:#a8bfd0;font-size:10px;}
+.labelLeft .companyDetails {left:auto;right:0;}
+.company:hover .companyDetails,.company:focus-visible .companyDetails {display:block;}
 .vertical .company:hover,.vertical .company:focus-visible,.vertical .company[aria-pressed='true'] {background:#102631f2;border-color:currentColor;}
 /* The frame loop fades text before shrinking its hit target; never display:none mid-fade. */
 .vertical .branch,.vertical .company {transition:background .2s;}
@@ -73,6 +79,7 @@
 .embedded .toolbar{position:absolute;right:10px;top:10px;z-index:3;padding:0;border:0}
 .embedded .toolbar>div:first-child{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .embedded .actions button{width:32px;height:32px;border-radius:5px}
+.actions .fitTree,.embedded .actions .fitTree{width:auto;padding:0 10px;font-size:12px;white-space:nowrap}
 .embedded .hint{display:none}
 .recovery{position:absolute;top:12px;left:12px;z-index:70;max-width:calc(100% - 110px);padding:9px 12px;border:1px solid var(--ui-line,#315060);border-radius:5px;background:var(--ui-surface,#0b1722e8);color:var(--ui-text,#b7cdda);font-size:12px}
 .recovery button,.fallback p button{margin-left:5px;color:var(--ui-text,#98e7d6)}

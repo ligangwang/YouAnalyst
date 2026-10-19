@@ -18,6 +18,21 @@ test.beforeAll(async () => {
   }, '.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}*{box-sizing:border-box}body{margin:0;font-family:Arial;--background:#07111d;--foreground:#f8fafc;--color-shell:#0f172a;--color-line:#ffffff30;--text-secondary:#9ba8b7;--text-muted:#8794a4;background:var(--background);color:var(--foreground)}button,input{font:inherit}button{color:inherit;background:transparent}');
 });
 
+for(const chinese of [false,true])test(`comparison custom right-click menu (${chinese?'Chinese':'English'})`,async({page})=>{
+ await page.route('**/*',route=>new URL(route.request().url()).pathname==='/api/compare'?route.fulfill({json:{dates:['2025-01-02','2025-12-31'],series:[{symbol:'AAPL',values:[0,20]}],frequency:'Daily',source:'Fixture'}}):route.fulfill({contentType:'text/html',body:html}));
+ await page.goto(`http://playback.test/${chinese?'zh-cn':'en'}/compare`);
+ await expect(page.getByTestId('comparison-date')).toBeVisible();
+ const chart=page.getByRole('region',{name:chinese?'表现图表':'Performance chart',exact:true});
+ expect(await chart.evaluate(el=>!el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
+ const tools=page.getByRole('dialog',{name:chinese?'对比工具':'Comparison tools',exact:true});await expect(tools).toBeVisible();
+ await tools.getByRole('button',{name:chinese?'条形':'Bar',exact:true}).click();
+ await expect(tools.getByRole('button',{name:chinese?'条形':'Bar',exact:true})).toHaveAttribute('aria-pressed','true');
+ await tools.getByRole('button',{name:chinese?'重播动画':'Replay animation',exact:true}).click();await expect(tools).toHaveCount(0);
+ await expect(page.getByRole('button',{name:chinese?'暂停动画':'Pause animation',exact:true})).toBeVisible();
+ expect(await page.locator('main').evaluate(el=>!el.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
+ await expect(tools).toBeVisible();await page.keyboard.press('Escape');await expect(tools).toHaveCount(0);
+});
+
 for (const chinese of [false, true]) test(`covered company picker and five-year custom range (${chinese ? 'Chinese' : 'English'})`, async ({ page }, info) => {
   const requests: URL[] = [];
   await page.route('**/*', route => {

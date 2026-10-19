@@ -47,7 +47,7 @@ function Plants({items,flower=false,leaf=false,map,material}:{items:Plant[];flow
 // surface and pointing outwards; the sunward side is brighter and the underside
 // falls into shade, so the crown reads as soft volumes of individual leaves.
 const SUN=new Vector3(.45,.8,.4).normalize(),UP=new Vector3(0,1,0);
-const LEAF_SHADE=new Color('#2b5520'),LEAF_MID=new Color('#6e9e3c'),LEAF_LIT=new Color('#e2f59a');
+const LEAF_SHADE=new Color('#244b32'),LEAF_MID=new Color('#5a8653'),LEAF_LIT=new Color('#b3c98a');
 // Lower clumps spread into a broad skirt; upper clumps retain enough volume
 // for a rounded crown rather than a narrow, pointed tip.
 const Canopy=memo(function Canopy({node,crown,map,material,crownCap=false}:{node:TreePoint;crown:[number,number];map:Texture|null;material:MeshStandardMaterial;crownCap?:boolean}){
@@ -61,7 +61,7 @@ const Canopy=memo(function Canopy({node,crown,map,material,crownCap=false}:{node
    const id=`${node.id}:canopy:${i}`,lift=jitter(id,1)*2-1,a=jitter(id,2)*Math.PI*2,ring=Math.sqrt(1-lift*lift);
    direction.set(Math.cos(a)*ring,lift,Math.sin(a)*ring);
    const depth=.4+.6*Math.sqrt(jitter(id,3)),light=Math.max(0,direction.dot(SUN))*depth;
-   color.copy(LEAF_SHADE).lerp(LEAF_MID,Math.min(1,.25+depth*.75+direction.y*.2)).lerp(LEAF_LIT,light*.8).offsetHSL((jitter(id,8)-.5)*.04,0,(jitter(id,9)-.5)*.08);
+   color.copy(LEAF_SHADE).lerp(LEAF_MID,Math.min(1,.25+depth*.75+direction.y*.2)).lerp(LEAF_LIT,light*.5).offsetHSL((jitter(id,8)-.5)*.025,0,(jitter(id,9)-.5)*.045);
    const position:[number,number,number]=[x+direction.x*depth*400*swell,y+90+direction.y*depth*300*swell,z+direction.z*depth*360*swell];
    if(!map){const s=26+jitter(id,4)*30;return {position,scale:[s,s,s],rotation:[jitter(id,5)*Math.PI,jitter(id,6)*Math.PI*2,jitter(id,7)*Math.PI],color:'#'+color.getHexString()};}
    // Twigs grow outwards and a little upwards, each turned about its own stem.

@@ -3,9 +3,8 @@ import {isDeepStrictEqual} from 'node:util';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {GoogleAuth} from 'google-auth-library';
-import {NEWS_SOURCES,IR_SOURCES_REQUIRING_REVIEW} from './seed-news-sources';
 import {validateCompanyNewsSource,type CompanyNewsSource} from '../src/lib/intelligence/collectors/sources';
-import {company,encode,type Request,type Document} from './migrate-company-themes';
+import {company,encode,type Request,type Document} from './lib/firestore-rest';
 
 export async function publishNewsSources({project,sources,request,write=false,backupDir='output/company-theme-backups'}:{project:string;sources:CompanyNewsSource[];request:Request;write?:boolean;backupDir?:string}){
   assert(/^[a-z][a-z0-9-]+$/.test(project)&&sources.length>0&&sources.length<=400,'Explicit project and bounded source batch required');
@@ -53,8 +52,8 @@ export async function publishNewsSources({project,sources,request,write=false,ba
 async function main(){
   const project=process.env.GOOGLE_CLOUD_PROJECT;assert(project,'Set GOOGLE_CLOUD_PROJECT');
   const file=process.argv.find(arg=>arg.startsWith('--batch='))?.slice(8);
-  assert(file||process.argv.includes('--migrate-existing'),'Use --batch=<reviewed JSON> or --migrate-existing');
-  const sources=file?JSON.parse(await readFile(file,'utf8')) as CompanyNewsSource[]:[...NEWS_SOURCES.map(source=>({...source,status:'PUBLISHED' as const,reviewedAt:'2026-10-06'})),...IR_SOURCES_REQUIRING_REVIEW.map(source=>({...source,status:'DRAFT' as const,reviewedAt:'2026-10-06'}))];
+  assert(file&&!process.argv.includes('--migrate-existing'),'Use --batch=<reviewed JSON>');
+  const sources=JSON.parse(await readFile(file,'utf8')) as CompanyNewsSource[];
   const client=process.env.GOOGLE_OAUTH_ACCESS_TOKEN?null:await new GoogleAuth({scopes:['https://www.googleapis.com/auth/datastore']}).getClient();
   const request:Request=async(url,method='GET',data)=>{
     if(client){const response=await client.request({url,method,data,validateStatus:status=>status>=200&&status<300||method==='GET'&&status===404});return response.status===404?null:response.data;}

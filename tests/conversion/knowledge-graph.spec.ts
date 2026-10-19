@@ -163,6 +163,53 @@ test('cinematic tree appears complete immediately, respects reduced motion and p
  await page.waitForTimeout(250);await expect(canvas).toHaveAttribute('data-tree-effect-time',frozen!);
  expect(errors).toEqual([]);
 });
+test('expanded tree keeps company labels clear of headings and uses compact custom hints',async({page,isMobile})=>{
+ test.setTimeout(90000);
+ if(!isMobile)await page.setViewportSize({width:1440,height:1000});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture=treeFixture(['US:GEV','US:NVDA','US:AMD','US:MU','US:MSFT','US:AMZN','US:META','US:GOOGL','US:AAPL']);
+ await page.route('**/*',route=>route.request().url().includes('/api/knowledge-graph')?route.fulfill({json:fixture}):route.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.locator('[data-industry-section="vertical"]'),canvas=tree.locator('canvas');
+ await canvas.scrollIntoViewIfNeeded();
+ await expect(canvas).toHaveAttribute('data-tree-growth','complete');
+ for(const layer of ['energy','chips','infrastructure','models','applications']){
+  const heading=tree.locator(`[data-tree-kind="layer"][data-tree-node="${layer}"]`);
+  await heading.evaluate((el:HTMLButtonElement)=>el.click());
+ }
+ const labels=tree.locator('[data-tree-company][data-label-visible="true"]');
+ await expect.poll(()=>labels.count()).toBeGreaterThan(2);
+ await tree.screenshot({path:test.info().outputPath('readable-expanded-tree.png')});
+ await expect.poll(()=>tree.evaluate(element=>{
+  const boxes=[...element.querySelectorAll('[data-tree-kind="layer"],[data-tree-company][data-label-visible="true"]')].map(el=>({id:el.getAttribute('data-tree-node'),r:el.getBoundingClientRect()})).filter(({r})=>r.width&&r.height);
+  return boxes.flatMap((a,i)=>boxes.slice(i+1).filter(b=>a.r.right>b.r.left&&b.r.right>a.r.left&&a.r.bottom>b.r.top&&b.r.bottom>a.r.top).map(b=>`${a.id} overlaps ${b.id}`));
+ })).toEqual([]);
+ await expect(labels.locator('[title]')).toHaveCount(0);
+ await expect(labels.first()).not.toHaveAttribute('title');
+ await tree.screenshot({path:test.info().outputPath('readable-expanded-tree.png')});
+ await labels.first().focus();
+ await expect(labels.first().locator('span[aria-hidden="true"]').last()).toBeVisible();
+});
+
+test('fit tree restores a parked overview and replay explicitly starts the tour',async({page,isMobile})=>{
+ test.setTimeout(60000);
+ if(!isMobile)await page.setViewportSize({width:1440,height:1000});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const fixture=treeFixture(['US:CEG','US:NVDA','US:MSFT','US:GOOGL','US:AAPL']);
+ await page.route('**/*',route=>route.request().url().includes('/api/knowledge-graph')?route.fulfill({json:fixture}):route.fulfill({contentType:'text/html',body:html}));
+ await page.goto('http://graph.test/map?lang=en&view=tree');
+ const tree=page.locator('[data-industry-section="vertical"]'),canvas=tree.locator('canvas');await canvas.scrollIntoViewIfNeeded();
+ await tree.getByRole('button',{name:'Fit tree',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-user-positioned','true');
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+ const pose=await canvas.getAttribute('data-camera-position');
+ await page.emulateMedia({reducedMotion:'no-preference'});await page.waitForTimeout(600);
+ await expect(canvas).toHaveAttribute('data-camera-position',pose!);
+ await tree.getByRole('button',{name:'Replay tour',exact:true}).click();
+ await expect(canvas).toHaveAttribute('data-tour','playing');
+ await expect(tree.locator('[data-tree-kind="layer"]').first()).toHaveAttribute('title',/Explore \d+ companies/);
+});
+
 test('tree manual views remain parked through release, tab changes and company details',async({page,isMobile})=>{
  await accelerateTours(page);await shortenIdleResume(page);
  test.setTimeout(120000);

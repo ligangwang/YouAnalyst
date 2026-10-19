@@ -42,8 +42,8 @@ News availability is explicit: only publisher feeds with dated, approved-host ar
 
 Private-company listing status is not inferred from a company ID; unverified identities retain `UNKNOWN` until separately verified. No valuation or funding figure is invented.
 
-## Deployment
+## Enrollment and rollout history
 
-`scripts/migrate-space-theme.ts` previews by default. Supply an explicit cloud project and use `--write` only for the reviewed rollout. It backs up existing company and relationship documents, checks the 134-company AI universe, stops on identity/editorial conflicts, writes atomically with update-time/exists preconditions, and verifies prior fields and theme decisions are unchanged. Reruns are idempotent.
+The one-time Space migration runner has been retired. Its original implementation and rollout procedure remain in Git history. Current enrollment uses `scripts/enroll-theme-companies.ts` with an explicit reviewed batch and cloud project; follow the [theme enrollment procedure](../../docs/theme-company-enrollment.md). The historical batch in this directory is an audit record, not a deployment command or live directory.
 
-SpaceX uses the verified Nasdaq ticker SPCX. The migration also retires only the newly created, Space-only unverified ORG:SPACEX record with a canonical redirect; it never removes existing AI or Robotics memberships.
+The original Space rollout used SPCX as the reviewed canonical SpaceX identity and included retirement of the Space-only unverified ORG:SPACEX record with a canonical redirect. That one-time cleanup is historical; current enrollment preserves existing AI and Robotics memberships and does not rerun it.

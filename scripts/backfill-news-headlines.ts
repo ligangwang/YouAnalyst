@@ -2,7 +2,7 @@ import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {FieldValue,type Firestore,type DocumentSnapshot} from 'firebase-admin/firestore';
 import {headlineTargetLocale,translateCollectedHeadlines} from '../src/lib/intelligence/collectors/headline-translations';
-import {company,encode,type Document} from './migrate-company-themes';
+import {company,encode,type Document} from './lib/firestore-rest';
 async function main(){
 const project=process.env.GCP_PROJECT_ID;
 assert(project&&/^[a-z][a-z0-9-]+$/.test(project)&&process.env.GOOGLE_OAUTH_ACCESS_TOKEN,'Explicit project and existing Google access token required');

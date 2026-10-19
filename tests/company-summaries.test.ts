@@ -38,7 +38,7 @@ test('changed source or conflicting stored translation rejects publication befor
  }
 });
 import {publishSummariesRest} from '../scripts/publish-company-summaries';
-import {encode,type Request} from '../scripts/migrate-company-themes';
+import {encode,type Request} from '../scripts/lib/firestore-rest';
 test('REST publication atomically guards source revisions and masks only translated fields',async()=>{
  const requests:{url:string;data:unknown}[]=[];
  const request:Request=async(url,_method,data)=>{
