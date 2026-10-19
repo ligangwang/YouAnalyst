@@ -17,11 +17,13 @@ test('website release validates a pinned candidate before changing traffic', () 
 
 test('candidate checks reject wrong versions and failed pages before promotion', async () => {
   const options = {url: 'https://candidate.invalid', revision: 'rev-2', commit: 'abc'};
-  const ok = async (url: string | URL | Request) => String(url).endsWith('/api/health')
+  const ok = async (url: string | URL | Request, options?: RequestInit) => options?.method === 'POST' || String(url).endsWith('/api/preferences/compare') ? new Response('', {status:401}) : String(url).endsWith('/api/compare/community') ? Response.json({items:[], nextCursor:null}) : String(url).endsWith('/en/compare') ? new Response('<html>Community comparisons · Colors &amp; style templates</html>') : String(url).endsWith('/api/health')
     ? Response.json({status: 'ok', commitSha: 'abc', revision: 'rev-2'})
     : String(url).includes('/api/intelligence?') ? Response.json({graph:{nodes:[{kind:'COMPANY'}]}})
     : new Response('<html>' + 'x'.repeat(1100) + '</html>');
   await verifyCandidate({...options, request: ok});
   await assert.rejects(verifyCandidate({...options, commit: 'wrong', request: ok}), /commit mismatch/);
   await assert.rejects(verifyCandidate({...options, request: async url => String(url).endsWith('/api/health') ? ok(url) : new Response('Not found', {status:404})}), /failed/);
+  await assert.rejects(verifyCandidate({...options, request: async (url, init) => String(url).endsWith('/api/compare/community') && init?.method !== 'POST' ? new Response('Index building', {status:503}) : ok(url, init)}), /ranking index readiness/);
+  await assert.rejects(verifyCandidate({...options, request: async (url, init) => init?.method === 'POST' ? new Response('Unexpected success', {status:201}) : ok(url, init)}), /require sign-in/);
 });
