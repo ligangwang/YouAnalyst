@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
-import { localDocuments } from '../../src/lib/local-cache/entities';
+import { localDocuments, localEntityVersions } from '../../src/lib/local-cache/entities';
 import { Watch, closeLocalCaches } from '../../src/lib/local-cache/watch';
 function fixture(){
  const listeners:{collection:string;ids:string[];next:(snapshot:unknown)=>void;closed:boolean}[]=[];
@@ -15,7 +15,9 @@ test('concurrent overlapping ID lists share initial loads, updates and deletions
  assert.equal(f.listeners.length,2);assert.deepEqual(f.listeners.map(l=>l.ids),[['A','B'],['C']]);
  f.listeners[0].next({docs:[f.doc('A',1),f.doc('B',2)]});f.listeners[1].next({docs:[f.doc('C',3)]});
  assert.deepEqual((await a)!.map(d=>d.id),['A','B']);assert.deepEqual((await b)!.map(d=>d.id),['B','C']);
+ const before=localEntityVersions(f.db).company_fundamentals;
  f.listeners[0].next({docs:[f.doc('B',4)]});
+ assert.notEqual(localEntityVersions(f.db).company_fundamentals,before);
  const result=await localDocuments(f.db,'company_fundamentals',['A','B']);assert.equal(result![0].exists,false);assert.equal(result![1].get('n'),4);assert.equal(f.listeners.length,2);
 });
 test('independent instances receive their own push updates',async(t)=>{

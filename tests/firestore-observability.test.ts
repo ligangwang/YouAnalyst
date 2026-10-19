@@ -144,3 +144,15 @@ test('wrapped references preserve real SDK identity, batches and equality withou
   const query = db.collection('companies').where('themeIds', 'array-contains', 'ai').where('exchange_region', '==', 'US').limit(10);
   assert(query.isEqual(raw.collection('companies').where('themeIds', 'array-contains', 'ai').where('exchange_region', '==', 'US').limit(10)));
 });
+
+
+test('push snapshots log only changed IDs and returned documents, not the whole cached set',()=>{
+ const logs:FirestoreOperationLog[]=[];let deliver:(value:unknown)=>void=()=>{};
+ const query={onSnapshot:(next:(value:unknown)=>void)=>{deliver=next;return ()=>{};}};
+ const db=observeFirestore({collection:()=>query} as unknown as Firestore,entry=>logs.push(entry));
+ const stop=db.collection('companies').onSnapshot(()=>{});
+ deliver({docChanges:()=>[{type:'added',doc:{id:'A'}},{type:'added',doc:{id:'B'}}]});
+ deliver({docChanges:()=>[{type:'modified',doc:{id:'B'}},{type:'removed',doc:{id:'A'}}]});
+ assert.equal(logs[0].documentsReturned,2);assert.equal(logs[1].documentsReturned,1);
+ assert.equal(logs[1].documentsRemoved,1);assert.deepEqual(logs[1].changedIds,['B','A']);assert.equal(logs[1].operation,'listen');stop();
+});
