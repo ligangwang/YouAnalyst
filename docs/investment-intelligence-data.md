@@ -13,7 +13,7 @@ X, Reddit and GitHub remain unavailable until actual ingestion is connected. IR 
 ## Verification and rollout
 
 1. Run `npm run test:graph` and `npm run test:securities`, type checking, lint and a production build.
-2. With authorized Firestore credentials for the existing production project, run `npx tsx scripts/backfill-intelligence-observations.ts` for a read-only preview. Run with `--apply` to persist existing discovery timestamps. Each invocation processes at most 2,000 records; repeat until complete. Do not manufacture arrival times for historical records.
+2. The one-time discovery-timestamp backfill runner has been retired. Retain existing indexed timestamps, the completion marker and the bounded compatibility read; never manufacture arrival times for historical records.
 3. Update the existing SEC collector worker so future discoveries write the indexed field. The current background job change detector includes `src/lib/sec-filings/store.ts`.
 4. Verify `/api/intelligence` on a connected runtime: bounded query succeeds, collector freshness is known, a known accession appears once, baseline history is excluded, and unavailable-source status is accurate.
 5. Verify Today, recent evidence, selected primary-source links and replay with actual timestamped arrivals before enabling this workspace as the default home page.

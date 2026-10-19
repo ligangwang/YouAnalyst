@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {planEnrollment, enrollCompanies, type EnrollmentBatch} from '../scripts/enroll-theme-companies';
-import {encode, company, type Document} from '../scripts/migrate-company-themes';
+import {encode, company, type Document} from '../scripts/lib/firestore-rest';
 import healthcare from '../data/ai-supply-chain/healthcare-enrollment.json';
 import ai from '../data/ai-supply-chain/ai-us.json';
 import cn from '../data/ai-supply-chain/ai-cn-a.json';

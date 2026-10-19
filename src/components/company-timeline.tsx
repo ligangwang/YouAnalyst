@@ -279,6 +279,12 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     if(onSelectCompany&&chartSize!=='full'&&(graph??loadedGraph)?.nodes.some(item=>item.id===node.id)){onSelectCompany(node.id);return;}
     chooseStock({id:node.id,symbol:node.symbol??node.id.split(':').at(-1)??node.id,name:companyName(node,locale),market:node.market,slug:node.slug,exchange:null,micCode:null,type:null});
   }
+  const openStockTools=(event:React.MouseEvent<HTMLElement>)=>{
+    event.preventDefault();
+    if((event.target as Element).closest('[data-event-window]'))return;
+    event.stopPropagation();setHoverPrice(null);setPriceSelection(null);
+    setStockTools({companyId,anchor:eventWindowAnchor(event)});
+  };
   const movingAverageWindow=maSettings&&<FloatingEventWindow role="dialog" anchor={maSettings} title={text('Moving average settings','均线设置')} closeLabel={text('Close MA settings','关闭均线设置')} onClose={()=>setMaSettings(null)}>
       <div role="group" aria-label={text('Moving average lines','均线显示')} className={styles.indicatorControls}>
         {averagePeriods.map((period,index)=><button type="button" key={period} aria-pressed={averages.includes(period)} style={{color:MA_COLORS[index]}} onClick={()=>setAverages(values=>values.includes(period)?values.filter(value=>value!==period):movingAveragePeriods([...values,period]))}>{text('MA','MA')}{period}</button>)}
@@ -290,8 +296,8 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
       </form>
     </FloatingEventWindow>;
   const stockReview=<ChartStockReview companyId={companyId} company={chosenStock?{id:chosenStock.id,kind:'COMPANY',order:0,name:chosenStock.name,symbol:chosenStock.symbol}:undefined} graph={graph??loadedGraph} anchor={stockTools?.companyId===companyId?stockTools.anchor:null} closeTools={closeStockTools} settings={settings} changeSettings={changeSettings} openAverages={setMaSettings} selectCompany={reviewCompany} watchlist={watchlist} showWatchlist={showWatchlist} hideReview={closed} onShowWatchlistChange={show=>updateIndustryBrowse({chartWatchlist:show?'1':''})}/>;
-  if (closed) return <section className={styles.timeline} data-company-timeline={companyId}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button>{movingAverageWindow}{stockReview}</section>;
-  return <section id="company-timeline" ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴") + (chosenStock ? ` · ${chosenStock.name} · ${chosenStock.symbol}` : "")} data-company-timeline={companyId}>
+  if (closed) return <section className={styles.timeline} data-company-timeline={companyId} onContextMenuCapture={openStockTools}><button ref={toggleButton} className={styles.retry} type="button" onClick={() => toggleTimeline(false)}>{text("Show timeline", "显示时间轴")}</button>{movingAverageWindow}{stockReview}</section>;
+  return <section id="company-timeline" ref={chartSizeRef} className={styles.timeline} role={chartSize==='full'?'dialog':undefined} aria-modal={chartSize==='full'||undefined} tabIndex={-1} data-chart-size={chartSize} aria-label={text("Company event and price timeline", "公司事件与股价时间轴") + (chosenStock ? ` · ${chosenStock.name} · ${chosenStock.symbol}` : "")} data-company-timeline={companyId} onContextMenuCapture={openStockTools}>
     <div className={styles.tools} data-chart-toolbar>
       {chosenStock && <span data-chart-company>{chosenStock.name} · {chosenStock.symbol}</span>}
       <a href={researchPath} target="_blank" rel="noopener noreferrer" className={styles.iconButton} aria-label={text('Fundamentals (F10)','基本面（F10）')} title={text('Fundamentals (F10): open company research in a new tab','基本面（F10）：在新标签页打开公司研究页')}><ChartToolbarIcon name="research"/></a>
@@ -332,7 +338,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     {showKdj&&<div className={styles.indicatorLegend}>{['K','D','J'].map((label,index)=><span key={label} style={{color:MA_COLORS[index]}}>{label}</span>)}</div>}
     {showBoll&&<div className={styles.indicatorLegend}>{[text('Upper','上轨'),text('Middle','中轨'),text('Lower','下轨')].map((label,index)=><span key={label} style={{color:MA_COLORS[index]}}>{label}</span>)}{!boll.length&&<span>{text('Insufficient history','历史数据不足')}</span>}</div>}
     {showEvents&&<div className={styles.legend}>{EVENT_TYPES.map(eventType=>{const style=eventPresentation({eventType},chinese);return <span key={eventType} style={{color:categoryColor(style.color)}}>{style.symbol} {style.typeLabel}</span>;})}</div>}
-    <div ref={chart} tabIndex={-1} onContextMenu={event=>{event.preventDefault();event.stopPropagation();setHoverPrice(null);setPriceSelection(null);setStockTools({companyId,anchor:eventWindowAnchor(event)});}} className={styles.chart} style={{height:chartHeight}} data-chart-zoom={view.zoom} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();if(clusterId)closeChooser();else closePriceDetails(true);}}} onClick={e => { if (('pointerType' in e.nativeEvent ? e.nativeEvent.pointerType==='touch' : window.matchMedia('(pointer:coarse)').matches) && !(e.target as Element).closest("button,[data-price-details],[data-event-chooser]")) selectPriceAt(e.clientX); }} onPointerLeave={() => {setHoverDate(null);setHoverPrice(null);}} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
+    <div ref={chart} tabIndex={-1} className={styles.chart} style={{height:chartHeight}} data-chart-zoom={view.zoom} onKeyDown={e=>{if(e.key==='Escape'){e.stopPropagation();if(clusterId)closeChooser();else closePriceDetails(true);}}} onClick={e => { if (('pointerType' in e.nativeEvent ? e.nativeEvent.pointerType==='touch' : window.matchMedia('(pointer:coarse)').matches) && !(e.target as Element).closest("button,[data-price-details],[data-event-chooser]")) selectPriceAt(e.clientX); }} onPointerLeave={() => {setHoverDate(null);setHoverPrice(null);}} onPointerDown={e => e.stopPropagation()} onWheel={e => e.stopPropagation()}>
       <svg tabIndex={0} aria-describedby={chartHelpId} onPointerEnter={e=>{if(e.pointerType==='mouse')e.currentTarget.focus({preventScroll:true});}} onPointerLeave={()=>setHoverPrice(null)} onPointerMove={e=>{
         if(e.pointerType!=='mouse'||!(e.target instanceof Element))return;
         const candle=e.target.closest('[data-price-candle]');

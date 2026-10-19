@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {backfillRelationshipSources} from '../scripts/backfill-relationship-sources';
-import {encode,type Value} from '../scripts/migrate-company-themes';
+import {encode,type Value} from '../scripts/lib/firestore-rest';
 
 test('source backfill deduplicates paid translations and preserves raw Firestore provenance behind revision guards',async()=>{
  const title='Documented partnership';

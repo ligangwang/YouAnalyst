@@ -2,6 +2,7 @@
 
 import { LoadingSpinner } from './loading-spinner';
 import { CompanyTimeline } from './company-timeline';
+import {WorkspaceStockTools} from './workspace-stock-tools';
 import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { intelligenceTimelineEvents } from '@/lib/ui/company-timeline';
 import { CompanySearch } from './company-search';
@@ -164,7 +165,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
   const companies=scope.filter(node=>(!activeOnly&&!sourceFilter)||activeIds.has(node.id));
   const company=allCompanies.find(node=>node.id===selected);
   const [stockToolsRequest,setStockToolsRequest]=useState<{companyId:string;anchor:EventWindowAnchor}|null>(null);
-  if(stockToolsRequest&&stockToolsRequest.companyId!==company?.id)setStockToolsRequest(null);
+  if(stockToolsRequest&&stockToolsRequest.companyId!==(company?.id??''))setStockToolsRequest(null);
   const timelineEvents=intelligenceTimelineEvents(selected,snapshot.events,chinese,sourceFilter);
   // Research bookmarks may refer to editorial events outside the collected feed.
   // They populate the selection only; recorded activity totals remain unchanged.
@@ -235,13 +236,14 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
 
   const timeline=company&&!switching?<div className={liveStyles.timelineDock} data-timeline-dock><CompanyTimeline stockToolsRequest={stockToolsRequest} onCloseStockToolsRequest={()=>setStockToolsRequest(null)} onSelectCompany={id=>selectCompany(id)} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} key={company.id} closed={timelineClosed} onClosedChange={setTimelineClosed} companyId={company.id} shareTheme={theme} graph={graph} events={timelineEvents} eventReturns={snapshot.eventReturns} onSelectEvent={activate} onDismissEvent={closeEvent} selectedEventId={event?.id??''}/></div>:null;
   function openStockTools(event:React.MouseEvent<HTMLElement>){
+    event.preventDefault();
     const target=event.target instanceof Element?event.target:null;
     // The chart owns its own selected stock (including fullscreen search).
-    // Preserve text-editing menus and interactions inside floating dialogs.
-    if(!company||switching||!target||target.closest('[data-company-timeline],[data-event-window],input,textarea,select,[contenteditable="true"]'))return;
+    // Floating dialogs retain their current tools; browser menus are suppressed above.
+    if(switching||!target||target.closest('[data-company-timeline],[data-event-window]'))return;
     event.preventDefault();event.stopPropagation();
     const trigger=target.closest<HTMLElement>('button,a,[tabindex]')??event.currentTarget;
-    setStockToolsRequest({companyId:company.id,anchor:eventWindowAnchor(event,trigger)});
+    setStockToolsRequest({companyId:company?.id??'',anchor:eventWindowAnchor(event,trigger)});
   }
   return <main onContextMenuCapture={openStockTools} onClickCapture={event=>{if((event.target as Element).closest('[data-node-card],[data-event-window]'))return;eventTrigger.current=(event.target as Element).closest<HTMLElement>('button');const r=(event.target as Element).getBoundingClientRect();clickAnchor.current=event.detail?{x:event.clientX,y:event.clientY}:{x:r.right,y:r.bottom};}} className={`${styles.shell} ${liveStyles.regionWorkspace} ${leftOpen?'':styles.leftClosed} ${rightOpen?'':styles.rightClosed}`}>
     <h1 className={styles.srOnly}><UiText text="Investment Intelligence"/></h1>
@@ -296,6 +298,7 @@ function IntelligenceWorkspace({snapshot,panels,setPanels,theme,requestedTheme,c
       </div>}
       </>}</div><details className={styles.rightFoot} hidden={eventsPending}><summary>{chinese?'来源状态':'Source status'}{partialCoverage?' · ◐':''}</summary><p><UiText text={"Counts deduplicate source documents."}/></p>{snapshot.truncated&&<p>{chinese?`列表显示最新 ${snapshot.limit} 条；统计独立于列表上限。`:`The list shows the latest ${snapshot.limit} entries; totals are independent of the list limit.`}</p>}{newsCoverage&&<p>{chinese?'公司新闻覆盖':'Company news coverage'} {newsCoverage.configured}/{newsCoverage.total} · {newsCoverage.healthy} {chinese?'正常':'healthy'}</p>}{warnings.map(warning=><p key={warning}><UiText text={warning}/></p>)}</details>
     </aside>
+    {!company&&<WorkspaceStockTools anchor={stockToolsRequest?.anchor??null} onClose={()=>setStockToolsRequest(null)} graph={graph} watchlist={{ids:saved,session:!follows.user,loading:follows.loading||Boolean(follows.user)&&!follows.ready&&!follows.error,error:follows.error,change:(id,follow)=>changeSaved(id,follow),refresh:()=>{void follows.refresh();}}} onSelect={id=>selectCompany(id)}/>}
     {event&&<EventDetailsWindow event={event} anchor={eventAnchor} returns={snapshot.eventReturns?.[event.id]?.filter(value=>companiesById.has(value.companyId)&&(!activityCompany||value.companyId===activityCompany.id))} symbol={label} onClose={closeEvent}/>}
     {followConfirmation&&<CompanyFollowConfirmation key={followConfirmation.id} label={followConfirmation.label} followed={followConfirmation.followed} anchor={followConfirmation.anchor}/>}
   </main>;

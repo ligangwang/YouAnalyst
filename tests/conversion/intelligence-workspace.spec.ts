@@ -98,6 +98,42 @@ test('all workspace panels and views open the selected stock tools without dupli
  await page.screenshot({path:test.info().outputPath('workspace-shared-stock-tools.png')});
 });
 
+test('workspace right click opens tools without selecting a stock and prevents the browser menu',async({page})=>{
+ await open(page);
+ const tools=page.getByRole('dialog',{name:'Stock tools',exact:true});
+ for(const tab of ['Relationship graph','Industry tree','Company hierarchy','Company list']){
+  await page.getByRole('tab',{name:tab,exact:true}).click();
+  for(const surface of [page.getByRole('complementary',{name:'Universe navigation'}),page.locator('[data-company-workspace]'),page.getByRole('complementary',{name:'Events and sources'}),page.getByRole('region',{name:'Theme activity summary'})]){
+   if(!await surface.isVisible())continue;
+   expect(await surface.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
+   await expect(tools).toBeVisible();await expect(page.getByRole('dialog',{name:/^Stock tools/})).toHaveCount(1);
+   await expect(tools.getByRole('button',{name:'MACD',exact:true})).toBeVisible();
+   await expect(tools.getByRole('button',{name:'Add to watchlist',exact:true})).toHaveCount(0);
+   expect(new URL(page.url()).searchParams.has('company')).toBe(false);
+   await page.keyboard.press('Escape');await expect(tools).toHaveCount(0);
+  }
+ }
+ const workspace=page.locator('section[aria-label="Company relationship chart"]');
+ await workspace.getByRole('group',{name:'Company view size',exact:true}).getByRole('button',{name:'Full screen',exact:true}).click();
+ await page.locator('[data-company-workspace]').click({button:'right',position:{x:20,y:20}});
+ await expect(tools).toBeVisible();
+ expect(await tools.evaluate(element=>Boolean(element.closest('[data-chart-size="full"]')))).toBe(true);
+ expect(await tools.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
+ await tools.getByRole('button',{name:'MACD',exact:true}).click();await expect(page).toHaveURL(/chartIndicator=macd/);
+ await tools.getByRole('button',{name:'Moving average settings',exact:false}).click();
+ const averages=page.getByRole('dialog',{name:'Moving average settings',exact:true});await expect(averages).toBeVisible();expect(await averages.locator('input').first().evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);await averages.getByRole('button',{name:'MA10',exact:true}).click();await page.keyboard.press('Escape');
+ await page.locator('[data-company-workspace]').click({button:'right',position:{x:20,y:20}});
+ await tools.getByText('Select stock',{exact:true}).click();await tools.getByRole('button',{name:'Micron',exact:true}).click();
+ await expect(page).toHaveURL(/company=US%3AMU/);await expect(page).toHaveURL(/chartIndicator=macd/);
+ await expect(tools).toHaveCount(0);
+ const timeline=page.locator('[data-company-timeline="US:MU"]');
+ for(const surface of [timeline.locator('[data-chart-toolbar]'),timeline.locator('p').filter({hasText:/Events use source publication dates|stored daily bars/}).last(),page.getByRole('region',{name:'Theme activity summary'})]){
+  expect(await surface.evaluate(element=>!element.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true})))).toBe(true);
+  await expect(page.getByRole('dialog',{name:'Stock tools · MU',exact:true})).toBeVisible();
+  await page.keyboard.press('Escape');
+ }
+});
+
 test('stock tools work in every fullscreen view with the price chart hidden',async({page})=>{
  await open(page);await page.goto('http://workspace.test/?company=US%3AMU&chartMA=none&chartWatchlist=1');
  const workspace=page.locator('section[aria-label="Company relationship chart"]');

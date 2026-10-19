@@ -3,7 +3,7 @@ import {spawnSync} from 'node:child_process';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {dirname} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {company,encode,type Document,type Value} from './migrate-company-themes';
+import {company,encode,type Document,type Value} from './lib/firestore-rest';
 import {translatedSummary} from '../src/lib/knowledge-graph/summary-translations';
 import {translateHeadlines,type Headline,type HeadlineResponse} from '../src/lib/intelligence/collectors/headline-translations';
 import {buildOpenAiUsageEvent} from '../src/lib/openai/usage';

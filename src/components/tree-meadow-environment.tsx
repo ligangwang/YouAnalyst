@@ -46,7 +46,7 @@ function Plants({items,flower=false,leaf=false,map,material}:{items:Plant[];flow
 // surface and pointing outwards; the sunward side is brighter and the underside
 // falls into shade, so the crown reads as soft volumes of individual leaves.
 const SUN=new Vector3(.45,.8,.4).normalize(),UP=new Vector3(0,1,0);
-const LEAF_SHADE=new Color('#2b5520'),LEAF_MID=new Color('#6e9e3c'),LEAF_LIT=new Color('#e2f59a');
+const LEAF_SHADE=new Color('#244b32'),LEAF_MID=new Color('#5a8653'),LEAF_LIT=new Color('#b3c98a');
 // Lower clumps spread into a broad skirt; upper clumps retain enough volume
 // for a rounded crown rather than a narrow, pointed tip.
 const Canopy=memo(function Canopy({node,crown,map,material,crownCap=false}:{node:TreePoint;crown:[number,number];map:Texture|null;material:MeshStandardMaterial;crownCap?:boolean}){
@@ -60,7 +60,7 @@ const Canopy=memo(function Canopy({node,crown,map,material,crownCap=false}:{node
    const id=`${node.id}:canopy:${i}`,lift=jitter(id,1)*2-1,a=jitter(id,2)*Math.PI*2,ring=Math.sqrt(1-lift*lift);
    direction.set(Math.cos(a)*ring,lift,Math.sin(a)*ring);
    const depth=.4+.6*Math.sqrt(jitter(id,3)),light=Math.max(0,direction.dot(SUN))*depth;
-   color.copy(LEAF_SHADE).lerp(LEAF_MID,Math.min(1,.25+depth*.75+direction.y*.2)).lerp(LEAF_LIT,light*.8).offsetHSL((jitter(id,8)-.5)*.04,0,(jitter(id,9)-.5)*.08);
+   color.copy(LEAF_SHADE).lerp(LEAF_MID,Math.min(1,.25+depth*.75+direction.y*.2)).lerp(LEAF_LIT,light*.5).offsetHSL((jitter(id,8)-.5)*.025,0,(jitter(id,9)-.5)*.045);
    const position:[number,number,number]=[x+direction.x*depth*400*swell,y+90+direction.y*depth*300*swell,z+direction.z*depth*360*swell];
    if(!map){const s=26+jitter(id,4)*30;return {position,scale:[s,s,s],rotation:[jitter(id,5)*Math.PI,jitter(id,6)*Math.PI*2,jitter(id,7)*Math.PI],color:'#'+color.getHexString()};}
    // Twigs grow outwards and a little upwards, each turned about its own stem.
@@ -117,7 +117,7 @@ export function TreeMeadowEnvironment({nodes,layoutNodes=nodes,paused=false}:{no
   const colors=[];
   for(let i=0;i<positions.count;i++){
    const x=positions.getX(i),z=positions.getZ(i);positions.setY(i,groundHeight(x,z));
-   const color=new Color('#588335').lerp(new Color('#a8b85e'),.4+.22*Math.sin(x/360)*Math.cos(z/550)+jitter(`ground${i}`)*.18);colors.push(...color.toArray());
+   const color=new Color('#304c38').lerp(new Color('#667d4b'),.4+.22*Math.sin(x/360)*Math.cos(z/550)+jitter(`ground${i}`)*.18);colors.push(...color.toArray());
   }
   geometry.setAttribute('color',new Float32BufferAttribute(colors,3));
   geometry.computeVertexNormals();return geometry;
@@ -153,13 +153,13 @@ export function TreeMeadowEnvironment({nodes,layoutNodes=nodes,paused=false}:{no
  }),[]);
  useEffect(()=>()=>{terrain.dispose();mountains.forEach(geometry=>geometry.dispose());},[terrain,mountains]);
  return <>
-  <color attach="background" args={['#bdd6de']}/>
-  <fog attach="fog" args={['#e2dcc2',7500,33000]}/>
+  <color attach="background" args={['#12233d']}/>
+  <fog attach="fog" args={['#263c51',7500,33000]}/>
   <group name="meadow-environment">
   {/* Sky: pale, warm haze at the horizon deepening to blue overhead, with a soft halo around the sun. */}
   <mesh raycast={noHit}><sphereGeometry args={[65000,32,20]}/><shaderMaterial side={BackSide} depthWrite={false} toneMapped={false}
    vertexShader="varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}"
-   fragmentShader="varying vec3 direction;void main(){vec3 d=normalize(direction);float h=max(0.,d.y);vec3 horizon=vec3(.9,.94,.93);vec3 sky=mix(horizon,vec3(.58,.8,.94),smoothstep(0.,.16,h));sky=mix(sky,vec3(.2,.5,.84),smoothstep(.12,.9,h));float sun=max(0.,dot(d,normalize(vec3(.5,.7,-.6))));sky+=vec3(1.,.86,.62)*pow(sun,6.)*.2+vec3(1.,.96,.84)*pow(sun,260.)*.8;gl_FragColor=vec4(sky,1.);}"/></mesh>
+   fragmentShader="varying vec3 direction;void main(){vec3 d=normalize(direction);float h=max(0.,d.y);vec3 horizon=vec3(.22,.31,.4);vec3 sky=mix(horizon,vec3(.075,.15,.27),smoothstep(0.,.16,h));sky=mix(sky,vec3(.025,.055,.13),smoothstep(.12,.9,h));float sun=max(0.,dot(d,normalize(vec3(.5,.7,-.6))));sky+=vec3(1.,.86,.62)*pow(sun,6.)*.075+vec3(1.,.96,.84)*pow(sun,260.)*.3;gl_FragColor=vec4(sky,1.);}"/></mesh>
   <mesh rotation={[-Math.PI/2,0,0]} position={[0,MEADOW_Y-60,0]} raycast={noHit}><planeGeometry args={[140000,140000]}/><meshStandardMaterial color="#769d53" roughness={1}/></mesh>
   <mesh geometry={terrain} raycast={noHit}><meshStandardMaterial vertexColors map={turf} roughness={1}/></mesh>
   {[0,Math.PI/2,Math.PI,Math.PI*1.5].map(angle=><group key={angle} rotation={[0,angle,0]}>{mountains.map((geometry,i)=><mesh key={i} position={[0,0,-23000+i*4500]} geometry={geometry} raycast={noHit}><meshStandardMaterial vertexColors roughness={1} side={DoubleSide}/></mesh>)}</group>)}

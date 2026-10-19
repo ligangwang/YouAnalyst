@@ -33,8 +33,8 @@ export function treeOverviewShot(nodes:TreePoint[],width:number,height:number):T
   const xs=[-VERTICAL_ROOT_REACH,VERTICAL_ROOT_REACH,...nodes.map(n=>n.position[0])];
   const ys=[-VERTICAL_ROOT_DEPTH,...nodes.map(n=>n.position[1])];
   const target:Point=[(Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2,0];
-  const tanV=Math.tan(Math.PI/8)*Math.max(.2,(height-100)/height);
-  const tanH=Math.tan(Math.PI/8)*Math.max(120,width-100)/height;
+  const tanV=Math.tan(Math.PI/8)*Math.max(.2,(height-140)/height);
+  const tanH=Math.tan(Math.PI/8)*Math.max(120,width-140)/height;
   const points:Point[]=[...nodes.map(n=>n.position),[-VERTICAL_ROOT_REACH,-VERTICAL_ROOT_DEPTH,0],[VERTICAL_ROOT_REACH,0,0]];
   target[0]=0;
   const distance=Math.max(500,...points.map(p=>{
