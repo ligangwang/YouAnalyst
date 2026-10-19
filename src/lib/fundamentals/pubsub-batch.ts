@@ -52,7 +52,7 @@ export async function publishPendingFundamentals(db: Firestore, runId: string,
   return { requested: companyIds.length, batches, mode: "pubsub" };
 }
 
-export async function processFundamentalsBatch(input: unknown, db: Firestore, log: MaintenanceLog,
+async function executeFundamentalsBatch(input: unknown, db: Firestore, log: MaintenanceLog,
   publish: (event: FundamentalsUpdate) => Promise<unknown>, dependencies: {
     refresh?: typeof refreshCompanyFundamentals; marketCaps?: typeof refreshCompanyMarketCaps; deadline?: number;
   } = {}) {
@@ -153,7 +153,7 @@ export async function processFundamentalsBatch(input: unknown, db: Firestore, lo
       log.emit("WARNING", "batch_retry", { ...result, batchId: request.batchId });
       throw new Error(`Batch incomplete: ${result.remaining} companies need retry`);
     }
-    await ref.set({ completed: true, completedAt: new Date().toISOString() }, { merge: true });
+    await ref.set({ completed: true, manualRequired:false, completedAt: new Date().toISOString() }, { merge: true });
     return result;
   } finally { await releaseMaintenanceLease(worker, log.runId); }
 }
@@ -190,4 +190,31 @@ export async function verifyFundamentalsDelivery(db: Firestore, runId: string,
     await sleep(10_000);
   }
   throw new Error(`Subscriber did not ${duplicatePublished ? "confirm duplicate delivery for" : "complete"} probe batch ${request.batchId} within 12 minutes`);
+}
+
+/** A saved failure is terminal until an administrator explicitly reruns it. */
+export async function processFundamentalsBatch(...args: Parameters<typeof executeFundamentalsBatch>) {
+  const [input, db, log] = args;
+  const request = parseFundamentalsRequest(input);
+  const ref = batchRef(db, request.batchId);
+  const existing=(await ref.get()).data() as (Ledger & {manualRequired?:boolean})|undefined;
+  if(existing && digest(existing.request)!==digest(request))throw Error('Batch ID reused with different contents');
+  const stopped=(ledger:Ledger|undefined)=>{const completed=request.companyIds.filter(id=>ledger?.progress?.[id]?.completed&&!ledger.progress[id].failed).length;return {status:'needs_admin',batchId:request.batchId,requested:request.companyIds.length,completed,failed:request.companyIds.length-completed,remaining:0};};
+  if (existing?.manualRequired === true) return stopped(existing);
+  try {
+    const result=await executeFundamentalsBatch(...args);
+    if(result.failed) await ref.set({manualRequired:true,lastError:{message:`${result.failed} company refreshes failed. Review company errors below.`},failedAt:new Date().toISOString()},{merge:true});
+    return result;
+  } catch (error) {
+    const details = maintenanceError(error);
+    // Do not acknowledge if persisting the failure fails: losing the request is unsafe.
+    const ledger=(await ref.get()).data() as Ledger|undefined;
+    for(const ticker of request.companyIds.filter(id=>!ledger?.progress?.[id]?.completed)) {
+      await db.collection(FUNDAMENTALS_COLLECTION).doc(usFundamentalsId(ticker)).set({pending:false,outcome:'error',lastError:{message:details.message},failedAt:new Date().toISOString(),refreshAfter:null},{merge:true});
+    }
+    await ref.set({request, manualRequired:true, lastError:{...details, stack:details.stack??null},
+      failedAt:new Date().toISOString()}, {merge:true});
+    log.emit('ERROR','batch_requires_admin',{batchId:request.batchId,error:details});
+    return stopped(ledger);
+  }
 }

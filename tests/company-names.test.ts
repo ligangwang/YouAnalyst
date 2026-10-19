@@ -87,7 +87,7 @@ test("non-admin name edits fail before any database access", async () => {
  assert.equal(response.status,403);
 });
 
-test("shared name revision invalidates warm graph caches in separate server instances", async () => {
+test("derived graphs reflect current company snapshots without a metadata document", async () => {
  let revision = "old", name = "台积公司", companyReads = 0, revisionUnavailable = false;
  const db = {getAll:async(...refs:unknown[])=>refs.filter(ref=>!(ref as {fieldMask?:unknown}).fieldMask).map(()=>({exists:false,data:()=>undefined})),collection:(collection:string)=>({
   get:async()=>{assert.equal(collection,'company_relationships');return {docs:[]};},
@@ -97,19 +97,13 @@ test("shared name revision invalidates warm graph caches in separate server inst
  const a = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
  const b = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
  for(const server of [a,b]) assert.equal(companyName((await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>).nodes[0],"zh-CN"),"台积公司");
- await a.loadKnowledgeGraph(); await b.loadKnowledgeGraph(); assert.equal(companyReads,2);
+ await a.loadKnowledgeGraph(); await b.loadKnowledgeGraph(); assert.equal(companyReads,4);
  name = "台积电"; revision = "new";
  for(const server of [a,b]) assert.equal(companyName((await server.loadKnowledgeGraph() as ReturnType<typeof graphFromMarket>).nodes[0],"zh-CN"),"台积电");
- assert.equal(companyReads,4);
+ assert.equal(companyReads,6);
  revisionUnavailable = true;
- await assert.rejects(a.loadKnowledgeGraph(), /Unavailable/);
- const cold = await isolatedModule("src/lib/knowledge-graph/service.ts",{db});
- await assert.rejects(cold.loadKnowledgeGraph(), /Unavailable/);
- const realNow = Date.now;
- try {
-   Date.now = () => realNow() + 301_000;
-   await assert.rejects(a.loadKnowledgeGraph(), /Unavailable/);
- } finally { Date.now = realNow; }
+ // No shared checkpoint read is made even when that obsolete fixture is unavailable.
+ await a.loadKnowledgeGraph();await b.loadKnowledgeGraph();
 });
 
 

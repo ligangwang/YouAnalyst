@@ -116,5 +116,5 @@ test("loads only stored prices/actions and uses the same chart mapper", async ()
   }} as unknown as Firestore;
   const data=await loadStockComparison(db,{...config,symbols:["NVDA"]});
   assert.ok(Math.abs(data.series[0].values[1]-10)<1e-10);
-  assert.deepEqual([...new Set(collections)].sort(),["collectors","corporate_actions","eod_prices"]);
+  assert.deepEqual([...new Set(collections)].sort(),["corporate_actions","eod_prices"]);
 });

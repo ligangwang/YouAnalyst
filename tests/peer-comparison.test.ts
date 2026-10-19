@@ -50,19 +50,23 @@ test('non-NVIDIA historical splits use provider-adjusted closes and invalid adju
 });
 
 
-test('peer price history is shared across callers and invalidated only by price changes',async()=>{
+test('peer price history watches the exact bounded query and pushes corrections',async(t)=>{
  const {loadPeerPrices}=await import('../src/lib/peer-comparison/price-cache');
- const state={enabled:true,versions:{companies:'1',company_fundamentals:'1',eod_prices:'1'}};
- let reads=0,fail=false;
- const bounds:unknown[][]=[];
- const query={where:(...args:unknown[])=>{bounds.push(args);return query;},orderBy:()=>query,limit:(n:number)=>{assert.equal(n,12);return query;},get:async()=>{reads++;if(fail)throw Error('offline');return {docs:[{data:()=>({rawClose:reads})}]};}};
- const db={collection:(name:string)=>name==='collectors'?{doc:()=>({get:async()=>({data:()=>structuredClone(state)})})}:query} as unknown as import('firebase-admin/firestore').Firestore;
+ const {observeFirestore}=await import('../src/lib/firebase/firestore-observability');
+ const {closeLocalCaches}=await import('../src/lib/local-cache/watch');t.after(closeLocalCaches);
+ let opens=0,value=1;const listeners=new Map<string,(snapshot:unknown)=>void>();const bounds:unknown[][]=[];
+ const snapshot=()=>({docs:[{id:'price',data:()=>({rawClose:value})}],docChanges:()=>[{type:'modified',doc:{id:'price'}}]});
+ const query=(clauses:unknown[][]=[])=>({path:'eod_prices',key:JSON.stringify(clauses),
+  isEqual(other:{key:string}){return this.key===other.key;},
+  where(...args:unknown[]){bounds.push(args);return query([...clauses,args]);},
+  orderBy(...args:unknown[]){return query([...clauses,args]);},limit(n:number){assert.equal(n,12);return query([...clauses,[n]]);},
+  get:async()=>{throw Error('No polling queries');},
+  onSnapshot(next:(snapshot:unknown)=>void){opens++;listeners.set(this.key,next);queueMicrotask(()=>next(snapshot()));return ()=>{listeners.delete(this.key);};}
+ });
+ const db=observeFirestore({collection:(name:string)=>{assert.equal(name,'eod_prices');return query();}} as unknown as import('firebase-admin/firestore').Firestore,()=>{});
  const load=()=>loadPeerPrices(db,'US:AMD','US','2026-10-18');
- const [first,second]=await Promise.all([load(),load()]);assert.deepEqual(first,second);assert.equal(reads,1);
- state.versions.companies='2';state.versions.company_fundamentals='2';await load();assert.equal(reads,1);
- state.versions.eod_prices='2';await load();assert.equal(reads,2);
- state.versions.eod_prices='3';fail=true;await assert.rejects(load(),/offline/);fail=false;await load();assert.equal(reads,4);
+ const [first,second]=await Promise.all([load(),load()]);assert.deepEqual(first,second);assert.equal(opens,1);
+ value=2;for(const next of listeners.values())next(snapshot());assert.equal((await load())[0].rawClose,2);assert.equal(opens,1);
  assert.equal(bounds[0][2],'US_AMD_');assert.equal(bounds[1][2],'US_AMD_2026-10-18');
- await loadPeerPrices(db,'XSHE:000001','CN_A','2026-10-18');assert.equal(reads,5);
- state.enabled=false;await load();await load();assert.equal(reads,7);
+ await loadPeerPrices(db,'XSHE:000001','CN_A','2026-10-18');assert.equal(opens,2,'different company must have its own query');
 });
