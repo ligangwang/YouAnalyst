@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
-import { localDocuments, localEntityVersions } from '../../src/lib/local-cache/entities';
+import { localDocuments, localEntityVersions, localQuery } from '../../src/lib/local-cache/entities';
 import { Watch, closeLocalCaches } from '../../src/lib/local-cache/watch';
 function fixture(){
  const listeners:{collection:string;ids:string[];next:(snapshot:unknown)=>void;closed:boolean}[]=[];
@@ -39,4 +39,11 @@ test('subscriptions are bounded and eviction never cancels an active initial loa
  for(let i=0;i<66;i++){const load=localDocuments(f.db,'companies',[String(i)]);f.listeners.at(-1)!.next({docs:[]});await load;}
  assert.equal(f.listeners[0].closed,false);assert.ok(f.listeners.filter(l=>l.closed).length>=2);
  f.listeners[0].next({docs:[f.doc('pending',1)]});assert.equal((await pending)![0].exists,true);
+});
+
+test('sitemap subscriptions are bounded without evicting the theme company subscription',async(t)=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const companies=localDocuments(f.db,'companies');f.listeners[0].next({docs:[]});await companies;
+ for(let i=0;i<4;i++){const load=localQuery(f.db,`sitemap:${i}`,f.db.collection('companies'));f.listeners.at(-1)!.next({docs:[]});await load;}
+ assert.equal(f.listeners[0].closed,false);assert.equal(f.listeners.filter(l=>!l.closed).length,3);
 });

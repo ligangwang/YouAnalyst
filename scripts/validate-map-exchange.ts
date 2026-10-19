@@ -1,3 +1,4 @@
+import { closeLocalCaches } from '../src/lib/local-cache/watch';
 // Public source checks only: no Firestore imports, leases, cursors or event writes.
 import {readFileSync} from 'node:fs';
 import {createCnEarningsRequester} from '../src/lib/earnings/live-cn';
@@ -14,4 +15,4 @@ async function main(){
     }catch(error){console.log(JSON.stringify({companyId:company.id,status:'failed',error:error instanceof Error?error.message:String(error)}));process.exitCode=1;if(Object.keys(transport.blockedHosts()).length)break;}
   }
 }
-main().catch(error=>{console.error(error);process.exitCode=1;});
+main().finally(closeLocalCaches).catch(error=>{console.error(error);process.exitCode=1;});
