@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { predictionInstrument } from "../predictions/instrument";
 import { isPredictionDirection, type PredictionDirection, type PredictionVisibility } from "../predictions/types";
 import type { ViewEvidence } from "./evidence";
+import type { SharedComparison } from "../compare-community";
 
 /** `evidence` holds citations already resolved against the AI map (see resolveViewEvidence). */
-export type PostInput = { ticker: string; title: string; body: string; direction: PredictionDirection | null; visibility: PredictionVisibility; requestId: string; evidence?: ViewEvidence[] };
+export type PostInput = { ticker: string; title: string; body: string; direction: PredictionDirection | null; visibility: PredictionVisibility; requestId: string; evidence?: ViewEvidence[]; comparison?: SharedComparison };
 export type Post = PostInput & { userId: string; companyId: string; predictionId: string | null; createdAt: string; initial: boolean };
 
 export function validatePost(raw: unknown): PostInput {
@@ -27,7 +28,7 @@ export function postId(userId: string, requestId: string) {
 
 export function assertSamePost(previous: Post, input: PostInput) {
   const citations = (post: Pick<PostInput, "evidence">) => JSON.stringify((post.evidence ?? []).map(item => [item.kind, item.id]));
-  if (previous.ticker !== input.ticker || previous.title !== input.title || previous.body !== input.body || previous.direction !== input.direction || previous.visibility !== input.visibility || citations(previous) !== citations(input)) {
+  if (previous.ticker !== input.ticker || previous.title !== input.title || previous.body !== input.body || previous.direction !== input.direction || previous.visibility !== input.visibility || citations(previous) !== citations(input) || JSON.stringify(previous.comparison ?? null) !== JSON.stringify(input.comparison ?? null)) {
     throw new Error("This request ID was already used for a different post");
   }
 }

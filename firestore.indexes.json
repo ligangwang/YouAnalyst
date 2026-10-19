@@ -1,5 +1,14 @@
 {
   "indexes": [
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "netLikes", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
     {"collectionGroup":"companies","queryScope":"COLLECTION","fields":[{"fieldPath":"themeIds","arrayConfig":"CONTAINS"},{"fieldPath":"cacheUpdatedAt","order":"ASCENDING"}]},
     {"collectionGroup":"collectors","queryScope":"COLLECTION","fields":[{"fieldPath":"cacheDeletedCollection","order":"ASCENDING"},{"fieldPath":"cacheUpdatedAt","order":"ASCENDING"}]},
     {"collectionGroup":"companies","queryScope":"COLLECTION","fields":[{"fieldPath":"exchange_region","order":"ASCENDING"},{"fieldPath":"themeIds","arrayConfig":"CONTAINS"}]},

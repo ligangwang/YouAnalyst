@@ -5,7 +5,7 @@ export type CompareStyle = "line" | "bar";
 export function compareSymbol(value: string): boolean {
   return /^(?:[A-Z][A-Z0-9.-]{0,11}|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(value);
 }
-export type CompareConfig = { symbols: string[]; start: string; end: string; style: CompareStyle };
+export type CompareConfig = { symbols: string[]; start: string; end: string; style: CompareStyle; colors?: Record<string, string> };
 export type PricePoint = { date: string; close: number };
 export type CompareData = {
   dates: string[];
@@ -36,16 +36,24 @@ export function parseCompareConfig(params: URLSearchParams, now = new Date()): C
   const symbols = [...new Set((params.get("symbols") ?? DEFAULT_SYMBOLS.join(",")).toUpperCase().split(",").map(s => s.trim()).filter(compareSymbol))].slice(0, 10);
   const end = params.get("end") ?? endDefault;
   const start = params.get("start") ?? yearsBefore(isoDate(end) ? end : endDefault, 1);
+  const colorValues = params.get("colors")?.split(",");
+  const colors = colorValues?.length === symbols.length && colorValues.every(color => /^[\da-f]{6}$/i.test(color))
+    ? Object.fromEntries(symbols.map((symbol, index) => [symbol, `#${colorValues[index].toLowerCase()}`])) : undefined;
   return {
     symbols: symbols.length ? symbols : DEFAULT_SYMBOLS,
     start: isoDate(start) ? start : yearsBefore(endDefault, 1),
     end: isoDate(end) ? end : endDefault,
     style: params.get("style") === "bar" ? "bar" : "line",
+    ...(colors ? { colors } : {}),
   };
 }
 
 export function comparePath(config: CompareConfig): string {
-  return `/compare?${new URLSearchParams({ symbols: config.symbols.join(","), start: config.start, end: config.end, style: config.style })}`;
+  const params = new URLSearchParams({ symbols: config.symbols.join(","), start: config.start, end: config.end, style: config.style });
+  if (config.colors && config.symbols.every(symbol => /^#[\da-f]{6}$/i.test(config.colors![symbol] ?? ""))) {
+    params.set("colors", config.symbols.map(symbol => config.colors![symbol].slice(1)).join(","));
+  }
+  return `/compare?${params}`;
 }
 
 export function validateCompareConfig(config: CompareConfig, now = new Date()): string | null {

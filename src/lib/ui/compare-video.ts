@@ -1,14 +1,14 @@
 import { COMPARE_COLORS, COMPARE_LIGHT_COLORS, returnLabel, type CompareData, type CompareStyle } from '../compare';
 import { comparisonFrame } from '../compare-chart';
 
-type VideoOptions = { data: CompareData; style: CompareStyle; seconds: number; light: boolean; chinese: boolean; signal: AbortSignal; onProgress: (progress: number) => void };
+type VideoOptions = { data: CompareData; style: CompareStyle; colors?: string[]; seconds: number; light: boolean; chinese: boolean; signal: AbortSignal; onProgress: (progress: number) => void };
 
 // Draw from the same frame model as the interactive chart. HTML labels and branding
 // are painted here too, so the downloaded video is complete without DOM screenshots.
-export function drawComparisonVideoFrame(ctx: CanvasRenderingContext2D, data: CompareData, style: CompareStyle, progress: number, light: boolean, chinese: boolean) {
+export function drawComparisonVideoFrame(ctx: CanvasRenderingContext2D, data: CompareData, style: CompareStyle, progress: number, light: boolean, chinese: boolean, customColors?: string[]) {
   const width = 1280, height = 720, chartWidth = 1152, chartHeight = 510;
   const foreground = light ? '#142536' : '#f8fafc', muted = light ? '#475f73' : '#9ba8b7';
-  const colors = light ? COMPARE_LIGHT_COLORS : COMPARE_COLORS;
+  const colors = customColors ?? (light ? COMPARE_LIGHT_COLORS : COMPARE_COLORS);
   const frame = comparisonFrame(data, progress, style, chartWidth, chartHeight);
   ctx.fillStyle = light ? '#f4f7fa' : '#07111d'; ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = foreground; ctx.font = '600 30px sans-serif';
@@ -58,7 +58,7 @@ export async function recordComparisonVideo(options: VideoOptions): Promise<Blob
   if (data.dates.length < 2 || !data.series.length || ![10, 15, 30].includes(seconds)) throw new Error('invalid');
   const canvas = document.createElement('canvas'); canvas.width = 1280; canvas.height = 720;
   const ctx = canvas.getContext('2d'); if (!ctx) throw new Error('unsupported');
-  drawComparisonVideoFrame(ctx, data, style, 0, light, chinese);
+  drawComparisonVideoFrame(ctx, data, style, 0, light, chinese, options.colors);
   const stream = canvas.captureStream(30);
   let recorder: MediaRecorder | undefined;
   for (const mimeType of ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']) {
@@ -97,7 +97,7 @@ export async function recordComparisonVideo(options: VideoOptions): Promise<Blob
       const elapsed = now - started;
       try {
         // Hold the opening and final frames for half a second each.
-        drawComparisonVideoFrame(ctx!, data, style, Math.max(0, Math.min(1, (elapsed - 500) / (seconds * 1000 - 1000))), light, chinese);
+        drawComparisonVideoFrame(ctx!, data, style, Math.max(0, Math.min(1, (elapsed - 500) / (seconds * 1000 - 1000))), light, chinese, options.colors);
         onProgress(Math.min(.99, elapsed / (seconds * 1000)));
         if (elapsed >= seconds * 1000) { completed = true; encoder.stop(); } else frame = requestAnimationFrame(advance);
       } catch { fail(new Error('rendering')); }

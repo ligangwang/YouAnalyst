@@ -15,6 +15,21 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
     assert(html.length > 1000 && /<html/i.test(html), `Candidate ${path} did not return an application page`);
     assert(!/The requested URL was not found on this server/.test(html));
   }
+  const comparisonPage = await request(`${url}/en/compare`, {signal:AbortSignal.timeout(60000)});
+  assert.equal(comparisonPage.status, 200, 'Candidate comparison page failed; existing traffic stays unchanged');
+  const comparisonHtml = await comparisonPage.text();
+  assert(comparisonHtml.includes('Community comparisons') && comparisonHtml.includes('Colors &amp; style templates'), 'Candidate comparison controls are missing');
+  const communityResponse = await request(`${url}/api/compare/community`, {signal:AbortSignal.timeout(60000)});
+  assert.equal(communityResponse.status, 200, 'Candidate community query failed; check ranking index readiness before promotion');
+  const community = await communityResponse.json();
+  assert(Array.isArray(community.items), 'Candidate community response is invalid');
+  // These requests must fail before any write, even on an empty community board.
+  for (const path of ['/api/compare/community', `/api/compare/community/${'a'.repeat(64)}/vote`, `/api/compare/community/${'a'.repeat(64)}/comments`]) {
+    const response = await request(`${url}${path}`, {method:'POST',signal:AbortSignal.timeout(60000)});
+    assert.equal(response.status, 401, 'Candidate community write must require sign-in');
+  }
+  const preferences = await request(`${url}/api/preferences/compare`, {signal:AbortSignal.timeout(60000)});
+  assert.equal(preferences.status, 401, 'Candidate comparison preferences must require sign-in');
   // Exercise the data path before promotion, not only an HTML shell/health check.
   const graphResponse=await request(`${url}/api/intelligence?theme=ai&section=universe`,{signal:AbortSignal.timeout(60000)});
   assert.equal(graphResponse.status,200,'Candidate graph failed; existing traffic stays unchanged');
