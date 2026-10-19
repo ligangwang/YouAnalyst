@@ -1,6 +1,7 @@
 import { OAuth2Client } from 'google-auth-library';
 import { getAdminFirestore } from '@/lib/firebase/admin';
 import { applyCacheChange } from '@/lib/change-cache';
+import { applyCacheChange as applyLegacyCacheChange } from '@/lib/legacy-checkpoint-writer';
 
 export const runtime = 'nodejs';
 const verifier = new OAuth2Client();
@@ -17,7 +18,8 @@ export async function POST(request: Request) {
       return new Response('Forbidden', { status: 403 });
   } catch { return new Response('Unauthorized', { status: 401 }); }
   try {
-    await applyCacheChange(getAdminFirestore(), request.headers, project, new Uint8Array(await request.arrayBuffer()));
+    const apply = process.env.CACHE_CHECKPOINT_RETIRED === '1' ? applyCacheChange : applyLegacyCacheChange;
+    await apply(getAdminFirestore(), request.headers, project, new Uint8Array(await request.arrayBuffer()));
     return new Response(null, { status: 204 });
   } catch (error) {
     console.error('Cache change delivery failed', error);

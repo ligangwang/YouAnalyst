@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {createRequire} from 'node:module';
 
-test('change endpoint rejects missing/wrong identity and acknowledges retired deliveries without persistence',async()=>{
+test('change endpoint rejects missing/wrong identity and acknowledges retired deliveries without persistence',async(t)=>{
+ const retired=process.env.CACHE_CHECKPOINT_RETIRED;process.env.CACHE_CHECKPOINT_RETIRED='1';t.after(()=>{if(retired===undefined)delete process.env.CACHE_CHECKPOINT_RETIRED;else process.env.CACHE_CHECKPOINT_RETIRED=retired;});
  const bundle=await build({entryPoints:['src/app/api/internal/cache-changes/route.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',plugins:[{name:'fixtures',setup(builder){
   builder.onResolve({filter:/firebase\/admin$/},()=>({path:'test-admin',external:true}));
  }}]});
@@ -22,7 +23,7 @@ test('change endpoint rejects missing/wrong identity and acknowledges retired de
  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID='test';process.env.CACHE_EVENT_AUDIENCE='https://receiver.run.app';
  const request=(token?:string)=>new Request('https://receiver.run.app/api/internal/cache-changes',{method:'POST',headers:{
   ...(token?{authorization:`Bearer ${token}`} : {}),'ce-id':'id','ce-type':'google.cloud.firestore.document.v1.written',
-  'ce-source':'//firestore.googleapis.com/projects/test/databases/(default)','ce-subject':'documents/companies/US:TEST',
+  'ce-source':'//firestore.googleapis.com/projects/test/databases/(default)','ce-subject':'documents/eod_prices/US:TEST',
  }});
  try{
   assert.equal((await POST(request())).status,401);assert.equal((await POST(request('forged'))).status,401);
@@ -30,6 +31,9 @@ test('change endpoint rejects missing/wrong identity and acknowledges retired de
   assert.equal(writes,0);claims={email:'cache-events@test.iam.gserviceaccount.com',email_verified:true};
   assert.equal((await POST(request('signed'))).status,204);assert.equal(writes,0);
   fail=true;assert.equal((await POST(request('signed'))).status,204);assert.equal(writes,0);
+  delete process.env.CACHE_CHECKPOINT_RETIRED;fail=false;
+  assert.equal((await POST(request('signed'))).status,204);assert.equal(writes,1,'old consumers continue receiving invalidations during rollout');
+  fail=true;assert.equal((await POST(request('signed'))).status,503,'failed compatibility writes must not be acknowledged');
  }finally{
   if(oldProject===undefined)delete process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;else process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID=oldProject;
   if(oldAudience===undefined)delete process.env.CACHE_EVENT_AUDIENCE;else process.env.CACHE_EVENT_AUDIENCE=oldAudience;
