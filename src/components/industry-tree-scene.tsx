@@ -239,8 +239,10 @@ function Scene(props:TreeSceneProps){
     flight.current=createTreeTour({position,target},plan);
     invalidate();
   },[all,nodes,plan,props.focus,props.request,props.vertical,props.tour,size.width,size.height,invalidate,tourRef]);
+  const appliedFitRequest=useRef(0);
   useEffect(()=>{
-    if(!props.vertical||!props.fitRequest||!controls.current)return;
+    if(!props.vertical||!props.fitRequest||props.fitRequest===appliedFitRequest.current||!controls.current)return;
+    appliedFitRequest.current=props.fitRequest;
     userPositioned.current=true;tourRef.current=false;resumePending.current=false;resumeReady.current=false;
     if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
     const shot=treeOverviewShot(all,size.width,size.height);
