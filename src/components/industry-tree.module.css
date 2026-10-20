@@ -84,8 +84,19 @@
 .recovery{position:absolute;top:12px;left:12px;z-index:70;max-width:calc(100% - 110px);padding:9px 12px;border:1px solid var(--ui-line,#315060);border-radius:5px;background:var(--ui-surface,#0b1722e8);color:var(--ui-text,#b7cdda);font-size:12px}
 .recovery button,.fallback p button{margin-left:5px;color:var(--ui-text,#98e7d6)}
 
-:global(html[data-theme="light"]) .tree:not(.vertical) .company { background:var(--bg-surface);color:var(--text-primary);text-shadow:none; }
-:global(html[data-theme="light"]) .tree:not(.vertical) .layer,:global(html[data-theme="light"]) .tree:not(.vertical) .root { background:var(--bg-surface);box-shadow:var(--shadow-panel); }
-/* The vertical tree always stands under a night sky, so its labels stay dark glass in both themes. */
+/* The industry tree shares the same immersive dark-world treatment as the
+   Graph Universe in either site appearance. */
+.tree {
+  --bg-surface:#0F1A2B;
+  --ui-surface:#0F1A2B;
+  --ui-selected:#152D40;
+  --ui-line:#25364B;
+  --ui-text:#EAF2FD;
+  --ui-muted:#A7B8CC;
+  --text-primary:#EAF2FD;
+  --text-secondary:#A7B8CC;
+}
+
+/* Keep vertical branch labels dark glass in either site appearance. */
 .vertical .branch {background:#071727e6;}
 .vertical :is(.layer,.root,.branch):is(:hover,:focus-visible,[aria-pressed='true']) {background:#12324af2;}

@@ -27,7 +27,7 @@ test.beforeAll(async()=>{
   `,{jsx:'automatic',plugins:[{name:'isolated-auth',setup(build){build.onResolve({filter:/auth-provider$/},()=>({path:path.resolve('tests/conversion/fixtures/mocks.tsx')}));}}],alias:{'next/navigation':path.resolve('tests/conversion/fixtures/mocks.tsx'),'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx')}},css+'body{margin:0;padding:16px}#graph{max-width:900px}#chart{background:var(--bg-surface);margin-top:16px}');
 });
 
-test('the graph keeps its dark space materials in light theme across a graph-data update that replaces shader uniforms',async({page})=>{
+test('dark universe node materials survive a graph-data update in light site mode',async({page})=>{
   await page.emulateMedia({reducedMotion:'reduce',colorScheme:'light'});
   await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404}));
   await page.goto('http://adaptive-ui.test/en?view=graph');
