@@ -56,22 +56,27 @@ test('migration dry run writes nothing; apply preserves publication and processi
 });
 
 
-test('scheduled classification finishes history once and continues only pending enrichment',async()=>{
+test('scheduled classification only queries pending work even with unfinished historical migration',async()=>{
  const rows=new Map<string,Record<string,unknown>>();
  rows.set('events/old',{type:'company_news',title:'AMD reports results',...classifyEvent({title:'AMD reports results'})});
+ rows.set('collectors/event-classification-v1',{bootstrapAfterEventId:'old-bootstrap',afterEventId:'old-cursor',migrationAfterEventId:'migration-cursor'});
  let reads=0;
  const ref=(path:string)=>({path,set:async(patch:Record<string,unknown>)=>{rows.set(path,{...rows.get(path),...patch});},get:async()=>snap(path)});
  const snap=(path:string)=>({id:path.split('/')[1],ref:ref(path),exists:rows.has(path),data:()=>rows.get(path),get:(key:string)=>rows.get(path)?.[key]});
  const db={collection:(name:string)=>{
   let pending=false,after='';
   const q={doc:(id:string)=>ref(name+'/'+id),where:(field:string,op:string,value:unknown)=>{assert.equal(field,'insiderEnrichmentPending');assert.equal(op,'==');assert.equal(value,true);pending=true;return q;},orderBy:()=>q,limit:()=>q,startAfter:(id:string)=>{after=id;return q;},get:async()=>{
+   assert.equal(pending,true,'scheduled reads must always filter pending work');
    const docs=[...rows.keys()].filter(path=>path.startsWith(name+'/')&&path.split('/')[1]>after&&(!pending||rows.get(path)?.insiderEnrichmentPending)).sort().map(snap);reads+=docs.length;return {docs,size:docs.length,empty:!docs.length};
   }};return q;
  },runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>fn({get:async(r:ReturnType<typeof ref>)=>snap(r.path),update:(r:ReturnType<typeof ref>,patch:Record<string,unknown>)=>r.set(patch),set:(r:ReturnType<typeof ref>,patch:Record<string,unknown>)=>r.set(patch)})} as unknown as Firestore;
  const options={enrichInsiders:true,deadline:Date.now()+90000,download:async()=>xml()};
- assert.equal((await runScheduledClassifications(db,options)).scanned,1);
  assert.equal((await runScheduledClassifications(db,options)).scanned,0);
- assert.equal(reads,1,'completed historical events are not reread');
+ assert.equal((await runScheduledClassifications(db,options)).scanned,0);
+ assert.equal(reads,0,'completed historical events are not reread');
+ assert.equal(rows.get('collectors/event-classification-v1')?.migrationAfterEventId,'migration-cursor');
+ assert.equal(rows.get('collectors/event-classification-v1')?.bootstrapAfterEventId,'old-bootstrap');
+ assert.equal(rows.get('collectors/event-classification-v1')?.afterEventId,'old-cursor');
  rows.set('events/a-new',{type:'company_disclosure',sourceType:'sec',form:'4',companyId:'US:AMD',title:'AMD ownership',url:'https://www.sec.gov/Archives/edgar/data/123/000000000000000001/owner.xml',...classifyEvent({form:'4'}),insiderEnrichmentPending:true});
  assert.equal((await runScheduledClassifications(db,{...options,download:async()=>{throw Error('temporary');}})).failed,1);
  assert.equal(rows.get('events/a-new')?.insiderEnrichmentPending,true);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Firestore } from 'firebase-admin/firestore';
-import { localDocuments, localEntityVersions, localQuery } from '../../src/lib/local-cache/entities';
+import { localDocuments, localEntityVersions } from '../../src/lib/local-cache/entities';
 import { Watch, closeLocalCaches } from '../../src/lib/local-cache/watch';
 function fixture(){
  const listeners:{collection:string;ids:string[];next:(snapshot:unknown)=>void;closed:boolean}[]=[];
@@ -41,9 +41,23 @@ test('subscriptions are bounded and eviction never cancels an active initial loa
  f.listeners[0].next({docs:[f.doc('pending',1)]});assert.equal((await pending)![0].exists,true);
 });
 
-test('sitemap subscriptions are bounded without evicting the theme company subscription',async(t)=>{
- t.after(closeLocalCaches);const f=fixture();
- const companies=localDocuments(f.db,'companies');f.listeners[0].next({docs:[]});await companies;
- for(let i=0;i<4;i++){const load=localQuery(f.db,`sitemap:${i}`,f.db.collection('companies'));f.listeners.at(-1)!.next({docs:[]});await load;}
- assert.equal(f.listeners[0].closed,false);assert.equal(f.listeners.filter(l=>!l.closed).length,3);
+
+test('sitemap caches retain three buckets, share reads and push renames/removals', async t => {
+ t.after(closeLocalCaches);
+ const { loadSitemapPaths } = await import('../../src/lib/local-cache/sitemaps');
+ const listeners: {prefix:string; next:(snapshot:unknown)=>void; closed:boolean}[]=[];
+ const db={collection:()=>{let prefix='';const query={orderBy:()=>query,startAt:(p:string)=>{prefix=p;return query;},endBefore:()=>query,onSnapshot:(next:(snapshot:unknown)=>void)=>{const l={prefix,next,closed:false};listeners.push(l);return ()=>{l.closed=true;};}};return query;}} as unknown as Firestore;
+ const doc=(id:string,name:string,slug:string)=>({id,data:()=>({name,slug,status:'PUBLISHED'})});
+ const first=loadSitemapPaths(db,'US:M'),concurrent=loadSitemapPaths(db,'US:M');
+ assert.equal(listeners.length,1);
+ listeners[0].next({docs:[doc('US:MSFT','Microsoft','microsoft')]});
+ const initial=await first;assert.deepEqual(await concurrent,initial);assert.ok(initial.length);assert.ok(Object.isFrozen(initial));
+ for(const prefix of ['XSHG:6','ORG:']){const result=loadSitemapPaths(db,prefix);listeners.at(-1)!.next({docs:[]});await result;}
+ assert.deepEqual(await loadSitemapPaths(db,'US:M'),initial);assert.equal(listeners.length,3);assert.ok(listeners.every(l=>!l.closed));
+ listeners[0].next({docs:[doc('US:MSFT','Microsoft','microsoft-new')]});
+ assert.notDeepEqual(await loadSitemapPaths(db,'US:M'),initial);
+ listeners[0].next({docs:[]});assert.deepEqual(await loadSitemapPaths(db,'US:M'),[]);
+ await assert.rejects(loadSitemapPaths(db,'arbitrary'),/Invalid sitemap prefix/);assert.equal(listeners.length,3);
+ closeLocalCaches();assert.ok(listeners.every(l=>l.closed));
+ const reopened=loadSitemapPaths(db,'US:M');assert.equal(listeners.length,4);listeners[3].next({docs:[]});await reopened;
 });

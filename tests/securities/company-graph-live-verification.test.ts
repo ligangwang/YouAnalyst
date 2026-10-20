@@ -20,11 +20,11 @@ function fixture() {
   const rows = new Map<string, Row>([
     ["company_research_runs/NVDA_latest_10k", { status: "COMPLETED", extractionVersion: COMPANY_GRAPH_EXTRACTION_VERSION, result: resultFor("legacy") }],
     [`sec_filings/${event.accessionNumber}`, { discoveryPending: false, discoveryEvents: { [event.eventId]: { event, state: "baseline" } } }],
-    ["company_fundamentals/US:NVDA", { secFilingsCollector: { cik: event.cik, lastCompleteAt: event.discoveredAt, scan: null } }],
+    ["sec_collector_state/US:NVDA", { secFilingsCollector: { cik: event.cik, lastCompleteAt: event.discoveredAt, scan: null } }],
   ]);
   let clock = now, tail = Promise.resolve();
   const paths: string[] = [], publications: Array<{ type: string; id: string }> = [];
-  const ref = (path: string) => ({ path, get: async () => ({ data: () => rows.has(path) ? structuredClone(rows.get(path)) : undefined }) });
+  const ref = (path: string) => ({ path, get: async () => ({ exists: rows.has(path), data: () => rows.has(path) ? structuredClone(rows.get(path)) : undefined }) });
   const db = { collection: (name: string) => ({
     doc: (id: string) => { paths.push(`${name}/${id}`); return ref(`${name}/${id}`); },
     where: (field: string, _op: string, value: unknown) => ({ count: () => ({ get: async () => ({ data: () => ({
@@ -248,7 +248,7 @@ test("canary commits its exact source once, verifies budget/provider completion,
   const source = f.rows.get(`company_research_runs/_graph_source_${request.requestId}`)!;
   assert.equal((source.filing as Row).accessionNumber, event.accessionNumber);
   assert.deepEqual(f.rows.get(`sec_filings/${event.accessionNumber}`), baseline);
-  assert.ok(f.paths.every(path => /^(company_research_runs|company_research_requests|company_fundamentals|sec_filings)\//.test(path)));
+  assert.ok(f.paths.every(path => /^(company_research_runs|company_research_requests|company_fundamentals|sec_collector_state|sec_filings)\//.test(path)));
   assert.equal((await verifyLiveCompanyGraph(f.db, tree, f.deps)).alreadyVerified, true);
   assert.equal(f.publications.length, 2);
 });
@@ -295,7 +295,7 @@ test("initial activation requires an exact completed baseline and matching cache
   for (const change of [
     (f: ReturnType<typeof fixture>) => f.rows.delete(`sec_filings/${event.accessionNumber}`),
     (f: ReturnType<typeof fixture>) => f.rows.set(`sec_filings/${event.accessionNumber}`, { discoveryEvents: { [event.eventId]: { event, state: "published" } } }),
-    (f: ReturnType<typeof fixture>) => f.rows.delete("company_fundamentals/US:NVDA"),
+    (f: ReturnType<typeof fixture>) => f.rows.delete("sec_collector_state/US:NVDA"),
     (f: ReturnType<typeof fixture>) => f.rows.set("company_research_runs/NVDA_latest_10k", { status: "FAILED" }),
   ]) {
     const f = fixture(); change(f); await assert.rejects(verifyLiveCompanyGraph(f.db, tree, f.deps));

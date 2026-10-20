@@ -16,6 +16,19 @@ const REDIRECT_HOSTS = new Set([
 const CANONICAL_HOST = "youanalyst.com";
 
 export function proxy(request: NextRequest) {
+  // Log at ingress so sitemap cache hits and redirects are recorded too.
+  const pathname = request.nextUrl.pathname;
+  if (pathname === "/sitemap.xml" || pathname.startsWith("/sitemaps/")) {
+    console.info(JSON.stringify({
+      severity: "INFO",
+      event: "sitemap_request",
+      timestamp: new Date().toISOString(),
+      path: pathname,
+      method: request.method,
+      userAgent: request.headers.get("user-agent"),
+      revision: process.env.K_REVISION ?? null,
+    }));
+  }
   const hostHeader = request.headers.get("host");
   const requestHost = hostHeader?.split(":")[0]?.toLowerCase() ?? "";
 

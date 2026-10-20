@@ -8,14 +8,49 @@ import { parseSecCollectorArgs } from "../../src/lib/sec-filings/cli";
 import { hasCurrentCompanyGraph } from "../../src/lib/company-graph/requests";
 import { collectSecFilings, inspectSecFilingCollection } from "../../src/lib/sec-filings/collector";
 import { createSecFilingDiscovered, type SecFilingDiscovered } from "../../src/lib/sec-filings/event";
-import { persistSecFilingDiscovery, type SecCollectorCursor } from "../../src/lib/sec-filings/store";
+import { persistSecFilingDiscovery, readSecCollectorCursor, type SecCollectorCursor } from "../../src/lib/sec-filings/store";
 import type { SecFiling, SecFilingsSource, SecSubmissions, SecSubmissionsFile } from "../../src/lib/sec-filings/source";
+import {acquireSecCollectorLease} from '../../src/lib/sec-collector-state';
 
 type Data = Record<string, unknown>;
 const CIK = "0000002488";
-const META = "company_fundamentals/_sec_filings_collector";
-const COMPANY = "company_fundamentals/US:AMD";
+const META = "sec_collector_state/_sec_filings_collector";
+const COMPANY = "sec_collector_state/US:AMD";
 const iso = "2026-09-27T12:00:00.000Z";
+test('bridge acquisition preserves newer rotation progress',async()=>{
+ const f=fixture({[META]:{afterCompanyId:'NVDA'},'company_fundamentals/_sec_filings_collector':{afterCompanyId:'AMD'}});
+ assert.equal(await acquireSecCollectorLease(f.db,'test',Date.parse(iso),undefined),true);
+ assert.equal(f.documents.get(META)?.afterCompanyId,'NVDA');
+});
+test("bridge mirrors cursor progress until retired, then leaves fundamentals untouched",async()=>{
+ const f=fixture({[META]:{},'company_fundamentals/US:AMD':{secFilingsCollector:cursor()}});
+ await f.run();
+ assert.deepEqual(f.documents.get(COMPANY)?.secFilingsCollector,f.documents.get('company_fundamentals/US:AMD')?.secFilingsCollector);
+ const old=structuredClone(f.documents.get('company_fundamentals/US:AMD'));
+ f.documents.set(META,{...f.documents.get(META),bridgeRetired:true});
+ await f.run();
+ assert.deepEqual(f.documents.get('company_fundamentals/US:AMD'),old);
+});
+test("legacy scan progress resumes in operational state without modifying fundamentals", async () => {
+  const financial = { revenue: 123, secFilingsCollector: cursor() };
+  const f = fixture({ "company_fundamentals/US:AMD": financial });
+  const before = f.writes;
+  assert.deepEqual(await readSecCollectorCursor(f.db, "AMD"), cursor());
+  assert.equal(f.writes, before, "diagnostic fallback must remain read-only");
+  await f.run();
+  assert.deepEqual(f.documents.get("company_fundamentals/US:AMD"), financial);
+  assert.ok(f.documents.get(COMPANY)?.secFilingsCollector);
+  f.documents.set("company_fundamentals/US:AMD", { secFilingsCollector: { invalid: true } });
+  assert.ok(await readSecCollectorCursor(f.db, "AMD"), "new state wins over legacy state");
+});
+
+test("migration preserves the legacy collector lock", async () => {
+  const f = fixture({ [META]: {}, "company_fundamentals/_sec_filings_collector": {
+    leaseOwner: "old-worker", leaseExpiresAtMs: Date.parse(iso) + 60_000,
+  } });
+  await assert.rejects(f.run(), /busy/);
+  assert.equal(f.requests.length, 0);
+});
 function filing(id = 1, date = "2026-09-27", form: SecFiling["form"] = "10-K"): SecFiling {
   return { accessionNumber: `0000002488-26-${String(id).padStart(6, "0")}`, filingDate: date, form,
     primaryDocument: `amd-${id}.htm`, isXbrl: true };
@@ -24,7 +59,7 @@ function cursor(lastCompleteAt = iso): SecCollectorCursor {
   return { version: 1, cik: CIK, baselineAt: "2026-01-01T00:00:00.000Z", lastCompleteAt, nextPollAfterMs: 0, scan: null };
 }
 function fixture(initial: Record<string, Data> = {}) {
-  const documents = new Map<string, Data>(Object.entries(initial));
+  const documents = new Map<string, Data>([[META,{bridgeRetired:true}],...Object.entries(initial)]);
   let time = Date.parse(iso);
   let writes = 0;
   let onWrite: ((path: string, data: Data) => void) | undefined;
@@ -153,7 +188,7 @@ test("persistent publisher outage prevents further discovery calls", async () =>
   assert.equal(f.requests.length, count);
 });
 test("multiple US listings sharing one accession keep independent events in the existing filing document", async () => {
-  const f = fixture({ [COMPANY]: { secFilingsCollector: cursor() }, "company_fundamentals/US:OTHER": { secFilingsCollector: cursor() } });
+  const f = fixture({ [COMPANY]: { secFilingsCollector: cursor() }, "sec_collector_state/US:OTHER": { secFilingsCollector: cursor() } });
   await f.run(["AMD", "OTHER"]);
   assert.equal(f.events.length, 2);
   assert.equal(new Set(f.events.map(event => event.eventId)).size, 2);

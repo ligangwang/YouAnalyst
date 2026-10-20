@@ -1,3 +1,4 @@
+import {headlineQueueFields} from './headline-queue';
 import {markFeedChanged} from '../feed-cache-changes';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {NewsSource} from './sources';
@@ -33,7 +34,7 @@ export function firestoreNewsStore(db:Firestore):NewsStore{
       candidates.forEach((item,index)=>{
         if(existing[index].exists)return;
         const event:CollectedNews={...item,id:eventDocumentId('company_news',item.id),version:1,type:'company_news',sourceType:'company_ir',companyIds:[source.companyId],collected_at:response.status==='modified'?response.collected_at??at.toISOString():at.toISOString(),processed_at:at.toISOString(),baseline};
-        tx.create(refs[index],{...event,...classifyEvent(event)});markFeedChanged(db,tx,refs[index]);created++;
+        tx.create(refs[index],{...event,...headlineQueueFields(event),...classifyEvent(event)});markFeedChanged(db,tx,refs[index]);created++;
       });
       // Align successful scans to the next schedule boundary, not an hour after
       // completion; otherwise a few seconds of jitter can skip the next run.

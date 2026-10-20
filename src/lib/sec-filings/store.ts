@@ -1,11 +1,12 @@
 import { usFundamentalsId } from "../fundamentals/identity";
+import { SEC_COLLECTOR_STATE_COLLECTION, secCollectorBridge } from "../sec-collector-state";
 import {markFeedChanged} from '../intelligence/feed-cache-changes';
 import type { SecFiling } from "./source";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
 import { isSecFilingDate, parseSecFilingDiscovered, type SecFilingDiscovered } from "./event";
 
 export const SEC_FILINGS_COLLECTION = "sec_filings";
-export const SEC_COLLECTOR_METADATA_COLLECTION = "company_fundamentals";
+export const SEC_COLLECTOR_METADATA_COLLECTION = SEC_COLLECTOR_STATE_COLLECTION;
 export const SEC_COLLECTOR_METADATA_DOCUMENT = "_sec_filings_collector";
 export type SecCollectorScan = {
   startedAt: string;
@@ -40,7 +41,11 @@ export function secCollectorMetadata(db: Firestore) {
   return db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(SEC_COLLECTOR_METADATA_DOCUMENT);
 }
 export async function readSecCollectorCursor(db: Firestore, companyId: string): Promise<SecCollectorCursor | null> {
-  const value = (await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(usFundamentalsId(companyId)).get()).get("secFilingsCollector");
+  const id = usFundamentalsId(companyId);
+  const state = await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(id).get();
+  // Read legacy progress only until the first state write. Diagnostics stay read-only.
+  const value = state.exists && !await secCollectorBridge(db) ? state.get("secFilingsCollector")
+    : (await db.collection("company_fundamentals").doc(id).get()).get("secFilingsCollector");
   if (!value) return null;
   if (value.version !== 1 || !/^\d{10}$/.test(value.cik) || !Number.isFinite(Date.parse(value.baselineAt))
     || (value.lastCompleteAt !== null && !Number.isFinite(Date.parse(value.lastCompleteAt)))
@@ -53,7 +58,12 @@ export async function readSecCollectorCursor(db: Firestore, companyId: string): 
   return value as SecCollectorCursor;
 }
 export async function writeSecCollectorCursor(db: Firestore, companyId: string, value: SecCollectorCursor) {
-  await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(usFundamentalsId(companyId)).set({ secFilingsCollector: value }, { merge: true });
+  const ref=db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(usFundamentalsId(companyId));
+  await db.runTransaction(async tx=>{
+    const bridge=(await tx.get(secCollectorMetadata(db))).get("bridgeRetired")!==true;
+    tx.set(ref,{secFilingsCollector:value},{merge:true});
+    if(bridge)tx.set(db.collection("company_fundamentals").doc(usFundamentalsId(companyId)),{secFilingsCollector:value},{merge:true});
+  });
 }
 
 /** Existing accession documents also contain graph extraction results; always merge. */

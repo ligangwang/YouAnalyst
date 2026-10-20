@@ -65,17 +65,19 @@ export async function backfillEventClassifications(db:Firestore,options:{apply:b
    result.cursor=doc.id;
   }
   if(result.cursor===docs.docs.at(-1)?.id&&docs.size<100||docs.empty){result.complete=true;}
-  if(options.apply)await checkpoint.set({version:EVENT_CLASSIFICATION_VERSION,afterEventId:result.complete?'':result.cursor,lastRunAt:new Date().toISOString(),result,...(options.scheduled?(options.pendingOnly?{pendingAfterEventId:result.complete?'':result.cursor}:{bootstrapAfterEventId:result.complete?'':result.cursor,...(result.complete?{bootstrapVersion:EVENT_CLASSIFICATION_VERSION}:{})}):{})},{merge:true});
+  if(options.apply)await checkpoint.set(options.scheduled
+   ? {pendingAfterEventId:result.complete?'':result.cursor,pendingLastRunAt:new Date().toISOString(),pendingResult:result}
+   : {version:EVENT_CLASSIFICATION_VERSION,migrationAfterEventId:result.complete?'':result.cursor,migrationLastRunAt:new Date().toISOString(),migrationResult:result,...(result.complete?{migrationVersion:EVENT_CLASSIFICATION_VERSION}:{})},
+   {merge:true});
   options.onProgress?.({...result});
   if(result.complete)break;
  }
  return result;
 }
 
-/** Complete the historical migration once; new disclosures enqueue enrichment at ingestion. */
+/** Routine collection never scans history; new disclosures enqueue enrichment at ingestion. */
 export async function runScheduledClassifications(db:Firestore,options:{enrichInsiders:boolean;deadline:number;maxPages?:number;download?:(url:string)=>Promise<string>}){
  const state=(await db.collection('collectors').doc('event-classification-v1').get()).data();
- const pendingOnly=state?.bootstrapVersion===EVENT_CLASSIFICATION_VERSION;
- return backfillEventClassifications(db,{...options,apply:true,scheduled:true,pendingOnly,
-  after:String((pendingOnly?state?.pendingAfterEventId:state?.bootstrapAfterEventId)??'')});
+ return backfillEventClassifications(db,{...options,apply:true,scheduled:true,pendingOnly:true,
+  after:String(state?.pendingAfterEventId??'')});
 }

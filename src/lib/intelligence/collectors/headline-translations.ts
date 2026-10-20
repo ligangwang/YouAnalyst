@@ -4,17 +4,10 @@ import {randomUUID} from 'node:crypto';
 import {EVENTS_COLLECTION} from '../../events/model';
 import {CALENDAR_MODEL} from '../../calendar/model';
 import {buildOpenAiUsageEvent} from '../../openai/usage';
-import {translatedSummary} from '../../knowledge-graph/summary-translations';
+import {headlineTargetLocale,needsHeadlineTranslation,headlineQueueFields} from './headline-queue';
+export {headlineTargetLocale,needsHeadlineTranslation} from './headline-queue';
 export type Headline={id:string;title:string};
 export type HeadlineResponse={translations:{id:string;text:string}[];model:string;responseId:string|null;usage:Record<string,unknown>|null};
-export function headlineTargetLocale(title:string):'en'|'zh-CN'{return /[\u4e00-\u9fff]/.test(title)?'en':'zh-CN';}
-export function needsHeadlineTranslation(record:Record<string,unknown>){
-  if(!(record.type==='company_news'||record.type==='company_disclosure'&&record.sourceType==='exchange')||typeof record.title!=='string'||!record.title.trim()||record.title.length>1000)return false;
-  if(translatedSummary(record.title,(record.titleTranslations as Record<string,unknown>|undefined)?.[headlineTargetLocale(record.title)]))return false;
-  const state=record.titleTranslationState as {source?:string}|undefined;
-  // A persisted request intent also blocks repeats after a crash or ambiguous timeout.
-  return !state||state.source!==record.title;
-}
 export async function translateHeadlines(items:Headline[],options:{key:string;request?:typeof fetch;model?:string}):Promise<HeadlineResponse>{
   if(!options.key||!items.length||items.length>20||new Set(items.map(item=>item.id)).size!==items.length)throw new Error('Invalid headline translation batch');
   const model=options.model??CALENDAR_MODEL;
@@ -33,18 +26,26 @@ export async function translateCollectedHeadlines(db:Firestore,mapped:ReadonlySe
   if(now()+65_000>options.deadline)return result;
   const earliest=new Date(now()-30*86400_000).toISOString().slice(0,10);
   const readRecords=async()=>{
-    const news=db.collection(EVENTS_COLLECTION).where('type','==','company_news').where('sourceType','==','company_ir');
-    const disclosures=db.collection(EVENTS_COLLECTION).where('type','==','company_disclosure');
-    return (await Promise.all([news,disclosures].flatMap(base=>[base.where('published_at','>=',earliest+'T00:00:00.000Z').orderBy('published_at','desc').limit(300).get(),base.where('published_at','==',null).where('publication_date','>=',earliest).orderBy('publication_date','desc').limit(300).get()]))).flatMap(page=>page.docs);
+    const ids=[...mapped],records:DocumentSnapshot[]=[];
+    for(let offset=0;offset<ids.length;offset+=30){
+      const page=await db.collection(EVENTS_COLLECTION)
+        .where('headlineTranslationPending','==',true)
+        .where('companyId','in',ids.slice(offset,offset+30))
+        .where('headlineTranslationDate','>=',earliest)
+        .orderBy('headlineTranslationDate','desc').limit(40).get();
+      records.push(...page.docs);
+    }
+    return records;
   };
   const records=options.records??await readRecords();
-  const candidates=[...new Map(records.map(doc=>[doc.id,doc])).values()].filter(doc=>mapped.has(String(doc.data()?.companyId))&&needsHeadlineTranslation(doc.data()??{})).sort((a,b)=>String(b.data()?.published_at??b.data()?.publication_date).localeCompare(String(a.data()?.published_at??a.data()?.publication_date))).slice(0,40);
+  const candidates=[...new Map(records.map(doc=>[doc.id,doc])).values()].filter(doc=>mapped.has(String(doc.data()?.companyId))).sort((a,b)=>String(b.data()?.published_at??b.data()?.publication_date).localeCompare(String(a.data()?.published_at??a.data()?.publication_date))).slice(0,40);
   for(let index=0;index<candidates.length&&now()+65_000<=options.deadline;index+=10){
     const attemptId=randomUUID(),docs=candidates.slice(index,index+10);
     const items=await db.runTransaction(async tx=>{
       const latest=await tx.getAll(...docs.map(doc=>doc.ref));
       const eligible=latest.filter(doc=>mapped.has(String(doc.data()?.companyId))&&needsHeadlineTranslation(doc.data()??{}));
-      for(const doc of eligible)tx.update(doc.ref,{titleTranslationState:{source:doc.data()!.title,status:'requesting',attemptId,createdAt:new Date(now()).toISOString()}});
+      for(const doc of latest){if(doc.exists&&!needsHeadlineTranslation(doc.data()??{}))tx.update(doc.ref,{headlineTranslationPending:false});}
+      for(const doc of eligible)tx.update(doc.ref,{headlineTranslationPending:false,titleTranslationState:{source:doc.data()!.title,status:'requesting',attemptId,createdAt:new Date(now()).toISOString()}});
       return eligible.map(doc=>({id:doc.id,title:String(doc.data()!.title)}));
     });
     if(!items.length)continue;
@@ -57,7 +58,7 @@ export async function translateCollectedHeadlines(db:Firestore,mapped:ReadonlySe
       const usageRef=db.collection('openai_usage_events').doc(usage.id),previousUsage=await tx.get(usageRef);
       if(!previousUsage.exists)tx.create(usageRef,usage);
       items.forEach((item,i)=>{
-        const record=latest[i].data();if(record?.title!==item.title||record.titleTranslationState?.attemptId!==attemptId){result.skipped++;return;}
+        const record=latest[i].data();if(record?.title!==item.title||record.titleTranslationState?.attemptId!==attemptId){if(record)tx.update(refs[i],headlineQueueFields(record));result.skipped++;return;}
         const translation=response?.translations.find(value=>value.id===item.id);
         tx.update(refs[i],{titleTranslationState:{source:item.title,status:translation?'complete':'review_required',attemptId,createdAt:new Date(now()).toISOString(),usageEventId:usage.id,error:translationError},...(translation?{['titleTranslations.'+headlineTargetLocale(item.title)]:{source:item.title,text:translation.text.trim(),translatedAt:new Date(now()).toISOString(),model:response!.model}}:{})});
         markFeedChanged(db,tx,refs[i]);

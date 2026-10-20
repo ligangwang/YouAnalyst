@@ -9,6 +9,7 @@
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
+    {"collectionGroup": "events", "queryScope": "COLLECTION", "fields": [{"fieldPath": "headlineTranslationPending", "order": "ASCENDING"}, {"fieldPath": "companyId", "order": "ASCENDING"}, {"fieldPath": "headlineTranslationDate", "order": "DESCENDING"}]},
     {"collectionGroup":"companies","queryScope":"COLLECTION","fields":[{"fieldPath":"themeIds","arrayConfig":"CONTAINS"},{"fieldPath":"cacheUpdatedAt","order":"ASCENDING"}]},
     {"collectionGroup":"collectors","queryScope":"COLLECTION","fields":[{"fieldPath":"cacheDeletedCollection","order":"ASCENDING"},{"fieldPath":"cacheUpdatedAt","order":"ASCENDING"}]},
     {"collectionGroup":"companies","queryScope":"COLLECTION","fields":[{"fieldPath":"exchange_region","order":"ASCENDING"},{"fieldPath":"themeIds","arrayConfig":"CONTAINS"}]},
