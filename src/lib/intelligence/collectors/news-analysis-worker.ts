@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {FieldPath,type Firestore,type DocumentSnapshot} from 'firebase-admin/firestore';
+import {type Firestore,type DocumentSnapshot} from 'firebase-admin/firestore';
 import {EVENTS_COLLECTION,eventDocumentId} from '../../events/model';
 import {canonicalEvidenceUrl} from '../model';
 import {fetchCalendarArticle} from '../../calendar/article';
@@ -20,40 +20,44 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
  const monthlyBudget=options.monthlyBudgetUsd??5;
  if(!Number.isFinite(monthlyBudget)||monthlyBudget<=0||monthlyBudget>100)throw new Error('Invalid news analysis budget');
  const events=db.collection(EVENTS_COLLECTION),meta=db.collection('collectors').doc('news-article-analysis');
- let records:DocumentSnapshot[],history:DocumentSnapshot[]=[],after='';
+ let records:DocumentSnapshot[];
  if(options.records)records=options.records;
  else{
-  const state=(await meta.get()).data();after=String(state?.afterEventId??'');
-  const query=events.where('type','==','company_news').orderBy(FieldPath.documentId()).limit(200);
-  const [recent,page]=await Promise.all([events.where('type','==','company_news').orderBy('publication_date','desc').limit(100).get(),(after?query.startAfter(after):query).get()]);
-  history=page.docs;records=[...new Map([...recent.docs,...history].map(doc=>[doc.id,doc])).values()];
+  records=(await events.where('newsAnalysisNextCheckAtMs','<=',now()).orderBy('newsAnalysisNextCheckAtMs').limit(200).get()).docs;
  }
- const processed=new Set<string>();
+ const postpone=async(doc:DocumentSnapshot,due:number)=>{
+  await db.runTransaction(async tx=>{
+   const current=await tx.get(doc.ref);
+   if(current.exists&&current.data()?.url===doc.data()?.url&&current.data()?.title===doc.data()?.title)
+    tx.update(doc.ref,{newsAnalysisNextCheckAtMs:due});
+  });
+ };
  for(const doc of records){
   if(now()+95_000>=options.deadline||result.paid>=(options.maxCalls??20)){result.deferred++;break;}
   const source={...doc.data(),id:doc.id} as CalendarSource;
-  if(source.type!=='company_news'){processed.add(doc.id);continue;}
+  if(source.type!=='company_news'){await postpone(doc,Number.MAX_SAFE_INTEGER);continue;}
   result.scanned++;
   const config=sources.find(s=>s.id===source.sourceId&&s.companyId===(source.companyId??source.companyIds?.[0]));
   const url=canonicalEvidenceUrl(source.url);
   // Revalidate original URL and each redirect through the existing publisher adapter.
-  if(!url||!config||!approvedNewsUrl(url,config,true)){result.failed++;processed.add(doc.id);continue;}
+  if(!url||!config||!approvedNewsUrl(url,config,true)){await postpone(doc,now()+86400_000);result.failed++;continue;}
   // The source marker and receipt are committed atomically. Completed sources
   // need no second document read just to discover the same terminal receipt.
   const savedAnalysis=doc.data()?.newsAnalysis;
   if(savedAnalysis?.version===NEWS_ANALYSIS_VERSION
     && ['complete','review_required'].includes(savedAnalysis.status)
     && savedAnalysis.receiptId===eventDocumentId('news_analysis',articleHash(url))){
-    result.cached++;processed.add(doc.id);continue;
+    if(doc.data()?.newsAnalysisNextCheckAtMs!==Number.MAX_SAFE_INTEGER)await postpone(doc,Number.MAX_SAFE_INTEGER);
+    result.cached++;continue;
   }
   const receipt=events.doc(eventDocumentId('news_analysis',articleHash(url))),prior=(await receipt.get()).data();
-  if(prior&&prior.status!=='fetch_failed'){result.cached++;processed.add(doc.id);continue;}
-  if(prior?.nextCheckAtMs>now()){result.cached++;processed.add(doc.id);continue;}
+  if(prior&&prior.status!=='fetch_failed'){await postpone(doc,Number.MAX_SAFE_INTEGER);result.cached++;continue;}
+  if(prior&&prior.nextCheckAtMs>now()){await postpone(doc,prior.nextCheckAtMs);result.cached++;continue;}
   let content:string;
   try{content=await (options.download??(s=>fetchCalendarArticle(s,undefined,sources)))(source);if(content.length<100||content.length>60_000)throw new Error('Article text unavailable or exceeds analysis limit');}
   catch{
    await db.runTransaction(async tx=>{const old=(await tx.get(receipt)).data();if(old&&old.status!=='fetch_failed')return;tx.set(receipt,{type:'news_analysis',version:1,extractorVersion:NEWS_ANALYSIS_VERSION,status:'fetch_failed',sourceEventId:source.id,sourceUrl:url,companyIds:source.companyIds,title:source.title,nextCheckAtMs:now()+86400_000,updatedAt:new Date(now()).toISOString()},{merge:true});});
-   result.failed++;processed.add(doc.id);continue;
+   await postpone(doc,now()+86400_000);result.failed++;continue;
   }
   const attemptId=randomUUID(),at=new Date(now()).toISOString(),contentHash=articleHash(content),budget=db.collection('collectors').doc('news-analysis-budget-'+at.slice(0,7));
   // UTF-8 bytes conservatively bound input tokens; reserve maximum output too.
@@ -66,7 +70,7 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
    tx.set(receipt,{type:'news_analysis',version:1,extractorVersion:NEWS_ANALYSIS_VERSION,status:'requesting',sourceEventId:source.id,sourceUrl:url,companyIds:source.companyIds,title:source.title,content,contentHash,model:NEWS_ANALYSIS_MODEL,attemptId,reservationMicros:reservation,createdAt:at});return 'claimed';
   });
   if(claimed==='budget'){result.budgetBlocked++;result.deferred++;break;}
-  if(claimed==='cached'){result.cached++;processed.add(doc.id);continue;}
+  if(claimed==='cached'){await postpone(doc,Number.MAX_SAFE_INTEGER);result.cached++;continue;}
   result.paid++;let response:NewsAnalysisResponse|null=null,error:string|null=null,analysis:ReturnType<typeof validateNewsAnalysis>|null=null;
   try{response=await (options.analyze??((title,text)=>analyzeNewsArticle(title,text,{key:process.env.OPENAI_API_KEY??''})))(source.title,content);analysis=validateNewsAnalysis(resolveNewsAnalysis(response.analysis,resolveCompany,source.title+'\n'+content),content,companies);}
   catch{error=response?'Analysis needs evidence or identity review':'Provider request failed; billing may be unknown. Operator review required before retry.';result.failed++;}
@@ -83,7 +87,7 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
    if(usage.estimatedCostUsd!==null)tx.set(budget,{spentMicros:Number(spend?.spentMicros??0)+Math.ceil(usage.estimatedCostUsd*1e6),reservedMicros:Math.max(0,Number(spend?.reservedMicros??0)-reservation)},{merge:true});
    const unchanged=current.exists&&current.data()?.url===source.url&&current.data()?.title===source.title;
    tx.update(receipt,{status:analysis?'complete':'review_required',analysis:analysis??response?.analysis??null,error,usageEventId:usage.id,responseId:response?.responseId??null,updatedAt:at});
-   if(unchanged)tx.update(doc.ref,{newsAnalysis:{receiptId:receipt.id,version:NEWS_ANALYSIS_VERSION,status:analysis?'complete':'review_required',contentHash,candidateCount:candidates.length,checkedAt:at}});
+   if(unchanged)tx.update(doc.ref,{newsAnalysisNextCheckAtMs:Number.MAX_SAFE_INTEGER,newsAnalysis:{receiptId:receipt.id,version:NEWS_ANALYSIS_VERSION,status:analysis?'complete':'review_required',contentHash,candidateCount:candidates.length,checkedAt:at}});
    if(unchanged)candidates.forEach((c,i)=>{
     if(existing[i].exists)return;
     const r=c.relationship;
@@ -91,12 +95,11 @@ export async function analyzeCollectedNews(db:Firestore,companies:readonly Graph
    });
   });
   if(analysis){result.complete++;result.candidates+=candidates.length;}
-  processed.add(doc.id);
+  
  }
  if(!options.records){
-  let consumed=0;for(const doc of history){if(!processed.has(doc.id))break;after=doc.id;consumed++;}
-  if(consumed===history.length&&history.length<200)after='';
-  await meta.set({afterEventId:after,extractorVersion:NEWS_ANALYSIS_VERSION,lastRunAt:new Date(now()).toISOString(),result},{merge:true});
+  if(records.length===200)result.deferred++;
+  await meta.set({extractorVersion:NEWS_ANALYSIS_VERSION,lastRunAt:new Date(now()).toISOString(),result},{merge:true});
  }
  return result;
 }

@@ -16,7 +16,7 @@ export async function loadEarningsMap(db: Firestore, graph?: KnowledgeGraph,
     const companies = mapListedCompanies(snapshot).filter(node => node.market === 'US');
     const identities = new Map<string, string>();
     if (companies.length) {
-      const rows = await Promise.all(companies.map(node => db.collection('collectors').doc(`sec-${node.id}`).get()));
+      const rows = await Promise.all(companies.map(node => db.collection('collectors').doc(initialStates ? `sec-${node.id}` : `sec-identity-${node.id}`).get()));
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i].data();
         initialStates?.set(companies[i].id, row);

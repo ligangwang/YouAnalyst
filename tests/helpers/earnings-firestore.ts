@@ -3,7 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 
 type Data = Record<string, unknown>;
 export function earningsFirestore() {
-  const rows = new Map<string, Data>(), writes: string[] = [];
+  const rows = new Map<string, Data>(), writes: string[] = [], reads: string[] = [];
   let clock = Date.parse("2026-10-02T11:00:00Z"), reject: (path: string, value: Data) => boolean = () => false;
   let queue = Promise.resolve();
   function merge(before: Data, patch: Data): Data {
@@ -46,7 +46,7 @@ export function earningsFirestore() {
   const db = { collection, runTransaction: <T>(callback: (tx: unknown) => Promise<T>) => {
     const work = queue.then(async () => {
       const pending: Array<{ path: string; value: Data; merge: boolean }> = [];
-      const read = async (r: Ref) => { assert.equal(pending.length, 0, "Firestore transactions require all reads before writes"); return snapshot(r.path); };
+      const read = async (r: Ref) => { assert.equal(pending.length, 0, "Firestore transactions require all reads before writes"); reads.push(r.path); return snapshot(r.path); };
       const result = await callback({ get: read, getAll: (...refs: Ref[]) => Promise.all(refs.map(read)),
         create: (r: Ref, value: Data) => { assert(!rows.has(r.path)&&!pending.some(item=>item.path===r.path), 'Document already exists'); pending.push({path:r.path,value,merge:false}); },
         set: (r: Ref, value: Data, options?: { merge?: boolean }) => pending.push({ path: r.path, value, merge: Boolean(options?.merge) }),
@@ -56,5 +56,5 @@ export function earningsFirestore() {
     });
     queue = work.then(() => undefined, () => undefined); return work;
   } } as unknown as Firestore;
-  return { db, rows, writes, now: () => clock, advance: (ms: number) => { clock += ms; }, reject: (fn: typeof reject) => { reject = fn; } };
+  return { db, rows, writes, reads, now: () => clock, advance: (ms: number) => { clock += ms; }, reject: (fn: typeof reject) => { reject = fn; } };
 }

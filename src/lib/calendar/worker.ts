@@ -4,7 +4,7 @@ import { FieldPath, type Firestore, type DocumentSnapshot } from 'firebase-admin
 import { EVENTS_COLLECTION, eventDocumentId } from '../events/model';
 import { buildOpenAiUsageEvent, type OpenAiUsageEvent } from '../openai/usage';
 import { canonicalEvidenceUrl } from '../intelligence/model';
-import { isCalendarCandidate } from './candidates';
+import {calendarCandidate} from './queue';
 import { fetchCalendarArticle } from './article';
 import {loadNewsSources} from '../intelligence/collectors/source-service';
 import { extractSchedule, hash, normalizedText, normalizeExtractedSchedules, type CalendarResponse } from './extraction';
@@ -12,18 +12,26 @@ import { CALENDAR_MODEL, CALENDAR_EXTRACTOR_VERSION, type CalendarSource, type S
 
 type Receipt = {status:'requesting'|'complete'|'review_required'|'failed';companyIds:string[];contentHash:string;model:string;output?:string;responseStatus?:string;attemptId:string;createdAt:string;error?:string|null;validationWarnings?:string[]};
 type SourceState = {receiptId?:string;nextCheckAtMs?:number;failures?:number;lastError?:string|null};
-type Dependencies = {now?:()=>number;download?:(source:CalendarSource)=>Promise<string>;extract?:(source:CalendarSource,text:string)=>Promise<CalendarResponse>;onPaidRequest?:()=>void;revalidateCached?:boolean;companyCountries?:ReadonlyMap<string,string>};
+type Dependencies = {now?:()=>number;download?:(source:CalendarSource)=>Promise<string>;extract?:(source:CalendarSource,text:string)=>Promise<CalendarResponse>;onPaidRequest?:()=>void;revalidateCached?:boolean;companyCountries?:ReadonlyMap<string,string>;sourceSnapshot?:DocumentSnapshot};
 
 /** A paid-request intent survives crashes. An uncertain request is never retried automatically. */
 export async function processCalendarSource(db: Firestore, source: CalendarSource, options: Dependencies = {}) {
   const now=options.now??Date.now,ref=db.collection(EVENTS_COLLECTION).doc(source.id);
-  const state=(await ref.get()).get('calendarExtraction') as SourceState|undefined;
-  if (options.revalidateCached ? !state?.receiptId : Number(state?.nextCheckAtMs)>now()) return {status:'cached'};
+  // The collector already loaded this event in its due-work query. This is
+  // only an initial scheduling hint; receipt reservation and persistence still
+  // read their ownership/fencing state freshly inside transactions.
+  if(options.sourceSnapshot&&options.sourceSnapshot.ref.path!==ref.path)throw new Error('Calendar source snapshot mismatch');
+  const state=(options.sourceSnapshot??await ref.get()).get('calendarExtraction') as SourceState|undefined;
+  if (options.revalidateCached ? !state?.receiptId : Number(state?.nextCheckAtMs)>now()) {
+    if(!options.revalidateCached)await ref.set({calendarNextCheckAtMs:state!.nextCheckAtMs},{merge:true});
+    return {status:'cached'};
+  }
   let text: string;
   try { text=await (options.download??(async item=>fetchCalendarArticle(item,undefined,await loadNewsSources(db))))(source); }
   catch(error) {
     const failures=(state?.failures??0)+1;
-    await ref.set({calendarExtraction:{...state,failures,lastError:error instanceof Error?error.message:'Article fetch failed',nextCheckAtMs:now()+Math.min(24,2**Math.min(5,failures))*3600000}},{merge:true});
+    const nextCheckAtMs=now()+Math.min(24,2**Math.min(5,failures))*3600000;
+    await ref.set({calendarNextCheckAtMs:nextCheckAtMs,calendarExtraction:{...state,failures,lastError:error instanceof Error?error.message:'Article fetch failed',nextCheckAtMs}},{merge:true});
     return {status:'fetch_failed'};
   }
   const url=canonicalEvidenceUrl(source.url);if(!url)throw new Error('Invalid calendar source URL');
@@ -41,7 +49,9 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
   });
   if(!reservation.receipt)return {status:'cached'};
   let receipt=reservation.receipt,usage:OpenAiUsageEvent|undefined;
-  if(receipt.companyIds.join('|')!==source.companyIds.join('|')) return {status:'review_required'};
+  if(receipt.companyIds.join('|')!==source.companyIds.join('|')) {
+    await ref.set({calendarNextCheckAtMs:now()+86400000},{merge:true});return {status:'review_required'};
+  }
   if(reservation.created) {
     options.onPaidRequest?.();
     try {
@@ -56,6 +66,7 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
       usage.estimatedCostUsd=null;
     }
   } else if(receipt.status==='requesting') {
+    await ref.set({calendarNextCheckAtMs:now()+86400000},{merge:true});
     return {status:'busy_or_uncertain'};
   }
   at=new Date(now()).toISOString();
@@ -117,13 +128,14 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
     const future=schedules.some(item=>item.scheduled_date>=at.slice(0,10));
     const recent=source.publication_date && Date.parse(source.publication_date)>=now()-60*86400000;
     markFeedChanged(db,tx,ref);
-    tx.set(ref,{calendarExtraction:{receiptId,contentHash,status:receipt.status,checkedAt:at,nextCheckAtMs:future||recent||receipt.status!=='complete'?now()+86400000:Number.MAX_SAFE_INTEGER,failures:0,lastError:receipt.error??null}},{merge:true});
+    const nextCheckAtMs=future||recent||receipt.status!=='complete'?now()+86400000:Number.MAX_SAFE_INTEGER;
+    tx.set(ref,{calendarNextCheckAtMs:nextCheckAtMs,calendarExtraction:{receiptId,contentHash,status:receipt.status,checkedAt:at,nextCheckAtMs,failures:0,lastError:receipt.error??null}},{merge:true});
   });
   for(let attempt=0;;attempt++)try { await persist();break; } catch(error) { if(attempt>=2)throw error; }
   return {status:receipt.status,created:schedules.length,paid:reservation.created};
 }
 
-/** Existing hourly news job scans original IR and exchange sources for the entire mapped union. */
+/** Routine runs read only due candidates; historical queue seeding is explicit. */
 export async function collectCalendarSchedules(db: Firestore, companyIds: Set<string>, options: Dependencies & {deadline:number;maxCalls?:number} ) {
   if(!options.revalidateCached){
     if(process.env.OPENAI_CALENDAR_MODEL && process.env.OPENAI_CALENDAR_MODEL!==CALENDAR_MODEL)throw new Error('Calendar extraction model must be gpt-6-luna');
@@ -131,7 +143,7 @@ export async function collectCalendarSchedules(db: Firestore, companyIds: Set<st
   }
   const now=options.now??Date.now,meta=db.collection('collectors').doc('earnings-calendar'),state=(await meta.get()).data();
   const base=db.collection(EVENTS_COLLECTION);
-  let all:DocumentSnapshot[],historyDocs:DocumentSnapshot[]=[],historySize=0,revalidationDocs:DocumentSnapshot[]=[];
+  let all:DocumentSnapshot[],revalidationDocs:DocumentSnapshot[]=[];
   if(options.revalidateCached){
     const query=base.where('type','==','calendar_extraction').orderBy(FieldPath.documentId()).limit(300);
     const receipts=await (state?.revalidationAfterReceiptId?query.startAfter(state.revalidationAfterReceiptId):query).get();
@@ -140,17 +152,9 @@ export async function collectCalendarSchedules(db: Firestore, companyIds: Set<st
       .map(doc=>doc.get('sourceEventId')).filter((id):id is string=>typeof id==='string'))];
     all=sourceIds.length?await db.getAll(...sourceIds.map(id=>base.doc(id))):[];
   }else{
-    const historyQuery=base.where('type','in',['company_news','company_disclosure']).orderBy(FieldPath.documentId()).limit(300);
-    const [news,exchange,history]=await Promise.all([
-      base.where('type','==','company_news').orderBy('publication_date','desc').limit(100).get(),
-      base.where('type','==','company_disclosure').where('sourceType','==','exchange').orderBy('publication_date','desc').limit(100).get(),
-      (state?.afterEventId?historyQuery.startAfter(state.afterEventId):historyQuery).get(),
-    ]);
-    historyDocs=history.docs;historySize=history.size;
-    all=[...new Map([...news.docs,...exchange.docs,...history.docs].map(doc=>[doc.id,doc])).values()];
+    all=(await base.where('calendarNextCheckAtMs','<=',now()).orderBy('calendarNextCheckAtMs').limit(300).get()).docs;
   }
   const result={scanned:0,paid:0,complete:0,review_required:0,failed:0,cached:0,deferred:0};
-  let afterEventId=String(state?.afterEventId??'');
   const processedIds=new Set<string>();
   for(const doc of all) {
     if(now()+110_000>=options.deadline || result.paid>=(options.maxCalls??25)) {result.deferred++;break;}
@@ -159,15 +163,17 @@ export async function collectCalendarSchedules(db: Firestore, companyIds: Set<st
     const country=options.companyCountries?.get(source.companyId??source.companyIds?.[0]);
     if(country)source.companyCountry=country;
     result.scanned++;
-    if(source.companyIds?.length===1 && companyIds.has(source.companyIds[0]) && ['company_ir','exchange'].includes(source.sourceType)
-      && source.publication_date && source.publication_date>='2026-01-01' && isCalendarCandidate(source.title,source.summary)) {
+    if(calendarCandidate(source) && companyIds.has(source.companyIds[0])) {
       try {
-        const outcome=await processCalendarSource(db,source,{...options,onPaidRequest:()=>{result.paid++;options.onPaidRequest?.();}});
+        const outcome=await processCalendarSource(db,source,{...options,sourceSnapshot:doc,onPaidRequest:()=>{result.paid++;options.onPaidRequest?.();}});
         if(outcome.status==='complete')result.complete++;
         else if(outcome.status==='review_required'||outcome.status==='busy_or_uncertain')result.review_required++;
         else if(outcome.status==='cached')result.cached++;
         else result.failed++;
       } catch(error) {result.failed++;console.warn('Calendar extraction persistence failed',{sourceEventId:source.id,error:error instanceof Error?error.message:'Failed'});}
+    }else if(!options.revalidateCached){
+      // Defer out-of-scope companies, allowing later theme enrollment to recover.
+      await doc.ref.set({calendarNextCheckAtMs:calendarCandidate(source)?now()+86400000:Number.MAX_SAFE_INTEGER},{merge:true});
     }
     processedIds.add(doc.id);
   }
@@ -182,10 +188,8 @@ export async function collectCalendarSchedules(db: Firestore, companyIds: Set<st
     if(afterReceiptId)result.deferred++;
     await meta.set({lastRevalidationAt:new Date(now()).toISOString(),revalidationAfterReceiptId:afterReceiptId,revalidation:result},{merge:true});return result;
   }
-  // Advance only through a contiguous prefix of the ordered history page.
-  for(const doc of historyDocs) {if(!processedIds.has(doc.id))break;afterEventId=doc.id;}
-  if(historyDocs.every(doc=>processedIds.has(doc.id)) && historySize<300)afterEventId='';
-  await meta.set({lastRunAt:new Date(now()).toISOString(),afterEventId,model:CALENDAR_MODEL,extractorVersion:CALENDAR_EXTRACTOR_VERSION,
-    status:result.deferred||afterEventId?'collecting':result.failed||result.review_required?'partial':'complete',result},{merge:true});
+  if(all.length===300)result.deferred++;
+  await meta.set({lastRunAt:new Date(now()).toISOString(),model:CALENDAR_MODEL,extractorVersion:CALENDAR_EXTRACTOR_VERSION,
+    status:result.deferred?'collecting':result.failed||result.review_required?'partial':'complete',result},{merge:true});
   return result;
 }

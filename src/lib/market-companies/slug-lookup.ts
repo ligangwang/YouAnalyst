@@ -1,4 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
+import { readCompanyLookup } from '../company-lookup-cache';
 import { companyIdFromSlug, companySlugPath, organizationCompanyId, publicCompanyTicker } from './slugs';
 import { chinaCompanyId } from './routes';
 import { COMPANY_SLUG_INVENTORY, inventoryCompanyId, inventoryCompanyPath } from './slug-inventory';
@@ -13,12 +14,12 @@ export async function lookupCompanyRoute(raw:string, db:Firestore) {
   const id=legacyTicker ?? inventoryCompanyId(key) ?? companyIdFromSlug(key) ?? organizationCompanyId(key) ?? (publicCompanyTicker(key)?`US:${publicCompanyTicker(key)}`:null)
     ?? (/^(?:US:|ORG:)/i.test(key)?key.toUpperCase():chinaCompanyId(key));
   if (id) {
-    const doc=await collection.doc(id).get(), data=doc.data();
+    const doc=await readCompanyLookup(db,collection.doc(id)), data=doc.data();
     return {id,data,path:inventoryCompanyPath(id,data?.slug)};
   }
   const slug=key.toLowerCase();
-  let docs=(await collection.where('slug','==',slug).limit(2).get()).docs;
-  if (!docs.length) docs=(await collection.where('slugAliases','array-contains',slug).limit(2).get()).docs;
+  let docs=(await readCompanyLookup(db,collection.where('slug','==',slug).limit(2))).docs;
+  if (!docs.length) docs=(await readCompanyLookup(db,collection.where('slugAliases','array-contains',slug).limit(2))).docs;
   if (docs.length!==1) return null;
   const doc=docs[0], data=doc.data();
   return {id:doc.id,data,path:companySlugPath(doc.id,data.slug)};

@@ -6,7 +6,7 @@ import { extractEarnings, type ExtractionPlan } from "./extract";
 import { makeCnEarningsPlan } from "./live-cn";
 import { makeUsEarningsPlan } from "./live-us";
 import { parseEarningsJob, type EarningsJob, type EarningsDeliveryProbe, type EarningsSourceDiscovered } from "./live-event";
-import { claimEarningsSource, completeEarningsSource, discoverEarningsSource, earningsMetadata, EARNINGS_SOURCES, persistEarningsCapture, publishEarningsOutbox, releaseFailedEarningsSource, type EarningsWork } from "./live-store";
+import { claimEarningsSource, completeEarningsSource, discoverEarningsSource, earningsMetadata, EARNINGS_SOURCES, persistEarningsCapture, publishDiscoveredEarningsOutbox, releaseFailedEarningsSource, type EarningsDiscovery, type EarningsWork } from "./live-store";
 import type { EarningsDownload } from "./live-transport";
 import type { EarningsSource, RawEarningsDocument } from "./model";
 
@@ -60,10 +60,10 @@ export async function processEarningsJob(job: EarningsJob, db: Firestore, log: M
       const captureId = await persistEarningsCapture(db, document, downloaded.bytes);
       const children = discoverSecExhibits(work.source, new TextDecoder("utf-8", { fatal: true }).decode(downloaded.bytes));
       if (children.length > (work.maxExhibits ?? 20)) return await completeEarningsSource(db, work, log.runId, { status: "review_required", captureId, reason: "SEC exhibit count exceeds reviewed budget" }, now());
-      const ids: string[] = [];
-      for (const child of children) ids.push((await discoverEarningsSource(db, child, "document", now(), { parentCaptureId: captureId, parentDeliveryId: job.eventId, force: work.forceChildren })).sourceId);
+      const discoveries: EarningsDiscovery[] = [];
+      for (const child of children) discoveries.push(await discoverEarningsSource(db, child, "document", now(), { parentCaptureId: captureId, parentDeliveryId: job.eventId, force: work.forceChildren }));
       // Scope publication to this filing; a canary must not drain unrelated work.
-      await publishEarningsOutbox(db, options.publish, 20, ids);
+      await publishDiscoveredEarningsOutbox(db, options.publish, discoveries);
       return await completeEarningsSource(db, work, log.runId, { status: children.length ? "expanded" : "skipped", captureId,
         reason: children.length ? "official_exhibits_discovered" : "no_supported_EX99_exhibit" }, now());
     }

@@ -41,12 +41,33 @@ export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,stri
         const scan=(state?.cik===cik?pendingScan(state?.linkScan,cik):null)??{version:SEC_LINK_COVERAGE_VERSION,
           from:!upgrading&&state?.lastCompleteAt?new Date(Math.max(Date.parse(DISCLOSURE_HISTORY_START),Date.parse(state.lastCompleteAt)-7*86400000)).toISOString().slice(0,10):DISCLOSURE_HISTORY_START,
           through:at.slice(0,10),startedAt:at,baseline:upgrading||!state?.lastCompleteAt,recentComplete:false,recentAfter:'',completedArchives:[],archiveAfter:null,documents:0,created:0};
+        // Exact confirmed IDs, not a date watermark: late-arriving filings inside
+        // the overlap must still be discovered. Clear this list for explicit repair.
+        const confirmed=new Map<string,string>();
+        if(!upgrading&&Array.isArray(state?.confirmedDisclosures)){
+          for(const entry of state.confirmedDisclosures){
+            if(entry&&typeof entry.id==='string'&&/^company_disclosure_[a-f0-9]{64}$/.test(entry.id)
+              &&day(entry.date)&&entry.date>=scan.from&&entry.date<=scan.through)confirmed.set(entry.id,entry.date);
+          }
+        }
+        const receipts=()=>{
+          const retained=[...confirmed].sort((a,b)=>b[1].localeCompare(a[1])||a[0].localeCompare(b[0])).slice(0,2000);
+          confirmed.clear();for(const [id,date] of retained)confirmed.set(id,date);
+          return retained.map(([id,date])=>({id,date}));
+        };
         const raw=payload as {cik:unknown;filings:{files:Array<{name:string;filingFrom:string;filingTo:string}>}};
         if(Number(raw?.cik)!==Number(cik))throw new Error('SEC disclosure issuer mismatch');
         if(!Array.isArray(raw.filings?.files)||raw.filings.files.some(file=>!archiveName(file.name,cik)||!day(file.filingFrom)||!day(file.filingTo)||file.filingFrom>file.filingTo))throw new Error('Invalid SEC disclosure archives');
+        // Identity consumers do not need the frequently changing scan checkpoint.
+        if(state?.identitySummaryCik!==cik){
+          await db.runTransaction(async tx=>{
+            tx.set(db.collection('collectors').doc(`sec-identity-${companyId}`),{companyId,cik});
+            tx.set(ref,{identitySummaryCik:cik},{merge:true});
+          });
+        }
         const files=raw.filings.files.filter(file=>file.filingTo>=scan.from&&file.filingFrom<=scan.through);
         let processed=0;
-        const progress=()=>ref.set({companyId,cik,sourceType:'sec',status:'partial',linkScan:scan,lastAttemptAt:at},{merge:true});
+        const progress=()=>ref.set({companyId,cik,sourceType:'sec',status:'partial',linkScan:scan,lastAttemptAt:at,confirmedDisclosures:receipts()},{merge:true});
         const canWork=()=>now()+30_000<options.deadline;
         const persist=async(rows:Disclosure[],after:string,checkpoint:(key:string)=>void)=>{
           const key=(row:Disclosure)=>`${row.publication_date}|${row.accession}`;
@@ -56,7 +77,11 @@ export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,stri
             if(!canWork())throw new Error('SEC disclosure persistence deadline reached');
             if(processed>=maxRows)throw new Error('SEC disclosure row budget reached; scan will resume');
             const batch=candidates.slice(start,start+Math.min(100,maxRows-processed));
-            const created=await saveDisclosures(db,batch,at,scan.baseline);
+            const unseen=batch.filter(row=>!confirmed.has(row.id));
+            const created=await saveDisclosures(db,unseen,at,scan.baseline);
+            // Only acknowledge after the event transaction commits. A checkpoint
+            // failure can cause a harmless reread, never a skipped unsaved event.
+            for(const row of unseen)confirmed.set(row.id,row.publication_date!);
             processed+=batch.length;start+=batch.length;scan.documents+=batch.length;scan.created+=created;
             checkpoint(key(batch.at(-1)!));
             // Save progress only after the event batch commits. Replaying a failed checkpoint is idempotent.
@@ -78,7 +103,7 @@ export function createMapSecObserver(db:Firestore,companiesByCik:Map<string,stri
           scan.completedArchives.push(file.name);scan.archiveAfter=null;await progress();
         }
         // Resumed scans only establish coverage through their original start, not the eventual completion time.
-        await ref.set({companyId,cik,sourceType:'sec',status:'complete',linkCoverageVersion:SEC_LINK_COVERAGE_VERSION,linkScan:null,lastCompleteAt:scan.startedAt,lastSuccessAt:at,documents:scan.documents,created:scan.created,from:scan.from,lastError:null,revision:process.env.GIT_SHA??'local'},{merge:true});
+        await ref.set({companyId,cik,sourceType:'sec',status:'complete',linkCoverageVersion:SEC_LINK_COVERAGE_VERSION,linkScan:null,lastCompleteAt:scan.startedAt,lastSuccessAt:at,documents:scan.documents,created:scan.created,from:scan.from,lastError:null,confirmedDisclosures:receipts(),revision:process.env.GIT_SHA??'local'},{merge:true});
         failed.delete(companyId);completedCompanies.add(companyId);
       }catch(error){failed.add(companyId);await ref.set({companyId,cik,sourceType:'sec',status:'partial',lastAttemptAt:at,lastError:error instanceof Error?error.message:'SEC disclosure scan failed'},{merge:true});}
     }

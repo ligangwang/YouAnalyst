@@ -16,6 +16,8 @@ import { createSecFilingsSource } from "../../src/lib/sec-filings/source";
 import { secBudget } from "../../src/lib/sec-budget";
 import { parseEarningsCollectorArgs } from "../../src/lib/earnings/live-cli";
 import { type EarningsRecord, type EarningsSource, sourceIdentity } from "../../src/lib/earnings/model";
+import { publishDiscoveredEarningsOutbox } from "../../src/lib/earnings/live-store";
+import type { Firestore } from "firebase-admin/firestore";
 
 const root = "tests/fixtures/earnings/cn/", fixture = JSON.parse(readFileSync(root + "longsys-h1-2026.json", "utf8"));
 // These compact source excerpts are synthetic transport/storage scaffolding,
@@ -55,6 +57,41 @@ test("full raw bytes/text survive chunking and corrupt or missing chunks fail cl
   const chunk = [...fx.rows].find(([path]) => path.includes("/chunk_raw_") && path.endsWith("_1"))!; assert.ok(chunk);
   fx.rows.delete(chunk[0]); await assert.rejects(() => readEarningsCapture(fx.db, id), /Missing or corrupt/);
   fx.rows.set(chunk[0], { ...chunk[1], bytes: Buffer.from("changed") }); await assert.rejects(() => readEarningsCapture(fx.db, id), /Missing or corrupt/);
+});
+test("committed discoveries publish without rereading children and duplicate delivery stays harmless", async () => {
+  const fx = earningsFirestore(), discovered = await discoverEarningsSource(fx.db, source, "document", fx.now());
+  const db = { ...fx.db, collection: (name: string) => ({ doc: (id: string) => ({
+    ...fx.db.collection(name).doc(id), get: async () => { assert.fail("Discovery already loaded this child"); },
+  }) }) } as unknown as Firestore;
+  const sent: EarningsSourceDiscovered[] = [];
+  await publishDiscoveredEarningsOutbox(db, async event => { sent.push(event); return "accepted"; }, [discovered, discovered]);
+  assert.equal(sent.length, 1);
+  assert.equal(fx.reads.length, 2, "Discovery and fresh acknowledgement transaction only");
+  const current = await discoverEarningsSource(fx.db, source, "document", fx.now());
+  assert.equal((await publishDiscoveredEarningsOutbox(db, async () => { assert.fail("Already acknowledged"); }, [current])).published, 0);
+  const work = await claimEarningsSource(fx.db, sent[0], "owner", fx.now());
+  assert.ok(work);
+  await assert.rejects(() => claimEarningsSource(fx.db, sent[0], "other", fx.now()), /busy/);
+});
+test("discovery publication keeps pending work after uncertain acknowledgement", async () => {
+  const fx = earningsFirestore(), discovered = await discoverEarningsSource(fx.db, source, "document", fx.now());
+  const sent: EarningsSourceDiscovered[] = [];
+  fx.reject((_path, value) => value.messageId === "accepted");
+  await assert.rejects(() => publishDiscoveredEarningsOutbox(fx.db, async event => { sent.push(event); return "accepted"; }, [discovered]), /commit failure/);
+  fx.reject(() => false);
+  await publishEarningsOutbox(fx.db, async event => { sent.push(event); return "recovered"; });
+  assert.deepEqual(sent[0], sent[1]);
+});
+test("stale discovery receipt cannot acknowledge a newer generation", async () => {
+  const fx = earningsFirestore(), discovered = await discoverEarningsSource(fx.db, source, "document", fx.now());
+  const path = `${EARNINGS_SOURCES}/${discovered.sourceId}`;
+  await publishDiscoveredEarningsOutbox(fx.db, async () => {
+    fx.rows.set(path, { ...fx.rows.get(path)!, generation: 2, publishPending: true });
+    return "old-generation";
+  }, [discovered]);
+  assert.equal(fx.rows.get(path)!.publishPending, true);
+  assert.equal(fx.rows.get(path)!.messageId, undefined);
+  assert.equal(await claimEarningsSource(fx.db, discovered.delivery!, "owner", fx.now()), null);
 });
 test("worker commits provenance and revision once, retains changed-source history, and ignores stale generations", async () => {
   const fx = earningsFirestore(), event = await enqueue(fx);
@@ -163,6 +200,48 @@ test("earnings provider cooldown is durable across requester instances", async (
   const other = createEarningsRequestGate(fx.db, { now: fx.now, sleep: async ms => fx.advance(ms) });
   await assert.rejects(() => other.beforeRequest({ host: "static.cninfo.com.cn" }), /cooldown/);
   fx.advance(120_000); await other.beforeRequest({ host: "static.cninfo.com.cn" });
+});
+test("CNINFO sequential requests wait locally with one shared reservation read each", async () => {
+  const fx = earningsFirestore(), waits: number[] = [], started = fx.now();
+  const gate = createEarningsRequestGate(fx.db, { now: fx.now, sleep: async ms => { waits.push(ms); fx.advance(ms); } });
+  for (const host of ["www.cninfo.com.cn", "static.cninfo.com.cn", "dataclouds.cninfo.com.cn"]) {
+    await gate.beforeRequest({ host });
+  }
+  assert.deepEqual(waits, [1000, 1000]);
+  assert.equal(fx.now() - started, 2000);
+  assert.equal(fx.reads.length, 3);
+  assert.equal(fx.writes.length, 3);
+});
+test("CNINFO waits for the full shared delay and rechecks a competing reservation", async () => {
+  const fx = earningsFirestore(), path = "earnings_collectors/provider_cninfo", waits: number[] = [];
+  fx.rows.set(path, { nextAllowedAtMs: fx.now() + 2400 });
+  const gate = createEarningsRequestGate(fx.db, { now: fx.now, sleep: async ms => {
+    waits.push(ms); fx.advance(ms);
+    if (waits.length === 1) fx.rows.set(path, { nextAllowedAtMs: fx.now() + 1000 });
+  } });
+  await gate.beforeRequest({ host: "www.cninfo.com.cn" });
+  assert.deepEqual(waits, [2400, 1000]);
+  assert.equal(fx.reads.length, 3);
+  assert.equal(fx.writes.length, 1, "Only reserve after the competing slot has expired");
+});
+test("CNINFO local wait never bypasses a cooldown set by another instance", async () => {
+  const fx = earningsFirestore();
+  const other = createEarningsRequestGate(fx.db, { now: fx.now });
+  const gate = createEarningsRequestGate(fx.db, { now: fx.now, sleep: async ms => {
+    fx.advance(ms);
+    await other.onBlocked({ host: "static.cninfo.com.cn", code: 429, retryAfter: "120" });
+  } });
+  await gate.beforeRequest({ host: "www.cninfo.com.cn" });
+  await assert.rejects(() => gate.beforeRequest({ host: "www.cninfo.com.cn" }), /cooldown/);
+  assert.equal(fx.writes.length, 2, "No request reservation during cooldown");
+});
+test("CNINFO excessive shared wait fails within the request budget without polling", async () => {
+  const fx = earningsFirestore();
+  fx.rows.set("earnings_collectors/provider_cninfo", { nextAllowedAtMs: fx.now() + 60_000 });
+  const gate = createEarningsRequestGate(fx.db, { now: fx.now, sleep: async () => { assert.fail("Must not wait beyond budget"); } });
+  await assert.rejects(() => gate.beforeRequest({ host: "www.cninfo.com.cn" }), /budget timed out/);
+  assert.equal(fx.reads.length, 1);
+  assert.equal(fx.writes.length, 0);
 });
 test("SEC sidecar failures never suppress financial parsing and repeated views reuse one response", async () => {
   const fetcher = globalThis.fetch, budget = secBudget.run, errors = console.error;

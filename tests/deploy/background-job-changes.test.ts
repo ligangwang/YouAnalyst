@@ -106,3 +106,8 @@ test('news analysis receives its existing key while calendar extraction is disab
   assert.equal(stored?.CALENDAR_EXTRACTION_ENABLED,'0');
   assert.equal(stored?.NEWS_ANALYSIS_MONTHLY_BUDGET_USD,'5');
 });
+
+test('migration repairs rerun worker deployment before enabling website consumers',()=>{
+  assert.equal(backgroundJobTarget(['scripts/migrate-read-optimization.ts']),'all');
+  assert.equal(backgroundJobTarget(['scripts/firestore/migration-safety.ts']),'all');
+});

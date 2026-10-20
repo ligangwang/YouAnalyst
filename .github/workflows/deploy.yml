@@ -857,10 +857,20 @@ jobs:
           if-no-files-found: warn
       - name: Verify company scope index and additive backfill
         run: node scripts/firestore/verify-exchange-region.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install migration dependencies
+        run: npm ci
+      - name: Seed pending work and compact status documents
+        run: npx tsx scripts/migrate-read-optimization.ts --apply
       - name: Deploy changed background workers
         run: bash scripts/deploy-background-jobs.sh "$TARGET_JOB"
       - name: Drain pre-rollout feed producer executions
         run: node scripts/wait-feed-producers.mjs
+      - name: Catch up old producer writes and finish additive migration
+        run: npx tsx scripts/migrate-read-optimization.ts --apply --finalize
       - name: Verify SEC Pub/Sub delivery with cached companies
         if: ${{ env.TARGET_JOB == 'all' || env.TARGET_JOB == 'fundamentals' || env.TARGET_JOB == 'sec-fundamentals' }}
         run: >-

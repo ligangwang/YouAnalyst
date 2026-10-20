@@ -12,6 +12,7 @@ import { buildOpenAiUsageEvent, listOpenAiUsageEvents } from '../../src/lib/open
 import type { Firestore } from 'firebase-admin/firestore';
 import { earningsFirestore } from '../helpers/earnings-firestore';
 import type { CalendarSource, ScheduleDraft } from '../../src/lib/calendar/model';
+import {calendarQueueFields} from '../../src/lib/calendar/queue';
 
 const source:CalendarSource={version:1,id:'news_example',type:'company_news',companyId:'US:NVDA',companyIds:['US:NVDA'],sourceId:'nvidia-news',sourceType:'company_ir',
   title:'NVIDIA Sets Conference Call for Third Quarter Financial Results',summary:'',url:'https://nvidianews.nvidia.com/news/example',
@@ -22,6 +23,64 @@ const draft:ScheduleDraft={kind:'earnings_call',period:'FY2027-Q3',date:'2026-11
 const normalize=(item:ScheduleDraft=draft,article=text)=>normalizeSchedules({events:[item]},source,article,'abc','gpt-6-luna','2026-10-02T11:00:00Z');
 const response=(items:ScheduleDraft[]=[draft])=>({id:'response_1',model:'gpt-6-luna',status:'completed',usage:{input_tokens:2000,input_tokens_details:{cached_tokens:500},output_tokens:300,total_tokens:2300},output:JSON.stringify({events:items})});
 
+test('routine calendar collection reads only due candidates and retains daily changed-content checks',async()=>{
+  const fx=earningsFirestore(),original=fx.db.collection.bind(fx.db),returned:number[]=[];
+  fx.rows.set('events/'+source.id,{...source,...calendarQueueFields(source)});
+  for(let i=0;i<350;i++)fx.rows.set(`events/old_${i}`,{...source,id:`old_${i}`,calendarNextCheckAtMs:Number.MAX_SAFE_INTEGER});
+  const db={...fx.db,collection:(name:string)=>{
+    const base=original(name);
+    if(name!=='events')return base;
+    return {...base,doc:(id:string)=>{
+      const ref=base.doc(id);
+      return id===source.id?{...ref,get:async()=>{assert.fail('Routine processing must reuse its query snapshot');}}:ref;
+    },where:(field:string,op:string,value:number)=>{
+      assert.equal(field,'calendarNextCheckAtMs');assert.equal(op,'<=');
+      return {orderBy:(sort:string)=>{
+        assert.equal(sort,field);
+        return {limit:(limit:number)=>({get:async()=>{
+          const entries=[...fx.rows].filter(([path,row])=>path.startsWith('events/')&&typeof row[field]==='number'&&Number(row[field])<=value)
+            .sort((a,b)=>Number(a[1][field])-Number(b[1][field])).slice(0,limit);
+          const docs=await Promise.all(entries.map(([path])=>base.doc(path.slice(7)).get()));
+          returned.push(docs.length);return {docs};
+        }})};
+      }};
+    }};
+  }} as unknown as Firestore;
+  let calls=0;
+  const run=()=>collectCalendarSchedules(db,new Set(source.companyIds),{now:fx.now,deadline:fx.now()+180000,download:async()=>text,
+    extract:async()=>{calls++;return response();}});
+  await run();await run();
+  assert.deepEqual(returned,[1,0]);assert.equal(calls,1);
+  fx.advance(86400001);await run();
+  assert.deepEqual(returned,[1,0,1]);assert.equal(calls,1,'Unchanged body reuses its receipt without another paid request');
+  assert.equal(fx.rows.get('collectors/earnings-calendar')?.afterEventId,undefined);
+});
+test('calendar queue routes cancellations and preserves historical backfill due times',()=>{
+  assert.equal(calendarQueueFields({...source,title:'NVIDIA Cancels Third Quarter Earnings Call'}).calendarNextCheckAtMs,0);
+  assert.equal(calendarQueueFields({...source,title:'New graphics hardware launched'}).calendarNextCheckAtMs,Number.MAX_SAFE_INTEGER);
+  assert.equal(calendarQueueFields({...source,calendarExtraction:{nextCheckAtMs:12345}}).calendarNextCheckAtMs,12345);
+});
+test('stale query snapshot cannot cause another paid request and wrong-source snapshots are rejected',async()=>{
+  const fx=earningsFirestore();fx.rows.set('events/'+source.id,source);
+  const loaded=await fx.db.collection('events').doc(source.id).get();
+  const snapshot=new Proxy(loaded,{get:(target,key)=>key==='get'?()=>undefined:Reflect.get(target,key)});
+  let paid=0;
+  const deps={now:fx.now,sourceSnapshot:snapshot,download:async()=>text,extract:async()=>{paid++;return response();}};
+  await processCalendarSource(fx.db,source,deps);
+  await processCalendarSource(fx.db,source,deps);
+  assert.equal(paid,1,'Fresh receipt transaction must override the stale source hint');
+  const before=fx.reads.length;
+  await assert.rejects(()=>processCalendarSource(fx.db,{...source,id:'different-source'},deps),/snapshot mismatch/);
+  assert.equal(fx.reads.length,before);
+});
+test('changed article with no remaining schedule retires its previous receipt associations',async()=>{
+  const fx=earningsFirestore();fx.rows.set('events/'+source.id,source);
+  await processCalendarSource(fx.db,source,{now:fx.now,download:async()=>text,extract:async()=>response()});
+  fx.advance(86400001);
+  await processCalendarSource(fx.db,source,{now:fx.now,download:async()=>text+' The schedule announcement has been withdrawn.',extract:async()=>response([])});
+  assert.equal([...fx.rows.values()].filter(row=>row.type==='scheduled_event').length,0);
+  assert.equal([...fx.rows.values()].filter(row=>row.type==='calendar_review').length,1);
+});
 test('title detection accepts scheduling, same-day results calls and Chinese announcements, excluding ordinary business news',()=>{
   for(const title of ['Company Cancels Fourth Quarter Earnings Call','Company Postpones Earnings Call','Company Reschedules Results Webcast','Company Cancels Earnings Release'])assert.equal(isCalendarCandidate(title,''),true,title);
   for(const title of ['Cadence Announces Third Quarter 2026 Financial Results Webcast','Lumentum Announces Reporting Date for Fourth Quarter and Fiscal Year 2026 Results','Micron to Report Fiscal 2026 Financial Results','NVIDIA Sets Conference Call for Third Quarter Financial Results','关于召开2026年半年度业绩说明会的公告','AMD Reports Third Quarter 2026 Financial Results'])assert.equal(isCalendarCandidate(title,''),true,title);

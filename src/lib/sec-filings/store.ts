@@ -40,6 +40,10 @@ export function firstIntelligenceObservation(records:Discoveries):string|null {
 export function secCollectorMetadata(db: Firestore) {
   return db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(SEC_COLLECTOR_METADATA_DOCUMENT);
 }
+/** Website status only; never contains a lease, cursor, or scan progress. */
+export function secCollectorFreshness(db: Firestore) {
+  return db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc("_website_freshness");
+}
 export async function readSecCollectorCursor(db: Firestore, companyId: string): Promise<SecCollectorCursor | null> {
   const id = usFundamentalsId(companyId);
   const state = await db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(id).get();
@@ -59,6 +63,12 @@ export async function readSecCollectorCursor(db: Firestore, companyId: string): 
 }
 export async function writeSecCollectorCursor(db: Firestore, companyId: string, value: SecCollectorCursor) {
   const ref=db.collection(SEC_COLLECTOR_METADATA_COLLECTION).doc(usFundamentalsId(companyId));
+  // Once retirement is confirmed, only the operational document is written.
+  // Cursor writes remain protected by the caller's collector lease.
+  if (!await secCollectorBridge(db)) {
+    await ref.set({secFilingsCollector:value},{merge:true});
+    return;
+  }
   await db.runTransaction(async tx=>{
     const bridge=(await tx.get(secCollectorMetadata(db))).get("bridgeRetired")!==true;
     tx.set(ref,{secFilingsCollector:value},{merge:true});

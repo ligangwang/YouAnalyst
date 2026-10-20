@@ -13,9 +13,16 @@ const relationship:NewsRelationship={sourceId:'US:ANET',targetId:'US:AMD',source
 function fake(){
  let receiptReads=0;
  const state=new Map<string,Record<string,unknown>>([['events/news',{type:'company_news',sourceType:'company_ir',sourceId:'arista',companyId:'US:ANET',companyIds:['US:ANET'],title:'Arista and AMD announce partnership',url:'https://investors.arista.com/news/partnership',publication_date:'2026-10-08'}]]);
- const ref=(collection:string,id:string)=>({id,path:collection+'/'+id,get:async()=>{receiptReads++;return doc(ref(collection,id));}});
+ const ref=(collection:string,id:string)=>({id,path:collection+'/'+id,get:async()=>{receiptReads++;return doc(ref(collection,id));},
+  set:async(data:Record<string,unknown>)=>{state.set(collection+'/'+id,{...state.get(collection+'/'+id),...data});}});
  const doc=(r:ReturnType<typeof ref>)=>({id:r.id,ref:r,exists:state.has(r.path),data:()=>state.get(r.path)}) as unknown as DocumentSnapshot;
- const db={collection:(name:string)=>({doc:(id:string)=>ref(name,id)}),runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>{
+ const db={collection:(name:string)=>({doc:(id:string)=>ref(name,id),where:(field:string,op:string,value:number)=>{
+  assert.equal(name,'events');assert.equal(field,'newsAnalysisNextCheckAtMs');assert.equal(op,'<=');
+  return {orderBy:(order:string)=>{assert.equal(order,field);return {limit:(limit:number)=>({get:async()=>({
+   docs:[...state].filter(([path,row])=>path.startsWith('events/')&&typeof row[field]==='number'&&Number(row[field])<=value)
+    .sort((a,b)=>Number(a[1][field])-Number(b[1][field])).slice(0,limit).map(([path])=>doc(ref(name,path.slice(name.length+1)))),
+  })})};}};
+ }}),runTransaction:async(fn:(tx:unknown)=>Promise<unknown>)=>{
   const writes:(()=>void)[]=[];
   const result=await fn({get:async(r:ReturnType<typeof ref>)=>doc(r),getAll:async(...refs:ReturnType<typeof ref>[])=>refs.map(doc),create:(r:ReturnType<typeof ref>,data:Record<string,unknown>)=>writes.push(()=>{assert(!state.has(r.path));state.set(r.path,data);}),set:(r:ReturnType<typeof ref>,data:Record<string,unknown>,options?:{merge:boolean})=>writes.push(()=>state.set(r.path,options?.merge?{...state.get(r.path),...data}:data)),update:(r:ReturnType<typeof ref>,data:Record<string,unknown>)=>writes.push(()=>state.set(r.path,{...state.get(r.path),...data}))});
   writes.forEach(write=>write());return result;
@@ -25,6 +32,16 @@ function fake(){
 const extractedRelationship=Object.fromEntries(Object.entries(relationship).filter(([field])=>!['sourceId','targetId'].includes(field)));
 const output=()=>({analysis:{relationships:[extractedRelationship]},model:'gpt-6-luna',responseId:'resp_test',usage:{input_tokens:3000,output_tokens:500,total_tokens:3500}});
 const options={now:()=>now,deadline:now+150000,download:async()=>text};
+test('routine article analysis queries only due work without rescanning completed history',async()=>{
+ const f=fake();let calls=0;
+ f.state.set('events/news',{...f.state.get('events/news'),newsAnalysisNextCheckAtMs:0});
+ for(let i=0;i<300;i++)f.state.set(`events/old_${i}`,{...f.state.get('events/news'),newsAnalysisNextCheckAtMs:Number.MAX_SAFE_INTEGER});
+ const config={...options,analyze:async()=>{calls++;return output();}};
+ assert.equal((await analyzeCollectedNews(f.db,companies,sources,config)).scanned,1);
+ assert.equal((await analyzeCollectedNews(f.db,companies,sources,config)).scanned,0);
+ assert.equal(calls,1);
+ assert.equal(f.state.get('collectors/news-article-analysis')?.afterEventId,undefined);
+});
 
 test('full article analysis persists bilingual review candidates once, never published map edges',async()=>{
  const f=fake();let calls=0;
