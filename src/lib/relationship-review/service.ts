@@ -39,6 +39,7 @@ function observation(id: string, data: Row): ReviewCandidate {
     type: str(filing ? data.relationshipType : data.type), state: data.commercialStatus === 'ANNOUNCED' || data.commercialStatus === 'TERMINATED' ? data.commercialStatus : 'DOCUMENTED',
     summary: str(data.summary) || str(data.evidenceText), createdAt: str(data.createdAt), evidence: evidence(data),
     direction: filing ? str(data.direction) : 'source_to_target', category: data.targetType === 'category',
+    eventDate: date(data.eventDate) ? data.eventDate : null,
     decision: data.relationshipReview ? data.relationshipReview as ReviewDecision : null,
   };
 }
@@ -94,14 +95,15 @@ export async function getReviewCandidate(db: Firestore, id: string): Promise<Rev
 }
 export function parsePublication(raw: unknown): PublicationInput {
   const d = row(raw);
-  const keys = ['candidateId', 'version', 'sourceId', 'targetId', 'type', 'state', 'themeIds', 'summary', 'limitation', 'note', 'evidenceConfirmed'];
+  const keys = ['candidateId', 'version', 'sourceId', 'targetId', 'type', 'state', 'themeIds', 'summary', 'limitation', 'note', 'evidenceConfirmed', 'eventDate'];
   candidateId(d.candidateId);
   if (Object.keys(d).some(k => !keys.includes(k)) || !/^[a-f0-9]{64}$/.test(str(d.version))
     || !companyId(d.sourceId) || !companyId(d.targetId) || d.sourceId === d.targetId
     || !REVIEW_TYPES.includes(d.type as PublicationInput['type']) || !['DOCUMENTED', 'ANNOUNCED', 'TERMINATED'].includes(str(d.state))
     || !Array.isArray(d.themeIds) || !d.themeIds.length || d.themeIds.length > 3
     || new Set(d.themeIds).size !== d.themeIds.length || !d.themeIds.every(t => COMPANY_THEMES.includes(t))
-    || d.evidenceConfirmed !== true) fail(400, 'Confirm distinct companies, relationship type, evidence and at least one theme');
+    || d.evidenceConfirmed !== true
+    || d.eventDate !== undefined && d.eventDate !== null && !date(d.eventDate)) fail(400, 'Confirm distinct companies, relationship type, evidence, date and at least one theme');
   for (const key of ['summary', 'limitation', 'note']) if (typeof d[key] !== 'string' || !str(d[key]).trim() || str(d[key]).length > 1200) fail(400, 'Summary, limitations and review note are required (maximum 1,200 characters each)');
   if (d.type === 'PLANNED_ADOPTER_OF' && d.state !== 'ANNOUNCED') fail(400, 'Planned adoption must remain announced');
   return { ...d, summary: str(d.summary).trim(), limitation: str(d.limitation).trim(), note: str(d.note).trim(), themeIds: [...d.themeIds as CompanyThemeId[]].sort() } as PublicationInput;
@@ -115,6 +117,8 @@ async function publicationPlan(db: Firestore, tx: Transaction, input: Publicatio
   const candidate = observation(input.candidateId, data!);
   if (candidate.status !== 'NEEDS_REVIEW' || candidate.version !== input.version) fail(409, 'Candidate changed or was already reviewed; reload it');
   if (candidate.category) fail(400, 'Unnamed categories cannot be published as company relationships');
+  const eventDate = input.eventDate === undefined ? candidate.eventDate : input.eventDate;
+  if (eventDate && eventDate > at.slice(0, 10) && input.state !== 'ANNOUNCED') fail(400, 'Future event dates must remain announced');
   if (!candidate.evidence.length || candidate.evidence.some(e => !e.url || !e.title.trim() || e.title.length > 500 || !e.quote.trim() || e.quote.length > 20_000 || e.sourceDate && e.sourceDate > at.slice(0, 10))) fail(409, 'Candidate needs valid source evidence before publication');
   const context = await sourceContext(db, tx, data!);
   const docs = await tx.getAll(...[input.sourceId, input.targetId].map(id => db.collection('companies').doc(id)));
@@ -142,6 +146,7 @@ async function publicationPlan(db: Firestore, tx: Transaction, input: Publicatio
       state: input.state === 'ANNOUNCED' ? 'ANNOUNCED' : 'DOCUMENTED', scope: input.summary,
       sourceIds: candidate.evidence.map((_, i) => `evidence-${i}`), limitation: input.limitation,
       verificationStatus: input.state === 'TERMINATED' ? 'TERMINATED' : input.state === 'ANNOUNCED' ? 'PENDING' : 'CONFIRMED',
+      ...(eventDate ? { eventDate } : {}),
     }] }],
   };
   // The admin policy validates all extraction types; the existing external batch API keeps its narrower allowlist.
@@ -151,16 +156,16 @@ async function publicationPlan(db: Firestore, tx: Transaction, input: Publicatio
     ...(before ? {} : { publishedAt: at }),
   };
   const f = batch.relationships[0].facts[0];
-  const factId = hash([f.verificationStatus, null, f.state, f.scope, f.limitation, batch.sources.map(s => s.url).sort()]);
+  const factId = hash([f.verificationStatus, f.eventDate ?? null, f.state, f.scope, f.limitation, batch.sources.map(s => s.url).sort()]);
   const unreviewedId = hash([f.state, f.scope, f.limitation, batch.sources.map(s => s.url).sort()]);
   after.researchFacts = (after.researchFacts ?? []).map(fact =>
-    (fact.id === factId || fact.id === unreviewedId && fact.verificationStatus === f.verificationStatus)
+    (fact.id === factId || !f.eventDate && fact.id === unreviewedId && fact.verificationStatus === f.verificationStatus)
       ? { ...fact, reviewedAt: at } : fact);
   const preview: ReviewPreview = {
     token: hash({ input, before, source: context.fingerprint, companies: docs.map(d => d.data()), day: at.slice(0, 10) }),
     relationshipId: id, source: endpoints.find(c => c.id === n.source)!, target: endpoints.find(c => c.id === n.target)!,
     type: n.type, state: input.state, summary: input.summary, limitation: input.limitation,
-    themeIds: themes, retainedThemes, existing: Boolean(before), evidenceCount: after.evidence?.length ?? 0, factCount: after.researchFacts.length,
+    themeIds: themes, retainedThemes, existing: Boolean(before), evidenceCount: after.evidence?.length ?? 0, factCount: after.researchFacts.length, eventDate,
   };
   return { preview, before, after, data: data!, candidateRef };
 }

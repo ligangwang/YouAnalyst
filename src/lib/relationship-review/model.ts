@@ -18,7 +18,7 @@ export type ReviewCandidate = {
   id: string; version: string; kind: 'NEWS_OBSERVATION' | 'FILING_OBSERVATION';
   status: ReviewStatus; sourceName: string; targetName: string; sourceId: string; targetId: string;
   type: string; state: ReviewState; summary: string; createdAt: string;
-  evidence: ReviewEvidence[]; direction: string; category: boolean;
+  evidence: ReviewEvidence[]; direction: string; category: boolean; eventDate: string | null;
   decision: ReviewDecision | null;
 };
 export type ReviewDetail = {
@@ -28,13 +28,13 @@ export type ReviewDetail = {
 export type PublicationInput = {
   candidateId: string; version: string; sourceId: string; targetId: string;
   type: ReviewType; state: ReviewState; themeIds: CompanyThemeId[];
-  summary: string; limitation: string; note: string; evidenceConfirmed: true;
+  summary: string; limitation: string; note: string; evidenceConfirmed: true; eventDate?: string | null;
 };
 export type ReviewPreview = {
   token: string; relationshipId: string; source: ReviewCompany; target: ReviewCompany;
   type: string; state: ReviewState; summary: string; limitation: string;
   themeIds: CompanyThemeId[]; retainedThemes: CompanyThemeId[]; existing: boolean;
-  evidenceCount: number; factCount: number;
+  evidenceCount: number; factCount: number; eventDate: string | null;
 };
 export const reviewVerbs: Record<ReviewType, [string, string]> = {
   SUPPLIER_OF: ['supplies', '供应给'], CUSTOMER_OF: ['buys from', '采购自'],

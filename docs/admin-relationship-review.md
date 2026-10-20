@@ -6,7 +6,7 @@ Administrators open `/admin/relationships` from the Admin dashboard. The queue r
 
 1. Choose a pending candidate. Read its quotation and linked source; news also includes the saved article text. For filings, open the original filing to check context.
 2. Confirm both canonical company identities using the name/ticker search. Correct the relationship direction and type as needed. Filing company names can be unresolved; industry categories cannot be published as company relationships.
-3. Review the supported claim, evidence state and scope/limitations. Select AI, Robotics and/or Space explicitly. Both companies must already have published membership in each selected theme; this page does not enroll companies.
+3. Review the supported claim, evidence state, event date and scope/limitations. Keep event dates empty when the source does not specify them; planned events can have future dates. Select AI, Robotics and/or Space explicitly. Both companies must already have published membership in each selected theme; this page does not enroll companies.
 4. Enter a review note and confirm that the source, identities, direction, scope and evidence state were checked.
 5. Preview publication. This shows the canonical direction, all resulting themes and whether evidence will merge with an existing relationship. Approve and publish commits the reviewed result.
 6. Alternatively, enter a rejection reason and confirm rejection. Both decisions remain available in the Published/Rejected tabs with evidence, reviewer and time.

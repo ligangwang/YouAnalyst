@@ -7,10 +7,48 @@ import type { PublicationInput } from '../../src/lib/relationship-review/model';
 import { articleHash } from '../../src/lib/intelligence/collectors/news-analysis';
 import { canonical, processBatch } from '../../src/lib/research/publisher';
 import { relationshipBelongsToTheme } from '../../src/lib/knowledge-graph/relationship-cache';
+import { graphFromMarket, type MarketCompany, type MarketRelationship } from '../../src/lib/knowledge-graph/market-store';
 import { persistEdges } from '../../src/lib/company-graph/service';
 import type { CompanyGraphEdge } from '../../src/lib/company-graph/types';
 
 type Row = Record<string, unknown>;
+
+test('source event dates survive publication, graph projection, and repeated evidence', async () => {
+  for (const eventDate of ['2026-10-17', '2027-01-01']) {
+    const f = fixture();
+    f.state.get('company_relationships/' + id)!.eventDate = eventDate;
+    const detail = await getReviewCandidate(f.db, id);
+    assert.equal(detail.candidate.eventDate, eventDate);
+    const body = await input(f), p = await previewRelationship(f.db, body, at);
+    assert.equal(p.eventDate, eventDate);
+    await approveRelationship(f.db, body, p.token, 'admin', at);
+    const record = f.state.get('company_relationships/' + p.relationshipId)!;
+    const companies = ['US:AMD', 'US:ANET'].map(id => ({ ...f.state.get('companies/' + id), id, inGraph: { status: 'PUBLISHED', stageIds: [], stages: [], memberships: [], sources: [], order: 0, asOf: '2026-10-20' } } as MarketCompany));
+    const graph = graphFromMarket(companies, [record as MarketRelationship]);
+    assert.equal(graph.relationships.find(e => e.id === p.relationshipId)!.facts![0].eventDate, eventDate);
+    assert.equal((record.researchFacts as Row[])[0].reviewedAt, at);
+    const secondId = 'news:' + articleHash('same-event');
+    f.state.set('company_relationships/' + secondId, { ...fixture().state.get('company_relationships/' + id), eventDate });
+    const second = await input(f, secondId), next = await previewRelationship(f.db, second, at);
+    assert.equal(next.factCount, 1);
+  }
+});
+
+test('event date corrections are reviewed and unknown dates never become source publication dates', async () => {
+  const f = fixture();
+  f.state.get('company_relationships/' + id)!.eventDate = '2026-10-17';
+  const body = await input(f);
+  await assert.rejects(previewRelationship(f.db, { ...body, eventDate: '2026-02-30' }, at));
+  await assert.rejects(previewRelationship(f.db, { ...body, eventDate: '2027-01-01', state: 'DOCUMENTED' }, at), /Future event/);
+  const p = await previewRelationship(f.db, { ...body, eventDate: '2026-10-18' }, at);
+  await assert.rejects(approveRelationship(f.db, { ...body, eventDate: '2026-10-19' }, p.token, 'admin', at), /stale/);
+  assert.equal(f.writes(), 0);
+  const unknown = { ...body, eventDate: null }, preview = await previewRelationship(f.db, unknown, at);
+  assert.equal(preview.eventDate, null);
+  await approveRelationship(f.db, unknown, preview.token, 'admin', at);
+  assert.equal((f.state.get('company_relationships/' + preview.relationshipId)!.researchFacts as Row[])[0].eventDate, undefined);
+});
+
 
 test('published observations coexist with later research batches and repeated evidence stays deduplicated', async () => {
   const f = fixture(), body = await input(f), p = await previewRelationship(f.db, body, at);

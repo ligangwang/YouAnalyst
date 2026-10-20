@@ -13,7 +13,7 @@ const candidate: ReviewCandidate = {
   id: 'news:' + 'a'.repeat(64), version: 'b'.repeat(64), kind: 'NEWS_OBSERVATION', status: 'NEEDS_REVIEW',
   sourceName: 'AMD', targetName: 'Arista', sourceId: 'US:AMD', targetId: 'US:ANET',
   type: 'PARTNER_OF', state: 'ANNOUNCED', summary: 'AMD and Arista announced a robotics networking partnership.',
-  createdAt: '2026-10-20T14:00:00Z', direction: 'source_to_target', category: false, decision: null,
+  createdAt: '2026-10-20T14:00:00Z', direction: 'source_to_target', category: false, decision: null, eventDate: '2026-10-18',
   evidence: [{ url: 'https://investors.example.com/partnership', title: 'AMD and Arista announce networking partnership', quote: 'The two companies plan to develop networking for robotic systems.', sourceDate: '2026-10-19' }],
 };
 type Post = { action: string; input: Record<string, unknown>; previewToken?: string };
@@ -32,7 +32,7 @@ async function fixture(page: Page, options: { signedIn?: boolean; filing?: boole
       if (body.action === 'preview') return route.fulfill({ json: {
         token: 'c'.repeat(64), relationshipId: 'US:AMD__PARTNER_OF__US:ANET', source: companies[0], target: companies[1],
         type: 'PARTNER_OF', state: body.input.state, summary: body.input.summary, limitation: body.input.limitation,
-        themeIds: body.input.themeIds, retainedThemes: [], existing: false, evidenceCount: 1, factCount: 1,
+        themeIds: body.input.themeIds, retainedThemes: [], existing: false, evidenceCount: 1, factCount: 1, eventDate: body.input.eventDate,
       } });
       if (options.stale) return route.fulfill({ status: 409, json: { error: 'Publication preview is stale; preview the current evidence and relationship again' } });
       const decision: ReviewDecision = { decision: body.action === 'reject' ? 'REJECTED' : 'APPROVED', reviewedBy: 'test-user', reviewedAt: '2026-10-20T15:00:00Z', note: String(body.input.note), auditId: 'test-audit', relationshipId: body.action === 'reject' ? null : 'US:AMD__PARTNER_OF__US:ANET', themeIds: body.action === 'reject' ? [] : ['robotics'] };
@@ -77,13 +77,14 @@ test('review evidence, require explicit themes, preview, then publish and inspec
   await expect(page.getByRole('checkbox', { name: /Space/ })).toBeDisabled();
   await prepare(page); await page.getByRole('button', { name: 'Preview publication' }).click();
   await expect(page.getByRole('region', { name: 'Publication preview' })).toContainText('Robotics');
+  await expect(page.getByRole('region', { name: 'Publication preview' })).toContainText('2026-10-18');
   expect(f.posts.map(p => p.action)).toEqual(['preview']);
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth', await page.locator('body').evaluate(e => e.clientWidth));
   await page.screenshot({ path: info.outputPath('review.png'), fullPage: true });
   await page.getByRole('button', { name: 'Approve and publish' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Relationship published' })).toBeVisible();
   expect(f.posts.map(p => p.action)).toEqual(['preview', 'approve']);
-  expect(f.posts[1].input.themeIds).toEqual(['robotics']); expect(f.posts[1].previewToken).toBe('c'.repeat(64));
+  expect(f.posts[1].input.themeIds).toEqual(['robotics']); expect(f.posts[1].input.eventDate).toBe('2026-10-18'); expect(f.posts[1].previewToken).toBe('c'.repeat(64));
   await page.getByRole('button', { name: 'Published', exact: true }).click(); await openCandidate(page);
   await expect(page.getByRole('heading', { name: 'Approved and published' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve and publish' })).toHaveCount(0);
