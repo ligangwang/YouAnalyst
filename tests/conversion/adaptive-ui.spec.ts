@@ -4,6 +4,8 @@ import path from 'node:path';
 import us from '../../data/ai-supply-chain/ai-us.json';
 import { componentFixtureHtml } from './fixtures/component-html';
 
+declare global { interface Window { graphSnapshot:()=>{radius:number;light:number;context:boolean}|null; } }
+
 let html:string;
 test.beforeAll(async()=>{
   const ids=new Set(['US:NVDA','US:AMD','US:MSFT','US:GOOGL']);
@@ -17,12 +19,26 @@ test.beforeAll(async()=>{
     import {MarketProvider,useMarket} from './src/components/providers/market-provider';
     import {LocaleProvider} from './src/components/providers/locale-provider';
     import {ThemeSelect} from './src/components/theme-select';
-    const graph=${JSON.stringify(graph)};
+    const graph=${JSON.stringify(graph)};const expanded=${JSON.stringify(us)};
     const data={dates:['2025-01-02','2025-06-02','2025-12-31'],series:[{symbol:'NVDA',values:[0,10,20]},{symbol:'AMD',values:[0,20,10]}],frequency:'Daily',source:'Isolated UI fixture'};
-    function App(){const {theme}=useMarket();const [selected,setSelected]=useState('');const colors=useMemo(()=>theme==='light'?['#087e99','#7540b7']:['#22d3ee','#a78bfa'],[theme]);return <><ThemeSelect/><div id="graph"><Graph graph={graph} selected={selected} onSelect={setSelected} reset={0} onReset={()=>{}} cameraRequest={0}/></div><div id="chart"><StockComparisonChart data={data} progress={1} style="line" highlighted={null} colors={colors}/></div></>}
-    window.graphSnapshot=()=>{const state=[..._roots.values()][0]?.store.getState();if(!state)return null;const points=state.scene.children.find(item=>item.type==='Points'&&item.material?.uniforms?.graphRadius);return {camera:state.camera.position.toArray(),geometry:points?.geometry.uuid,light:points?.material.uniforms.lightMode.value,context:state.gl.getContext().isContextLost(),calls:state.gl.info.render.calls}};
+    function App(){const {theme}=useMarket();const [selected,setSelected]=useState('');const [displayedGraph,setDisplayedGraph]=useState(graph);const colors=useMemo(()=>theme==='light'?['#087e99','#7540b7']:['#22d3ee','#a78bfa'],[theme]);return <><ThemeSelect/><button onClick={()=>setDisplayedGraph(expanded)}>Update graph</button><div id="graph"><Graph graph={displayedGraph} selected={selected} onSelect={setSelected} reset={0} onReset={()=>{}} cameraRequest={0}/></div><div id="chart"><StockComparisonChart data={data} progress={1} style="line" highlighted={null} colors={colors}/></div></>}
+    window.graphSnapshot=()=>{const state=[..._roots.values()][0]?.store.getState();if(!state)return null;const points=state.scene.children.find(item=>item.type==='Points'&&item.material?.uniforms?.graphRadius);return {camera:state.camera.position.toArray(),geometry:points?.geometry.uuid,light:points?.material.uniforms.lightMode.value,radius:points?.material.uniforms.graphRadius.value,context:state.gl.getContext().isContextLost(),calls:state.gl.info.render.calls}};
     createRoot(document.getElementById('root')).render(<LocaleProvider locale="en"><MarketProvider><App/></MarketProvider></LocaleProvider>);
   `,{jsx:'automatic',plugins:[{name:'isolated-auth',setup(build){build.onResolve({filter:/auth-provider$/},()=>({path:path.resolve('tests/conversion/fixtures/mocks.tsx')}));}}],alias:{'next/navigation':path.resolve('tests/conversion/fixtures/mocks.tsx'),'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx')}},css+'body{margin:0;padding:16px}#graph{max-width:900px}#chart{background:var(--bg-surface);margin-top:16px}');
+});
+
+test('light node materials survive a graph-data update that replaces shader uniforms',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce',colorScheme:'light'});
+  await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404}));
+  await page.goto('http://adaptive-ui.test/en?view=graph');
+  await expect.poll(()=>page.evaluate(()=>window.graphSnapshot?.()?.light)).toBe(1);
+  const before=await page.evaluate(()=>window.graphSnapshot!());
+  const canvas=await page.locator('#graph canvas').elementHandle();
+  await page.getByRole('button',{name:'Update graph',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.graphSnapshot?.()?.radius)).not.toBe(before!.radius);
+  await expect.poll(()=>page.evaluate(()=>window.graphSnapshot?.()?.light)).toBe(1);
+  expect(await canvas!.evaluate(el=>el===document.querySelector('#graph canvas'))).toBe(true);
+  expect((await page.evaluate(()=>window.graphSnapshot!()))!.context).toBe(false);
 });
 
 test('theme switches preserve selected company, camera, graph geometry and chart WebGL canvas',async({page},info)=>{
