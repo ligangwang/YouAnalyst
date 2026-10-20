@@ -59,7 +59,7 @@ test("snapshot uses only bounded reads of existing collections and excludes grap
     discoveryEvents: { [event.eventId]: { event, state: "baseline", secretGraphPayload: "DO_NOT_PRINT" } } })[field] };
   const db = { collection(name: string) {
     calls.push(["collection", name]);
-    if (name === "company_fundamentals") return { doc(id: string) { calls.push(["doc", id]); return {
+    if (name === "company_fundamentals" || name === "sec_collector_state") return { doc(id: string) { calls.push(["doc", id]); return {
       get: async () => ({ get: () => undefined }),
     }; } };
     assert.equal(name, "sec_filings");
