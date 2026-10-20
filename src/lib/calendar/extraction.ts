@@ -5,6 +5,7 @@ import { datesInEvidence } from '../earnings/dates';
 import { validDate } from '../earnings/model';
 import { eventDocumentId } from '../events/model';
 import { CALENDAR_MODEL, type CalendarSource, type ScheduleDraft, type ScheduledEvent } from './model';
+import { reconcileCalendarSchedules } from './reconcile';
 
 export const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export const normalizedText = (value: string) => value.normalize('NFKC').replace(/\s+/g,' ').trim();
@@ -172,7 +173,12 @@ export function normalizeExtractedSchedules(value:unknown,source:CalendarSource,
       schedules.set(previous.id,{...preferred,confirmation:'extracted',validationWarnings:[...new Set([...(preferred.validationWarnings??[]),message])]});
     }else schedules.set(schedule.id,schedule);
   }
-  return {schedules:[...schedules.values()],warnings,unusable:payload.events.length>0&&schedules.size===0};
+  const reconciled=reconcileCalendarSchedules([...schedules.values()]).schedules.map(schedule=>{
+    const id=eventDocumentId('scheduled_event',hash(`${companyId}|${schedule.fiscalPeriod==='Unspecified'?source.id:schedule.fiscalPeriod}|${schedule.eventKind}`));
+    return id===schedule.id?schedule:{...schedule,id,title:`${companyId.split(':')[1]} · ${schedule.fiscalPeriod} ${schedule.eventKind==='earnings_call'?'earnings call':'earnings release'}`,
+      equivalentScheduleIds:[...new Set([schedule.id,...(schedule.equivalentScheduleIds??[]),id])]};
+  });
+  return {schedules:reconciled,warnings,unusable:payload.events.length>0&&reconciled.length===0};
 }
 
 const nullableString = {type:['string','null']};

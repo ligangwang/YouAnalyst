@@ -34,7 +34,7 @@ export function EarningsEventCard({ group, compact = false, highlighted = false,
       {now!==null&&schedule.status!=='cancelled'&&<span className={styles.countdown}>{countdownLabel(calendarCountdown(schedule,now),chinese)}</span>}
     </p>)}
     {!compact && <>
-      <p className={styles.detail}>{item.fiscalPeriod} · {chinese ? item.sector.zh : item.sector.en}</p>
+      <p className={styles.detail}>{[...new Set(schedules.flatMap(schedule=>schedule.fiscalPeriods??[schedule.fiscalPeriod]))].join(' / ')} · {chinese ? item.sector.zh : item.sector.en}</p>
       {warnings.length>0 && <details className={styles.validationDetails}><summary>{t('View validation warning','查看校验提示')}</summary><p>{t('Shown from the AI extraction; automatic source checks could not verify every detail. Check the original announcement.','此日程来自 AI 提取，自动校验未能核实所有细节，请查看原公告。')}</p><ul>{warnings.map(warning=><li key={warning}>{warning}</li>)}</ul></details>}
       <div className={styles.links}>
         <span className={styles.confirmed}>{sharedStatus === 'cancelled' ? t('Cancelled', '已取消') : sharedStatus === 'rescheduled' ? t('Rescheduled', '已改期') : warnings.length ? t('AI extracted','AI 提取') : t('Company announced', '公司已公告')}</span>

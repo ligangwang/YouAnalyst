@@ -6,6 +6,7 @@ import { eventDay } from './display';
 import type { ScheduledEvent } from './model';
 import {changeCached} from '../change-cache';
 import {createHash} from 'node:crypto';
+import { reconcileCalendarSchedules } from './reconcile';
 
 /** Follow stored receipts to current schedules, never infer creation from a title. */
 export async function attachCalendarLinks(db:Firestore,events:IntelligenceEvent[]):Promise<IntelligenceEvent[]> {
@@ -44,11 +45,12 @@ async function readCalendarLinks(db:Firestore,events:IntelligenceEvent[]):Promis
       if(typeof country==='string')schedule.companyCountry=country;
     }
   }
+  const reconciled=reconcileCalendarSchedules([...confirmed.values()]).byId;
   return events.map(event=>{
     const links=event.evidence.flatMap(source=>(schedulesByReceipt.get(receiptBySource.get(source.id)??'')??[]).flatMap(id=>{
-      const schedule=confirmed.get(id);
+      const schedule=reconciled.get(id);
       if(!schedule||!event.companyIds.includes(schedule.companyId)||!schedule.sourceEventIds?.includes(source.id)||!validDate(schedule.scheduled_date))return [];
-      return [{id,companyId:schedule.companyId,day:eventDay(schedule),validationWarning:Boolean(schedule.validationWarnings?.length)}];
+      return [{id:schedule.id,companyId:schedule.companyId,day:eventDay(schedule),validationWarning:Boolean(schedule.validationWarnings?.length)}];
     }));
     return links.length?{...event,calendarEvents:[...new Map(links.map(link=>[link.id,link])).values()]}:event;
   });

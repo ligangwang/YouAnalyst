@@ -74,8 +74,13 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
   const persist=()=>db.runTransaction(async tx=>{
     const current=await tx.get(receiptRef);
     if(!current.exists || current.get('attemptId')!==receipt.attemptId)throw new Error('Calendar request fence changed');
+    // A changed article has a new receipt. Retire this source's former event
+    // associations too, even when its fiscal-period label changed between runs.
+    const prior=state?.receiptId&&state.receiptId!==receiptId?await tx.get(db.collection(EVENTS_COLLECTION).doc(state.receiptId)):null;
     const newIds=new Set(schedules.map(item=>item.id));
-    const oldIds=(current.get('eventIds')??[]) as string[];
+    const priorIds=[...new Set([...(prior?.get('eventIds')??[]) as string[],...(prior?.get('priorEventIds')??[]) as string[],...(current.get('priorEventIds')??[]) as string[]])];
+    // A provider/validation failure is not evidence that the prior event vanished.
+    const oldIds=[...new Set([...(current.get('eventIds')??[]) as string[],...(receipt.status==='complete'?priorIds:[])])];
     const refs=[...new Set([...newIds,...oldIds])].map(id=>db.collection(EVENTS_COLLECTION).doc(id));
     const previous=refs.length?await tx.getAll(...refs):[];
     const previousById=new Map(previous.map(doc=>[doc.id,doc]));
@@ -108,7 +113,7 @@ export async function processCalendarSource(db: Firestore, source: CalendarSourc
     }
     if(usageRef && usage && !previousUsage?.exists)tx.create(usageRef,usage);
     else if(usageRef && previousUsage?.exists)tx.set(usageRef,{metadata:{validationStatus,validationError:receipt.error??receipt.validationWarnings?.join("; ")??null,validationWarnings:receipt.validationWarnings?.join("; ")??null}},{merge:true});
-    tx.set(receiptRef,{...receipt,processed_at:at,eventIds:schedules.map(item=>item.id),validatedSchedules:schedules,...(usage?{usageEventId:usage.id}:{})},{merge:true});
+    tx.set(receiptRef,{...receipt,processed_at:at,eventIds:schedules.map(item=>item.id),priorEventIds:receipt.status==='complete'?[]:priorIds,validatedSchedules:schedules,...(usage?{usageEventId:usage.id}:{})},{merge:true});
     const future=schedules.some(item=>item.scheduled_date>=at.slice(0,10));
     const recent=source.publication_date && Date.parse(source.publication_date)>=now()-60*86400000;
     markFeedChanged(db,tx,ref);

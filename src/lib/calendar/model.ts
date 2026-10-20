@@ -13,6 +13,7 @@ export type ScheduleDraft = {
 export type CalendarSource = StoredEvent & { companyId?: string; companyCountry?: string };
 export type ScheduledEvent = StoredEvent & {
   type: 'scheduled_event'; companyId: string; companyCountry?: string; eventKind: CalendarKind; fiscalPeriod: string;
+  fiscalPeriods?: string[]; equivalentScheduleIds?: string[];
   scheduled_date: string; scheduled_at: string | null; local_time: string | null;
   source_timezone: string | null; timezone_text: string | null;
   time_precision: 'exact' | 'local' | 'date'; timeSlot: ScheduleDraft['timeSlot'];
