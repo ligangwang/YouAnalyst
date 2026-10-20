@@ -41,7 +41,7 @@ const suggestedCompanies = [
 export default function CompaniesPage() {
   return (
     <main className={styles.companies}>
-      <h1><UiText text="Companies" /></h1>
+      <h1 className="sr-only"><UiText text="Companies" /></h1>
       <section className={styles.searchArea}>
         <CompanySearchCard />
 

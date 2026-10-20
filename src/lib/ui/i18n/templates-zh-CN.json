@@ -59,6 +59,7 @@
   "bullish view on {0}": "对 {0} 的看多观点",
   "bearish view on {0}": "对 {0} 的看空观点",
   "{0} supplies {1}": "{0} 向 {1} 供货",
+  "{0} acquires {1}": "{0} 收购 {1}",
   "{0} buys from {1}": "{0} 向 {1} 采购",
   "{0} competes with {1}": "{0} 与 {1} 竞争",
   "{0} partners with {1}": "{0} 与 {1} 合作",

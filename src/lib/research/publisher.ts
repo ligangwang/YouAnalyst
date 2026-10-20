@@ -117,7 +117,11 @@ export async function planBatchInTransaction(db: Firestore, tx: Transaction, b: 
     const plan: Plan = { batchHash: hash(b), changes: [] };
     for (const edge of b.relationships) {
       const n = canonical(edge.source, edge.target, edge.type);
-      const matches = all.docs.filter(d => { const v = d.data(); return canonical(v.source, v.target, v.type).id === n.id; });
+      const matches = all.docs.filter(d => {
+        const v = d.data();
+        // Extraction observations retain their audit history alongside the canonical edge.
+        return !["NEWS_OBSERVATION", "FILING_OBSERVATION"].includes(v.recordKind) && canonical(v.source, v.target, v.type).id === n.id;
+      });
       assert(matches.length <= 1, `Existing duplicate requires review: ${n.id}`);
       // Use existing document identity even when its old key wasn't canonical.
       const doc = matches[0]; const before = doc ? doc.data() as Row : null;
