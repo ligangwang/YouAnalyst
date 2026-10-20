@@ -8,7 +8,7 @@ import {pathToFileURL} from 'node:url';
 // Retention is intentionally not removed by this rollout.
 export async function promoteRelease({service,project,region,revision,commit,
   command=args=>execFileSync('gcloud',args,{encoding:'utf8'}),request=fetch,
-  sleep=delay,now=()=>Date.now(),samples=12,interval=10000,log=console.log}) {
+  sleep=ms=>delay(ms),now=()=>Date.now(),samples=12,interval=10000,log=console.log}) {
   assert(service&&project&&region&&revision&&commit,'Release identity required');
   const scope=['--project',project,'--region',region];
   const describe=()=>JSON.parse(command(['run','services','describe',service,...scope,'--format=json']));
