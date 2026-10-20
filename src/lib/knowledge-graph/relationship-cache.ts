@@ -7,6 +7,10 @@ export async function loadAllRelationships(db: Firestore) {
 export async function loadPublishedRelationships(db: Firestore) {
   return {docs:(await loadAllRelationships(db)).docs.filter(doc => doc.data().status === 'PUBLISHED')};
 }
+/** Untagged historical relationships retain their AI placement. Explicit decisions are authoritative. */
+export function relationshipBelongsToTheme(row: Record<string, unknown>, theme: string) {
+  return Array.isArray(row.themeIds) ? row.themeIds.includes(theme) : theme === 'ai';
+}
 export async function loadThemeRelationships(db: Firestore, theme: string) {
   return {docs:(await loadAllRelationships(db)).docs.filter(doc => (doc.data().themeIds ?? []).includes(theme))};
 }
