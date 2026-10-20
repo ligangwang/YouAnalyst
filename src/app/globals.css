@@ -182,3 +182,28 @@ a {
 @media(prefers-reduced-motion:reduce) {
   *,*::before,*::after { scroll-behavior:auto!important;transition-duration:0s!important;animation-duration:.01ms!important;animation-iteration-count:1!important; }
 }
+
+/* Futurist dark: a deep-space canvas, glass rails with glowing hairlines and HUD data readouts. Light keeps its calm paper look. */
+:root:not([data-theme="light"]) {
+  --bg-canvas:#050A16; --bg-surface:#0A1324; --bg-elevated:#111D33;
+  --border-subtle:#1C2D47; --border-control:#3D5676;
+  --accent-violet:#9B8CFF;
+  --surface-hover:#49D6E812; --surface-selected:#49D6E81F;
+  --graph-canvas:#050A16;
+  --glass-panel:linear-gradient(180deg,#0D1930eb,#070E1Df5);
+  --glow-cyan:#49D6E8; --glow-soft:0 0 14px #49D6E847;
+}
+:root:not([data-theme="light"]) body {
+  background:radial-gradient(1100px 560px at 88% -12%,#2A1F5C38,transparent 62%),radial-gradient(900px 520px at -8% 112%,#0E4A5C33,transparent 60%),var(--bg-canvas);
+  background-attachment:fixed;
+}
+/* A faint instrument grid behind content; it fades out towards the edges and never takes pointer input. */
+:root:not([data-theme="light"]) body::before {
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:linear-gradient(#49D6E80a 1px,transparent 1px),linear-gradient(90deg,#49D6E80a 1px,transparent 1px);
+  background-size:44px 44px;
+  mask-image:radial-gradient(ellipse at 50% 40%,#000 0%,transparent 75%);
+}
+:root:not([data-theme="light"]) header nav a[aria-current="page"] { text-shadow:0 0 14px #49D6E899;text-decoration-color:var(--glow-cyan); }
+:root:not([data-theme="light"]) .ui-button[data-variant="primary"] { box-shadow:var(--glow-soft); }
+:root:not([data-theme="light"]) .ui-metadata { color:#D8F6FF; }

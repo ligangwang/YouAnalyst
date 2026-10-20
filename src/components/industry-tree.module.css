@@ -37,7 +37,7 @@
 .scene canvas { touch-action:pan-y; }
 .vertical {background:radial-gradient(ellipse at 50% 85%,var(--ui-surface,#0b3040) 0%,var(--ui-surface,#091b28) 35%,var(--ui-surface,#050f1b) 75%);}
 .vertical .scene {height:min(90vh,1100px);min-height:780px;}
-.vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 23px color-mix(in srgb,currentColor,transparent 68%),inset 0 0 16px color-mix(in srgb,currentColor,transparent 85%);background:var(--ui-surface,#071727ee);}
+.vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 23px color-mix(in srgb,currentColor,transparent 68%),inset 0 0 16px color-mix(in srgb,currentColor,transparent 85%);background:#071727e6;}
 .vertical .branch {border-radius:16px;}
 /* Warm text stays legible against foliage; sector colour remains an accent. */
 .vertical .company {background:#0a151ce8;border-color:#e4f2e929;border-inline-start:2px solid currentColor;box-shadow:0 2px 8px #0005;}
@@ -84,5 +84,9 @@
 .recovery{position:absolute;top:12px;left:12px;z-index:70;max-width:calc(100% - 110px);padding:9px 12px;border:1px solid var(--ui-line,#315060);border-radius:5px;background:var(--ui-surface,#0b1722e8);color:var(--ui-text,#b7cdda);font-size:12px}
 .recovery button,.fallback p button{margin-left:5px;color:var(--ui-text,#98e7d6)}
 
-:global(html[data-theme="light"]) .tree .company { background:var(--bg-surface);color:var(--text-primary);text-shadow:none; }
-:global(html[data-theme="light"]) .tree .layer,:global(html[data-theme="light"]) .tree .root { background:var(--bg-surface);box-shadow:var(--shadow-panel); }
+:global(html[data-theme="light"]) .tree:not(.vertical) .company { background:var(--bg-surface);color:var(--text-primary);text-shadow:none; }
+:global(html[data-theme="light"]) .tree:not(.vertical) .layer,:global(html[data-theme="light"]) .tree:not(.vertical) .root { background:var(--bg-surface);box-shadow:var(--shadow-panel); }
+/* The vertical tree always stands under a night sky, so its labels stay dark glass in both themes. */
+.vertical .branch {background:#071727e6;}
+.vertical :is(.layer,.root,.branch):is(:hover,:focus-visible,[aria-pressed='true']) {background:#12324af2;}
+.vertical .node {backdrop-filter:blur(6px);}
