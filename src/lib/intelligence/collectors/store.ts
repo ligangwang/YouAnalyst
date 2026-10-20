@@ -1,4 +1,6 @@
 import {headlineQueueFields} from './headline-queue';
+import {calendarQueueFields} from '../../calendar/queue';
+import {newsAnalysisQueueFields} from './news-analysis-queue';
 import {markFeedChanged} from '../feed-cache-changes';
 import type {Firestore} from 'firebase-admin/firestore';
 import type {NewsSource} from './sources';
@@ -34,17 +36,24 @@ export function firestoreNewsStore(db:Firestore):NewsStore{
       candidates.forEach((item,index)=>{
         if(existing[index].exists)return;
         const event:CollectedNews={...item,id:eventDocumentId('company_news',item.id),version:1,type:'company_news',sourceType:'company_ir',companyIds:[source.companyId],collected_at:response.status==='modified'?response.collected_at??at.toISOString():at.toISOString(),processed_at:at.toISOString(),baseline};
-        tx.create(refs[index],{...event,...headlineQueueFields(event),...classifyEvent(event)});markFeedChanged(db,tx,refs[index]);created++;
+        tx.create(refs[index],{...event,...headlineQueueFields(event),...calendarQueueFields(event),...newsAnalysisQueueFields(event),...classifyEvent(event)});markFeedChanged(db,tx,refs[index]);created++;
       });
       // Align successful scans to the next schedule boundary, not an hour after
       // completion; otherwise a few seconds of jitter can skip the next run.
       const nextPollAt=new Date((Math.floor(at.getTime()/source.pollMs)+1)*source.pollMs).toISOString();
       tx.set(ref,{...state,baselineAt:state.baselineAt??at.toISOString(),lastSuccessAt:at.toISOString(),nextPollAt,failures:0,lastError:null,leaseId:'',leaseUntil:at.toISOString(),validators:response.status==='modified'?response.validators:state.validators,itemIds:response.status==='modified'?items.map(item=>item.id):state.itemIds,partial:response.status==='modified'?(response.page.invalid>0||response.page.truncated):state.partial});
+      tx.set(db.collection(NEWS_COLLECTORS_COLLECTION).doc(`news-health-${source.id}`),{
+        lastSuccessAt:at.toISOString(),failures:0,
+        partial:response.status==='modified'?(response.page.invalid>0||response.page.truncated):state.partial,
+      });
       return {created,baseline};
     }),
     fail:(source,cursor,error,retryAt)=>db.runTransaction(async tx=>{
       const ref=metadata(source),state=(await tx.get(ref)).data() as NewsCursor|undefined;
       if(state?.leaseId!==cursor.leaseId)return;
+      tx.set(db.collection(NEWS_COLLECTORS_COLLECTION).doc(`news-health-${source.id}`),{
+        lastSuccessAt:state.lastSuccessAt,failures:state.failures+1,partial:state.partial,
+      });
       tx.set(ref,{...state,failures:state.failures+1,lastError:error.slice(0,300),nextPollAt:retryAt.toISOString(),leaseId:'',leaseUntil:new Date(0).toISOString()});
     }),
   };

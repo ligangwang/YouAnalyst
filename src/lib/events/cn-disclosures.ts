@@ -4,7 +4,7 @@ import type {CnEarningsJsonRequest} from '../earnings/live-cn';
 import {discoverCnEarnings} from '../earnings/discovery';
 import {loadEarningsMap} from '../earnings/map-issuers';
 import {discoverEarningsSource} from '../earnings/live-store';
-import {acquireMaintenanceLease,releaseMaintenanceLease,cloudRunTaskAttempt} from '../maintenance-lease';
+import {acquireMaintenanceLeaseState,releaseMaintenanceLease,cloudRunTaskAttempt} from '../maintenance-lease';
 import {mapListedCompanies,cnDisclosureRows,type Disclosure} from './disclosures';
 import {saveDisclosures,DISCLOSURE_HISTORY_START} from './disclosure-store';
 
@@ -36,11 +36,12 @@ export async function readCnMapDisclosures(companyId:string,from:string,to:strin
 /** One public disclosure fetch path, also supplying the supported earnings parsers. */
 export async function collectCnMapDisclosures(db:Firestore,graph:KnowledgeGraph,request:CnEarningsJsonRequest,options:{deadline:number;runId:string;earningsEnabled:boolean;now?:()=>number}){
   const now=options.now??Date.now,meta=db.collection('collectors').doc('exchange-map'),companies=mapListedCompanies(graph).filter(n=>n.market==='CN_A');
-  if(!await acquireMaintenanceLease(meta,options.runId,now(),cloudRunTaskAttempt()))return {status:'busy',companies:companies.length};
+  const lease=await acquireMaintenanceLeaseState(meta,options.runId,now(),cloudRunTaskAttempt());
+  if(!lease)return {status:'busy',companies:companies.length};
   const result={companies:companies.length,completed:0,failed:0,deferred:0,created:0};
   try{
     if(options.earningsEnabled)await loadEarningsMap(db,graph);
-    const previous=(await meta.get()).get('afterCompanyId');const next=companies.findIndex(c=>c.id>String(previous??''));const ordered=next<0?companies:[...companies.slice(next),...companies.slice(0,next)];
+    const previous=lease.checkpoint?.afterCompanyId;const next=companies.findIndex(c=>c.id>String(previous??''));const ordered=next<0?companies:[...companies.slice(next),...companies.slice(0,next)];
     for(const company of ordered){
       if(now()+30_000>=options.deadline){result.deferred++;continue;}
       const ref=db.collection('collectors').doc(`exchange-${company.id}`),state=(await ref.get()).data();
@@ -53,9 +54,23 @@ export async function collectCnMapDisclosures(db:Firestore,graph:KnowledgeGraph,
           if(now()+15_000>=options.deadline)throw new Error('Exchange scan deadline reached');
           if(options.earningsEnabled)pendingEarnings.push(...discoverCnEarnings(company.id,page as Parameters<typeof discoverCnEarnings>[1],at));
         });
-        result.created+=await saveDisclosures(db,rows,at,!state?.lastCompleteAt);
+        // Retain exact confirmed IDs across the overlap; a late arrival with the
+        // same publication date must still pass through transactional dedup.
+        const confirmed=new Map<string,string>();
+        if(Array.isArray(state?.confirmedDisclosures))for(const entry of state.confirmedDisclosures){
+          if(entry&&/^company_disclosure_[a-f0-9]{64}$/.test(entry.id)
+            &&typeof entry.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(entry.date)
+            &&entry.date>=from&&entry.date<=to)confirmed.set(entry.id,entry.date);
+        }
+        result.created+=await saveDisclosures(db,rows.filter(row=>!confirmed.has(row.id)),at,!state?.lastCompleteAt);
+        // Only record receipts after every event batch has committed. A failed
+        // checkpoint save safely falls back to rereading the event documents.
+        for(const row of rows)if(row.publication_date&&row.publication_date>=DISCLOSURE_HISTORY_START
+          &&row.publication_date>=from&&row.publication_date<=to)confirmed.set(row.id,row.publication_date);
+        const confirmedDisclosures=[...confirmed].sort((a,b)=>b[1].localeCompare(a[1])||a[0].localeCompare(b[0]))
+          .slice(0,2000).map(([id,date])=>({id,date}));
         for(const source of pendingEarnings)await discoverEarningsSource(db,source,'document',now());
-        await ref.set({companyId:company.id,sourceType:'exchange',status:'complete',lastCompleteAt:at,lastSuccessAt:at,nextPollAtMs:(Math.floor(start/3600000)+1)*3600000,from,to,documents:rows.length,lastError:null,revision:process.env.GIT_SHA??'local',...(options.earningsEnabled?{earningsCoverageVersion:2}:{})},{merge:true});result.completed++;
+        await ref.set({companyId:company.id,sourceType:'exchange',status:'complete',lastCompleteAt:at,lastSuccessAt:at,nextPollAtMs:(Math.floor(start/3600000)+1)*3600000,from,to,documents:rows.length,confirmedDisclosures,lastError:null,revision:process.env.GIT_SHA??'local',...(options.earningsEnabled?{earningsCoverageVersion:2}:{})},{merge:true});result.completed++;
       }catch(error){result.failed++;await ref.set({companyId:company.id,sourceType:'exchange',status:'partial',lastAttemptAt:at,lastError:error instanceof Error?error.message:'Exchange scan failed'},{merge:true});}
       await meta.set({afterCompanyId:company.id},{merge:true});
     }

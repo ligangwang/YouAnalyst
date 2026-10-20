@@ -8,13 +8,20 @@ type Kind = 'db' | 'query' | 'doc' | 'aggregate' | 'batch' | 'transaction';
 type Shape = { collection: string; clauses: string[] };
 type Pending = { operation: string; collection: string; caller: string };
 export type FirestoreOperationLog = Record<string, unknown>;
-const instrumented = new WeakMap<object, Firestore>();
-const originals = new WeakMap<object, object>();
-const processRunId = randomUUID();
+declare global {
+  var __youAnalystFirestoreObserverV1: {
+    instrumented: WeakMap<object, Firestore>; originals: WeakMap<object, object>; processRunId: string;
+  } | undefined;
+}
+const {instrumented, originals, processRunId} = globalThis.__youAnalystFirestoreObserverV1 ??= {
+  instrumented: new WeakMap<object, Firestore>(), originals: new WeakMap<object, object>(), processRunId: randomUUID(),
+};
 const collectionPath = (path: string = '(unknown)') => path.split('/').map((part, i) => i % 2 ? '*' : part).join('/');
 const documentCollection = (path: string = '(unknown)/*') => collectionPath(path.split('/').slice(0, -1).join('/'));
 function caller() {
-  return (new Error().stack?.split('\n').slice(2).find(line =>
+  // Skip Error, caller(), and the SDK proxy invocation even in bundled builds,
+  // where the wrapper's filename no longer contains firestore-observability.
+  return (new Error().stack?.split('\n').slice(3).find(line =>
     !line.includes('firestore-observability') && !line.includes('node_modules') && !line.includes('node:')) ?? 'unknown')
     .trim().replaceAll('\\', '/').replace(/.*?(?=(?:src|scripts)\/)/, '').slice(0, 300);
 }

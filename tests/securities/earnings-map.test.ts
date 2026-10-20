@@ -33,11 +33,11 @@ test.afterEach(()=>restoreEarningsFixtures());
 test('SEC identity snapshots avoid disclosure rereads, but failed scans reload durable progress',async()=>{
   const fx=earningsFirestore(),reads=new Map<string,number>();
   fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
-  const db={collection:(name:string)=>{
+  const db={runTransaction:fx.db.runTransaction.bind(fx.db),collection:(name:string)=>{
     const collection=fx.db.collection(name);
     return {doc:(id:string)=>{
       const ref=collection.doc(id);
-      return {get:async()=>{reads.set(id,(reads.get(id)??0)+1);return ref.get();},set:ref.set.bind(ref)};
+      return {...ref,get:async()=>{reads.set(id,(reads.get(id)??0)+1);return ref.get();},set:ref.set.bind(ref)};
     }};
   }} as unknown as Firestore;
   const initialStates=new Map<string,DocumentData|undefined>();
@@ -66,7 +66,7 @@ test('SEC identity snapshots avoid disclosure rereads, but failed scans reload d
 
 test('SEC and earnings discovery reuse one theme scope without reading relationships or valuations',async()=>{
   const fx=earningsFirestore();
-  fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
+  fx.rows.set('collectors/sec-identity-US:MU',{companyId:'US:MU',cik:'0000723125'});
   const published={status:'PUBLISHED',primarySector:'compute',reviewedAt:'2026-10-17'};
   const rows=[
     {id:'US:MU',name:'Micron Technology',names:{en:'Micron Technology'},aliases:['Micron'],status:'DIRECTORY',themeMemberships:{ai:published,robotics:published}},
@@ -76,7 +76,7 @@ test('SEC and earnings discovery reuse one theme scope without reading relations
     {id:'US:WITHDRAWN',name:'Withdrawn',status:'DIRECTORY',inGraph:{status:'PUBLISHED'},themeMemberships:{ai:{...published,status:'WITHDRAWN'}}},
   ];
   let companyQueries=0;
-  const db={collection:(name:string)=>{
+  const db={runTransaction:fx.db.runTransaction.bind(fx.db),collection:(name:string)=>{
     if(name==='companies')return {where:(field:string,op:string,values:string[])=>{
       assert.equal(field,'themeIds');assert.equal(op,'array-contains-any');assert.deepEqual(values,['ai','robotics','space']);
       return {get:async()=>{companyQueries++;return {docs:rows.map(row=>({id:row.id,data:()=>row}))};}};
@@ -103,8 +103,8 @@ test('SEC and earnings discovery reuse one theme scope without reading relations
 });
 
 test('earnings eligibility follows the map and verified scanner identities, never the adapter hints',async()=>{
-  const fx=earningsFirestore();fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
-  fx.rows.set('collectors/sec-US:AMAT',{companyId:'US:OTHER',cik:'0000006951'});
+  const fx=earningsFirestore();fx.rows.set('collectors/sec-identity-US:MU',{companyId:'US:MU',cik:'0000723125'});
+  fx.rows.set('collectors/sec-identity-US:AMAT',{companyId:'US:OTHER',cik:'0000006951'});
   await loadEarningsMap(fx.db,graph);
   assert.deepEqual(earningsCompanies().map(c=>c.companyId),['US:MU','XSHE:000063']);
   assert.throws(()=>earningsCompany('US:AMD'));assert.throws(()=>earningsCompany('ORG:OPENAI'));
@@ -185,9 +185,9 @@ test('China map issuers use exact exchange identity and the reviewed common tabl
 test('issuer membership reflects source changes without a checkpoint or timer',async()=>{
  const fx=earningsFirestore();
  fx.rows.set('collectors/_read_cache_versions_v1',{enabled:true,versions:{collectors:'one'}});
- fx.rows.set('collectors/sec-US:MU',{companyId:'US:MU',cik:'0000723125'});
+ fx.rows.set('collectors/sec-identity-US:MU',{companyId:'US:MU',cik:'0000723125'});
  await loadEarningsMap(fx.db,graph);
- fx.rows.set('collectors/sec-US:AMAT',{companyId:'US:AMAT',cik:'0000006951'});
+ fx.rows.set('collectors/sec-identity-US:AMAT',{companyId:'US:AMAT',cik:'0000006951'});
  await loadEarningsMap(fx.db,graph);
  assert.equal(earningsCompany('US:AMAT').issuerId,'sec:0000006951');
  await loadEarningsMap(fx.db,graph);

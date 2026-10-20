@@ -17,6 +17,23 @@ const CIK = "0000002488";
 const META = "sec_collector_state/_sec_filings_collector";
 const COMPANY = "sec_collector_state/US:AMD";
 const iso = "2026-09-27T12:00:00.000Z";
+test("website freshness is written once per completed run, without collector bookkeeping", async () => {
+ const f=fixture();
+ const summaries: Data[]=[];
+ f.onWrite((path,data)=>{if(path==='sec_collector_state/_website_freshness')summaries.push(data);});
+ const result=await f.run(['AMD','NVDA']);
+ assert.equal(summaries.length,1);
+ assert.deepEqual(summaries[0],{lastRunAt:iso,result:{
+  failed:result.failed,partial:result.partial,remaining:result.remaining,outboxIncomplete:result.outboxIncomplete,
+ }});
+ assert.deepEqual(f.documents.get(META)?.result,result,'legacy admin status remains available');
+});
+test("incomplete runs publish an unhealthy website freshness summary", async () => {
+ const f=fixture();
+ const result=await f.run(['AMD','NVDA'],{maxCompanies:1});
+ assert.equal(result.remaining,1);
+ assert.equal((f.documents.get('sec_collector_state/_website_freshness')?.result as Data).remaining,1);
+});
 test('bridge acquisition preserves newer rotation progress',async()=>{
  const f=fixture({[META]:{afterCompanyId:'NVDA'},'company_fundamentals/_sec_filings_collector':{afterCompanyId:'AMD'}});
  assert.equal(await acquireSecCollectorLease(f.db,'test',Date.parse(iso),undefined),true);

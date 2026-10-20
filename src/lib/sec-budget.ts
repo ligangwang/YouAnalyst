@@ -26,6 +26,7 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
       const owner = randomUUID();
       let cooldownMs = 0;
       let bridge = false;
+      let contentionWaitMs = 250;
       for (;;) {
         signal.throwIfAborted();
         const wait = await db.runTransaction(async tx => {
@@ -39,13 +40,20 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
             throw Object.assign(new Error("SEC shared cooldown is active"), { code: 429 });
           }
           const remaining = Math.max(Number(stored?.leaseUntil) || 0, Number(stored?.nextAllowedAt) || 0) - now;
-          if (remaining > 0) return Math.min(remaining, 250);
+          if (remaining > 0) return Math.min(remaining, contentionWaitMs);
           signal.throwIfAborted();
           tx.set(ref, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
           if (bridge) tx.set(legacyRef, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
           return 0;
         });
-        if (wait > 0) { await sleep(wait, signal); continue; }
+        if (wait > 0) {
+          await sleep(wait, signal);
+          // A held 30-second lease used to be polled four times a second.
+          // Back off under contention, but always recheck the shared lock and
+          // cooldown before sending. Normal 200ms spacing remains exact.
+          contentionWaitMs=Math.min(1000,contentionWaitMs*2);
+          continue;
+        }
         break;
       }
       try {

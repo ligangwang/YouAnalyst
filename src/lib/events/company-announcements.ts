@@ -2,7 +2,7 @@ import {getAdminFirestore} from '../firebase/admin';
 import type {NewsSource} from '../intelligence/collectors/sources';
 import {loadNewsSources} from '../intelligence/collectors/source-service';
 import {canonicalEvidenceUrl,observation} from '../intelligence/model';
-import {EVENTS_COLLECTION} from './model';
+import {loadCompanyEventSnapshot} from './company-events-cache';
 import {newsArticles} from '../intelligence/collectors/article-quality';
 
 export type CompanyAnnouncement={id:string;title:string;url:string;date:string;channel:'IR'|'SEC'|'Exchange';earnings:boolean;form?:string};
@@ -21,7 +21,7 @@ export async function loadCompanyAnnouncements(companyId:string){
   if(!/^(?:US:[A-Z0-9][A-Z0-9.-]{0,15}|XSHG:6\d{5}|XSHE:[03]\d{5})$/.test(companyId))return [];
   try{
     const db=getAdminFirestore(),sources=await loadNewsSources(db);
-    const page=await db.collection(EVENTS_COLLECTION).where('companyId','==',companyId).orderBy('publication_date','desc').limit(30).get();
+    const page=await loadCompanyEventSnapshot(db,companyId);
     const today=new Date().toISOString().slice(0,10);
     return newsArticles(page.docs.map(doc=>doc.data()),sources).map(row=>publicCompanyAnnouncement(row,companyId,sources)).filter((row):row is CompanyAnnouncement=>Boolean(row&&row.date<=today)).slice(0,12);
   }catch(error){console.error('Company announcement sources unavailable',companyId,error);return [];}

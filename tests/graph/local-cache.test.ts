@@ -61,3 +61,47 @@ test('sitemap caches retain three buckets, share reads and push renames/removals
  closeLocalCaches();assert.ok(listeners.every(l=>l.closed));
  const reopened=loadSitemapPaths(db,'US:M');assert.equal(listeners.length,4);listeners[3].next({docs:[]});await reopened;
 });
+
+test('fundamentals survive individual-company browsing and company-cache churn',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ for(let i=0;i<180;i++){
+  const load=localDocuments(f.db,'company_fundamentals',[String(i)]);
+  f.listeners.at(-1)!.next({docs:[f.doc(String(i),i)]});await load;
+ }
+ for(let i=0;i<70;i++){
+  const load=localDocuments(f.db,'companies',[String(i)]);
+  f.listeners.at(-1)!.next({docs:[]});await load;
+ }
+ const count=f.listeners.length;
+ const result=await localDocuments(f.db,'company_fundamentals',['0','90','179']);
+ assert.deepEqual(result!.map(d=>d.get('n')),[0,90,179]);assert.equal(f.listeners.length,count);
+ f.listeners[0].next({docs:[f.doc('0',999)]});
+ assert.equal((await localDocuments(f.db,'company_fundamentals',['0']))![0].get('n'),999);
+ f.listeners[0].next({docs:[]});
+ assert.equal((await localDocuments(f.db,'company_fundamentals',['0']))![0].exists,false);
+ assert.equal(f.listeners.length,count);
+ closeLocalCaches();
+ const reopened=localDocuments(f.db,'company_fundamentals',['0']);
+ assert.equal(f.listeners.length,count+1);f.listeners.at(-1)!.next({docs:[]});await reopened;
+});
+
+test('fundamentals capacity evicts idle groups but preserves a pending reader',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ const pending=localDocuments(f.db,'company_fundamentals',['pending']);
+ for(let i=0;i<270;i++){
+  const load=localDocuments(f.db,'company_fundamentals',[String(i)]);
+  f.listeners.at(-1)!.next({docs:[]});await load;
+ }
+ assert.equal(f.listeners[0].closed,false);
+ assert.ok(f.listeners.filter(l=>!l.closed).length<=256);
+ f.listeners[0].next({docs:[f.doc('pending',1)]});await pending;
+});
+
+test('fundamentals memory budget releases large idle snapshots',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ for(let i=0;i<20;i++){
+  const load=localDocuments(f.db,'company_fundamentals',[String(i)]);
+  f.listeners.at(-1)!.next({docs:[{id:String(i),data:()=>({text:'x'.repeat(900_000)})}]});await load;
+ }
+ assert.ok(f.listeners.some(l=>l.closed),'memory bound applies before group capacity');
+});

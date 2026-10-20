@@ -20,6 +20,14 @@ test("migration honors the legacy cooldown and writes only operational state", a
   assert.equal(f.documents.get("company_fundamentals/_sec_request_budget")?.owner, null);
   assert.equal(f.documents.get("sec_collector_state/_sec_request_budget")?.owner, null);
 });
+test("held SEC lease uses bounded backoff and still checks ownership before sending",async()=>{
+  const f=sharedFirestore(),start=f.now(),waits:number[]=[];
+  f.documents.set('sec_collector_state/_sec_request_budget',{bridgeRetired:true,owner:'other',leaseUntil:start+5000});
+  await createSecBudget(f.db,async(ms,signal)=>{signal.throwIfAborted();waits.push(ms);f.advance(ms);})
+    .run(new AbortController().signal,async()=>{assert.ok(f.now()>=start+5000);});
+  assert.deepEqual(waits,[250,500,1000,1000,1000,1000,250]);
+  assert.equal(f.documents.get('sec_collector_state/_sec_request_budget')?.nextAllowedAt,start+5200);
+});
 
 test("bridge serializes with legacy workers, then retirement stops legacy writes",async()=>{
  const f=baseFirestore(),old='company_fundamentals/_sec_request_budget',next='sec_collector_state/_sec_request_budget';

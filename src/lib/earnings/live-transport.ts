@@ -33,6 +33,9 @@ export async function readBoundedEarningsBody(response: Response, maxBytes = MAX
  * a provider-wide account quota. No provider credentials are used. */
 export function createEarningsRequestGate(db: Firestore, options: { now?: () => number; sleep?: (ms: number) => Promise<void> } = {}) {
   const now = options.now ?? Date.now, sleep = options.sleep ?? (ms => delay(ms));
+  // A local hint can postpone a check, but never authorize a request. Every
+  // request still reserves its slot transactionally against shared state.
+  let checkAfter = 0;
   const provider = (host: string) => {
     if (!["www.cninfo.com.cn", "static.cninfo.com.cn", "dataclouds.cninfo.com.cn"].includes(host)) throw new Error("Unsupported earnings request host");
     return earningsMetadata(db, "provider_cninfo");
@@ -42,14 +45,23 @@ export function createEarningsRequestGate(db: Firestore, options: { now?: () => 
       const ref = provider(host), deadline = now() + 15_000;
       for (;;) {
         if (now() > deadline) throw new Error("Earnings provider request budget timed out");
+        const localWait = checkAfter - now();
+        if (localWait > 0) {
+          if (localWait > deadline - now()) throw new Error("Earnings provider request budget timed out");
+          await sleep(localWait);
+          continue;
+        }
         const wait = await db.runTransaction(async tx => {
           const snapshot = await tx.get(ref), time = snapshot.readTime?.toMillis() ?? now(), value = snapshot.data();
           if (Number(value?.cooldownUntilMs) > time) throw Object.assign(new Error("CNINFO earnings cooldown is active"), { code: 429 });
           const remaining = Number(value?.nextAllowedAtMs ?? 0) - time;
-          if (remaining > 0) return Math.min(remaining, 500);
+          if (remaining > 0) return remaining;
           tx.set(ref, { nextAllowedAtMs: time + 1000 }, { merge: true }); return 0;
         });
-        if (!wait) return; await sleep(wait);
+        // Use a relative delay from the server's read time, avoiding clock-skew
+        // assumptions. Transaction latency only makes this hint conservative.
+        checkAfter = Math.max(checkAfter, now() + (wait || 1000));
+        if (!wait) return;
       }
     },
     async onBlocked({ host, code, retryAfter }: { host: string; code: string | number; retryAfter: string | null }) {

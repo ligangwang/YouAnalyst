@@ -6,7 +6,7 @@ import { createSecFilingDiscovered, type SecFilingDiscovered } from "./event";
 import type { SecFiling, SecFilingsSource } from "./source";
 import {
   listPendingSecFilings, markSecFilingPublished, persistSecFilingDiscovery, readSecCollectorCursor,
-  secCollectorMetadata, writeSecCollectorCursor, type SecCollectorCursor,
+  secCollectorMetadata, secCollectorFreshness, writeSecCollectorCursor, type SecCollectorCursor,
 } from "./store";
 
 const OVERLAP_DAYS = 7;
@@ -198,7 +198,16 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
       if (providerBlocked) break; // The shared SEC gate persists the cooldown.
     }
     await drain();
-    await metadata.set({ lastRunAt: new Date(now()).toISOString(), result }, { merge: true });
+    const lastRunAt = new Date(now()).toISOString();
+    await db.runTransaction(async tx => {
+      // Keep the previous status fields for admin/older revisions during rollout.
+      tx.set(metadata, { lastRunAt, result }, { merge: true });
+      tx.set(secCollectorFreshness(db), {
+        lastRunAt,
+        result: { failed: result.failed, partial: result.partial,
+          remaining: result.remaining, outboxIncomplete: result.outboxIncomplete },
+      });
+    });
     return result;
   } finally {
     await releaseSecCollectorLease(db, log.runId);

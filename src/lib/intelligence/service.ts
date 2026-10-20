@@ -7,7 +7,7 @@ import { loadKnowledgeGraph } from '../knowledge-graph/service';
 import { loadThemeGraph } from '../company-themes/graph-service';
 import { themeName, type CompanyThemeId } from '../company-themes/model';
 import { curatedEvents } from '../knowledge-graph/curated-events';
-import { secCollectorMetadata } from '../sec-filings/store';
+import { secCollectorFreshness } from '../sec-filings/store';
 import { INTELLIGENCE_SOURCES, sourceDocumentsForEvents, intelligenceSession, secCollectorIsFresh, sourceChannel, type IntelligenceSnapshot } from './model';
 import { mergeIntelligenceEvents, projectResearchIntelligence } from './project';
 import { projectSecIntelligence } from './sec-events';
@@ -97,7 +97,7 @@ async function buildIntelligenceSnapshot(now:Date,theme:CompanyThemeId,before?:s
     }else try{
       if(feedError)throw feedError;
       const db=getAdminFirestore();
-      const metadata=await changeCached(db,'sec-collector-status',['company_fundamentals'],()=>secCollectorMetadata(db).get());
+      const metadata=await changeCached(db,'sec-collector-freshness',['collector:sec-freshness'],()=>secCollectorFreshness(db).get());
       const lastRun=metadata.get('lastRunAt');
       secFresh=secCollectorIsFresh(lastRun,metadata.get('result'),now);
       if(!secFresh){
