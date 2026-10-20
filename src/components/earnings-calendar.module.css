@@ -10,3 +10,40 @@
 .validationDetails { color:#ffc67c;font-size:12px;line-height:1.5;margin-block:8px; }
 .validationDetails summary { cursor:pointer; }
 .validationDetails p,.validationDetails ul { margin-top:6px; }
+
+/* Utility layout, with the same semantic surfaces in both appearance modes. */
+.page { max-width:1488px;padding:32px 24px 64px;color:var(--text-primary); }
+.header { gap:24px;align-items:center; }
+.eyebrow { color:var(--accent-intelligence);font-size:12px;letter-spacing:.12em;margin-bottom:8px; }
+.header h1 { font-size:clamp(28px,3vw,36px);font-weight:600;line-height:1.2;letter-spacing:-.035em; }
+.subtitle { margin-top:8px;color:var(--text-secondary);line-height:1.6; }
+.zone { border:0;background:var(--bg-elevated);border-radius:8px;font-size:12px;padding:8px 12px;color:var(--text-secondary); }
+.toolbar { margin:24px 0 16px; }
+.period h2 { font-size:20px;min-width:180px; }
+.period button,.switcher button,.filters select,.filters input,.filters>button { min-height:40px;border-color:var(--border-control);background:var(--bg-surface); }
+.switcher { border:0;background:var(--bg-elevated);border-radius:8px;padding:4px; }
+.switcher button { border:0;background:transparent; }
+.switcher button[aria-pressed=true] { background:var(--bg-surface);color:var(--accent-intelligence);box-shadow:var(--shadow-panel); }
+.filters { gap:16px;padding:12px 0;color:var(--text-secondary);font-size:13px; }
+.following { min-height:40px; }.following input { accent-color:var(--accent-intelligence);min-height:0; }
+.coverage { margin:12px 0 0;padding:8px 12px;border-left:2px solid var(--status-warning);background:color-mix(in srgb,var(--status-warning) 6%,var(--bg-canvas));color:var(--status-warning);font-size:12px;line-height:1.6; }
+.status { min-height:40px;font-size:12px; }
+.layout { gap:16px;grid-template-columns:minmax(0,1fr) 320px; }
+.calendar,.agenda { background:var(--bg-surface);border-radius:12px; }
+.cell { min-height:144px;padding:8px 6px; }.muted { background:color-mix(in srgb,var(--bg-canvas) 60%,var(--bg-surface)); }
+.selected { background:var(--surface-selected);box-shadow:inset 0 0 0 2px var(--accent-intelligence); }
+.dayButton { font-family:var(--font-data);margin-bottom:8px;min-height:32px; }.dayButton span,.dayButton small { font-size:12px; }
+.today { background:var(--accent-intelligence);color:var(--text-on-accent); }
+.event { background:var(--bg-elevated);padding:12px;border-radius:8px;font-size:13px;line-height:1.5; }
+.event p,.detail { font-size:12px; }.eventHeading span { font-size:12px; }
+.cell .event { padding:8px 6px;font-size:12px; }.cell .eventHeading strong { font-size:12px; }.cell .eventHeading span,.cell .time,.cell .countdown { font-size:12px; }
+.eventButton:hover { outline:1px solid var(--accent-intelligence); }
+.countdown { font-family:var(--font-data);font-size:12px;color:var(--accent-intelligence); }
+.scheduleStatus,.validationWarning,.validationDetails { color:var(--status-warning); }
+.agendaHeader { padding:20px; }.agendaHeader p { font-size:12px;color:var(--accent-intelligence);letter-spacing:.1em; }
+.agendaHeader h2 { font-size:20px; }.agendaEvents { padding:16px; }
+.links,.confirmed,.more { font-size:12px; }.links a { color:var(--accent-intelligence);min-height:32px;display:inline-flex;align-items:center; }
+.confirmed { background:var(--surface-selected);color:var(--text-primary); }
+.linkedEvent { outline-color:var(--accent-intelligence); }
+@media(max-width:1150px) { .layout { grid-template-columns:minmax(0,1fr) 270px; }.page { padding:24px 20px 48px; }.dayButton span { display:none; } }
+@media(max-width:800px) { .page { padding:24px 16px 48px; }.header { gap:12px; }.zone { padding:0;background:none;white-space:normal; }.layout { grid-template-columns:1fr; }.period h2 { min-width:0; }.toolbar { margin-top:20px; }.filters input:not([type=checkbox]),.filters select,.period button,.switcher button,.filters>button { min-height:44px; }.following { min-height:44px; }.grid:not(.week) .cell { min-height:108px; }.grid:not(.week) .cell .eventHeading strong { font-size:12px; }.dayButton { min-height:36px; }.dayButton small { font-size:12px; }.more { font-size:12px;padding:4px 0; }.week .cell .eventHeading span { font-size:12px; } }

@@ -6,6 +6,7 @@ import { LocalizedLink as Link } from "./localized-link";
 import { companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { mostConnectedCompanies } from "@/lib/knowledge-graph/most-connected";
 import { companyPageUrl } from "@/lib/market-companies/routes";
+import styles from "./basic-pages.module.css";
 
 // Reads the same AI-map graph the map page loads; the section stays hidden if it is unavailable.
 export function MostConnectedCompanies({ limit = 10 }: { limit?: number }) {
@@ -22,7 +23,7 @@ export function MostConnectedCompanies({ limit = 10 }: { limit?: number }) {
   }, []);
   const ranked = useMemo(() => graph ? mostConnectedCompanies(graph, limit) : [], [graph, limit]);
   if (status === "error" || (status === "ready" && !ranked.length)) return null;
-  return <section aria-labelledby="most-connected-heading" className="mt-10">
+  return <section aria-labelledby="most-connected-heading" className={styles.ranking}>
     <div className="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 id="most-connected-heading" className="text-lg font-semibold text-slate-100">{text("Most-connected companies on the AI map", "AI 图谱中关系最多的公司")}</h2>

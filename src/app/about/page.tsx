@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { localizedMetadata } from "@/lib/ui/i18n/server";
+import styles from "@/components/basic-pages.module.css";
 
 const contactEmail = "support@youanalyst.com";
 const xHandle = "knoics321";
@@ -22,7 +23,7 @@ export default async function AboutPage() {
   const prefix = chinese ? "/zh-cn" : "/en";
   const text = (en: string, zh: string) => chinese ? zh : en;
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:py-14">
+    <main className={styles.about}>
       <header className="border-b border-white/10 pb-8">
         <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">{text("About us", "关于我们")}</p>
         <h1 className="mt-3 font-[var(--font-sora)] text-3xl font-semibold text-cyan-100 sm:text-4xl">{text("Understand the companies behind your investments.", "了解你所投资的公司。")}</h1>

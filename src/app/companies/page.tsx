@@ -7,6 +7,7 @@ import { CompanySearchCard } from "@/components/company-search-card";
 import { MostConnectedCompanies } from "@/components/most-connected-companies";
 import { inventoryCompanyPath } from "@/lib/market-companies/slug-inventory";
 import { companyPageUrl } from "@/lib/market-companies/routes";
+import styles from "@/components/basic-pages.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +40,12 @@ const suggestedCompanies = [
 
 export default function CompaniesPage() {
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl flex-col px-4 pt-10 pb-8 sm:pt-16 lg:pt-20">
-      <h1 className="sr-only"><UiText text="Company search" /></h1>
-      <section className="w-full">
+    <main className={styles.companies}>
+      <h1><UiText text="Companies" /></h1>
+      <section className={styles.searchArea}>
         <CompanySearchCard />
 
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
+        <div className={styles.suggestions}>
           {suggestedCompanies.map((company) => (
             <Link
               key={company.symbol}
