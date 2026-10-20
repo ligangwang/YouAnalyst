@@ -11,6 +11,7 @@ test('website release validates a pinned candidate before changing traffic', () 
   assert.match(build, /--tag\s+- candidate/);
   const deploy = readFileSync('scripts/deploy-cloud-run.sh', 'utf8');
   assert(deploy.indexOf('node scripts/verify-release-candidate.mjs') < deploy.indexOf('node scripts/promote-release.mjs'));
+  assert.match(deploy,/GIT_SHA="\$\{GIT_SHA:-local\}" node scripts\/promote-release.mjs/);
   assert.doesNotMatch(deploy, /--to-latest/);
 });
 

@@ -10,6 +10,7 @@ test('appearance is resolved before paint: system, explicit overrides, legacy se
     {systemLight:false, theme:'light', expected:'light'},
     {systemLight:true, theme:'dark', mode:'system', expected:'light'},
     {systemLight:false, theme:'light', mode:'dark', expected:'dark'},
+    {systemLight:true, theme:'dark', resolvedMode:'system', expected:'light'},
     {systemLight:true, broken:true, expected:'light'},
     {systemLight:false, invalid:true, expected:'dark'},
   ]) {
@@ -19,7 +20,7 @@ test('appearance is resolved before paint: system, explicit overrides, legacy se
       localStorage:{getItem:(key:string)=>{
         if(scenario.broken)throw new Error('Storage blocked');
         if(key===THEME_MODE_STORAGE_KEY)return scenario.mode??null;
-        if(key===DISPLAY_STORAGE_KEY)return scenario.invalid?'invalid json':JSON.stringify({theme:scenario.theme,priceColors:'red-up'});
+        if(key===DISPLAY_STORAGE_KEY)return scenario.invalid?'invalid json':JSON.stringify({theme:scenario.theme,resolvedThemeMode:scenario.resolvedMode,priceColors:'red-up'});
         return null;
       }},
     });

@@ -8,10 +8,10 @@ import { DISPLAY_STORAGE_KEY, THEME_MODE_STORAGE_KEY, parseThemeMode, resolveThe
 import { MarketContext, applyPreferences } from "./preferences-context";
 export { useMarket } from "./preferences-context";
 
-export function applyDisplayAppearance(preferences: DisplayPreferences, owner: string | null = null) {
+export function applyDisplayAppearance(preferences: DisplayPreferences, owner: string | null = null, resolvedThemeMode: ThemeMode = preferences.theme ?? 'dark') {
   document.documentElement.dataset.theme = preferences.theme ?? "dark";
   document.documentElement.dataset.priceColors = preferences.priceColors ?? "green-up";
-  try { localStorage.setItem(DISPLAY_STORAGE_KEY, JSON.stringify({ ...preferences, owner })); } catch { /* Storage can be disabled. */ }
+  try { localStorage.setItem(DISPLAY_STORAGE_KEY, JSON.stringify({ ...preferences, owner, resolvedThemeMode })); } catch { /* Storage can be disabled. */ }
 }
 
 export function MarketProvider({ children }: { children: ReactNode }) {
@@ -32,9 +32,8 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     const loadRevision = revision.current;
     const adopt = (preferences: DisplayPreferences, selectedMode: ThemeMode) => {
       mode.current = selectedMode; setThemeMode(selectedMode);
-      if (!user && selectedMode === 'system') { try { localStorage.setItem(THEME_MODE_STORAGE_KEY, selectedMode); } catch {} }
       const theme = resolveTheme(selectedMode, matchMedia('(prefers-color-scheme: light)').matches);
-      applyDisplayAppearance({ ...preferences, theme }, user?.uid ?? null);
+      applyDisplayAppearance({ ...preferences, theme }, user?.uid ?? null, selectedMode);
       setAppearance({ theme, priceColors: preferences.priceColors ?? "green-up" });
     };
     void (async () => {
@@ -43,7 +42,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
         try {
           const stored = JSON.parse(localStorage.getItem(DISPLAY_STORAGE_KEY) ?? "null");
           const cached = stored?.owner === (user?.uid ?? null) ? parsePreferences(stored) : null;
-          const selectedMode = parseThemeMode(localStorage.getItem(THEME_MODE_STORAGE_KEY)) ?? cached?.theme ?? "system";
+          const selectedMode = parseThemeMode(localStorage.getItem(THEME_MODE_STORAGE_KEY)) ?? (cached ? parseThemeMode(stored.resolvedThemeMode) ?? cached.theme : null) ?? "system";
           if (revision.current === loadRevision && !controller.signal.aborted) adopt(cached ?? { language: locale, market: "ALL" }, selectedMode);
         } catch { adopt({ language: locale, market: "ALL" }, "system"); }
         if (!user) return;
@@ -63,7 +62,6 @@ export function MarketProvider({ children }: { children: ReactNode }) {
           }
         } catch { /* Keep the current visitor preference if the account is unavailable. */ }
       } finally { if (!controller.signal.aborted) {
-        if(mode.current==='system') { try { localStorage.setItem(THEME_MODE_STORAGE_KEY,'system'); } catch {} }
         setRestoring(false);
       } }
     })();
@@ -85,7 +83,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
     revision.current += 1;
     mode.current = selectedMode; setThemeMode(selectedMode);
     const theme = resolveTheme(selectedMode, matchMedia('(prefers-color-scheme: light)').matches);
-    applyDisplayAppearance({ language: locale, market: 'ALL', priceColors: appearance.priceColors, theme }, user?.uid ?? null);
+    applyDisplayAppearance({ language: locale, market: 'ALL', priceColors: appearance.priceColors, theme }, user?.uid ?? null, selectedMode);
     try { localStorage.setItem(THEME_MODE_STORAGE_KEY, selectedMode); } catch {}
     setAppearance(current => ({ ...current, theme }));
   }
@@ -103,7 +101,7 @@ export function MarketProvider({ children }: { children: ReactNode }) {
         const response = await fetch("/api/preferences", { method: "PATCH", headers: { authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(preferences) });
         if (!response.ok) throw new Error("Save failed");
       }
-      applyDisplayAppearance(preferences, user?.uid ?? null);
+      applyDisplayAppearance(preferences, user?.uid ?? null, input.theme ?? mode.current);
       if (input.theme) { mode.current = input.theme; setThemeMode(input.theme); try { localStorage.setItem(THEME_MODE_STORAGE_KEY, input.theme); } catch {} }
       setAppearance({ theme: preferences.theme, priceColors: preferences.priceColors });
       if (preferences.language !== locale) applyPreferences(preferences, url => router.replace(url, { scroll: false }));

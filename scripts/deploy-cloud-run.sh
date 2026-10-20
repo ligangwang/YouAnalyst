@@ -168,7 +168,7 @@ candidate_revision="$(printf '%s' "$candidate_json" | node -e 'let s="";process.
 CANDIDATE_URL="$candidate_url" CANDIDATE_REVISION="$candidate_revision" GIT_SHA="${GIT_SHA:-local}" node scripts/verify-release-candidate.mjs
 # Retain and verify the predecessor through a monitored routing/drain grace
 # period. The promoter restores its traffic on any probe or request-log failure.
-RELEASE_SERVICE="$service_name" CANDIDATE_REVISION="$candidate_revision" node scripts/promote-release.mjs
+RELEASE_SERVICE="$service_name" CANDIDATE_REVISION="$candidate_revision" GIT_SHA="${GIT_SHA:-local}" node scripts/promote-release.mjs
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf 'Cloud Build and rollout: %s seconds\n' "$((SECONDS - build_started))" >> "$GITHUB_STEP_SUMMARY"
