@@ -48,11 +48,12 @@ export async function promoteRelease({service,project,region,revision,commit,
     assert.equal(rows.length,0,'HTTP 5xx/429 during rollout; traffic restored to predecessor');
   }
   try {
-    // Validate both revisions while routing converges, then observe a drain
-    // grace period after full promotion. Tags survive for later investigation.
-    for(const percent of [10,100]) {
+    // Move the application as one release: splitting Next.js HTML and hashed
+    // assets between builds can produce mixed-version pages. Observe both
+    // revisions through a drain grace period; keep the predecessor tagged.
+    for(const percent of [100]) {
       changed=true;
-      update(['--to-revisions',percent===100?`${revision}=100`:`${revision}=${percent},${previous}=${100-percent}`]);
+      update(['--to-revisions',`${revision}=100`]);
       for(let sample=0;sample<samples;sample++) {
         await sleep(interval);
         await health(retained.url,previous);

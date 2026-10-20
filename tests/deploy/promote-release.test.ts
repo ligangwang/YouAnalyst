@@ -26,12 +26,12 @@ function fixture(fail:'none'|'candidate'|'retired'|'logs'|'public'='none') {
   return {calls,options:{service:'web',project:'project',region:'region',revision:'new',commit:'abc',
     command,request,sleep:async()=>{},samples:3,interval:0,log:()=>{}}};
 }
-test('promotion retains and validates predecessor before splitting traffic, observes full promotion, never removes retention',async()=>{
+test('promotion retains and validates predecessor before moving traffic, observes full promotion, never removes retention',async()=>{
   const f=fixture();await promoteRelease(f.options);
   const updates=f.calls.filter(args=>args[2]==='update-traffic');
-  assert.deepEqual(updates.map(args=>args.at(-2)),['retain-old=old','new=10,old=90','new=100']);
-  assert.equal(f.calls.filter(args=>args[0]==='logging').length,2);
-  assert.equal(f.calls.filter(args=>args[1]==='revisions').length,7);
+  assert.deepEqual(updates.map(args=>args.at(-2)),['retain-old=old','new=100']);
+  assert.equal(f.calls.filter(args=>args[0]==='logging').length,1);
+  assert.equal(f.calls.filter(args=>args[1]==='revisions').length,4);
   assert(!f.calls.some(args=>args.includes('--remove-tags')||args.includes('--to-latest')));
 });
 test('wrong candidate and inactive predecessor block public traffic changes',async()=>{
@@ -44,7 +44,7 @@ test('public health or request-log errors stop advancement and restore predecess
   for(const failure of ['public','logs'] as const){
     const f=fixture(failure);await assert.rejects(promoteRelease(f.options));
     const allocations=f.calls.filter(args=>args.includes('--to-revisions')).map(args=>args.at(-2));
-    assert.deepEqual(allocations,['new=10,old=90','old=100']);
+    assert.deepEqual(allocations,['new=100','old=100']);
   }
 });
 test('log-read failure also restores predecessor instead of silently continuing',async()=>{
