@@ -30,7 +30,7 @@ test.beforeAll(async () => {
           const following = pathname === "/watchlists/following" || pathname === "/feed" && scopes.length === 1 && scopes[0] === "following";
           const element = pathname === "/auth"
             ? await AuthRoutePage({ searchParams: Promise.resolve({ next: url.searchParams.get("next") ?? undefined, mode: url.searchParams.get("mode") ?? undefined }) })
-            : following ? <FollowedCompaniesPage key={url.pathname} feed={pathname === "/feed"} /> : <p>Destination reached</p>;
+            : following ? <FollowedCompaniesPage key={url.pathname} feed={pathname === "/feed" || url.searchParams.get("view") === "updates"} /> : <p>Destination reached</p>;
           root.render(<LocaleProvider locale={locale}>{element}</LocaleProvider>);
         }
         window.addEventListener("route-change", () => void render());
