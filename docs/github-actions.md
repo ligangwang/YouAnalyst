@@ -12,6 +12,8 @@ Website presentation libraries live under `src/lib/ui/`, separate from shared da
 
 ## Admin Tasks
 
+The production deployment service account needs `roles/logging.viewer` on the project so `scripts/promote-release.mjs` can inspect request errors during its monitored promotion. This read-only role excludes private log contents. Provision it once through an authorized operator; routine releases must retain the log check and roll back if it cannot run.
+
 Use `/admin/jobs` for routine operations:
 
 | Task | Controls |
