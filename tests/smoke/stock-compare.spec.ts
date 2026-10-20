@@ -35,7 +35,8 @@ test("public comparison plays, scrubs, switches style, and shares its configurat
   await page.getByRole("button",{name:"Pause animation",exact:true}).click();
   await page.getByRole("slider",{name:"Comparison timeline"}).fill("0.5");
   await expect(page.getByTestId("comparison-date")).toHaveText("2025-03-03");
-  await expect(page.getByRole("row").filter({ hasText: "AAPL" }).locator("td").last()).toHaveText("+10.00%");
+  await expect(page.getByRole("table")).toHaveCount(0);
+  await expect(page.getByRole("img",{name:"Animated stock price return comparison"})).toContainText("+10.00%");
   await expect(page.getByTestId("chart-watermark")).toBeVisible();
   await page.evaluate(()=>window.scrollTo({top:0,behavior:"instant"}));
   await page.screenshot({path:"test-results/compare-desktop.png",fullPage:true});
@@ -69,7 +70,7 @@ test("ten stocks fit on mobile, enforce the limit, and can be removed", async ({
   await mockPrices(page);
   const symbols="AAPL,MSFT,NVDA,GOOGL,AMZN,META,TSLA,AMD,AVGO,INTC";
   await page.goto("/en/compare?"+query.replace("AAPL,MSFT,NVDA,GOOGL,AMZN",symbols));
-  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.locator("canvas")).toBeVisible();
   await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ id: "IBM", symbol: "IBM", name: "IBM", market: "US" }] } }));
   await expect(page.getByLabel("Selected stocks",{exact:true})).toHaveAttribute("aria-expanded","true");
   await page.locator('main').getByRole("combobox",{name:"Search company",exact:true}).fill("IBM");
@@ -83,7 +84,8 @@ test("ten stocks fit on mobile, enforce the limit, and can be removed", async ({
   await page.screenshot({path:"test-results/compare-mobile.png",fullPage:true});
   await page.getByRole("button",{name:"Remove INTC",exact:true}).click();
   await page.getByRole("button",{name:"Compare",exact:true}).click();
-  await expect(page.getByRole("row")).toHaveCount(10);
+  await expect(page.getByRole("button",{name:"Remove INTC",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("img",{name:"Animated stock price return comparison"})).not.toContainText("INTC");
 });
 test("coverage failures can be retried and no chart is fabricated", async ({ page }) => {
   await page.route("**/api/compare?*",route=>route.fulfill({status:503,json:{error:"Not enough stored price history for NVDA in this period."}}));
@@ -94,7 +96,7 @@ test("coverage failures can be retried and no chart is fabricated", async ({ pag
   await page.unroute("**/api/compare?*");
   await mockPrices(page);
   await page.getByRole("button",{name:"Retry",exact:true}).click();
-  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.locator("canvas")).toBeVisible();
 });
 test("comparison API rejects oversized selections and invalid dates before reading prices",async({request})=>{
   const tooMany=await request.get("/api/compare?symbols=A,B,C,D,E,F,G,H,I,J,K&start=2025-01-01&end=2025-12-31");
@@ -112,7 +114,7 @@ test("default selection is five stocks and works without signing in",async({page
   const params=new URL((await request).url()).searchParams;
   expect(params.get("symbols")).toBe("AAPL,MSFT,NVDA,GOOGL,AMZN");
   await expect(page.getByRole("button",{name:"Line",exact:true})).toHaveAttribute("aria-pressed","true");
-  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.locator("canvas")).toBeVisible();
 });
 test("a browser without WebGL still shows readable returns",async({page})=>{
   await page.addInitScript(`const original=HTMLCanvasElement.prototype.getContext;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
@@ -13,6 +13,7 @@ import styles from "./stock-compare.module.css";
 type Props = { data: CompareData; progress: number; style: CompareStyle; highlighted: string | null; colors?: string[]; onUnavailable?: () => void };
 export function StockComparisonChart({ data, progress, style, highlighted, colors = COMPARE_COLORS, onUnavailable }: Props) {
   const { text } = useLocale();
+  const descriptionId = useId();
   const container = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.OrthographicCamera; objects: (Line2 | THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>)[] } | null>(null);
   const [width, setWidth] = useState(800), [failed, setFailed] = useState(false);
@@ -96,7 +97,8 @@ export function StockComparisonChart({ data, progress, style, highlighted, color
     renderer.render(scene, camera);
   }, [data, frame, height, highlighted, progress, style, width, colors]);
 
-  return <div className={styles.chart} ref={container} style={{ height }} role="img" aria-label={text("Animated stock price return comparison", "股票价格收益对比动画")}>
+  return <div className={styles.chart} ref={container} style={{ height }} role="img" aria-label={text("Animated stock price return comparison", "股票价格收益对比动画")} aria-describedby={descriptionId}>
+    <span id={descriptionId} className="sr-only">{text("Price returns", "价格收益")} · {data.dates[frame.index]}{frame.fraction > 0 ? text(" (interpolated)", "（插值）") : ""} · {data.series.map((series, i) => `${series.symbol}: ${returnLabel(frame.values[i])}`).join(" · ")}</span>
     <span aria-hidden="true" className={styles.watermark} data-testid="chart-watermark">YouAnalyst</span>
     {!failed && <div className={styles.grid} aria-hidden="true">
       {Array.from({ length: 5 }, (_, i) => {

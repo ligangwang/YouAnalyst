@@ -220,7 +220,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       <Link href={compareEmbedPath(styledConfig(), theme)} target="_blank" rel="noopener noreferrer">{text("Preview widget", "预览组件")} ↗</Link>
     </section>}
     {shareUrl && <input className={styles.shareInput} aria-label={text("Shareable comparison link", "对比分享链接")} readOnly value={shareUrl} onFocus={e => e.target.select()}/>}
-    {embedded ? <><div className={styles.embedFooter}><span>YouAnalyst</span><Link href={comparePath(styledConfig())} target="_blank" rel="noopener noreferrer">{text("Open in YouAnalyst", "在 YouAnalyst 中打开")} ↗</Link></div>{results && <details className={styles.embedResults} open={chartUnavailable || undefined}><summary>{text("View returns table", "查看收益表")}</summary>{results}</details>}</> : results}
+    {embedded ? <><div className={styles.embedFooter}><span>YouAnalyst</span><Link href={comparePath(styledConfig())} target="_blank" rel="noopener noreferrer">{text("Open in YouAnalyst", "在 YouAnalyst 中打开")} ↗</Link></div>{results && <details className={styles.embedResults} open={chartUnavailable || undefined}><summary>{text("View returns table", "查看收益表")}</summary>{results}</details>}</> : chartUnavailable && results}
     {!embedded && <ComparisonCommunity comparison={{ config: styledConfig(), theme: displayTheme }} ready={!!data && !loading && !error}/>}
     {!embedded && <section className="mt-6 space-y-2 text-sm text-slate-400" aria-labelledby="comparison-introduction">
       <h2 id="comparison-introduction" className="font-semibold text-slate-200">{text("Animated Stock Performance Comparison", "股票表现动态对比")}</h2>
