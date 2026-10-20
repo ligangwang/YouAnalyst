@@ -81,6 +81,7 @@ test("company relationship labels cover canonical types and translate complete h
     assert.ok(RELATIONSHIP_LABELS[type], type);
   }
   for (const [type, expected] of [
+    ["ACQUIRES", "AMD 收购 Private Company"],
     ["INTEGRATES_TECHNOLOGY_FROM", "AMD 集成 Private Company 的技术"],
     ["PLANNED_ADOPTER_OF", "AMD 计划采用 Private Company 的技术"],
     ["ECOSYSTEM_PARTNER_OF", "AMD 是 Private Company 的生态伙伴"],
