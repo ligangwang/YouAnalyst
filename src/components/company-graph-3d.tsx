@@ -26,7 +26,6 @@ import styles from "./ai-knowledge-graph.module.css";
 
 import { marketCapScale, graphNodeMarketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 import {CompanyPriceChange} from './company-price-change';
-import { useMarket } from './providers/preferences-context';
 
 const lineTint = new Color("#829ead");
 const highlightedLineTint = new Color("#8fb9af");
@@ -697,7 +696,6 @@ function GraphUnavailable({onRetry}:{onRetry:()=>void}) {
 }
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
-  const { theme } = useMarket();
   const introOrbitRef = useRef(true);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [contextLost,setContextLost]=useState(false);
@@ -743,7 +741,7 @@ export default function CompanyGraph3D(props: Props) {
     onPointerUpCapture={scheduleHoverHint}
     onWheelCapture={hideHoverHint}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} light={theme==='light'} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/>{/* The graph is a dark space window in both site themes. */}<Scene {...props} light={false} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {props.musicControls && <UniverseMusicToggle/>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}

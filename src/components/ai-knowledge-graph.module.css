@@ -328,6 +328,5 @@
 .edgeLabel3d { background:var(--bg-surface);color:var(--text-primary);border-color:var(--border-control);border-radius:8px; }
 .edgeLabel3d small { color:var(--text-secondary); }
 .canvasHint,.resetView,.contextRecovery { background:var(--bg-surface);color:var(--text-primary);border-color:var(--border-control);font-size:12px; }
-:global(html[data-theme="light"]) .canvas3d { background:radial-gradient(ellipse at 50% 45%,#F5F8FC,var(--graph-canvas)); }
-:global(html[data-theme="light"]) .label3d { text-shadow:0 1px 3px #FFFFFF; }
-:global(html[data-theme="light"]) .stars { display:none; }
+/* The 3D graph stays a dark space window in light theme: it re-declares the dark tokens for its own labels and tags. */
+:global(html[data-theme="light"]) .canvas3d { --graph-canvas:#050A16;--graph-haze:#152A3A;--text-primary:#EAF2FD;--text-secondary:#A7B8CC;--bg-surface:#0A1324;--border-control:#3D5676;--accent-intelligence:#49D6E8;color-scheme:dark; }
