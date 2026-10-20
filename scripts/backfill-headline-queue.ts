@@ -11,6 +11,13 @@ async function main(){
   if(!process.env.GCP_PROJECT_ID)throw Error('GCP_PROJECT_ID required');
   initializeApp({credential:applicationDefault(),projectId:process.env.GCP_PROJECT_ID});
   const db=getFirestore(),apply=args.includes('--apply');
+  const earliest=new Date(Date.now()-30*86400_000).toISOString().slice(0,10);
+  const needsPatch=(row:Record<string,unknown>)=>{
+    const fields=headlineQueueFields(row);
+    return fields.headlineTranslationDate>=earliest
+      && (fields.headlineTranslationPending||row.headlineTranslationPending===true)
+      && Object.entries(fields).some(([key,value])=>row[key]!==value);
+  };
   let after=args.find(arg=>arg.startsWith('--after='))?.slice(8)??'',scanned=0,changed=0;
   for(let page=0;page<5;page++){
     let query=db.collection('events').orderBy(FieldPath.documentId()).limit(100);
@@ -19,10 +26,10 @@ async function main(){
     for(const doc of batch.docs){
       scanned++;
       const candidate=(row:Record<string,unknown>)=>row.type==='company_news'&&row.sourceType==='company_ir'||row.type==='company_disclosure'&&row.sourceType==='exchange';
-      if(candidate(doc.data())){
+      if(candidate(doc.data())&&needsPatch(doc.data())){
         const update=async()=>db.runTransaction(async tx=>{
           const latest=await tx.get(doc.ref),row=latest.data();
-          if(!row||!candidate(row))return false;
+          if(!row||!candidate(row)||!needsPatch(row))return false;
           const fields=headlineQueueFields(row);
           if(Object.entries(fields).every(([key,value])=>row[key]===value))return false;
           tx.update(doc.ref,fields);return true;
