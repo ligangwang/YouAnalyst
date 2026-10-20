@@ -51,6 +51,7 @@ test('picker, chips and actual rendered lines and bars keep the same bright colo
   await expect(chart.locator('canvas')).toBeVisible();
   await expect(page.getByRole('heading', { name: /^At a glance/ })).toHaveCount(0);
   await expect(page.getByRole('table')).toHaveCount(0);
+  await expect(chart).toHaveAccessibleDescription('Price returns · 2025-12-31 · MU: +20.00% · SKHY: +10.00%');
   await expect(page.getByLabel('Selected stocks', { exact: true })).toHaveAttribute('aria-expanded', 'true');
   const chip = page.getByRole('button', { name: 'Choose color for MU', exact: true });
   await chip.click();
@@ -75,6 +76,7 @@ test('picker, chips and actual rendered lines and bars keep the same bright colo
   expect(barPixels.yellow).toBeGreaterThan(200); expect(barPixels.magenta).toBeGreaterThan(200);
   await page.getByRole('button', { name: 'Line', exact: true }).click();
   await page.getByRole('slider', { name: 'Comparison timeline', exact: true }).fill('0.5');
+  await expect(chart).toHaveAccessibleDescription('Price returns · 2025-06-02 · MU: +10.00% · SKHY: +20.00%');
   const partial = await colorPixels(page, await chart.screenshot({ style: pixelStyle }));
   expect(partial.yellow).toBeGreaterThan(20); expect(partial.magenta).toBeGreaterThan(20);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
