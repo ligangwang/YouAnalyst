@@ -120,7 +120,7 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
     return route.fulfill({ contentType: 'text/html', body: html });
   });
   await page.goto(`http://playback.test/${chinese ? 'zh-cn' : 'en'}/compare`);
-  await expect(page.getByRole('heading', { name: chinese ? '股票表现回放' : 'Stock performance playback', exact: true })).toHaveClass('sr-only');
+  await expect(page.getByRole('heading', { name: chinese ? '对比股票' : 'Compare stocks', exact: true })).toBeVisible();
   await expect(page.getByText('THE MARKET, IN MOTION', { exact: true })).toHaveCount(0);
   const chart = page.getByRole('region', { name: chinese ? '表现图表' : 'Performance chart', exact: true });
   const editor = page.getByRole('region', { name: chinese ? '编辑对比' : 'Edit comparison', exact: true });

@@ -66,7 +66,9 @@ export function StockComparisonChart({ data, progress, style, highlighted, color
       objects.forEach(object => { object.geometry.dispose(); (object.material as THREE.Material).dispose(); });
       renderer.dispose(); renderer.domElement.remove();
     };
-  }, [data, style, colors]);
+  // Palette changes update materials below, preserving the WebGL context.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, style]);
 
   useEffect(() => {
     const state = sceneRef.current;
@@ -75,6 +77,7 @@ export function StockComparisonChart({ data, progress, style, highlighted, color
     renderer.setSize(width, height);
     camera.right = width; camera.top = height; camera.updateProjectionMatrix();
     objects.forEach((object, i) => {
+      object.material.color.set(colors[i]);
       (object.material as THREE.Material).opacity = highlighted && highlighted !== data.series[i].symbol ? .16 : 1;
       if (!(object instanceof Line2)) {
         const zero = frame.scale(0), end = frame.scale(frame.values[i]);

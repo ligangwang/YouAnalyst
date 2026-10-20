@@ -3,3 +3,6 @@
 .items{display:flex;flex-wrap:wrap;gap:9px 12px;max-width:430px;padding:10px;margin-top:4px;background:var(--ui-surface,#0b1722f5);border:1px solid var(--ui-line,#213242);border-radius:4px;box-shadow:0 4px 16px #0004}
 .items>span{display:flex;align-items:center;gap:5px;white-space:nowrap}
 .items i{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.legend { font-size:12px; }.legend>button { min-height:36px;min-width:44px;border-color:var(--border-control)!important;border-radius:8px; }.items { border-radius:8px;box-shadow:var(--shadow-panel); }
+.items i { box-shadow:0 0 0 1px var(--border-control); }
+@media(max-width:700px) { .legend>button { min-height:44px; } }

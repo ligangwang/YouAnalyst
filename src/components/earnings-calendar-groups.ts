@@ -1,5 +1,6 @@
 import { eventDay } from '@/lib/calendar/display';
 import type { CalendarItem } from '@/lib/calendar/model';
+import { reconcileCalendarSchedules } from '@/lib/calendar/reconcile';
 
 export type EarningsGroup = { id: string; day: string; schedules: CalendarItem[] };
 
@@ -7,7 +8,7 @@ export type EarningsGroup = { id: string; day: string; schedules: CalendarItem[]
 export function groupCalendarItems(items: readonly CalendarItem[]) {
   const days = new Map<string, EarningsGroup[]>();
   const groups = new Map<string, EarningsGroup>();
-  for (const item of items) {
+  for (const item of reconcileCalendarSchedules(items).schedules) {
     const day = eventDay(item), id = JSON.stringify([day, item.companyId, item.fiscalPeriod]);
     let group = groups.get(id);
     if (!group) {

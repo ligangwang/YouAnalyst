@@ -92,3 +92,15 @@
 :global(:root[data-theme="light"]) .windowControls button { border-radius:0;padding:6px 0; }
 :global(:root[data-theme="light"]) .windowControls button[aria-pressed=true] { background:none;color:#087b86;box-shadow:0 1px #087b86; }
 :global(:root[data-theme="light"]) .unifiedToolbar .sizeToolbar button { border-color:transparent;background:transparent; }
+
+.windowControls { gap:12px;padding-inline:16px; }.windowControls button { font-size:12px;min-height:36px; }
+.windowControls button[aria-pressed=true] { color:var(--accent-intelligence)!important;box-shadow:0 2px var(--accent-intelligence)!important; }
+.updatedAt,.selectorLabel,.dates,.evidenceLinks a,.evidenceLinks small { font-size:12px; }
+.browseSelectors { margin-inline:12px;gap:8px;align-items:end; }.browseSelectors>div>label,.regionFilter select { font-size:12px;border-color:var(--border-control);border-radius:8px; }
+.regionFilter select { background:var(--bg-elevated);color:var(--text-primary); }
+.selectedPanel,.companyCard { background:var(--bg-surface);border-color:var(--border-subtle);box-shadow:var(--shadow-panel); }
+.notice { font-size:12px;color:var(--status-warning);background:color-mix(in srgb,var(--status-warning) 6%,var(--bg-canvas)); }
+.legacySector { color:var(--text-primary);background:var(--surface-selected);border-color:var(--border-control);font-size:12px; }
+.unifiedToolbar .sizeToolbar button:focus-visible { outline-color:var(--accent-intelligence); }
+.rightBody { scrollbar-color:var(--border-control) transparent; }
+@media(max-width:850px) { .windowControls button,.regionFilter select,.browseSelectors>div>label { min-height:44px; } }

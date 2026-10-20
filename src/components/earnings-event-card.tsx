@@ -28,13 +28,20 @@ export function EarningsEventCard({ group, compact = false, highlighted = false,
     <div className={styles.eventHeading}><strong>{item.ticker}</strong><span>{earningsGroupLabel(group, t)}</span></div>
     {!compact && <p>{chinese ? (item.companyNames?.['zh-CN'] ?? item.companyName) : (item.companyNames?.en ?? item.companyName)}</p>}
     {warnings.length>0 && <span className={styles.validationWarning} title={warnings.join('\n')}>{t('⚠ Validation warning','⚠ 校验提示')}</span>}
-    {schedules.map(schedule => <p key={schedule.id} className={`${styles.time} ${!sharedStatus && schedule.status === 'cancelled' ? styles.cancelledSchedule : ''}`}>
-      {schedules.length > 1 && <span className={styles.scheduleLabel}>{schedule.eventKind === 'earnings_release' ? t('Results', '财报') : t('Call', '电话会')}: </span>}{calendarTime(schedule, chinese)}
+    {schedules.map(schedule => {
+      const countdown=now===null?null:calendarCountdown(schedule,now);
+      const fullCountdown=countdownLabel(countdown,chinese);
+      const label=compact&&countdown?.kind==='reached'?t('Time reached','公告时间已到')
+        :compact&&countdown?.kind==='date'&&countdown.days<0?t('Date passed · time TBD','日期已过 · 时刻待定'):fullCountdown;
+      const time=calendarTime(schedule,chinese);
+      const displayedTime=compact?time.replace('Before market open (source)','Before open (source)').replace('After market close (source)','After close (source)'):time;
+      return <p key={schedule.id} title={compact?time:undefined} className={`${styles.time} ${!sharedStatus && schedule.status === 'cancelled' ? styles.cancelledSchedule : ''}`}>
+      {schedules.length > 1 && <span className={styles.scheduleLabel}>{schedule.eventKind === 'earnings_release' ? t('Results', '财报') : t('Call', '电话会')}: </span>}{displayedTime}
       {!sharedStatus && schedule.status !== 'scheduled' && <small className={styles.scheduleStatus}> · {schedule.status === 'cancelled' ? t('Cancelled', '已取消') : t('Rescheduled', '已改期')}</small>}
-      {now!==null&&schedule.status!=='cancelled'&&<span className={styles.countdown}>{countdownLabel(calendarCountdown(schedule,now),chinese)}</span>}
-    </p>)}
+      {now!==null&&schedule.status!=='cancelled'&&<span title={compact?fullCountdown??undefined:undefined} className={styles.countdown}>{label}</span>}
+    </p>;})}
     {!compact && <>
-      <p className={styles.detail}>{item.fiscalPeriod} · {chinese ? item.sector.zh : item.sector.en}</p>
+      <p className={styles.detail}>{[...new Set(schedules.flatMap(schedule=>schedule.fiscalPeriods??[schedule.fiscalPeriod]))].join(' / ')} · {chinese ? item.sector.zh : item.sector.en}</p>
       {warnings.length>0 && <details className={styles.validationDetails}><summary>{t('View validation warning','查看校验提示')}</summary><p>{t('Shown from the AI extraction; automatic source checks could not verify every detail. Check the original announcement.','此日程来自 AI 提取，自动校验未能核实所有细节，请查看原公告。')}</p><ul>{warnings.map(warning=><li key={warning}>{warning}</li>)}</ul></details>}
       <div className={styles.links}>
         <span className={styles.confirmed}>{sharedStatus === 'cancelled' ? t('Cancelled', '已取消') : sharedStatus === 'rescheduled' ? t('Rescheduled', '已改期') : warnings.length ? t('AI extracted','AI 提取') : t('Company announced', '公司已公告')}</span>

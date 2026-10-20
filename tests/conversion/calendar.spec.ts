@@ -5,6 +5,31 @@ import {shiftDay,visibleDays} from '../../src/lib/calendar/display';
 let html:string;
 test.beforeAll(async()=>{html=await calendarFixtureHtml();});
 
+for(const chinese of [false,true])test(`JBL quarter and full-year aliases show one card and one call (${chinese?'Chinese':'English'})`,async({page},info)=>{
+  const now=new Date('2026-09-29T12:00:00Z');await page.clock.install({time:now});await page.clock.pauseAt(now);
+  const call={...calendarFixtures[0],id:'jbl-q4-call',companyId:'US:JBL',ticker:'JBL',companyName:'Jabil',companyNames:{en:'Jabil','zh-CN':'捷普'},
+    scheduled_date:'2026-09-30',scheduled_at:'2026-09-30T12:30:00Z',local_time:'08:30',timezone_text:'ET',fiscalPeriod:'FY2026-Q4',processed_at:'2026-10-13T21:07:00Z'};
+  const events=[call,{...call,id:'jbl-annual-call',fiscalPeriod:'FY2026',processed_at:'2026-10-16T21:05:00Z'},
+    {...call,id:'jbl-release',eventKind:'earnings_release',scheduled_at:null,local_time:null,source_timezone:null,timezone_text:null,time_precision:'date',timeSlot:'before_market'}];
+  await page.route('http://calendar.test/**',route=>{
+    const url=new URL(route.request().url());
+    return url.pathname==='/api/calendar'?route.fulfill({json:{events,total:3,truncated:false,from:url.searchParams.get('from'),to:url.searchParams.get('to'),lastCollectedAt:null,collectionStatus:'complete'}}):route.fulfill({contentType:'text/html',body:html});
+  });
+  await page.goto(`http://calendar.test/?date=2026-09-30&event=jbl-annual-call${chinese?'&lang=zh-CN':''}`);await page.clock.runFor(0);
+  const agenda=page.getByRole('complementary',{name:chinese?'所选日期日程':'Selected day agenda'});
+  const card=agenda.getByRole('article');await expect(card).toHaveCount(1);
+  await expect(card).toHaveClass(/linkedEvent/);
+  await expect(card).toContainText(chinese?'财报与电话会':'Results & call');
+  await expect(card).toContainText('FY2026-Q4 / FY2026');
+  await expect(card.getByText(/8:30/)).toHaveCount(1);
+  await expect(page.getByRole('status')).toHaveText(chinese?'1 项活动':'1 scheduled events in view');
+  await page.getByRole('button',{name:chinese?'周视图':'Week',exact:true}).click();
+  const calendar=page.getByRole('region',{name:chinese?'财报日历':'Earnings calendar'});
+  await expect(calendar.getByRole('article')).toHaveCount(1);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('jbl-deduplicated.png'),fullPage:true});
+});
+
 for(const chinese of [false,true])test(`calendar countdowns tick without network reads and use Beijing for omitted Chinese zones (${chinese?'Chinese':'English'})`,async({page},info)=>{
   const now=new Date('2026-11-17T12:00:00Z');
   await page.clock.install({time:now});await page.clock.pauseAt(now);

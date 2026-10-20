@@ -322,6 +322,79 @@ test('warning fallback excludes replay and misplaced dates and prefers validated
   }
 });
 
+test('combined Q4/full-year extraction keeps one stable call ID across changed article receipts',async()=>{
+  const article='Jabil will release fourth quarter of fiscal year 2026 financials on November 18, 2026 before the market opens. Jabil will host its fiscal year 2026 results call on November 18, 2026 at 8:30 a.m. ET.';
+  const jbl={...source,companyId:'US:JBL',companyIds:['US:JBL'],title:'Jabil Fourth Quarter and Fiscal Year 2026 Earnings',url:'https://investors.jabil.com/news/earnings'};
+  const quarter:ScheduleDraft={...draft,period:'FY2026-Q4',time:'08:30',timezoneText:'ET',dateEvidence:article,timeEvidence:'8:30 a.m. ET',periodEvidence:'fourth quarter of fiscal year 2026 financials'};
+  const annual:ScheduleDraft={...quarter,period:'FY2026',periodEvidence:'fiscal year 2026 results call'};
+  const release:ScheduleDraft={...quarter,kind:'earnings_release',time:null,timezoneText:null,timeEvidence:'',timeSlot:'before_market'};
+  const normalized=normalizeExtractedSchedules({events:[release,annual]},jbl,article,'new','gpt-6-luna','2026-10-02T12:00:00Z').schedules;
+  const expected=normalizeSchedules({events:[quarter]},jbl,article,'old','gpt-6-luna','2026-10-02T12:00:00Z')[0];
+  assert.equal(normalized.find(item=>item.eventKind==='earnings_call')?.id,expected.id);
+  assert.deepEqual(normalized.find(item=>item.eventKind==='earnings_call')?.fiscalPeriods,['FY2026-Q4','FY2026']);
+  const fake=earningsFirestore();fake.rows.set('events/'+jbl.id,jbl);let calls=0;
+  await processCalendarSource(fake.db,jbl,{now:fake.now,download:async()=>article,extract:async()=>{calls++;return response([quarter]);}});
+  fake.advance(86400001);
+  await processCalendarSource(fake.db,jbl,{now:fake.now,download:async()=>article+' Updated contact.',extract:async()=>{calls++;return {...response([release,annual]),id:'response_updated'};}});
+  const active=[...fake.rows.values()].filter(row=>row.type==='scheduled_event');
+  assert.equal(active.length,2);assert.equal(active.filter(row=>row.eventKind==='earnings_call').length,1);
+  assert.equal(active.find(row=>row.eventKind==='earnings_call')?.id,expected.id);assert.equal(calls,2);
+  const separateArticle=article+' A separate fiscal year 2026 results call begins on November 18, 2026 at 9:30 a.m. ET.';
+  const separate=normalizeExtractedSchedules({events:[quarter,{...annual,time:'09:30',timeEvidence:'9:30 a.m. ET',dateEvidence:separateArticle}]},jbl,separateArticle,'separate','gpt-6-luna','2026-10-02T12:00:00Z').schedules;
+  assert.equal(separate.length,2);assert.equal(new Set(separate.map(item=>item.id)).size,2);
+  const uncertain=normalizeExtractedSchedules({events:[release,{...quarter,timezoneText:'Unknown'}, {...annual,time:'09:30',timeEvidence:'9:30 a.m. ET',dateEvidence:separateArticle}]},jbl,separateArticle,'uncertain','gpt-6-luna','2026-10-02T12:00:00Z').schedules;
+  assert.equal(uncertain.length,3);assert.equal(new Set(uncertain.map(item=>item.id)).size,3);
+});
+
+test('changed content retires former receipt IDs but preserves independent announcement support',async()=>{
+  for(const independentlySupported of [false,true]){
+    const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);
+    const deps={now:fake.now,download:async()=>text,extract:async()=>response()};
+    await processCalendarSource(fake.db,source,deps);
+    const old=normalize()[0];
+    if(independentlySupported){
+      const other={...source,id:'independent_source',url:source.url+'-independent'};fake.rows.set('events/'+other.id,other);
+      await processCalendarSource(fake.db,other,{...deps,extract:async()=>({...response(),id:'response_independent'})});
+    }
+    fake.advance(86400001);
+    await processCalendarSource(fake.db,source,{now:fake.now,download:async()=>text+' Updated fiscal information.',extract:async()=>({...response([{...draft,period:'FY2027',periodEvidence:'Unverified annual label'}]),id:'response_changed'})});
+    const previous=fake.rows.get('events/'+old.id)!;
+    assert.equal(previous.type,independentlySupported?'scheduled_event':'calendar_review');
+    assert.deepEqual(previous.sourceEventIds,independentlySupported?['independent_source']:[]);
+    const current=[...fake.rows.values()].filter(row=>row.type==='scheduled_event'&&(row.sourceEventIds as string[]).includes(source.id));
+    assert.equal(current.length,1);assert.notEqual(current[0].id,old.id);
+  }
+});
+
+test('a failed changed-content request preserves the old schedule and carries it forward for later replacement',async()=>{
+  const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);
+  await processCalendarSource(fake.db,source,{now:fake.now,download:async()=>text,extract:async()=>response()});
+  const old=normalize()[0];fake.advance(86400001);
+  await processCalendarSource(fake.db,source,{now:fake.now,download:async()=>text+' Changed once.',extract:async()=>{throw Error('Temporary provider error');}});
+  assert.equal(fake.rows.get('events/'+old.id)?.type,'scheduled_event');
+  fake.advance(86400001);
+  await processCalendarSource(fake.db,source,{now:fake.now,download:async()=>text+' Changed twice.',extract:async()=>({...response([{...draft,period:'FY2027'}]),id:'response_recovered'})});
+  assert.equal(fake.rows.get('events/'+old.id)?.type,'calendar_review');
+  assert.equal([...fake.rows.values()].filter(row=>row.type==='scheduled_event').length,1);
+});
+
+test('news links resolve both historical call IDs to a single canonical calendar activity',async()=>{
+  const fake=earningsFirestore(),sourceId='company_news_jbl_alias',receiptId='calendar_extraction_'+'c'.repeat(64);
+  const quarterId='scheduled_event_'+'a'.repeat(64),annualId='scheduled_event_'+'b'.repeat(64),releaseId='scheduled_event_'+'c'.repeat(64);
+  const jbl={...source,id:sourceId,companyId:'US:JBL',companyIds:['US:JBL'],title:'Jabil Announces Date for Fourth Quarter and Fiscal Year Earnings Call',calendarExtraction:{receiptId}};
+  fake.rows.set('events/'+sourceId,jbl);fake.rows.set('events/'+receiptId,{status:'complete',eventIds:[quarterId,annualId,releaseId]});
+  const base={...normalize()[0],id:quarterId,companyId:'US:JBL',companyIds:['US:JBL'],fiscalPeriod:'FY2026-Q4',sourceEventIds:[sourceId]};
+  fake.rows.set('events/'+quarterId,base);
+  fake.rows.set('events/'+annualId,{...base,id:annualId,fiscalPeriod:'FY2026'});
+  fake.rows.set('events/'+releaseId,{...base,id:releaseId,eventKind:'earnings_release',scheduled_at:null,local_time:null,timeSlot:'before_market'});
+  const before=structuredClone([...fake.rows.entries()]);
+  const db=Object.assign(fake.db,{getAll:(...refs:Array<{get:()=>Promise<unknown>}>)=>Promise.all(refs.map(ref=>ref.get()))}) as Firestore;
+  const event:IntelligenceEvent={id:'news-jbl',origin:'US:JBL',companyIds:['US:JBL'],edgeIds:[],category:'BUSINESS',title:jbl.title,summary:'',published_at:source.published_at,publication_date:'2026-10-01',eventDate:null,planned:false,evidence:[{id:sourceId,url:source.url,title:jbl.title,sourceDate:'2026-10-01',channel:'IR'}]};
+  const linked=(await attachCalendarLinks(db,[event]))[0].calendarEvents!;
+  assert.equal(linked.length,2);assert(linked.some(link=>link.id===quarterId));assert(!linked.some(link=>link.id===annualId));
+  assert.deepEqual([...fake.rows.entries()],before);
+});
+
 test('a failed commit retries persistence only, never the provider call',async()=>{
   const fake=earningsFirestore();fake.rows.set('events/'+source.id,source);let rejects=0,calls=0;
   fake.reject((path)=>path.startsWith('openai_usage_events/')&&rejects++===0);

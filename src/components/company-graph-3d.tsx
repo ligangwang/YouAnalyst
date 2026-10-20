@@ -8,7 +8,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {UniverseMusicToggle} from "./universe-music";
 import {useNavigationSettings} from "./navigation-settings";
 import { CameraControls, Html } from "@react-three/drei";
-import { AdditiveBlending, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial } from "three";
+import { AdditiveBlending, NormalBlending, BufferGeometry, Float32BufferAttribute, Color, Vector2, Vector3, Quaternion, LineSegments, Raycaster, type Points, type Intersection, type Mesh, type MeshBasicMaterial, type ShaderMaterial } from "three";
 import { relationshipSummary, companyName, type KnowledgeGraph } from "@/lib/knowledge-graph/model";
 import { edgeOpacity, fadeEdge } from "@/lib/knowledge-graph/edge-visibility";
 import { fitSelectionCamera } from "@/lib/knowledge-graph/selection-camera";
@@ -26,10 +26,14 @@ import styles from "./ai-knowledge-graph.module.css";
 
 import { marketCapScale, graphNodeMarketCapLabel, marketCapDescription } from "@/lib/knowledge-graph/market-cap";
 import {CompanyPriceChange} from './company-price-change';
+import { useMarket } from './providers/preferences-context';
 
 const lineTint = new Color("#829ead");
 const highlightedLineTint = new Color("#8fb9af");
 const focusedLineTint = new Color("#bdd7e2");
+const lightLineTint = new Color("#536e89");
+const lightHighlightedLineTint = new Color("#176d85");
+const lightFocusedLineTint = new Color("#075f7e");
 
 const flagCountries = new Set(["CA", "CN", "FR", "GB", "IE", "NL", "SG", "TW", "US"]);
 function countryName(country: string | undefined, locale: string) {
@@ -42,12 +46,12 @@ class RenderBoundary extends Component<{ children: ReactNode; fallback: ReactNod
   static getDerivedStateFromError() { return { failed: true }; }
   render() { return this.state.failed ? this.props.fallback : this.props.children; }
 }
-const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; varying float vDepth; varying vec3 vColor; varying float vEmphasis;
-void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float emphasisBlend=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,emphasisBlend);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*mix(1.,1.5,emphasisBlend);}`;
-const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis;
-void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.85;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float a=(glow+core+rays*.25)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(vColor,vec3(1.),core*.8),a);}`;
+const vertex = `attribute vec3 tint; attribute float emphasis; attribute float capScale; uniform float graphRadius; uniform float lightMode; varying float vDepth; varying vec3 vColor; varying float vEmphasis;
+void main(){vColor=tint;vEmphasis=emphasis;vec4 p=modelViewMatrix*vec4(position,1.);float centerDepth=-(modelViewMatrix*vec4(0.,0.,0.,1.)).z;float emphasisBlend=smoothstep(1.,2.,emphasis);vDepth=mix(clamp(.72+(p.z+centerDepth)/(2.*graphRadius),.38,1.),1.,emphasisBlend);gl_Position=projectionMatrix*p;gl_PointSize=clamp(32000./max(40.,-p.z),18.,72.)*capScale*mix(1.,1.5,emphasisBlend)*mix(1.,.65,lightMode);}`;
+const fragment = `varying float vDepth; varying vec3 vColor; varying float vEmphasis; uniform float lightMode;
+void main(){vec2 p=gl_PointCoord-.5;float r=length(p);float glow=exp(-r*9.)*.65;float core=1.-smoothstep(.04,.12,r);float rays=exp(-abs(p.x)*100.)*exp(-abs(p.y)*12.)+exp(-abs(p.y)*100.)*exp(-abs(p.x)*12.);float disk=1.-smoothstep(.09,.12,r);float ring=smoothstep(.15,.17,r)*(1.-smoothstep(.19,.21,r));float a=mix(glow+core+rays*.15,disk+ring*.75,lightMode)*min(1.,vEmphasis)*vDepth;if(a<.015)discard;gl_FragColor=vec4(mix(mix(vColor,vec3(1.),core*.8),vColor*.45,lightMode),a);}`;
 
-function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef, onHoverChange }: Props & { introOrbitRef: { current: boolean }; onHoverChange: (hovered: boolean) => void }) {
+function Scene({ light, companyFocus, intelligence, showAllEdges = false, cameraRequest, graph, selected, onSelect, reset, activeEdge, highlightedEdges, onSelectEdge, sectorFocus = "", introOrbitRef, onHoverChange }: Props & { light: boolean; introOrbitRef: { current: boolean }; onHoverChange: (hovered: boolean) => void }) {
   const { text, locale } = useLocale();
   // Graph uses the original baseline; the tree keeps its faster reveal cadence.
   const {selectedSpeed:speed}=useNavigationSettings();
@@ -56,7 +60,8 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   const linePoint = useMemo(() => new Vector3(), []);
   const arrowElements = useRef(new Map<string, Mesh>());
   const layout = useMemo(() => layout3D(graph), [graph]);
-  const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius}}), [layout.radius]);
+  const pointUniforms = useMemo(() => ({graphRadius:{value:layout.radius},lightMode:{value:0}}), [layout.radius]);
+  const pointMaterial = useRef<ShaderMaterial>(null);
   const controls = useRef<CameraControls>(null);
   const introPath = useRef<ReturnType<typeof createIntroCamera> | null>(null);
   const resumedOrbit = useRef<ReturnType<typeof createIntroOrbit> | null>(null);
@@ -76,6 +81,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   const companyScales = useRef(new WeakMap<HTMLElement, number>());
   const reducedMotion = useRef(false);
   const { size, camera, invalidate, gl } = useThree();
+  useEffect(() => { if(pointMaterial.current)pointMaterial.current.uniforms.lightMode.value = light ? 1 : 0; invalidate(); }, [light, invalidate]);
   useEffect(()=>{
     const surface=gl.domElement.closest('[data-graph-interaction]');
     if(!surface)return;
@@ -437,7 +443,9 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
     for (let segment = 0; segment < lines.userData.edgeIds.length; segment++) {
       const id = lines.userData.edgeIds[segment];
       const opacity = edgeFades.current.get(id) ?? 0;
-      const tint = id === displayedEdge ? focusedLineTint : highlightedEdges?.includes(id) ? highlightedLineTint : lineTint;
+      const tint = light
+        ? id === displayedEdge ? lightFocusedLineTint : highlightedEdges?.includes(id) ? lightHighlightedLineTint : lightLineTint
+        : id === displayedEdge ? focusedLineTint : highlightedEdges?.includes(id) ? highlightedLineTint : lineTint;
       for (const vertex of [segment * 2, segment * 2 + 1]) {
         const depth = -linePoint.fromBufferAttribute(positions,vertex).applyMatrix4(camera.matrixWorldInverse).z;
         const alpha = opacity * (id === displayedEdge ? 1 : depthOpacity(depth));
@@ -453,6 +461,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       const arrow = arrowElements.current.get(edge.id);
       if (!arrow) continue;
       const material = arrow.material as MeshBasicMaterial;
+      material.color.copy(light ? lightLineTint : lineTint);
       const depth = -linePoint.copy(edge.arrow).applyMatrix4(camera.matrixWorldInverse).z;
       material.opacity = (edgeFades.current.get(edge.id) ?? 0) * (edge.id === displayedEdge ? .8 : .6 * depthOpacity(depth));
     }
@@ -663,8 +672,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
   // Damping keeps nudging the view after "rest"; only "sleep" means label placement has settled.
   return <>
     {intelligence?.origin && <IntelligencePropagation layout={layout} origin={intelligence.origin} edges={intelligence.edges}/>}
-    <TreeStarField height={0} pauseForForms/>
-    <TreeGalaxies height={0}/>
+    {!light && <><TreeStarField height={0} count={900} paused/><TreeGalaxies height={0}/></>}
     <CameraControls ref={controls} makeDefault minDistance={layout.radius*1.15} maxDistance={fitDistance*3} smoothTime={.8/speed} onWake={()=>{gl.domElement.setAttribute("data-camera","moving");}} onRest={()=>{invalidate();}} onSleep={()=>{gl.domElement.setAttribute("data-camera","idle");invalidate();}} onControlStart={()=>{preserveLabelPlacements.current=true;}} onControl={()=>{preserveLabelPlacements.current=true;}} onControlEnd={()=>{invalidate();}}/>
     <points geometry={geometry} raycast={raycastCompanies} onClick={e => { if (e.delta > 5) return; e.stopPropagation(); if (e.index !== undefined) onSelect(layout.nodes[e.index].id); }} onPointerMove={e => { e.stopPropagation(); if(e.index !== undefined) setPointHovered(layout.nodes[e.index].id); }} onPointerOut={e => {
       // A different point in this shared geometry may exit while the current
@@ -672,7 +680,7 @@ function Scene({ companyFocus, intelligence, showAllEdges = false, cameraRequest
       const id = e.index === undefined ? undefined : layout.nodes[e.index]?.id;
       setPointHovered(current => current === id ? "" : current);
     }}>
-      <shaderMaterial uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={AdditiveBlending}/>
+      <shaderMaterial ref={pointMaterial} uniforms={pointUniforms} vertexShader={vertex} fragmentShader={fragment} transparent depthWrite={false} blending={light ? NormalBlending : AdditiveBlending}/>
     </points>
     <lineSegments geometry={lines} raycast={raycastEdges} onPointerMove={e=>{if(e.index===undefined||e.buttons)return;e.stopPropagation();setHoveredEdge(lines.userData.edgeIds[Math.floor(e.index/2)]??"");}} onPointerOut={()=>setHoveredEdge("")} onClick={e => { if (e.delta > 5 || e.index === undefined) return; const id = lines.userData.edgeIds[Math.floor(e.index / 2)]; if (id) { e.stopPropagation();setHoveredEdge("");onSelectEdge?.(id); } }}><lineBasicMaterial vertexColors transparent depthWrite={false}/></lineSegments>
     {edgeLabels.map(edge=><group key={edge.id}>
@@ -689,6 +697,7 @@ function GraphUnavailable({onRetry}:{onRetry:()=>void}) {
 }
 export default function CompanyGraph3D(props: Props) {
   const { text } = useLocale();
+  const { theme } = useMarket();
   const introOrbitRef = useRef(true);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [contextLost,setContextLost]=useState(false);
@@ -734,7 +743,7 @@ export default function CompanyGraph3D(props: Props) {
     onPointerUpCapture={scheduleHoverHint}
     onWheelCapture={hideHoverHint}>
     <WheelZoomHint hint={wheelHint}/>
-    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
+    <RenderBoundary key={attempt} fallback={fallback}><Canvas onPointerMissed={event=>{if(event.type === "click" && event.target instanceof HTMLCanvasElement){props.onSelect("");props.onSelectEdge?.("");}}} frameloop={contextLost?'never':'demand'} dpr={[1,1.5]} camera={{ position:[0,0,1100], fov:45, near:1, far:100000 }} gl={{ antialias:true, powerPreference:"high-performance" }} raycaster={{params:{Points:{threshold:7},Mesh:{},Line:{threshold:4},LOD:{},Sprite:{}}}} fallback={fallback}><WebGLContextRecovery onLost={setContextLost}/><Scene {...props} light={theme==='light'} introOrbitRef={introOrbitRef} onHoverChange={setHoveringEntity}/></Canvas></RenderBoundary>
     {contextLost&&<div className={styles.contextRecovery} role="status">{text('3D rendering was interrupted. Waiting for the browser to restore it.','3D 渲染暂时中断，正在等待浏览器恢复。')} <button onClick={retry}>{text('Reload 3D','重新加载 3D')}</button></div>}
     {props.musicControls && <UniverseMusicToggle/>}
     {!props.hideReset && <button className={styles.resetView} onClick={props.onReset}>{text("Reset view", "重置视图")}</button>}

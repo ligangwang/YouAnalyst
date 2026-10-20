@@ -152,8 +152,10 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       <button type="button" aria-pressed={style==='line'} onClick={()=>changeStyle('line')}>{text('Line','折线')}</button><button type="button" aria-pressed={style==='bar'} onClick={()=>changeStyle('bar')}>{text('Bar','条形')}</button>
       {!embedded&&<><button type="button" onClick={()=>{setEditorOpen(true);setContextMenu(null);}}>{text('Edit stocks and dates','修改股票和日期')}</button><button type="button" disabled={!data||loading} onClick={()=>{void copy();setContextMenu(null);}}>{text('Copy link','复制链接')}</button></>}
     </div></FloatingEventWindow>}
-    <h1 className="sr-only">{text("Stock performance playback", "股票表现回放")}</h1>
-    {!embedded && featured && comparePath(styledConfig()) === comparePath(featured.comparison.config) && <ComparisonCredit post={featured}/>}
+    {embedded ? <h1 className="sr-only">{text("Stock performance playback", "股票表现回放")}</h1> : <header className={styles.pageHeading}>
+      <div><h1>{text("Compare stocks", "对比股票")}</h1><p>{text("Price returns over shared trading dates. All stocks begin at 0%.", "按共同交易日期对比价格收益，所有股票从 0% 开始。")}</p></div>
+      <span className={styles.rangeSummary}>{applied.start} <span aria-hidden="true">→</span> {applied.end}</span>
+    </header>}
     {!embedded && <section ref={editor} id="comparison-editor" className={styles.editor} aria-label={text("Edit comparison", "编辑对比")}>
       <details open={editorOpen} onToggle={event => setEditorOpen(event.currentTarget.open)}>
       <summary className={styles.editorSummary} aria-label={text("Selected stocks", "所选股票")} aria-expanded={editorOpen} aria-controls="comparison-settings">
@@ -210,6 +212,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         {!embedded && <ComparisonVideoExport data={data} style={style} colors={colors} onStart={() => setPlaying(false)}/>}
       </>}
     </section>
+    {!embedded && featured && comparePath(styledConfig()) === comparePath(featured.comparison.config) && <ComparisonCredit post={featured}/>}
     {!embedded && <div className={styles.shareRow}><p>{text("A comparison worth sharing.", "分享你的对比。")} <span>{text("One link. The same stocks, dates, and style.", "一个链接，保留股票、日期和样式。")}</span><span className={styles.notice} role="status">{shareNotice}</span></p><div><button type="button" disabled={!data || loading} onClick={() => void copy()}>{text("Copy link", "复制链接")}</button><button type="button" disabled={!data || loading} onClick={() => void share()}>{text("Share", "分享")} <span aria-hidden="true">↗</span></button><button type="button" disabled={!data || loading} onClick={() => { setEmbedCode(buildEmbed()); setShowEmbed(value => !value); }} aria-expanded={showEmbed} aria-controls="comparison-embed-options">{text("Embed", "嵌入网站")}</button>{data && !loading && <a href={xPostIntentUrl({ text: `Watch ${applied.symbols.join(" vs ")} on YouAnalyst`, url: xTrackedShareUrl({campaign: "stock-comparison", url: localizedPath(comparePath(styledConfig()), locale)}) })} target="_blank" rel="noopener noreferrer">{text("Post to X", "分享到 X")}</a>}</div></div>}
     {!embedded && showEmbed && <section id="comparison-embed-options" className={styles.embedOptions} aria-label={text("Website embed", "网站嵌入")}>
       <h2>{text("Add this comparison to your website", "将此对比嵌入你的网站")}</h2>

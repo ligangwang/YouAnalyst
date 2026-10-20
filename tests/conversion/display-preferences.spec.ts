@@ -17,7 +17,7 @@ test.beforeAll(async () => {
     createRoot(document.getElementById('root')).render(<LocaleProvider locale="en"><MarketProvider><DisplayPreferencesPanel/><LanguageSwitch/><p><CompanyPriceChange price={{change:.04,close:104,currency:'USD',tradingDate:'2026-10-09',previousTradingDate:'2026-10-08'}} locale="en"/><DirectionBadge direction="UP"/></p><p className="text-rose-300" role="note">Error colors stay red</p><p className="text-amber-200" role="status">Stale data warning</p><CompanyTimeline companyId="US:AMD" initialPrices={prices} events={[]} graph={{nodes:[],relationships:[],sources:[]}}/></MarketProvider></LocaleProvider>);
   `, {jsx:'automatic', plugins:[{name:'preference-services',setup(build){
     build.onResolve({filter:/auth-provider$|next\/navigation$/},args=>({path:args.path,namespace:'preference-mock'}));
-    build.onLoad({filter:/.*/,namespace:'preference-mock'},args=>({loader:'tsx',contents:args.path==='next/navigation'?`const router={replace:url=>history.replaceState(null,'',url)};export function useRouter(){return router}`:`const user={uid:'viewer'};const token=async()=>'fixture-token';export function useAuth(){return {user:window.visitor?null:user,loading:false,getIdToken:token}}`}));
+    build.onLoad({filter:/.*/,namespace:'preference-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='next/navigation'?`const router={replace:url=>history.replaceState(null,'',url)};export function useRouter(){return router}`:`import {useSyncExternalStore} from 'react';const user={uid:'viewer'};const token=async()=>'fixture-token';const subscribe=callback=>{window.addEventListener('fixture-auth-change',callback);return()=>window.removeEventListener('fixture-auth-change',callback)};export function useAuth(){const visitor=useSyncExternalStore(subscribe,()=>Boolean(window.visitor));return {user:visitor?null:user,loading:false,getIdToken:token}}`}));
   }}]}, css+'body{margin:0;padding:16px;font-family:Arial}section{margin:0 0 16px}select{max-width:100%;padding:10px}label{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}h2{font-size:18px}');
 });
 
@@ -39,21 +39,20 @@ test('localized profile restores account appearance and swaps only price directi
   const writes=await open(page,{language:'en',market:'ALL',theme:'light',priceColors:'red-up'});
   await expect(page.getByLabel('UI theme')).toHaveValue('light');
   await expect(page.getByLabel('Price color convention')).toHaveValue('red-up');
-  await expect(page.locator('body')).toHaveCSS('background-color','rgb(244, 247, 250)');
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(245, 248, 252)');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(200, 49, 72)');
   await expect(page.locator('[data-candle-direction="down"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');
   await expect(page.locator('.price-up')).toHaveCSS('color','rgb(200, 49, 72)');
   await expect(page.getByRole('note')).toHaveCSS('color','rgb(186, 48, 71)');
-  await expect(page.getByRole('status').filter({hasText:'Stale data warning'})).toHaveCSS('color','rgb(133, 77, 14)');
+  await expect(page.getByRole('status').filter({hasText:'Stale data warning'})).toHaveCSS('color','rgb(140, 97, 0)');
   await expect(page.getByRole('status').filter({hasText:'Indicator history unavailable'})).toBeVisible();
   await expect(page.locator('[data-price-candle]')).toHaveCount(2);
-  const themeSelect=page.getByLabel('UI theme');await themeSelect.focus();await expect(themeSelect).toHaveCSS('outline-color','rgb(22, 127, 155)');
+  const themeSelect=page.getByLabel('UI theme');await themeSelect.focus();await expect(themeSelect).toHaveCSS('outline-color','rgb(8, 124, 156)');
   await page.getByLabel('Price color convention').selectOption('green-up');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');
   expect(writes.at(-1)).toEqual({language:'en',market:'ALL',theme:'light',priceColors:'green-up'});
   await page.getByLabel('UI theme').selectOption('dark');
-  await expect(page.locator('body')).toHaveCSS('background-color','rgb(7, 17, 29)');
-  expect(writes.at(-1)).toEqual({language:'en',market:'ALL',theme:'dark',priceColors:'green-up'});
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(7, 13, 25)');
   await page.getByLabel('Price color convention').selectOption('red-up');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(255, 142, 161)');
   await page.getByRole('button',{name:'Change language',exact:true}).click();
@@ -62,14 +61,15 @@ test('localized profile restores account appearance and swaps only price directi
   expect(writes.at(-1)).toEqual({language:'zh-CN',market:'ALL',theme:'dark',priceColors:'red-up'});
 });
 
-test('default and failed save preserve dark world convention', async ({page}) => {
+test('legacy account appearance and failed account saves preserve price convention', async ({page}) => {
   await open(page,{language:'zh-CN',market:'ALL'},true);
   await expect(page.getByLabel('UI theme')).toHaveValue('dark');
   await expect(page.getByLabel('Price color convention')).toHaveValue('green-up');
-  await page.getByLabel('UI theme').selectOption('light');
+  await page.getByLabel('Price color convention').selectOption('red-up');
   await expect(page.getByRole('alert')).toContainText('Could not save');
   await expect(page.getByLabel('UI theme')).toHaveValue('dark');
-  await expect(page.locator('body')).toHaveCSS('background-color','rgb(7, 17, 29)');
+  await expect(page.getByLabel('Price color convention')).toHaveValue('green-up');
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(7, 13, 25)');
 });
 
 test('visitor appearance persists on reload without account writes and fits mobile', async ({page},testInfo) => {
@@ -84,4 +84,45 @@ test('visitor appearance persists on reload without account writes and fits mobi
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   mkdirSync('.cache/display-preferences',{recursive:true});
   await page.screenshot({path:`.cache/display-preferences/${testInfo.project.name}-light.png`,fullPage:true});
+});
+
+test('first-time system appearance follows OS changes, explicit choice persists and switching never navigates', async ({page}) => {
+  await page.emulateMedia({colorScheme:'light'});
+  await page.addInitScript(()=>{(window as unknown as {visitor:boolean}).visitor=true;});
+  const writes=await open(page);
+  const selector=page.getByLabel('UI theme');
+  await expect(selector).toHaveValue('system');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await page.getByLabel('Price color convention').selectOption('red-up');
+  await page.emulateMedia({colorScheme:'dark'});
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect(selector).toHaveValue('system');
+  await page.reload();
+  await expect(selector).toHaveValue('system');
+  const url=page.url();
+  await selector.selectOption('light');
+  await page.emulateMedia({colorScheme:'light'});
+  await page.emulateMedia({colorScheme:'dark'});
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await page.reload();
+  await expect(selector).toHaveValue('light');
+  await expect(page.getByLabel('Price color convention')).toHaveValue('red-up');
+  expect(page.url()).toBe(url);expect(writes).toHaveLength(0);
+});
+
+for(const explicit of [false,true])test(`sign-in restores account appearance unless System was explicitly selected (${explicit})`,async({page})=>{
+  await page.emulateMedia({colorScheme:'light'});
+  await page.addInitScript(()=>{(window as unknown as {visitor:boolean}).visitor=true;});
+  await open(page,{language:'en',market:'ALL',theme:'dark',priceColors:'green-up'});
+  await expect(page.getByLabel('UI theme')).toHaveValue('system');
+  expect(await page.evaluate(()=>localStorage.getItem('youanalyst-theme-mode'))).toBeNull();
+  await page.reload();
+  await expect(page.getByLabel('UI theme')).toHaveValue('system');
+  if(explicit){
+    await page.getByLabel('UI theme').selectOption('dark');
+    await page.getByLabel('UI theme').selectOption('system');
+  }
+  await page.evaluate(()=>{(window as unknown as {visitor:boolean}).visitor=false;window.dispatchEvent(new Event('fixture-auth-change'));});
+  await expect(page.getByLabel('UI theme')).toHaveValue(explicit?'system':'dark');
+  await expect(page.locator('html')).toHaveAttribute('data-theme',explicit?'light':'dark');
 });

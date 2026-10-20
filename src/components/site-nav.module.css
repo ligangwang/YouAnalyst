@@ -1,0 +1,12 @@
+.header { background:var(--bg-canvas)!important;border-color:var(--border-subtle);backdrop-filter:none; }
+.header>div:first-child { max-width:1600px;padding-block:12px; }
+.header nav { font-size:14px;font-weight:500;line-height:1.4; }
+.header nav a { min-height:40px;display:inline-flex;align-items:center;color:var(--text-secondary); }
+.header nav a:hover { color:var(--accent-intelligence); }
+.header nav a[aria-current=page] { color:var(--text-primary); }
+.header summary { min-height:40px; }
+.header a[href$="/auth"] { border-radius:8px;border-color:var(--border-control);min-height:36px;display:flex;align-items:center; }
+.header :is(button[aria-label="Change language"],button[aria-label="切换语言"]) { border-radius:8px;border-color:var(--border-control); }
+@media(min-width:1024px) and (max-width:1279px) { .header>div>div>div:first-child>p { display:none; }.header nav { gap:0; }.header nav a { padding-inline:8px; }.header svg[aria-label="YouAnalyst"] { max-width:148px; } }
+@media(max-width:700px) { .header>div:first-child { padding:8px 16px 0; }.header nav a,.header summary { min-height:44px; }.header a[href$="/auth"],.header :is(button[aria-label="Change language"],button[aria-label="切换语言"]) { min-height:44px; }.header nav { font-size:13px; }.header p { font-size:12px; } }
+@media(min-width:375px) and (max-width:700px) { .header nav { flex-wrap:nowrap; }.header nav>div:first-child { flex-wrap:nowrap;gap:0; }.header nav a { padding-inline:4px;font-size:12px; }.header nav summary { padding-inline:4px;font-size:12px; } }

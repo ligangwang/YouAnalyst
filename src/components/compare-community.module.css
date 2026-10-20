@@ -25,3 +25,15 @@
 .comment { border-top:1px solid var(--color-line);padding:12px 0; }
 .comment>p:first-child { font-size:13px;color:var(--text-secondary); }
 @media(max-width:640px) { .grid { grid-template-columns:minmax(0,1fr); }.detail { padding:16px; }.card { padding:14px; } }
+
+.credit { padding:12px 4px;border:0;border-bottom:1px solid var(--border-subtle);border-radius:0;margin:8px 0 0; }
+.credit summary { cursor:pointer;color:var(--text-secondary);font-size:12px;line-height:1.6; }
+.credit summary span { font-weight:400; }
+.credit strong { font-size:14px;color:var(--text-primary); }
+.credit details[open] { padding-bottom:8px; }
+.community { margin-top:24px;padding-top:24px; }
+.community h2 { font-size:20px;color:var(--text-primary); }
+.card { margin:0;padding:16px;border:0;background:var(--bg-surface);border-radius:12px; }
+.card h3 { font-size:16px; }.composer { border-color:var(--border-subtle);background:var(--bg-surface); }
+.community button,.detail button,.composer input,.composer textarea { border-color:var(--border-control);min-height:40px; }
+@media(max-width:700px) { .credit summary { min-height:44px;align-content:center; }.community button,.detail button { min-height:44px; } }
