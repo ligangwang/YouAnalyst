@@ -52,3 +52,11 @@ This script does not call a provider or reset existing queue state. Historical
 receipts without a source marker may be read once to retire their queue entry;
 they cannot cause another paid request. Existing completed analyses are not
 automatically rerun when an extractor version changes.
+
+The release workflow runs `scripts/migrate-read-optimization.ts --apply` before
+worker deployment and repeats it with `--finalize` after old producers drain.
+The second pass catches records inserted by the previous revision during rollout.
+It also creates missing compact status/identity projections without overwriting
+new producer output. Writes are limited to four per second, and each 100-record
+page checks for website errors before continuing. A completion marker in the
+existing `collectors` collection prevents history scans on subsequent releases.
