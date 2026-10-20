@@ -165,11 +165,8 @@ a {
 :where(button,select):disabled { opacity:.5; }
 ::selection { background:var(--surface-selected);color:var(--text-primary); }
 :where([class*="scroll"],[class*="Panel"],[class*="List"]) { scrollbar-width:thin;scrollbar-color:var(--border-control) transparent; }
-.theme-select { position:relative;display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;border:1px solid var(--border-control);border-radius:8px;color:var(--text-secondary); }
+.theme-select { position:relative;display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;border:1px solid var(--border-control);border-radius:8px;background:transparent;color:var(--text-secondary); }
 .theme-select:hover { background:var(--surface-hover);color:var(--accent-intelligence); }
-.theme-select:focus-within { outline:2px solid var(--accent-intelligence);outline-offset:3px; }
-.theme-select select { position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer; }
-.theme-select option { color:var(--text-primary);background:var(--bg-surface); }
 .ui-button,.ui-input { min-height:40px;padding:8px 12px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--bg-surface);color:var(--text-primary); }
 .ui-button:hover { background:var(--surface-hover); }
 .ui-button[data-variant="primary"] { background:var(--accent-intelligence);color:var(--text-on-accent);border-color:transparent; }
