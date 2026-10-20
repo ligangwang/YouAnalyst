@@ -96,7 +96,7 @@
 .windowControls { gap:12px;padding-inline:16px; }.windowControls button { font-size:12px;min-height:36px; }
 .windowControls button[aria-pressed=true] { color:var(--accent-intelligence)!important;box-shadow:0 2px var(--accent-intelligence)!important; }
 .updatedAt,.selectorLabel,.dates,.evidenceLinks a,.evidenceLinks small { font-size:12px; }
-.browseSelectors { margin-inline:12px;gap:8px; }.browseSelectors>div>label,.regionFilter select { font-size:12px;border-color:var(--border-control);border-radius:8px; }
+.browseSelectors { margin-inline:12px;gap:8px;align-items:end; }.browseSelectors>div>label,.regionFilter select { font-size:12px;border-color:var(--border-control);border-radius:8px; }
 .regionFilter select { background:var(--bg-elevated);color:var(--text-primary); }
 .selectedPanel,.companyCard { background:var(--bg-surface);border-color:var(--border-subtle);box-shadow:var(--shadow-panel); }
 .notice { font-size:12px;color:var(--status-warning);background:color-mix(in srgb,var(--status-warning) 6%,var(--bg-canvas)); }

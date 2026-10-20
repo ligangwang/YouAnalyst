@@ -159,7 +159,7 @@ a {
 :root :is([class~="border-white/10"],[class~="border-white/15"],[class~="border-white/20"]) { border-color:var(--border-subtle); }
 :root :is(.bg-slate-950,.bg-slate-900,[class~="bg-slate-950/50"],[class~="bg-slate-950/80"],[class~="bg-slate-950/85"],[class~="bg-slate-900/50"]) { background-color:var(--bg-surface); }
 :where(button,a,summary,input,select,textarea) { -webkit-tap-highlight-color:transparent; }
-:where(button,a,summary) { transition:background-color var(--motion-fast),border-color var(--motion-fast),color var(--motion-fast); }
+:where(button,a,summary) { transition:background-color var(--motion-fast),border-color var(--motion-fast); }
 :where(input,select,textarea) { accent-color:var(--accent-intelligence); }
 :where(input,textarea)::placeholder { color:var(--text-secondary);opacity:1; }
 :where(button,select):disabled { opacity:.5; }
