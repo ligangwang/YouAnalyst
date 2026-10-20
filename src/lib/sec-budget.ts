@@ -20,18 +20,21 @@ export function secCooldownMs(status: number, retryAfter: string | null, now = D
 // delayed processes cannot spend old reservations together in a burst.
 export function createSecBudget(db: Firestore, sleep: (ms: number, signal: AbortSignal) => Promise<void> = (ms, signal) => delay(ms, undefined, { signal })) {
   const ref = db.collection(SEC_COLLECTOR_STATE_COLLECTION).doc("_sec_request_budget");
+  const legacyRef = db.collection("company_fundamentals").doc("_sec_request_budget");
   return {
     async run<T>(signal: AbortSignal, work: (cooldown: (ms: number) => void) => Promise<T>): Promise<T> {
       const owner = randomUUID();
       let cooldownMs = 0;
+      let bridge = false;
       for (;;) {
         signal.throwIfAborted();
         const wait = await db.runTransaction(async tx => {
           const snap = await tx.get(ref);
           const now = snap.readTime.toMillis(); // Shared server clock, not replica clocks.
-          const stored = snap.exists ? snap.data()
-            : (await tx.get(db.collection("company_fundamentals").doc("_sec_request_budget"))).data();
-          if (!snap.exists) tx.set(ref, stored ?? {});
+          bridge = snap.get("bridgeRetired") !== true;
+          // During rollout, old workers still own the legacy gate. Mirror its
+          // acquisition atomically so both generations serialize on one lock.
+          const stored = bridge ? (await tx.get(legacyRef)).data() : snap.data();
           if (Number(stored?.cooldownUntil) > now) {
             throw Object.assign(new Error("SEC shared cooldown is active"), { code: 429 });
           }
@@ -39,6 +42,7 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
           if (remaining > 0) return Math.min(remaining, 250);
           signal.throwIfAborted();
           tx.set(ref, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
+          if (bridge) tx.set(legacyRef, { owner, leaseUntil: now + LEASE_MS }, { merge: true });
           return 0;
         });
         if (wait > 0) { await sleep(wait, signal); continue; }
@@ -51,10 +55,13 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
         // Do not use the caller's aborted signal: the gate still needs releasing.
         await db.runTransaction(async tx => {
           const snap = await tx.get(ref);
+          const legacy = bridge ? await tx.get(legacyRef) : undefined;
           if (snap.get("owner") !== owner) return;
           const now = snap.readTime.toMillis();
           tx.set(ref, { owner: null, leaseUntil: 0, nextAllowedAt: now + SPACING_MS,
             cooldownUntil: Math.max(Number(snap.get("cooldownUntil")) || 0, now + cooldownMs) }, { merge: true });
+          if (legacy?.get("owner") === owner) tx.set(legacyRef, { owner: null, leaseUntil: 0, nextAllowedAt: now + SPACING_MS,
+            cooldownUntil: Math.max(Number(legacy.get("cooldownUntil")) || 0, now + cooldownMs) }, { merge: true });
         });
       }
     },

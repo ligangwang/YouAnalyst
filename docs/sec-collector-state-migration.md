@@ -1,40 +1,23 @@
-# SEC collector operational state
+# SEC operational-state rollout
 
-`sec_collector_state` stores operational bookkeeping only:
+The approved `sec_collector_state` collection holds company scan cursors,
+collector locks and the shared SEC request gate. Company financial values stay
+in `company_fundamentals`; discovered filings stay in `sec_filings`.
 
-- `US:<ticker>`: `secFilingsCollector` scan cursor and polling watermark.
-- `_sec_filings_collector`: collector rotation, lease, and run summary.
-- `_sec_request_budget`: shared outbound SEC lease, spacing, and cooldown.
+New code initially runs a compatibility bridge. Collector leases and cursor writes
+are mirrored atomically to legacy state, and new request-gate acquisitions share
+the legacy gate. This keeps old and new binaries serialized during rollout.
 
-Company financial values and refresh results remain in `company_fundamentals`.
-Filing discovery records remain in `sec_filings`. Server-only Firestore rules
-already deny client access to the new collection.
+After all SEC callers are updated and every old-image execution has completed,
+run `scripts/finalize-sec-state.ts --apply --legacy-workers-drained`. This command
+acquires both collector leases, copies legacy cursor state in throttled batches,
+waits for the request gate to be idle, preserves its cooldown, and retires both
+bridges transactionally. Active collectors cause a safe failure; retry later.
+Do not stop schedules or the website. Verify the deployed images/executions before
+asserting they have drained. Old binaries must not be redeployed after retirement.
 
-## Migration behavior
-
-On a missing operational document, cursor reads fall back to legacy fundamentals
-without writing (so diagnostics remain read-only). The next collector cursor write
-goes only to the new collection. Existing new state always wins. Job metadata is
-seeded transactionally before acquiring its lease. The SEC budget's first acquisition
-honors legacy lease/spacing/cooldown values. Legacy documents are not deleted or
-rewritten, avoiding a bulk fan-out to website listeners.
-
-## Release constraint
-
-This change is local and has not migrated production. Do not deploy it as an
-ordinary mixed-version rolling release: old binaries still coordinate on the old
-lease and rate-limit documents. Copying those documents alone cannot coordinate
-concurrent old/new writers, and an old collector could advance a cursor after it
-has been copied.
-
-Before production cutover, implement and deploy a compatibility phase across all
-SEC callers that supports a shared transactional migration fence. Old executions
-must finish before transferring ownership of each coordination document. Keep
-the website and schedules available throughout; do not pause them to perform the
-migration. Verify that no legacy workers can acquire the old gate before enabling
-new-only coordination. Preserve cooldowns and scan progress at that boundary.
-
-After cutover, verify collector writes target `sec_collector_state`, new financial
-data still reaches `company_fundamentals`, and website fundamentals listener updates
-no longer follow scan-progress writes. Legacy field cleanup can be a separate,
-bounded migration after old binaries are retired.
+After retirement, ordinary cursor, lease and throttle writes only touch the new
+collection. Legacy cursors are a read-only fallback for unmigrated documents.
+Legacy data is retained; any cleanup is a separate bounded operation. The migration
+is resumable and doesn't overwrite financial fields. Monitor website health and
+cache-change fan-out throughout migration batches.

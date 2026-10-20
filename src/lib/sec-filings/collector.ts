@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { seedSecCollectorMetadata } from "../sec-collector-state";
-import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../maintenance-lease";
+import { acquireSecCollectorLease, releaseSecCollectorLease } from "../sec-collector-state";
+import { cloudRunTaskAttempt } from "../maintenance-lease";
 import { maintenanceError, type MaintenanceLog } from "../maintenance-log";
 import { createSecFilingDiscovered, type SecFilingDiscovered } from "./event";
 import type { SecFiling, SecFilingsSource } from "./source";
@@ -82,8 +82,7 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
   const result: SecCollectorResult = { companies: companies.length, inspected: 0, completed: 0,
     baselined: 0, discovered: 0, published: 0, deferred: 0, partial: 0, failed: 0, remaining: companies.length, outboxIncomplete: false };
   const metadata = secCollectorMetadata(db);
-  await seedSecCollectorMetadata(db);
-  if (!await acquireMaintenanceLease(metadata, log.runId, now(), cloudRunTaskAttempt())) throw new Error("SEC filing collector is busy");
+  if (!await acquireSecCollectorLease(db, log.runId, now(), cloudRunTaskAttempt())) throw new Error("SEC filing collector is busy");
   try {
     // Publication failures stop before further SEC requests. Events are durable
     // even if the originating ticker is no longer in the current graph.
@@ -202,6 +201,6 @@ export async function collectSecFilings(db: Firestore, companyIds: string[], log
     await metadata.set({ lastRunAt: new Date(now()).toISOString(), result }, { merge: true });
     return result;
   } finally {
-    await releaseMaintenanceLease(metadata, log.runId);
+    await releaseSecCollectorLease(db, log.runId);
   }
 }

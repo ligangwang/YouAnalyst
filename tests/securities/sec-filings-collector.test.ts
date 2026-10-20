@@ -16,6 +16,15 @@ const CIK = "0000002488";
 const META = "sec_collector_state/_sec_filings_collector";
 const COMPANY = "sec_collector_state/US:AMD";
 const iso = "2026-09-27T12:00:00.000Z";
+test("bridge mirrors cursor progress until retired, then leaves fundamentals untouched",async()=>{
+ const f=fixture({[META]:{},'company_fundamentals/US:AMD':{secFilingsCollector:cursor()}});
+ await f.run();
+ assert.deepEqual(f.documents.get(COMPANY)?.secFilingsCollector,f.documents.get('company_fundamentals/US:AMD')?.secFilingsCollector);
+ const old=structuredClone(f.documents.get('company_fundamentals/US:AMD'));
+ f.documents.set(META,{...f.documents.get(META),bridgeRetired:true});
+ await f.run();
+ assert.deepEqual(f.documents.get('company_fundamentals/US:AMD'),old);
+});
 test("legacy scan progress resumes in operational state without modifying fundamentals", async () => {
   const financial = { revenue: 123, secFilingsCollector: cursor() };
   const f = fixture({ "company_fundamentals/US:AMD": financial });
@@ -30,7 +39,7 @@ test("legacy scan progress resumes in operational state without modifying fundam
 });
 
 test("migration preserves the legacy collector lock", async () => {
-  const f = fixture({ "company_fundamentals/_sec_filings_collector": {
+  const f = fixture({ [META]: {}, "company_fundamentals/_sec_filings_collector": {
     leaseOwner: "old-worker", leaseExpiresAtMs: Date.parse(iso) + 60_000,
   } });
   await assert.rejects(f.run(), /busy/);
@@ -44,7 +53,7 @@ function cursor(lastCompleteAt = iso): SecCollectorCursor {
   return { version: 1, cik: CIK, baselineAt: "2026-01-01T00:00:00.000Z", lastCompleteAt, nextPollAfterMs: 0, scan: null };
 }
 function fixture(initial: Record<string, Data> = {}) {
-  const documents = new Map<string, Data>(Object.entries(initial));
+  const documents = new Map<string, Data>([[META,{bridgeRetired:true}],...Object.entries(initial)]);
   let time = Date.parse(iso);
   let writes = 0;
   let onWrite: ((path: string, data: Data) => void) | undefined;

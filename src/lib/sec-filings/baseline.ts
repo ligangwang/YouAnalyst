@@ -1,8 +1,8 @@
 import type { Firestore } from "firebase-admin/firestore";
-import { seedSecCollectorMetadata } from "../sec-collector-state";
+import { acquireSecCollectorLease, releaseSecCollectorLease } from "../sec-collector-state";
 import { isCurrentCompanyGraph } from "../company-graph/requests";
 import { inspectCompanyGraphRequest } from "../company-graph/inspection";
-import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../maintenance-lease";
+import { cloudRunTaskAttempt } from "../maintenance-lease";
 import type { MaintenanceLog } from "../maintenance-log";
 import { createSecFilingDiscovered } from "./event";
 import type { SecFilingsSource } from "./source";
@@ -57,9 +57,7 @@ export async function baselineSecFilings(db: Firestore, companyId: string, log: 
   // An already finished canary is completely read-only, even if a prior success
   // response was lost. Recheck after acquiring the lease for concurrent finishes.
   if ((await readSecCollectorCursor(db, companyId))?.lastCompleteAt) return { ...result, status: "already-completed" };
-  const metadata = secCollectorMetadata(db);
-  await seedSecCollectorMetadata(db);
-  if (!await acquireMaintenanceLease(metadata, log.runId, now(), cloudRunTaskAttempt())) throw new Error("SEC filing collector is busy");
+  if (!await acquireSecCollectorLease(db, log.runId, now(), cloudRunTaskAttempt())) throw new Error("SEC filing collector is busy");
   try {
     let cursor = await readSecCollectorCursor(db, companyId);
     if (cursor?.lastCompleteAt) return { ...result, status: "already-completed" };
@@ -90,6 +88,6 @@ export async function baselineSecFilings(db: Firestore, companyId: string, log: 
     await writeSecCollectorCursor(db, companyId, { ...cursor, lastCompleteAt: scan.startedAt, nextPollAfterMs: now() + 15 * 60_000, scan: null });
     return result;
   } finally {
-    await releaseMaintenanceLease(metadata, log.runId);
+    await releaseSecCollectorLease(db, log.runId);
   }
 }
