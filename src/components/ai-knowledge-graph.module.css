@@ -317,7 +317,17 @@
 .edgeLabel3d strong {display:block;font-weight:600;}
 .edgeLabel3d small {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--ui-muted,#a9c5d4);margin-top:3px;}
 
-/* Preserve the star field's contrast inside a light page. */
-:global(html[data-theme="light"]) .canvas, :global(html[data-theme="light"]) .canvas3d { --ui-surface:#0a1826; --ui-selected:#173c42; --ui-text:#ecf6ff; --ui-muted:#abc2d6; --ui-line:#304557; --price-up:#55dfbb; --price-down:#ff8ea1; --price-flat:#a8bfce; }
-
-:global(html[data-theme="light"][data-price-colors="red-up"]) .canvas, :global(html[data-theme="light"][data-price-colors="red-up"]) .canvas3d { --price-up:#ff8ea1; --price-down:#55dfbb; }
+/* Canvas and WebGL materials have deliberate palettes, without remounting the scene. */
+.canvas,.canvas3d { background:radial-gradient(ellipse at 40% 40%,var(--graph-haze),var(--graph-canvas) 72%); }
+.canvas3d { color:var(--text-primary); }
+.label3d { text-shadow:0 1px 4px var(--graph-canvas); }
+.label3d strong { color:var(--text-primary); }
+.label3d span { color:var(--text-secondary); }
+.label3d[data-company-focus="selected"] { background:color-mix(in srgb,var(--bg-surface) 94%,transparent);border-color:var(--accent-intelligence);box-shadow:0 0 16px color-mix(in srgb,var(--accent-intelligence) 18%,transparent);border-radius:8px; }
+.label3d[data-company-focus="selected"] strong,.label3d[data-company-focus="selected"] span { color:var(--text-primary); }
+.edgeLabel3d { background:var(--bg-surface);color:var(--text-primary);border-color:var(--border-control);border-radius:8px; }
+.edgeLabel3d small { color:var(--text-secondary); }
+.canvasHint,.resetView,.contextRecovery { background:var(--bg-surface);color:var(--text-primary);border-color:var(--border-control);font-size:12px; }
+:global(html[data-theme="light"]) .canvas3d { background:radial-gradient(ellipse at 50% 45%,#F5F8FC,var(--graph-canvas)); }
+:global(html[data-theme="light"]) .label3d { text-shadow:0 1px 3px #FFFFFF; }
+:global(html[data-theme="light"]) .stars { display:none; }

@@ -27,36 +27,27 @@
 .sectors button[aria-pressed=true]{background:var(--ui-selected,#173c42);box-shadow:inset 4px 0 #9ff4e1,inset 0 0 0 1px #77dcca;color:var(--ui-text,#edfff9);font-weight:700}
 .sectors button[aria-pressed=true] small{color:var(--ui-text,#a8ffeb);font-weight:700}
 
-/* Dark exploration workspace: quiet chrome around the luminous canvas. */
-:global(:root:not([data-theme="light"])) .shell {
-  --ui-surface:#080f1b;
-  --ui-line:#b4d4fa16;
-  --ui-selected:#88dcf00c;
-  --ui-text:#dce6f2;
-  --ui-muted:#91a3b8;
-  --ui-accent:#8cdef0;
-}
-:global(:root:not([data-theme="light"])) .left,
-:global(:root:not([data-theme="light"])) .right { background:#0a1220; }
-:global(:root:not([data-theme="light"])) .panelTitle { padding:16px 16px 12px; }
-:global(:root:not([data-theme="light"])) .panelTitle strong { font-weight:400;letter-spacing:.025em; }
-:global(:root:not([data-theme="light"])) .graphToolbar { background:#080f1b;padding-block:10px; }
-:global(:root:not([data-theme="light"])) .eventList { padding-inline:12px; }
-:global(:root:not([data-theme="light"])) .eventList>div>button { padding:16px 4px 14px;margin-bottom:0;border-radius:0;border-bottom:1px solid #b4d4fa0c; }
-:global(:root:not([data-theme="light"])) .eventList strong { font-weight:400;line-height:1.65;letter-spacing:.005em;color:#dce6f2;margin-block:8px; }
-:global(:root:not([data-theme="light"])) .eventList>div>button>div { letter-spacing:.025em;color:#91a3b8; }
-:global(:root:not([data-theme="light"])) .companyList>.selectedCompany,
-:global(:root:not([data-theme="light"])) .sectors button[aria-pressed=true] { box-shadow:inset 2px 0 #8cdef0;font-weight:400; }
-:global(:root:not([data-theme="light"])) .companyList>.selectedCompany strong,
-:global(:root:not([data-theme="light"])) .companyList>.selectedCompany span { font-weight:500; }
-
-/* Airy light chrome; the star field keeps its own contrast-safe palette. */
-:global(:root[data-theme="light"]) .shell { --ui-surface:#f8fafc;--ui-line:#dce4ec;--ui-selected:#eaf4f6;--ui-text:#24384b;--ui-muted:#566d81;--ui-accent:#087b86; }
-:global(:root[data-theme="light"]) .left,:global(:root[data-theme="light"]) .right { background:#f8fafc; }
-:global(:root[data-theme="light"]) .panelTitle { padding:16px 16px 12px; }
-:global(:root[data-theme="light"]) .panelTitle strong { font-weight:400;letter-spacing:.025em; }
-:global(:root[data-theme="light"]) .graphToolbar { padding-block:10px;background:#fff; }
-:global(:root[data-theme="light"]) .eventList { padding-inline:12px; }
-:global(:root[data-theme="light"]) .eventList>button,:global(:root[data-theme="light"]) .eventList>div>button { padding:16px 4px 14px;margin-bottom:0;border-radius:0;border-bottom:1px solid #e5ebf1; }
-:global(:root[data-theme="light"]) .eventList strong { font-weight:400;line-height:1.65;letter-spacing:.005em;margin-block:8px; }
-:global(:root[data-theme="light"]) .companyList>.selectedCompany,:global(:root[data-theme="light"]) .sectors button[aria-pressed=true] { box-shadow:inset 2px 0 #087b86;font-weight:400; }
+/* Shared rails frame the graph; all appearance values come from semantic tokens. */
+.shell { --line:var(--border-subtle);--muted:var(--text-secondary);--accent:var(--accent-intelligence);background:var(--bg-canvas);color:var(--text-primary);font-size:12px; }
+.left,.right { background:var(--bg-surface);scrollbar-color:var(--border-control) transparent; }
+.panelTitle { padding:16px 16px 12px; }.panelTitle strong { font-size:13px;font-weight:600;letter-spacing:0; }
+.sectionLabel { font-size:12px;letter-spacing:.05em;color:var(--text-secondary); }
+.graphToolbar { background:var(--bg-canvas);padding:8px 12px;min-height:48px; }
+.graphToolbar strong:where(:not([data-company-search] *)),.graphToolbar span:where(:not([data-company-search] *,[data-company-search-owner])),.graphToolbar button:where(:not([data-company-search] *)) { font-size:12px; }
+.graphToolbar button:where(:not([data-company-search] *)) { min-height:36px;border-radius:8px; }
+.search input { font-size:13px;min-height:36px;border-color:var(--border-control);border-radius:8px;background:var(--bg-canvas); }
+.sectors button { font-size:12px;min-height:36px;padding:8px; }.sectors button small { font:12px var(--font-data); }
+.companyList { padding:4px 8px;scrollbar-color:var(--border-control) transparent; }
+.companyList>div>button:first-child { padding:9px 8px;min-height:36px; }.companyList strong { font:500 12px var(--font-data);min-width:40px; }.companyList span { font-size:12px; }
+.companyList>.selectedCompany,.sectors button[aria-pressed=true] { background:var(--surface-selected);box-shadow:inset 2px 0 var(--accent-intelligence); }
+.companyList>.selectedCompany strong,.companyList>.selectedCompany span,.sectors button[aria-pressed=true],.sectors button[aria-pressed=true] small { color:var(--text-primary);font-weight:600; }
+.eventList { padding-inline:12px; }.eventList>div>button { padding:12px 4px;margin:0;border-radius:0;border-bottom:1px solid var(--border-subtle); }
+.eventList strong { font-size:13px;font-weight:500;line-height:1.55;color:var(--text-primary);margin-block:8px; }
+.eventList>div>button>div,.eventList small,.eventList time { color:var(--text-secondary);font-size:12px;line-height:1.5; }
+.eventList time { font-family:var(--font-data); }
+.leftFoot,.rightFoot { font-size:12px;color:var(--text-secondary);line-height:1.6; }
+.shell button:hover { background:var(--surface-hover); }.shell button:focus-visible,.shell a:focus-visible { outline-color:var(--accent-intelligence); }
+.listTabs button { font-size:12px;min-height:36px; }.eventOverlay { background:var(--bg-surface);border-color:var(--border-subtle);border-radius:8px;box-shadow:var(--shadow-panel); }
+@media(min-width:1024px) { .shell:not(:has(> .topbar)) { height:calc(100dvh - 72px); } }
+@media(min-width:851px) and (max-width:1023px) { .shell:not(:has(> .topbar)) { height:calc(100dvh - 146px); } }
+@media(max-width:850px) { .shell button { min-height:44px; }.graphToolbar { padding:8px; }.graphToolbar button:where(:not([data-company-search] *)) { min-height:44px; }.panelTitle { padding:12px; }.eventList { grid-template-columns:1fr; }.sectors button { min-height:44px; }.graphLegend { font-size:12px; } }

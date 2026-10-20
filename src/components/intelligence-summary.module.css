@@ -21,3 +21,9 @@
 .period button { font-size:9px; padding:2px 5px; }
 .feedback { margin-left:auto; padding:4px 6px; color:var(--ui-text,#e4edf5); white-space:nowrap; text-decoration:underline; text-underline-offset:3px; }
 .feedback:hover { background:var(--ui-selected,#203a3e); border-radius:4px; }
+
+.summary { font-size:12px;background:var(--bg-surface);gap:8px; }
+.summary .context,.period button { font-size:12px; }
+.summary button { min-height:32px; }
+.activeMeter i { background:var(--accent-intelligence); }
+@media(max-width:850px) { .summary button { min-height:44px; } }

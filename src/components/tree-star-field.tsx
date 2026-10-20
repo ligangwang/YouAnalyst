@@ -12,7 +12,7 @@ function starRandom(index: number) {
 
 // Fixed world positions, with two depths so the orbit has visible parallax.
 // Twinkling uses the scene's frame loop; positions remain stationary.
-export function TreeStarField({ height, paused, pauseForForms }: { height: number; paused?: boolean; pauseForForms?:boolean }) {
+export function TreeStarField({ height, paused, pauseForForms, count = 2600 }: { height: number; paused?: boolean; pauseForForms?:boolean; count?: number }) {
   const material = useRef<ShaderMaterial>(null);
   const reduced = useRef(false);
   const uniforms = useMemo(() => ({ time: { value: 0 }, motion: { value: 1 } }), []);
@@ -29,7 +29,7 @@ export function TreeStarField({ height, paused, pauseForForms }: { height: numbe
   });
   const geometry = useMemo(() => {
     const positions: number[] = [], colors: number[] = [], sizes: number[] = [], sparkles: number[] = [];
-    for (let i = 0; i < 2600; i++) {
+    for (let i = 0; i < count; i++) {
       const near = i < 180;
       const angle = starRandom(i * 6) * Math.PI * 2;
       const radius = near ? 6200 + starRandom(i * 6 + 1) * 2200 : 18000 + starRandom(i * 6 + 1) * 9000;
@@ -47,7 +47,7 @@ export function TreeStarField({ height, paused, pauseForForms }: { height: numbe
     result.setAttribute('size', new Float32BufferAttribute(sizes, 1));
     result.setAttribute('sparkle', new Float32BufferAttribute(sparkles, 3));
     return result;
-  }, [height]);
+  }, [height, count]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return <points geometry={geometry} renderOrder={-1}>
     <shaderMaterial ref={material} uniforms={uniforms} transparent depthWrite={false} vertexColors toneMapped={false}
