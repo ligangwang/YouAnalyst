@@ -32,7 +32,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const [draft, setDraft] = useState(initial), [applied, setApplied] = useState(initial);
   const [style, setStyle] = useState<CompareStyle>(initial.style);
   const [notice, setNotice] = useState(""), [shareNotice, setShareNotice] = useState("");
-  const [editorOpen, setEditorOpen] = useState(() => Boolean(validatePlaybackConfig(initial)));
+  const [editorOpen, setEditorOpen] = useState(true);
   const [colorSymbol, setColorSymbol] = useState<string | null>(null);
   const [data, setData] = useState<CompareData | null>(null), [error, setError] = useState(""), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
   const [progress, setProgress] = useState(1), [playing, setPlaying] = useState(false), [speed, setSpeed] = useState(1);
@@ -109,7 +109,6 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   function apply() {
     const invalid = validatePlaybackConfig(draft);
     if (invalid) { setNotice(invalid); return; }
-    setEditorOpen(false);
     setApplied({ ...draft, style }); setNotice(""); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress({ ...draft, style });
   }
   function changeStyle(next: CompareStyle) {

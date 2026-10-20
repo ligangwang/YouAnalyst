@@ -28,7 +28,7 @@ test('a guest opens company color settings with an explicit sign-in destination'
     return route.fulfill({ json: { items: [], total: 178 } });
   });
   await page.goto('http://playback.test/en/compare');
-  await page.getByLabel('Selected stocks', { exact: true }).click();
+  await expect(page.getByLabel('Selected stocks', { exact: true })).toHaveAttribute('aria-expanded', 'true');
   await page.getByRole('button', { name: 'Choose color for AAPL', exact: true }).click();
   const inline = page.getByRole('region', { name: 'Customize AAPL', exact: true });
   const link = inline.getByRole('link', { name: 'Sign in or create an account to customize', exact: true });
@@ -61,7 +61,7 @@ for (const chinese of [false, true]) test(`new stock colors are editable before 
   await page.goto(`http://playback.test/${chinese ? 'zh-cn' : 'en'}/compare`);
   await expect(page.getByTestId('comparison-date')).toBeVisible();
   const toggle = page.getByLabel(chinese ? '所选股票' : 'Selected stocks', { exact: true });
-  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   const input = page.getByRole('combobox', { name: chinese ? '搜索公司' : 'Search company', exact: true });
   await input.fill('MU');
   await page.getByRole('option', { name: /Micron Technology/ }).click();
@@ -77,7 +77,8 @@ for (const chinese of [false, true]) test(`new stock colors are editable before 
   expect(saved!.companyColors.MU).toBe('#123abc');
   await page.getByRole('button', { name: chinese ? '开始对比' : 'Compare', exact: true }).click();
   await expect(page.getByRole('button', { name: 'MU', exact: true }).locator('i')).toHaveCSS('background-color', 'rgb(18, 58, 188)');
-  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(inline).toBeVisible();
   await inline.getByRole('button', { name: chinese ? '默认颜色' : 'Default color', exact: true }).click();
   await expect(picker).not.toHaveValue('#123abc');
   await page.getByRole('button', { name: chinese ? '收起股票选择' : 'Collapse stock selection', exact: true }).click();
@@ -128,11 +129,14 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   await expect(page.getByText('The chart uses the first and last available shared trading days within your selected range.', { exact: true })).toHaveCount(0);
   const chartBox = await chart.boundingBox(), editorBox = await editor.boundingBox();
   expect(chartBox!.y).toBeGreaterThanOrEqual(editorBox!.y + editorBox!.height);
-  expect(editorBox!.height).toBeLessThan(140);
   const toggle = editor.getByLabel(chinese ? '所选股票' : 'Selected stocks', { exact: true });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(editor.locator('#comparison-settings')).toBeVisible();
+  await toggle.focus();
+  await toggle.press('Enter');
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(editor.locator('#comparison-settings')).toBeHidden();
-  await toggle.focus();
+  expect((await editor.boundingBox())!.height).toBeLessThan(140);
   await toggle.press('Enter');
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
   const hint = page.getByText(chinese ? '已覆盖 178 家公司，持续扩充中。' : '178 companies covered · More coming soon', { exact: true });
@@ -163,10 +167,9 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   await expect(page.getByRole('status').filter({ hasText: 'Choose a start date on or after December 31, 2020.' })).toBeVisible();
   await from.fill('2021-03-01');
   await page.getByRole('button', { name: chinese ? '开始对比' : 'Compare', exact: true }).click();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  await expect(editor.locator('#comparison-settings')).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(editor.locator('#comparison-settings')).toBeVisible();
   await expect(toggle).toContainText('2021-03-01');
-  await toggle.click();
   await expect(from).toHaveValue('2021-03-01');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('stock-picker.png'), fullPage: true });

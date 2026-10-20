@@ -49,7 +49,7 @@ test('picker, chips and actual rendered lines and bars keep the same bright colo
   await page.goto('http://compare-colors.test/en/compare');
   const chart = page.getByRole('img', { name: 'Animated stock price return comparison', exact: true });
   await expect(chart.locator('canvas')).toBeVisible();
-  await page.getByLabel('Selected stocks', { exact: true }).click();
+  await expect(page.getByLabel('Selected stocks', { exact: true })).toHaveAttribute('aria-expanded', 'true');
   const chip = page.getByRole('button', { name: 'Choose color for MU', exact: true });
   await chip.click();
   const inline = page.getByRole('region', { name: 'Customize MU', exact: true });
