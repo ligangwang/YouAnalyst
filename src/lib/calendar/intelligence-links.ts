@@ -9,7 +9,7 @@ import {createHash} from 'node:crypto';
 
 /** Follow stored receipts to current schedules, never infer creation from a title. */
 export async function attachCalendarLinks(db:Firestore,events:IntelligenceEvent[]):Promise<IntelligenceEvent[]> {
-  return changeCached(db,`calendar-links:${createHash('sha256').update(JSON.stringify(events)).digest('hex')}`,['events'],()=>readCalendarLinks(db,events));
+  return changeCached(db,`calendar-links:${createHash('sha256').update(JSON.stringify(events)).digest('hex')}`,['events','companies'],()=>readCalendarLinks(db,events));
 }
 async function readCalendarLinks(db:Firestore,events:IntelligenceEvent[]):Promise<IntelligenceEvent[]> {
   const sourceIds=[...new Set(events.filter(event=>event.category==='BUSINESS'&&isCalendarCandidate(event.title,event.summary))
@@ -33,6 +33,17 @@ async function readCalendarLinks(db:Firestore,events:IntelligenceEvent[]):Promis
   const schedules=await db.getAll(...scheduleIds.map(id=>collection.doc(id)));
   const confirmed=new Map(schedules.filter(doc=>doc.get('type')==='scheduled_event'&&['official','extracted'].includes(doc.get('confirmation')))
     .map(doc=>[doc.id,{...doc.data(),id:doc.id} as ScheduledEvent]));
+  // Legacy US-listed Chinese schedules may not yet carry issuer geography.
+  // Resolve only missing metadata so their links use the same ET day as the calendar.
+  const missingCountries=[...new Set([...confirmed.values()].filter(schedule=>schedule.companyId.startsWith('US:')&&!schedule.companyCountry&&!schedule.scheduled_at&&schedule.local_time&&!schedule.timezone_text&&!schedule.source_timezone).map(schedule=>schedule.companyId))];
+  if(missingCountries.length){
+    const companies=await db.getAll(...missingCountries.map(id=>db.collection('companies').doc(id)));
+    const countries=new Map(companies.map(doc=>[doc.id,doc.get('country')]));
+    for(const schedule of confirmed.values()){
+      const country=countries.get(schedule.companyId);
+      if(typeof country==='string')schedule.companyCountry=country;
+    }
+  }
   return events.map(event=>{
     const links=event.evidence.flatMap(source=>(schedulesByReceipt.get(receiptBySource.get(source.id)??'')??[]).flatMap(id=>{
       const schedule=confirmed.get(id);

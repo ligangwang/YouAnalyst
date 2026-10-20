@@ -31,10 +31,11 @@ async function main(){
     return;
   }
 
+  const companyCountries=new Map(graph.nodes.flatMap(node=>node.kind==='COMPANY'&&node.country?[[node.id,node.country] as const]:[]));
   if(args.includes('--revalidate-calendar')){
     // Validate saved responses against unchanged original content. Never reserve
     // a new provider request, including when the source content has changed.
-    const calendar=await collectCalendarSchedules(db,mapped,{deadline:Date.now()+18*60_000,revalidateCached:true});
+    const calendar=await collectCalendarSchedules(db,mapped,{deadline:Date.now()+18*60_000,revalidateCached:true,companyCountries});
     console.log(JSON.stringify({job:'revalidate-calendar',calendar}));return;
   }
   const deadline=Date.now()+18*60_000,newsDeadline=Date.now()+8*60_000;
@@ -48,7 +49,7 @@ async function main(){
   const gate=createEarningsRequestGate(db),transport=createCnEarningsRequester({beforeRequest:gate.beforeRequest,onBlocked:gate.onBlocked});
   const exchange=await collectCnMapDisclosures(db,graph,transport.request,{deadline:Math.min(deadline-4*60_000,Date.now()+6*60_000),runId:randomUUID(),earningsEnabled:process.env.EARNINGS_COLLECTION_ENABLED==='1'});
   const headlines=await translateCollectedHeadlines(db,mapped,{deadline:Math.min(deadline-2*60_000,Date.now()+150_000)});
-  const calendar=process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline}):{disabled:true};
+  const calendar=process.env.CALENDAR_EXTRACTION_ENABLED==='1'?await collectCalendarSchedules(db,mapped,{deadline,companyCountries}):{disabled:true};
   console.log(JSON.stringify({job:'collect-intelligence-news',results,exchange,calendar,headlines,analysis,classifications}));
   if(results.some(result=>result.status==='failed'))process.exitCode=1;
   if('failed' in exchange&&exchange.failed)process.exitCode=1;

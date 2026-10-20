@@ -1,6 +1,7 @@
 'use client';
 
 import { calendarTime } from '@/lib/calendar/display';
+import { calendarCountdown, countdownLabel } from '@/lib/calendar/countdown';
 import type { EarningsGroup } from './earnings-calendar-groups';
 import { companyPageUrl } from '@/lib/market-companies/routes';
 import { LocalizedLink } from './localized-link';
@@ -15,7 +16,7 @@ export function earningsGroupLabel(group: EarningsGroup, text: (en: string, zh: 
 }
 
 /** The calendar grid and day agenda render the same schedules at different detail levels. */
-export function EarningsEventCard({ group, compact = false, highlighted = false }: { group: EarningsGroup; compact?: boolean; highlighted?:boolean }) {
+export function EarningsEventCard({ group, compact = false, highlighted = false, now = null }: { group: EarningsGroup; compact?: boolean; highlighted?:boolean; now?:number|null }) {
   const { chinese, text: t } = useLocale();
   const schedules = [...group.schedules].sort((a, b) => (a.eventKind === 'earnings_release' ? 0 : 1) - (b.eventKind === 'earnings_release' ? 0 : 1));
   const item = schedules[0];
@@ -30,6 +31,7 @@ export function EarningsEventCard({ group, compact = false, highlighted = false 
     {schedules.map(schedule => <p key={schedule.id} className={`${styles.time} ${!sharedStatus && schedule.status === 'cancelled' ? styles.cancelledSchedule : ''}`}>
       {schedules.length > 1 && <span className={styles.scheduleLabel}>{schedule.eventKind === 'earnings_release' ? t('Results', '财报') : t('Call', '电话会')}: </span>}{calendarTime(schedule, chinese)}
       {!sharedStatus && schedule.status !== 'scheduled' && <small className={styles.scheduleStatus}> · {schedule.status === 'cancelled' ? t('Cancelled', '已取消') : t('Rescheduled', '已改期')}</small>}
+      {now!==null&&schedule.status!=='cancelled'&&<span className={styles.countdown}>{countdownLabel(calendarCountdown(schedule,now),chinese)}</span>}
     </p>)}
     {!compact && <>
       <p className={styles.detail}>{item.fiscalPeriod} · {chinese ? item.sector.zh : item.sector.en}</p>

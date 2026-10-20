@@ -4,6 +4,49 @@ import {shiftDay,visibleDays} from '../../src/lib/calendar/display';
 
 let html:string;
 test.beforeAll(async()=>{html=await calendarFixtureHtml();});
+
+for(const chinese of [false,true])test(`calendar countdowns tick without network reads and use Beijing for omitted Chinese zones (${chinese?'Chinese':'English'})`,async({page},info)=>{
+  const now=new Date('2026-11-17T12:00:00Z');
+  await page.clock.install({time:now});await page.clock.pauseAt(now);
+  const base={...calendarFixtures[0],scheduled_date:'2026-11-17',scheduled_at:null,local_time:null,source_timezone:null,timezone_text:null,time_precision:'date' as const};
+  const events=[
+    {...base,id:'cn-local',companyId:'XSHG:600000',ticker:'600000',companyName:'Example China',scheduled_date:'2026-11-18',local_time:'09:00',time_precision:'local'},
+    {...base,id:'date-only',companyId:'US:DATE',ticker:'DATE',eventKind:'earnings_release',timeSlot:'after_market'},
+    {...base,id:'cancelled',companyId:'US:STOP',ticker:'STOP',scheduled_at:'2026-11-17T14:00:00Z',status:'cancelled'},
+    {...base,id:'explicit-zone',companyId:'US:EXPLICIT',companyCountry:'CN',ticker:'EXPLICIT',scheduled_at:'2026-11-17T15:00:00Z',local_time:'10:00',source_timezone:'America/New_York',timezone_text:'ET',time_precision:'exact'},
+    {...base,id:'unknown-zone',companyId:'US:UNKNOWN',ticker:'UNKNOWN',local_time:'10:00',time_precision:'local'},
+    {...base,id:'cn-us-local',companyId:'US:CNUS',companyCountry:'CN',ticker:'CNUS',scheduled_date:'2026-11-18',local_time:'09:00',time_precision:'local'},
+    {...base,id:'cn-date',companyId:'US:CNDATE',companyCountry:'CN',ticker:'CNDATE',eventKind:'earnings_release'},
+  ];
+  let requests=0;
+  await page.route('http://calendar.test/**',route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname==='/api/calendar'){requests++;return route.fulfill({json:{events,total:events.length,truncated:false,from:url.searchParams.get('from'),to:url.searchParams.get('to'),lastCollectedAt:null,collectionStatus:'complete'}});}
+    return route.fulfill({contentType:'text/html',body:html});
+  });
+  await page.goto(`http://calendar.test/?date=2026-11-17${chinese?'&lang=zh-CN':''}`);
+  await page.clock.runFor(0);
+  const agenda=page.getByRole('complementary',{name:chinese?'所选日期日程':'Selected day agenda'});
+  const cn=agenda.getByRole('article').filter({hasText:'600000'});
+  await expect(cn).toContainText(chinese?'20:00 ET（原时间默认按北京时间）':'8:00 PM ET (source time assumed Beijing)');
+  await expect(cn).toContainText(chinese?'倒计时 13:00:00':'Starts in 13:00:00');
+  await page.clock.runFor(1000);
+  await expect(cn).toContainText(chinese?'倒计时 12:59:59':'Starts in 12:59:59');
+  await expect(agenda.getByRole('article').filter({has:page.getByText('DATE',{exact:true})})).toContainText(chinese?'今天 · 时刻未公布':'Today · time TBD');
+  await expect(agenda.getByRole('article').filter({hasText:'STOP'})).not.toContainText(chinese?'倒计时':'Starts in');
+  const explicit=agenda.getByRole('article').filter({hasText:'EXPLICIT'});
+  await expect(explicit).toContainText(chinese?'10:00 ET':'10:00 AM ET');
+  await expect(explicit).not.toContainText(chinese?'默认按北京时间':'assumed Beijing');
+  await expect(agenda.getByRole('article').filter({hasText:'UNKNOWN'})).toContainText(chinese?'倒计时待确认':'Countdown pending');
+  await expect(agenda.getByRole('article').filter({hasText:'CNUS'})).toContainText(chinese?'原时间默认按北京时间':'source time assumed Beijing');
+  await expect(agenda.getByRole('article').filter({hasText:'CNDATE'})).toContainText(chinese?'今天 · 时刻未公布（按北京时间日期）':'Today · time TBD (Beijing date)');
+  expect(requests).toBe(1);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('earnings-countdown.png'),fullPage:true});
+  await page.clock.fastForward(13*3600*1000);
+  await expect(cn).toContainText(chinese?'已到公告时间':'Scheduled time reached');
+  expect(requests).toBe(1);
+});
 test('server calendar snapshot avoids a duplicate read and range changes still refresh',async({page})=>{
   const days=visibleDays(fixtureDay,'month');
   const body=await calendarFixtureHtml({events:calendarFixtures,total:calendarFixtures.length,truncated:false,from:days[0],to:days.at(-1)!,lastCollectedAt:null,collectionStatus:'collecting'});
