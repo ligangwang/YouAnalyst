@@ -15,7 +15,7 @@ export async function acquireSecCollectorLease(db:Firestore,owner:string,now:num
       if(Number(data?.leaseExpiresAtMs)>now&&!recovering)return false;
     }
     const lease={leaseOwner:owner,leaseExpiresAtMs:now+30*60_000,leaseTask:task??FieldValue.delete()};
-    tx.set(ref,{...(bridge?old?.data():{}),...lease},{merge:true});
+    tx.set(ref,{...(bridge&&!state.exists?old?.data():{}),...lease},{merge:true});
     if(bridge)tx.set(legacy,lease,{merge:true});
     return true;
   });

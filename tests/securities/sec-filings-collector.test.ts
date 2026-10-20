@@ -10,12 +10,18 @@ import { collectSecFilings, inspectSecFilingCollection } from "../../src/lib/sec
 import { createSecFilingDiscovered, type SecFilingDiscovered } from "../../src/lib/sec-filings/event";
 import { persistSecFilingDiscovery, readSecCollectorCursor, type SecCollectorCursor } from "../../src/lib/sec-filings/store";
 import type { SecFiling, SecFilingsSource, SecSubmissions, SecSubmissionsFile } from "../../src/lib/sec-filings/source";
+import {acquireSecCollectorLease} from '../../src/lib/sec-collector-state';
 
 type Data = Record<string, unknown>;
 const CIK = "0000002488";
 const META = "sec_collector_state/_sec_filings_collector";
 const COMPANY = "sec_collector_state/US:AMD";
 const iso = "2026-09-27T12:00:00.000Z";
+test('bridge acquisition preserves newer rotation progress',async()=>{
+ const f=fixture({[META]:{afterCompanyId:'NVDA'},'company_fundamentals/_sec_filings_collector':{afterCompanyId:'AMD'}});
+ assert.equal(await acquireSecCollectorLease(f.db,'test',Date.parse(iso),undefined),true);
+ assert.equal(f.documents.get(META)?.afterCompanyId,'NVDA');
+});
 test("bridge mirrors cursor progress until retired, then leaves fundamentals untouched",async()=>{
  const f=fixture({[META]:{},'company_fundamentals/US:AMD':{secFilingsCollector:cursor()}});
  await f.run();
