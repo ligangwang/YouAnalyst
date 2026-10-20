@@ -137,11 +137,11 @@ test("canceling Google auth and Back/Forward keep the research continuation avai
   await expect(page).toHaveURL(authUrl);
   await page.evaluate(() => { window.authScenario = {}; });
   await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
-  await expect(page).toHaveURL(origin + "/en/feed?scope=following");
+  await expect(page).toHaveURL(origin + "/en/watchlists/following?view=updates");
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Signed in", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page).toHaveURL(origin + "/en/feed?scope=following");
+  await expect(page).toHaveURL(origin + "/en/watchlists/following?view=updates");
 });
 
 test("email auth failure, mode switches and retry retain the full research destination", async ({ page }) => {
