@@ -12,7 +12,11 @@ async function main(){
   assert(args.every(arg=>['--apply','--finalize'].includes(arg)),'Unknown argument');
   const project=process.env.GCP_PROJECT_ID;assert(project,'GCP_PROJECT_ID required');
   const command=process.platform==='win32'?'gcloud.cmd':'gcloud';
-  const token=()=>execFileSync(command,['auth','print-access-token'],{encoding:'utf8',shell:process.platform==='win32'}).trim();
+  let accessToken='',tokenUntil=0;
+  const token=()=>{
+    if(Date.now()>=tokenUntil){accessToken=execFileSync(command,['auth','print-access-token'],{encoding:'utf8',shell:process.platform==='win32'}).trim();tokenUntil=Date.now()+240000;}
+    return accessToken;
+  };
   initializeApp({projectId:project,credential:applicationDefault()});
   const db=getFirestore(),marker=db.collection('collectors').doc('_read_optimization_migration_v1');
   if((await marker.get()).get('complete')===true){console.log('Read optimization migration already complete');return;}
