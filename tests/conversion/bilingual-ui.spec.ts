@@ -101,7 +101,8 @@ test("signing in restores account language without restoring market filters when
   await expect(page).toHaveURL(/lang=zh-CN$/);
   await expect(page.getByRole("heading", { name: "显示偏好" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "界面语言" })).toHaveValue("zh-CN");
-  await expect(page.getByRole("combobox")).toHaveCount(4);
+  // Display preferences own the page's selects; the header theme control is a toggle button.
+  await expect(page.getByRole("combobox")).toHaveCount(3);
 });
 
 for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tools accessible (${language})`, async ({page}) => {

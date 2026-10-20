@@ -37,7 +37,7 @@
 .scene canvas { touch-action:pan-y; }
 .vertical {background:radial-gradient(ellipse at 50% 85%,var(--ui-surface,#0b3040) 0%,var(--ui-surface,#091b28) 35%,var(--ui-surface,#050f1b) 75%);}
 .vertical .scene {height:min(90vh,1100px);min-height:780px;}
-.vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 23px color-mix(in srgb,currentColor,transparent 68%),inset 0 0 16px color-mix(in srgb,currentColor,transparent 85%);background:var(--ui-surface,#071727ee);}
+.vertical .layer,.vertical .root {border-radius:24px;border-color:currentColor;box-shadow:0 0 23px color-mix(in srgb,currentColor,transparent 68%),inset 0 0 16px color-mix(in srgb,currentColor,transparent 85%);background:#071727e6;}
 .vertical .branch {border-radius:16px;}
 /* Warm text stays legible against foliage; sector colour remains an accent. */
 .vertical .company {background:#0a151ce8;border-color:#e4f2e929;border-inline-start:2px solid currentColor;box-shadow:0 2px 8px #0005;}
@@ -96,3 +96,7 @@
   --text-primary:#EAF2FD;
   --text-secondary:#A7B8CC;
 }
+
+/* Keep vertical branch labels dark glass in either site appearance. */
+.vertical .branch {background:#071727e6;}
+.vertical :is(.layer,.root,.branch):is(:hover,:focus-visible,[aria-pressed='true']) {background:#12324af2;}

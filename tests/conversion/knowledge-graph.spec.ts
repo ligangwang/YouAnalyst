@@ -1440,6 +1440,8 @@ test("map displays stored market cap and date while unknown stays ticker only", 
 });
 
 test('A-share snapshot loads cached close and annual attributable profit with the full company ID',async({page})=>{
+ // Two localized navigations render the full software-WebGL tree and load financials.
+ test.setTimeout(60000);
  await page.emulateMedia({reducedMotion:'reduce'});
  const fixture={...graph,nodes:graph.nodes.filter(n=>n.kind==='STAGE'||n.id==='XSHG:688981')};
  const requests:string[]=[];
@@ -1455,8 +1457,15 @@ test('A-share snapshot loads cached close and annual attributable profit with th
   await page.goto(`http://graph.test/map?lang=${lang}&view=tree`);
   const tree=page.locator('[data-industry-section="vertical"]');await tree.scrollIntoViewIfNeeded();
 
+  const snapshot=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/company-fundamentals');
   await tree.locator('[data-tree-company="XSHG:688981"]').first().click();
   const card=page.getByRole('dialog');
+  await expect(card).toBeVisible();
+  await card.locator('summary').click();
+  expect((await snapshot).ok()).toBe(true);
+  // Wait for React to commit the fetched snapshot before checking its values.
+  // Renderer contention can outlast the default five-second value assertion.
+  await expect(card.getByRole('status').filter({hasText:/Loading cached financials|正在读取已缓存财务数据/})).toHaveCount(0,{timeout:15000});
   await expect(card).toContainText('100 CNY');
   await expect(card).toContainText(lang==='en'?'Annual net income attributable to parent':'年度归母净利润');
   await expect(card).toContainText(lang==='en'?'-100M CNY':'-1亿 CNY');

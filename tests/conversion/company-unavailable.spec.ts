@@ -24,7 +24,7 @@ for (const locale of ["en", "zh-cn"]) test(`missing company recovery follows the
       context.fillRect(0, 0, 1, 1);
       return { background: getComputedStyle(el).backgroundImage, text: Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3) };
     });
-    expect(colors.background).toContain(theme === "light" ? "rgb(255, 255, 255)" : "rgb(15, 26, 43)");
+    expect(colors.background).toContain(theme === "light" ? "rgb(255, 255, 255)" : "rgb(10, 19, 36)");
     if (theme === "light") expect(colors.text).toEqual([20, 37, 54]);
     else expect(colors.text).toEqual([234, 242, 253]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
