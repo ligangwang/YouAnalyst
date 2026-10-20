@@ -19,16 +19,19 @@ import { LocaleProvider } from "@/components/providers/locale-provider";
 
 const GOOGLE_ANALYTICS_ID = process.env.GOOGLE_ANALYTICS_ID;
 
-const sora = localFont({
-  src: "./fonts/sora.woff2",
-  variable: "--font-sora",
-  weight: "100 800",
+const geist = localFont({
+  src: "./fonts/geist-sans.woff2",
+  variable: "--font-geist-sans",
+  weight: "100 900",
+  display: "swap",
 });
 
-const ibmPlexSans = localFont({
-  src: "./fonts/ibmplexsans.woff2",
-  variable: "--font-ibm-plex-sans",
-  weight: "100 700",
+const geistMono = localFont({
+  src: "./fonts/geist-mono.woff2",
+  variable: "--font-geist-mono",
+  weight: "100 900",
+  display: "swap",
+  preload: false,
 });
 
 const pageMetadata: Metadata = {
@@ -80,7 +83,7 @@ export default async function RootLayout({
     <html
       suppressHydrationWarning
       lang={locale}
-      className={`${sora.variable} ${ibmPlexSans.variable} h-full antialiased`}
+      className={`${geist.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
         {!embedded && <script dangerouslySetInnerHTML={{ __html: displayPreferencesBootstrap }} />}

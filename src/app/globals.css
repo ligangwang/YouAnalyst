@@ -1,27 +1,60 @@
 @import "tailwindcss";
 
 html[lang="zh-CN"] body {
-  font-family: var(--font-ibm-plex-sans), "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-ui), "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 :root {
-  --background: #07111d;
-  --foreground: #f8fafc;
-  --color-paper: #f8fafc;
-  --color-ink: #07111d;
-  --color-shell: #0f172a;
-  --color-line: rgba(255, 255, 255, 0.12);
-  --text-secondary: #9ba8b7;
-  --text-muted: #8794a4;
-  --surface-hover: #ffffff10;
-  --surface-selected: #ffffff12;
-  --radius-control: 10px;
+  --bg-canvas: #070D19;
+  --bg-surface: #0F1A2B;
+  --bg-elevated: #152235;
+  --border-subtle: #25364B;
+  --border-control: #5B728D;
+  --text-primary: #EAF2FD;
+  --text-secondary: #A7B8CC;
+  --text-muted: #A7B8CC;
+  --accent-intelligence: #49D6E8;
+  --accent-brand: #22C775;
+  --market-positive: #2CD99B;
+  --market-negative: #FF7085;
+  --status-warning: #F1BC60;
+  --text-on-accent: #070D19;
+  --surface-hover: #49D6E80C;
+  --surface-selected: #49D6E816;
+  --shadow-panel: 0 12px 32px #00000014;
+  --graph-canvas: #070D19;
+  --graph-haze: #152A3A;
+  --font-ui: var(--font-geist-sans), Inter, system-ui, sans-serif;
+  --font-data: var(--font-geist-mono), ui-monospace, SFMono-Regular, Consolas, monospace;
+  /* Compatibility aliases keep the existing components on one semantic system. */
+  --font-sora: var(--font-ui);
+  --font-ibm-plex-sans: var(--font-ui);
+  --background: var(--bg-canvas);
+  --foreground: var(--text-primary);
+  --color-paper: var(--bg-surface);
+  --color-ink: var(--text-primary);
+  --color-shell: var(--bg-surface);
+  --color-line: var(--border-subtle);
+  --ui-accent: var(--accent-intelligence);
+  --accent: var(--accent-intelligence);
+  --ui-surface: var(--bg-surface);
+  --ui-selected: var(--surface-selected);
+  --ui-text: var(--text-primary);
+  --ui-muted: var(--text-secondary);
+  --ui-line: var(--border-subtle);
+  --selection-outline: var(--accent-intelligence);
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --radius-major: 16px;
+  --motion-fast: 150ms;
+  --motion-disclosure: 220ms;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-ibm-plex-sans);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-data);
 }
 
 .company-profile-header {
@@ -40,7 +73,9 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-ibm-plex-sans), sans-serif;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 
@@ -52,13 +87,13 @@ button:disabled {
   cursor: not-allowed;
 }
 
-:where(a, button, input, select, summary):focus-visible {
+:where(a, button, input, select, summary, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--selection-outline,#67e8f9);
   outline-offset: 3px;
 }
 
 nav a[aria-current="page"] { color: var(--foreground); background: var(--surface-selected); border-radius: var(--radius-control); }
-header nav a[aria-current="page"] { background: transparent; border-radius: 0; text-decoration: underline; text-decoration-color: #67e8f9cc; text-decoration-thickness: 1px; text-underline-offset: 8px; }
+header nav a[aria-current="page"] { background: transparent; border-radius: 0; text-decoration: underline; text-decoration-color: var(--accent-intelligence); text-decoration-thickness: 2px; text-underline-offset: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
@@ -83,11 +118,15 @@ a {
 :root[data-theme="light"] {
   color-scheme:light;
   --brand-you:#142536;
-  --background:#f4f7fa; --foreground:#142536;
-  --color-paper:#ffffff; --color-ink:#142536; --color-shell:#ffffff; --color-line:#ccd7e1;
-  --text-secondary:#475f73; --text-muted:#526a7d;
-  --surface-hover:#1425360a; --surface-selected:#d8edf0;
-  --ui-accent:#087b72; --ui-surface:#ffffff; --ui-selected:#d8edf0; --ui-text:#142536; --ui-muted:#475f73; --ui-line:#ccd7e1;
+  --bg-canvas:#F5F8FC; --bg-surface:#FFFFFF; --bg-elevated:#EDF3F9;
+  --border-subtle:#D7E2ED; --border-control:#768AA1;
+  --text-primary:#142338; --text-secondary:#53687F; --text-muted:#53687F;
+  --accent-intelligence:#087C9C; --accent-brand:#087D53;
+  --market-positive:#0C805A; --market-negative:#BB3047; --status-warning:#8C6100;
+  --text-on-accent:#FFFFFF;
+  --surface-hover:#087C9C08; --surface-selected:#087C9C10;
+  --shadow-panel:0 8px 28px #14233808;
+  --graph-canvas:#EDF3F9; --graph-haze:#E2ECF6;
   --event-color-weight:55%; --chart-line:#167f9b; --chart-reference:#826c20; --selection-outline:#167f9b;
   --price-green:#087b56; --price-red:#c83148; --price-flat:#526a7d;
 }
@@ -111,3 +150,35 @@ a {
 :root[data-theme="light"] :is(.text-teal-100,.text-teal-200,.text-teal-300) { color:#087b72; }
 :root[data-theme="light"] :is(.text-blue-100,.text-blue-200,.text-blue-300,.text-sky-100,.text-sky-200,.text-sky-300) { color:#1d4ed8; }
 :root[data-theme="light"] :is(.text-purple-100,.text-purple-200,.text-purple-300,.text-violet-100,.text-violet-200,.text-violet-300) { color:#6d28d9; }
+
+/* Shared component language. Existing utility-based screens inherit these too. */
+:root :is(.text-white,.text-slate-50,.text-slate-100,.text-slate-200,.text-slate-300,.text-cyan-50) { color:var(--text-primary); }
+:root :is(.text-slate-400,.text-slate-500) { color:var(--text-secondary); }
+:root :is(.text-cyan-100,.text-cyan-200,.text-cyan-300) { color:var(--accent-intelligence); }
+:root :is(.text-amber-100,.text-amber-200,.text-amber-300) { color:var(--status-warning); }
+:root :is([class~="border-white/10"],[class~="border-white/15"],[class~="border-white/20"]) { border-color:var(--border-subtle); }
+:root :is(.bg-slate-950,.bg-slate-900,[class~="bg-slate-950/50"],[class~="bg-slate-950/80"],[class~="bg-slate-950/85"],[class~="bg-slate-900/50"]) { background-color:var(--bg-surface); }
+:where(button,a,summary,input,select,textarea) { -webkit-tap-highlight-color:transparent; }
+:where(button,a,summary) { transition:background-color var(--motion-fast),border-color var(--motion-fast),color var(--motion-fast); }
+:where(input,select,textarea) { accent-color:var(--accent-intelligence); }
+:where(input,textarea)::placeholder { color:var(--text-secondary);opacity:1; }
+:where(button,select):disabled { opacity:.5; }
+::selection { background:var(--surface-selected);color:var(--text-primary); }
+:where([class*="scroll"],[class*="Panel"],[class*="List"]) { scrollbar-width:thin;scrollbar-color:var(--border-control) transparent; }
+.theme-select { position:relative;display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;border:1px solid var(--border-control);border-radius:8px;color:var(--text-secondary); }
+.theme-select:hover { background:var(--surface-hover);color:var(--accent-intelligence); }
+.theme-select:focus-within { outline:2px solid var(--accent-intelligence);outline-offset:3px; }
+.theme-select select { position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer; }
+.theme-select option { color:var(--text-primary);background:var(--bg-surface); }
+.ui-button,.ui-input { min-height:40px;padding:8px 12px;border:1px solid var(--border-control);border-radius:var(--radius-control);background:var(--bg-surface);color:var(--text-primary); }
+.ui-button:hover { background:var(--surface-hover); }
+.ui-button[data-variant="primary"] { background:var(--accent-intelligence);color:var(--text-on-accent);border-color:transparent; }
+.ui-panel { background:var(--bg-surface);border-radius:var(--radius-panel); }
+.ui-metadata { font-family:var(--font-data);font-variant-numeric:tabular-nums; }
+@media(max-width:700px) {
+  .theme-select,.ui-button,.ui-input { min-height:44px; }
+  .theme-select { width:40px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  *,*::before,*::after { scroll-behavior:auto!important;transition-duration:0s!important;animation-duration:.01ms!important;animation-iteration-count:1!important; }
+}
