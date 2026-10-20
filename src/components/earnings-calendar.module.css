@@ -4,6 +4,7 @@
 
 .agenda{scroll-margin-top:90px}
 .scheduleLabel{color:var(--ui-muted,#91a9b9)}.scheduleStatus{color:#ffc67c;font-size:inherit}.cancelledSchedule{opacity:.65}
+.countdown{display:block;margin-top:5px;color:var(--ui-muted,#80dece);font-size:11px;font-variant-numeric:tabular-nums;line-height:1.5;overflow-wrap:anywhere}.cell .countdown{font-size:9px}
 .linkedEvent { outline:2px solid #98e7d6; outline-offset:2px; }
 .validationWarning { display:inline-block;color:#ffc67c;font-size:11px;margin-top:4px; }
 .validationDetails { color:#ffc67c;font-size:12px;line-height:1.5;margin-block:8px; }

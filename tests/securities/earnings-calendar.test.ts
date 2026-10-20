@@ -59,6 +59,35 @@ test('rejects unsupported dates, quarters, time zones and archive dates; retains
   assert.throws(()=>calendarRange('2026-01-01','2026-04-01'),/range/);
 });
 
+test('normalization defaults omitted Chinese time zones to Beijing and preserves explicit zones in both validation paths',()=>{
+  const article='Example will host its third quarter fiscal 2027 earnings call on November 18, 2026 at 2:00 p.m.';
+  const cn={...source,companyId:'XSHG:600000',companyIds:['XSHG:600000']};
+  const item={...draft,timezoneText:null,dateEvidence:article,timeEvidence:'2:00 p.m.',periodEvidence:'third quarter fiscal 2027 earnings call'};
+  const run=(s:CalendarSource,event:ScheduleDraft=item,body=article)=>normalizeSchedules({events:[event]},s,body,'hash','gpt-6-luna','2026-10-02T12:00:00Z')[0];
+  assert.equal(run(cn).scheduled_at,'2026-11-18T06:00:00.000Z');
+  assert.equal(run(cn).source_timezone,'Asia/Shanghai');
+  assert.equal(run(cn).timezone_text,null);
+  assert.equal(run({...source,companyCountry:'CN'}).scheduled_at,'2026-11-18T06:00:00.000Z');
+  assert.equal(run(source).scheduled_at,null);
+  assert.equal(run(cn,{...item,timezoneText:'Pacific Time',dateEvidence:article+' Pacific Time',timeEvidence:'2:00 p.m. Pacific Time'},article+' Pacific Time').scheduled_at,'2026-11-18T22:00:00.000Z');
+  assert.equal(run(cn,{...item,time:null,timeEvidence:''}).scheduled_at,null);
+  const warned=normalizeExtractedSchedules({events:[{...item,period:null}]},cn,article,'hash','gpt-6-luna','2026-10-02T12:00:00Z').schedules[0];
+  assert.equal(warned.scheduled_at,'2026-11-18T06:00:00.000Z');
+});
+
+test('legacy US-listed Chinese calendar links use the same converted day without rewriting stored schedules',async()=>{
+  const fake=earningsFirestore(),sourceId='company_news_cn_local',id='scheduled_event_'+'a'.repeat(64),receiptId='calendar_extraction_'+'b'.repeat(64);
+  fake.rows.set('events/'+sourceId,{...source,id:sourceId,companyIds:['US:BABA'],companyId:'US:BABA',calendarExtraction:{receiptId}});
+  fake.rows.set('events/'+receiptId,{status:'complete',eventIds:[id]});
+  fake.rows.set('events/'+id,{...normalize()[0],id,companyId:'US:BABA',companyIds:['US:BABA'],scheduled_date:'2026-11-18',scheduled_at:null,local_time:'09:00',timeEvidence:'09:00',source_timezone:null,timezone_text:null,time_precision:'local',sourceEventIds:[sourceId]});
+  fake.rows.set('companies/US:BABA',{country:'CN'});
+  const before=[...fake.rows.entries()].map(([path,row])=>[path,{...row}]);
+  const db=Object.assign(fake.db,{getAll:(...refs:Array<{get:()=>Promise<unknown>}>)=>Promise.all(refs.map(ref=>ref.get()))}) as Firestore;
+  const event:IntelligenceEvent={id:'news-'+sourceId,origin:'US:BABA',companyIds:['US:BABA'],edgeIds:[],category:'BUSINESS',title:source.title,summary:'',published_at:source.published_at,publication_date:'2026-10-01',eventDate:null,planned:false,evidence:[{id:sourceId,url:source.url,title:source.title,sourceDate:'2026-10-01',channel:'IR'}]};
+  assert.equal((await attachCalendarLinks(db,[event]))[0].calendarEvents?.[0].day,'2026-11-17');
+  assert.deepEqual([...fake.rows.entries()],before);
+});
+
 test('ServiceNow close-of-market wording restores both schedules from the cached response without a paid retry',async()=>{
   const nowSource={...source,id:'company_news_now',companyId:'US:NOW',companyIds:['US:NOW'],
     title:'ServiceNow to Announce Third Quarter 2026 Financial Results on October 28',publication_date:'2026-10-07',published_at:'2026-10-07T15:00:00Z'};

@@ -12,7 +12,7 @@ import { CALENDAR_MODEL, CALENDAR_EXTRACTOR_VERSION, type CalendarSource, type S
 
 type Receipt = {status:'requesting'|'complete'|'review_required'|'failed';companyIds:string[];contentHash:string;model:string;output?:string;responseStatus?:string;attemptId:string;createdAt:string;error?:string|null;validationWarnings?:string[]};
 type SourceState = {receiptId?:string;nextCheckAtMs?:number;failures?:number;lastError?:string|null};
-type Dependencies = {now?:()=>number;download?:(source:CalendarSource)=>Promise<string>;extract?:(source:CalendarSource,text:string)=>Promise<CalendarResponse>;onPaidRequest?:()=>void;revalidateCached?:boolean};
+type Dependencies = {now?:()=>number;download?:(source:CalendarSource)=>Promise<string>;extract?:(source:CalendarSource,text:string)=>Promise<CalendarResponse>;onPaidRequest?:()=>void;revalidateCached?:boolean;companyCountries?:ReadonlyMap<string,string>};
 
 /** A paid-request intent survives crashes. An uncertain request is never retried automatically. */
 export async function processCalendarSource(db: Firestore, source: CalendarSource, options: Dependencies = {}) {
@@ -150,7 +150,10 @@ export async function collectCalendarSchedules(db: Firestore, companyIds: Set<st
   for(const doc of all) {
     if(now()+110_000>=options.deadline || result.paid>=(options.maxCalls??25)) {result.deferred++;break;}
     if(!doc.exists){processedIds.add(doc.id);continue;}
-    const source={...doc.data(),id:doc.id} as CalendarSource;result.scanned++;
+    const source={...doc.data(),id:doc.id} as CalendarSource;
+    const country=options.companyCountries?.get(source.companyId??source.companyIds?.[0]);
+    if(country)source.companyCountry=country;
+    result.scanned++;
     if(source.companyIds?.length===1 && companyIds.has(source.companyIds[0]) && ['company_ir','exchange'].includes(source.sourceType)
       && source.publication_date && source.publication_date>='2026-01-01' && isCalendarCandidate(source.title,source.summary)) {
       try {

@@ -7,6 +7,7 @@ import { validDate } from '../earnings/model';
 import { reviewedCompanyNames } from '../market-companies/reviewed-names';
 import type { CalendarItem, CalendarPayload, ScheduledEvent } from './model';
 import {changeCached} from '../change-cache';
+import { calendarInstant, sourceScheduleZone } from './time';
 
 export function calendarRange(from: string | null, to: string | null) {
   if (!validDate(from) || !validDate(to) || from! > to! || Date.parse(to!) - Date.parse(from!) > 62*86400000) throw new Error('Choose a valid date range of at most 63 days.');
@@ -32,6 +33,10 @@ async function readCalendar(from: string, to: string, db: Firestore): Promise<Ca
     const node = nodes.get(event.companyId);
     if(!node || !['official','extracted'].includes(event.confirmation))return [];
     const record=records.get(node.id);
+    const companyCountry=record?.country??node.country??event.companyCountry;
+    if(typeof companyCountry==='string')event.companyCountry=companyCountry;
+    const instant=calendarInstant(event);
+    if(!event.scheduled_at&&instant){event.scheduled_at=instant;event.source_timezone=event.source_timezone??sourceScheduleZone(event.timezone_text,event,event.timeEvidence);event.time_precision='exact';}
     const themes=activeThemeIds({themeMemberships:record?.themeMemberships});
     if(!record?.themeMemberships?.ai && !themes.includes('ai') && node.stageIds?.some(stage=>!stage.includes(':')))themes.push('ai');
     return [{...event,companyName:node.name??node.symbol??node.id,companyNames:reviewedCompanyNames(node.id,node.name??'',node.names),ticker:node.symbol||node.id.split(':')[1],themes,sector:companySector(node)}];

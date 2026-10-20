@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { localParts, scheduleInstant, sourceScheduleZone } from './time';
+export { scheduleInstant, scheduleTimezone } from './time';
 import { datesInEvidence } from '../earnings/dates';
 import { validDate } from '../earnings/model';
 import { eventDocumentId } from '../events/model';
@@ -7,38 +9,6 @@ import { CALENDAR_MODEL, type CalendarSource, type ScheduleDraft, type Scheduled
 export const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export const normalizedText = (value: string) => value.normalize('NFKC').replace(/\s+/g,' ').trim();
 
-const zones: Array<[RegExp,string]> = [
-  [/^(?:PT|PST|PDT|Pacific(?: Standard| Daylight)?(?: Time)?)$/i,'America/Los_Angeles'],
-  [/^(?:ET|EST|EDT|Eastern(?: Standard| Daylight)?(?: Time)?)$/i,'America/New_York'],
-  [/^(?:MT|MST|MDT|Mountain(?: Standard| Daylight)?(?: Time)?)$/i,'America/Denver'],
-  [/^(?:CT|CDT|Central(?: Standard| Daylight)?(?: Time)?)$/i,'America/Chicago'],
-  [/^(?:北京时间|北京時間|中国标准时间|中國標準時間|China Standard Time|CST \(China\))$/i,'Asia/Shanghai'],
-  [/^(?:HKT|Hong Kong Time|香港时间|香港時間)$/i,'Asia/Hong_Kong'],
-  [/^(?:UTC|GMT)$/i,'UTC'],
-];
-export function scheduleTimezone(value: string | null) {
-  if (!value) return null;
-  // CST alone is ambiguous; unknown labels must never manufacture a UTC instant.
-  return zones.find(([pattern]) => pattern.test(value.trim()))?.[1] ?? null;
-}
-function localParts(ms: number, zone: string) {
-  const parts = new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(ms));
-  const get = (key: string) => parts.find(p=>p.type===key)?.value;
-  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
-}
-/** Reject nonexistent and ambiguous DST times rather than choosing an offset. */
-export function scheduleInstant(day: string, time: string, zone: string) {
-  if (!validDate(day) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Invalid local schedule');
-  const desired = `${day}T${time}`, wall = Date.parse(`${desired}:00Z`);
-  const offsets = new Set<number>();
-  for (const delta of [-36,-12,0,12,36]) {
-    const point = wall + delta * 3600000;
-    offsets.add(Date.parse(`${localParts(point,zone)}:00Z`) - point);
-  }
-  const matches = [...offsets].map(offset=>wall-offset).filter(point=>localParts(point,zone)===desired);
-  if (matches.length !== 1) throw new Error('Ambiguous or nonexistent source timezone time');
-  return new Date(matches[0]).toISOString();
-}
 function literalQuote(value: unknown, text: string, required: boolean) {
   if (typeof value !== 'string' || value.length > 1500 || required && value.trim().length < 8) throw new Error('Missing schedule evidence');
   // HTML inline elements and PDF line wrapping add presentation whitespace.
@@ -132,22 +102,17 @@ export function normalizeSchedules(value: unknown, source: CalendarSource, text:
     let timezoneText = item.timezoneText;
     if (timezoneText !== null && (typeof timezoneText!=='string' || !normalizedText(timeEvidence).toLowerCase().includes(normalizedText(timezoneText).toLowerCase()))) throw new Error('Timezone evidence unavailable');
     timezoneText = pairedTimezone(timezoneText,item.time,timeEvidence);
-    const zone = scheduleTimezone(timezoneText);
+    const zone = sourceScheduleZone(timezoneText,{companyId,companyCountry:source.companyCountry},timeEvidence);
     const time = item.time;
     if (time !== null && (typeof time!=='string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) || !timeSupported(time,timeEvidence))) throw new Error('Event time is not established by the source');
-    const instant = time && zone ? scheduleInstant(day,time,zone) : null;
+    const instant = time && zone ? scheduleInstant(day,time,zone,timezoneText) : null;
     const publicationInstant=source.published_at?Date.parse(source.published_at):NaN;
     const sourcePublicationDay=Number.isFinite(publicationInstant)&&zone?localParts(publicationInstant,zone).slice(0,10):published;
     if(day<sourcePublicationDay || Date.parse(day)-Date.parse(published)>400*86400000 || instant&&Number.isFinite(publicationInstant)&&Date.parse(instant)<publicationInstant) throw new Error('Schedule outside supported publication window');
-    // Explicit standard/daylight abbreviations must agree with the dated offset.
-    if (instant && timezoneText && /^(PST|PDT|EST|EDT|MST|MDT|CDT)$/i.test(timezoneText)) {
-      const abbreviation = new Intl.DateTimeFormat('en-US',{timeZone:zone!,timeZoneName:'short'}).formatToParts(new Date(instant)).find(p=>p.type==='timeZoneName')?.value;
-      if (abbreviation !== timezoneText.toUpperCase()) throw new Error('Timezone abbreviation conflicts with event date');
-    }
     const id = eventDocumentId('scheduled_event',hash(`${companyId}|${item.period}|${item.kind}`));
     if (output.has(id)) throw new Error('Conflicting schedules for the same fiscal event');
     output.set(id,{
-      version:1,id,type:'scheduled_event',sourceType:source.sourceType,sourceId:source.sourceId,companyId,companyIds:[companyId],
+      version:1,id,type:'scheduled_event',...(source.companyCountry?{companyCountry:source.companyCountry}:{}),sourceType:source.sourceType,sourceId:source.sourceId,companyId,companyIds:[companyId],
       title:`${companyId.split(':')[1]} · ${item.period} ${item.kind==='earnings_call'?'earnings call':'earnings release'}`,
       summary:source.title,url:source.url,published_at:source.published_at,publication_date:published,
       collected_at:source.collected_at,processed_at:at,baseline:source.baseline,
@@ -183,14 +148,14 @@ export function normalizeExtractedSchedules(value:unknown,source:CalendarSource,
       const period=typeof item.period==='string'&&item.period.trim()?item.period.slice(0,100):'Unspecified';
       const time=typeof item.time==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time)?item.time:null;
       const timezoneText=typeof item.timezoneText==='string'?item.timezoneText.slice(0,100):null;
-      const zone=scheduleTimezone(timezoneText);
+      const zone=sourceScheduleZone(timezoneText,{companyId,companyCountry:source.companyCountry},item.timeEvidence??'');
       let instant:string|null=null;
-      if(time&&zone)try {instant=scheduleInstant(item.date!,time,zone);}catch(error){eventWarnings.push(error instanceof Error?error.message:'Time conversion unavailable');}
+      if(time&&zone)try {instant=scheduleInstant(item.date!,time,zone,timezoneText);}catch(error){eventWarnings.push(error instanceof Error?error.message:'Time conversion unavailable');}
       const publicationInstant=source.published_at?Date.parse(source.published_at):NaN;
       const publicationDay=Number.isFinite(publicationInstant)&&zone?localParts(publicationInstant,zone).slice(0,10):published!;
       if(item.date!<publicationDay||Date.parse(item.date!)-Date.parse(published!)>400*86400000||instant&&Number.isFinite(publicationInstant)&&Date.parse(instant)<publicationInstant)continue;
       const id=eventDocumentId('scheduled_event',hash(`${companyId}|${period==='Unspecified'?source.id:period}|${item.kind}`));
-      schedule={version:1,id,type:'scheduled_event',sourceType:source.sourceType,sourceId:source.sourceId,companyId,companyIds:[companyId],
+      schedule={version:1,id,type:'scheduled_event',...(source.companyCountry?{companyCountry:source.companyCountry}:{}),sourceType:source.sourceType,sourceId:source.sourceId,companyId,companyIds:[companyId],
         title:`${companyId.split(':')[1]} · ${period} ${item.kind==='earnings_call'?'earnings call':'earnings release'}`,
         summary:source.title,url:source.url,published_at:source.published_at,publication_date:published!,collected_at:source.collected_at,processed_at:at,baseline:source.baseline,
         eventKind:item.kind,fiscalPeriod:period,scheduled_date:item.date!,scheduled_at:instant,local_time:time,source_timezone:zone,timezone_text:timezoneText,
