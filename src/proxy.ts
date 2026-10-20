@@ -40,11 +40,13 @@ export function proxy(request: NextRequest) {
     const target = new URL(request.url);
     const retiredResearch = (plain === "/" || plain === "/map") && target.searchParams.get("view") === "filings";
     const feedAlias = plain === "/feed";
+    const followingFeedAlias = feedAlias && target.searchParams.getAll("scope").length === 1 && target.searchParams.get("scope") === "following";
     const graphAlias = plain === "/map" || plain === "/intelligence";
     if (localizable) {
-      target.pathname = localizedPath(retiredResearch || graphAlias || feedAlias ? "/" : plain, locale);
+      target.pathname = localizedPath(followingFeedAlias ? "/watchlists/following" : retiredResearch || graphAlias || feedAlias ? "/" : plain, locale);
       target.searchParams.delete("lang");
       if (retiredResearch || (feedAlias && target.searchParams.get("view") === "filings")) target.searchParams.set("view", "graph");
+      if (followingFeedAlias) target.searchParams.set("view", "updates");
       if (feedAlias) {
         const supported = new Set(["theme", "company", "q", "event", "relationship", "market", "view"]);
         for (const key of [...target.searchParams.keys()]) if (!supported.has(key)) target.searchParams.delete(key);

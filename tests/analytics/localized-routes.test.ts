@@ -39,7 +39,7 @@ test("retired Research links redirect to localized Explore with company context"
 
 test("retired Feed links preserve supported Explore filters without redirect loops", () => {
   for (const prefix of ["/en", "/zh-cn"]) {
-    const response = proxy(request(prefix + "/feed?company=US%3AAMD&theme=robotics&q=chips&type=CAPACITY&scope=following"));
+    const response = proxy(request(prefix + "/feed?company=US%3AAMD&theme=robotics&q=chips&type=CAPACITY&scope=all"));
     assert.equal(response.status, 308);
     const url = new URL(response.headers.get("location")!);
     assert.equal(url.pathname, prefix);
@@ -54,6 +54,17 @@ test("retired Feed links preserve supported Explore filters without redirect loo
   const url = new URL(response.headers.get("location")!);
   assert.equal(url.pathname, "/zh-cn");
   assert.equal(url.searchParams.get("view"), "graph");
+});
+
+test("following Feed bookmarks retain their localized watchlist updates destination", () => {
+  for (const prefix of ["/en", "/zh-cn"]) {
+    const response = proxy(request(prefix + "/feed?scope=following&filter=BUSINESS"));
+    const url = new URL(response.headers.get("location")!);
+    assert.equal(url.pathname, prefix + "/watchlists/following");
+    assert.equal(url.searchParams.get("view"), "updates");
+    assert.equal(url.searchParams.has("scope"), false);
+    assert.equal(proxy(request(url.pathname + url.search)).headers.get("location"), null);
+  }
 });
 test("auth, API, admin and assets keep their existing routes", () => {
   for (const path of ["/auth?next=%2Fpredictions", "/api/firebase-auth/identity/accounts:signUp", "/api/firebase-auth/token/token", "/admin", "/_next/static/chunk.js", "/sitemap.xml", "/robots.txt"]) {

@@ -3,6 +3,9 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { localizedMetadata } from "@/lib/ui/i18n/server";
 
+const contactEmail = "support@youanalyst.com";
+const xHandle = "knoics321";
+
 export async function generateMetadata(): Promise<Metadata> {
   const chinese = (await headers()).get("x-ya-language") === "zh-CN";
   return localizedMetadata({
@@ -53,11 +56,11 @@ export default async function AboutPage() {
         <dl className="mt-5 grid gap-4 text-sm">
           <div>
             <dt className="font-medium text-slate-200">{text("Email", "电子邮箱")}</dt>
-            <dd className="mt-1"><a href="mailto:support@youanalyst.com" className="break-all text-cyan-200 underline-offset-4 hover:underline">support@youanalyst.com</a></dd>
+            <dd className="mt-1"><a href={`mailto:${contactEmail}`} className="break-all text-cyan-200 underline-offset-4 hover:underline">{contactEmail}</a></dd>
           </div>
           <div>
             <dt className="font-medium text-slate-200">X</dt>
-            <dd className="mt-1"><a href="https://x.com/knoics321" target="_blank" rel="noopener noreferrer" className="text-cyan-200 underline-offset-4 hover:underline">@knoics321</a></dd>
+            <dd className="mt-1"><a href={`https://x.com/${xHandle}`} target="_blank" rel="noopener noreferrer" className="text-cyan-200 underline-offset-4 hover:underline">@{xHandle}</a></dd>
           </div>
         </dl>
         <Link href={`${prefix}/feedback`} className="mt-5 inline-block rounded-lg border border-cyan-400/30 px-4 py-2.5 text-sm font-medium text-cyan-200 hover:bg-cyan-400/10">{text("Send feedback", "发送反馈")}</Link>

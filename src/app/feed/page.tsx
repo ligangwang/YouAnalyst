@@ -9,6 +9,7 @@ export default async function FeedPage({ searchParams }: {
 }) {
   const locale = parseLocale((await headers()).get("x-ya-language")) ?? "en";
   const params = await searchParams;
+  if (params.scope === "following") redirect(localizedPath("/watchlists/following?view=updates", locale));
   const query = new URLSearchParams();
   for (const key of ["theme", "company", "q", "event", "relationship", "market", "view"]) {
     if (typeof params[key] === "string") query.set(key, params[key]);
