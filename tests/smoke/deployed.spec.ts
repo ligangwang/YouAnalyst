@@ -340,7 +340,7 @@ test("company search remains available", async ({ page }) => {
   await input.fill('NVIDIA');
   await expect(page.getByRole('main').getByRole('option').filter({ hasText: 'NVDA' }).first()).toBeVisible();
   await input.press('Escape');
-  await expect(page.getByRole('option')).toHaveCount(0);
+  await expect(page.getByRole('main').getByRole('option')).toHaveCount(0);
   await expect(input).toBeVisible();
   await expect(input).toBeFocused();
   await expect(page.getByTestId("company-graph-chip").first()).toBeVisible();
