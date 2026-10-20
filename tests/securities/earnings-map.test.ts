@@ -94,6 +94,12 @@ test('SEC and earnings discovery reuse one theme scope without reading relations
   registerEarningsIssuer('US:AMAT','0000006951');
   assert.equal(earningsCompany('US:AMAT').name,'Applied Materials');
   assert.throws(()=>registerEarningsIssuer('US:NEIGHBOR','0000001234'),/Unverified map/);
+  // The standalone scheduled job must use the same narrow scope without a supplied graph.
+  const standalone = await loadEarningsMap(db);
+  assert.equal(companyQueries,2);
+  assert.deepEqual(standalone.relationships,[]);
+  assert.deepEqual(usMapTickers(standalone),['AMAT','MU']);
+  assert.deepEqual(earningsCompanies().map(row=>row.companyId),['US:MU','XSHE:000063']);
 });
 
 test('earnings eligibility follows the map and verified scanner identities, never the adapter hints',async()=>{

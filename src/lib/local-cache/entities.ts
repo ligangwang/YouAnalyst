@@ -4,9 +4,9 @@ import type { Collection, RelationshipQuery } from '../central-cache/store';
 import { Watch, track } from './watch';
 
 type Group={users:number;ids:string[]; watch:Watch<Map<string,DocumentSnapshot>>};
-type Store={queryUsers:Map<string,number>;versions:Map<string,number>;queries:Map<string,Watch<Map<string,DocumentSnapshot>>>; documents:Map<string,Group>; groups:Set<Group>};
+type Store={versions:Map<string,number>;queries:Map<string,Watch<Map<string,DocumentSnapshot>>>; documents:Map<string,Group>; groups:Set<Group>};
 const stores=new WeakMap<Firestore,Store>();
-function store(db:Firestore){let value=stores.get(db);if(!value){value={queryUsers:new Map(),versions:new Map(),queries:new Map(),documents:new Map(),groups:new Set()};stores.set(db,value);}return value;}
+function store(db:Firestore){let value=stores.get(db);if(!value){value={versions:new Map(),queries:new Map(),documents:new Map(),groups:new Set()};stores.set(db,value);}return value;}
 function watchQuery(query:Query,changed:()=>void){return track(new Watch<Map<string,DocumentSnapshot>>((next,error)=>query.onSnapshot(snapshot=>{
   // Firestore broadcasts a list of added/modified/removed document IDs to every
   // instance. Its snapshot includes the new values; no getAll refresh is needed.
@@ -15,16 +15,9 @@ function watchQuery(query:Query,changed:()=>void){return track(new Watch<Map<str
 export async function localQuery(db:Firestore,key:string,query:Query,collection:string='companies'){
  const s=store(db);let watch=s.queries.get(key);
  if(!watch){watch=watchQuery(query,()=>s.versions.set(collection,(s.versions.get(collection)??0)+1));s.queries.set(key,watch);}
- s.queryUsers.set(key,(s.queryUsers.get(key)??0)+1);s.queries.delete(key);s.queries.set(key,watch);
- try{return await watch.read();}finally{
-  s.queryUsers.set(key,s.queryUsers.get(key)!-1);
-  // Crawlers must not keep all directory buckets resident in a 512 MiB website.
-  while([...s.queries.keys()].filter(key=>key.startsWith('sitemap:')).length>2){
-   const old=[...s.queries.keys()].find(key=>key.startsWith('sitemap:')&&!s.queryUsers.get(key));if(!old)break;
-   s.queries.get(old)!.close();s.queries.delete(old);s.queryUsers.delete(old);
-  }
- }
+ return watch.read();
 }
+
 async function documents(db:Firestore,collection:Collection,ids:string[]){
  const s=store(db),missing=[...new Set(ids)].filter(id=>!s.documents.has(`${collection}/${id}`));
  for(let i=0;i<missing.length;i+=30){const batch=missing.slice(i,i+30);const group={users:0,ids:batch.map(id=>`${collection}/${id}`),watch:watchQuery(db.collection(collection).where(FieldPath.documentId(),'in',batch),()=>s.versions.set(collection,(s.versions.get(collection)??0)+1))};

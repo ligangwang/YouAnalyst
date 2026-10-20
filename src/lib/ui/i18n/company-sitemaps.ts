@@ -24,7 +24,7 @@ export function companySitemapPath(id: string, data: Record<string, unknown>): s
 export function xml(value: string): string {
   return value.replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]!);
 }
-export function companySitemapXml(paths: string[]): string {
+export function companySitemapXml(paths: readonly string[]): string {
   return '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' + [...new Set(paths)].map(path => {
     const en = absoluteUrl(localizedPath(path, "en")), zh = absoluteUrl(localizedPath(path, "zh-CN"));
     const alternates = `<xhtml:link rel="alternate" hreflang="en" href="${xml(en)}"/><xhtml:link rel="alternate" hreflang="zh-CN" href="${xml(zh)}"/><xhtml:link rel="alternate" hreflang="x-default" href="${xml(en)}"/>`;

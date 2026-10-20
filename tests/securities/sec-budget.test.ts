@@ -3,6 +3,21 @@ import assert from "node:assert/strict";
 import { createSecBudget, secCooldownMs } from "../../src/lib/sec-budget";
 import { sharedFirestore } from "./shared-firestore-fixture";
 
+test("migration honors the legacy cooldown and writes only operational state", async () => {
+  const f = sharedFirestore();
+  const legacy = { cooldownUntil: f.now() + 60_000 };
+  f.documents.set("company_fundamentals/_sec_request_budget", legacy);
+  let calls = 0;
+  const budget = createSecBudget(f.db, async ms => { f.advance(ms); });
+  await assert.rejects(budget.run(new AbortController().signal, async () => { calls++; }), { code: 429 });
+  assert.equal(calls, 0);
+  f.advance(60_000);
+  await budget.run(new AbortController().signal, async () => { calls++; });
+  assert.equal(calls, 1);
+  assert.deepEqual(f.documents.get("company_fundamentals/_sec_request_budget"), legacy);
+  assert.equal(f.documents.get("sec_collector_state/_sec_request_budget")?.owner, null);
+});
+
 test("independent workers share a maximum of five starts in any rolling second", async () => {
   const f = sharedFirestore();
   const sleep = async (ms: number, signal: AbortSignal) => { signal.throwIfAborted(); f.advance(ms); };
@@ -40,7 +55,7 @@ test("coordination failure and aborted waits never reach the provider", async ()
   const f = sharedFirestore();
   let calls = 0;
   const controller = new AbortController();
-  f.documents.set("company_fundamentals/_sec_request_budget", { leaseUntil: f.now() + 30_000 });
+  f.documents.set("sec_collector_state/_sec_request_budget", { leaseUntil: f.now() + 30_000 });
   const budget = createSecBudget(f.db, async () => { controller.abort(); controller.signal.throwIfAborted(); });
   await assert.rejects(budget.run(controller.signal, async () => { calls++; }), { name: "AbortError" });
   f.db.runTransaction = async () => { throw new Error("database unavailable"); };
@@ -50,14 +65,14 @@ test("coordination failure and aborted waits never reach the provider", async ()
 
 test("abandoned leases recover only after expiry and error paths release ownership", async () => {
   const f = sharedFirestore();
-  f.documents.set("company_fundamentals/_sec_request_budget", { owner: "dead-worker", leaseUntil: f.now() + 30_000 });
+  f.documents.set("sec_collector_state/_sec_request_budget", { owner: "dead-worker", leaseUntil: f.now() + 30_000 });
   const before = f.now();
   const budget = createSecBudget(f.db, async ms => { f.advance(ms); });
   await assert.rejects(budget.run(new AbortController().signal, async () => {
     assert.ok(f.now() >= before + 30_000);
     throw new Error("decode failure");
   }), /decode failure/);
-  assert.equal(f.documents.get("company_fundamentals/_sec_request_budget")!.owner, null);
+  assert.equal(f.documents.get("sec_collector_state/_sec_request_budget")!.owner, null);
 });
 
 test("403/429 cooldowns respect Retry-After seconds and dates", () => {

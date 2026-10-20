@@ -3,9 +3,32 @@ import assert from 'node:assert/strict';
 import type {Firestore,DocumentSnapshot} from 'firebase-admin/firestore';
 import {needsHeadlineTranslation,translateHeadlines,translateCollectedHeadlines} from '../../src/lib/intelligence/collectors/headline-translations';
 import {intelligenceEventTitle} from '../../src/lib/intelligence/model';
+import {headlineQueueFields} from '../../src/lib/intelligence/collectors/headline-queue';
 const title='Broadcom Announces New AI Networks at 2026 Summit';
 const chinese='博通在 2026 年峰会上发布全新 AI 网络';
 const at=Date.parse('2026-10-08T17:00:00Z');
+test('queue flags exclude completed and held attempts and requeue changed titles',()=>{
+ const row={type:'company_news',sourceType:'company_ir',title,published_at:'2026-10-08T12:00:00Z'};
+ assert.deepEqual(headlineQueueFields(row),{headlineTranslationPending:true,headlineTranslationDate:'2026-10-08'});
+ for(const status of ['requesting','complete','review_required']){
+  const held={...row,titleTranslationState:{source:title,status}};
+  assert.equal(headlineQueueFields(held).headlineTranslationPending,false);
+  assert.equal(headlineQueueFields({...held,title:'Changed'}).headlineTranslationPending,true);
+ }
+ assert.equal(headlineQueueFields({...row,type:'company_disclosure',sourceType:'sec'}).headlineTranslationPending,false);
+});
+
+test('scheduled scans query only pending headlines for enrolled companies within thirty days',async()=>{
+ const queries:unknown[][]=[];
+ const db={collection:(name:string)=>{
+  assert.equal(name,'events');const calls:unknown[]=[];queries.push(calls);
+  const query={where:(...args:unknown[])=>{calls.push(args);return query;},orderBy:(...args:unknown[])=>{calls.push(['orderBy',...args]);return query;},limit:(n:number)=>{calls.push(['limit',n]);return query;},get:async()=>({docs:[]})};return query;
+ }} as unknown as Firestore;
+ const mapped=new Set(Array.from({length:31},(_,i)=>`US:C${i}`));
+ await translateCollectedHeadlines(db,mapped,{now:()=>at,deadline:at+150_000,translate:async()=>{throw Error('No pending documents');}});
+ assert.equal(queries.length,2);
+ for(const [i,calls] of queries.entries())assert.deepEqual(calls,[['headlineTranslationPending','==',true],['companyId','in',[...mapped].slice(i*30,i*30+30)],['headlineTranslationDate','>=','2026-09-08'],['orderBy','headlineTranslationDate','desc'],['limit',40]]);
+});
 function fake(){
  const state=new Map<string,Record<string,unknown>>([['events/news',{type:'company_news',sourceType:'company_ir',companyId:'US:AVGO',title,published_at:'2026-10-08T12:00:00Z'}]]);
  const ref=(collection:string,id:string)=>({id,path:collection+'/'+id});
@@ -35,12 +58,21 @@ test('failed or crashed paid requests are held for review rather than repeated e
  const f=fake();let calls=0;
  const options={records:f.records,now:()=>at,deadline:at+150_000,translate:async()=>{calls++;throw Error('Timeout');}};
  await translateCollectedHeadlines(f.db,new Set(['US:AVGO']),options);await translateCollectedHeadlines(f.db,new Set(['US:AVGO']),options);assert.equal(calls,1);
+ assert.equal(f.state.get('events/news')!.headlineTranslationPending,false);
  assert.equal(needsHeadlineTranslation({type:'company_news',title,titleTranslationState:{source:title,status:'requesting'}}),false);
  assert.equal(needsHeadlineTranslation({type:'company_news',title:'Changed headline',titleTranslationState:{source:title,status:'requesting'}}),true);
 });
 test('headline edited while a request runs never receives a translation for the old source',async()=>{
  const f=fake();const result=await translateCollectedHeadlines(f.db,new Set(['US:AVGO']),{records:f.records,now:()=>at,deadline:at+150_000,translate:async()=>{f.state.get('events/news')!.title='Changed';return {translations:[{id:'news',text:chinese}],model:'gpt-6-luna',responseId:'response',usage:null};}});
  assert.equal(result.translated,0);assert.equal(f.state.get('events/news')!.titleTranslations,undefined);
+ assert.equal(f.state.get('events/news')!.headlineTranslationPending,true);
+});
+
+test('stale pending flags on completed translations are cleared without provider calls',async()=>{
+ const f=fake();f.state.get('events/news')!.headlineTranslationPending=true;
+ f.state.get('events/news')!.titleTranslations={'zh-CN':{source:title,text:chinese}};
+ await translateCollectedHeadlines(f.db,new Set(['US:AVGO']),{records:f.records,now:()=>at,deadline:at+150_000,translate:async()=>{throw Error('Already translated');}});
+ assert.equal(f.state.get('events/news')!.headlineTranslationPending,false);
 });
 
 test('HTML character entities are not treated as headline years',async()=>{

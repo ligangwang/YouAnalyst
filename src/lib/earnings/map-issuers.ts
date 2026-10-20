@@ -1,6 +1,6 @@
 import type { DocumentData, Firestore } from 'firebase-admin/firestore';
 import {changeCached} from '../change-cache';
-import { loadCollectionUniverse } from '../company-themes/service';
+import { loadCollectionCompanyScope } from '../company-themes/service';
 import type { KnowledgeGraph } from '../knowledge-graph/model';
 import { mapListedCompanies } from '../events/disclosures';
 import { configureEarningsMap } from './issuers';
@@ -12,7 +12,7 @@ import { configureEarningsMap } from './issuers';
 export async function loadEarningsMap(db: Firestore, graph?: KnowledgeGraph,
   initialStates?: Map<string, DocumentData | undefined>) {
   const load = async () => {
-    const snapshot = graph ?? await loadCollectionUniverse(db);
+    const snapshot = graph ?? await loadCollectionCompanyScope(db);
     const companies = mapListedCompanies(snapshot).filter(node => node.market === 'US');
     const identities = new Map<string, string>();
     if (companies.length) {
@@ -28,7 +28,7 @@ export async function loadEarningsMap(db: Firestore, graph?: KnowledgeGraph,
   // A collector's writable checkpoints must come from this run, not a cached prior run.
   if (initialStates) initialStates.clear();
   const result = initialStates ? await load() : await changeCached(db, `earnings-issuers:${JSON.stringify(graph ?? null)}`,
-    ['companies', 'company_relationships', 'company_fundamentals', 'directory_syncs', 'collectors'], load);
+    ['companies', 'collectors'], load);
   configureEarningsMap(result.snapshot, result.identities);
   return result.snapshot;
 }

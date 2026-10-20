@@ -7,7 +7,7 @@ export function sharedFirestore() {
   let queue = Promise.resolve();
   const snapshot = (id: string) => {
     const value = { ...documents.get(id) };
-    return { data: () => value, get: (key: string) => value[key], readTime: { toMillis: () => now } };
+    return { exists: documents.has(id), data: () => value, get: (key: string) => value[key], readTime: { toMillis: () => now } };
   };
   const db = {
     collection: (collection: string) => ({ doc: (id: string) => ({ id: `${collection}/${id}`, get: async () => snapshot(`${collection}/${id}`) }) }),

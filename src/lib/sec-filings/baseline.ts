@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { seedSecCollectorMetadata } from "../sec-collector-state";
 import { isCurrentCompanyGraph } from "../company-graph/requests";
 import { inspectCompanyGraphRequest } from "../company-graph/inspection";
 import { acquireMaintenanceLease, cloudRunTaskAttempt, releaseMaintenanceLease } from "../maintenance-lease";
@@ -57,6 +58,7 @@ export async function baselineSecFilings(db: Firestore, companyId: string, log: 
   // response was lost. Recheck after acquiring the lease for concurrent finishes.
   if ((await readSecCollectorCursor(db, companyId))?.lastCompleteAt) return { ...result, status: "already-completed" };
   const metadata = secCollectorMetadata(db);
+  await seedSecCollectorMetadata(db);
   if (!await acquireMaintenanceLease(metadata, log.runId, now(), cloudRunTaskAttempt())) throw new Error("SEC filing collector is busy");
   try {
     let cursor = await readSecCollectorCursor(db, companyId);

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminFirestore } from "./firebase/admin";
+import { SEC_COLLECTOR_STATE_COLLECTION } from "./sec-collector-state";
 
 export const SEC_REQUESTS_PER_SECOND = 5;
 const SPACING_MS = 1000 / SEC_REQUESTS_PER_SECOND;
@@ -17,9 +18,8 @@ export function secCooldownMs(status: number, retryAfter: string | null, now = D
 // A single shared gate serializes outbound requests across all application replicas
 // and jobs. Spacing starts after completion, so slow requests reduce throughput;
 // delayed processes cannot spend old reservations together in a burst.
-// Reuse the existing collection; this metadata document is never pending company work.
 export function createSecBudget(db: Firestore, sleep: (ms: number, signal: AbortSignal) => Promise<void> = (ms, signal) => delay(ms, undefined, { signal })) {
-  const ref = db.collection("company_fundamentals").doc("_sec_request_budget");
+  const ref = db.collection(SEC_COLLECTOR_STATE_COLLECTION).doc("_sec_request_budget");
   return {
     async run<T>(signal: AbortSignal, work: (cooldown: (ms: number) => void) => Promise<T>): Promise<T> {
       const owner = randomUUID();
@@ -29,7 +29,9 @@ export function createSecBudget(db: Firestore, sleep: (ms: number, signal: Abort
         const wait = await db.runTransaction(async tx => {
           const snap = await tx.get(ref);
           const now = snap.readTime.toMillis(); // Shared server clock, not replica clocks.
-          const stored = snap.data();
+          const stored = snap.exists ? snap.data()
+            : (await tx.get(db.collection("company_fundamentals").doc("_sec_request_budget"))).data();
+          if (!snap.exists) tx.set(ref, stored ?? {});
           if (Number(stored?.cooldownUntil) > now) {
             throw Object.assign(new Error("SEC shared cooldown is active"), { code: 429 });
           }
