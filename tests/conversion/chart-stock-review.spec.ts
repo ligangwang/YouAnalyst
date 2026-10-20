@@ -64,6 +64,42 @@ for(const chinese of [false,true])test(`grouped stock sectors show sourced Micro
  await expect(page.locator('[data-company-timeline="US:SNDK"]')).toBeVisible();
 });
 
+for(const chinese of [false,true])test(`stock tools can be dragged by mouse or touch and stay within the fullscreen viewport (${chinese?'Chinese':'English'})`,async({page,isMobile})=>{
+ await open(page,chinese?'&lang=zh-CN':'',false,false);
+ await page.getByRole('button',{name:chinese?'全屏':'Full screen',exact:true}).click();
+ await page.locator('[data-company-timeline] svg[role=img]').click({button:'right'});
+ const tools=page.getByRole('dialog',{name:(chinese?'股票工具':'Stock tools')+' · AMD',exact:true});
+ const handle=tools.getByRole('group',{name:chinese?'移动窗口':'Move window',exact:true});
+ const before=(await tools.boundingBox())!,header=(await handle.boundingBox())!;
+ const start={x:header.x+45,y:header.y+header.height/2};
+ if(isMobile){
+  const session=await page.context().newCDPSession(page);
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[start]});
+  await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:start.x,y:start.y+80}]});
+  await expect.poll(async()=>(await tools.boundingBox())!.y).toBeGreaterThan(before.y+30);
+  await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:0,y:0}]});
+  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await session.detach();
+ }else{
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(0,0,{steps:8});await page.mouse.up();
+ }
+ const moved=(await tools.boundingBox())!;
+ expect(moved.x).toBeCloseTo(12,0);expect(moved.y).toBeCloseTo(12,0);
+ if(!isMobile)expect(Math.abs(moved.x-before.x)+Math.abs(moved.y-before.y)).toBeGreaterThan(10);
+ await handle.focus();await handle.press('ArrowDown');await handle.press('Shift+ArrowDown');
+ await expect.poll(async()=>(await tools.boundingBox())!.y).toBeCloseTo(52,0);
+ await tools.getByRole('button',{name:'MACD',exact:true}).click();
+ await expect(tools.getByRole('button',{name:'MACD',exact:true})).toHaveAttribute('aria-pressed','true');
+ expect((await tools.boundingBox())!.y).toBeCloseTo(52,0);
+ expect(await tools.evaluate(el=>!!el.closest('[data-chart-size="full"]'))).toBe(true);
+ await page.setViewportSize({width:320,height:600});
+ await expect.poll(async()=>{
+  const box=(await tools.boundingBox())!;return box.x>=11&&box.y>=11&&box.x+box.width<=309&&box.y+box.height<=589;
+ }).toBe(true);
+ await tools.getByRole('button',{name:chinese?'关闭股票工具':'Close stock tools',exact:true}).click();
+ await expect(tools).toHaveCount(0);
+});
+
 test('watchlist panel is hidden by default and only the chart-menu checkbox enables it',async({page})=>{
  const writes=await open(page,'',false,false);
  const review=page.getByRole('region',{name:'Watchlist review',exact:true});

@@ -40,7 +40,7 @@ for(const prefix of ["en","zh-cn"])for(const slug of ["hbm-supply","ai-infrastru
     await expect(page.getByRole("heading",{level:1})).toBeVisible();
     await expect(page.getByRole("article")).toHaveCount(4);
     await expect(page.getByText(prefix === "en" ? "Source limitations:" : "来源边界：",{exact:true})).toHaveCount(4);
-    await expect(page.getByRole("link",{name:prefix === "en" ? "Track sourced updates in your watchlist" : "通过自选股追踪有来源的更新",exact:true})).toHaveAttribute("href",`/${prefix}/feed?scope=following`);
+    await expect(page.getByRole("link",{name:prefix === "en" ? "Track sourced updates in your watchlist" : "通过自选股追踪有来源的更新",exact:true})).toHaveAttribute("href",`/${prefix}/watchlists/following?view=updates`);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({path:info.outputPath(`${slug}-${prefix}.png`),fullPage:true});
   });
@@ -67,7 +67,7 @@ for (const [slug, english, chinese] of [
     await page.getByRole("button", { name: "Switch fixture language", exact: true }).click();
     await expect(page.getByRole("heading", { name: chinese, exact: true })).toBeVisible();
     await expect(page.getByText("来源边界：", { exact: true })).toHaveCount(4);
-    await expect(page.getByRole("link", { name: "通过自选股追踪有来源的更新", exact: true })).toHaveAttribute("href", "/zh-cn/feed?scope=following");
+    await expect(page.getByRole("link", { name: "通过自选股追踪有来源的更新", exact: true })).toHaveAttribute("href", "/zh-cn/watchlists/following?view=updates");
     await page.getByRole("button", { name: "Switch fixture language", exact: true }).click();
     await expect(page.getByRole("heading", { name: english, exact: true })).toBeVisible();
     await expect(page.getByText("Source limitations:", { exact: true })).toHaveCount(4);

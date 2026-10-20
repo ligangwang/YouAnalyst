@@ -30,7 +30,7 @@ test.beforeAll(async () => {
           const following = pathname === "/watchlists/following" || pathname === "/feed" && scopes.length === 1 && scopes[0] === "following";
           const element = pathname === "/auth"
             ? await AuthRoutePage({ searchParams: Promise.resolve({ next: url.searchParams.get("next") ?? undefined, mode: url.searchParams.get("mode") ?? undefined }) })
-            : following ? <FollowedCompaniesPage key={url.pathname} feed={pathname === "/feed"} /> : <p>Destination reached</p>;
+            : following ? <FollowedCompaniesPage key={url.pathname} feed={pathname === "/feed" || url.searchParams.get("view") === "updates"} /> : <p>Destination reached</p>;
           root.render(<LocaleProvider locale={locale}>{element}</LocaleProvider>);
         }
         window.addEventListener("route-change", () => void render());
@@ -70,7 +70,7 @@ for (const view of ["Companies", "Updates"] as const) {
       await page.addInitScript(googleNew => { window.authScenario = { googleNew }; }, method === "google-new");
       await page.goto(origin + "/en/watchlists/following");
       if (view === "Updates") await page.getByRole("button", { name: view, exact: true }).click();
-      const destination = view === "Updates" ? "/en/feed?scope=following" : "/en/watchlists/following";
+      const destination = view === "Updates" ? "/en/watchlists/following?view=updates" : "/en/watchlists/following";
       const link = page.getByRole("link", { name: "Sign in / create account" });
       await expect(link).toHaveAttribute("href", `/auth?${new URLSearchParams({ next: destination })}`);
       await link.click();
@@ -137,11 +137,11 @@ test("canceling Google auth and Back/Forward keep the research continuation avai
   await expect(page).toHaveURL(authUrl);
   await page.evaluate(() => { window.authScenario = {}; });
   await page.getByRole("button", { name: "Continue with Google", exact: true }).click();
-  await expect(page).toHaveURL(origin + "/en/feed?scope=following");
+  await expect(page).toHaveURL(origin + "/en/watchlists/following?view=updates");
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Signed in", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page).toHaveURL(origin + "/en/feed?scope=following");
+  await expect(page).toHaveURL(origin + "/en/watchlists/following?view=updates");
 });
 
 test("email auth failure, mode switches and retry retain the full research destination", async ({ page }) => {

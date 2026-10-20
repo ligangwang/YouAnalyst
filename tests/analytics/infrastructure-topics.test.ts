@@ -55,7 +55,7 @@ test("both topic pages server-render sources, conceptual visuals, caveats and lo
     assert(html.includes(topic.title[chinese ? "zh" : "en"]));
     assert(html.includes(`dateTime="${RESEARCH_REVIEWED}"`));
     assert(html.includes(chinese ? "来源边界" : "Source limitations"));
-    assert(html.includes(chinese ? "/zh-cn/feed?scope=following" : "/en/feed?scope=following"));
+    assert(html.includes(chinese ? "/zh-cn/watchlists/following?view=updates" : "/en/watchlists/following?view=updates"));
     for (const row of topic.evidence) assert(html.includes(topicSources[row.source].url));
     assert.doesNotMatch(html, /Not yet in the company directory/);
   }

@@ -26,6 +26,14 @@ export function FloatingEventWindow({anchor,title,children,onClose,closeLabel,ro
   useLayoutEffect(()=>{close.current=onClose;},[onClose]);
   useLayoutEffect(()=>{
     const element=root.current;if(!mounted||!element)return;
+    const handle=element.querySelector('header')!;
+    let moved=false,position={x:0,y:0};
+    let drag:{id:number;x:number;y:number;left:number;top:number}|null=null;
+    const moveTo=(x:number,y:number)=>{
+      const rect=element.getBoundingClientRect();
+      position={x:Math.max(12,Math.min(innerWidth-rect.width-12,x)),y:Math.max(12,Math.min(innerHeight-rect.height-12,y))};
+      element.style.left=`${position.x}px`;element.style.top=`${position.y}px`;
+    };
     const place=()=>{
       const width=Math.min(380,innerWidth-24);
       element.style.width=`${width}px`;
@@ -34,11 +42,35 @@ export function FloatingEventWindow({anchor,title,children,onClose,closeLabel,ro
       const x=anchor?.x??innerWidth-width-26,y=anchor?.y??48;
       const left=x+14+width<=innerWidth-12?x+14:x-width-14;
       const top=y+14+height<=innerHeight-12?y+14:y-height-14;
-      element.style.left=`${Math.max(12,Math.min(innerWidth-width-12,left))}px`;
-      element.style.top=`${Math.max(12,Math.min(innerHeight-height-12,top))}px`;
+      moveTo(moved?position.x:left,moved?position.y:top);
     };
     place();(focusClose?element.querySelector<HTMLElement>('header button'):element)?.focus({preventScroll:true});
     const observer=new ResizeObserver(place);observer.observe(element);
+    const start=(event:PointerEvent)=>{
+      if(event.button!==0||!event.isPrimary||(event.target instanceof Element&&event.target.closest('button,a,input,select,textarea')))return;
+      event.preventDefault();event.stopPropagation();
+      const rect=element.getBoundingClientRect();
+      drag={id:event.pointerId,x:event.clientX,y:event.clientY,left:rect.left,top:rect.top};
+      handle.setPointerCapture(event.pointerId);handle.focus({preventScroll:true});element.dataset.dragging='true';
+    };
+    const move=(event:PointerEvent)=>{
+      if(!drag||event.pointerId!==drag.id)return;
+      event.preventDefault();event.stopPropagation();moved=true;
+      moveTo(drag.left+event.clientX-drag.x,drag.top+event.clientY-drag.y);
+    };
+    const stop=(event:PointerEvent)=>{
+      if(!drag||event.pointerId!==drag.id)return;
+      const id=drag.id;drag=null;delete element.dataset.dragging;
+      if(handle.hasPointerCapture(id))handle.releasePointerCapture(id);
+    };
+    const nudge=(event:KeyboardEvent)=>{
+      if(event.target!==handle||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+      event.preventDefault();event.stopPropagation();moved=true;
+      const step=event.shiftKey?30:10;
+      moveTo(position.x+(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0),position.y+(event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0));
+    };
+    handle.addEventListener('pointerdown',start);handle.addEventListener('pointermove',move);
+    handle.addEventListener('pointerup',stop);handle.addEventListener('pointercancel',stop);handle.addEventListener('lostpointercapture',stop);handle.addEventListener('keydown',nudge);
     const dismiss=(event:PointerEvent)=>{
       if(event.target instanceof Element&&event.target.closest('[data-event-trigger]'))return;
       if(event.target instanceof Node&&!element.contains(event.target)&&!anchor?.trigger?.contains(event.target))close.current();
@@ -50,12 +82,17 @@ export function FloatingEventWindow({anchor,title,children,onClose,closeLabel,ro
     };
     document.addEventListener('pointerdown',dismiss,true);document.addEventListener('keydown',keyboard);
     window.addEventListener('resize',place);
-    return()=>{observer.disconnect();document.removeEventListener('pointerdown',dismiss,true);document.removeEventListener('keydown',keyboard);window.removeEventListener('resize',place);};
+    return()=>{
+      observer.disconnect();document.removeEventListener('pointerdown',dismiss,true);document.removeEventListener('keydown',keyboard);window.removeEventListener('resize',place);
+      handle.removeEventListener('pointerdown',start);handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',stop);handle.removeEventListener('pointercancel',stop);handle.removeEventListener('lostpointercapture',stop);handle.removeEventListener('keydown',nudge);
+      if(drag&&handle.hasPointerCapture(drag.id))handle.releasePointerCapture(drag.id);
+      delete element.dataset.dragging;
+    };
   },[mounted,anchor,focusClose]);
   if(!mounted)return null;
   const host=anchor?.host?.isConnected?anchor.host:document.body;
   return createPortal(<section ref={root} role={role} aria-modal={role==='dialog'?false:undefined} aria-label={title} tabIndex={-1} data-event-window data-event-chooser={role==='group'||undefined} className={styles.window}>
-    <header><strong>{title}</strong><button type="button" aria-label={closeLabel??text('Close event details','关闭事件详情')} onClick={()=>{onClose();if(anchor?.trigger?.isConnected)anchor.trigger.focus({preventScroll:true});}}>×</button></header>
+    <header tabIndex={0} role="group" aria-label={text('Move window','移动窗口')} title={text('Drag to move · Arrow keys to move','拖动移动 · 方向键移动')}><strong>{title}</strong><button type="button" aria-label={closeLabel??text('Close event details','关闭事件详情')} onClick={()=>{onClose();if(anchor?.trigger?.isConnected)anchor.trigger.focus({preventScroll:true});}}>×</button></header>
     <div className={styles.body}>{children}</div>
   </section>,host);
 }

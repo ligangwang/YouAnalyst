@@ -15,6 +15,12 @@ export async function verifyCandidate({url, revision, commit, request=fetch}) {
     assert(html.length > 1000 && /<html/i.test(html), `Candidate ${path} did not return an application page`);
     assert(!/The requested URL was not found on this server/.test(html));
   }
+  for (const [path, headline] of [['/en/about', 'Understand the companies behind your investments.'], ['/zh-cn/about', '了解你所投资的公司。']]) {
+    const response = await request(`${url}${path}`, {signal:AbortSignal.timeout(60000)});
+    assert.equal(response.status, 200, `Candidate ${path} failed; existing traffic stays unchanged`);
+    const html = await response.text();
+    assert(html.includes(headline) && html.includes('mailto:support@youanalyst.com') && html.includes('https://x.com/knoics321'), `Candidate ${path} is missing About us content or contact links`);
+  }
   const comparisonPage = await request(`${url}/en/compare`, {signal:AbortSignal.timeout(60000)});
   assert.equal(comparisonPage.status, 200, 'Candidate comparison page failed; existing traffic stays unchanged');
   const comparisonHtml = await comparisonPage.text();

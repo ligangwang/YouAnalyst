@@ -41,10 +41,9 @@ export default function HowItWorksPage() {
 
       <section aria-labelledby="research-heading" className="border-b border-white/10 py-6">
         <h2 id="research-heading" className="font-[var(--font-sora)] text-xl font-semibold text-cyan-100"><UiText text={"Research"} /></h2>
-        <div className="mt-4 grid gap-6 md:grid-cols-3">
+        <div className="mt-4 grid gap-6 md:grid-cols-2">
           <div><h3 className="text-lg font-semibold text-cyan-100"><UiText text={"Explore connections"} /></h3><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Search for a company or choose one on the map. Use List view on a small screen, then select a relationship to inspect its sources."} /></p><Link href="/?company=NVDA" className="mt-3 inline-block text-cyan-200 underline"><UiText text={"Explore NVIDIA"} /></Link></div>
           <div><h3 className="text-lg font-semibold text-cyan-100"><UiText text={"Assess the sources"} /></h3><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Connections come from AI-assisted filing extraction and reviewed industry research. Check the linked source, date and company identity. Coverage is incomplete; an older source does not establish whether a relationship remains active."} /></p></div>
-          <div><h3 className="text-lg font-semibold text-cyan-100"><UiText text={"Read the deep-dives"} /></h3><p className="mt-2 text-sm leading-6 text-slate-300"><UiText text={"Research deep-dives follow one ecosystem or bottleneck and separate what has shipped from what is only announced."} /></p><Link href="/research" className="mt-3 inline-block text-cyan-200 underline"><UiText text={"Research deep-dives"} /></Link></div>
         </div>
       </section>
 

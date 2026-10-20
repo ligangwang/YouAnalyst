@@ -150,12 +150,15 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     <h1 className="sr-only">{text("Stock performance playback", "股票表现回放")}</h1>
     {!embedded && featured && comparePath(styledConfig()) === comparePath(featured.comparison.config) && <ComparisonCredit post={featured}/>}
     {!embedded && <section ref={editor} id="comparison-editor" className={styles.editor} aria-label={text("Edit comparison", "编辑对比")}>
-      <button type="button" className={styles.editorSummary} aria-label={text("Selected stocks", "所选股票")} aria-expanded={editorOpen} aria-controls="comparison-settings" onClick={() => setEditorOpen(value => !value)}>
+      <details open={editorOpen} onToggle={event => setEditorOpen(event.currentTarget.open)}>
+      <summary className={styles.editorSummary} aria-label={text("Selected stocks", "所选股票")} aria-expanded={editorOpen} aria-controls="comparison-settings">
+        <span className={styles.editorSummaryContent}>
         <span className={styles.editorTitle}>{text("Selected stocks", "所选股票")} <small>{draft.symbols.length} / 10</small></span>
         <span className={styles.editorSelection}>{draft.symbols.join(" · ") || text("Choose stocks", "选择股票")}{dirty && <em>{text("Not applied", "待应用")}</em>}</span>
-        <span className={styles.editorRange}>{draft.start} → {draft.end}</span><span className={styles.editorChevron} aria-hidden="true">⌄</span>
-      </button>
-      <div id="comparison-settings" className={styles.editorBody} hidden={!editorOpen}>
+        <span className={styles.editorRange}>{draft.start} → {draft.end}</span>
+        </span>
+      </summary>
+      <div id="comparison-settings" className={styles.editorBody}>
       <div className={styles.chips}>{draft.symbols.map(symbol => <button key={symbol} type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><i style={{ background: linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light") }}/>{symbol}<span aria-hidden="true">×</span></button>)}</div>
       <div className={styles.settings}>
         <div className={styles.search}><span>{text("Add a stock", "添加股票")}</span><CompanySearch inline owner="chart" typeToSearch={false} clearOnSelect onSelect={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)}/></div>
@@ -165,9 +168,10 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       </div>
       <div className={styles.presets}><span>{text("Quick range", "快捷区间")}</span>{[1, 3, MAX_PLAYBACK_YEARS].map(years => <button type="button" key={years} onClick={() => setDraft({ ...draft, start: playbackStartDate(draft.end || initial.end, years) })}>{years}Y</button>)}<span>{text("Up to 5 years · Available from Dec 31, 2020", "最长 5 年 · 数据始于 2020 年 12 月 31 日")}</span>{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
       </div>
+      </details>
     </section>}
     {!embedded && <p className={styles.notice} role="status">{notice}</p>}
-    {!embedded && <CompareCustomization preferences={preferences} symbols={applied.symbols} style={style} light={displayTheme === "light"} colors={linkColors} next={localizedPath(comparePath(styledConfig()), locale)} onChange={next => {
+    {!embedded && <CompareCustomization preferences={preferences} symbols={draft.symbols} style={style} light={displayTheme === "light"} colors={linkColors} next={localizedPath(comparePath(styledConfig()), locale)} onChange={next => {
       preferences.change(next); setLinkColors({}); setShareUrl(""); setShareNotice(""); setShowEmbed(false);
       // Remove the previous shared palette; new share links capture the preview.
       window.history.replaceState(null, "", localizedPath(comparePath({ symbols: applied.symbols, start: applied.start, end: applied.end, style }), locale));

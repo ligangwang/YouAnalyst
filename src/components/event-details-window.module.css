@@ -1,5 +1,7 @@
 .window{position:fixed;z-index:5200;box-sizing:border-box;max-width:calc(100vw - 24px);border:1px solid var(--ui-muted,#79cfe9);border-radius:10px;background:var(--ui-surface,#102638);color:var(--ui-text,#dbeaf6);box-shadow:0 8px 30px #0005;overflow:auto;overscroll-behavior:contain;font-size:13px;line-height:1.5;}
-.window>header{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;background:var(--ui-surface,#102638);border-bottom:1px solid var(--ui-line,#30485a);z-index:1;}
+.window>header{position:sticky;top:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;background:var(--ui-surface,#102638);border-bottom:1px solid var(--ui-line,#30485a);z-index:1;cursor:grab;touch-action:none;user-select:none;}
+.window[data-dragging=true]>header{cursor:grabbing;}
+.window>header:focus-visible{outline:2px solid var(--selection-outline,#79cfe9);outline-offset:-2px;}
 .window button{background:transparent;color:inherit;border:0;min-width:32px;min-height:32px;font-size:20px;cursor:pointer;}
 .body{padding:12px;}
 .body h2{font-size:16px;line-height:1.4;margin:8px 0;}

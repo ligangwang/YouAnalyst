@@ -39,12 +39,19 @@ export function proxy(request: NextRequest) {
     const localizable = isLocalizedPage(plain);
     const target = new URL(request.url);
     const retiredResearch = (plain === "/" || plain === "/map") && target.searchParams.get("view") === "filings";
-    const graphAlias = (plain === "/map" || plain === "/intelligence") && target.searchParams.get("view") !== "filings";
+    const feedAlias = plain === "/feed";
+    const followingFeedAlias = feedAlias && target.searchParams.getAll("scope").length === 1 && target.searchParams.get("scope") === "following";
+    const graphAlias = plain === "/map" || plain === "/intelligence";
     if (localizable) {
-      target.pathname = localizedPath(retiredResearch ? "/feed" : graphAlias ? "/" : plain, locale);
+      target.pathname = localizedPath(followingFeedAlias ? "/watchlists/following" : retiredResearch || graphAlias || feedAlias ? "/" : plain, locale);
       target.searchParams.delete("lang");
-      if (retiredResearch) target.search = "";
-      if ((plain === "/" || graphAlias) && target.searchParams.get("market") === "ALL") target.searchParams.delete("market");
+      if (retiredResearch || (feedAlias && target.searchParams.get("view") === "filings")) target.searchParams.set("view", "graph");
+      if (followingFeedAlias) target.searchParams.set("view", "updates");
+      if (feedAlias) {
+        const supported = new Set(["theme", "company", "q", "event", "relationship", "market", "view"]);
+        for (const key of [...target.searchParams.keys()]) if (!supported.has(key)) target.searchParams.delete(key);
+      }
+      if ((plain === "/" || graphAlias || feedAlias) && target.searchParams.get("market") === "ALL") target.searchParams.delete("market");
       if (target.pathname !== request.nextUrl.pathname || target.search !== request.nextUrl.search) {
         const response = NextResponse.redirect(target, prefix || explicit ? 308 : 307);
         response.headers.set("Cache-Control", "private, no-store");

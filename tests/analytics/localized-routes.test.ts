@@ -20,20 +20,51 @@ test("explicit language path overrides visitor cookie and forwards locale", () =
   assert.equal(response.headers.get("location"), null);
   assert.equal(response.headers.get("x-middleware-request-x-ya-language"), "zh-CN");
 });
-test("retired Research links redirect to localized Feed without stale graph filters", () => {
+test("retired Research links redirect to localized Explore with company context", () => {
   assert.equal(new URL(proxy(request("/en?market=ALL")).headers.get("location")!).pathname, "/en");
   for (const prefix of ["/en", "/zh-cn"]) {
     for (const alias of ["", "/map"]) {
       const response = proxy(request(prefix + alias + "?view=filings&company=AMD&market=US&q=chip"));
       assert.equal(response.status, 308);
       const url = new URL(response.headers.get("location")!);
-      assert.equal(url.pathname, prefix + "/feed");
-      assert.equal(url.search, "");
-      assert.equal(proxy(request(url.pathname)).headers.get("location"), null);
+      assert.equal(url.pathname, prefix);
+      assert.equal(url.searchParams.get("view"), "graph");
+      assert.equal(url.searchParams.get("company"), "AMD");
+      assert.equal(proxy(request(url.pathname + url.search)).headers.get("location"), null);
     }
   }
   const legacy = proxy(request("/map?view=filings", "ya-language=zh-CN"));
-  assert.equal(new URL(legacy.headers.get("location")!).pathname, "/zh-cn/feed");
+  assert.equal(new URL(legacy.headers.get("location")!).pathname, "/zh-cn");
+});
+
+test("retired Feed links preserve supported Explore filters without redirect loops", () => {
+  for (const prefix of ["/en", "/zh-cn"]) {
+    const response = proxy(request(prefix + "/feed?company=US%3AAMD&theme=robotics&q=chips&type=CAPACITY&scope=all"));
+    assert.equal(response.status, 308);
+    const url = new URL(response.headers.get("location")!);
+    assert.equal(url.pathname, prefix);
+    assert.equal(url.searchParams.get("company"), "US:AMD");
+    assert.equal(url.searchParams.get("theme"), "robotics");
+    assert.equal(url.searchParams.get("q"), "chips");
+    assert.equal(url.searchParams.has("type"), false);
+    assert.equal(url.searchParams.has("scope"), false);
+    assert.equal(proxy(request(url.pathname + url.search)).headers.get("location"), null);
+  }
+  const response = proxy(request("/feed?view=filings", "ya-language=zh-CN"));
+  const url = new URL(response.headers.get("location")!);
+  assert.equal(url.pathname, "/zh-cn");
+  assert.equal(url.searchParams.get("view"), "graph");
+});
+
+test("following Feed bookmarks retain their localized watchlist updates destination", () => {
+  for (const prefix of ["/en", "/zh-cn"]) {
+    const response = proxy(request(prefix + "/feed?scope=following&filter=BUSINESS"));
+    const url = new URL(response.headers.get("location")!);
+    assert.equal(url.pathname, prefix + "/watchlists/following");
+    assert.equal(url.searchParams.get("view"), "updates");
+    assert.equal(url.searchParams.has("scope"), false);
+    assert.equal(proxy(request(url.pathname + url.search)).headers.get("location"), null);
+  }
 });
 test("auth, API, admin and assets keep their existing routes", () => {
   for (const path of ["/auth?next=%2Fpredictions", "/api/firebase-auth/identity/accounts:signUp", "/api/firebase-auth/token/token", "/admin", "/_next/static/chunk.js", "/sitemap.xml", "/robots.txt"]) {

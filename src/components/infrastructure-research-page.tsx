@@ -13,12 +13,12 @@ export function InfrastructureResearchPage({ topic }: { topic: ResearchTopic }) 
   const lang = chinese ? "zh" : "en", prefix = chinese ? "/zh-cn" : "/en";
   const text = (en: string, zh: string) => chinese ? zh : en;
   return <main className={styles.section}>
-    <a href={`${prefix}/research`}>← {text("Research deep-dives", "研究专题")}</a>
+    <a href={`${prefix}/?view=graph`}>← {text("Explore", "探索")}</a>
     <h1>{topic.title[lang]}</h1>
     <p>{topic.summary[lang]}</p>
     <p className={styles.muted}>{text("Sources reviewed", "来源复核")}: <time dateTime={RESEARCH_REVIEWED}>{RESEARCH_REVIEWED}</time> · {text("Statements below retain the dates and scope of their sources.", "以下陈述保留原始来源的日期与范围。")}</p>
     <p>{topic.framing[lang]}</p>
-    <div className={styles.actions}><a href={`${prefix}/feed?scope=following`}>{text("Track sourced updates in your watchlist", "通过自选股追踪有来源的更新")}</a><ShareResearchView /></div>
+    <div className={styles.actions}><a href={`${prefix}/watchlists/following?view=updates`}>{text("Track sourced updates in your watchlist", "通过自选股追踪有来源的更新")}</a><ShareResearchView /></div>
     <section aria-label={topic.diagramTitle[lang]}>
       <h2>{topic.diagramTitle[lang]}</h2>
       <ol className={`${styles.grid} ${styles.flow}`}>{topic.steps.map(step => <li className={styles.card} key={step.title.en}><strong>{step.title[lang]}</strong><p>{step.detail[lang]}</p></li>)}</ol>

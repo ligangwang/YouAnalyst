@@ -1,41 +1,19 @@
-import { FollowedCompaniesPage } from "@/components/followed-companies-page";
-import { localizedMetadata } from "@/lib/ui/i18n/server";
-import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
-import { companyUpdates } from "@/lib/knowledge-graph/company-updates";
-import { curatedEvents } from "@/lib/knowledge-graph/curated-events";
-import { ResearchUpdateFeed } from "@/components/research-update-feed";
+import { parseLocale } from "@/lib/locale";
+import { localizedPath } from "@/lib/ui/i18n/urls";
 
-export const dynamic = "force-dynamic";
-
-const pageMetadata: Metadata = {
-  title: "Company research updates | YouAnalyst",
-  description: "Explore sourced AI supply-chain developments and research source updates.",
-  alternates: {
-    canonical: "/feed",
-  },
-  openGraph: {
-    title: "Company research updates | YouAnalyst",
-    description: "Explore sourced AI supply-chain developments and research source updates.",
-    url: "/feed",
-  },
-  twitter: {
-    title: "Company research updates | YouAnalyst",
-    description: "Explore sourced AI supply-chain developments and research source updates.",
-  },
-};
-
-export async function generateMetadata(): Promise<Metadata> { return localizedMetadata(pageMetadata); }
-
-export default async function Home({ searchParams }: { searchParams: Promise<{ company?: string | string[]; type?: string | string[]; scope?: string | string[] }> }) {
-  const { company, scope } = await searchParams;
-  if (scope === "following") return <FollowedCompaniesPage feed />;
-  const ticker = typeof company === "string" ? company : "";
-  if (ticker) redirect(`/map?company=${encodeURIComponent(ticker)}`);
-  {
-    const graph = await loadKnowledgeGraph().catch(() => null);
-    const items = graph ? companyUpdates(graph, graph.nodes.filter(n => n.kind === "COMPANY").map(n => n.id), curatedEvents) : [];
-    return <ResearchUpdateFeed graph={graph} items={items} />;
+// Compatibility for bookmarks: Explore now contains the feed.
+export default async function FeedPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const locale = parseLocale((await headers()).get("x-ya-language")) ?? "en";
+  const params = await searchParams;
+  if (params.scope === "following") redirect(localizedPath("/watchlists/following?view=updates", locale));
+  const query = new URLSearchParams();
+  for (const key of ["theme", "company", "q", "event", "relationship", "market", "view"]) {
+    if (typeof params[key] === "string") query.set(key, params[key]);
   }
+  if (query.get("view") === "filings") query.set("view", "graph");
+  redirect(`${localizedPath("/", locale)}${query.size ? "?" + query : ""}`);
 }

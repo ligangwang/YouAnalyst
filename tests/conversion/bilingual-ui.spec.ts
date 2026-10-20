@@ -114,7 +114,8 @@ for (const language of ["en", "zh-CN"]) test(`AI navigation keeps secondary tool
  const menu=page.locator("header details").first();
  await expect(menu.getByRole("link")).toHaveCount(0);
  await menu.locator("summary").click();
- await expect(menu.getByRole("link",{name:language === "en" ? "Feed" : "动态",exact:true})).toHaveAttribute("href",language === "en" ? "/en/feed" : "/zh-cn/feed");
+ await expect(menu.getByRole("link",{name:language === "en" ? "About us" : "关于我们",exact:true})).toHaveAttribute("href",language === "en" ? "/en/about" : "/zh-cn/about");
+ await expect(menu.getByRole("link",{name:language === "en" ? "Feed" : "动态",exact:true})).toHaveCount(0);
  await expect(menu.getByRole("link",{name:language === "en" ? "Institutions" : "机构",exact:true})).toHaveCount(0);
  await expect(menu.getByRole("link",{name:language === "en" ? "Admin" : "管理",exact:true})).toHaveCount(0);
  await menu.locator("summary").press("Escape");
