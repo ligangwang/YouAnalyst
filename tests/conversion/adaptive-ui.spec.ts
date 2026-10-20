@@ -27,16 +27,16 @@ test.beforeAll(async()=>{
   `,{jsx:'automatic',plugins:[{name:'isolated-auth',setup(build){build.onResolve({filter:/auth-provider$/},()=>({path:path.resolve('tests/conversion/fixtures/mocks.tsx')}));}}],alias:{'next/navigation':path.resolve('tests/conversion/fixtures/mocks.tsx'),'next/link':path.resolve('tests/conversion/fixtures/mocks.tsx')}},css+'body{margin:0;padding:16px}#graph{max-width:900px}#chart{background:var(--bg-surface);margin-top:16px}');
 });
 
-test('light node materials survive a graph-data update that replaces shader uniforms',async({page})=>{
+test('dark universe node materials survive a graph-data update in light site mode',async({page})=>{
   await page.emulateMedia({reducedMotion:'reduce',colorScheme:'light'});
   await page.route('**/*',route=>route.request().isNavigationRequest()?route.fulfill({contentType:'text/html',body:html}):route.fulfill({status:404}));
   await page.goto('http://adaptive-ui.test/en?view=graph');
-  await expect.poll(()=>page.evaluate(()=>window.graphSnapshot?.()?.light)).toBe(1);
+  await expect.poll(()=>page.evaluate(()=>window.graphSnapshot?.()?.light)).toBe(0);
   const before=await page.evaluate(()=>window.graphSnapshot!());
   const canvas=await page.locator('#graph canvas').elementHandle();
   await page.getByRole('button',{name:'Update graph',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.graphSnapshot?.()?.radius)).not.toBe(before!.radius);
-  await expect.poll(()=>page.evaluate(()=>window.graphSnapshot?.()?.light)).toBe(1);
+  await expect.poll(()=>page.evaluate(()=>window.graphSnapshot?.()?.light)).toBe(0);
   expect(await canvas!.evaluate(el=>el===document.querySelector('#graph canvas'))).toBe(true);
   expect((await page.evaluate(()=>window.graphSnapshot!()))!.context).toBe(false);
 });
@@ -60,7 +60,7 @@ test('theme switches preserve selected company, camera, graph geometry and chart
   const before=await snapshot();expect(before.light).toBe(0);
   const url=page.url();
   const select=page.getByLabel('Appearance');await select.focus();await select.selectOption('light');
-  await expect.poll(async()=>(await snapshot()).light).toBe(1);
+  await expect.poll(async()=>(await snapshot()).light).toBe(0);
   await expect(graphCanvas).toHaveAttribute('data-original','true');await expect(chartCanvas).toHaveAttribute('data-original','true');
   await expect(company).toHaveAttribute('aria-pressed','true');
   const after=await snapshot();expect(after.geometry).toBe(before.geometry);expect(after.context).toBe(false);
