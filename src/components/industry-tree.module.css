@@ -89,4 +89,3 @@
 /* The vertical tree always stands under a night sky, so its labels stay dark glass in both themes. */
 .vertical .branch {background:#071727e6;}
 .vertical :is(.layer,.root,.branch):is(:hover,:focus-visible,[aria-pressed='true']) {background:#12324af2;}
-.vertical .node {backdrop-filter:blur(6px);}
