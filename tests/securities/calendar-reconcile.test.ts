@@ -60,3 +60,14 @@ test('newer cancellation wins over stale aliases regardless of input order and r
     assert.deepEqual(result.validationWarnings,['Review fiscal label']);assert.equal(result.confirmation,'extracted');
   }
 });
+
+test('tied alias timestamps preserve rescheduled and cancelled status regardless of ID or input order',()=>{
+  for(const id of ['aaa','zzz']){
+    const moved={...annual,id,processed_at:call.processed_at,status:'rescheduled' as const};
+    const cancelled={...call,id:'cancelled',status:'cancelled' as const};
+    for(const input of [[call,moved],[moved,call]]){
+      assert.equal(reconcileCalendarSchedules(input).schedules[0].status,'rescheduled');
+      assert.equal(reconcileCalendarSchedules([...input,cancelled]).schedules[0].status,'cancelled');
+    }
+  }
+});

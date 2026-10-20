@@ -166,9 +166,9 @@ candidate_json="$(gcloud run services describe "$service_name" --project "$proje
 candidate_url="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{const t=JSON.parse(s).status.traffic.find(x=>x.tag==="candidate");if(!t?.url)process.exit(1);console.log(t.url);})')"
 candidate_revision="$(printf '%s' "$candidate_json" | node -e 'let s="";process.stdin.on("data",x=>s+=x).on("end",()=>{const t=JSON.parse(s).status.traffic.find(x=>x.tag==="candidate");if(!t?.revisionName)process.exit(1);console.log(t.revisionName);})')"
 CANDIDATE_URL="$candidate_url" CANDIDATE_REVISION="$candidate_revision" GIT_SHA="${GIT_SHA:-local}" node scripts/verify-release-candidate.mjs
-# Promote a verified revision by name, never an unverified latest revision.
-gcloud run services update-traffic "$service_name" --project "$project_id" \
-  --region "$region" --to-revisions "$candidate_revision=100" --quiet
+# Retain and verify the predecessor through a monitored routing/drain grace
+# period. The promoter restores its traffic on any probe or request-log failure.
+RELEASE_SERVICE="$service_name" CANDIDATE_REVISION="$candidate_revision" node scripts/promote-release.mjs
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   printf 'Cloud Build and rollout: %s seconds\n' "$((SECONDS - build_started))" >> "$GITHUB_STEP_SUMMARY"

@@ -14,7 +14,8 @@ function sameTime(a:ScheduledEvent,b:ScheduledEvent) {
 const instant=(value:string|null|undefined)=>{const ms=Date.parse(value??'');return Number.isFinite(ms)?ms:0;};
 const newestFirst=(a:ScheduledEvent,b:ScheduledEvent)=>(b.announcement_date??'').localeCompare(a.announcement_date??'')
   ||instant(b.published_at)-instant(a.published_at)||instant(b.processed_at)-instant(a.processed_at)
-  ||Number(b.status==='cancelled')-Number(a.status==='cancelled')||a.id.localeCompare(b.id);
+  ||Number(b.status==='cancelled')-Number(a.status==='cancelled')
+  ||Number(b.status==='rescheduled')-Number(a.status==='rescheduled')||a.id.localeCompare(b.id);
 
 /** Q4 and full-year labels can describe the same announced results and call.
  * Require a validated Q4 anchor, shared provenance, issuer, date and fiscal year. Distinct
