@@ -16,11 +16,10 @@ function bilingual(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
 export const dynamic = "force-dynamic";
 
 const STATIC_ROUTES: MetadataRoute.Sitemap = [
+  { url: absoluteUrl("/about"), changeFrequency: "monthly", priority: 0.6 },
   ...infrastructureTopics.map(topic => ({ url: absoluteUrl(`/research/${topic.slug}`), lastModified: RESEARCH_REVIEWED, changeFrequency: "weekly" as const, priority: 0.8 })),
-  { url: absoluteUrl("/research"), lastModified: RESEARCH_REVIEWED, changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/research/nvidia-ai-ecosystem"), lastModified: "2026-09-24", changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/research/amd-ai-ecosystem"), lastModified: "2026-09-17", changeFrequency: "weekly", priority: 0.8 },
-  { url: absoluteUrl("/feed"), changeFrequency: "hourly", priority: 0.8 },
   { url: absoluteUrl("/compare"), changeFrequency: "weekly", priority: 0.8 },
   { url: absoluteUrl("/map"), changeFrequency: "daily", priority: 0.7 },
   {

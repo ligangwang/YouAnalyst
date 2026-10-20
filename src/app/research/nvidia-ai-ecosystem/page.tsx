@@ -30,7 +30,7 @@ export default async function NvidiaEcosystem({ searchParams }: { searchParams: 
   const companies = ["US:NVDA", ...rows.map(r => r.companyId)];
   const company = companies.includes(params.company ?? "") ? params.company! : "US:NVDA";
   return <main className={styles.section}>
-    <a href={`${prefix}/research`}>{zh ? "研究专题" : "Research deep-dives"} ←</a>
+    <a href={`${prefix}/?view=graph`}>{zh ? "探索" : "Explore"} ←</a>
     <h1>{zh ? "英伟达 AI 生态：哪些已出货，哪些仍是计划？" : "NVIDIA’s AI ecosystem: what has shipped and what is still a plan?"}</h1>
     <p className={styles.muted}>{zh ? "来源复核" : "Sources reviewed"}: <time dateTime={REVIEWED}>{REVIEWED}</time> · {zh ? "精选研究，并非全部关系。来源日期与复核日期分别列示。" : "A selected research view, not a complete relationship inventory. Source dates are separate from review dates."}</p>
     <p>{zh ? "英伟达横跨 AI 基础设施的五个层面：芯片、网络、系统、软件与云。它不拥有晶圆厂，依赖台积电制造晶圆、依赖 SK 海力士、美光和三星供应内存，并由戴尔、富士康等厂商组装机架。把所有关系都当作“订单”会混淆证据强度：年报披露、首批交付、已运行机架和意向书是不同的东西。" : "NVIDIA spans five layers of AI infrastructure: chips, networking, systems, software and cloud. It owns no fabs. TSMC makes its wafers, SK hynix, Micron and Samsung supply its memory, and builders such as Dell and Foxconn assemble its racks. Treating every connection as an “order” mixes up the strength of the evidence: an annual-report disclosure, a first delivery, racks running at a partner and a letter of intent are different things."}</p>

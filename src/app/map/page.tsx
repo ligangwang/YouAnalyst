@@ -7,11 +7,11 @@ import { localizedPath } from '@/lib/ui/i18n/urls';
 export default async function MapPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){
   const params=await searchParams;
   const locale=parseLocale((await headers()).get('x-ya-language'))??'en';
-  if(params.view==='filings')redirect(localizedPath('/feed',locale));
   const query=new URLSearchParams();
   for(const [key,value] of Object.entries(params)){
     if(Array.isArray(value))for(const item of value)query.append(key,item);
     else if(typeof value==='string')query.set(key,value);
   }
+  if(query.get('view')==='filings')query.set('view','graph');
   redirect(`${localizedPath('/',locale)}${query.size?'?'+query:''}`);
 }

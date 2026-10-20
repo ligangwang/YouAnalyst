@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import IntelligencePage from "@/app/intelligence/page";
 import { localizedMetadata } from "@/lib/ui/i18n/server";
 import { themeMetadata } from "@/lib/company-themes/metadata";
@@ -20,7 +19,5 @@ export default async function Home({ searchParams }: {
   searchParams: Promise<{ theme?: string; preview?: string; event?: string | string[]; relationship?: string | string[]; company?: string | string[]; market?: string | string[]; q?: string | string[]; view?: string | string[]; type?: string | string[] }>;
 }) {
   const params = await searchParams;
-  // Preserve company campaign destinations and bookmarked feed filters.
-  if (typeof params.type === "string") redirect("/feed?type=" + encodeURIComponent(params.type));
   return <IntelligencePage searchParams={Promise.resolve(params)}/>;
 }

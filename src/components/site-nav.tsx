@@ -15,7 +15,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useIndustryBrowseParam } from "./industry-browse-state";
 import { parseCompanyTheme } from "@/lib/company-themes/model";
 
-const navigationChinese: Record<string, string> = {"Investment Intelligence":"投资情报","My ideas":"我的观点","My views":"我的观点","Analyst views":"分析师观点","Publish a view":"发布观点","About":"关于","Performance comparison":"表现对比","Publish an idea":"发布观点","Watchlist":"自选股","Calendar":"日历","Map":"图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Investment ideas":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
+const navigationChinese: Record<string, string> = {"About us":"关于我们","Investment Intelligence":"投资情报","My ideas":"我的观点","My views":"我的观点","Analyst views":"分析师观点","Publish a view":"发布观点","About":"关于","Performance comparison":"表现对比","Publish an idea":"发布观点","Watchlist":"自选股","Calendar":"日历","Map":"图谱","Companies":"公司","Research":"研究","Rankings":"排行榜","Feed":"动态","Explore":"探索","Investment ideas":"投资观点","Watchlists":"自选股","Institutions":"机构","Daily":"每日精选","Admin":"管理","Search companies":"搜索公司","Sign in":"登录","My profile":"我的主页","Sign out":"退出登录","More":"更多","Top Calls":"热门观点","Institutional Moves":"机构动向","Insider Transactions":"内部人交易","Search":"搜索", "AI Industry Map":"AI 产业图谱","Explore company map":"公司关系图","Make a prediction":"发布观点","How it works":"使用指南","AI supply chain":"AI 产业链"};
 function useNavText() { const { chinese } = useLocale(); return (value: string) => chinese ? (value === "Compare" ? "对比" : navigationChinese[value] ?? value) : value; }
 
 function initials(name: string | null | undefined, email: string | null | undefined): string {
@@ -113,20 +113,13 @@ function isPrimaryNavActive(pathname: string, href: string): boolean {
   if (section === "/companies") return /^\/(companies|company|ticker)(\/|$)/.test(pathname);
   return pathname === section || pathname.startsWith(`${section}/`);
 }
-// Research comes first; analyst views build on it. Rankings, daily top calls and performance
-// comparison keep their pages but leave the menu: analysts are judged by their own track records.
+// Explore owns research and updates; More contains analyst tools and About us.
 const secondaryNavGroups = [
-  { label: "Research", items: [
-    { href: "/feed", label: "Feed" },
-    { href: "/intelligence", label: "Investment Intelligence" },
-    { href: "/research", label: "Research" },
-  ] },
   { label: "Analyst views", items: [
     { href: "/predictions", label: "Analyst views" },
     { href: "/predictions/new", label: "Publish a view" },
-    { href: "/my/predictions", label: "My views" },
   ] },
-  { label: "About", items: [{ href: "/how-it-works", label: "How it works" }] },
+  { label: "About", items: [{ href: "/about", label: "About us" }] },
 ];
 
 function MoreMenu({ admin = false }: { admin?: boolean }) {

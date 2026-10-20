@@ -71,7 +71,7 @@ test("ten stocks fit on mobile, enforce the limit, and can be removed", async ({
   await page.goto("/en/compare?"+query.replace("AAPL,MSFT,NVDA,GOOGL,AMZN",symbols));
   await expect(page.getByRole("table")).toBeVisible();
   await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ id: "IBM", symbol: "IBM", name: "IBM", market: "US" }] } }));
-  await page.getByRole("button",{name:"Selected stocks",exact:true}).click();
+  await page.getByLabel("Selected stocks",{exact:true}).click();
   await page.locator('main').getByRole("combobox",{name:"Search company",exact:true}).fill("IBM");
   await page.getByRole("option",{name:/IBM/}).click();
   await expect(page.getByRole("status").filter({hasText:"You can compare up to 10 stocks."})).toBeVisible();
@@ -130,7 +130,7 @@ test("Chinese listings can be found and selected through the comparison picker",
   await page.route("**/api/tickers/search?*", route => route.fulfill({ json: { total: 178, items: [{ id: "XSHG:600519", symbol: "600519", name: "贵州茅台", exchange: "SSE", micCode: "XSHG", type: "Common Stock", market: "CN_A" }] } }));
   await page.goto("/en/compare?" + query);
   const search = page.waitForRequest(request => new URL(request.url()).pathname === "/api/tickers/search" && new URL(request.url()).searchParams.has("q"));
-  await page.getByRole("button",{name:"Selected stocks",exact:true}).click();
+  await page.getByLabel("Selected stocks",{exact:true}).click();
   await page.locator('main').getByRole("combobox", { name: "Search company", exact: true }).fill("茅台");
   expect(new URL((await search).url()).searchParams.get("scope")).toBe("covered");
   await page.getByRole("option", { name: /贵州茅台/ }).click();

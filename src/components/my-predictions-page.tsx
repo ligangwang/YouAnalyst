@@ -15,6 +15,7 @@ export function MyPredictionsPage({ ownerId, embedded = false }: { ownerId?: str
   const { text, locale } = useLocale();
   const targetId = ownerId ?? user?.uid;
   const Wrapper = embedded ? "section" : "main";
+  const Heading = embedded ? "h2" : "h1";
   const [rows, setRows] = useState<Array<Prediction & { id: string }>>([]);
   const [primary, setPrimary] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -59,7 +60,7 @@ export function MyPredictionsPage({ ownerId, embedded = false }: { ownerId?: str
     finally { setSaving(false); }
   }
   const duplicates = new Set(rows.filter(row => ["OPEN", "CREATED"].includes(row.status)).filter((row, _, all) => all.filter(other => other.ticker === row.ticker).length > 1).map(row => row.ticker));
-  return <Wrapper className="mx-auto max-w-4xl p-6"><div className="flex justify-between gap-4"><h1 className="text-2xl font-semibold">{text(ownerId ? "Analyst views" : "My views", ownerId ? "分析师观点" : "我的观点")}</h1><Link className="text-cyan-300" href={localizedPath("/predictions/new", locale)}>{text("Publish a view", "发布观点")}</Link></div>
+  return <Wrapper id={embedded ? "profile-views" : undefined} className="mx-auto max-w-4xl scroll-mt-24 p-6"><div className="flex justify-between gap-4"><Heading className="text-2xl font-semibold">{text(targetId === user?.uid ? "My views" : "Analyst views", targetId === user?.uid ? "我的观点" : "分析师观点")}</Heading><Link className="text-cyan-300" href={localizedPath("/predictions/new", locale)}>{text("Publish a view", "发布观点")}</Link></div>
     {loading ? <p>{text("Loading…", "加载中…")}</p> : !targetId ? <Link href={"/auth?next=" + encodeURIComponent(localizedPath("/my/predictions", locale))}>{text("Sign in", "登录")}</Link> : <>
       <ComparisonsPage ownerId={targetId} embedded />
       <h2 className="mt-6 text-xl font-semibold">{text("All views", "全部观点")}</h2>

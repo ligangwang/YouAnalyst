@@ -105,6 +105,7 @@ export default async function RootLayout({
             <div className="mx-auto w-full max-w-6xl px-4 py-4 text-center text-xs leading-6 text-slate-400">
               <UiText text={"YouAnalyst research and analyst views are provided for informational purposes only and do not constitute financial, investment, legal, or tax advice. Always do your own research before making investment decisions."} />
               <div className="mt-3">
+                <Link href="/about" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline"><UiText text={"About us"} /></Link>
                 <Link href="/how-it-works" className="mr-5 font-medium text-cyan-200 underline-offset-2 hover:underline"><UiText text={"How it works"} /></Link>
                 <Link href="/feedback" className="font-medium text-cyan-200 underline-offset-2 hover:underline">
                   <UiText text={"Share thoughts"} />

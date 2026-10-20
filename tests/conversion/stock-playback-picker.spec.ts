@@ -55,7 +55,7 @@ for (const chinese of [false, true]) test(`covered company picker and five-year 
   const chartBox = await chart.boundingBox(), editorBox = await editor.boundingBox();
   expect(chartBox!.y).toBeGreaterThanOrEqual(editorBox!.y + editorBox!.height);
   expect(editorBox!.height).toBeLessThan(140);
-  const toggle = editor.getByRole('button', { name: chinese ? '所选股票' : 'Selected stocks', exact: true });
+  const toggle = editor.getByLabel(chinese ? '所选股票' : 'Selected stocks', { exact: true });
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(editor.locator('#comparison-settings')).toBeHidden();
   await toggle.focus();

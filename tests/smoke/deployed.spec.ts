@@ -193,9 +193,10 @@ test("Cloud Run service identity does not grant access to saved companies", asyn
   expect(response.status()).toBe(401);
 });
 
-test("feed shows research updates without filing features", async ({ page, request }) => {
+test("retired feed opens Explore and retired institutional features stay unavailable", async ({ page, request }) => {
   await page.goto("/feed");
-  await expect(page.getByRole("heading", { name: "Curated research updates", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/en$/);
+  await expect(page.getByRole("heading", { name: "Investment Intelligence", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Event types" })).toHaveCount(0);
   for (const path of ["/en/institutions", "/zh-cn/daily/insiders", "/daily/institutional", "/api/insider-transactions/AMD", "/api/institutional-holdings/AMD"]) {
     expect((await request.get(path)).status()).toBe(404);
@@ -292,15 +293,14 @@ test("global map companies open localized profiles", async ({ page, request }) =
   }
 });
 
-test("Research bookmarks open Feed and Feed remains available under More", async ({ page }) => {
+test("retired Research bookmarks open Explore and Feed stays out of More", async ({ page }) => {
   await page.goto("/en/map?view=filings&company=AMD");
-  await expect(page).toHaveURL(/\/en\/feed$/);
+  await expect(page).toHaveURL(/\/en\?view=graph&company=AMD$/);
   await expect(page.getByRole("navigation").getByRole("link", { name: "Feed", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Research", exact: true })).toHaveCount(0);
   await page.getByText("More", { exact: true }).filter({ visible: true }).click();
   const feed = page.getByRole("link", { name: "Feed", exact: true });
-  await expect(feed).toBeVisible();
-  await expect(feed).toHaveAttribute("href", "/en/feed");
+  await expect(feed).toHaveCount(0);
 });
 
 test("A-share company has its own research page", async ({ page }) => {
