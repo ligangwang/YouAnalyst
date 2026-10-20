@@ -41,7 +41,15 @@ export function scheduleInstant(day: string, time: string, zone: string, abbrevi
 
 export type CalendarTiming = Pick<ScheduledEvent,'scheduled_date'|'scheduled_at'> & Partial<Pick<ScheduledEvent,'companyId'|'companyCountry'|'source_timezone'|'timezone_text'|'local_time'|'timeEvidence'>>;
 export const isChinaCalendarCompany = (event: Pick<CalendarTiming,'companyId'|'companyCountry'>) => event.companyCountry === 'CN' || /^(XSHG|XSHE):/.test(event.companyId ?? '');
-const hasZoneEvidence=(text='')=>/\b(?:[PEMC](?:S|D)?T|UTC|GMT|HKT|Pacific|Eastern|Mountain|Central|China Standard|Hong Kong)\b|北京时间|北京時間|中国标准时间|中國標準時間|香港时间|香港時間/i.test(text);
+// Recognizing a zone reference is broader than knowing how to convert it.
+// Unsupported explicit zones must remain unconfirmed, never become Beijing defaults.
+const zoneEvidencePatterns = [
+  /\b(?:[PEMC](?:S|D)?T|UTC|GMT|HKT|Pacific|Eastern|Mountain|Central|Hong Kong|JST|KST|IST|BST|CET|CEST|EET|EEST|AEST|AEDT|NZST|NZDT)\b/i,
+  /\b(?:standard|daylight|summer|mean)\s+time\b|\btime\s*zone\b|\b[A-Za-z_]+\/[A-Za-z_]+(?:\/[A-Za-z_]+)?\b/i,
+  /(?:^|[\s(])[+-](?:0\d|1\d|2[0-3]):?[0-5]\d(?=$|[\s)])/,
+  /时区|時區|北京时间|北京時間|香港时间|香港時間|(?:标准|標準|夏令|冬令|东部|東部|西部|中部|世界|协调|協調|美国|美國|日本|韩国|韓國|印度|英国|英國|欧洲|歐洲|澳洲|悉尼|东京|東京|新加坡)[\p{Script=Han}]{0,8}(?:时间|時間)/u,
+];
+const hasZoneEvidence=(text='')=>zoneEvidencePatterns.some(pattern=>pattern.test(text));
 export function sourceScheduleZone(label: string | null | undefined, company: Pick<CalendarTiming,'companyId'|'companyCountry'>, evidence='') {
   // A missed extraction field must not turn an explicit source zone into a default.
   return scheduleTimezone(label ?? null) ?? (!label?.trim() && !hasZoneEvidence(evidence) && isChinaCalendarCompany(company) ? BEIJING_ZONE : null);

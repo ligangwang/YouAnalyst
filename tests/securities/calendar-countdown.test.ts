@@ -18,6 +18,18 @@ test('Chinese local clocks without a zone use Beijing, including previously stor
   assert.match(calendarTime(schedule as CalendarItem,true),/20:00 ET.*默认按北京时间/);
   assert.equal(calendarInstant({...schedule,scheduled_at:'2026-11-18T17:00:00Z'}),'2026-11-18T17:00:00Z');
 });
+test('omitted extraction fields never override unsupported explicit source time zones',()=>{
+  for(const timeEvidence of ['9:00 a.m. Japan Standard Time','9:00 美国东部时间','9:00 美國東部時間','9:00 日本標準時間','9:00 JST','9:00 Asia/Tokyo','9:00 +09:00','9:00 Middle Earth Summer Time']){
+    const event={...schedule,timeEvidence};
+    assert.equal(sourceScheduleZone(null,event,timeEvidence),null,timeEvidence);
+    assert.equal(calendarInstant(event),null,timeEvidence);
+    assert.equal(eventDay(event),event.scheduled_date,timeEvidence);
+    assert.equal(countdownLabel(calendarCountdown(event,Date.parse('2026-11-17T00:00:00Z'))),'Countdown pending time/time zone confirmation',timeEvidence);
+    assert.doesNotMatch(calendarTime(event as CalendarItem),/assumed Beijing/,timeEvidence);
+  }
+  assert.equal(calendarInstant({...schedule,timeEvidence:'The call begins at 9:00 a.m. local time.'}),'2026-11-18T01:00:00.000Z');
+});
+
 test('second countdowns reach zero without claiming the actual results were published',()=>{
   const target=Date.parse('2026-11-18T01:00:00Z');
   const value=calendarCountdown(schedule,target-(86400+3*3600+4*60+5)*1000);
