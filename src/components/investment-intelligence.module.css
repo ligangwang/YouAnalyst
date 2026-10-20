@@ -38,7 +38,7 @@
 .search input { font-size:13px;min-height:36px;border-color:var(--border-control);border-radius:8px;background:var(--bg-canvas); }
 .sectors button { font-size:12px;min-height:36px;padding:8px; }.sectors button small { font:12px var(--font-data); }
 .companyList { padding:4px 8px;scrollbar-color:var(--border-control) transparent; }
-.companyList>div>button:first-child { padding:9px 8px;min-height:36px; }.companyList strong { font:500 12px var(--font-data);min-width:40px; }.companyList span { font-size:12px; }
+.companyList>div>button:first-child { padding:9px 8px;min-height:36px; }.companyList strong { font:500 12px var(--font-ui);min-width:40px; }.companyList span { font-size:12px; }
 .companyList>.selectedCompany,.sectors button[aria-pressed=true] { background:var(--surface-selected);box-shadow:inset 2px 0 var(--accent-intelligence); }
 .companyList>.selectedCompany strong,.companyList>.selectedCompany span,.sectors button[aria-pressed=true],.sectors button[aria-pressed=true] small { color:var(--text-primary);font-weight:600; }
 .eventList { padding-inline:12px; }.eventList>div>button { padding:12px 4px;margin:0;border-radius:0;border-bottom:1px solid var(--border-subtle); }

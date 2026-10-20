@@ -127,7 +127,7 @@ a {
   --surface-hover:#087C9C08; --surface-selected:#087C9C10;
   --shadow-panel:0 8px 28px #14233808;
   --graph-canvas:#EDF3F9; --graph-haze:#E2ECF6;
-  --event-color-weight:55%; --chart-line:#167f9b; --chart-reference:#826c20; --selection-outline:#167f9b;
+  --event-color-weight:35%; --chart-line:#167f9b; --chart-reference:#826c20; --selection-outline:var(--accent-intelligence);
   --price-green:#087b56; --price-red:#c83148; --price-flat:#526a7d;
 }
 :root[data-theme="light"] :is(.bg-slate-950,.bg-slate-900,.bg-slate-800,[class~="bg-slate-800/70"],[class~="bg-slate-900/40"],[class~="bg-slate-900/50"],[class~="bg-slate-900/55"],[class~="bg-slate-900/70"],[class~="bg-slate-900/80"],[class~="bg-slate-950/40"],[class~="bg-slate-950/45"],[class~="bg-slate-950/50"],[class~="bg-slate-950/55"],[class~="bg-slate-950/60"],[class~="bg-slate-950/70"],[class~="bg-slate-950/80"],[class~="bg-slate-950/85"]) { background-color:#ffffff; }
@@ -143,7 +143,7 @@ a {
 .price-direction-action:hover { background:color-mix(in srgb,currentColor 20%,transparent); }
 
 /* Pale semantic text needs contrast on white surfaces; direction colors remain separate. */
-:root[data-theme="light"] :is(.text-amber-100,.text-amber-200,.text-amber-300,.text-yellow-100,.text-yellow-200,.text-yellow-300) { color:#854d0e; }
+:root[data-theme="light"] :is(.text-amber-100,.text-amber-200,.text-amber-300,.text-yellow-100,.text-yellow-200,.text-yellow-300) { color:var(--status-warning); }
 :root[data-theme="light"] :is(.text-orange-100,.text-orange-200,.text-orange-300) { color:#9a3412; }
 :root[data-theme="light"] :is(.text-red-100,.text-red-200,.text-red-300,.text-pink-100,.text-pink-200,.text-pink-300,.text-rose-100) { color:#ba3047; }
 :root[data-theme="light"] :is(.text-green-100,.text-green-200,.text-green-300,.text-lime-100,.text-lime-200,.text-lime-300,.text-emerald-100) { color:#087b56; }

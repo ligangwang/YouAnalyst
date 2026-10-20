@@ -25,11 +25,13 @@ export function comparisonFrame(data: CompareData, progress: number, style: Comp
   const before = ranks(index), after = ranks(next), ease = fraction * fraction * (3 - 2 * fraction);
   const labels = data.series.map((series, i) => ({ symbol: series.symbol, value: values[i], x: style === "bar" ? right + 10 : left + progress * (right - left) + 9, y: style === "bar" ? top + (before.indexOf(i) + (after.indexOf(i) - before.indexOf(i)) * ease + .5) * (bottom - top) / data.series.length : scale(values[i]), i }));
   if (style === "line") {
+    // Two 12px endpoint lines need 35px, including their readable line height.
+    const labelGap = 36;
     const sorted = [...labels].sort((a,b) => a.y - b.y);
-    sorted.forEach((label, i) => { label.y = Math.max(label.y, i ? sorted[i - 1].y + 26 : top); });
+    sorted.forEach((label, i) => { label.y = Math.max(label.y, i ? sorted[i - 1].y + labelGap : top); });
     if (sorted.at(-1)!.y > bottom) {
       sorted.at(-1)!.y = bottom;
-      for (let i = sorted.length - 2; i >= 0; i--) sorted[i].y = Math.min(sorted[i].y, sorted[i + 1].y - 26);
+      for (let i = sorted.length - 2; i >= 0; i--) sorted[i].y = Math.min(sorted[i].y, sorted[i + 1].y - labelGap);
     }
   }
   return { position, index, next, fraction, values, labels, low, high, left, right, top, bottom, scale };

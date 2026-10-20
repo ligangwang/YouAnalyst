@@ -62,7 +62,10 @@ export function MarketProvider({ children }: { children: ReactNode }) {
             if (!pathLocale(window.location.pathname) && !params.has("lang") && preferences.language !== locale) applyPreferences({ ...preferences, market: "ALL" });
           }
         } catch { /* Keep the current visitor preference if the account is unavailable. */ }
-      } finally { if (!controller.signal.aborted) setRestoring(false); }
+      } finally { if (!controller.signal.aborted) {
+        if(mode.current==='system') { try { localStorage.setItem(THEME_MODE_STORAGE_KEY,'system'); } catch {} }
+        setRestoring(false);
+      } }
     })();
     return () => controller.abort();
   }, [user, loading, getIdToken, locale]);

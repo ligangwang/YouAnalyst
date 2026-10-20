@@ -9,6 +9,16 @@ import type { Firestore } from "firebase-admin/firestore";
 import { playbackStartDate, validatePlaybackConfig } from "../src/lib/ui/compare-range";
 const config: CompareConfig = { symbols: ["AAPL", "NVDA"], start: "2025-01-01", end: "2025-12-31", style: "line" };
 
+test("ten coincident endpoints fit readable labels without changing the displayed returns", () => {
+  const data = { dates: ["2025-01-02", "2025-12-31"], series: Array.from({length:10}, (_,index)=>({symbol:`STOCK${index}`,values:[0,0]})), frequency:"Daily" as const, source:"Isolated UI fixture" };
+  const frame = comparisonFrame(data, 1, "line", 800, 420);
+  const labels = [...frame.labels].sort((a,b)=>a.y-b.y);
+  assert.ok(labels[0].y >= frame.top);
+  assert.ok(labels.at(-1)!.y <= frame.bottom);
+  labels.slice(1).forEach((label,index)=>assert.ok(label.y-labels[index].y >= 36));
+  assert.deepEqual(frame.values,Array(10).fill(0));
+});
+
 test("playback accepts five calendar years and rejects longer ranges, including leap dates", () => {
   const now = new Date("2026-10-17T12:00:00Z");
   assert.equal(validatePlaybackConfig({ ...config, start: "2020-12-31" }, now), null);

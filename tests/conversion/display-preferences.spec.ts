@@ -39,21 +39,20 @@ test('localized profile restores account appearance and swaps only price directi
   const writes=await open(page,{language:'en',market:'ALL',theme:'light',priceColors:'red-up'});
   await expect(page.getByLabel('UI theme')).toHaveValue('light');
   await expect(page.getByLabel('Price color convention')).toHaveValue('red-up');
-  await expect(page.locator('body')).toHaveCSS('background-color','rgb(244, 247, 250)');
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(245, 248, 252)');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(200, 49, 72)');
   await expect(page.locator('[data-candle-direction="down"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');
   await expect(page.locator('.price-up')).toHaveCSS('color','rgb(200, 49, 72)');
   await expect(page.getByRole('note')).toHaveCSS('color','rgb(186, 48, 71)');
-  await expect(page.getByRole('status').filter({hasText:'Stale data warning'})).toHaveCSS('color','rgb(133, 77, 14)');
+  await expect(page.getByRole('status').filter({hasText:'Stale data warning'})).toHaveCSS('color','rgb(140, 97, 0)');
   await expect(page.getByRole('status').filter({hasText:'Indicator history unavailable'})).toBeVisible();
   await expect(page.locator('[data-price-candle]')).toHaveCount(2);
-  const themeSelect=page.getByLabel('UI theme');await themeSelect.focus();await expect(themeSelect).toHaveCSS('outline-color','rgb(22, 127, 155)');
+  const themeSelect=page.getByLabel('UI theme');await themeSelect.focus();await expect(themeSelect).toHaveCSS('outline-color','rgb(8, 124, 156)');
   await page.getByLabel('Price color convention').selectOption('green-up');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(8, 123, 86)');
   expect(writes.at(-1)).toEqual({language:'en',market:'ALL',theme:'light',priceColors:'green-up'});
   await page.getByLabel('UI theme').selectOption('dark');
-  await expect(page.locator('body')).toHaveCSS('background-color','rgb(7, 17, 29)');
-  expect(writes.at(-1)).toEqual({language:'en',market:'ALL',theme:'dark',priceColors:'green-up'});
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(7, 13, 25)');
   await page.getByLabel('Price color convention').selectOption('red-up');
   await expect(page.locator('[data-candle-direction="up"] rect')).toHaveCSS('fill','rgb(255, 142, 161)');
   await page.getByRole('button',{name:'Change language',exact:true}).click();
@@ -62,14 +61,15 @@ test('localized profile restores account appearance and swaps only price directi
   expect(writes.at(-1)).toEqual({language:'zh-CN',market:'ALL',theme:'dark',priceColors:'red-up'});
 });
 
-test('default and failed save preserve dark world convention', async ({page}) => {
+test('legacy account appearance and failed account saves preserve price convention', async ({page}) => {
   await open(page,{language:'zh-CN',market:'ALL'},true);
   await expect(page.getByLabel('UI theme')).toHaveValue('dark');
   await expect(page.getByLabel('Price color convention')).toHaveValue('green-up');
-  await page.getByLabel('UI theme').selectOption('light');
+  await page.getByLabel('Price color convention').selectOption('red-up');
   await expect(page.getByRole('alert')).toContainText('Could not save');
   await expect(page.getByLabel('UI theme')).toHaveValue('dark');
-  await expect(page.locator('body')).toHaveCSS('background-color','rgb(7, 17, 29)');
+  await expect(page.getByLabel('Price color convention')).toHaveValue('green-up');
+  await expect(page.locator('body')).toHaveCSS('background-color','rgb(7, 13, 25)');
 });
 
 test('visitor appearance persists on reload without account writes and fits mobile', async ({page},testInfo) => {
@@ -84,4 +84,28 @@ test('visitor appearance persists on reload without account writes and fits mobi
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   mkdirSync('.cache/display-preferences',{recursive:true});
   await page.screenshot({path:`.cache/display-preferences/${testInfo.project.name}-light.png`,fullPage:true});
+});
+
+test('first-time system appearance follows OS changes, explicit choice persists and switching never navigates', async ({page}) => {
+  await page.emulateMedia({colorScheme:'light'});
+  await page.addInitScript(()=>{(window as unknown as {visitor:boolean}).visitor=true;});
+  const writes=await open(page);
+  const selector=page.getByLabel('UI theme');
+  await expect(selector).toHaveValue('system');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await page.getByLabel('Price color convention').selectOption('red-up');
+  await page.emulateMedia({colorScheme:'dark'});
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect(selector).toHaveValue('system');
+  await page.reload();
+  await expect(selector).toHaveValue('system');
+  const url=page.url();
+  await selector.selectOption('light');
+  await page.emulateMedia({colorScheme:'light'});
+  await page.emulateMedia({colorScheme:'dark'});
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await page.reload();
+  await expect(selector).toHaveValue('light');
+  await expect(page.getByLabel('Price color convention')).toHaveValue('red-up');
+  expect(page.url()).toBe(url);expect(writes).toHaveLength(0);
 });

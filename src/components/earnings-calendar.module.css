@@ -36,10 +36,11 @@
 .today { background:var(--accent-intelligence);color:var(--text-on-accent); }
 .event { background:var(--bg-elevated);padding:12px;border-radius:8px;font-size:13px;line-height:1.5; }
 .event p,.detail { font-size:12px; }.eventHeading span { font-size:12px; }
-.cell .event { padding:8px 6px;font-size:12px; }.cell .eventHeading strong { font-size:12px; }.cell .eventHeading span,.cell .time,.cell .countdown { font-size:12px; }
+.cell .event { padding:8px 6px;font-size:12px;line-height:1.4; }.cell .eventHeading strong { font-size:12px; }.cell .eventHeading span,.cell .time,.cell .countdown { font-size:12px; }.cell .countdown { font-family:var(--font-ui); }
 .eventButton:hover { outline:1px solid var(--accent-intelligence); }
 .countdown { font-family:var(--font-data);font-size:12px;color:var(--accent-intelligence); }
 .scheduleStatus,.validationWarning,.validationDetails { color:var(--status-warning); }
+.cancelled,.cancelledSchedule { opacity:1; }
 .agendaHeader { padding:20px; }.agendaHeader p { font-size:12px;color:var(--accent-intelligence);letter-spacing:.1em; }
 .agendaHeader h2 { font-size:20px; }.agendaEvents { padding:16px; }
 .links,.confirmed,.more { font-size:12px; }.links a { color:var(--accent-intelligence);min-height:32px;display:inline-flex;align-items:center; }

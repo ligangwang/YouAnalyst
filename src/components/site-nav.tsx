@@ -143,7 +143,7 @@ export function SiteNav() {
   const { text } = useLocale();
   const focus = <>
     <span className="font-medium text-slate-300">{text('Investment Intelligence. Reimagined.', '重新定义投资智慧')}</span>
-    <span className="mt-0.5 hidden text-[11px] leading-4 text-slate-400 lg:block">{text('AI, Robotics, Space & More', 'AI、机器人、太空及更多领域')}</span>
+    <span className="mt-0.5 hidden text-xs leading-4 text-slate-400 lg:block">{text('AI, Robotics, Space & More', 'AI、机器人、太空及更多领域')}</span>
   </>;
   const pathname = unlocalizedPath(usePathname());
   const theme = parseCompanyTheme(useIndustryBrowseParam("theme"));

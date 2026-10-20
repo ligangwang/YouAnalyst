@@ -6,6 +6,10 @@
 .highlights{display:flex;flex-direction:column;gap:5px}.highlights button{display:flex;align-items:flex-start;gap:7px;text-align:left;padding:5px 0!important;font-size:10px!important;color:var(--ui-muted,#a6c5d3)!important}.highlights time{font-size:9px;color:var(--ui-muted,#7895a9);flex-shrink:0;margin-top:1px}.highlights span{flex:1;line-height:1.4}.highlights b{color:var(--ui-text,#98e7d6);font-weight:400}.note{font-size:9px;color:var(--ui-muted,#7892a5);line-height:1.5;margin:8px 0 0}
 
 .scopeNote{font-size:9px;color:var(--ui-muted,#8fa8bb);line-height:1.5;margin:0 0 12px}
+.heading,.heading strong,.heading>span:last-child,.metrics span,.highlights time,.note,.scopeNote { font-size:12px; }
+.metrics strong { font-family:var(--font-data); }.metrics>div { flex-wrap:wrap; }
+.sectors button,.sectors strong,.sources button,.highlights button { font-size:12px!important; }
+.breakdown summary { font-size:12px;min-height:36px;align-content:center; }
 
 .breakdown{margin:6px 0 10px}.breakdown summary{cursor:pointer;color:var(--ui-muted,#9ab0c3);font-size:10px;padding:4px 0}.breakdown[open] summary{margin-bottom:6px}.overview{padding:8px 0}.scopeNote{margin-bottom:6px}.sources{margin-bottom:4px}
 

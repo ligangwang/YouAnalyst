@@ -3,6 +3,7 @@
 .searchArea { padding:24px;background:var(--bg-surface);border-radius:16px; }
 .searchCard { display:flex;justify-content:flex-start;width:100%; }
 .searchCard>div { width:100%;max-width:620px; }
+.searchCard>div { margin-inline:0; }
 .suggestions { display:flex;flex-wrap:wrap;gap:8px;margin-top:16px; }
 .suggestions a { min-height:36px;display:inline-flex;align-items:center;background:var(--bg-elevated);border:1px solid transparent;border-radius:8px;padding:8px 12px;font-family:var(--font-data);font-size:12px;font-weight:600; }
 .suggestions a:hover { border-color:var(--border-control); }
@@ -15,6 +16,7 @@
 .ranking ol a>span:first-child,.ranking ol a>span:last-child,.ranking ol a>span:nth-child(2)>span:nth-child(2)>span:first-child { font-family:var(--font-data);font-variant-numeric:tabular-nums; }
 .ranking ol a>span:nth-child(2)>span:first-child { color:var(--text-primary);font-size:16px;font-weight:600; }
 .ranking ol a>span:last-child>span { color:var(--text-primary);font-size:20px;font-weight:500; }
+.ranking i { box-shadow:0 0 0 1px var(--border-control); }
 .about { max-width:1040px;margin:auto;padding:64px 24px 80px; }
 .about header { padding-bottom:40px;border-bottom:1px solid var(--border-subtle); }
 .about header>p:first-child { font-size:12px;color:var(--accent-intelligence);letter-spacing:.12em;font-weight:600; }

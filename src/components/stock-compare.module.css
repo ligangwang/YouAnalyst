@@ -188,8 +188,8 @@
 .notice { color:var(--accent-intelligence); }
 .editorBody { position:relative;padding-bottom:12px; }.chips { margin:8px 0; }.colorHint { margin-bottom:8px; }
 .presets { margin-top:8px;padding-right:180px; }.collapseEditor { position:absolute;bottom:12px;right:16px;margin:0; }
-.embedded { --text-on-accent:#070D19;--accent-intelligence:#49D6E8;padding:12px; }
-.embedded[data-embed-theme=light] { --text-on-accent:#FFFFFF;--accent-intelligence:#087C9C;--border-control:#768AA1;--bg-elevated:#EDF3F9; }
+.embedded { --text-on-accent:#070D19;--accent-intelligence:#49D6E8;--bg-elevated:#152235;--border-control:#5B728D;--text-primary:#EAF2FD;padding:12px; }
+.embedded[data-embed-theme=light] { --text-on-accent:#FFFFFF;--accent-intelligence:#087C9C;--border-control:#768AA1;--bg-elevated:#EDF3F9;--text-primary:#142338; }
 @media(max-width:1050px) { .settings { grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; }.search { grid-column:1/-1; }.settings>.primary { margin-top:26px; } }
 @media(max-width:700px) { .presets { padding-right:0; }.collapseEditor { position:static;margin:8px 0 0 auto; } }
 @media(max-width:700px) { .page { padding:24px 16px 48px; }.pageHeading { align-items:start;flex-direction:column;gap:12px;margin-bottom:20px; }.rangeSummary { font-size:12px; }.editorSelection,.editorRange { font-size:12px; }.editorSummaryContent { gap:8px; }.settings { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }.settings>.primary { margin-top:0; }.stage { padding:20px 12px 16px; }.stageHeading { flex-direction:row;gap:8px; }.stageHeading .eyebrow { font-size:12px;letter-spacing:.06em; }.dateRow { margin-top:20px; }.dateRow time { font-size:22px; }.chips button,.styleSwitch button,.legend button,.shareRow button,.shareRow a,.page select,.presets button,.collapseEditor,.playback>button,.videoExport :is(button,select,a) { min-height:44px; }.playback { flex-wrap:wrap;gap:8px; }.playback input { flex-basis:100%;order:4;min-height:36px;margin-top:4px; }.speed { margin-left:auto; }.caption { line-height:1.6; }.customization summary { min-height:44px;display:list-item;align-content:center; }.embedded { padding:8px; } }

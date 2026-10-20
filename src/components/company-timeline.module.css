@@ -19,6 +19,7 @@
 .countBadge { position:absolute; top:-6px; right:-7px; min-width:14px; padding:1px 3px; border:1px solid currentColor; border-radius:9px; background:var(--ui-surface,#0a1522); font-size:9px; line-height:12px; }
 .status { color:var(--ui-muted,#9db4c8); font-size:12px; }
 .coverage { margin:0; color:var(--ui-muted,#9db4c8); font-size:11px; }
+.legend,.coverage,.chart text { font-size:12px; }
 .detail { margin-top:8px; padding-top:8px; border-top:1px solid var(--ui-line,#233d50); font-size:12px; }
 .detail summary { cursor:pointer; color:var(--ui-text,#dbedf7); }
 .detail p { color:var(--ui-muted,#adbfce); margin:7px 0; line-height:1.6; }
