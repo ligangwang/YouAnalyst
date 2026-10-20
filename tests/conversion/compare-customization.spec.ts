@@ -69,7 +69,7 @@ test("company colors and templates save, reload, reset and clear on sign-out", a
   await expect(page.getByRole("button", { name: "Pastel", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.screenshot({ path: info.outputPath("compare-customization.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByRole("group", { name: "AAPL color settings" }).getByRole("button", { name: "Reset" }).click();
+  await page.getByRole("group", { name: "AAPL color settings" }).getByRole("button", { name: "Default color" }).click();
   await page.getByRole("button", { name: "Save my defaults" }).click();
   await expect(page.getByRole("status")).toHaveText("Defaults saved to your account.");
   expect(appearance.companyColors).toEqual({});

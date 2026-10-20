@@ -8,8 +8,8 @@ import { localizedPath } from "@/lib/ui/i18n/urls";
 import { xPostIntentUrl, xTrackedShareUrl } from "@/lib/x-share";
 import { compareEmbedPath, comparisonEmbedCode, type CompareEmbedTheme } from "@/lib/compare-embed";
 import { comparisonPosition, snapComparisonProgress } from "@/lib/compare-chart";
-import { companyCompareColor } from "@/lib/compare-appearance";
-import { CompareCustomization, useCompareAppearance } from "./compare-customization";
+import { companyCompareColor, type CompareAppearance } from "@/lib/compare-appearance";
+import { CompanyColorControl, CompareCustomization, useCompareAppearance } from "./compare-customization";
 import { ComparisonCommunity, ComparisonCredit } from "./compare-community";
 import type { CommunityComparison } from "@/lib/compare-community";
 import { useMarket } from "./providers/preferences-context";
@@ -32,7 +32,8 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   const [draft, setDraft] = useState(initial), [applied, setApplied] = useState(initial);
   const [style, setStyle] = useState<CompareStyle>(initial.style);
   const [notice, setNotice] = useState(""), [shareNotice, setShareNotice] = useState("");
-  const [editorOpen, setEditorOpen] = useState(() => Boolean(validatePlaybackConfig(initial)));
+  const [editorOpen, setEditorOpen] = useState(true);
+  const [colorSymbol, setColorSymbol] = useState<string | null>(null);
   const [data, setData] = useState<CompareData | null>(null), [error, setError] = useState(""), [loading, setLoading] = useState(true), [retry, setRetry] = useState(0);
   const [progress, setProgress] = useState(1), [playing, setPlaying] = useState(false), [speed, setSpeed] = useState(1);
   const [highlighted, setHighlighted] = useState<string | null>(null), [shareUrl, setShareUrl] = useState("");
@@ -91,7 +92,12 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
     if (!compareSymbol(symbol)) { setNotice(text("Choose a listed stock ticker.", "请选择上市股票代码。")); return; }
     if (draft.symbols.includes(symbol)) { setNotice(text("This stock is already selected.", "已选择此股票。")); return; }
     if (draft.symbols.length >= 10) { setNotice(text("You can compare up to 10 stocks.", "最多可对比 10 只股票。")); return; }
-    setDraft({ ...draft, symbols: [...draft.symbols, symbol] }); setNotice("");
+    setDraft({ ...draft, symbols: [...draft.symbols, symbol] }); setColorSymbol(symbol); setNotice("");
+  }
+  function changeAppearance(next: CompareAppearance) {
+    preferences.change(next); setLinkColors({}); setShareUrl(""); setShareNotice(""); setShowEmbed(false);
+    // New share links capture the current preview rather than the old shared palette.
+    window.history.replaceState(null, "", localizedPath(comparePath({ symbols: applied.symbols, start: applied.start, end: applied.end, style }), locale));
   }
   function updateAddress(config: CompareConfig) {
     const shared = styledConfig(config);
@@ -103,7 +109,6 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
   function apply() {
     const invalid = validatePlaybackConfig(draft);
     if (invalid) { setNotice(invalid); return; }
-    setEditorOpen(false);
     setApplied({ ...draft, style }); setNotice(""); setShareUrl(""); setShareNotice(""); setShowEmbed(false); updateAddress({ ...draft, style });
   }
   function changeStyle(next: CompareStyle) {
@@ -156,10 +161,26 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         <span className={styles.editorTitle}>{text("Selected stocks", "所选股票")} <small>{draft.symbols.length} / 10</small></span>
         <span className={styles.editorSelection}>{draft.symbols.join(" · ") || text("Choose stocks", "选择股票")}{dirty && <em>{text("Not applied", "待应用")}</em>}</span>
         <span className={styles.editorRange}>{draft.start} → {draft.end}</span>
+        <span className={styles.editorToggle}>{editorOpen ? text("Collapse", "收起") : text("Expand", "展开")}</span>
         </span>
       </summary>
       <div id="comparison-settings" className={styles.editorBody}>
-      <div className={styles.chips}>{draft.symbols.map(symbol => <button key={symbol} type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><i style={{ background: linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light") }}/>{symbol}<span aria-hidden="true">×</span></button>)}</div>
+      <div className={styles.chips}>{draft.symbols.map(symbol => <div key={symbol} className={styles.stockChip}>
+        <button type="button" onClick={() => setColorSymbol(colorSymbol === symbol ? null : symbol)} aria-expanded={colorSymbol === symbol} aria-controls="company-color-editor" aria-label={text(`Choose color for ${symbol}`, `选择 ${symbol} 的颜色`)}><i style={{ background: linkColors[symbol] ?? companyCompareColor(symbol, appearance, displayTheme === "light") }}/>{symbol}</button>
+        <button type="button" onClick={() => { setDraft({ ...draft, symbols: draft.symbols.filter(s => s !== symbol) }); if (colorSymbol === symbol) setColorSymbol(null); setNotice(""); }} aria-label={text(`Remove ${symbol}`, `移除 ${symbol}`)}><span aria-hidden="true">×</span></button>
+      </div>)}</div>
+      <p className={styles.colorHint}>{text("Click a company to choose its color.", "点击公司名称即可选色或恢复默认颜色。")}</p>
+      {colorSymbol && draft.symbols.includes(colorSymbol) && <section id="company-color-editor" className={styles.inlineColor} aria-label={text(`Customize ${colorSymbol}`, `自定义 ${colorSymbol}`)}>
+        <div className={styles.inlineColorHeading}><strong>{text(`Company color · ${colorSymbol}`, `公司颜色 · ${colorSymbol}`)}</strong><button type="button" onClick={() => setColorSymbol(null)} aria-label={text("Close color settings", "关闭颜色设置")}>×</button></div>
+        {!preferences.signedIn ? <Link href={`/auth?${new URLSearchParams({ next: localizedPath(comparePath(styledConfig({ ...draft, style })), locale) })}`}>{text("Sign in or create an account to customize", "登录或注册以自定义")}</Link> : <>
+          <fieldset disabled={!preferences.ready || preferences.status === "saving"}>
+            <legend className="sr-only">{text("Company color", "公司颜色")}</legend>
+            <div className={styles.companyColors}><CompanyColorControl symbol={colorSymbol} appearance={appearance} light={displayTheme === "light"} colors={linkColors} onChange={changeAppearance}/></div>
+            <button type="button" onClick={() => void preferences.save(style, linkColors)}>{preferences.status === "saving" ? text("Saving…", "保存中…") : text("Save my defaults", "保存默认设置")}</button>
+          </fieldset>
+          {preferences.status === "error" ? <p role="alert">{text("Could not load or save preferences. Your changes may not be saved.", "无法加载或保存偏好，修改可能尚未保存。")}{!preferences.ready && <button type="button" onClick={preferences.retry}>{text("Retry", "重试")}</button>}</p> : <p role="status">{preferences.status === "saved" ? text("Defaults saved to your account.", "默认设置已保存至账号。") : !preferences.ready ? text("Loading your preferences…", "正在加载偏好…") : text("Preview changes, then save your defaults.", "预览修改后保存默认设置。")}</p>}
+        </>}
+      </section>}
       <div className={styles.settings}>
         <div className={styles.search}><span>{text("Add a stock", "添加股票")}</span><CompanySearch inline owner="chart" typeToSearch={false} clearOnSelect onSelect={item => addStock(/^(XSHG|XSHE):/.test(item.id) ? item.id : item.symbol)}/></div>
         <label>{text("From", "起始日期")}<input type="date" value={draft.start} min={playbackStartDate(draft.end)} max={draft.end} onChange={e => setDraft({ ...draft, start: e.target.value })}/></label>
@@ -167,15 +188,12 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
         <button type="button" className={styles.primary} onClick={apply} disabled={!draft.symbols.length}>{text("Compare", "开始对比")} <span aria-hidden="true">→</span></button>
       </div>
       <div className={styles.presets}><span>{text("Quick range", "快捷区间")}</span>{[1, 3, MAX_PLAYBACK_YEARS].map(years => <button type="button" key={years} onClick={() => setDraft({ ...draft, start: playbackStartDate(draft.end || initial.end, years) })}>{years}Y</button>)}<span>{text("Up to 5 years · Available from Dec 31, 2020", "最长 5 年 · 数据始于 2020 年 12 月 31 日")}</span>{dirty && <span>{text("Apply your changes with Compare.", "点击「开始对比」应用修改。")}</span>}</div>
+      <button type="button" className={styles.collapseEditor} onClick={() => { setEditorOpen(false); editor.current?.querySelector("summary")?.focus(); }}>{text("Collapse stock selection", "收起股票选择")} <span aria-hidden="true">▴</span></button>
       </div>
       </details>
     </section>}
     {!embedded && <p className={styles.notice} role="status">{notice}</p>}
-    {!embedded && <CompareCustomization preferences={preferences} symbols={draft.symbols} style={style} light={displayTheme === "light"} colors={linkColors} next={localizedPath(comparePath(styledConfig()), locale)} onChange={next => {
-      preferences.change(next); setLinkColors({}); setShareUrl(""); setShareNotice(""); setShowEmbed(false);
-      // Remove the previous shared palette; new share links capture the preview.
-      window.history.replaceState(null, "", localizedPath(comparePath({ symbols: applied.symbols, start: applied.start, end: applied.end, style }), locale));
-    }}/>}
+    {!embedded && <CompareCustomization preferences={preferences} symbols={draft.symbols} style={style} light={displayTheme === "light"} colors={linkColors} next={localizedPath(comparePath(styledConfig()), locale)} onChange={changeAppearance}/>}
     <section className={styles.stage} aria-label={text("Performance chart", "表现图表")} aria-busy={loading}>
       <div className={styles.stageHeading}><div><p className={styles.eyebrow} title={text("Dividends are not reinvested. Motion between closes is interpolated.", "股息不再投资，收盘数据之间的动画为插值。")}>{text("PRICE RETURN", "价格收益")}</p></div><div className={styles.styleSwitch} role="group" aria-label={text("Animation style", "动画样式")}>{(["line", "bar"] as const).map(option => <button key={option} type="button" aria-pressed={style === option} onClick={() => changeStyle(option)}>{option === "line" ? text("Line", "折线") : text("Bar", "条形")}</button>)}</div></div>
       {loading ? <div className={styles.empty} role="status">{text("Loading daily closes…", "正在加载每日收盘价…")}</div> : error ? <div className={styles.empty}><p role="alert">{error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>{text("Retry", "重试")}</button></div> : data && <>

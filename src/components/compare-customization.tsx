@@ -73,12 +73,22 @@ export function CompareCustomization({ preferences, symbols, style, light, color
       <fieldset disabled={!ready || status === "saving"}>
         <legend>{text("Style template", "样式模板")}</legend>
         <div className={styles.templateOptions}>{COMPARE_TEMPLATES.map(template => <button key={template} type="button" aria-pressed={appearance.template === template} onClick={() => onChange({ ...appearance, template })}>{template === "classic" ? text("Classic", "经典") : template === "pastel" ? text("Pastel", "柔和") : text("High contrast", "高对比")}</button>)}</div>
-        <div className={styles.companyColors}>{symbols.map(symbol => <div key={symbol} role="group" aria-label={text(`${symbol} color settings`, `${symbol} 颜色设置`)}><label><input type="color" aria-label={text(`Color for ${symbol}`, `${symbol} 的颜色`)} value={colors[symbol] ?? companyCompareColor(symbol, appearance, light)} onChange={event => onChange({ ...appearance, companyColors: { ...appearance.companyColors, ...colors, [symbol]: event.target.value } })}/>{symbol}</label><button type="button" disabled={!appearance.companyColors[symbol] && !colors[symbol]} onClick={() => {
-          const companyColors = { ...appearance.companyColors, ...colors }; delete companyColors[symbol]; onChange({ ...appearance, companyColors });
-        }}>{text("Reset", "重置")}</button></div>)}</div>
+        <div className={styles.companyColors}>{symbols.map(symbol => <CompanyColorControl key={symbol} symbol={symbol} appearance={appearance} light={light} colors={colors} onChange={onChange}/>)}</div>
         <button type="button" onClick={() => void preferences.save(style, colors)}>{status === "saving" ? text("Saving…", "保存中…") : text("Save my defaults", "保存默认设置")}</button>
       </fieldset>
       {status === "error" ? <p role="alert">{text("Could not load or save preferences. Your changes may not be saved.", "无法加载或保存偏好，修改可能尚未保存。")}{!ready && <button type="button" onClick={preferences.retry}>{text("Retry", "重试")}</button>}</p> : <p role="status">{status === "saved" ? text("Defaults saved to your account.", "默认设置已保存至账号。") : !ready ? text("Loading your preferences…", "正在加载偏好…") : text("Preview changes, then save your defaults.", "预览修改后保存默认设置。")}</p>}
     </>}
   </details>;
+}
+
+export function CompanyColorControl({ symbol, appearance, light, colors, onChange }: {
+  symbol: string; appearance: CompareAppearance; light: boolean; colors: Record<string, string>; onChange: (appearance: CompareAppearance) => void;
+}) {
+  const { text } = useLocale();
+  return <div role="group" aria-label={text(`${symbol} color settings`, `${symbol} 颜色设置`)}>
+    <label><input type="color" aria-label={text(`Color for ${symbol}`, `${symbol} 的颜色`)} value={colors[symbol] ?? companyCompareColor(symbol, appearance, light)} onChange={event => onChange({ ...appearance, companyColors: { ...appearance.companyColors, ...colors, [symbol]: event.target.value } })}/>{symbol}</label>
+    <button type="button" disabled={!appearance.companyColors[symbol] && !colors[symbol]} onClick={() => {
+      const companyColors = { ...appearance.companyColors, ...colors }; delete companyColors[symbol]; onChange({ ...appearance, companyColors });
+    }}>{text("Default color", "默认颜色")}</button>
+  </div>;
 }
