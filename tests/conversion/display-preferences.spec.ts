@@ -10,11 +10,12 @@ test.beforeAll(async () => {
     import {LocaleProvider,LanguageSwitch} from './src/components/providers/locale-provider';
     import {MarketProvider} from './src/components/providers/market-provider';
     import {DisplayPreferencesPanel} from './src/components/display-preferences';
+    import {ThemeToggle} from './src/components/theme-toggle';
     import {CompanyTimeline} from './src/components/company-timeline';
     import {CompanyPriceChange} from './src/components/company-price-change';
     import {DirectionBadge} from './src/components/prediction-ui';
     const prices={companyId:'US:AMD',start:'2026-09-11',end:'2026-10-11',currency:'USD',available:true,prices:[{date:'2026-10-08',open:100,high:110,low:98,close:108,volume:1000},{date:'2026-10-09',open:108,high:109,low:101,close:104,volume:1100}]};
-    createRoot(document.getElementById('root')).render(<LocaleProvider locale="en"><MarketProvider><DisplayPreferencesPanel/><LanguageSwitch/><p><CompanyPriceChange price={{change:.04,close:104,currency:'USD',tradingDate:'2026-10-09',previousTradingDate:'2026-10-08'}} locale="en"/><DirectionBadge direction="UP"/></p><p className="text-rose-300" role="note">Error colors stay red</p><p className="text-amber-200" role="status">Stale data warning</p><CompanyTimeline companyId="US:AMD" initialPrices={prices} events={[]} graph={{nodes:[],relationships:[],sources:[]}}/></MarketProvider></LocaleProvider>);
+    createRoot(document.getElementById('root')).render(<LocaleProvider locale="en"><MarketProvider><ThemeToggle/><DisplayPreferencesPanel/><LanguageSwitch/><p><CompanyPriceChange price={{change:.04,close:104,currency:'USD',tradingDate:'2026-10-09',previousTradingDate:'2026-10-08'}} locale="en"/><DirectionBadge direction="UP"/></p><p className="text-rose-300" role="note">Error colors stay red</p><p className="text-amber-200" role="status">Stale data warning</p><CompanyTimeline companyId="US:AMD" initialPrices={prices} events={[]} graph={{nodes:[],relationships:[],sources:[]}}/></MarketProvider></LocaleProvider>);
   `, {jsx:'automatic', plugins:[{name:'preference-services',setup(build){
     build.onResolve({filter:/auth-provider$|next\/navigation$/},args=>({path:args.path,namespace:'preference-mock'}));
     build.onLoad({filter:/.*/,namespace:'preference-mock'},args=>({loader:'tsx',resolveDir:process.cwd(),contents:args.path==='next/navigation'?`const router={replace:url=>history.replaceState(null,'',url)};export function useRouter(){return router}`:`import {useSyncExternalStore} from 'react';const user={uid:'viewer'};const token=async()=>'fixture-token';const subscribe=callback=>{window.addEventListener('fixture-auth-change',callback);return()=>window.removeEventListener('fixture-auth-change',callback)};export function useAuth(){const visitor=useSyncExternalStore(subscribe,()=>Boolean(window.visitor));return {user:visitor?null:user,loading:false,getIdToken:token}}`}));
@@ -125,4 +126,27 @@ for(const explicit of [false,true])test(`sign-in restores account appearance unl
   await page.evaluate(()=>{(window as unknown as {visitor:boolean}).visitor=false;window.dispatchEvent(new Event('fixture-auth-change'));});
   await expect(page.getByLabel('UI theme')).toHaveValue(explicit?'system':'dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme',explicit?'light':'dark');
+});
+
+test('header theme toggle supports keyboard activation, persists and keeps price colors and location',async({page})=>{
+  await page.emulateMedia({colorScheme:'light'});
+  await page.addInitScript(()=>{(window as unknown as {visitor:boolean}).visitor=true;});
+  const writes=await open(page);
+  await page.getByLabel('Price color convention').selectOption('red-up');
+  const url=page.url();
+  const toggle=page.getByRole('button',{name:'Switch to dark theme',exact:true});
+  await toggle.focus();await page.keyboard.press('Enter');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect(page.getByLabel('UI theme')).toHaveValue('dark');
+  await expect(page.getByRole('button',{name:'Switch to light theme',exact:true})).toBeFocused();
+  await page.emulateMedia({colorScheme:'dark'});
+  await page.emulateMedia({colorScheme:'light'});
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  const light=page.getByRole('button',{name:'Switch to light theme',exact:true});
+  await light.focus();await page.keyboard.press('Space');
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await expect(page.getByLabel('Price color convention')).toHaveValue('red-up');
+  expect(page.url()).toBe(url);expect(writes).toHaveLength(0);
 });
