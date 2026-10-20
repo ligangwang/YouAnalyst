@@ -29,7 +29,7 @@ async function isolated(load:()=>Promise<CachedFeed>,options:{priceVersion?:()=>
     if(name==='../company-themes/graph-service')return {loadThemeGraph:options.graph??(async()=>graph)};
     if(name==='../knowledge-graph/service')return {loadKnowledgeGraph:options.graph??(async()=>graph)};
     if(name==='../knowledge-graph/curated-events')return {curatedEvents:[]};
-    if(name==='../sec-filings/store')return {secCollectorMetadata:()=>({get:async()=>({get:(key:string)=>key==='lastRunAt'?now.toISOString():key==='result'?(options.collector??{failed:0,partial:0,remaining:0,outboxIncomplete:false}):undefined})})};
+    if(name==='../sec-filings/store')return {secCollectorFreshness:()=>({get:async()=>({get:(key:string)=>key==='lastRunAt'?now.toISOString():key==='result'?(options.collector??{failed:0,partial:0,remaining:0,outboxIncomplete:false}):undefined})})};
     return realRequire(name);
   };
   new Function('require','module','exports',result.outputFiles[0].text)(injected,evaluated,evaluated.exports);

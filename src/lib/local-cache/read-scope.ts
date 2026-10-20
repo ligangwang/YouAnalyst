@@ -1,15 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- SDK snapshots retain their public shape. */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Watch, track } from './watch';
-const scope = new AsyncLocalStorage<boolean>();
+declare global {
+  var __youAnalystReadScopeV1: AsyncLocalStorage<boolean> | undefined;
+  var __youAnalystSourceStoresV1: WeakMap<object, Set<Entry>> | undefined;
+}
+const scope = globalThis.__youAnalystReadScopeV1 ??= new AsyncLocalStorage<boolean>();
 export const withSourceCache = <T>(work: () => Promise<T>): Promise<T> => scope.run(true, work);
 type Source = { isEqual(other: any): boolean; onSnapshot(next: (snapshot: any) => void, error: (error: Error) => void): () => void };
 type Entry = { source: Source; watch: Watch<any>; users: number; bytes: number };
-const stores = new WeakMap<object, Set<Entry>>();
+const stores = globalThis.__youAnalystSourceStoresV1 ??= new WeakMap<object, Set<Entry>>();
 const MAX_LISTENERS = 128, MAX_BYTES = 4 * 1024 * 1024;
 // Estimate retained user data without serializing SDK document references (which
 // contain the Firestore client and may be cyclic). Stop at the eviction budget.
-function dataBytes(value: unknown): number {
+export function dataBytes(value: unknown): number {
   const pending: unknown[] = [value], seen = new WeakSet<object>(); let bytes = 0;
   while (pending.length && bytes <= MAX_BYTES) {
     const item = pending.pop();
@@ -26,7 +30,7 @@ function dataBytes(value: unknown): number {
 }
 /** Cache the exact query/document, including its filters and authorization scope.
  * No global version document, TTL, or request-time refresh query. */
-export function sourceSnapshot(owner: object, source: Source): Promise<any> | undefined {
+export function sourceSnapshot(owner: object, source: Source, maxListeners = MAX_LISTENERS): Promise<any> | undefined {
   if (!scope.getStore() || typeof source.onSnapshot !== 'function' || typeof source.isEqual !== 'function') return undefined;
   let entries = stores.get(owner);
   if (!entries) { entries = new Set(); stores.set(owner, entries); }
@@ -34,7 +38,7 @@ export function sourceSnapshot(owner: object, source: Source): Promise<any> | un
   const evict = () => {
     let bytes = [...cache].reduce((sum, entry) => sum + entry.bytes, 0);
     for (const entry of cache) {
-      if (cache.size <= MAX_LISTENERS && bytes <= MAX_BYTES) break;
+      if (cache.size <= maxListeners && bytes <= MAX_BYTES) break;
       if (entry.users) continue;
       bytes -= entry.bytes; entry.watch.close();
     }

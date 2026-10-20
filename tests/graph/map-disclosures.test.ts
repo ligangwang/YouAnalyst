@@ -17,6 +17,7 @@ import {collectCnMapDisclosures} from '../../src/lib/events/cn-disclosures';
 import {collectLiveEarnings} from '../../src/lib/earnings/live-collector';
 import {reviewedEarningsIssuers,restoreEarningsFixtures} from '../../src/lib/earnings/issuers';
 import type {MaintenanceLog} from '../../src/lib/maintenance-log';
+import type {Firestore} from 'firebase-admin/firestore';
 const graph:KnowledgeGraph={asOf:'2026-10-03',nodes:[{id:'US:MU',name:'Micron',market:'US',kind:'COMPANY',order:0},{id:'XSHE:000063',name:'ZTE',market:'CN_A',kind:'COMPANY',order:1},{id:'ORG:OPENAI',market:'GLOBAL',kind:'COMPANY',order:2}],relationships:[],sources:[]};
 const payload={cik:723125,filings:{recent:{accessionNumber:['0000723125-26-000018'],form:['8-K'],filingDate:['2026-09-30'],primaryDocument:['mu-20260930.htm'],items:['2.02,9.01'],acceptanceDateTime:['2026-09-30T20:02:22Z']}}};
 const cn={hasMore:false,totalAnnouncement:1,announcements:[{secCode:'000063',orgId:'testorg',announcementId:'12123',announcementTitle:'2026年半年度报告',adjunctUrl:'finalpage/2026-08-20/12123.PDF'}]};
@@ -80,6 +81,38 @@ test('SEC issuer aliases share transport but each map company gets its own colle
   assert.equal(fx.rows.get('collectors/sec-US:ALIAS')?.status,'complete');
   assert.equal(collector.failed.size,0);
 });
+test('SEC overlap scans skip confirmed events across runs but discover late arrivals',async()=>{
+  const fx=earningsFirestore(),ids=new Map([['0000723125',['US:MU']]]);
+  const raw={...payload,filings:{...payload.filings,files:[]}};
+  const run=async(value:unknown)=>{
+    const observer=createMapSecObserver(fx.db,ids,{deadline:fx.now()+60000,now:fx.now});
+    await observer.observe('0000723125',value,async()=>null);assert.equal(observer.failed.size,0);
+  };
+  await run(raw);
+  const reads=()=>fx.reads.filter(path=>path.startsWith('events/')).length;
+  assert.equal(reads(),1);
+  await run(raw);assert.equal(reads(),1,'persisted receipt survives a new observer instance');
+  const recent={...raw.filings.recent,accessionNumber:['0000723125-26-000099']};
+  await run({...raw,filings:{...raw.filings,recent}});
+  assert.equal(reads(),2,'unseen accession with the same old filing date is checked');
+  const state=fx.rows.get('collectors/sec-US:MU')!;
+  state.confirmedDisclosures=[];
+  await run(raw);assert.equal(reads(),3,'clearing receipts enables explicit reconciliation');
+});
+test('failed SEC receipt checkpoint safely rechecks committed events on the next run',async()=>{
+  const fx=earningsFirestore(),ids=new Map([['0000723125',['US:MU']]]);
+  const raw={...payload,filings:{...payload.filings,files:[]}};
+  const run=()=>createMapSecObserver(fx.db,ids,{deadline:fx.now()+60000,now:fx.now});
+  fx.reject((path,value)=>path==='collectors/sec-US:MU'&&Array.isArray(value.confirmedDisclosures));
+  const first=run();await first.observe('0000723125',raw,async()=>null);
+  assert.equal(first.failed.size,1);
+  assert.equal(fx.rows.get('collectors/sec-US:MU')?.confirmedDisclosures,undefined);
+  fx.reject(()=>false);
+  const second=run();await second.observe('0000723125',raw,async()=>null);
+  assert.equal(second.failed.size,0);
+  assert.equal(fx.reads.filter(path=>path.startsWith('events/')).length,2);
+  assert.equal([...fx.rows.keys()].filter(path=>path.startsWith('events/')).length,1);
+});
 test('expanded SEC coverage backfills existing issuers and resumes bounded batches without changing original timestamps',async()=>{
   const fx=earningsFirestore(),ids=new Map([['0000723125',['US:MU']]]),at='2026-10-01T12:00:00.000Z';
   const existing=secDisclosureRows('US:MU','0000723125',payload);
@@ -134,6 +167,21 @@ test('SEC archive sets above twenty files resume by page without refetching comp
   assert.equal([...fx.rows.keys()].filter(path=>path.startsWith('events/')).length,26);
   assert.equal(fx.rows.get('collectors/sec-US:MU')?.documents,26);assert.equal(fx.rows.get('collectors/sec-US:MU')?.created,26);
 });
+test('exchange scan reuses acquired cursor without a second checkpoint get',async()=>{
+  const fx=earningsFirestore();
+  const db={...fx.db,collection:(name:string)=>{
+    const collection=fx.db.collection(name);
+    return {...collection,doc:(id:string)=>{
+      const ref=collection.doc(id);
+      return name==='collectors'&&id==='exchange-map'?{...ref,get:async()=>{assert.fail('Cursor must come from lease transaction');}}:ref;
+    }};
+  }} as unknown as Firestore;
+  const result=await collectCnMapDisclosures(db,graph,async url=>url.includes('topSearch')
+    ?[{code:'000063',category:'A股',orgId:'testorg'}]:cn,
+  {deadline:fx.now()+60000,runId:'test',earningsEnabled:false,now:fx.now});
+  assert.equal('completed' in result&&result.completed,1);
+  assert.equal(fx.reads.filter(path=>path==='collectors/exchange-map').length,2,'Acquire and safe release only');
+});
 test('China non-pilot announcements reach universal events; incomplete scans retain their checkpoint',async()=>{
   const fx=earningsFirestore();
   const request=async(url:string)=>url.includes('topSearch')?[{code:'000063',category:'A股',orgId:'testorg'}]:cn;
@@ -145,6 +193,35 @@ test('China non-pilot announcements reach universal events; incomplete scans ret
   assert.equal('failed' in failed&&failed.failed,1);
   assert.equal(fx.rows.get('collectors/exchange-XSHE:000063')?.lastCompleteAt,old);
   assert.equal([...fx.rows.keys()].filter(k=>k.startsWith('events/')).length,1);
+});
+test('exchange overlap skips confirmed IDs but checks late arrivals and explicit repairs',async()=>{
+  const fx=earningsFirestore(),checkpoint='collectors/exchange-XSHE:000063';
+  const first={...cn.announcements[0],adjunctUrl:'finalpage/2026-09-30/12123.PDF'};
+  let announcements=[first];
+  const request=async(url:string)=>url.includes('topSearch')?[{code:'000063',category:'A股',orgId:'testorg'}]
+    :{hasMore:false,totalAnnouncement:announcements.length,announcements};
+  const run=()=>collectCnMapDisclosures(fx.db,graph,request,{deadline:fx.now()+60000,runId:'test',earningsEnabled:false,now:fx.now});
+  await run();
+  const eventReads=()=>fx.reads.filter(path=>path.startsWith('events/')).length;
+  assert.equal(eventReads(),1);
+  fx.advance(3600000);await run();assert.equal(eventReads(),1);
+  announcements=[first,{...first,announcementId:'12124',adjunctUrl:'finalpage/2026-09-30/12124.PDF'}];
+  fx.advance(3600000);await run();assert.equal(eventReads(),2);
+  const events=[...fx.rows.keys()].filter(path=>path.startsWith('events/'));assert.equal(events.length,2);
+  fx.rows.delete(events[0]);
+  fx.rows.set(checkpoint,{...fx.rows.get(checkpoint),confirmedDisclosures:[]});
+  fx.advance(3600000);await run();
+  assert.equal(eventReads(),4);assert(fx.rows.has(events[0]));
+});
+test('exchange checkpoint failure retains transactional duplicate checks on the next run',async()=>{
+  const fx=earningsFirestore(),checkpoint='collectors/exchange-XSHE:000063';
+  const request=async(url:string)=>url.includes('topSearch')?[{code:'000063',category:'A股',orgId:'testorg'}]:cn;
+  const run=()=>collectCnMapDisclosures(fx.db,graph,request,{deadline:fx.now()+60000,runId:'test',earningsEnabled:false,now:fx.now});
+  fx.reject((path,value)=>path===checkpoint&&value.status==='complete');
+  await run();assert.equal(fx.rows.get(checkpoint)?.confirmedDisclosures,undefined);
+  fx.reject(()=>false);fx.advance(3600000);await run();
+  assert.equal(fx.reads.filter(path=>path.startsWith('events/')).length,2);
+  assert.equal([...fx.rows.keys()].filter(path=>path.startsWith('events/')).length,1);
 });
 test('earnings discovery hands off per issuer only when enabled and fresh, and falls back during rollout or outages',async()=>{
   restoreEarningsFixtures();
@@ -186,4 +263,15 @@ test('HTML news accepts only configured issuer article paths and original public
   assert.equal(parseHtmlNewsIndex(html,source).items.length,1);
   assert.equal(originalArticleMetadata('<script type="application/ld+json">{"@type":"NewsArticle","headline":"Results","datePublished":"2026-09-30","dateModified":"2026-10-03"}</script>').day,'2026-09-30');
   assert.equal(originalArticleMetadata('<script type="application/ld+json">{"@type":"NewsArticle","dateModified":"2026-10-03"}</script>').day,null);
+});
+
+test('SEC identity summary is unchanged by repeated scan progress',async()=>{
+ const fx=earningsFirestore(),ids=new Map([['0000723125',['US:MU']]]);
+ const raw={...payload,filings:{...payload.filings,files:[]}};
+ for(let i=0;i<2;i++){
+  const observer=createMapSecObserver(fx.db,ids,{deadline:fx.now()+60000,now:fx.now});
+  await observer.observe('0000723125',raw,async()=>null);assert.equal(observer.failed.size,0);
+ }
+ assert.deepEqual(fx.rows.get('collectors/sec-identity-US:MU'),{companyId:'US:MU',cik:'0000723125'});
+ assert.equal(fx.writes.filter(path=>path==='collectors/sec-identity-US:MU').length,1);
 });

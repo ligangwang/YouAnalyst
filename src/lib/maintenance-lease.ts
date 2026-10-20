@@ -11,16 +11,22 @@ export function cloudRunTaskAttempt(env: Record<string, string | undefined> = pr
 
 // Store the lease on the existing job metadata document. Longer than the 20-minute task timeout.
 export async function acquireMaintenanceLease(ref: DocumentReference, owner: string, now = Date.now(), task?: TaskAttempt) {
+  return (await acquireMaintenanceLeaseState(ref,owner,now,task))!==null;
+}
+
+/** Return state from the successful transaction attempt, never a pre-lease read.
+ * Reuse it only for this lease's initial cursor; release still checks ownership. */
+export async function acquireMaintenanceLeaseState(ref: DocumentReference, owner: string, now = Date.now(), task?: TaskAttempt) {
   return ref.firestore.runTransaction(async tx => {
     const data = (await tx.get(ref)).data();
     // Cloud Run starts a retry after the previous attempt ends. Recover its lease
     // immediately after a crash, while still excluding other executions/tasks.
     const recovering = task && data?.leaseTask?.execution === task.execution
       && data.leaseTask.index === task.index && task.attempt > data.leaseTask.attempt;
-    if (Number(data?.leaseExpiresAtMs) > now && !recovering) return false;
+    if (Number(data?.leaseExpiresAtMs) > now && !recovering) return null;
     tx.set(ref, { leaseOwner: owner, leaseExpiresAtMs: now + 30 * 60_000,
       leaseTask: task ?? FieldValue.delete() }, { merge: true });
-    return true;
+    return {checkpoint:data};
   });
 }
 

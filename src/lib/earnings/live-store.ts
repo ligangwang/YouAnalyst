@@ -22,11 +22,12 @@ export type EarningsWork = {
   maxExhibits?: number;
   forceChildren?: boolean;
 };
+export type EarningsDiscovery = { status: "existing" | "queued"; sourceId: string; delivery?: EarningsSourceDiscovered };
 export function earningsMetadata(db: Firestore, id: string) {
   if (!/^[A-Za-z0-9:_-]{1,160}$/.test(id)) throw new Error("Invalid earnings metadata identity");
   return db.collection(EARNINGS_COLLECTORS).doc(id);
 }
-export async function discoverEarningsSource(db: Firestore, source: EarningsSource, inputKind: EarningsWork["inputKind"], now = Date.now(), options: { parentCaptureId?: string; parentDeliveryId?: string; force?: boolean; maxExhibits?: number; requireCanaryBounds?: boolean } = {}) {
+export async function discoverEarningsSource(db: Firestore, source: EarningsSource, inputKind: EarningsWork["inputKind"], now = Date.now(), options: { parentCaptureId?: string; parentDeliveryId?: string; force?: boolean; maxExhibits?: number; requireCanaryBounds?: boolean } = {}): Promise<EarningsDiscovery> {
   validateSource(source);
   if (options.maxExhibits !== undefined && (inputKind !== "sec_filing" || !Number.isInteger(options.maxExhibits) || options.maxExhibits < 1 || options.maxExhibits > 20)) throw new Error("Invalid SEC earnings exhibit budget");
   if (inputKind !== "document" && (inputKind !== "sec_filing" || source.provider !== "sec" || !/^(?:8-K|6-K)(?:\/A)?$/.test(source.form ?? ""))) throw new Error("Unsupported earnings discovery input");
@@ -46,7 +47,8 @@ export async function discoverEarningsSource(db: Firestore, source: EarningsSour
     if (options.requireCanaryBounds && previous && ["queued", "processing"].includes(previous.status)
       && (previous.maxExhibits !== 5 || previous.forceChildren !== true)) throw new Error("Active earnings source is outside the bounded canary; inspect it before retrying");
     if (previous && (["queued", "processing"].includes(previous.status) || (!options.force && previous.nextCheckAtMs > now)
-      || (options.force && options.parentDeliveryId && previous.parentDeliveryId === options.parentDeliveryId))) return { status: "existing" as const, sourceId };
+      || (options.force && options.parentDeliveryId && previous.parentDeliveryId === options.parentDeliveryId))) return { status: "existing" as const, sourceId,
+        ...(previous.publishPending ? { delivery: earningsSourceEvent(sourceId, previous.generation) } : {}) };
     const firstSeenAt = previous?.firstSeenAt ?? source.firstSeenAt;
     const value: EarningsWork = { recordType: "source", source: { ...intake, firstSeenAt }, sourceId, inputKind,
       generation: (previous?.generation ?? 0) + 1, status: "queued", publishPending: true, attempts: 0,
@@ -55,7 +57,7 @@ export async function discoverEarningsSource(db: Firestore, source: EarningsSour
       ...(inputKind === "sec_filing" ? { maxExhibits: options.maxExhibits ?? 20, forceChildren: options.force === true } : {}) };
     earningsSourceEvent(sourceId, value.generation);
     tx.set(ref, clean(value));
-    return { status: "queued" as const, sourceId };
+    return { status: "queued" as const, sourceId, delivery: earningsSourceEvent(sourceId, value.generation) };
   });
 }
 export async function publishEarningsOutbox(db: Firestore, publish: (event: EarningsSourceDiscovered) => Promise<string>, limit = 50, sourceIds?: string[]) {
@@ -63,21 +65,39 @@ export async function publishEarningsOutbox(db: Firestore, publish: (event: Earn
   if (sourceIds && (sourceIds.length > limit || sourceIds.some(id => !/^earnings_source_[a-f0-9]{64}$/.test(id)))) throw new Error("Invalid scoped earnings outbox");
   const docs = sourceIds ? (await Promise.all([...new Set(sourceIds)].map(id => db.collection(EARNINGS_SOURCES).doc(id).get()))).filter(doc => doc.get("publishPending") === true)
     : (await db.collection(EARNINGS_SOURCES).where("publishPending", "==", true).orderBy(FieldPath.documentId()).limit(limit).get()).docs;
-  let published = 0;
-  for (const doc of docs) {
+  const deliveries = docs.map(doc => {
     const work = doc.data() as EarningsWork;
     if (work.recordType !== "source" || work.sourceId !== doc.id) throw new Error("Invalid earnings outbox source");
-    const event = earningsSourceEvent(doc.id, work.generation);
+    return earningsSourceEvent(doc.id, work.generation);
+  });
+  return { published: await publishEarningsDeliveries(db, publish, deliveries), limitReached: docs.length === limit };
+}
+/** Reuse only this delivery's committed discovery results, not a process cache.
+ * Uncertain publications remain pending for the normal durable outbox sweep. */
+export async function publishDiscoveredEarningsOutbox(db: Firestore, publish: (event: EarningsSourceDiscovered) => Promise<string>, discoveries: readonly EarningsDiscovery[]) {
+  if (discoveries.length > 20) throw new Error("Invalid scoped earnings outbox");
+  const deliveries = new Map<string, EarningsSourceDiscovered>();
+  for (const discovery of discoveries) {
+    if (!discovery.delivery) continue;
+    const event = earningsSourceEvent(discovery.sourceId, discovery.delivery.generation);
+    deliveries.set(event.eventId, event);
+  }
+  return { published: await publishEarningsDeliveries(db, publish, [...deliveries.values()]) };
+}
+async function publishEarningsDeliveries(db: Firestore, publish: (event: EarningsSourceDiscovered) => Promise<string>, deliveries: readonly EarningsSourceDiscovered[]) {
+  let published = 0;
+  for (const event of deliveries) {
+    const ref = db.collection(EARNINGS_SOURCES).doc(event.sourceId);
     const messageId = await publish(event);
     if (!messageId) throw new Error("Earnings publication was not confirmed");
     await db.runTransaction(async tx => {
-      const current = (await tx.get(doc.ref)).data() as EarningsWork | undefined;
+      const current = (await tx.get(ref)).data() as EarningsWork | undefined;
       if (current?.generation !== event.generation) return;
-      tx.set(doc.ref, { publishPending: false, publishedAt: new Date().toISOString(), messageId }, { merge: true });
+      tx.set(ref, { publishPending: false, publishedAt: new Date().toISOString(), messageId }, { merge: true });
     });
     published++;
   }
-  return { published, limitReached: docs.length === limit };
+  return published;
 }
 export async function claimEarningsSource(db: Firestore, event: EarningsSourceDiscovered, owner: string, now = Date.now()) {
   const ref = db.collection(EARNINGS_SOURCES).doc(event.sourceId);

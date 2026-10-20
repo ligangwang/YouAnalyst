@@ -175,7 +175,7 @@ test('initial history remains baseline; later arrivals are immutable and retries
   const values=[...records.entries()].filter(([key])=>key.startsWith(NEWS_EVENTS_COLLECTION+'/')).map(([,value])=>value);
   assert.equal(values.length,2);assert.equal(values[0].baseline,true);assert.equal(values[1].baseline,false);assert.equal(values[1].collected_at,nextAt.toISOString());
   const retryAt=new Date(nextAt.getTime()+source.pollMs),retry=await store.acquire(source,retryAt,'retry');assert.ok(retry);await store.commit(source,retry,page('new'),retryAt);
-  assert.equal(values[1].collected_at,nextAt.toISOString());assert.equal(records.size,4);
+  assert.equal(values[1].collected_at,nextAt.toISOString());assert.equal(records.size,5);
   const graph:KnowledgeGraph={nodes:[{id:source.companyId,kind:'COMPANY',order:0}],relationships:[],sources:[],asOf:'2026-10-02'};
   const projected=projectCollectedNews(values,graph,retryAt);assert.equal(projected.length,2);assert.equal(projected[0].published_at,'2026-10-02T12:00:00.000Z');assert.equal('collected_at' in projected[0],false);assert.equal('processed_at' in projected[0],false);assert.deepEqual(projected[0].edgeIds,[]);
 });
@@ -185,7 +185,7 @@ test('failed scans keep their previous validators and first-seen state; stale le
   const nextAt=new Date(at.getTime()+source.pollMs),next=await store.acquire(source,nextAt,'next');assert.ok(next);
   await assert.rejects(store.commit(source,next,page('bad'),new Date(nextAt.getTime()+121_000)),/lease expired/);
   await store.fail(source,next,'HTTP 429',new Date(nextAt.getTime()+1_200_000));
-  const state=records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)!;assert.deepEqual(state.validators,{etag:'history'});assert.equal(state.lastSuccessAt,at.toISOString());assert.equal(state.failures,1);assert.equal(records.size,3);
+  const state=records.get(`${NEWS_COLLECTORS_COLLECTION}/${source.id}`)!;assert.deepEqual(state.validators,{etag:'history'});assert.equal(state.lastSuccessAt,at.toISOString());assert.equal(state.failures,1);assert.equal(records.size,4);
 });
 test('runner respects provider backoff without losing prior collector health',async()=>{
   const {db,records}=memoryDb();await collectNewsSources([source],firestoreNewsStore(db),async()=>{throw new NewsFetchError('HTTP 429',7_200_000);},()=>at);
@@ -254,4 +254,16 @@ test('unresolved article dates fail without advancing the checkpoint and are ret
   resolved=true;const later=new Date(at.getTime()+apple.pollMs);
   const next=await collectNewsSources([apple],store,read,()=>later);assert.equal(next[0].status,'ok');assert.equal(next[0].created,1);assert.equal(articleReads,2);
   const event=[...records.entries()].find(([key])=>key.startsWith('events/'))![1];assert.equal(event.publication_date,'2026-10-02');assert.equal(event.published_at,null);
+});
+
+test('news health summary changes on outcome, not lease acquisition',async()=>{
+ const {db,records}=memoryDb(),store=firestoreNewsStore(db),key=`collectors/news-health-${source.id}`;
+ const first=await store.acquire(source,at,'first');assert.ok(first);assert.equal(records.has(key),false);
+ await store.commit(source,first,page('history'),at);
+ assert.deepEqual(records.get(key),{lastSuccessAt:at.toISOString(),failures:0,partial:false});
+ const previous=records.get(key),later=new Date(at.getTime()+source.pollMs);
+ const next=await store.acquire(source,later,'next');assert.ok(next);
+ assert.equal(records.get(key),previous,'lease acquisition must not write the health summary');
+ await store.fail(source,next,'failure',new Date(later.getTime()+source.pollMs));
+ assert.deepEqual(records.get(key),{lastSuccessAt:at.toISOString(),failures:1,partial:false});
 });

@@ -6,12 +6,36 @@ import batch from '../data/robotics/company-memberships.json';
 import { usMapTickers } from '../src/lib/knowledge-graph/us-companies';
 import { cnMapCompanies } from '../src/lib/knowledge-graph/cn-companies';
 import type { Firestore } from 'firebase-admin/firestore';
-import { loadCollectionCompanies, loadCollectionUniverse, loadThemeCompanies } from '../src/lib/company-themes/service';
+import { loadCollectionCompanies, loadCollectionCompanyScope, loadCollectionUniverse, loadThemeCompanies } from '../src/lib/company-themes/service';
 import spaceBatch from '../data/space/company-memberships.json';
 import {planThemeEnrollment,validateThemeBatch} from '../src/lib/company-themes/migration';
 import {themedGraph} from '../src/lib/company-themes/presentation';
 import {themeMetadata} from '../src/lib/company-themes/metadata';
 import {loadKnowledgeGraph} from '../src/lib/knowledge-graph/service';
+
+test('collector company scope keeps names and theme enrollment without reading graph data',async()=>{
+ const records=[
+  {id:'US:AAA',name:'Company A',aliases:['Alias A'],names:{en:'Company A'},themeMemberships:{ai:{status:'PUBLISHED',primarySector:'compute'}}},
+  {id:'XSHE:000063',name:'Company B',themeMemberships:{robotics:{status:'PUBLISHED',primarySector:'sensors'}}},
+  {id:'ORG:PRIVATE',name:'Company C',themeMemberships:{space:{status:'PUBLISHED',primarySector:'launch'}}},
+  {id:'US:WITHDRAWN',name:'Withdrawn',themeMemberships:{ai:{status:'WITHDRAWN'}}},
+ ];
+ let reads=0;
+ const db={collection:(name:string)=>{
+  assert.equal(name,'companies','collector scope must not read relationships or fundamentals');
+  return {where:(field:string,op:string,values:string[])=>{
+   assert.equal(field,'themeIds');assert.equal(op,'array-contains-any');
+   assert.deepEqual(values,['ai','robotics','space']);
+   return {get:async()=>{reads++;return {docs:records.map(row=>({id:row.id,data:()=>({...row,status:'DIRECTORY'})}))};}};
+  }};
+ }} as unknown as Firestore;
+ const scope=await loadCollectionCompanyScope(db);
+ assert.equal(reads,1);
+ assert.deepEqual(scope.nodes.map(n=>n.id),['US:AAA','XSHE:000063','ORG:PRIVATE']);
+ assert.deepEqual(scope.nodes[0].aliases,['Alias A']);
+ assert.equal(scope.nodes[1].market,'CN_A');
+ assert.deepEqual(scope.relationships,[]);
+});
 
 test('collection scope reuses one theme query without dropping graph neighbors or theme-only companies', async () => {
   const membership = {status:'PUBLISHED',stageIds:[],stages:[],memberships:[],sources:[],order:1,asOf:'2026-10-17'};
