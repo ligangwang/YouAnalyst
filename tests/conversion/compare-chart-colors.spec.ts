@@ -49,6 +49,8 @@ test('picker, chips and actual rendered lines and bars keep the same bright colo
   await page.goto('http://compare-colors.test/en/compare');
   const chart = page.getByRole('img', { name: 'Animated stock price return comparison', exact: true });
   await expect(chart.locator('canvas')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^At a glance/ })).toHaveCount(0);
+  await expect(page.getByRole('table')).toHaveCount(0);
   await expect(page.getByLabel('Selected stocks', { exact: true })).toHaveAttribute('aria-expanded', 'true');
   const chip = page.getByRole('button', { name: 'Choose color for MU', exact: true });
   await chip.click();
@@ -76,4 +78,8 @@ test('picker, chips and actual rendered lines and bars keep the same bright colo
   const partial = await colorPixels(page, await chart.screenshot({ style: pixelStyle }));
   expect(partial.yellow).toBeGreaterThan(20); expect(partial.magenta).toBeGreaterThan(20);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await chart.locator('canvas').evaluate(canvas => canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true })));
+  await expect(page.getByText('Animation is unavailable in this browser. Returns are shown in the table below.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'MU' }).locator('td').last()).toHaveText('+10.00%');
 });
