@@ -3,7 +3,7 @@ import { loadThemeEnrolledCompanies } from './company-cache';
 import { getAdminFirestore } from "@/lib/firebase/admin";
 import type { KnowledgeGraph } from "./model";
 import { graphFromMarket, type MarketCompany, type MarketRelationship } from "./market-store";
-import { loadPublishedRelationships } from './relationship-cache';
+import { loadPublishedRelationships, relationshipBelongsToTheme } from './relationship-cache';
 import { attachCnMarketCaps } from "./cn-market-caps";
 import { loadNvidiaManufacturingProjection } from "./nvidia-manufacturing-projection";
 import { changeCached } from '../change-cache';
@@ -21,7 +21,8 @@ export async function loadKnowledgeGraph(options: { db?: Firestore; companies?: 
     const rows = companies.docs.map(d => ({ ...d.data(), id: d.id }) as MarketCompany)
       .filter(company => company.inGraph?.status === "PUBLISHED");
     const ids = new Set(rows.map(c => c.id));
-    const relationships = edges.docs.map(d => ({ ...d.data(), id: d.id }) as MarketRelationship);
+    const relationships = edges.docs.map(d => ({ ...d.data(), id: d.id }) as MarketRelationship)
+      .filter(relationship => relationshipBelongsToTheme(relationship, 'ai'));
     const neighbors = [...new Set(relationships.filter(r => ids.has(r.source) || ids.has(r.target)).flatMap(r => [r.source, r.target]))].filter(id => !ids.has(id) && /^(US:[A-Z0-9.-]+|XSHG:6\d{5}|XSHE:[03]\d{5}|ORG:[A-Z0-9][A-Z0-9.-]{0,79})$/.test(id));
     for (let i = 0; i < neighbors.length; i += 200) {
       const profiles = await loadCompanyDocuments(db, 'companies', neighbors.slice(i, i + 200));

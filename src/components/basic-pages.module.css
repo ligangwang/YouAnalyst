@@ -1,10 +1,9 @@
-.companies { width:100%;max-width:1160px;margin:auto;padding:32px 24px 64px; }
-.companies h1 { font-size:clamp(28px,3vw,36px);font-weight:600;letter-spacing:-.035em;line-height:1.2;margin-bottom:24px; }
+.companies { width:100%;max-width:1040px;margin-inline:auto;padding:32px 24px 64px; }
 .searchArea { padding:24px;background:var(--bg-surface);border-radius:16px; }
-.searchCard { display:flex;justify-content:flex-start;width:100%; }
+.searchCard { display:flex;justify-content:center;width:100%; }
 .searchCard>div { width:100%;max-width:620px; }
-.searchCard>div { margin-inline:0; }
-.suggestions { display:flex;flex-wrap:wrap;gap:8px;margin-top:16px; }
+.searchCard>div { margin-inline:auto; }
+.suggestions { display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:16px; }
 .suggestions a { min-height:36px;display:inline-flex;align-items:center;background:var(--bg-elevated);border:1px solid transparent;border-radius:8px;padding:8px 12px;font-family:var(--font-data);font-size:12px;font-weight:600; }
 .suggestions a:hover { border-color:var(--border-control); }
 .suggestions span { font-family:var(--font-ui); }
@@ -27,4 +26,4 @@
 .about h2 { color:var(--text-primary);font-size:20px; }
 .about dl { grid-template-columns:repeat(2,minmax(0,1fr));max-width:640px; }
 .about section>a { border-color:var(--border-control);border-radius:8px;min-height:40px; }
-@media(max-width:700px) { .companies { padding:24px 16px 48px; }.companies h1 { margin-bottom:16px; }.searchArea { padding:16px; }.suggestions a { min-height:44px; }.ranking { margin-top:24px; }.ranking h2 { font-size:18px; }.about { padding:40px 20px 48px; }.about dl { grid-template-columns:1fr; }.about section>a { min-height:44px; } }
+@media(max-width:700px) { .companies { padding:24px 16px 48px; }.searchArea { padding:16px; }.suggestions a { min-height:44px; }.ranking { margin-top:24px; }.ranking h2 { font-size:18px; }.about { padding:40px 20px 48px; }.about dl { grid-template-columns:1fr; }.about section>a { min-height:44px; } }

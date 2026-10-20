@@ -200,7 +200,7 @@ export async function persistEdges(db: Firestore, edges: CompanyGraphEdge[], fil
       const refs = chunk.map(edge => db.collection("company_relationships").doc(filingRelationshipId(edge.id)));
       const previous = await Promise.all(refs.map(ref => tx.get(ref)));
       for (const [i, edge] of chunk.entries()) {
-        if (["PUBLISHED", "WITHDRAWN"].includes(previous[i].data()?.status)) continue;
+        if (["PUBLISHED", "WITHDRAWN", "APPROVED", "REJECTED"].includes(previous[i].data()?.status)) continue;
         tx.set(refs[i], filingRelationship(edge, filingUrl), { merge: true });
       }
     });
