@@ -191,7 +191,7 @@ test('expanded tree keeps company labels clear of headings and uses compact cust
  await expect(labels.first().locator('span[aria-hidden="true"]').last()).toBeVisible();
 });
 
-test('fit tree restores a parked overview and replay explicitly starts the tour',async({page,isMobile})=>{
+test('fit tree orbits the full overview, respects reduced motion and manual positioning, and replay starts the tour',async({page,isMobile})=>{
  test.setTimeout(60000);
  if(!isMobile)await page.setViewportSize({width:1440,height:1000});
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -201,10 +201,28 @@ test('fit tree restores a parked overview and replay explicitly starts the tour'
  const tree=page.locator('[data-industry-section="vertical"]'),canvas=tree.locator('canvas');await canvas.scrollIntoViewIfNeeded();
  await tree.getByRole('button',{name:'Fit tree',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-user-positioned','true');
- await expect(canvas).toHaveAttribute('data-tour','stopped');
+ await expect(canvas).toHaveAttribute('data-tour','paused');
+ await expect(canvas).toHaveAttribute('data-tour-phase','full-tree');
  const pose=await canvas.getAttribute('data-camera-position');
- await page.emulateMedia({reducedMotion:'no-preference'});await page.waitForTimeout(600);
- await expect(canvas).toHaveAttribute('data-camera-position',pose!);
+ await page.waitForTimeout(400);await expect(canvas).toHaveAttribute('data-camera-position',pose!);
+ const target=await canvas.getAttribute('data-camera-target');
+ const distance=()=>canvas.evaluate(el=>{
+   const p=el.getAttribute('data-camera-position')!.split(',').map(Number),t=el.getAttribute('data-camera-target')!.split(',').map(Number);
+   return Math.hypot(...p.map((v,i)=>v-t[i]));
+ });
+ const radius=await distance();
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await expect(canvas).toHaveAttribute('data-tour','playing');
+ await expect(canvas).not.toHaveAttribute('data-camera-position',pose!);
+ await expect(canvas).toHaveAttribute('data-camera-target',target!);
+ expect(await distance()).toBeCloseTo(radius,1);
+ const bounds=(await canvas.boundingBox())!;
+ await page.mouse.move(bounds.x+10,bounds.y+10);await page.mouse.down();
+ await page.mouse.move(bounds.x+65,bounds.y+10,{steps:6});await page.mouse.up();
+ await expect(canvas).toHaveAttribute('data-tour','stopped');
+ await expect(canvas).toHaveAttribute('data-camera','idle',{timeout:10000});
+ const parked=await canvas.getAttribute('data-camera-position');
+ await page.waitForTimeout(600);await expect(canvas).toHaveAttribute('data-camera-position',parked!);
  await tree.getByRole('button',{name:'Replay tour',exact:true}).click();
  await expect(canvas).toHaveAttribute('data-tour','playing');
  await expect(tree.locator('[data-tree-kind="layer"]').first()).toHaveAttribute('title',/Explore \d+ companies/);

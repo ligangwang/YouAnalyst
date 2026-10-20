@@ -18,7 +18,7 @@ import { leafBladeTexture } from '@/lib/ui/knowledge-graph/leaf-texture';
 import styles from './industry-tree.module.css';
 import {WebGLContextRecovery} from './webgl-context-recovery';
 import {useNodePresence} from './use-node-presence';
-import { TOUR_IDLE_RESUME_MS, tourDelta } from '@/lib/ui/knowledge-graph/tour-motion';
+import { TOUR_IDLE_RESUME_MS, TOUR_MOTION, tourDelta, tourEase } from '@/lib/ui/knowledge-graph/tour-motion';
 import { createTreeTour, createTreePresentation, createTreeOverviewTour, treeOverviewShot, treeOverviewPlan, treeTourFromView } from '@/lib/ui/knowledge-graph/tree-tour';
 import { advanceLabelFade, createLabelFade, type LabelFade } from '@/lib/ui/knowledge-graph/label-fade';
 import {placeTreeLabel} from '@/lib/ui/knowledge-graph/tree-label-placement';
@@ -48,6 +48,8 @@ function Scene(props:TreeSceneProps){
   const presentation=useRef<ReturnType<typeof createTreePresentation>|null>(null);
   const controls=useRef<CameraControls>(null);
   const userPositioned=useRef(false);
+  const overviewOrbit=useRef(false);
+  const overviewElapsed=useRef(0);
   const flight=useRef<ReturnType<typeof createTreeTour>|null>(null);
   const resumePending=useRef(false);
   const resumeReady=useRef(false);
@@ -64,7 +66,7 @@ function Scene(props:TreeSceneProps){
     if(!surface)return;
     const pointers=new Set<number>(),keys=new Set<string>(),starts=new Map<number,{x:number;y:number}>();
     const clear=()=>{if(idleTimer.current!==null)clearTimeout(idleTimer.current);idleTimer.current=null;resumeReady.current=false;};
-    const pause=()=>{tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
+    const pause=()=>{overviewOrbit.current=false;tourRef.current=false;resumePending.current=true;skipLayer.current=undefined;clear();invalidate();};
     const schedule=()=>{
       clear();
       if(pointers.size||keys.size||document.hidden||userPositioned.current)return;
@@ -115,6 +117,7 @@ function Scene(props:TreeSceneProps){
   const savedSelectionView=useRef<{position:Vector3;target:Vector3}|null>(null);
   useEffect(()=>{
     if(props.selected){
+      overviewOrbit.current=false;
       if(!lastSelection.current&&controls.current)savedSelectionView.current={position:controls.current.getPosition(new Vector3(),false),target:controls.current.getTarget(new Vector3(),false)};
       tourRef.current=false;
     }
@@ -199,6 +202,7 @@ function Scene(props:TreeSceneProps){
     if(props.vertical){
       const restarting=!previous||previous.request!==props.request;
       if(restarting){
+        overviewOrbit.current=false;
         userPositioned.current=false;resumePending.current=false;resumeReady.current=false;tourRef.current=true;
         if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
       }
@@ -244,6 +248,7 @@ function Scene(props:TreeSceneProps){
     if(!props.vertical||!props.fitRequest||props.fitRequest===appliedFitRequest.current||!controls.current)return;
     appliedFitRequest.current=props.fitRequest;
     userPositioned.current=true;tourRef.current=false;resumePending.current=false;resumeReady.current=false;
+    overviewOrbit.current=true;overviewElapsed.current=0;
     if(idleTimer.current!==null){clearTimeout(idleTimer.current);idleTimer.current=null;}
     const shot=treeOverviewShot(all,size.width,size.height);
     void controls.current.setLookAt(...shot.position,...shot.target,!reduced.current);invalidate();
@@ -259,6 +264,7 @@ function Scene(props:TreeSceneProps){
     if(node.layer)disclosedLayers.current.add(node.layer);
     else if(node.kind==='root')disclosedLayers.current.clear();
     userPositioned.current=true;tourRef.current=false;resumeReady.current=false;
+    overviewOrbit.current=false;
     collisionLabels.current.clear();lastCollision.current=-Infinity;
     if(!revealHidden)props.onToggle(node.id);
     invalidate();
@@ -327,8 +333,16 @@ function Scene(props:TreeSceneProps){
       resumePending.current=false;resumeReady.current=false;tourRef.current=true;resumed=true;
       moving=true;
     }
-    gl.domElement.setAttribute('data-tour',touring||resumed?'playing':props.tour.current?'paused':'stopped');
-    let presentationFrame=props.vertical?presentation.current?.sample():undefined;
+    const orbiting=props.vertical&&overviewOrbit.current&&!props.selected&&!props.focus&&!props.paused&&!reduced.current&&!document.hidden;
+    gl.domElement.setAttribute('data-tour',touring||resumed||orbiting?'playing':props.tour.current||overviewOrbit.current?'paused':'stopped');
+    let presentationFrame=props.vertical&&!overviewOrbit.current?presentation.current?.sample():undefined;
+    if(orbiting&&controls.current){
+      const dt=tourDelta(delta,navigation.speed);overviewElapsed.current+=dt;
+      // Fit tree keeps the complete canopy framed while orbiting at the same
+      // gentle pace as the universe. Interaction parks the user's chosen view.
+      void controls.current.rotate(TOUR_MOTION.degreesPerSecond*Math.PI/180*dt*tourEase(Math.min(1,overviewElapsed.current/2)),0,false);
+      moving=true;
+    }
     if(touring&&controls.current){
       if(presentationFrame&&presentation.current){
         presentationFrame=presentation.current(delta,navigation.speed);
@@ -352,7 +366,7 @@ function Scene(props:TreeSceneProps){
       if(distance<(primaryDisclosures.get(node.layer)?.distance??Infinity))primaryDisclosures.set(node.layer,{id:node.id,distance});
     }
     const pinnedNames=new Set([...primaryDisclosures.values()].map(node=>node.id));
-    gl.domElement.setAttribute('data-tour-phase',presentationFrame?.phase??'manual');
+    gl.domElement.setAttribute('data-tour-phase',overviewOrbit.current?'full-tree':presentationFrame?.phase??'manual');
     gl.domElement.setAttribute('data-user-positioned',String(userPositioned.current));
     gl.domElement.setAttribute('data-tour-layer',presentationFrame?.layer??flight.current?.destination()?.layer??'');
     gl.domElement.setAttribute('data-tour-open-layers',[...new Set(plan.map(stop=>stop.layer))].join(','));
