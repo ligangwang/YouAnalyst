@@ -22,9 +22,10 @@ function newRequestId() { return Array.from(crypto.getRandomValues(new Uint8Arra
 export function ComparisonCredit({ post }: { post: CommunityComparison }) {
   const { text } = useLocale();
   return <aside className={styles.credit}>
-    <span>{text("Community favorite", "社区精选")} · {text("Net likes", "净赞数")}: {post.netLikes}</span>
+    <details><summary>{text("Community favorite", "社区精选")} <span>· {post.authorName} · {text("Net likes", "净赞数")}: {post.netLikes}</span></summary>
     <strong>{post.title}</strong>
     <p>{text("Submitted by", "由以下用户分享")} <Link href={`/analysts/${post.userId}`}>{post.authorName}</Link> · <Link href={`/compare/community/${post.id}`}>{text("Replay & discussion", "回放与讨论")}</Link></p>
+    </details>
   </aside>;
 }
 

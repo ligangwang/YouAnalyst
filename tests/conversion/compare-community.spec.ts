@@ -37,6 +37,8 @@ test("guests view public replays and author credit but posting and voting lead t
   });
   await page.goto(origin + "/en/compare");
   await expect(page.getByText("Community favorite", { exact: false })).toBeVisible();
+  await expect(page.locator("aside details")).not.toHaveAttribute("open");
+  await page.locator("aside summary").click();
   await expect(page.locator("aside").getByRole("link", { name: "Chip Analyst" })).toHaveAttribute("href", "/en/analysts/author1");
   await page.getByText("Post this comparison", { exact: true }).click();
   const authLink = page.getByRole("link", { name: "Sign in or create an account to post" });
