@@ -10,12 +10,53 @@ test.beforeAll(async () => {
     import {LocaleProvider} from './src/components/providers/locale-provider';
     createRoot(document.getElementById('root')).render(<LocaleProvider locale={location.pathname.includes('zh-cn')?'zh-CN':'en'}><StockComparePage initial={{symbols:['AAPL'],start:'2025-01-01',end:'2025-12-31',style:'line'}}/></LocaleProvider>);
   `, {
-    alias: { 'next/link': path.resolve('tests/industry/link.tsx') },
+    alias: { 'next/link': path.resolve('tests/industry/link.tsx'), '@/components/providers/auth-provider': path.resolve('tests/conversion/fixtures/mocks.tsx') },
     plugins: [{ name: 'chart-boundary', setup(build) {
       build.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: 'dynamic', namespace: 'chart-mock' }));
       build.onLoad({ filter: /.*/, namespace: 'chart-mock' }, () => ({ contents: 'export default function dynamic(){return ()=>null}', loader: 'js' }));
     } }],
   }, '.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}*{box-sizing:border-box}body{margin:0;font-family:Arial;--background:#07111d;--foreground:#f8fafc;--color-shell:#0f172a;--color-line:#ffffff30;--text-secondary:#9ba8b7;--text-muted:#8794a4;background:var(--background);color:var(--foreground)}button,input{font:inherit}button{color:inherit;background:transparent}');
+});
+
+for (const chinese of [false, true]) test(`new stock colors are editable before applying the selection (${chinese ? 'Chinese' : 'English'})`, async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  const comparisons: string[][] = [];
+  let saved: { companyColors: Record<string, string> } | null = null;
+  await page.route('**/*', route => {
+    const url = new URL(route.request().url());
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: 'text/html', body: html });
+    if (url.pathname === '/api/preferences/compare') {
+      if (route.request().method() === 'PATCH') saved = route.request().postDataJSON();
+      return route.fulfill({ json: { appearance: saved ?? { template: 'classic', style: 'line', companyColors: {} } } });
+    }
+    if (url.pathname === '/api/tickers/search') return route.fulfill({ json: { total: 178, items: url.searchParams.get('q') ? [{ id: 'US:MU', symbol: 'MU', name: 'Micron Technology' }] : [] } });
+    if (url.pathname === '/api/compare') {
+      const symbols = url.searchParams.get('symbols')!.split(','); comparisons.push(symbols);
+      return route.fulfill({ json: { dates: ['2025-01-02', '2025-12-31'], series: symbols.map(symbol => ({ symbol, values: [0, 20] })), frequency: 'Daily', source: 'Fixture' } });
+    }
+    return route.fulfill({ json: { items: [], nextCursor: null } });
+  });
+  await page.goto(`http://playback.test/${chinese ? 'zh-cn' : 'en'}/compare`);
+  await expect(page.getByTestId('comparison-date')).toBeVisible();
+  const toggle = page.getByLabel(chinese ? '所选股票' : 'Selected stocks', { exact: true });
+  await toggle.click();
+  await page.getByText(chinese ? '颜色与样式模板' : 'Colors & style templates', { exact: true }).click();
+  const input = page.getByRole('combobox', { name: chinese ? '搜索公司' : 'Search company', exact: true });
+  await input.fill('MU');
+  await page.getByRole('option', { name: /Micron Technology/ }).click();
+  const picker = page.getByLabel(chinese ? 'MU 的颜色' : 'Color for MU', { exact: true });
+  await expect(picker).toBeEnabled();
+  await picker.fill('#123abc');
+  await expect(page.getByRole('button', { name: chinese ? '移除 MU' : 'Remove MU', exact: true }).locator('i')).toHaveCSS('background-color', 'rgb(18, 58, 188)');
+  expect(comparisons).toEqual([['AAPL']]);
+  await page.getByRole('button', { name: chinese ? '开始对比' : 'Compare', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'MU', exact: true }).locator('i')).toHaveCSS('background-color', 'rgb(18, 58, 188)');
+  await page.getByRole('button', { name: chinese ? '保存默认设置' : 'Save my defaults', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: chinese ? '默认设置已保存至账号。' : 'Defaults saved to your account.' })).toBeVisible();
+  expect(saved!.companyColors.MU).toBe('#123abc');
+  await toggle.click();
+  await page.getByRole('button', { name: chinese ? '移除 MU' : 'Remove MU', exact: true }).click();
+  await expect(picker).toHaveCount(0);
 });
 
 for(const chinese of [false,true])test(`comparison custom right-click menu (${chinese?'Chinese':'English'})`,async({page})=>{

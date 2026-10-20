@@ -171,7 +171,7 @@ export function StockComparePage({ initial, embedded = false, embedTheme = "dark
       </details>
     </section>}
     {!embedded && <p className={styles.notice} role="status">{notice}</p>}
-    {!embedded && <CompareCustomization preferences={preferences} symbols={applied.symbols} style={style} light={displayTheme === "light"} colors={linkColors} next={localizedPath(comparePath(styledConfig()), locale)} onChange={next => {
+    {!embedded && <CompareCustomization preferences={preferences} symbols={draft.symbols} style={style} light={displayTheme === "light"} colors={linkColors} next={localizedPath(comparePath(styledConfig()), locale)} onChange={next => {
       preferences.change(next); setLinkColors({}); setShareUrl(""); setShareNotice(""); setShowEmbed(false);
       // Remove the previous shared palette; new share links capture the preview.
       window.history.replaceState(null, "", localizedPath(comparePath({ symbols: applied.symbols, start: applied.start, end: applied.end, style }), locale));

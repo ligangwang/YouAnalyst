@@ -68,6 +68,7 @@ export function CompareCustomization({ preferences, symbols, style, light, color
   return <details className={styles.customization}>
     <summary>{text("Colors & style templates", "颜色与样式模板")}</summary>
     <p>{text("Keep a fixed color for each company across comparisons. Save a template and chart style as your account defaults.", "为每家公司固定对比颜色，并将模板和图表样式保存为账号默认设置。")}</p>
+    <p>{text("Click a company’s color swatch to choose its color.", "点击公司名称旁的色块，即可选择颜色。")}</p>
     {!signedIn ? <Link href={`/auth?${new URLSearchParams({ next })}`}>{text("Sign in or create an account to customize", "登录或注册以自定义")}</Link> : <>
       <fieldset disabled={!ready || status === "saving"}>
         <legend>{text("Style template", "样式模板")}</legend>
