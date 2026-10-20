@@ -81,7 +81,7 @@ function Scene({ light, companyFocus, intelligence, showAllEdges = false, camera
   const companyScales = useRef(new WeakMap<HTMLElement, number>());
   const reducedMotion = useRef(false);
   const { size, camera, invalidate, gl } = useThree();
-  useEffect(() => { if(pointMaterial.current)pointMaterial.current.uniforms.lightMode.value = light ? 1 : 0; invalidate(); }, [light, invalidate]);
+  useEffect(() => { if(pointMaterial.current)pointMaterial.current.uniforms.lightMode.value = light ? 1 : 0; invalidate(); }, [light, layout.radius, invalidate]);
   useEffect(()=>{
     const surface=gl.domElement.closest('[data-graph-interaction]');
     if(!surface)return;
