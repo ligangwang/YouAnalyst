@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {createMigrationSafetyReader} from './firestore/migration-safety';
 import {execFileSync} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 import {applicationDefault,initializeApp} from 'firebase-admin/app';
@@ -34,8 +35,9 @@ async function main(){
     for(const sub of subscriptions)if(/cache/i.test(sub.name))cacheSubscriptions.add(sub.name.split('/').at(-1));
     console.log(JSON.stringify({cacheBacklogSubscriptions:[...cacheSubscriptions],sourceListeners:cacheSubscriptions.size===0}));
   }
+  const safetyRead=createMigrationSafetyReader();
   async function guard(){
-    const response=await fetch('https://logging.googleapis.com/v2/entries:list',{method:'POST',headers:{Authorization:`Bearer ${token()}`,'Content-Type':'application/json'},body:JSON.stringify({resourceNames:[`projects/${project}`],filter:`resource.type="cloud_run_revision" AND resource.labels.service_name="ifindata-web" AND timestamp>="${started}" AND (httpRequest.status>=500 OR textPayload:"Memory limit" OR textPayload:"RESOURCE_EXHAUSTED")`,pageSize:1}),signal:AbortSignal.timeout(30000)});
+    const response=await safetyRead(()=>fetch('https://logging.googleapis.com/v2/entries:list',{method:'POST',headers:{Authorization:`Bearer ${token()}`,'Content-Type':'application/json'},body:JSON.stringify({resourceNames:[`projects/${project}`],filter:`resource.type="cloud_run_revision" AND resource.labels.service_name="ifindata-web" AND timestamp>="${started}" AND (httpRequest.status>=500 OR textPayload:"Memory limit" OR textPayload:"RESOURCE_EXHAUSTED")`,pageSize:1}),signal:AbortSignal.timeout(30000)}));
     assert(response.ok,`Unable to check migration safety (${response.status})`);
     assert(!(await response.json()).entries?.length,'Website errors detected; stopped migration before next batch');
     for(const subscription of cacheSubscriptions)for(const [metric,limit] of [['num_undelivered_messages',1000],['oldest_unacked_message_age',120]] as const){
