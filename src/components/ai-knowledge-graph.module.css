@@ -328,6 +328,19 @@
 .edgeLabel3d { background:var(--bg-surface);color:var(--text-primary);border-color:var(--border-control);border-radius:8px; }
 .edgeLabel3d small { color:var(--text-secondary); }
 .canvasHint,.resetView,.contextRecovery { background:var(--bg-surface);color:var(--text-primary);border-color:var(--border-control);font-size:12px; }
-:global(html[data-theme="light"]) .canvas3d { background:radial-gradient(ellipse at 50% 45%,#F5F8FC,var(--graph-canvas)); }
-:global(html[data-theme="light"]) .label3d { text-shadow:0 1px 3px #FFFFFF; }
-:global(html[data-theme="light"]) .stars { display:none; }
+/* The Universe is a self-contained dark spatial canvas, independently of the site
+   appearance. Keep its stars, node labels, tooltips and controls identical
+   between Light and Dark; surrounding rails still use the selected site theme. */
+.canvas3d {
+  --graph-canvas:#070D19;
+  --graph-haze:#152A3A;
+  --bg-surface:#0F1A2B;
+  --ui-surface:#0F1A2B;
+  --text-primary:#EAF2FD;
+  --text-secondary:#A7B8CC;
+  --ui-text:#EAF2FD;
+  --ui-muted:#A7B8CC;
+  --ui-line:#25364B;
+  --border-control:#5B728D;
+  --accent-intelligence:#49D6E8;
+}
