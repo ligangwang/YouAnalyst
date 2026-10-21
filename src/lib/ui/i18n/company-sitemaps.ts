@@ -14,6 +14,7 @@ export function companyBucketPrefix(bucket: string): string | null {
   return bucket === "ORG" ? "ORG:" : COMPANY_SITEMAP_BUCKETS.includes(bucket) ? bucket.replace("-", ":") : null;
 }
 export function companySitemapPath(id: string, data: Record<string, unknown>): string | null {
+  if (data.isDeleted === true) return null;
   if (/^ORG:[A-Z0-9][A-Z0-9.-]{0,79}$/.test(id)) {
     return typeof data.name === "string" && ["PUBLISHED", "DIRECTORY"].includes(String(data.status)) ? companyPageUrl(id, "GLOBAL",data.slug) : null;
   }

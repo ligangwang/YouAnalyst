@@ -36,7 +36,7 @@ test('cold listener failure rejects readers and does not fabricate an empty cach
 });
 test('subscriptions are bounded and eviction never cancels an active initial load',async(t)=>{
  t.after(closeLocalCaches);const f=fixture();const pending=localDocuments(f.db,'companies',['pending']);
- for(let i=0;i<66;i++){const load=localDocuments(f.db,'companies',[String(i)]);f.listeners.at(-1)!.next({docs:[]});await load;}
+ for(let i=0;i<270;i++){const load=localDocuments(f.db,'companies',[String(i)]);f.listeners.at(-1)!.next({docs:[]});await load;}
  assert.equal(f.listeners[0].closed,false);assert.ok(f.listeners.filter(l=>l.closed).length>=2);
  f.listeners[0].next({docs:[f.doc('pending',1)]});assert.equal((await pending)![0].exists,true);
 });
@@ -104,4 +104,17 @@ test('fundamentals memory budget releases large idle snapshots',async t=>{
   f.listeners.at(-1)!.next({docs:[{id:String(i),data:()=>({text:'x'.repeat(900_000)})}]});await load;
  }
  assert.ok(f.listeners.some(l=>l.closed),'memory bound applies before group capacity');
+});
+
+
+test('company ID cache retains a supported-company browsing cycle',async t=>{
+ t.after(closeLocalCaches);const f=fixture();
+ for(let i=0;i<180;i++){
+  const load=localDocuments(f.db,'companies',[String(i)]);
+  f.listeners.at(-1)!.next({docs:[f.doc(String(i),i)]});await load;
+ }
+ for(let visit=0;visit<3;visit++)for(let i=0;i<180;i++){
+  assert.equal((await localDocuments(f.db,'companies',[String(i)]))![0].get('n'),i);
+ }
+ assert.equal(f.listeners.length,180);
 });

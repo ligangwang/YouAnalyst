@@ -58,3 +58,32 @@ test('ticker query caches empty matches and applies creations and deletions', as
   assert.equal((await readCompanyLookup(f.db, query())).docs.length, 0);
   assert.equal(f.opens(), 1);
 });
+
+
+test('company lookup partition remains bounded and separate between database clients', async t => {
+ t.after(closeLocalCaches);
+ const a=fixture(),b=fixture();
+ a.rows.set('US:ONE',{slug:'first'});b.rows.set('US:ONE',{slug:'second'});
+ assert.equal((await lookupCompanyRoute('US:ONE',a.db))?.path,'/company/first');
+ assert.equal((await lookupCompanyRoute('US:ONE',b.db))?.path,'/company/second');
+ for(let i=0;i<1024;i++)await lookupCompanyRoute(`US:C${i}`,a.db);
+ const before=a.opens();await lookupCompanyRoute('US:ONE',a.db);
+ assert.equal(a.opens(),before+1,'idle sources are still evicted at the bounded capacity');
+ assert.equal(b.opens(),1,'one client cannot evict another client sources');
+});
+
+test('soft deletion hides companies without physical removal and restoration returns them',async t=>{
+ t.after(closeLocalCaches);const f=fixture();const ref=f.db.collection('companies').doc('US:A');
+ const query=f.db.collection('companies').where('symbol','==','A').limit(20);
+ f.rows.set('US:A',{name:'A',symbol:'A'});
+ assert.equal((await readCompanyLookup(f.db,ref)).exists,true);
+ await readCompanyLookup(f.db,query);
+ f.rows.set('US:A',{name:'A',symbol:'A',isDeleted:true});f.push();
+ assert.equal((await readCompanyLookup(f.db,ref)).exists,false);
+ assert.equal((await readCompanyLookup(f.db,query)).docs.length,0);
+ assert.equal(f.rows.has('US:A'),true);
+ f.rows.set('US:A',{name:'A',symbol:'A',isDeleted:false});f.push();
+ assert.equal((await readCompanyLookup(f.db,ref)).exists,true);
+ assert.equal((await readCompanyLookup(f.db,query)).docs.length,1);
+ assert.equal(f.opens(),2);
+});

@@ -46,7 +46,7 @@ function fixture() {
 
 test('query reads, snapshot refs, cursors and getAll stay observable without extra reads or private data', async () => {
   const f = fixture();
-  const query = f.db.collection('companies').where('themeIds', 'array-contains-any', ['secret-filter']).limit(100);
+  const query = f.db.collection('events').where('themeIds', 'array-contains-any', ['secret-filter']).limit(100);
   const result = await query.get();
   assert.equal(f.calls(), 1);
   assert.equal(f.logs[0].documentsReturned, 2);
@@ -55,7 +55,7 @@ test('query reads, snapshot refs, cursors and getAll stay observable without ext
   await result.docs[0].ref.update({ name: 'PRIVATE CONTENT' });
   assert.equal(f.logs[1].documentsWritten, 1);
   await query.startAfter(result.docs[0]).get();
-  await f.db.getAll(f.db.doc('companies/secret-id'), f.db.doc('companies/missing'));
+  await f.db.getAll(f.db.doc('events/secret-id'), f.db.doc('events/missing'));
   assert.equal(f.logs[3].documentsReturned, 1);
   assert.equal(f.logs[3].documentsMissing, 1);
   assert.equal(f.logs[3].documentsRequested, 2);
@@ -67,7 +67,7 @@ test('query reads, snapshot refs, cursors and getAll stay observable without ext
 
 test('batches only count committed writes, grouped by collection and operation', async () => {
   const f = fixture(), batch = f.db.batch();
-  batch.set(f.db.doc('companies/a'), { private: true }).set(f.db.doc('companies/b'), {});
+  batch.set(f.db.doc('events/a'), { private: true }).set(f.db.doc('events/b'), {});
   batch.update(f.db.doc('users/private-id/preferences/a'), { private: true });
   assert.equal(f.logs.length, 0);
   await batch.commit();
@@ -75,8 +75,8 @@ test('batches only count committed writes, grouped by collection and operation',
   assert.equal(f.logs.reduce((sum, log) => sum + Number(log.documentsWritten ?? 0), 0), 3);
   assert(f.logs.some(log => log.collection === 'users/*/preferences'));
   const failed = fixture();
-  failed.db.batch().set(failed.db.doc('companies/a'), {});
-  const bad = failed.db.batch().set(failed.db.doc('companies/b'), {});
+  failed.db.batch().set(failed.db.doc('events/a'), {});
+  const bad = failed.db.batch().set(failed.db.doc('events/b'), {});
   failed.fail();
   await assert.rejects(bad.commit());
   assert.equal(failed.logs[0].status, 'error');
@@ -105,7 +105,7 @@ test('transaction queries preserve shape and failed transactions claim no succes
   });
   assert(f.logs.filter(row => row.operation === 'get').every(row => row.documentsReturned === 2 && row.collection === 'companies'));
   const failed = fixture(); failed.fail();
-  await assert.rejects(failed.db.runTransaction(async tx => { tx.set(failed.db.doc('companies/a'), {}); }));
+  await assert.rejects(failed.db.runTransaction(async tx => { tx.set(failed.db.doc('events/a'), {}); }));
   assert.equal(failed.logs.length, 1);
   assert.equal(failed.logs[0].documentsWritten, null);
 });
@@ -139,8 +139,8 @@ test('wrapped references preserve real SDK identity, batches and equality withou
   assert.equal(ref.firestore, db);
   assert.equal(ref.parent.path, 'companies');
   const batch = db.batch();
-  assert.equal(batch.set(ref, { test: true }), batch);
-  assert.equal(batch.update(ref, { test: false }), batch);
+  assert.throws(()=>batch.set(ref, { test: true }), /transaction/);
+  assert.equal(batch.update(db.doc('events/a'), { test: false }), batch);
   const query = db.collection('companies').where('themeIds', 'array-contains', 'ai').where('exchange_region', '==', 'US').limit(10);
   assert(query.isEqual(raw.collection('companies').where('themeIds', 'array-contains', 'ai').where('exchange_region', '==', 'US').limit(10)));
 });
@@ -160,7 +160,7 @@ test('push snapshots log only changed IDs and returned documents, not the whole 
 
 test('documents delivered by listeners retain write instrumentation on their references',async()=>{
  const logs:FirestoreOperationLog[]=[];let deliver:(value:unknown)=>void=()=>{};let received:any;
- const ref={path:'companies/US:A',set:async()=>({})};const doc={id:'US:A',exists:true,ref,data:()=>({name:'A'})};
+ const ref={path:'events/US:A',set:async()=>({})};const doc={id:'US:A',exists:true,ref,data:()=>({name:'A'})};
  const raw={collection:()=>({onSnapshot:(next:(value:unknown)=>void)=>{deliver=next;return ()=>{};}})};
  const db=observeFirestore(raw as unknown as Firestore,entry=>logs.push(entry));
  db.collection('companies').onSnapshot(value=>{received=value;});

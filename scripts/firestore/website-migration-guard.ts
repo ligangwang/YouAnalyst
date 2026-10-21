@@ -52,3 +52,21 @@ export function createWebsiteMigrationGuard(options:{project:string;startedAt:st
     }
   };
 }
+
+/** Bulk tools check before/after a run and once a minute, never on every batch. */
+export async function periodicWebsiteMigrationGuard(project:string,revision:string|undefined){
+  assert(revision&&/^ifindata-web-[a-z0-9-]+$/.test(revision),'Set MIGRATION_COMPATIBLE_REVISION to the verified live revision');
+  const auth=authenticatedMigrationRequest();
+  const request:Request=(url,init)=>auth(url,{...init,headers:{...init?.headers,'x-goog-user-project':project}});
+  const subscriptions=await discoverCacheSubscriptions(project,'us-central1',request);
+  const guard=createWebsiteMigrationGuard({project,startedAt:new Date(Date.now()-60000).toISOString(),subscriptions,request});
+  let last=0;
+  return async(force=false)=>{
+    if(!force&&Date.now()-last<60000)return;
+    const response=await fetch('https://youanalyst.com/api/health',{cache:'no-store',signal:AbortSignal.timeout(30000)});
+    assert(response.ok,'Website health check failed');
+    const health=await response.json();
+    assert(health.status==='ok'&&health.revision===revision,'Compatible website revision required');
+    await guard();last=Date.now();
+  };
+}

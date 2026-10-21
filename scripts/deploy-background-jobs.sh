@@ -68,6 +68,10 @@ if [[ "$1" != directory ]]; then
   FUNDAMENTALS_IMAGE="$(gcloud artifacts docker images describe "$image" --project "$GCP_PROJECT_ID" --format='value(image_summary.fully_qualified_digest)')"
   [[ "$FUNDAMENTALS_IMAGE" == *@sha256:* ]] || { echo 'Missing fundamentals image digest' >&2; exit 1; }
   export FUNDAMENTALS_IMAGE
+  # Opt in only after the timestamp migration and private bucket are configured.
+  if [[ "${ENTITY_TIMESTAMP_MIGRATION_COMPLETE:-0}" == 1 ]]; then
+    bash scripts/deploy-entity-snapshots.sh
+  fi
 fi
 for target in "${targets[@]}"; do
   if [[ "$target" == directory ]]; then

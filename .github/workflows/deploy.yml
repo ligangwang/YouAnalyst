@@ -807,6 +807,8 @@ jobs:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: us-central1
       WEB_RUNTIME_SERVICE_ACCOUNT: ${{ vars.WEB_RUNTIME_SERVICE_ACCOUNT }}
+      ENTITY_SNAPSHOT_BUCKET: ${{ vars.ENTITY_SNAPSHOT_BUCKET }}
+      ENTITY_TIMESTAMP_MIGRATION_COMPLETE: ${{ vars.ENTITY_TIMESTAMP_MIGRATION_COMPLETE }}
       CLOUD_RUN_SERVICE_PRODUCTION: ${{ vars.CLOUD_RUN_SERVICE_PRODUCTION }}
       SEC_USER_AGENT: ${{ vars.SEC_USER_AGENT }}
       # Keep rollout config on every later release; bootstrap IAM is deliberately

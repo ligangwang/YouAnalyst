@@ -1,3 +1,4 @@
+import { applyEntityPatch } from "../entity-snapshots/lifecycle";
 import { filingRelationship, filingRelationshipId } from "./market-storage";
 import { createHash, randomUUID } from "node:crypto";
 import { FieldPath, type Firestore, type DocumentReference, type Transaction } from "firebase-admin/firestore";
@@ -200,7 +201,7 @@ export async function persistEdges(db: Firestore, edges: CompanyGraphEdge[], fil
       const refs = chunk.map(edge => db.collection("company_relationships").doc(filingRelationshipId(edge.id)));
       const previous = await Promise.all(refs.map(ref => tx.get(ref)));
       for (const [i, edge] of chunk.entries()) {
-        if (["PUBLISHED", "WITHDRAWN", "APPROVED", "REJECTED"].includes(previous[i].data()?.status)) continue;
+        if (previous[i].data()?.isDeleted === true || ["PUBLISHED", "WITHDRAWN", "APPROVED", "REJECTED"].includes(previous[i].data()?.status)) continue;
         tx.set(refs[i], filingRelationship(edge, filingUrl), { merge: true });
       }
     });
@@ -214,12 +215,12 @@ async function deleteStaleEdgesForFiling(db: Firestore, input: {
   const snapshot = await db.collection("company_relationships")
     .where(FieldPath.documentId(), ">=", prefix).where(FieldPath.documentId(), "<", `${prefix}\uf8ff`)
     .orderBy(FieldPath.documentId()).get();
-  const stale = snapshot.docs.filter(doc => !input.currentEdgeIds.has(doc.id.slice("filing:".length)));
+  const stale = snapshot.docs.filter(doc => doc.data()?.isDeleted !== true && !input.currentEdgeIds.has(doc.id.slice("filing:".length)));
   for (let index = 0; index < stale.length; index += EDGE_BATCH_SIZE) {
     await db.runTransaction(async tx => {
       await checkFence(tx, fence);
       const docs = await Promise.all(stale.slice(index, index + EDGE_BATCH_SIZE).map(doc => tx.get(doc.ref)));
-      for (const doc of docs) if (doc.data()?.status === "NEEDS_REVIEW") tx.delete(doc.ref);
+      for (const doc of docs) if (doc.data()?.status === "NEEDS_REVIEW") applyEntityPatch(tx, doc.ref, doc.data(), {}, "delete");
     });
   }
 }

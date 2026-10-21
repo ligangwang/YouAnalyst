@@ -40,15 +40,52 @@ test('retired event receiver acknowledges valid delayed deliveries without touch
  await applyCacheChange(db,headers,'test');await assert.rejects(applyCacheChange(db,headers,'other'),/Invalid/);
 });
 test('oversized source snapshots are released instead of permanently retained',async(t)=>{
- t.after(closeLocalCaches);const f=fixture();f.values.set('events/A',{large:'x'.repeat(5*1024*1024)});
- const load=()=>changeCached(f.db,'large',['events'],()=>f.db.collection('events').doc('A').get());
+ t.after(closeLocalCaches);const f=fixture();f.values.set('directory_syncs/A',{large:'x'.repeat(5*1024*1024)});
+ const load=()=>changeCached(f.db,'large',['directory_syncs'],()=>f.db.collection('directory_syncs').doc('A').get());
  await load();await load();assert.equal(f.opens,2);
 });
 
 test('source subscription count is bounded and SDK reference values do not break sizing',async(t)=>{
  t.after(closeLocalCaches);const f=fixture();const ref:{path:string;isEqual:()=>boolean;self?:unknown}={path:'companies/A',isEqual:()=>true};ref.self=ref;
- f.values.set('events/0',{ref});
- const load=(id:string)=>changeCached(f.db,id,['events'],()=>f.db.collection('events').doc(id).get());
+ f.values.set('directory_syncs/0',{ref});
+ const load=(id:string)=>changeCached(f.db,id,['directory_syncs'],()=>f.db.collection('directory_syncs').doc(id).get());
  for(let i=0;i<129;i++)await load(String(i));
  assert.equal(f.opens,129);await load('0');assert.equal(f.opens,130,'oldest unused source was evicted');
+});
+
+
+test('repeated pageviews across the supported universe do not reopen unchanged sources', async t => {
+ t.after(closeLocalCaches);
+ const f=fixture();
+ const {readCompanyLookup}=await import('../../src/lib/company-lookup-cache');
+ const read=(collection:string,id:string)=>changeCached(f.db,id,[],()=>f.db.collection(collection).doc(id).get());
+ // Company routes, symbol-equivalent keys, news health and SEC identities exceed
+ // the old shared 128-listener budget even before chart traffic is considered.
+ for(let i=0;i<180;i++){
+  f.values.set(`companies/${i}`,{name:`Company ${i}`});
+  await readCompanyLookup(f.db,f.db.collection('companies').doc(String(i)));
+  await read('companies',`symbol-${i}`);
+  await read('collectors',`news-health-${i}`);
+  await read('collectors',`sec-identity-${i}`);
+ }
+ // Each history is larger than the old entire 4 MiB cache after a few charts.
+ for(let i=0;i<12;i++){
+  f.values.set(`eod_prices/${i}`,{history:'x'.repeat(500_000)});
+  await read('eod_prices',String(i));
+ }
+ const opens=f.opens;
+ for(let view=0;view<3;view++)for(let i=0;i<180;i++){
+  await read('companies',String(i));
+  await readCompanyLookup(f.db,f.db.collection('companies').doc(`symbol-${i}`));
+  await read('collectors',`news-health-${i}`);
+  await read('collectors',`sec-identity-${i}`);
+  await read('eod_prices',String(i%12));
+ }
+ assert.equal(f.opens,opens,'warm pageviews must cause zero new Firestore subscriptions');
+ assert.equal(f.gets,0);
+ f.set('companies/0',{name:'Changed'});
+ assert.deepEqual((await read('companies','0')).data(),{name:'Changed'});
+ f.set('companies/0',undefined);
+ assert.equal((await readCompanyLookup(f.db,f.db.collection('companies').doc('0'))).exists,false);
+ assert.equal(f.opens,opens,'changes and deletes are pushed without a reload');
 });

@@ -1,4 +1,5 @@
 import { CompanyClassifications } from './company-classifications';
+import { readCompanyLookup } from "@/lib/company-lookup-cache";
 import { companyName } from "@/lib/knowledge-graph/model";
 import { localizedPath } from "@/lib/ui/i18n/urls";
 import { loadKnowledgeGraph } from "@/lib/knowledge-graph/service";
@@ -30,7 +31,8 @@ import { companyOrganizationSchema } from "@/lib/company-schema";
 import { canonicalCompanyPath } from "@/lib/market-companies/slug-resolver";
 
 const loadChinaCompany = cache(async (id: string) => {
-  const doc = await getAdminFirestore().collection(COMPANY_COLLECTION).doc(id).get();
+  const db = getAdminFirestore();
+  const doc = await readCompanyLookup(db, db.collection(COMPANY_COLLECTION).doc(id));
   const company = doc.exists ? publicChinaCompany(doc.id, doc.data()!) : null;
   if (!company) notFound();
   return company;

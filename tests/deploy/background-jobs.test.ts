@@ -139,3 +139,12 @@ test('enabled news requires its key before building even without calendar extrac
   assert.match(configured.calls,/run jobs deploy collect-intelligence-news-production/);
   assert.doesNotMatch(configured.calls,/news-test-secret/);
 });
+
+test('verified timestamp migration enables a private daily snapshot job without executing it',()=>{
+ const r=run('intelligence-news',{ENTITY_TIMESTAMP_MIGRATION_COMPLETE:'1',ENTITY_SNAPSHOT_BUCKET:'private-snapshots'});
+ assert.equal(r.status,0,r.stderr);
+ assert.match(r.calls,/run jobs deploy sync-entity-snapshots-production .*--args dist\/sync-entity-snapshots.cjs/);
+ assert.match(r.calls,/scheduler jobs update http sync-entity-snapshots-production .*--schedule 0 3 \* \* \* --time-zone America\/New_York/);
+ assert.match(r.calls,/storage buckets add-iam-policy-binding gs:\/\/private-snapshots/);
+ assert.doesNotMatch(r.calls,/run jobs execute|allUsers|storage buckets create/);
+});

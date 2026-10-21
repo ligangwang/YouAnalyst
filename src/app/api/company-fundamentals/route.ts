@@ -1,3 +1,5 @@
+import {instrumentFundamentals} from '@/lib/instruments/fundamentals';
+import {validInstrumentId} from '@/lib/instruments/model';
 import { getAdminFirestore } from '@/lib/firebase/admin';
 import { requestMissingCompanyFundamentals, validFundamentalsTicker } from '@/lib/fundamentals/service';
 import { maintenanceError } from '@/lib/maintenance-log';
@@ -5,7 +7,14 @@ import { CN_COMPANY_ID } from '@/lib/knowledge-graph/cn-companies';
 import { readCnFundamentals } from '@/lib/fundamentals/cn-service';
 
 export async function GET(request: Request) {
-  const ticker = new URL(request.url).searchParams.get('ticker') ?? '';
+  const params=new URL(request.url).searchParams;
+  const instrumentId=params.get('instrumentId');
+  if(instrumentId){
+    if(params.has('ticker')||!validInstrumentId(instrumentId))return Response.json({error:'Invalid instrument request'},{status:400});
+    try {const result=await instrumentFundamentals(getAdminFirestore(),instrumentId);return Response.json(result??{error:'Instrument not found'},{status:result?200:404,headers:{'Cache-Control':'no-store'}});}
+    catch(error){console.error('Instrument fundamentals unavailable',error);return Response.json({error:'Fundamentals unavailable'},{status:503});}
+  }
+  const ticker = params.get('ticker') ?? '';
   if (!validFundamentalsTicker(ticker)&&!CN_COMPANY_ID.test(ticker)) return Response.json({error:'Invalid ticker'}, {status:400});
   try {
     if(CN_COMPANY_ID.test(ticker))return Response.json({data:await readCnFundamentals(ticker,getAdminFirestore())},{headers:{'Cache-Control':'no-cache'}});

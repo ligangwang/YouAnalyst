@@ -205,7 +205,9 @@ test("editor decisions survive forced retry and stale cleanup", async () => {
   const reviewKey = `${staleKey}_review`; f.rows.set(reviewKey, { status: "NEEDS_REVIEW" });
   await runLatest10KCompanyGraphExtraction({ ...extractInput, force: true, requestId: "force_test" }, f.deps);
   assert.equal(f.rows.get(key)?.status, "PUBLISHED"); assert.equal(f.rows.get(key)?.note, "editor decision");
-  assert.equal(f.rows.get(staleKey)?.status, "WITHDRAWN"); assert.equal(f.rows.has(reviewKey), false);
+  assert.equal(f.rows.get(staleKey)?.status, "WITHDRAWN");
+  assert.equal(f.rows.get(reviewKey)?.status, "NEEDS_REVIEW");
+  assert.equal(f.rows.get(reviewKey)?.isDeleted, true, "stale relationships remain as audit tombstones");
 });
 test("legacy completed cache remains valid and zero-edge completed graphs are available", async () => {
   const f = extractionFixture(); const result = await runLatest10KCompanyGraphExtraction(extractInput, f.deps);

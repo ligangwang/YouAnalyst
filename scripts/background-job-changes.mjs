@@ -19,7 +19,7 @@ export function backgroundJobTarget(paths) {
   for (const path of paths) {
     if (path.startsWith(UI_LIBRARY_ROOT)) continue;
     if (retiredUiPaths.has(path) && !existsSync(path)) continue;
-    if (['scripts/collect-intelligence-news.ts', 'scripts/deploy-intelligence-news.sh', 'scripts/collect-earnings.ts', 'scripts/serve-earnings.ts', 'scripts/deploy-earnings.sh'].includes(path)) { financial = true; continue; }
+    if (['scripts/sync-entity-snapshots.ts', 'scripts/deploy-entity-snapshots.sh', 'scripts/collect-intelligence-news.ts', 'scripts/deploy-intelligence-news.sh', 'scripts/collect-earnings.ts', 'scripts/serve-earnings.ts', 'scripts/deploy-earnings.sh'].includes(path)) { financial = true; continue; }
     if (['scripts/serve-cni-directory.ts','scripts/deploy-directory-pubsub.sh'].includes(path)) { directory = true; continue; }
     if (['scripts/serve-eod-maintenance.ts', 'scripts/deploy-eod-maintenance.sh', 'scripts/serve-sec-fundamentals.ts', 'scripts/deploy-sec-pubsub.sh', 'scripts/serve-cn-fundamentals.ts', 'scripts/deploy-cn-pubsub.sh', 'scripts/collect-sec-filings.ts', 'scripts/deploy-sec-filings.sh', 'scripts/deploy-sec-filings-pubsub.sh', 'scripts/refresh-company-graph.ts', 'scripts/serve-company-graph.ts', 'scripts/deploy-company-graph.sh', 'scripts/deploy-company-graph-pubsub.sh'].includes(path)) { financial = true; continue; }
     if (/^(src\/lib\/|scripts\/lib\/)/.test(path) || /^(package(-lock)?\.json|tsconfig\.json|\.gcloudignore|\.dockerignore)$/.test(path)

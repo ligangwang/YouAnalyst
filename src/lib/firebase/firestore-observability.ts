@@ -1,12 +1,16 @@
-import { sourceSnapshot } from '../local-cache/read-scope';
+import { collectionSourceSnapshot } from '../local-cache/read-scope';
 /* eslint-disable @typescript-eslint/no-explicit-any -- Adapter preserves the SDK's overloaded public methods. */
 import { timestampWrite } from '../central-cache/write-timestamps';
+import { isEntityPath, lifecycleFields } from '../entity-snapshots/lifecycle';
+import { FieldValue } from 'firebase-admin/firestore';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Firestore } from 'firebase-admin/firestore';
 
 type Kind = 'db' | 'query' | 'doc' | 'aggregate' | 'batch' | 'transaction';
 type Shape = { collection: string; clauses: string[] };
 type Pending = { operation: string; collection: string; caller: string };
+type Deferred = { method:string; args:any[]; site:string };
+type EntityTransaction = { reads:Map<string,any>; writes:Deferred[] };
 export type FirestoreOperationLog = Record<string, unknown>;
 declare global {
   var __youAnalystFirestoreObserverV1: {
@@ -30,7 +34,8 @@ function unwrap(value: any): any {
   return value && typeof value === 'object' ? originals.get(value) ?? value : value;
 }
 
-/** Counts observed SDK operations, not billing. Never performs additional reads. */
+/** Counts SDK operations, not billing. Entity mutations additionally read their
+ * transaction state to preserve soft-delete timestamps under concurrent writes. */
 export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperationLog) => void = entry => console.info(JSON.stringify(entry))): Firestore {
   if (originals.has(db)) return db;
   const cached = instrumented.get(db);
@@ -72,7 +77,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
     originals.set(proxy, value);
     return proxy;
   };
-  const wrap = (target: any, kind: Kind, shape: Shape, pending: Pending[] = [], txContext: Record<string, unknown> = {}): any => {
+  const wrap = (target: any, kind: Kind, shape: Shape, pending: Pending[] = [], txContext: Record<string, unknown> = {}, entityTx?:EntityTransaction): any => {
     const proxy = new Proxy(target, { get(object, key) {
       if (key === 'firestore') return observed;
       if (key === 'parent' && object.parent) return wrap(object.parent, kind === 'doc' ? 'query' : 'doc',
@@ -80,7 +85,29 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
       const member = Reflect.get(object, key, object);
       if (typeof member !== 'function') return member;
       return (...args: any[]) => {
-        const method = String(key), site = caller(), started = Date.now();
+        const method = String(key);
+        // Cache equality checks are local comparisons, not SDK operations. Avoid
+        // collecting a stack trace for every candidate in the bounded cache.
+        if (method === 'isEqual') return Reflect.apply(member, object, args.map(unwrap));
+        const site = caller(), started = Date.now();
+        if(method==='add'&&kind==='query'&&isEntityPath(`${object.path}/generated`)){
+          const ref=proxy.doc();return ref.create(args[0]).then(()=>ref);
+        }
+        if(method==='recursiveDelete'&&(isEntityPath(args[0]?.path??'')||isEntityPath(`${args[0]?.path}/generated`)))throw Error('Use soft deletion for entity collections');
+        const mutating=['set','update','delete','create'].includes(method);
+        const entityPath=kind==='doc'?object.path:args[0]?.path;
+        if(mutating&&kind==='batch'&&isEntityPath(entityPath??''))throw Error('Entity writes require a transaction; use runTransaction or mutateEntity');
+        if(mutating&&kind==='transaction'&&entityTx){
+          entityTx.writes.push({method,args:args.map(unwrap),site});
+          return proxy;
+        }
+        if(mutating&&kind==='doc'&&isEntityPath(entityPath??'')){
+          // Direct entity mutations use the same transactional lifecycle rules.
+          return observed.runTransaction(async tx=>{
+            if(method!=='create')await tx.get(proxy);
+            (tx[method as keyof typeof tx] as any).call(tx,proxy,...args);
+          });
+        }
         const invoke = (): any => {
           const offset = ['batch','transaction'].includes(kind) ? 1 : 0;
           const path = offset ? args[0]?.path : kind === 'doc' ? object.path : '';
@@ -117,7 +144,49 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
           const transactionId = randomUUID(); let attempt = 0; let finalWrites: Pending[] = [];
           return object.runTransaction(async (tx: any) => {
             attempt++; finalWrites = [];
-            return args[0](wrap(tx, 'transaction', shape, finalWrites, { transactionId, transactionAttempt: attempt }));
+            const state:EntityTransaction={reads:new Map(),writes:[]};
+            const wrapped=wrap(tx,'transaction',shape,finalWrites,{transactionId,transactionAttempt:attempt},state);
+            const result=await args[0](wrapped);
+            const refs=new Map<string,any>();
+            for(const write of state.writes)if(isEntityPath(write.args[0]?.path??'')&&write.method!=='create')refs.set(write.args[0].path,write.args[0]);
+            for(const [path,ref] of refs)if(!state.reads.has(path))await wrapped.get(ref);
+            const mutated=new Set<string>();
+            for(const write of state.writes){
+              let {method}=write;let values=write.args;
+              const ref=values[0],path=ref?.path??'';
+              if(isEntityPath(path)){
+                if(mutated.has(path))throw Error('Combine entity changes into one write per transaction');
+                mutated.add(path);
+                const previous=state.reads.get(path)?.data();
+                if(method==='delete'){
+                  if(!previous||previous.isDeleted===true)continue;
+                  method='update';values=[ref,{isDeleted:true,deletedAt:FieldValue.delete()},...values.slice(1)];
+                }else {
+                  const data=values[1];
+                  if(data&&Object.getPrototypeOf(data)===Object.prototype){
+                    let options=method==='set'?values[2]:undefined;
+                    if(method==='set'&&previous&&(previous.isDeleted===true||data.isDeleted===true)&&data.isDeleted!==false&&!options?.mergeFields){
+                      options={merge:true};values=[...values.slice(0,2),options];
+                    }
+                    const replacing=method==='create'||method==='set'&&!options?.merge&&!options?.mergeFields;
+                    const patch={...data};delete patch.deletedAt;
+                    const requested=options?.mergeFields&&!options.mergeFields.some((f:any)=>String(f)==='isDeleted')?undefined:patch.isDeleted;
+                    const fields=lifecycleFields(previous,requested,replacing);
+                    values=[ref,{...patch,...fields},...values.slice(2)];
+                    if(options?.mergeFields)values[2]={...options,mergeFields:[...options.mergeFields.filter((f:any)=>String(f)!=='deletedAt'),...Object.keys(fields).filter(k=>!options.mergeFields.some((f:any)=>String(f)===k))]};
+                  }else if(method==='update'){
+                    const pairs=values.slice(1),precondition=pairs.length%2?pairs.pop():undefined;
+                    const requestedIndex=pairs.findIndex((value:any,i:number)=>i%2===0&&String(value)==='isDeleted');
+                    const fields=lifecycleFields(previous,requestedIndex<0?undefined:pairs[requestedIndex+1]);
+                    const filtered:any[]=[];for(let i=0;i<pairs.length;i+=2)if(String(pairs[i])!=='deletedAt'&&!Object.hasOwn(fields,String(pairs[i])))filtered.push(pairs[i],pairs[i+1]);
+                    values=[ref,...filtered,...Object.entries(fields).flat(),...(precondition?[precondition]:[])];
+                  }
+                }
+              }
+              tx[method](...timestampWrite(method,path,values,1).map(unwrap));
+              finalWrites.push({operation:method,collection:documentCollection(path),caller:write.site});
+            }
+            return result;
           }, ...args.slice(1)).then((result: any) => {
             writes(finalWrites, { status: 'success', transactionId, transactionAttempt: attempt, durationMs: Date.now() - started });
             emit('transaction', shape, site, { status: 'success', transactionId, attempts: attempt, durationMs: Date.now() - started });
@@ -135,11 +204,11 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
         // Only reads inside an explicit cache scope use source subscriptions.
         // Transactions, aggregates, field-mask reads and writes retain SDK semantics.
         if (method === 'get' && (kind === 'doc' || kind === 'query') && !shape.clauses.some(clause => clause.startsWith('select('))) {
-          const cached = sourceSnapshot(db, proxy);
+          const cached = collectionSourceSnapshot(observed, proxy, shape.collection);
           if (cached) return cached;
         }
         if (method === 'getAll' && kind === 'db' && args.length && args.every(ref => typeof ref.onSnapshot === 'function')) {
-          const reads = args.map(ref => sourceSnapshot(db, ref));
+          const reads = args.map(ref => collectionSourceSnapshot(observed, ref, documentCollection(ref.path)));
           if (reads.every(Boolean)) return Promise.all(reads);
         }
         if (method === 'get' || method === 'getAll' || method === 'commit' || ['set', 'update', 'delete', 'create', 'add'].includes(method)) {
@@ -153,6 +222,8 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
             const counts: Record<string, unknown> = {};
             if (reading && !aggregate) {
               const docs = Array.isArray(result) ? result : Array.isArray(result?.docs) ? result.docs : [result];
+              if(entityTx&&!actualShape.clauses.some(clause=>clause.startsWith('select('))&&!args.some(arg=>arg?.fieldMask))
+                for(const doc of docs)if(doc.ref?.path)entityTx.reads.set(doc.ref.path,doc);
               counts.documentsReturned = docs.filter((doc: any) => doc.exists !== false).length;
               counts.documentsMissing = docs.filter((doc: any) => doc.exists === false).length;
               counts.documentsRequested = Array.isArray(result) || !Array.isArray(result?.docs) ? docs.length : null;

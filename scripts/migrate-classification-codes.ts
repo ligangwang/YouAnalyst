@@ -40,11 +40,28 @@ async function main(){
  if(!Number.isInteger(limit)||limit<1||limit>3000||!Number.isInteger(batchSize)||batchSize<1||batchSize>50)throw Error('Invalid batch bounds');
  const logPath=join(directory,'applied.jsonl'),prior=await readFile(logPath,'utf8').catch((e:NodeJS.ErrnoException)=>{if(e.code==='ENOENT')return '';throw e;});
  const finished=new Set(prior.split('\n').filter(Boolean).map(l=>JSON.parse(l).id));const pending=plan.rows.filter(r=>!finished.has(r.id)).slice(0,limit);let applied=0;
- const request=authenticatedMigrationRequest(),subscriptions=await discoverCacheSubscriptions(projectId,process.env.GCP_REGION??'us-central1',request);
+ const authenticatedRequest=authenticatedMigrationRequest();
+ // Charge monitoring quota to the migration's project, not the ADC client's
+ // shared default quota project.
+ const request:typeof authenticatedRequest=(url,init)=>authenticatedRequest(url,{...init,headers:{...init?.headers,'x-goog-user-project':projectId}});
+ const subscriptions=await discoverCacheSubscriptions(projectId,process.env.GCP_REGION??'us-central1',request);
  console.log(JSON.stringify({cacheBacklogSubscriptions:subscriptions,sourceListeners:subscriptions.length===0}));
  const guard=createWebsiteMigrationGuard({project:projectId,startedAt:prior?JSON.parse(prior.split('\n').filter(Boolean)[0]).at:new Date(Date.now()-5*60000).toISOString(),subscriptions,request});
+ const checkHealth=async()=>{
+  const response=await fetch('https://youanalyst.com/api/health',{signal:AbortSignal.timeout(30000),cache:'no-store'});
+  if(!response.ok)throw Error(`Website health check failed (${response.status})`);
+  const health=await response.json();
+  if(health.status!=='ok'||health.revision!==revision)throw Error('Website health or compatible revision changed; stop migration');
+ };
+ await checkHealth();
+ await guard();
+ let lastMonitoringCheck=Date.now();
  for(let i=0;i<pending.length;i+=batchSize){const group=pending.slice(i,i+batchSize);
-  await guard();
+  // Check monitoring once a minute, not once per write batch. A failed due
+  // check still stops writes; transactions and batch throttling stay in place.
+  if(Date.now()-lastMonitoringCheck>=60000){
+   await checkHealth();await guard();lastMonitoringCheck=Date.now();
+  }
   await db.runTransaction(async tx=>{const docs=await tx.getAll(...group.map(r=>db.doc(`companies/${r.id}`)),{fieldMask:['taxonomy','classification','classificationMetadata','isDeleted']});
    docs.forEach((doc,j)=>{const row=group[j],data=doc.data();if(!data)throw Error(`Company missing: ${row.id}`);
     if(isDeepStrictEqual(data,{...row.before,...row.patch}))return;
@@ -57,6 +74,7 @@ async function main(){
   await appendFile(logPath,group.map(r=>JSON.stringify({id:r.id,at:new Date().toISOString(),revision})).join('\n')+'\n');applied+=group.length;
   if(applied%100===0||applied===pending.length)console.log(JSON.stringify({applied,remaining:plan.rows.length-finished.size-applied}));await delay(1000);
  }
+ await checkHealth();
  await guard();
 }
 main().catch(e=>{console.error(e instanceof Error?e.message:'Classification migration failed');process.exitCode=1;});

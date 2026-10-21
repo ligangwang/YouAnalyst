@@ -1,0 +1,2800 @@
+{
+  "taxonomy": "SIC",
+  "version": "sec-sic-observed-aded526c535dad94b9b8b5a155de8bfba47ede04d6cb94ad34b9b8dfa80efd68",
+  "sourceUrl": "https://data.sec.gov/submissions/",
+  "nodes": [
+    {
+      "code": "0100",
+      "name": "Agricultural Production-Crops",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "0200",
+      "name": "Agricultural Prod-Livestock & Animal Specialties",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "0700",
+      "name": "Agricultural Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "0900",
+      "name": "Fishing, Hunting and Trapping",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1000",
+      "name": "Metal Mining",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1040",
+      "name": "Gold and Silver Ores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1090",
+      "name": "Miscellaneous Metal Ores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1220",
+      "name": "Silver Ores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1221",
+      "name": "Bituminous Coal & Lignite Surface Mining",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1311",
+      "name": "Crude Petroleum & Natural Gas",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1381",
+      "name": "Drilling Oil & Gas Wells",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1382",
+      "name": "Oil & Gas Field Exploration Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1389",
+      "name": "Oil & Gas Field Services, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1400",
+      "name": "Mining & Quarrying of  Nonmetallic Minerals (No Fuels)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1520",
+      "name": "General Bldg Contractors - Residential Bldgs",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1531",
+      "name": "Operative Builders",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1540",
+      "name": "General Bldg Contractors - Nonresidential Bldgs",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1600",
+      "name": "Heavy Construction Other Than Bldg Const - Contractors",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1623",
+      "name": "Water, Sewer, Pipeline, Comm & Power Line Construction",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1700",
+      "name": "Construction - Special Trade Contractors",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "1731",
+      "name": "Electrical Work",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2000",
+      "name": "Food and Kindred Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2011",
+      "name": "Meat Packing Plants",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2013",
+      "name": "Sausages & Other Prepared Meat Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2015",
+      "name": "Poultry Slaughtering and Processing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2020",
+      "name": "Dairy Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2024",
+      "name": "Ice Cream & Frozen Desserts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2030",
+      "name": "Canned, Frozen & Preservd Fruit, Veg & Food Specialties",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2033",
+      "name": "Canned, Fruits, Veg, Preserves, Jams & Jellies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2040",
+      "name": "Grain Mill Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2050",
+      "name": "Bakery Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2052",
+      "name": "Cookies & Crackers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2060",
+      "name": "Sugar & Confectionery Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2070",
+      "name": "Fats & Oils",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2080",
+      "name": "Beverages",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2082",
+      "name": "Malt Beverages",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2086",
+      "name": "Bottled & Canned Soft Drinks & Carbonated Waters",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2090",
+      "name": "Miscellaneous Food Preparations & Kindred Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2092",
+      "name": "Prepared Fresh or  Frozen Fish & Seafoods",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2100",
+      "name": "Tobacco Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2111",
+      "name": "Cigarettes",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2200",
+      "name": "Textile Mill Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2211",
+      "name": "Broadwoven Fabric Mills, Cotton",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2221",
+      "name": "Broadwoven Fabric Mills, Man Made Fiber & Silk",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2273",
+      "name": "Carpets & Rugs",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2300",
+      "name": "Apparel & Other Finishd Prods of  Fabrics & Similar Matl",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2320",
+      "name": "Men's & Boys' Furnishgs, Work Clothg, & Allied Garments",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2330",
+      "name": "Women's, Misses':  and Juniors Outerwear",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2390",
+      "name": "Miscellaneous Fabricated Textile Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2400",
+      "name": "Lumber & Wood Products (No Furniture)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2421",
+      "name": "Sawmills & Planting Mills, General",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2430",
+      "name": "Millwood, Veneer, Plywood, & Structural Wood Members",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2451",
+      "name": "Mobile Homes",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2510",
+      "name": "Household Furniture",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2511",
+      "name": "Wood Household Furniture, (No Upholstered)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2520",
+      "name": "Office Furniture",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2522",
+      "name": "Office Furniture (No Wood)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2531",
+      "name": "Public Bldg & Related Furniture",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2540",
+      "name": "Partitions, Shelvg, Lockers, & of fice & Store Fixtures",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2611",
+      "name": "Pulp Mills",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2621",
+      "name": "Paper Mills",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2631",
+      "name": "Paperboard Mills",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2650",
+      "name": "Paperboard Containers & Boxes",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2670",
+      "name": "Converted Paper & Paperboard Prods (No Contaners/Boxes)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2673",
+      "name": "Plastics, Foil & Coated Paper Bags",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2711",
+      "name": "Newspapers: Publishing or  Publishing & Printing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2721",
+      "name": "Periodicals: Publishing or  Publishing & Printing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2731",
+      "name": "Books: Publishing or  Publishing & Printing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2741",
+      "name": "Miscellaneous Publishing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2750",
+      "name": "Commercial Printing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2761",
+      "name": "Manifold Business Forms",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2780",
+      "name": "Blankbooks, Looseleaf Binders & Bookbindg & Relatd Work",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2800",
+      "name": "Chemicals & Allied Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2810",
+      "name": "Industrial Inorganic Chemicals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2820",
+      "name": "Plastic Material, Synth Resin/Rubber, Cellulos (No Glass)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2821",
+      "name": "Plastic Materials, Synth Resins & Nonvulcan Elastomers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2833",
+      "name": "Medicinal Chemicals & Botanical Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2834",
+      "name": "Pharmaceutical Preparations",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2835",
+      "name": "In Vitro & In Vivo Diagnostic Substances",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2836",
+      "name": "Biological Products, (No Diagnostic Substances)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2840",
+      "name": "Soap, Detergents, Cleang Preparations, Perfumes, Cosmetics",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2842",
+      "name": "Specialty Cleaning, Polishing and Sanitation Preparations",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2844",
+      "name": "Perfumes, Cosmetics & Other Toilet Preparations",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2851",
+      "name": "Paints, Varnishes, Lacquers, Enamels & Allied Prods",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2860",
+      "name": "Industrial Organic Chemicals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2870",
+      "name": "Agricultural Chemicals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2890",
+      "name": "Miscellaneous Chemical Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2891",
+      "name": "Adhesives & Sealants",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2911",
+      "name": "Petroleum Refining",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "2990",
+      "name": "Miscellaneous Products of  Petroleum & Coal",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3011",
+      "name": "Tires & Inner Tubes",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3021",
+      "name": "Rubber & Plastics Footwear",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3050",
+      "name": "Gaskets, Packg & Sealg Devices & Rubber & Plastics Hose",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3060",
+      "name": "Fabricated Rubber Products, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3080",
+      "name": "Miscellaneous Plastics Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3081",
+      "name": "Unsupported Plastics Film & Sheet",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3086",
+      "name": "Plastics Foam Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3089",
+      "name": "Plastics Products, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3100",
+      "name": "Leather & Leather Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3140",
+      "name": "Footwear, (No Rubber)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3211",
+      "name": "Flat Glass",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3221",
+      "name": "Glass Containers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3231",
+      "name": "Glass Products, Made of  Purchased Glass",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3241",
+      "name": "Cement, Hydraulic",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3260",
+      "name": "Pottery & Related Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3272",
+      "name": "Concrete Products, Except Block & Brick",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3281",
+      "name": "Cut Stone & Stone Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3290",
+      "name": "Abrasive, Asbestos & Misc Nonmetallic Mineral Prods",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3310",
+      "name": "Steel Works, Blast Furnaces & Rolling & Finishing Mills",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3312",
+      "name": "Steel Works, Blast Furnaces & Rolling Mills (Coke Ovens)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3317",
+      "name": "Steel Pipe & Tubes",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3330",
+      "name": "Primary Smelting & Refining of  Nonferrous Metals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3334",
+      "name": "Primary Production of  Aluminum",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3341",
+      "name": "Secondary Smelting & Refining of  Nonferrous Metals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3350",
+      "name": "Rolling Drawing & Extruding of  Nonferrous Metals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3357",
+      "name": "Drawing & Insulating of  Nonferrous Wire",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3360",
+      "name": "Nonferrous Foundries (Castings)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3390",
+      "name": "Miscellaneous Primary Metal Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3411",
+      "name": "Metal Cans",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3412",
+      "name": "Metal Shipping Barrels, Drums, Kegs & Pails",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3420",
+      "name": "Cutlery, Handtools & General Hardware",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3430",
+      "name": "Heating Equip, Except Elec & Warm Air; & Plumbing Fixtures",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3433",
+      "name": "Heating Equipment, Except Electric & Warm Air Furnaces",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3440",
+      "name": "Fabricated Structural Metal Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3442",
+      "name": "Metal Doors, Sash, Frames, Moldings & Trim",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3443",
+      "name": "Fabricated Plate Work (Boiler Shops)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3452",
+      "name": "Bolts, Nuts, Screws, Rivets & Washers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3460",
+      "name": "Metal Forgings & Stampings",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3470",
+      "name": "Coating, Engraving & Allied Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3480",
+      "name": "Ordnance & Accessories, (No Vehicles/Guided Missiles)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3490",
+      "name": "Miscellaneous Fabricated Metal Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3510",
+      "name": "Engines & Turbines",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3523",
+      "name": "Farm Machinery & Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3524",
+      "name": "Lawn & Garden Tractors & Home Lawn & Gardens Equip",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3530",
+      "name": "Construction, Mining & Materials Handling Machinery & Equip",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3531",
+      "name": "Construction Machinery & Equip",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3533",
+      "name": "Oil & Gas Field Machinery & Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3537",
+      "name": "Industrial Trucks, Tractors, Trailors & Stackers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3540",
+      "name": "Metalworkg Machinery & Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3541",
+      "name": "Machine Tools, Metal Cutting Types",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3550",
+      "name": "Special Industry Machinery (No Metalworking Machinery)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3555",
+      "name": "Printing Trades Machinery & Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3559",
+      "name": "Special Industry Machinery, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3560",
+      "name": "General Industrial Machinery & Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3561",
+      "name": "Pumps & Pumping Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3562",
+      "name": "Ball & Roller Bearings",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3564",
+      "name": "Industrial & Commercial Fans & Blowers & Air Purifing Equip",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3567",
+      "name": "Industrial Process Furnaces & Ovens",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3569",
+      "name": "General Industrial Machinery & Equipment, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3570",
+      "name": "Computer & office Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3571",
+      "name": "Electronic Computers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3572",
+      "name": "Computer Storage Devices",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3576",
+      "name": "Computer Communications Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3577",
+      "name": "Computer Peripheral Equipment, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3578",
+      "name": "Calculating & Accounting Machines (No Electronic Computers)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3579",
+      "name": "Office Machines, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3580",
+      "name": "Refrigeration & Service Industry Machinery",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3585",
+      "name": "Air-Cond & Warm Air Heatg Equip & Comm & Indl Refrig Equip",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3590",
+      "name": "Misc Industrial & Commercial Machinery & Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3600",
+      "name": "Electronic & Other Electrical Equipment (No Computer Equip)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3613",
+      "name": "Switchgear & Switchboard Apparatus",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3620",
+      "name": "Electrical Industrial Apparatus",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3621",
+      "name": "Motors & Generators",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3630",
+      "name": "Household Appliances",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3634",
+      "name": "Electric Housewares & Fans",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3640",
+      "name": "Electric Lighting & Wiring Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3651",
+      "name": "Household Audio & Video Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3661",
+      "name": "Telephone & Telegraph Apparatus",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3663",
+      "name": "Radio & Tv Broadcasting & Communications Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3669",
+      "name": "Communications Equipment, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3670",
+      "name": "Electronic Components & Accessories",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3672",
+      "name": "Printed Circuit Boards",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3674",
+      "name": "Semiconductors & Related Devices",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3677",
+      "name": "Electronic Coils, Transformers & Other Inductors",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3678",
+      "name": "Electronic Connectors",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3679",
+      "name": "Electronic Components, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3690",
+      "name": "Miscellaneous Electrical Machinery, Equipment & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3711",
+      "name": "Motor Vehicles & Passenger Car Bodies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3713",
+      "name": "Truck & Bus Bodies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3714",
+      "name": "Motor Vehicle Parts & Accessories",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3715",
+      "name": "Truck Trailers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3716",
+      "name": "Motor Homes",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3720",
+      "name": "Aircraft & Parts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3721",
+      "name": "Aircraft",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3724",
+      "name": "Aircraft Engines & Engine Parts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3728",
+      "name": "Aircraft Parts & Auxiliary Equipment, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3730",
+      "name": "Ship & Boat Building & Repairing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3743",
+      "name": "Railroad Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3751",
+      "name": "Motorcycles, Bicycles & Parts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3760",
+      "name": "Guided Missiles & Space Vehicles & Parts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3790",
+      "name": "Miscellaneous Transportation Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3812",
+      "name": "Search, Detection, Navigation, Guidance, Aeronautical Sys",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3821",
+      "name": "Laboratory Apparatus & Furniture",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3822",
+      "name": "Auto Controls For Regulating Residential & Comml Environments",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3823",
+      "name": "Industrial Instruments For Measurement, Display, and Control",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3824",
+      "name": "Totalizing Fluid Meters & Counting Devices",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3825",
+      "name": "Instruments For Meas & Testing of  Electricity & Elec Signals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3826",
+      "name": "Laboratory Analytical Instruments",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3827",
+      "name": "Optical Instruments & Lenses",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3829",
+      "name": "Measuring & Controlling Devices, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3841",
+      "name": "Surgical & Medical Instruments & Apparatus",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3842",
+      "name": "Orthopedic, Prosthetic & Surgical Appliances & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3843",
+      "name": "Dental Equipment & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3844",
+      "name": "X-Ray Apparatus & Tubes & Related Irradiation Apparatus",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3845",
+      "name": "Electromedical & Electrotherapeutic Apparatus",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3851",
+      "name": "Ophthalmic Goods",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3861",
+      "name": "Photographic Equipment & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3873",
+      "name": "Watches, Clocks, Clockwork Operated Devices/Parts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3910",
+      "name": "Jewelry, Silverware & Plated Ware",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3942",
+      "name": "Dolls & Stuffed Toys",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3944",
+      "name": "Games, Toys & Children's Vehicles (No Dolls & Bicycles)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3949",
+      "name": "Sporting & Athletic Goods, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "3990",
+      "name": "Miscellaneous Manufacturing Industries",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4011",
+      "name": "Railroads, Line-Haul Operating",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4100",
+      "name": "Local & Suburban Transit & Interurban Hwy Passenger Trans",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4210",
+      "name": "Trucking & Courier Services (No Air)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4213",
+      "name": "Trucking (No Local)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4220",
+      "name": "Public Warehousing & Storage",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4400",
+      "name": "Water Transportation",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4412",
+      "name": "Deep Sea Foreign Transportation of  Freight",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4512",
+      "name": "Air Transportation, Scheduled",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4513",
+      "name": "Air Courier Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4522",
+      "name": "Air Transportation, Nonscheduled",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4581",
+      "name": "Airports, Flying Fields & Airport Terminal Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4610",
+      "name": "Pipe Lines (No Natural Gas)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4700",
+      "name": "Transportation Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4731",
+      "name": "Arrangement of  Transportation of  Freight & Cargo",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4812",
+      "name": "Radiotelephone Communications",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4813",
+      "name": "Telephone Communications (No Radiotelephone)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4822",
+      "name": "Telegraph & Other Message Communications",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4832",
+      "name": "Radio Broadcasting Stations",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4833",
+      "name": "Television Broadcasting Stations",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4841",
+      "name": "Cable & Other Pay Television Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4899",
+      "name": "Communications Services, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4900",
+      "name": "Electric, Gas & Sanitary Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4911",
+      "name": "Electric Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4922",
+      "name": "Natural Gas Transmission",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4923",
+      "name": "Natural Gas Transmisison & Distribution",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4924",
+      "name": "Natural Gas Distribution",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4931",
+      "name": "Electric & Other Services Combined",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4932",
+      "name": "Gas & Other Services Combined",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4941",
+      "name": "Water Supply",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4950",
+      "name": "Sanitary Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4953",
+      "name": "Refuse Systems",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4955",
+      "name": "Hazardous Waste Management",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "4991",
+      "name": "Cogeneration Services & Small Power Producers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5000",
+      "name": "Wholesale-Durable Goods",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5010",
+      "name": "Wholesale-Motor Vehicles & Motor Vehicle Parts & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5013",
+      "name": "Wholesale-Motor Vehicle Supplies & New Parts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5030",
+      "name": "Wholesale-Lumber & Other Construction Materials",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5031",
+      "name": "Wholesale-Lumber, Plywood, Millwork & Wood Panels",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5040",
+      "name": "Wholesale-Professional & Commercial Equipment & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5045",
+      "name": "Wholesale-Computers & Peripheral Equipment & Software",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5047",
+      "name": "Wholesale-Medical, Dental & Hospital Equipment & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5050",
+      "name": "Wholesale-Metals & Minerals (No Petroleum)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5051",
+      "name": "Wholesale-Metals Service Centers & of fices",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5063",
+      "name": "Wholesale-Electrical Apparatus & Equipment, Wiring Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5064",
+      "name": "Wholesale-Electrical Appliances, Tv & Radio Sets",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5065",
+      "name": "Wholesale-Electronic Parts & Equipment, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5070",
+      "name": "Wholesale-Hardware & Plumbing & Heating Equipment & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5072",
+      "name": "Wholesale-Hardware",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5080",
+      "name": "Wholesale-Machinery, Equipment & Supplies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5084",
+      "name": "Wholesale-Industrial Machinery & Equipment",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5090",
+      "name": "Wholesale-Misc Durable Goods",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5094",
+      "name": "Wholesale-Jewelry, Watches, Precious Stones & Metals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5099",
+      "name": "Wholesale-Durable Goods, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5122",
+      "name": "Wholesale-Drugs, Proprietaries & Druggists' Sundries",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5130",
+      "name": "Wholesale-Apparel, Piece Goods & Notions",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5140",
+      "name": "Wholesale-Groceries & Related Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5141",
+      "name": "Wholesale-Groceries, General Line",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5150",
+      "name": "Wholesale-Farm Product Raw Materials",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5160",
+      "name": "Wholesale-Chemicals & Allied Products",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5171",
+      "name": "Wholesale-Petroleum Bulk Stations & Terminals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5172",
+      "name": "Wholesale-Petroleum & Petroleum Products (No Bulk Stations)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5180",
+      "name": "Wholesale-Beer, Wine & Distilled Alcoholic Beverages",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5190",
+      "name": "Wholesale-Miscellaneous Nondurable Goods",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5200",
+      "name": "Retail-Building Materials, Hardware, Garden Supply",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5211",
+      "name": "Retail-Lumber & Other Building Materials Dealers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5311",
+      "name": "Retail-Department Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5331",
+      "name": "Retail-Variety Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5400",
+      "name": "Retail-Food Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5411",
+      "name": "Retail-Grocery Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5412",
+      "name": "Retail-Convenience Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5500",
+      "name": "Retail-Auto Dealers & Gasoline Stations",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5531",
+      "name": "Retail-Auto & Home Supply Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5600",
+      "name": "Retail-Apparel & Accessory Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5621",
+      "name": "Retail-Women's Clothing Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5651",
+      "name": "Retail-Family Clothing Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5661",
+      "name": "Retail-Shoe Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5700",
+      "name": "Retail-Home Furniture, Furnishings & Equipment Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5712",
+      "name": "Retail-Furniture Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5731",
+      "name": "Retail-Radio, Tv & Consumer Electronics Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5734",
+      "name": "Retail-Computer & Computer Software Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5810",
+      "name": "Retail-Eating & Drinking Places",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5812",
+      "name": "Retail-Eating  Places",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5900",
+      "name": "Retail-Miscellaneous Retail",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5912",
+      "name": "Retail-Drug Stores and Proprietary Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5940",
+      "name": "Retail-Miscellaneous Shopping Goods Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5944",
+      "name": "Retail-Jewelry Stores",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5945",
+      "name": "Retail-Hobby, Toy & Game Shops",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5960",
+      "name": "Retail-Nonstore Retailers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5961",
+      "name": "Retail-Catalog & Mail-Order Houses",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "5990",
+      "name": "Retail-Retail Stores, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6021",
+      "name": "National Commercial Banks",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6022",
+      "name": "State Commercial Banks",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6029",
+      "name": "Commercial Banks, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6035",
+      "name": "Savings Institution, Federally Chartered",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6036",
+      "name": "Savings Institutions, Not Federally Chartered",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6099",
+      "name": "Functions Related To Depository Banking, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6111",
+      "name": "Federal & Federally-Sponsored Credit Agencies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6141",
+      "name": "Personal Credit Institutions",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6153",
+      "name": "Short-Term Business Credit Institutions",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6159",
+      "name": "Miscellaneous Business Credit Institution",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6162",
+      "name": "Mortgage Bankers & Loan Correspondents",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6163",
+      "name": "Loan Brokers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6189",
+      "name": "Asset-Backed Securities",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6199",
+      "name": "Finance Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6200",
+      "name": "Security & Commodity Brokers, Dealers, Exchanges & Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6211",
+      "name": "Security Brokers, Dealers & Flotation Companies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6221",
+      "name": "Commodity Contracts Brokers & Dealers",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6282",
+      "name": "Investment Advice",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6311",
+      "name": "Life Insurance",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6321",
+      "name": "Accident & Health Insurance",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6324",
+      "name": "Hospital & Medical Service Plans",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6331",
+      "name": "Fire, Marine & Casualty Insurance",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6351",
+      "name": "Surety Insurance",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6361",
+      "name": "Title Insurance",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6399",
+      "name": "Insurance Carriers, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6411",
+      "name": "Insurance Agents, Brokers & Service",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6500",
+      "name": "Real Estate",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6510",
+      "name": "Real Estate Operators (No Developers) & Lessors",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6512",
+      "name": "Opeators of  Nonresidential Buildings",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6513",
+      "name": "Operators of  Apartment Buildings",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6519",
+      "name": "Lessors of  Real Property, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6531",
+      "name": "Real Estate Agents & Managers (For Others)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6552",
+      "name": "Land Subdividers & Developers (No Cemeteries)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6770",
+      "name": "Blank Checks",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6792",
+      "name": "Oil Royalty Traders",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6794",
+      "name": "Patent Owners & Lessors",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6795",
+      "name": "Mineral Royalty Traders",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6798",
+      "name": "Real Estate Investment Trusts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "6799",
+      "name": "Investors, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7000",
+      "name": "Hotels, Rooming Houses, Camps & Other Lodging Places",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7011",
+      "name": "Hotels & Motels",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7200",
+      "name": "Services-Personal Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7310",
+      "name": "Services-Advertising",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7311",
+      "name": "Services-Advertising Agencies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7320",
+      "name": "Services-Consumer Credit Reporting, Collection Agencies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7330",
+      "name": "Services-Mailing, Reproduction, Commercial Art & Photography",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7331",
+      "name": "Services-Direct Mail Advertising Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7340",
+      "name": "Services-To Dwellings & Other Buildings",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7350",
+      "name": "Services-Miscellaneous Equipment Rental & Leasing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7359",
+      "name": "Services-Equipment Rental & Leasing, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7361",
+      "name": "Services-Employment Agencies",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7363",
+      "name": "Services-Help Supply Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7370",
+      "name": "Services-Computer Programming, Data Processing, Etc.",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7371",
+      "name": "Services-Computer Programming Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7372",
+      "name": "Services-Prepackaged Software",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7373",
+      "name": "Services-Computer Integrated Systems Design",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7374",
+      "name": "Services-Computer Processing & Data Preparation",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7377",
+      "name": "Services-Computer Rental & Leasing",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7380",
+      "name": "Services-Miscellaneous Business Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7381",
+      "name": "Services-Detective, Guard & Armored Car Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7389",
+      "name": "Services-Business Services, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7500",
+      "name": "Services-Automotive Repair, Services & Parking",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7510",
+      "name": "Services-Auto Rental & Leasing (No Drivers)",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7600",
+      "name": "Services-Miscellaneous Repair Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7812",
+      "name": "Services-Motion Picture & Video Tape Production",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7819",
+      "name": "Services-Allied To Motion Picture Production",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7822",
+      "name": "Services-Motion Picture & Video Tape Distribution",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7830",
+      "name": "Services-Motion Picture Theaters",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7841",
+      "name": "Services-Video Tape Rental",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7900",
+      "name": "Services-Amusement & Recreation Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7948",
+      "name": "Services-Racing, Including Track Operation",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7990",
+      "name": "Services-Miscellaneous Amusement & Recreation",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "7997",
+      "name": "Services-Membership Sports & Recreation Clubs",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8000",
+      "name": "Services-Health Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8011",
+      "name": "Services-Offices & Clinics of  Doctors of  Medicine",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8050",
+      "name": "Services-Nursing & Personal Care Facilities",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8051",
+      "name": "Services-Skilled Nursing Care Facilities",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8060",
+      "name": "Services-Hospitals",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8062",
+      "name": "Services-General Medical & Surgical Hospitals, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8071",
+      "name": "Services-Medical Laboratories",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8082",
+      "name": "Services-Home Health Care Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8090",
+      "name": "Services-Misc Health & Allied Services, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8093",
+      "name": "Services-Specialty Outpatient Facilities, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8111",
+      "name": "Services-Legal Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8200",
+      "name": "Services-Educational Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8351",
+      "name": "Services-Child Day Care Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8700",
+      "name": "Services-Engineering, Accounting, Research, Management",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8711",
+      "name": "Services-Engineering Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8731",
+      "name": "Services-Commercial Physical & Biological Research",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8734",
+      "name": "Services-Testing Laboratories",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8741",
+      "name": "Services-Management Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8742",
+      "name": "Services-Management Consulting Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8744",
+      "name": "Services-Facilities Support Management Services",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8880",
+      "name": "American Depositary Receipts",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "8900",
+      "name": "Services-Services, NEC",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    },
+    {
+      "code": "9995",
+      "name": "Non-Operating Establishments",
+      "translations": {},
+      "level": "secReportedIndustry",
+      "parentCode": null
+    }
+  ]
+}

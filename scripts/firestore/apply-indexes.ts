@@ -16,7 +16,7 @@ type CompositeIndex = {
 
 type FirestoreIndexesFile = {
   indexes: CompositeIndex[];
-  fieldOverrides?: {collectionGroup:string;fieldPath:string;indexes:IndexField[]}[];
+  fieldOverrides?: {collectionGroup:string;fieldPath:string;indexes:(Partial<IndexField>&{queryScope?:string})[]}[];
 };
 
 function runCommand(command: string, args: string[]): { code: number; output: string } {
@@ -105,12 +105,16 @@ function main() {
   for (const index of indexes) applyIndex(projectId, index);
   const overrides = (parsed.fieldOverrides ?? []).filter(field => !groups?.length || groups.includes(field.collectionGroup));
   // Retired search indexes must remain available until the web and workers switch readers.
-  if (overrides.length && process.env.FIRESTORE_APPLY_FIELD_OVERRIDES !== '1') console.log('Deferred field exemptions: apply explicitly after company search rollout and cleanup.');
-  if (process.env.FIRESTORE_APPLY_FIELD_OVERRIDES === '1') for (const field of overrides) {
-    if (field.indexes.length) throw new Error('Only explicit field-index exemptions are supported');
-    const result = runCommand('gcloud', ['firestore','indexes','fields','update',field.fieldPath,`--project=${projectId}`,`--collection-group=${field.collectionGroup}`,'--disable-indexes','--quiet']);
+  if (overrides.some(field=>!field.indexes.length) && process.env.FIRESTORE_APPLY_FIELD_OVERRIDES !== '1') console.log('Deferred field exemptions: apply explicitly after company search rollout and cleanup.');
+  for (const field of overrides) {
+    if(!field.indexes.length && process.env.FIRESTORE_APPLY_FIELD_OVERRIDES !== '1')continue;
+    const configs=field.indexes.map(index=>{
+      if(!index.order||index.queryScope!=='COLLECTION')throw Error('Unsupported single-field index');
+      return `--index=order=${normalizeOrder(index.order)}`;
+    });
+    const result = runCommand('gcloud', ['firestore','indexes','fields','update',field.fieldPath,`--project=${projectId}`,`--collection-group=${field.collectionGroup}`,...(configs.length?configs:['--disable-indexes']),'--quiet']);
     if (result.code !== 0) throw new Error(result.output.trim() || 'Field index exemption failed');
-    console.log(`Disabled single-field indexes: ${field.collectionGroup}.${field.fieldPath}`);
+    console.log(`${configs.length?'Configured':'Disabled'} single-field indexes: ${field.collectionGroup}.${field.fieldPath}`);
   }
   console.log("Firestore index apply complete.");
 }
