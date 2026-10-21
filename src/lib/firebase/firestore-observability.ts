@@ -101,7 +101,7 @@ export function observeFirestore(db: Firestore, sink: (entry: FirestoreOperation
           entityTx.writes.push({method,args:args.map(unwrap),site});
           return proxy;
         }
-        if(mutating&&kind==='doc'&&isEntityPath(entityPath)){
+        if(mutating&&kind==='doc'&&isEntityPath(entityPath??'')){
           // Direct entity mutations use the same transactional lifecycle rules.
           return observed.runTransaction(async tx=>{
             if(method!=='create')await tx.get(proxy);

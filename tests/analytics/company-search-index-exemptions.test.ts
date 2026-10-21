@@ -16,7 +16,11 @@ test('index maintenance defers obsolete search exemptions until explicitly enabl
   const composites=commands.filter(command=>command.includes('composite'));
   assert.equal(composites.length,config.indexes.filter((index:{collectionGroup:string})=>index.collectionGroup==='companies').length);
   const fields=commands.filter(command=>command.includes('fields'));
-  assert.equal(fields.length,enabled?config.fieldOverrides.filter((field:{collectionGroup:string})=>field.collectionGroup==='companies').length:0);
-  for(const command of fields){assert(command.includes('--disable-indexes'));assert(command.includes('--collection-group=companies'));assert(!command.includes('searchPrefixes'));assert(!command.includes('symbolLower'));}
+  assert.equal(fields.length,config.fieldOverrides.filter((field:{collectionGroup:string;indexes:unknown[]})=>field.collectionGroup==='companies'&&(enabled||field.indexes.length)).length);
+  for(const command of fields){
+   assert(command.includes('--collection-group=companies'));assert(!command.includes('searchPrefixes'));assert(!command.includes('symbolLower'));
+   if(command.includes('updatedAt')){assert(command.includes('--index=order=ascending'));assert(command.includes('--index=order=descending'));assert(!command.includes('--disable-indexes'));}
+   else {assert(enabled);assert(command.includes('--disable-indexes'));}
+  }
  }
 });
