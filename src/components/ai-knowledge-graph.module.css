@@ -344,3 +344,6 @@
   --border-control:#5B728D;
   --accent-intelligence:#49D6E8;
 }
+
+/* In the dark site theme the Universe sits one step above near-black so it blends with the lighter rails. */
+:global(:root:not([data-theme="light"])) .canvas3d { --graph-canvas:#0E1522; }
