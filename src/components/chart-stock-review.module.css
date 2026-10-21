@@ -1,4 +1,6 @@
 .review{margin-top:12px;border-top:1px solid var(--ui-line,#30485a);padding-top:10px;font-size:12px;color:var(--ui-text,#dbeaf6)}
+.sectorTabs{display:flex;gap:6px;overflow-x:auto;padding:8px 2px;max-width:100%}.sectorTabs button{flex-shrink:0;white-space:nowrap}.sectorTabs button[aria-pressed=true]{background:var(--ui-selected,#24516a);border-color:var(--selection-outline,#a7e9fa)}
+.review details{margin:8px 0}.review details summary{cursor:pointer}.review details a{display:block;padding:4px 0}
 .review header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .review h3,.tools h3{margin:0;font-size:13px}.review h3 small{color:var(--ui-muted,#9db4c8);margin-left:6px;font-weight:400}
 .review p,.tools p{color:var(--ui-muted,#9db4c8);font-size:12px}

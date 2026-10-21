@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { adjacentTimelineBars, TIMELINE_RANGES, TIMELINE_RANGE_LABELS, TIMELINE_INTERVALS, resolvedTimelineInterval, timelinePriceBars, timelinePeriod, timelinePeriodEnd, tradingSessionAxis, layoutOverlayMarkers, companyTimelineEvents, timelineWindow, type TimelineIntervalChoice, type TimelineRange, type TimelineEvent, type TimelinePrices } from "@/lib/ui/company-timeline";
-import { MA_PERIODS, MA_COLORS, movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands, type IndicatorPoint } from '@/lib/ui/technical-indicators';
+import { MA_PERIODS, MA_COLORS, movingAveragePeriods, volumeMovingAverage, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands, type IndicatorPoint } from '@/lib/ui/technical-indicators';
 import { ChartSizeControls, useChartSize } from './chart-size-controls';
 import { FloatingEventWindow, eventWindowAnchor, type EventWindowAnchor } from './event-details-window';
 import {EVENT_TYPES,eventPresentation} from '@/lib/events/classification';
@@ -20,6 +20,7 @@ import { ChartToolbarIcon } from "./chart-toolbar-icon";
 import { CompanySearch } from "./company-search";
 import type { SearchSuggestion } from "./ticker-search-input";
 import { ChartStockReview, type ChartWatchlist } from './chart-stock-review';
+import { ChartIndicatorStudy } from './chart-indicator-study';
 import { useIndustryBrowseParam, updateIndustryBrowse } from './industry-browse-state';
 
 export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPrices, events: originalEvents, onSelectEvent: originalSelectEvent,onDismissEvent,selectedEventId: originalEventId,eventReturns,shareTheme = 'ai', onPriceHistoryChange, closed:controlledClosed, onClosedChange, watchlist, onSelectCompany, stockToolsRequest, onCloseStockToolsRequest }: { stockToolsRequest?:{companyId:string;anchor:EventWindowAnchor}|null; onCloseStockToolsRequest?:()=>void; watchlist?:ChartWatchlist; onSelectCompany?:(id:string)=>void; closed?:boolean; onClosedChange?:(closed:boolean)=>void; onPriceHistoryChange?: (available: boolean) => void; companyId: string; shareTheme?: CompanyThemeId; graph?: KnowledgeGraph; initialPrices?: TimelinePrices; events?: TimelineEvent[]; onSelectEvent?: (id: string,anchor?:EventWindowAnchor) => void; onDismissEvent?:()=>void;selectedEventId?:string;eventReturns?:Record<string,EventPriceReturn[]> }) {
@@ -63,6 +64,8 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const periodChangeLabel=text(({daily:'Daily change',weekly:'Weekly change',monthly:'Monthly change',quarterly:'Quarterly change',yearly:'Yearly change'} as const)[interval],({daily:'当日涨跌幅',weekly:'周涨跌幅',monthly:'月涨跌幅',quarterly:'季度涨跌幅',yearly:'年度涨跌幅'} as const)[interval]);
   const barsLabel=text(({daily:'stored daily bars',weekly:'weekly bars',monthly:'monthly bars',quarterly:'quarterly bars',yearly:'yearly bars'} as const)[interval],({daily:'条已存储日线',weekly:'条周线',monthly:'条月线',quarterly:'条季线',yearly:'条年线'} as const)[interval]);
   const showKdj=indicator==='kdj',showBoll=indicator==='boll',showOscillator=showMacd||showKdj||showBoll;
+  const [indicatorStudy,setIndicatorStudy]=useState<'volume'|'macd'|null>(null);
+  const [volumeAverages,setVolumeAverages]=useState(false);
   const [shareResult,setShareResult] = useState<{url:string;copied:boolean}|null>(null);
   const changeSettings = (patch: Partial<SharedChart>) => { updateIndustryBrowse(sharedChartParams({...settings,...patch})); setShareResult(null); };
   const setDays = (range: TimelineRange) => changeSettings({range});
@@ -81,7 +84,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     }
     previousSize.current = chartSize;
   }, [chartSize, chosenStock, researchPath, settings, showWatchlist]);
-  const needsHistory = averages.length>0 || indicator!=='none';
+  const needsHistory = averages.length>0 || indicator!=='none'||volumeAverages;
   const averagePeriods=[...new Set([...MA_PERIODS,...averages])].sort((a,b)=>a-b);
   const maxAverage=Math.max(60,...averages);
   const [maSettings,setMaSettings]=useState<EventWindowAnchor|null>(null);
@@ -109,6 +112,55 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const hoverOnly=priceSelection?.companyId!==companyId&&hoverPrice?.companyId===companyId;
   const [width, setWidth] = useState(600);
   const chart = useRef<HTMLDivElement>(null);
+  const priceTooltip = useRef<HTMLDivElement>(null);
+  const hoverPoint = useRef<{x:number;y:number}|null>(null);
+  const [fullChartHeight,setFullChartHeight] = useState(0);
+  const positionPriceTooltip = useCallback(() => {
+    const panel=priceTooltip.current,container=chart.current,point=hoverPoint.current;
+    if(!panel||!container||!point||panel.dataset.priceMode!=='hover')return;
+    const bounds=container.getBoundingClientRect(),gap=12,pad=8;
+    panel.style.maxHeight=`${window.innerHeight-pad*2}px`;
+    const width=panel.offsetWidth,height=panel.offsetHeight;
+    const minX=Math.max(pad,bounds.left+pad),maxX=Math.min(window.innerWidth-pad,bounds.right-pad)-width;
+    let x=point.x+gap,y=point.y+gap;
+    if(x>maxX)x=point.x-gap-width;
+    if(y+height>window.innerHeight-pad)y=point.y-gap-height;
+    panel.style.left=`${Math.max(minX,Math.min(maxX,x))-bounds.left}px`;
+    panel.style.top=`${Math.max(pad,Math.min(window.innerHeight-pad-height,y))-bounds.top}px`;
+    panel.style.right='auto';
+  },[]);
+  useLayoutEffect(() => {
+    if(!hoverOnly){
+      if(priceTooltip.current)Object.assign(priceTooltip.current.style,{left:'auto',right:'8px',top:'4px',maxHeight:'calc(100% - 32px)'});
+      return;
+    }
+    if(!priceDate||closed)return;
+    positionPriceTooltip();
+    const observer=new ResizeObserver(positionPriceTooltip);
+    if(priceTooltip.current)observer.observe(priceTooltip.current);
+    window.addEventListener('resize',positionPriceTooltip);
+    window.addEventListener('scroll',positionPriceTooltip,true);
+    return ()=>{observer.disconnect();window.removeEventListener('resize',positionPriceTooltip);window.removeEventListener('scroll',positionPriceTooltip,true);};
+  },[hoverOnly,priceDate,closed,positionPriceTooltip]);
+  useLayoutEffect(() => {
+    const root=chartSizeRef.current,plot=chart.current;
+    if(chartSize!=='full'||!root||!plot||closed)return;
+    const measure=()=>{
+      const coverage=root.querySelector<HTMLElement>('[data-timeline-coverage]');
+      const review=root.querySelector<HTMLElement>('[data-chart-sectors]');
+      const controls=root.querySelector<HTMLElement>('[data-indicator-study-controls]');
+      const top=plot.getBoundingClientRect().top-root.getBoundingClientRect().top;
+      setFullChartHeight(Math.max(240,Math.floor(root.clientHeight-top-parseFloat(getComputedStyle(root).paddingBottom)-(coverage?.offsetHeight??18)-(review?review.offsetHeight+12:0)-(controls?controls.offsetHeight+8:0)-12)));
+    };
+    measure();
+    const observer=new ResizeObserver(measure);
+    observer.observe(root);
+    const observeChildren=()=>{for(const child of root.children)if(child!==plot)observer.observe(child);measure();};
+    observeChildren();
+    const mutations=new MutationObserver(observeChildren);
+    mutations.observe(root,{childList:true});
+    return ()=>{observer.disconnect();mutations.disconnect();};
+  },[chartSize,chartSizeRef,closed,showEvents,indicator,averages.length]);
   const [clusterAnchor,setClusterAnchor] = useState<EventWindowAnchor|null>(null);
   const closePriceDetails = (restoreFocus = false) => {
     setPriceSelection(null);
@@ -181,7 +233,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const x = (date: string) => left + axis.ratio(barDate(date)) * plotWidth;
   const tickCount = width < 440 ? 3 : 5;
   const tickDates = [...new Set(Array.from({length:tickCount},(_,i)=>axis.dateAt(i/(tickCount-1))))];
-  const small=width<440,priceTop=24,priceBottom=chartSize==='compact'?(small?164:140):Math.max(160,Math.floor(viewportHeight*(chartSize==='full'?.65:.4))-56-(showOscillator?100:0)),volumeBottom=priceBottom+32,chartHeight=volumeBottom+24+(showOscillator?100:0);
+  const small=width<440,priceTop=24,priceBottom=chartSize==='compact'?(small?164:140):Math.max(160,(chartSize==='full'?(fullChartHeight||viewportHeight-140):Math.floor(viewportHeight*.4))-56-(showOscillator?100:0)),volumeBottom=priceBottom+32,chartHeight=volumeBottom+24+(showOscillator?100:0);
   const selected = events.find(e => e.id === selectedId && e.date >= eventStart && e.date <= eventEnd);
   const activeDate = priceDate ?? (hoverDate && hoverDate >= eventStart && hoverDate <= eventEnd ? hoverDate : selected?.date);
   const candles=prices.filter((price):price is typeof price&{open:number;high:number;low:number}=>price.open!==undefined&&price.high!==undefined&&price.low!==undefined);
@@ -202,7 +254,9 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   const selectedGroup=groups.find(group=>group.events.some(event=>event.id===selectedId));
   const activityValue=(price:typeof prices[number])=>activity==='turnover'?price.amount??null:price.volume;
   const activityLabel=activity==='turnover'?text('Turnover','成交额'):text('Volume','成交量');
-  const maxVolume = Math.max(1, ...prices.map(p => activityValue(p) ?? 0));
+  const volumeLines=[5,10].map(period=>volumeMovingAverage(history,period).filter(point=>point.date>=start&&point.date<=end));
+  const maxVolume = Math.max(1, ...prices.map(p => activityValue(p) ?? 0),...(volumeAverages&&activity==='volume'?volumeLines.flatMap(points=>points.map(point=>point.value)):[]));
+  const openIndicatorStudy=(kind:'volume'|'macd')=>{setHoverPrice(null);setPriceSelection(null);setIndicatorStudy(kind);};
   const hasPriceGap=(previous:string,current:string)=>aggregated?!adjacentTimelineBars(previous,current,interval):Date.parse(current)-Date.parse(previous)>7*86_400_000;
   const pricePath = prices.map((p, index) => { const command = index === 0 || hasPriceGap(prices[index-1].date,p.date) ? "M" : "L"; return `${command}${x(p.date).toFixed(2)},${y(p.close).toFixed(2)}`; }).join(" ");
   // Bridge long intervals without implying that daily bars were recorded inside them.
@@ -272,7 +326,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
     return <span className={styles.chooserReturn} data-return-direction={value.change>0?'up':value.change<0?'down':'flat'} title={hint} aria-label={hint}>{`${label} `}{value.change>0?'▲':value.change<0?'▼':'—'} {signedPercent(value.change)}</span>;
   };
   function chooseStock(item:SearchSuggestion){
-    setStockTools(null);setStockChoice(item.id===initialCompanyId?null:{source:initialCompanyId,item});setPriceSelection(null);setHoverPrice(null);setClusterId('');setHoverDate(null);setEventAnchor(null);setSelectedId('');onDismissEvent?.();setShareResult(null);
+    setIndicatorStudy(null);setStockTools(null);setStockChoice(item.id===initialCompanyId?null:{source:initialCompanyId,item});setPriceSelection(null);setHoverPrice(null);setClusterId('');setHoverDate(null);setEventAnchor(null);setSelectedId('');onDismissEvent?.();setShareResult(null);
   }
   function reviewCompany(node:GraphNode){
     if(node.id===companyId)return;
@@ -281,7 +335,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
   }
   const openStockTools=(event:React.MouseEvent<HTMLElement>)=>{
     event.preventDefault();
-    if((event.target as Element).closest('[data-event-window]'))return;
+    if((event.target as Element).closest('[data-event-window],[data-indicator-study]'))return;
     event.stopPropagation();setHoverPrice(null);setPriceSelection(null);
     setStockTools({companyId,anchor:eventWindowAnchor(event)});
   };
@@ -345,7 +399,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
         const line=e.target.closest('[data-price-line],[data-price-hit]');
         const rect=e.currentTarget.getBoundingClientRect(),ratio=Math.max(0,Math.min(1,(e.clientX-rect.left-left)/plotWidth));
         const date=candle?.getAttribute('data-price-candle')??(line&&prices.length?axis.dateAt(ratio):null);
-        if(date)setPriceSelection(null);
+        if(date){hoverPoint.current={x:e.clientX,y:e.clientY};positionPriceTooltip();setPriceSelection(null);}
         setHoverPrice(previous=>date?previous?.companyId===companyId&&previous.date===date?previous:{companyId,date}:null);
       }} onKeyDown={e=>{
         if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();zoomView(e.key==='ArrowUp'?1:-1);return;}
@@ -366,11 +420,16 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
           {movingAverages.map((points,index)=>averages.includes(averagePeriods[index])&&<path key={averagePeriods[index]} data-moving-average={averagePeriods[index]} d={indicatorPath(points,y)} fill="none" stroke={MA_COLORS[index]} strokeWidth={1.5} pointerEvents="none"/>)}
           {prices.map(p => <circle key={p.date} cx={x(p.date)} cy={y(p.close)} r={useCandles?(p.open===undefined?2:0):prices.length < 3 ? 3 : 1} fill="var(--chart-line,#79cfe9)" pointerEvents="none"/>)}
         </> : <text x={left + 8} y={volumeBottom-8}>{!data ? text("Loading stored prices…", "正在读取历史股价…") : !data.available ? text("Stored prices unavailable", "历史股价暂时无法读取") : companyId.startsWith("ORG:") ? text("No supported price history", "暂无支持的股价记录") : text("No stored prices in this range", "此范围暂无已存储股价")}</text>}
+        <g data-volume-panel onDoubleClick={activity==='volume'?()=>openIndicatorStudy('volume'):undefined}>
+        {activity==='volume'&&<rect data-indicator-hit="volume" x={0} y={priceBottom+3} width={width} height={31} fill="transparent"/>}
         <text x={0} y={volumeBottom-12}>{activityLabel}{activity==='turnover'&&data?.currency?` (${data.currency})`:''}</text>
         {prices.filter(p => activityValue(p) !== null).map(p => <rect key={p.date} data-volume-bar={activity==='volume'?p.date:undefined} data-turnover-bar={activity==='turnover'?p.date:undefined} data-volume-direction={p.open===undefined?'flat':p.close>p.open?'up':p.close<p.open?'down':'flat'} x={x(p.date) - 1} y={volumeBottom - activityValue(p)! / maxVolume * 22} width={Math.max(1, Math.min(4, plotWidth / Math.max(1, prices.length) * .65))} height={activityValue(p)! / maxVolume * 22} fill={p.open===undefined?'var(--price-flat,#b8cfe1)':p.close>p.open?'var(--price-up,#55dfbb)':p.close<p.open?'var(--price-down,#ff8ea1)':'var(--price-flat,#b8cfe1)'} />)}
         {prices.length > 0 && prices.every(p => activityValue(p) === null) && <text x={left + 8} y={volumeBottom-6}>{activity==='turnover'?text('Turnover unavailable','成交额暂无数据'):text("Volume not recorded", "未记录成交量")}</text>}
         <line x1={left} x2={right} y1={volumeBottom+2} y2={volumeBottom+2} stroke="var(--ui-line,#30485a)" />
-        {showMacd&&<g data-macd-panel>
+        {volumeAverages&&activity==='volume'&&volumeLines.map((points,index)=><path key={index} data-volume-ma={index===0?5:10} d={indicatorPath(points,value=>volumeBottom-value/maxVolume*22)} fill="none" stroke={MA_COLORS[index]} strokeWidth={1.5} pointerEvents="none"/>)}
+        </g>
+        {showMacd&&<g data-macd-panel onDoubleClick={()=>openIndicatorStudy('macd')}>
+          <rect data-indicator-hit="macd" x={0} y={macdTop-20} width={width} height={macdBottom-macdTop+24} fill="transparent"/>
           <text x={0} y={macdTop-6}>{text('MACD','MACD')}</text>
           <line x1={left} x2={right} y1={macdY(0)} y2={macdY(0)} stroke="var(--ui-line,#30485a)"/>
           {[-macdExtent,0,macdExtent].map(value=><text key={value} x={left-7} y={macdY(value)+4} textAnchor="end">{value.toFixed(2)}</text>)}
@@ -401,7 +460,7 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
         {activeDate && <line x1={priceDate && nearest ? x(nearest.date) : x(activeDate)} x2={priceDate && nearest ? x(nearest.date) : x(activeDate)} y1={8} y2={volumeBottom+2} stroke="var(--ui-muted,#c4e8f4)" opacity={.55} pointerEvents="none"/>}
         {priceDate && nearest && <circle cx={x(nearest.date)} cy={y(nearest.close)} r={4} fill="var(--chart-line,#79cfe9)" stroke="#e5f7ff" strokeWidth={2} pointerEvents="none"/>}
       </svg>
-      {priceDate && nearest && <div className={styles.priceTooltip} role="group" aria-label={text("Price details", "股价详情")} data-price-details data-price-mode={hoverOnly?'hover':'pinned'} style={{right:8,top:4,transform:'none'}}>
+      {priceDate && nearest && <div ref={priceTooltip} className={styles.priceTooltip} role="group" aria-label={text("Price details", "股价详情")} data-price-details data-price-mode={hoverOnly?'hover':'pinned'} style={hoverOnly?{left:8,top:4,transform:'none'}:{right:8,top:4,transform:'none'}}>
         <div className={styles.priceDetailsHeader}><span>{aggregated&&nearest.periodStart?`${nearest.periodStart} – ${nearest.date}`:nearest.date}</span>{!hoverOnly&&<button type="button" aria-label={text("Close price details", "关闭股价详情")} onClick={()=>closePriceDetails(true)}>×</button>}</div>
         {useCandles&&nearest.open!==undefined&&nearest.high!==undefined&&nearest.low!==undefined&&<span data-hover-ohlc>{text('O','开')} {nearest.open.toFixed(2)} · {text('H','高')} {nearest.high.toFixed(2)} · {text('L','低')} {nearest.low.toFixed(2)}</span>}
         <strong>{text("Close", "收盘价")} · {new Intl.NumberFormat(locale, data?.currency ? {style:"currency",currency:data.currency,minimumFractionDigits:2,maximumFractionDigits:2} : {minimumFractionDigits:2,maximumFractionDigits:2}).format(nearest.close)}</strong>
@@ -421,8 +480,14 @@ export function CompanyTimeline({ companyId: initialCompanyId, graph, initialPri
         <div className={styles.eventList}>{openCluster.events.map(event=>{const style=eventPresentation(event,chinese);return <button key={event.id} type="button" onClick={click=>selectEvent(event.id,click)}><span style={{color:categoryColor(style.color)}}>{style.symbol} {style.label}</span> · {formatDate(event.date)} · {event.title}{returnFor(event.id)&&returnLabel(returnFor(event.id)!,event)}</button>;})}</div>
       </FloatingEventWindow>}
     </div>
-    <p className={styles.coverage}>{chartMode==='candles'&&prices.length>0&&!useCandles&&<span>{text("OHLC unavailable; showing closes","暂无完整开高低收数据，显示收盘价")} · </span>}{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${barsLabel} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>
+    <p data-timeline-coverage className={styles.coverage}>{chartMode==='candles'&&prices.length>0&&!useCandles&&<span>{text("OHLC unavailable; showing closes","暂无完整开高低收数据，显示收盘价")} · </span>}{activeDate && nearest ? `${formatDate(activeDate)} · ${text("Nearest stored close", "最近的已存储收盘价")} ${nearest.close.toFixed(2)} (${formatDate(nearest.date)}) · ${text("Volume", "成交量")} ${nearest.volume === null ? "—" : new Intl.NumberFormat(locale, { notation: "compact" }).format(nearest.volume)}` : prices.length ? `${prices.length} ${barsLabel} · ${formatDate(prices[0].date)} – ${formatDate(prices.at(-1)!.date)} · ${text("Close may be provider-adjusted", "收盘价可能为供应商复权价")}` : text("Events use source publication dates; missing prices are not filled.", "事件以资料发布日期排列；缺失股价不会填补。")}</p>
     {data && !data.available && <button type="button" className={styles.retry} onClick={() => setRetry(value => value + 1)}>{text("Retry prices", "重试读取股价")}</button>}
+    <div className={styles.studyControls} data-indicator-study-controls>
+      {activity==='volume'&&<><button type="button" onClick={()=>openIndicatorStudy('volume')}>{text('Expand volume','放大成交量')} ↗</button><label><input type="checkbox" checked={volumeAverages} onChange={event=>setVolumeAverages(event.target.checked)}/>{text('Volume MA5 / MA10','量能 MA5 / MA10')}</label></>}
+      {showMacd&&<button type="button" onClick={()=>openIndicatorStudy('macd')}>{text('Expand MACD','放大 MACD')} ↗</button>}
+      <small>{text('Double-click an indicator panel to study it','双击指标区域可放大研究')}</small>
+    </div>
+    {indicatorStudy&&<ChartIndicatorStudy key={`${companyId}:${indicatorStudy}`} companyLabel={chosenStock?.symbol??companyId.split(':').slice(1).join(':')} kind={indicatorStudy} prices={prices} history={history} volumeAverages={volumeAverages} onVolumeAveragesChange={setVolumeAverages} onClose={()=>setIndicatorStudy(null)}/>}
     {stockReview}
     {selected && !onSelectEvent && <FloatingEventWindow key={selected.id} anchor={eventAnchor} title={text('Event details','事件详情')} onClose={()=>{setSelectedId('');setHoverDate(null);}}>
       <strong>{eventPresentation(selected,chinese).symbol} {eventPresentation(selected,chinese).label}</strong><h2>{selected.title}</h2><p>{text('Published','发布于')} · {selected.date}</p>

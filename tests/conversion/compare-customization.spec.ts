@@ -60,8 +60,8 @@ test("company colors and templates save, reload, reset and clear on sign-out", a
   await page.getByRole("button", { name: "Pastel", exact: true }).click();
   await expect(picker).toHaveValue("#123456");
   await expect(page.getByTestId("aapl-color")).toHaveText("#123456");
-  await page.getByRole("button", { name: "Save my defaults" }).click();
-  await expect(page.getByRole("status")).toHaveText("Defaults saved to your account.");
+  await page.getByRole("button", { name: "Save custom colors" }).click();
+  await expect(page.getByRole("status")).toHaveText("Custom colors saved to your account.");
   expect(appearance).toEqual({ template: "pastel", style: "bar", companyColors: { AAPL: "#123456" } });
   await page.reload();
   await page.getByText("Colors & style templates", { exact: true }).click();
@@ -69,9 +69,9 @@ test("company colors and templates save, reload, reset and clear on sign-out", a
   await expect(page.getByRole("button", { name: "Pastel", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.screenshot({ path: info.outputPath("compare-customization.png"), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.getByRole("group", { name: "AAPL color settings" }).getByRole("button", { name: "Default color" }).click();
-  await page.getByRole("button", { name: "Save my defaults" }).click();
-  await expect(page.getByRole("status")).toHaveText("Defaults saved to your account.");
+  await page.getByRole("group", { name: "AAPL color settings" }).getByRole("button", { name: "System default color" }).click();
+  await page.getByRole("button", { name: "Save custom colors" }).click();
+  await expect(page.getByRole("status")).toHaveText("Custom colors saved to your account.");
   expect(appearance.companyColors).toEqual({});
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("test-auth-user", { detail: null })));
   await expect(picker).toHaveCount(0);
@@ -87,9 +87,50 @@ test("failed profile loads prevent overwriting existing preferences and can retr
   await page.goto(origin + "/en/compare");
   await page.getByText("Colors & style templates", { exact: true }).click();
   await expect(page.getByRole("alert")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save my defaults" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save custom colors" })).toBeDisabled();
   failed = false;
   await page.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByLabel("Color for AAPL")).toHaveValue("#123456");
-  await expect(page.getByRole("button", { name: "Save my defaults" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Save custom colors" })).toBeEnabled();
+});
+
+
+test("NVDA restores its last saved apple green after edits, reload and a failed save", async ({ page }) => {
+  await page.addInitScript(() => { window.authScenario = { signedIn: true }; });
+  let appearance = { template: "classic", style: "line", companyColors: {} as Record<string,string> };
+  let failSave = false;
+  await page.route("**/*", route => {
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    if (route.request().method() === "PATCH") {
+      if (failSave) return route.fulfill({ status: 503, json: {error:"unavailable"} });
+      appearance = route.request().postDataJSON();
+    }
+    return route.fulfill({ json: { appearance } });
+  });
+  await page.goto(origin + "/en/compare");
+  const open = () => page.getByText("Colors & style templates", { exact: true }).click();
+  await open();
+  const group = page.getByRole("group", {name:"NVDA color settings",exact:true});
+  const picker = group.getByLabel("Color for NVDA");
+  const restore = group.getByRole("button", {name:"Restore custom color",exact:true});
+  await expect(picker).toBeEnabled();
+  await picker.fill("#dfffa3");
+  await page.getByRole("button", {name:"Save custom colors",exact:true}).click();
+  await expect(page.getByRole("status")).toHaveText("Custom colors saved to your account.");
+  expect(appearance.companyColors.NVDA).toBe("#dfffa3");
+  await picker.fill("#ff00ff");await restore.click();await expect(picker).toHaveValue("#dfffa3");
+  await page.reload();await open();await expect(picker).toHaveValue("#dfffa3");
+  await page.getByRole("button", {name:"Pastel",exact:true}).click();
+  await expect(picker).toHaveValue("#dfffa3");
+  await picker.fill("#ff00ff");failSave = true;
+  await page.getByRole("button", {name:"Save custom colors",exact:true}).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await restore.click();await expect(picker).toHaveValue("#dfffa3");
+  await group.getByRole("button", {name:"System default color",exact:true}).click();
+  await expect(picker).toHaveValue("#b7db9c");
+  await restore.click();await expect(picker).toHaveValue("#dfffa3");
+  failSave = false;await picker.fill("#64dd17");
+  await page.getByRole("button", {name:"Save custom colors",exact:true}).click();
+  await expect(page.getByRole("status")).toHaveText("Custom colors saved to your account.");
+  await picker.fill("#ff00ff");await restore.click();await expect(picker).toHaveValue("#64dd17");
 });

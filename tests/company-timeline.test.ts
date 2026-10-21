@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { adjacentTimelineBars, aggregateTimelinePrices, resolvedTimelineInterval, TIMELINE_RANGES, TIMELINE_INTERVALS, timelinePeriod, timelinePeriodEnd, timelineIndicatorHistoryStart, timelinePriceBars, weeklyTimelinePrices, timelineWeek, tradingSessionAxis, clusterTimelineEvents, companyTimelineEvents, intelligenceTimelineEvents, mapTimelinePrice, timelineDate, timelineWindow } from "../src/lib/ui/company-timeline";
 import type { IntelligenceEvent } from "../src/lib/intelligence/model";
 import type { KnowledgeGraph } from "../src/lib/knowledge-graph/model";
-import { movingAveragePeriods, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands } from '../src/lib/ui/technical-indicators';
+import { movingAveragePeriods, volumeMovingAverage, simpleMovingAverage, movingAverageConvergence, stochasticKdj, bollingerBands } from '../src/lib/ui/technical-indicators';
 import {cachedTimelinePrices} from '../src/lib/ui/timeline-cache';
 import {timelineSplits} from '../src/lib/ui/company-timeline';
 import {loadTimelineSplits} from '../src/lib/ui/corporate-actions';
@@ -460,4 +460,13 @@ test('event shares preserve public selection without personal browsing state',()
   for(const theme of ['robotics','space'] as const) assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'event',true,theme)).searchParams.get('theme'),theme);
   assert.deepEqual([...url.searchParams.keys()].sort(),['chartActivity','chartIndicator','chartInterval','chartEvents','chartMA','chartMacd','chartRange','chartStyle','company','event','theme','view'].sort());
   assert.equal(new URL(chartShareUrl('US:AMD','en',chart,'business_1')).searchParams.get('chartEvent'),'business_1');
+});
+
+
+test('volume averages count stored sessions, include zero and restart after missing volume',()=>{
+ const prices=[10,20,0,30,40,null,50,60,70,80,90].map((volume,index)=>({date:`2026-10-${String(index+1).padStart(2,'0')}`,close:100,volume}));
+ assert.deepEqual(volumeMovingAverage(prices,5),[{date:'2026-10-05',value:20},{date:'2026-10-11',value:70}]);
+ assert.deepEqual(volumeMovingAverage(prices,10),[]);
+ const warmup=Array.from({length:12},(_,index)=>({date:`2026-09-${String(index+1).padStart(2,'0')}`,close:100,volume:(index+1)*100}));
+ assert.equal(volumeMovingAverage(warmup,10).at(-1)?.value,750);
 });

@@ -6,6 +6,18 @@ export const MAX_MA_PERIOD=500;
 export function movingAveragePeriods(values:number[]){return [...new Set(values.filter(value=>Number.isInteger(value)&&value>=1&&value<=MAX_MA_PERIOD))].sort((a,b)=>a-b).slice(0,8);}
 export type IndicatorPoint = { date:string; value:number };
 
+/** Missing volume resets warmup; a recorded zero is a valid trading-session value. */
+export function volumeMovingAverage(prices:TimelinePrice[],period:number):IndicatorPoint[] {
+  if(!Number.isInteger(period)||period<1)throw new Error('Invalid MA period');
+  const window:number[]=[];let sum=0;
+  return prices.flatMap(price=>{
+    if(price.volume===null||!Number.isFinite(price.volume)){window.length=0;sum=0;return [];}
+    window.push(price.volume);sum+=price.volume;
+    if(window.length>period)sum-=window.shift()!;
+    return window.length===period?[{date:price.date,value:sum/period}]:[];
+  });
+}
+
 /** Periods count stored trading sessions, never calendar days or invented holiday prices. */
 export function simpleMovingAverage(prices: TimelinePrice[], period:number): IndicatorPoint[] {
   if (!Number.isInteger(period) || period < 1) throw new Error('Invalid MA period');
