@@ -83,7 +83,7 @@ test("English and Chinese workspace URLs retain SEO and bookmarked company links
     expect(html).toContain('hrefLang="en"');
     expect(html).toContain('hrefLang="zh-CN"');
     expect(html).toContain(`href="/${prefix}/companies"`);
-    expect(html).toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
+    expect(html).not.toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
     await page.goto(`/${prefix}?view=table&company=US%3ANVDA`);
     await expect(page).toHaveTitle(title);
     const name=prefix==='en'?'Company list':'公司列表';
@@ -105,7 +105,7 @@ test("English and Chinese workspace URLs retain SEO and bookmarked company links
   expect(destination.pathname).toBe('/en');expect(destination.searchParams.get('view')).toBe('hierarchy');expect(destination.searchParams.get('company')).toBe('US:MU');
 });
 
-test("Investment Intelligence homepage renders real data and crawlable research links", async ({ request, page }) => {
+test("Investment Intelligence homepage renders real data without Research shortcuts", async ({ request, page }) => {
   test.setTimeout(90_000);
   // Check settled label visibility without sampling the continuous tour's fades.
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -125,9 +125,11 @@ test("Investment Intelligence homepage renders real data and crawlable research 
     expect(home.status()).toBe(200);
     const html = await home.text();
     expect(html).toContain(heading);
-    expect(html).toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
-    expect(html).toContain(`href="/${prefix}/research/amd-ai-ecosystem"`);
+    expect(html).toContain(`href="/${prefix}/companies"`);
+    expect(html).not.toContain(`href="/${prefix}/research/nvidia-ai-ecosystem"`);
+    expect(html).not.toContain(`href="/${prefix}/research/amd-ai-ecosystem"`);
     await page.goto(`/${prefix}`);
+    await expect(page.getByRole('navigation', { name: 'Research shortcuts', exact: true })).toHaveCount(0);
     await expect(page.getByRole("heading", { name: heading, exact: true })).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Sector color legend", exact: true })).toHaveAttribute("aria-expanded", "false");
     await expect(page.locator("canvas")).toBeVisible();
